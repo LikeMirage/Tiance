@@ -11,9 +11,9 @@
 
 .project-market-board__source {
   display: grid;
-  grid-template-columns: minmax(118px, auto) minmax(220px, 1fr) auto;
+  grid-template-columns: 150px minmax(180px, 520px) auto auto;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   padding: 10px 12px;
   border-bottom: 1px solid var(--color-border-subtle);
   background: var(--color-surface-panel-alt);
@@ -28,6 +28,16 @@
   border-radius: 4px;
   background: var(--color-surface-input);
   color: var(--color-text-muted);
+}
+
+.project-market-board__source .project-market-board__input {
+  border-left: 0;
+  border-radius: 0;
+}
+
+.project-market-board__source > .project-market-board__button {
+  border-left: 0;
+  border-radius: 0;
 }
 
 .project-market-board__input:focus-within,
@@ -442,7 +452,8 @@
 
 @media (max-width: 760px) {
   .project-market-board__source {
-    grid-template-columns: minmax(105px, auto) minmax(0, 1fr) auto;
+    grid-template-columns: 150px minmax(120px, 1fr) auto auto;
+    overflow-x: auto;
   }
 
   .project-market-board__toolbar {

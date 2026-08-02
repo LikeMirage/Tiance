@@ -62,6 +62,7 @@ export function ToolMarketBoard({
   return (
     <section className="theme-market-board role-market-board tool-market-board" aria-label={t("toolMarket.ariaLabel")}>
       <OnlineMarketBoardShell
+        syncCollection="tool"
         auxiliary={isFilterOpen ? (
           <ToolMarketFilterPanel
             authors={authors}

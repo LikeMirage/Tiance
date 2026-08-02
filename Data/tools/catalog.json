@@ -67,9 +67,26 @@
       "sort_order": 7,
       "created_at": "2026-08-02T01:06:44.534284+00:00",
       "updated_at": "2026-08-02T01:06:44.534284+00:00"
+    },
+    {
+      "category_id": "4850f094-68fb-464b-9c44-d687c0f69097",
+      "name": "Git",
+      "is_default": false,
+      "sort_order": 8,
+      "created_at": "2026-08-02T00:00:00Z",
+      "updated_at": "2026-08-02T00:00:00Z"
     }
   ],
   "projects": [
+    {
+      "project_id": "c44767b0-4693-4647-9542-c158402ce8a6",
+      "name": "GitHub 仓库同步",
+      "category_id": "4850f094-68fb-464b-9c44-d687c0f69097",
+      "is_default": false,
+      "sort_order": 0,
+      "created_at": "2026-08-02T00:00:00Z",
+      "updated_at": "2026-08-02T00:00:00Z"
+    },
     {
       "project_id": "be90bad1-e47e-54c8-82ca-781caafa3bcf",
       "name": "工作区信息查看",

@@ -62,6 +62,7 @@ export function normalizeOnlineMarketSourceText(source: string): string {
 }
 
 export type OnlineMarketSourceFormProps = {
+  actions?: ReactNode;
   classes: OnlineMarketBoardClasses;
   connectText: string;
   connectingText: string;
@@ -77,6 +78,7 @@ export type OnlineMarketSourceFormProps = {
 };
 
 export function OnlineMarketSourceForm({
+  actions,
   classes,
   connectText,
   connectingText,
@@ -97,7 +99,7 @@ export function OnlineMarketSourceForm({
   };
 
   return (
-    <form className={classes.source} onSubmit={handleSubmit}>
+    <form className={`${classes.source} online-market-source-form`} onSubmit={handleSubmit}>
       {selector}
       <div className={classes.input}>
         <LinkSimple size={15} aria-hidden="true" />
@@ -124,6 +126,7 @@ export function OnlineMarketSourceForm({
             ? refreshText
             : connectText}
       </button>
+      {actions}
     </form>
   );
 }

@@ -11,6 +11,7 @@ from uuid import uuid4
 
 class HostCapability(StrEnum):
     WEB_SEARCH = "web_search"
+    GITHUB_SYNC = "github_sync"
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,8 +21,8 @@ class HostCapabilityGrant:
     capability: HostCapability
     tool_name: str
     tool_call_id: str
-    provider_id: str
-    model_id: str
+    provider_id: str | None
+    model_id: str | None
     project_id: str | None
     session_id: str | None
     expires_at: float
@@ -29,6 +30,7 @@ class HostCapabilityGrant:
 
 _TOOL_CAPABILITY_POLICY: dict[str, frozenset[HostCapability]] = {
     "network_search": frozenset({HostCapability.WEB_SEARCH}),
+    "github_repository_sync": frozenset({HostCapability.GITHUB_SYNC}),
 }
 
 
@@ -49,18 +51,18 @@ class HostCapabilityAccessService:
         lifetime_seconds: int,
     ) -> HostCapabilityGrant | None:
         allowed_capabilities = _TOOL_CAPABILITY_POLICY.get(tool_name, frozenset())
-        if (
-            HostCapability.WEB_SEARCH not in allowed_capabilities
-            or not provider_id
-            or not model_id
-        ):
+        if not allowed_capabilities:
+            return None
+
+        capability = next(iter(allowed_capabilities))
+        if capability is HostCapability.WEB_SEARCH and (not provider_id or not model_id):
             return None
 
         now = monotonic()
         grant = HostCapabilityGrant(
             grant_id=uuid4().hex,
             token=token_urlsafe(32),
-            capability=HostCapability.WEB_SEARCH,
+            capability=capability,
             tool_name=tool_name,
             tool_call_id=tool_call_id,
             provider_id=provider_id,

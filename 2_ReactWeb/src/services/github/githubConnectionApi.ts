@@ -5,6 +5,7 @@ export type GithubRepositorySummary = {
   fullName: string;
   private: boolean;
   defaultBranch: string;
+  canPush: boolean;
 };
 
 export type GithubConnectionStatus = {

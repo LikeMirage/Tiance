@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
@@ -206,6 +207,214 @@ class GithubClient:
             key=lambda item: str(item.get("full_name") or "").lower(),
         )
 
+    async def get_repository_for_sync(
+        self,
+        repository: GithubRepositorySource,
+        *,
+        access_token: str,
+    ) -> dict[str, Any]:
+        return await self._get_json_with_token(
+            self._repository_api_path(repository),
+            access_token=access_token,
+        )
+
+    async def list_repositories_for_sync(
+        self,
+        *,
+        access_token: str,
+    ) -> list[dict[str, Any]]:
+        repositories: list[dict[str, Any]] = []
+        page = 1
+        while True:
+            page_items = await self._get_json_list_with_token(
+                f"/user/repos?affiliation=owner,collaborator,organization_member"
+                f"&sort=full_name&per_page=100&page={page}",
+                access_token=access_token,
+            )
+            repositories.extend(page_items)
+            if len(page_items) < 100:
+                return repositories
+            page += 1
+
+    async def get_branch_snapshot(
+        self,
+        repository: GithubRepositorySource,
+        branch: str,
+        *,
+        access_token: str,
+    ) -> tuple[str | None, str | None, tuple[dict[str, Any], ...]]:
+        owner = quote(repository.owner, safe="")
+        name = quote(repository.repository, safe="")
+        safe_branch = quote(branch, safe="")
+        try:
+            reference = await self._get_json_with_token(
+                f"/repos/{owner}/{name}/git/ref/heads/{safe_branch}",
+                access_token=access_token,
+            )
+        except GithubApiError as exc:
+            if exc.status_code in {404, 409}:
+                return None, None, ()
+            raise
+        target = reference.get("object")
+        head_sha = target.get("sha") if isinstance(target, dict) else None
+        if not isinstance(head_sha, str) or not head_sha:
+            raise GithubApiError("GitHub 分支引用格式无效。")
+        commit = await self._get_json_with_token(
+            f"/repos/{owner}/{name}/git/commits/{quote(head_sha, safe='')}",
+            access_token=access_token,
+        )
+        tree = commit.get("tree")
+        tree_sha = tree.get("sha") if isinstance(tree, dict) else None
+        if not isinstance(tree_sha, str) or not tree_sha:
+            raise GithubApiError("GitHub 提交没有有效文件树。")
+        tree_payload = await self._get_json_with_token(
+            f"/repos/{owner}/{name}/git/trees/{quote(tree_sha, safe='')}?recursive=1",
+            access_token=access_token,
+        )
+        if tree_payload.get("truncated") is True:
+            raise GithubApiError("GitHub 仓库文件树过大，无法安全同步。")
+        raw_entries = tree_payload.get("tree")
+        entries = tuple(
+            item
+            for item in raw_entries
+            if isinstance(item, dict) and item.get("type") == "blob"
+        ) if isinstance(raw_entries, list) else ()
+        return head_sha, tree_sha, entries
+
+    async def fetch_blob(
+        self,
+        repository: GithubRepositorySource,
+        sha: str,
+        *,
+        access_token: str,
+    ) -> bytes:
+        owner = quote(repository.owner, safe="")
+        name = quote(repository.repository, safe="")
+        payload = await self._get_json_with_token(
+            f"/repos/{owner}/{name}/git/blobs/{quote(sha, safe='')}",
+            access_token=access_token,
+        )
+        content = payload.get("content")
+        encoding = payload.get("encoding")
+        if not isinstance(content, str) or encoding != "base64":
+            raise GithubApiError("GitHub 文件内容格式无效。")
+        try:
+            return base64.b64decode(content, validate=False)
+        except (ValueError, TypeError) as exc:
+            raise GithubApiError("GitHub 文件内容无法解码。") from exc
+
+    async def create_blob(
+        self,
+        repository: GithubRepositorySource,
+        content: bytes,
+        *,
+        access_token: str,
+    ) -> str:
+        payload = await self._write_json(
+            "POST",
+            f"{self._repository_api_path(repository)}/git/blobs",
+            access_token=access_token,
+            json_body={
+                "content": base64.b64encode(content).decode("ascii"),
+                "encoding": "base64",
+            },
+        )
+        return self._required_sha(payload, label="GitHub 文件")
+
+    async def create_initial_file(
+        self,
+        repository: GithubRepositorySource,
+        *,
+        path: str,
+        content: bytes,
+        message: str,
+        branch: str,
+        access_token: str,
+    ) -> str:
+        safe_path = "/".join(quote(part, safe="") for part in path.split("/"))
+        payload = await self._write_json(
+            "PUT",
+            f"{self._repository_api_path(repository)}/contents/{safe_path}",
+            access_token=access_token,
+            json_body={
+                "message": message,
+                "content": base64.b64encode(content).decode("ascii"),
+                "branch": branch,
+            },
+        )
+        commit = payload.get("commit")
+        if not isinstance(commit, dict):
+            raise GithubApiError("GitHub 初始化提交格式无效。")
+        return self._required_sha(commit, label="GitHub 初始化提交")
+
+    async def create_tree(
+        self,
+        repository: GithubRepositorySource,
+        entries: list[dict[str, Any]],
+        *,
+        base_tree_sha: str | None,
+        access_token: str,
+    ) -> str:
+        body: dict[str, Any] = {"tree": entries}
+        if base_tree_sha:
+            body["base_tree"] = base_tree_sha
+        payload = await self._write_json(
+            "POST",
+            f"{self._repository_api_path(repository)}/git/trees",
+            access_token=access_token,
+            json_body=body,
+        )
+        return self._required_sha(payload, label="GitHub 文件树")
+
+    async def create_commit(
+        self,
+        repository: GithubRepositorySource,
+        *,
+        message: str,
+        tree_sha: str,
+        parent_sha: str | None,
+        access_token: str,
+    ) -> str:
+        payload = await self._write_json(
+            "POST",
+            f"{self._repository_api_path(repository)}/git/commits",
+            access_token=access_token,
+            json_body={
+                "message": message,
+                "tree": tree_sha,
+                "parents": [parent_sha] if parent_sha else [],
+            },
+        )
+        return self._required_sha(payload, label="GitHub 提交")
+
+    async def publish_branch_commit(
+        self,
+        repository: GithubRepositorySource,
+        *,
+        branch: str,
+        commit_sha: str,
+        branch_exists: bool,
+        access_token: str,
+    ) -> None:
+        safe_branch_path = "/".join(
+            quote(part, safe="") for part in branch.strip("/").split("/")
+        )
+        path = f"{self._repository_api_path(repository)}/git/refs/heads/{safe_branch_path}"
+        if branch_exists:
+            await self._write_json(
+                "PATCH",
+                path,
+                access_token=access_token,
+                json_body={"sha": commit_sha, "force": False},
+            )
+            return
+        await self._write_json(
+            "POST",
+            f"{self._repository_api_path(repository)}/git/refs",
+            access_token=access_token,
+            json_body={"ref": f"refs/heads/{branch}", "sha": commit_sha},
+        )
+
     async def get_repository_default_branch(self, repository: GithubRepositorySource) -> str:
         payload = await self._get_json(
             f"/repos/{quote(repository.owner, safe='')}/{quote(repository.repository, safe='')}",
@@ -297,6 +506,66 @@ class GithubClient:
             raise GithubApiError("GitHub 返回了无效响应。", status_code=response.status_code)
         return payload
 
+    async def _get_json_with_token(
+        self,
+        path: str,
+        *,
+        access_token: str,
+    ) -> dict[str, Any]:
+        response = await self._request(
+            "GET",
+            f"{_GITHUB_API}{path}",
+            token=access_token,
+        )
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise GithubApiError("GitHub 返回了无效响应。", status_code=response.status_code) from exc
+        if not isinstance(payload, dict):
+            raise GithubApiError("GitHub 返回了无效响应。", status_code=response.status_code)
+        return payload
+
+    async def _get_json_list_with_token(
+        self,
+        path: str,
+        *,
+        access_token: str,
+    ) -> list[dict[str, Any]]:
+        response = await self._request(
+            "GET",
+            f"{_GITHUB_API}{path}",
+            token=access_token,
+        )
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise GithubApiError("GitHub 返回了无效响应。", status_code=response.status_code) from exc
+        if not isinstance(payload, list):
+            raise GithubApiError("GitHub 返回了无效响应。", status_code=response.status_code)
+        return [item for item in payload if isinstance(item, dict)]
+
+    async def _write_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        access_token: str,
+        json_body: dict[str, Any],
+    ) -> dict[str, Any]:
+        response = await self._request(
+            method,
+            f"{_GITHUB_API}{path}",
+            token=access_token,
+            json_body=json_body,
+        )
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise GithubApiError("GitHub 返回了无效响应。", status_code=response.status_code) from exc
+        if not isinstance(payload, dict):
+            raise GithubApiError("GitHub 返回了无效响应。", status_code=response.status_code)
+        return payload
+
     async def _fetch_bytes(
         self,
         url: str,
@@ -363,13 +632,21 @@ class GithubClient:
             raise
         return downloaded, digest.hexdigest()
 
-    async def _request(self, method: str, url: str, *, token: str | None) -> httpx.Response:
+    async def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        token: str | None,
+        json_body: dict[str, Any] | None = None,
+    ) -> httpx.Response:
         client = get_shared_http_client()
         try:
             response = await client.request(
                 method,
                 url,
                 headers=self._headers(token),
+                json=json_body,
                 timeout=get_http_timeout(),
             )
         except httpx.RequestError as exc:
@@ -393,6 +670,19 @@ class GithubClient:
         if response.status_code in {403, 429}:
             raise GithubApiError("GitHub 拒绝了请求，请检查仓库授权或稍后重试。", status_code=response.status_code)
         raise GithubApiError(f"GitHub 请求失败（{response.status_code}）。", status_code=response.status_code)
+
+    @staticmethod
+    def _required_sha(payload: dict[str, Any], *, label: str) -> str:
+        sha = payload.get("sha")
+        if not isinstance(sha, str) or not sha:
+            raise GithubApiError(f"{label}没有返回有效版本标识。")
+        return sha
+
+    @staticmethod
+    def _repository_api_path(repository: GithubRepositorySource) -> str:
+        owner = quote(repository.owner, safe="")
+        name = quote(repository.repository, safe="")
+        return f"/repos/{owner}/{name}"
 
     async def _oauth_post(self, url: str, data: dict[str, str]) -> dict[str, Any]:
         client = get_shared_http_client()

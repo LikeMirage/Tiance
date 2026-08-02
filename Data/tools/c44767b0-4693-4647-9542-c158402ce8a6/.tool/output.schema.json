@@ -1,0 +1,41 @@
+{
+  "additionalProperties": true,
+  "description": "返回当前集合、连接状态、仓库绑定、可用仓库或同步计划。失败时返回 ok=false 和明确错误；任何响应都不会包含 GitHub Token。",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "action": {
+      "type": "string"
+    },
+    "collection": {
+      "type": "string"
+    },
+    "binding": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "repositories": {
+      "type": "array"
+    },
+    "plan": {
+      "type": "object"
+    },
+    "commitSha": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "error": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}
+

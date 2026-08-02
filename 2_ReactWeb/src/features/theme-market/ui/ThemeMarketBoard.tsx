@@ -67,6 +67,7 @@ export function ThemeMarketBoard({
   return (
     <section className="theme-market-board" aria-label={t("themeMarket.ariaLabel")}>
       <OnlineMarketBoardShell
+        syncCollection="theme"
         auxiliary={isFilterOpen ? (
           <ThemeMarketFilterPanel
             authors={authors}

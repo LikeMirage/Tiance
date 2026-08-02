@@ -79,6 +79,7 @@ export function ProjectMarketBoard({
   return (
     <section className="project-market-board" aria-label={t(key("ariaLabel"))}>
       <OnlineMarketBoardShell
+        syncCollection={marketScope}
         auxiliary={filterOpen ? (
           <ProjectMarketFilterPanel
             authors={authors}

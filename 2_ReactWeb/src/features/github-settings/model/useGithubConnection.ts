@@ -14,11 +14,13 @@ export function useGithubConnection() {
   const [flow, setFlow] = useState<GithubDeviceFlow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshState, setRefreshState] = useState<"idle" | "loading" | "success">("idle");
   const [isStarting, setIsStarting] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const pollTimerRef = useRef<number | null>(null);
   const pollAbortRef = useRef<AbortController | null>(null);
   const loadAbortRef = useRef<AbortController | null>(null);
+  const refreshFeedbackTimerRef = useRef<number | null>(null);
 
   const clearPolling = useCallback(() => {
     if (pollTimerRef.current !== null) {
@@ -37,18 +39,40 @@ export function useGithubConnection() {
     setError(null);
     try {
       setConnection(await getGithubConnection(controller.signal));
+      return true;
     } catch (loadError) {
       if (!controller.signal.aborted) setError(toErrorMessage(loadError));
+      return false;
     } finally {
       if (!controller.signal.aborted) setIsLoading(false);
       if (loadAbortRef.current === controller) loadAbortRef.current = null;
     }
   }, []);
 
+  const refresh = useCallback(async () => {
+    if (refreshFeedbackTimerRef.current !== null) {
+      window.clearTimeout(refreshFeedbackTimerRef.current);
+      refreshFeedbackTimerRef.current = null;
+    }
+    setRefreshState("loading");
+    if (await reload()) {
+      setRefreshState("success");
+      refreshFeedbackTimerRef.current = window.setTimeout(() => {
+        setRefreshState("idle");
+        refreshFeedbackTimerRef.current = null;
+      }, 1800);
+    } else {
+      setRefreshState("idle");
+    }
+  }, [reload]);
+
   useEffect(() => {
     void reload();
     return () => {
       loadAbortRef.current?.abort();
+      if (refreshFeedbackTimerRef.current !== null) {
+        window.clearTimeout(refreshFeedbackTimerRef.current);
+      }
       clearPolling();
     };
   }, [clearPolling, reload]);
@@ -125,6 +149,8 @@ export function useGithubConnection() {
     logout,
     openExternalUrl,
     reload,
+    refresh,
+    refreshState,
     startLogin,
   };
 }

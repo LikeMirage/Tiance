@@ -57,6 +57,7 @@ export function ProviderMarketBoard({
   return (
     <section className="theme-market-board role-market-board provider-market-board" aria-label={t("providerMarket.ariaLabel")}>
       <OnlineMarketBoardShell
+        syncCollection="provider"
         auxiliary={isFilterOpen ? (
           <ProviderMarketFilterPanel
             authors={authors}

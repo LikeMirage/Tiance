@@ -1,0 +1,19 @@
+[
+  {
+    "title": "绑定并提交当前集合",
+    "content": "先调用 overview 确认当前集合和登录状态，再用 bind 绑定仓库。提交前调用 plan_push，把 additions、updates、deletions 和文件清单展示给用户；用户确认后，使用原样返回的 planId 调用 push。计划生成后本地或远端发生变化时，执行会停止并要求重新预览。"
+  },
+  {
+    "title": "拉取到另一台电脑",
+    "content": "先 bind 到同一仓库和目录，再调用 plan_pull。确认差异后调用 pull。普通项目集中的外部项目会按项目 ID 保存为可移植目录，拉取后落入本机 Data/projects，不复用上一台电脑的绝对路径。"
+  },
+  {
+    "title": "两种 GitHub 登录方式",
+    "content": "优先在天策设定集的 GitHub 登录页面连接账号并授权仓库。如果无法使用该登录，可复制 program/config.example.json 为 program/config.json，填写 fine-grained personal access token；Token 至少要对目标仓库具备 Contents 读写权限。config.json 不会被这个同步工具上传，也不会出现在工具输出中。"
+  },
+  {
+    "title": "自建 GitHub App（高级案例）",
+    "content": "普通用户无需创建 GitHub App，只需安装并授权 Tiance Desktop。自行部署或二次开发时，可在 GitHub Developer settings 创建 GitHub App，启用 Device Flow，将 Repository permissions / Contents 设为 Read and write，再安装到自己的账号并选择允许访问的仓库。"
+  }
+]
+

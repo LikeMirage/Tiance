@@ -19,6 +19,7 @@ API_BASE_URL_ENV = "TIANCE_API_BASE_URL"
 
 _HOST_CAPABILITY_PATHS = {
     "web_search": "/llm/provider-capabilities/web-search",
+    "github_sync": "/github/sync/tool",
 }
 
 
@@ -90,6 +91,12 @@ def call_host_capability(
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json; charset=utf-8",
+            **(
+                {"X-Tiance-Github-Token": github_token}
+                if normalized_capability == "github_sync"
+                and (github_token := os.environ.get("TIANCE_GITHUB_TOKEN", "").strip())
+                else {}
+            ),
         },
         method="POST",
     )
@@ -101,14 +108,14 @@ def call_host_capability(
         raise RuntimeError(_host_capability_error_message(response_body, exc.code)) from exc
     except (URLError, TimeoutError) as exc:
         reason = getattr(exc, "reason", None) or str(exc)
-        raise RuntimeError(f"连接后端供应商能力接口失败：{reason}") from exc
+        raise RuntimeError(f"连接后端能力接口失败：{reason}") from exc
 
     try:
         result = json.loads(response_body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise RuntimeError("后端供应商能力接口返回了无效 JSON。") from exc
+        raise RuntimeError("后端能力接口返回了无效 JSON。") from exc
     if not isinstance(result, dict):
-        raise RuntimeError("后端供应商能力接口返回值必须是 JSON 对象。")
+        raise RuntimeError("后端能力接口返回值必须是 JSON 对象。")
     return result
 
 
@@ -198,4 +205,4 @@ def _host_capability_error_message(response_body: bytes, status_code: int) -> st
         detail = payload.get("detail")
         if isinstance(detail, str) and detail.strip():
             return detail.strip()
-    return f"后端供应商能力接口返回 HTTP {status_code}。"
+    return f"后端能力接口返回 HTTP {status_code}。"

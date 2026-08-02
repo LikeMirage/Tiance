@@ -1,0 +1,62 @@
+{
+  "additionalProperties": false,
+  "description": "管理当前集合与 GitHub 仓库的绑定和同步。当前工作区能确定集合类型时可省略 collection；跨集合操作必须明确指定。push 和 pull 必须使用对应预览操作刚返回的 planId。",
+  "properties": {
+    "action": {
+      "enum": [
+        "overview",
+        "list_repositories",
+        "get_binding",
+        "bind",
+        "unbind",
+        "plan_push",
+        "push",
+        "plan_pull",
+        "pull"
+      ],
+      "type": "string"
+    },
+    "collection": {
+      "enum": [
+        "project",
+        "knowledge",
+        "experience",
+        "role",
+        "theme",
+        "tool",
+        "provider"
+      ],
+      "type": "string"
+    },
+    "repository": {
+      "description": "bind 使用的 owner/repository 或完整 GitHub 仓库地址。",
+      "maxLength": 220,
+      "type": "string"
+    },
+    "branch": {
+      "default": "main",
+      "maxLength": 250,
+      "type": "string"
+    },
+    "remotePath": {
+      "description": "集合在仓库内的相对目录，留空表示仓库根目录。",
+      "maxLength": 500,
+      "type": "string"
+    },
+    "planId": {
+      "description": "plan_push 或 plan_pull 返回的计划号。",
+      "maxLength": 80,
+      "type": "string"
+    },
+    "commitMessage": {
+      "description": "push 使用的提交说明。",
+      "maxLength": 200,
+      "type": "string"
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "type": "object"
+}
+

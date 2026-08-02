@@ -51,6 +51,7 @@ export function RoleMarketBoard({
       aria-label={t("roleMarket.ariaLabel")}
     >
       <OnlineMarketBoardShell
+        syncCollection="role"
         auxiliary={isFilterOpen ? (
           <RoleMarketFilterPanel
             authors={authors}

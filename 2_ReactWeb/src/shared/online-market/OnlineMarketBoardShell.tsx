@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
 
+import type { GithubSyncCollection } from "../../services/github/githubSyncApi";
+import { GithubSyncControl } from "../../features/github-sync/ui/GithubSyncControl";
+
 import {
   OnlineMarketContent,
   OnlineMarketError,
@@ -21,6 +24,7 @@ type OnlineMarketBoardShellProps = {
   error: Omit<OnlineMarketErrorProps, "classes">;
   source: Omit<OnlineMarketSourceFormProps, "classes">;
   toolbar: Omit<OnlineMarketToolbarProps, "classes">;
+  syncCollection: GithubSyncCollection;
 };
 
 export function OnlineMarketBoardShell({
@@ -31,11 +35,16 @@ export function OnlineMarketBoardShell({
   content,
   error,
   source,
+  syncCollection,
   toolbar,
 }: OnlineMarketBoardShellProps) {
   return (
     <>
-      <OnlineMarketSourceForm classes={classes} {...source} />
+      <OnlineMarketSourceForm
+        actions={<GithubSyncControl collection={syncCollection} disabled={source.isLoading} />}
+        classes={classes}
+        {...source}
+      />
       <OnlineMarketToolbar classes={classes} {...toolbar} />
       <div className={auxiliaryClassName}>
         {auxiliary}

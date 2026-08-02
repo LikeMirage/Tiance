@@ -14,6 +14,7 @@ class GithubRepositorySummary(GithubConnectionContract):
     full_name: str = Field(alias="fullName")
     private: bool
     default_branch: str = Field(alias="defaultBranch")
+    can_push: bool = Field(default=False, alias="canPush")
 
 
 class GithubAccountSummary(GithubConnectionContract):

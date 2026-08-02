@@ -67,6 +67,10 @@ class GithubConnectionService:
                     full_name=full_name,
                     private=bool(item.get("private")),
                     default_branch=str(item.get("default_branch") or "main"),
+                    can_push=bool(
+                        isinstance(item.get("permissions"), dict)
+                        and item["permissions"].get("push") is True
+                    ),
                 )
                 for item in repositories
                 if isinstance((repository_id := item.get("id")), int)

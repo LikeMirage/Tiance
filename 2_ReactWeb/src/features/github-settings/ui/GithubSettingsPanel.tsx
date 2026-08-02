@@ -78,9 +78,20 @@ export function GithubSettingsPanel({ onReady }: GithubSettingsPanelProps) {
                 <p>{t("githubSettings.repositories.description")}</p>
               </div>
               <div className="github-settings__section-actions">
-                <button className="github-settings__button" type="button" onClick={() => void github.reload()}>
+                <button
+                  className="github-settings__button"
+                  disabled={github.refreshState === "loading"}
+                  type="button"
+                  onClick={() => void github.refresh()}
+                >
                   <ArrowClockwise size={16} aria-hidden="true" />
-                  {t("githubSettings.repositories.refresh")}
+                  {t(
+                    github.refreshState === "loading"
+                      ? "githubSettings.repositories.refreshing"
+                      : github.refreshState === "success"
+                        ? "githubSettings.repositories.refreshed"
+                        : "githubSettings.repositories.refresh",
+                  )}
                 </button>
                 <button
                   className="github-settings__button github-settings__button--primary"
@@ -98,7 +109,15 @@ export function GithubSettingsPanel({ onReady }: GithubSettingsPanelProps) {
                   <div className="github-settings__repository" key={repository.id}>
                     <GithubLogo size={18} aria-hidden="true" />
                     <span>{repository.fullName}</span>
-                    <small>{repository.private ? t("githubSettings.repositories.private") : t("githubSettings.repositories.public")}</small>
+                    <small>
+                      {repository.private
+                        ? t("githubSettings.repositories.private")
+                        : t("githubSettings.repositories.public")}
+                      {" · "}
+                      {repository.canPush
+                        ? t("githubSettings.repositories.readWrite")
+                        : t("githubSettings.repositories.readOnly")}
+                    </small>
                   </div>
                 ))}
               </div>
