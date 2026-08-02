@@ -239,7 +239,7 @@ class GithubSyncService:
                     f"空仓库第一次同步必须使用默认分支 {default_branch}。"
                 )
             initialization_path = _initialization_path(plan.binding.remote_path, local)
-            await self._github.create_initial_file(
+            initialization_commit_sha = await self._github.create_initial_file(
                 repository,
                 path=initialization_path,
                 content=b"Tiance repository sync initialization.\n",
@@ -247,9 +247,9 @@ class GithubSyncService:
                 branch=plan.binding.branch,
                 access_token=access_token,
             )
-            parent_sha, base_tree_sha, _entries = await self._github.get_branch_snapshot(
+            parent_sha, base_tree_sha, _entries = await self._github.get_commit_snapshot(
                 repository,
-                plan.binding.branch,
+                initialization_commit_sha,
                 access_token=access_token,
             )
             if parent_sha is None or base_tree_sha is None:

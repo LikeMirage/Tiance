@@ -43,6 +43,7 @@ class _Github:
         self.remote: dict[str, tuple[str, bytes]] = {}
         self.created_blobs: dict[str, bytes] = {}
         self.published_commit: str | None = None
+        self.initial_commit_sha: str | None = None
 
     async def get_valid_access_token(self, *, required: bool):
         return "login-token"
@@ -85,8 +86,15 @@ class _Github:
         sha = _git_sha(content)
         self.remote[path] = (sha, content)
         self.tree_sha = "tree-initial"
-        self.head_sha = "commit-initial"
-        return self.head_sha
+        self.initial_commit_sha = "commit-initial"
+        return self.initial_commit_sha
+
+    async def get_commit_snapshot(self, _repository, commit_sha: str, *, access_token: str):
+        assert commit_sha == self.initial_commit_sha
+        return commit_sha, self.tree_sha, tuple(
+            {"path": path, "type": "blob", "sha": sha, "size": len(content)}
+            for path, (sha, content) in self.remote.items()
+        )
 
     async def create_tree(self, _repository, entries, *, base_tree_sha, access_token: str):
         for entry in entries:
@@ -303,6 +311,7 @@ def test_push_requires_fresh_plan_and_publishes_atomic_commit(tmp_path: Path) ->
     assert [change.path for change in plan.changes] == ["theme.json"]
     assert commit_sha == "commit-new"
     assert github.published_commit == "commit-new"
+    assert github.initial_commit_sha == "commit-initial"
     assert github.remote["themes/theme.json"][1] == b'{"name":"theme"}'
 
 

@@ -284,6 +284,8 @@ manifest.json
 
 但 `manifest.json` 不是整个仓库的索引，也不能代替根目录 `index.json`。推荐源码仓库保留可维护的源目录和构建脚本，由 GitHub Actions 生成 Pages 发布内容：
 
+GitHub 不会自动理解这些文件夹并替天策维护 `index.json`。天策现有公共市场是在源码推送到 `main` 后，由仓库内的 GitHub Actions 运行 `scripts/build_market.py`：脚本校验每个项目的 `manifest.json`，重新生成 `dist/index.json`、安装包和预览资源，再部署到 Pages。正常维护时只需要修改单项文件并推送，不需要手工编辑构建产物；如果私人市场没有配置这套工作流，则必须由仓库维护者自行生成和更新 `index.json`。
+
 ```text
 .github/workflows/publish.yml
 scripts/

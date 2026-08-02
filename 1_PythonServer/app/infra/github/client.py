@@ -259,8 +259,23 @@ class GithubClient:
         head_sha = target.get("sha") if isinstance(target, dict) else None
         if not isinstance(head_sha, str) or not head_sha:
             raise GithubApiError("GitHub 分支引用格式无效。")
+        return await self.get_commit_snapshot(
+            repository,
+            head_sha,
+            access_token=access_token,
+        )
+
+    async def get_commit_snapshot(
+        self,
+        repository: GithubRepositorySource,
+        commit_sha: str,
+        *,
+        access_token: str,
+    ) -> tuple[str, str, tuple[dict[str, Any], ...]]:
+        owner = quote(repository.owner, safe="")
+        name = quote(repository.repository, safe="")
         commit = await self._get_json_with_token(
-            f"/repos/{owner}/{name}/git/commits/{quote(head_sha, safe='')}",
+            f"/repos/{owner}/{name}/git/commits/{quote(commit_sha, safe='')}",
             access_token=access_token,
         )
         tree = commit.get("tree")
@@ -279,7 +294,7 @@ class GithubClient:
             for item in raw_entries
             if isinstance(item, dict) and item.get("type") == "blob"
         ) if isinstance(raw_entries, list) else ()
-        return head_sha, tree_sha, entries
+        return commit_sha, tree_sha, entries
 
     async def fetch_blob(
         self,
