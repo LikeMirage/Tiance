@@ -49,6 +49,7 @@ export function useOnlineMarketSource<Index extends MarketIndex, Filters>(
   const sourceKey = options.sourceKey ?? options.defaultSource;
   const [draftSource, setDraftSource] = useState(options.defaultSource);
   const [source, setSource] = useState(options.defaultSource);
+  const sourceRef = useRef(options.defaultSource);
   const [filters, setFilters] = useState<Filters>(options.emptyFilters);
   const [index, setIndex] = useState<Index | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +73,7 @@ export function useOnlineMarketSource<Index extends MarketIndex, Filters>(
       if (controller.signal.aborted || requestId !== requestIdRef.current) return false;
       setIndex(result);
       setSource(result.source);
+      sourceRef.current = result.source;
       setDraftSource(result.source);
       return true;
     } catch (loadError) {
@@ -102,6 +104,7 @@ export function useOnlineMarketSource<Index extends MarketIndex, Filters>(
         const settings = await optionsRef.current.loadSettings(controller.signal);
         if (controller.signal.aborted) return;
         setSource(settings.source);
+        sourceRef.current = settings.source;
         setDraftSource(settings.source);
         setFilters(settings.filters);
         filtersReadySourceKeyRef.current = sourceKey;
@@ -142,9 +145,13 @@ export function useOnlineMarketSource<Index extends MarketIndex, Filters>(
     () => runLoad((signal) => optionsRef.current.connectSource(draftSource, signal)),
     [draftSource, runLoad, sourceKey],
   );
-  const connectTo = useCallback((nextSource: string) => {
+  const connectTo = useCallback(async (nextSource: string) => {
     setDraftSource(nextSource);
-    return runLoad((signal) => optionsRef.current.connectSource(nextSource, signal));
+    const connected = await runLoad(
+      (signal) => optionsRef.current.connectSource(nextSource, signal),
+    );
+    if (!connected) setDraftSource(sourceRef.current);
+    return connected;
   }, [runLoad, sourceKey]);
   const refresh = useCallback(
     () => runLoad((signal) => optionsRef.current.loadIndex(signal)),

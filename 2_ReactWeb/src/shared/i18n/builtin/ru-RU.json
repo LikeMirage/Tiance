@@ -626,7 +626,7 @@
     "onlineMarketSource": {
       "default": "Источник по умолчанию",
       "custom": "Другой источник",
-      "privateRepositories": "Приватные репозитории",
+      "privateRepositories": "Приватные магазины (требуется index.json)",
       "loading": "Загрузка репозиториев…",
       "loadFailed": "Ошибка загрузки. Нажмите, чтобы повторить",
       "notConnected": "GitHub не подключён.",

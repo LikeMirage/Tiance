@@ -1100,7 +1100,7 @@
     "onlineMarketSource": {
       "default": "Default source",
       "custom": "Custom source",
-      "privateRepositories": "Private repositories",
+      "privateRepositories": "Private market repositories (index.json required)",
       "loading": "Loading repositories…",
       "loadFailed": "Unable to load. Click to retry",
       "notConnected": "GitHub is not connected.",

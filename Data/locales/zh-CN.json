@@ -1100,7 +1100,7 @@
     "onlineMarketSource": {
       "default": "默认源",
       "custom": "自定义源",
-      "privateRepositories": "私人仓库",
+      "privateRepositories": "私人市场仓库（需 index.json）",
       "loading": "正在读取仓库…",
       "loadFailed": "读取失败，点击重试",
       "notConnected": "尚未登录 GitHub。",
