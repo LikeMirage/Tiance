@@ -1,0 +1,5 @@
+[
+  {"title":"查看仓库","input":{"action":"get_repository","parameters":{"repository":"LikeMirage/Tiance"}}},
+  {"title":"模拟创建私人仓库","input":{"action":"create_repository","dry_run":true,"parameters":{"name":"my-project","private":true,"auto_init":true}}},
+  {"title":"模拟删除仓库","input":{"action":"delete_repository","dry_run":true,"parameters":{"repository":"LikeMirage/old-project"}}}
+]

@@ -13,6 +13,7 @@ class HostCapability(StrEnum):
     WEB_SEARCH = "web_search"
     GITHUB_SYNC = "github_sync"
     GIT_REPOSITORY = "git_repository"
+    GITHUB_PLATFORM = "github_platform"
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +34,11 @@ _TOOL_CAPABILITY_POLICY: dict[str, frozenset[HostCapability]] = {
     "network_search": frozenset({HostCapability.WEB_SEARCH}),
     "github_repository_sync": frozenset({HostCapability.GITHUB_SYNC}),
     "git_repository": frozenset({HostCapability.GIT_REPOSITORY}),
+    "github_repository": frozenset({HostCapability.GITHUB_PLATFORM}),
+    "github_pull_request": frozenset({HostCapability.GITHUB_PLATFORM}),
+    "github_issue": frozenset({HostCapability.GITHUB_PLATFORM}),
+    "github_release": frozenset({HostCapability.GITHUB_PLATFORM}),
+    "github_actions": frozenset({HostCapability.GITHUB_PLATFORM}),
 }
 
 

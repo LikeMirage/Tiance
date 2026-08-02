@@ -1,0 +1,5 @@
+[
+  {"title":"查看最近运行","input":{"action":"list_runs","parameters":{"repository":"LikeMirage/Tiance","per_page":20}}},
+  {"title":"查看任务日志","input":{"action":"get_job_logs","parameters":{"repository":"LikeMirage/Tiance","jobId":123}}},
+  {"title":"模拟重跑失败任务","input":{"action":"rerun_failed","dry_run":true,"parameters":{"repository":"LikeMirage/Tiance","runId":456}}}
+]

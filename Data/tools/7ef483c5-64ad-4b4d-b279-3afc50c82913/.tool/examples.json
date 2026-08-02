@@ -1,0 +1,5 @@
+[
+  {"title":"列出开放 PR","input":{"action":"list","parameters":{"repository":"LikeMirage/Tiance","state":"open"}}},
+  {"title":"模拟创建 PR","input":{"action":"create","dry_run":true,"parameters":{"repository":"LikeMirage/Tiance","title":"功能更新","head":"feature","base":"main","body":"变更说明"}}},
+  {"title":"模拟合并","input":{"action":"merge","dry_run":true,"parameters":{"repository":"LikeMirage/Tiance","number":12,"merge_method":"squash"}}}
+]

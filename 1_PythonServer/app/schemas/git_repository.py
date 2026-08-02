@@ -8,9 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field
 GitRepositoryAction = Literal[
     "overview", "status", "diff", "log", "show_commit",
     "fetch", "init", "connect_remote", "disconnect_remote",
-    "create_branch", "switch_branch",
-    "plan_commit", "commit", "plan_push", "push", "plan_pull", "pull",
-    "plan_restore", "restore", "plan_revert", "revert",
+    "create_branch", "switch_branch", "delete_branch",
+    "list_tags", "create_tag", "delete_tag",
+    "list_submodules", "add_submodule", "update_submodules",
+    "commit", "push", "pull", "restore", "revert", "reset",
 ]
 
 
@@ -24,6 +25,9 @@ class GitRepositoryToolRequest(BaseModel):
     revision: str | None = Field(default=None, max_length=100)
     paths: list[str] | None = Field(default=None, max_length=5_000)
     staged: bool = False
+    dry_run: bool = Field(default=False, alias="dryRun")
+    force: bool = False
     limit: int = Field(default=30, ge=1, le=100)
     message: str | None = Field(default=None, max_length=500)
-    plan_id: str | None = Field(default=None, alias="planId", max_length=80)
+    tag: str | None = Field(default=None, max_length=250)
+    submodule_path: str | None = Field(default=None, alias="submodulePath", max_length=500)

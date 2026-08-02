@@ -72,6 +72,33 @@ export function GithubSettingsPanel({ onReady }: GithubSettingsPanelProps) {
           </section>
 
           <section className="github-settings__section">
+            <div className={`github-settings__permissions${connection.requiresReauthorization ? " github-settings__permissions--warning" : ""}`}>
+              <div>
+                <strong>{t("githubSettings.permissions.title")}</strong>
+                <span>
+                  {t(connection.requiresReauthorization
+                    ? "githubSettings.permissions.incomplete"
+                    : "githubSettings.permissions.ready")}
+                </span>
+              </div>
+              {connection.requiresReauthorization ? (
+                <button
+                  className="github-settings__button github-settings__button--primary"
+                  type="button"
+                  onClick={() => void github.openExternalUrl(connection.authorizationUrl)}
+                >
+                  <ArrowSquareOut size={16} aria-hidden="true" />
+                  {t("githubSettings.permissions.reauthorize")}
+                </button>
+              ) : null}
+            </div>
+            {connection.missingPermissions.length > 0 ? (
+              <div className="github-settings__permission-list">
+                {connection.missingPermissions.map((permission) => (
+                  <span key={permission}>{permission}</span>
+                ))}
+              </div>
+            ) : null}
             <div className="github-settings__section-head">
               <div>
                 <h3>{t("githubSettings.repositories.title")}</h3>

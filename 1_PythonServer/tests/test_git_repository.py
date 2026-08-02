@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from dulwich import porcelain
 
-from app.core.errors import BadRequestError, ConflictError
+from app.core.errors import BadRequestError
 from app.domain.project import Project, ProjectKind
 from app.infra.git_repository import GitRepositoryAdapter, GitRepositoryError
 from app.infra.git_repository.adapter import GitIdentity
@@ -81,7 +81,7 @@ def test_adapter_status_diff_and_restore_are_scoped_to_project(tmp_path: Path):
         adapter.restore(paths=["../outside.txt"])
 
 
-def test_write_plan_expires_when_project_changes(tmp_path: Path):
+def test_dry_run_restore_never_changes_project(tmp_path: Path):
     root = tmp_path / "work"
     root.mkdir()
     adapter = GitRepositoryAdapter(root)
@@ -91,17 +91,30 @@ def test_write_plan_expires_when_project_changes(tmp_path: Path):
     (root / "tracked.txt").write_text("first", encoding="utf-8")
     service = GitRepositoryService(_Projects(_project(root)))
 
-    planned = asyncio.run(service.execute(
-        GitRepositoryToolRequest(action="plan_restore", paths=["tracked.txt"]),
+    preview = asyncio.run(service.execute(
+        GitRepositoryToolRequest(action="restore", paths=["tracked.txt"], dryRun=True),
         project_id="project-1",
     ))
-    (root / "tracked.txt").write_text("second", encoding="utf-8")
 
-    with pytest.raises(ConflictError):
-        asyncio.run(service.execute(
-            GitRepositoryToolRequest(action="restore", planId=planned["plan"]["planId"]),
-            project_id="project-1",
-        ))
+    assert preview["dryRun"] is True
+    assert preview["preview"]["changes"] == [{"path": "tracked.txt", "state": "modified"}]
+    assert (root / "tracked.txt").read_text(encoding="utf-8") == "first"
+
+
+def test_branch_and_tag_management(tmp_path: Path):
+    root = tmp_path / "work"
+    root.mkdir()
+    adapter = GitRepositoryAdapter(root)
+    adapter.init(branch="main")
+    (root / "tracked.txt").write_text("before", encoding="utf-8")
+    adapter.commit(message="initial", paths=None, identity=IDENTITY)
+
+    adapter.create_branch(branch="topic")
+    adapter.create_tag(tag="v1.0.0", revision="HEAD")
+    assert adapter.list_tags() == ["v1.0.0"]
+    adapter.delete_branch(branch="topic")
+    adapter.delete_tag(tag="v1.0.0")
+    assert adapter.list_tags() == []
 
 
 def test_standard_git_tool_rejects_non_project_collection(tmp_path: Path):

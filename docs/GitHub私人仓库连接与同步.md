@@ -2,7 +2,7 @@
 
 本文记录天策当前已经实现的 GitHub 私人仓库方案，也解释最容易混淆的三种用法：把私人仓库作为“在线市场”、把本地某一集完整同步到私人仓库，以及把当前普通项目作为标准 Git 仓库维护。
 
-天策不要求用户安装 Git、GitHub Desktop 或其他命令行软件。市场与集合同步使用 GitHub API；普通项目使用软件内置的标准 Git 引擎并生成真实 `.git`。两条路径复用同一份 GitHub 登录，真正写入前都必须先生成差异计划，再凭计划执行。
+天策不要求用户安装 Git、GitHub Desktop 或其他命令行软件。市场与集合同步使用 GitHub API；普通项目使用软件内置的标准 Git 引擎并生成真实 `.git`。这些路径复用同一份 GitHub 登录。集合看板仍采用可确认的差异计划；AI 工具则用统一的 `dry_run=true` 参数模拟同一操作，不保存临时计划号。
 
 ## 1. 先分清三种仓库用途
 
@@ -51,7 +51,8 @@ https://github.com/your-name/your-private-market
 - 查看仓库状态、文件差异、提交历史和指定提交；
 - 初始化真实 `.git`，连接或移除 GitHub 远端；
 - 创建、切换分支和获取远端状态；
-- 先预览再提交、推送、拉取、恢复文件或撤销提交。
+- 通过同一操作的 `dry_run=true` 模拟提交、推送、拉取、恢复、撤销和重置；
+- 管理分支、标签和子模块，包括显式的强制推送。
 
 这套能力适合“在当前项目里让 AI 修改自己，然后提交到指定仓库”。如果项目还没有 `.git`，用户只需给出已经创建好的 GitHub 仓库地址，AI 可以依次初始化、连接、检查提交并推送。仓库一旦建立，其他 Git 客户端也能直接使用，不会形成天策专属格式。
 
@@ -66,7 +67,7 @@ Repository permissions
 └─ Contents: Read and write
 ```
 
-`Metadata` 的只读权限由 GitHub 自动提供。只有确实要修改 `.github/workflows/` 下工作流文件时，才需要另外评估工作流相关权限；普通天策集合同步不需要为了“以后可能用到”而扩大授权。
+`Metadata` 的只读权限由 GitHub 自动提供。完整 GitHub 工具套件还需要 `Administration`、`Pull requests`、`Issues`、`Actions` 和 `Workflows` 的读写权限；各权限只用于对应工具。只使用集合私人同步时，`Contents: Read and write` 已足够。
 
 修改 GitHub App 权限后，还要回到该 App 的安装页面确认新的权限。只在 App 设置页把 `Contents` 改成可读写，并不一定会让已有安装立刻获得写权限。
 

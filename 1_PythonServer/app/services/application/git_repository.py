@@ -1,13 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 from functools import lru_cache
 import re
-from threading import Lock
-from time import monotonic
 from typing import Any
-from uuid import uuid4
 
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.domain.project import Project, ProjectKind
@@ -20,24 +16,17 @@ from app.schemas.git_repository import GitRepositoryToolRequest
 
 _BRANCH_PATTERN = re.compile(r"^(?![./])(?!.*(?:\.\.|//|@\{|\\|\s))[A-Za-z0-9._/-]{1,250}(?<![./])$")
 _REMOTE_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
-_PLAN_TTL_SECONDS = 600
-
-
-@dataclass(frozen=True, slots=True)
-class _GitPlan:
-    plan_id: str
-    project_id: str
-    action: str
-    fingerprint: str
-    arguments: dict[str, Any]
-    expires_at: float
+_TAG_PATTERN = re.compile(r"^(?![./])(?!.*(?:\.\.|//|@\{|\\|\s))[A-Za-z0-9._/-]{1,250}(?<![./])$")
+_MUTATIONS = {
+    "init", "connect_remote", "disconnect_remote", "create_branch", "switch_branch",
+    "delete_branch", "create_tag", "delete_tag", "add_submodule", "update_submodules",
+    "commit", "push", "pull", "restore", "revert", "reset",
+}
 
 
 class GitRepositoryService:
     def __init__(self, project_repository: ProjectRepository) -> None:
         self._projects = project_repository
-        self._plans: dict[str, _GitPlan] = {}
-        self._plan_lock = Lock()
 
     async def execute(
         self,
@@ -50,207 +39,179 @@ class GitRepositoryService:
         adapter = GitRepositoryAdapter(self._project_root(project))
         action = payload.action
         try:
-            if action == "overview":
-                return self._result(action, project, await asyncio.to_thread(adapter.overview))
-            if action == "status":
-                return self._result(action, project, await asyncio.to_thread(adapter.status))
-            if action == "diff":
-                diff = await asyncio.to_thread(
-                    adapter.diff,
-                    staged=payload.staged,
-                    paths=payload.paths,
-                )
-                return self._result(action, project, {"diff": diff, "staged": payload.staged})
-            if action == "log":
-                commits = await asyncio.to_thread(adapter.log, limit=payload.limit)
-                return self._result(action, project, {"commits": commits})
-            if action == "show_commit":
-                revision = self._required(payload.revision, "show_commit 必须提供 revision。")
-                commit = await asyncio.to_thread(adapter.show_commit, revision)
-                return self._result(action, project, {"commit": commit})
-            if action == "init":
-                branch = self._branch(payload.branch or "main")
-                data = await asyncio.to_thread(adapter.init, branch=branch)
-                return self._result(action, project, data)
-            if action == "connect_remote":
-                repository = self._repository_url(payload.repository)
-                remote = self._remote(payload.remote)
-                data = await asyncio.to_thread(adapter.add_remote, name=remote, url=repository)
-                return self._result(action, project, data)
-            if action == "disconnect_remote":
-                remote = self._remote(payload.remote)
-                data = await asyncio.to_thread(adapter.remove_remote, name=remote)
-                return self._result(action, project, data)
-            if action == "fetch":
-                token = await self._access_token(fallback_token)
-                data = await asyncio.to_thread(
-                    adapter.fetch,
-                    remote=self._remote(payload.remote),
-                    token=token,
-                )
-                return self._result(action, project, data)
-            if action == "create_branch":
-                branch = self._branch(self._required(payload.branch, "create_branch 必须提供 branch。"))
-                data = await asyncio.to_thread(adapter.create_branch, branch=branch)
-                return self._result(action, project, data)
-            if action == "switch_branch":
-                branch = self._branch(self._required(payload.branch, "switch_branch 必须提供 branch。"))
-                data = await asyncio.to_thread(adapter.switch_branch, branch=branch)
-                return self._result(action, project, data)
-            if action.startswith("plan_"):
-                return await self._create_plan(action, payload, project, adapter, fallback_token)
-            return await self._apply_plan(action, payload, project, adapter, fallback_token)
+            if payload.dry_run and action in _MUTATIONS:
+                preview = await self._preview(action, payload, adapter, fallback_token)
+                return self._result(action, project, {"dryRun": True, "preview": preview})
+            data = await self._execute(action, payload, adapter, fallback_token)
+            return self._result(action, project, {"dryRun": False, **data})
         except GitRepositoryError as exc:
             raise BadRequestError(str(exc)) from exc
 
-    async def _create_plan(
+    async def _execute(
         self,
         action: str,
         payload: GitRepositoryToolRequest,
-        project: Project,
         adapter: GitRepositoryAdapter,
         fallback_token: str | None,
     ) -> dict[str, Any]:
-        apply_action = action.removeprefix("plan_")
-        arguments: dict[str, Any]
-        preview: dict[str, Any]
-        if apply_action == "commit":
-            message = self._required(payload.message, "plan_commit 必须提供 message。")
-            status = await asyncio.to_thread(adapter.status)
-            selected = self._select_changes(status["changes"], payload.paths)
-            if not selected:
-                raise BadRequestError("没有可提交的改动。")
-            arguments = {"message": message, "paths": payload.paths}
-            preview = {"message": message, "changes": selected}
-        elif apply_action == "push":
-            token = await self._access_token(fallback_token)
-            comparison = await asyncio.to_thread(
-                adapter.fetch,
-                remote=self._remote(payload.remote),
-                token=token,
+        if action == "overview":
+            return await asyncio.to_thread(adapter.overview)
+        if action == "status":
+            return await asyncio.to_thread(adapter.status)
+        if action == "diff":
+            diff = await asyncio.to_thread(adapter.diff, staged=payload.staged, paths=payload.paths)
+            return {"diff": diff, "staged": payload.staged}
+        if action == "log":
+            return {"commits": await asyncio.to_thread(adapter.log, limit=payload.limit)}
+        if action == "show_commit":
+            revision = self._required(payload.revision, "show_commit 必须提供 revision。")
+            return {"commit": await asyncio.to_thread(adapter.show_commit, revision)}
+        if action == "init":
+            return await asyncio.to_thread(adapter.init, branch=self._branch(payload.branch or "main"))
+        if action == "connect_remote":
+            return await asyncio.to_thread(
+                adapter.add_remote,
+                name=self._remote(payload.remote),
+                url=self._repository_url(payload.repository),
             )
-            if comparison.get("diverged"):
-                raise ConflictError("本地与远端已经分叉，当前版本不会自动合并或强制推送。")
-            arguments = {
-                "remote": self._remote(payload.remote),
-                "branch": self._branch(payload.branch or comparison.get("branch") or "main"),
-            }
-            preview = comparison
-        elif apply_action == "pull":
+        if action == "disconnect_remote":
+            return await asyncio.to_thread(adapter.remove_remote, name=self._remote(payload.remote))
+        if action == "fetch":
             token = await self._access_token(fallback_token)
-            comparison = await asyncio.to_thread(
-                adapter.fetch,
-                remote=self._remote(payload.remote),
-                token=token,
-            )
-            status = await asyncio.to_thread(adapter.status)
-            if not status["clean"]:
-                raise ConflictError("当前项目还有未提交改动，不能创建拉取计划。")
-            if comparison.get("diverged") or comparison.get("ahead", 0) > 0:
-                raise ConflictError("本地含有远端没有的提交，当前版本不会自动合并。")
-            arguments = {
-                "remote": self._remote(payload.remote),
-                "branch": self._branch(payload.branch or comparison.get("branch") or "main"),
-            }
-            preview = comparison
-        elif apply_action == "restore":
-            paths = self._required_paths(payload.paths, "plan_restore 必须提供 paths。")
-            status = await asyncio.to_thread(adapter.status)
-            selected = self._select_changes(status["changes"], paths)
-            if not selected:
-                raise BadRequestError("指定文件没有可放弃的工作区改动。")
-            if any(item["state"].startswith("staged-") for item in selected):
-                raise ConflictError("指定文件含有已暂存改动；当前恢复操作只处理未暂存文件。")
-            arguments = {"paths": paths}
-            preview = {"changes": selected}
-        elif apply_action == "revert":
-            revision = self._required(payload.revision, "plan_revert 必须提供 revision。")
-            status = await asyncio.to_thread(adapter.status)
-            if not status["clean"]:
-                raise ConflictError("当前项目还有未提交改动，不能撤销历史提交。")
-            commit = await asyncio.to_thread(adapter.show_commit, revision)
-            arguments = {"revision": revision}
-            preview = {"commit": commit}
-        else:
-            raise BadRequestError(f"不支持的计划操作：{action}")
-
-        fingerprint = await asyncio.to_thread(adapter.fingerprint)
-        plan = _GitPlan(
-            plan_id=uuid4().hex,
-            project_id=project.project_id,
-            action=apply_action,
-            fingerprint=fingerprint,
-            arguments=arguments,
-            expires_at=monotonic() + _PLAN_TTL_SECONDS,
-        )
-        with self._plan_lock:
-            self._prune_plans_locked()
-            self._plans[plan.plan_id] = plan
-        return self._result(
-            action,
-            project,
-            {"plan": {"planId": plan.plan_id, "action": apply_action, **preview}},
-        )
-
-    async def _apply_plan(
-        self,
-        action: str,
-        payload: GitRepositoryToolRequest,
-        project: Project,
-        adapter: GitRepositoryAdapter,
-        fallback_token: str | None,
-    ) -> dict[str, Any]:
-        plan_id = self._required(payload.plan_id, f"{action} 必须提供 planId。")
-        with self._plan_lock:
-            self._prune_plans_locked()
-            plan = self._plans.pop(plan_id, None)
-        if plan is None:
-            raise ConflictError("Git 操作计划不存在或已经过期，请重新检查。")
-        if plan.project_id != project.project_id or plan.action != action:
-            raise ConflictError("Git 操作计划与当前项目或操作不匹配。")
-        current_fingerprint = await asyncio.to_thread(adapter.fingerprint)
-        if current_fingerprint != plan.fingerprint:
-            raise ConflictError("项目状态已经变化，请重新检查后再执行。")
-
-        data: dict[str, Any]
+            return await asyncio.to_thread(adapter.fetch, remote=self._remote(payload.remote), token=token)
+        if action == "create_branch":
+            branch = self._branch(self._required(payload.branch, "create_branch 必须提供 branch。"))
+            return await asyncio.to_thread(adapter.create_branch, branch=branch)
+        if action == "switch_branch":
+            branch = self._branch(self._required(payload.branch, "switch_branch 必须提供 branch。"))
+            return await asyncio.to_thread(adapter.switch_branch, branch=branch)
+        if action == "delete_branch":
+            branch = self._branch(self._required(payload.branch, "delete_branch 必须提供 branch。"))
+            return await asyncio.to_thread(adapter.delete_branch, branch=branch)
+        if action == "list_tags":
+            return {"tags": await asyncio.to_thread(adapter.list_tags)}
+        if action == "create_tag":
+            tag = self._tag(self._required(payload.tag, "create_tag 必须提供 tag。"))
+            return {"tags": await asyncio.to_thread(adapter.create_tag, tag=tag, revision=payload.revision or "HEAD")}
+        if action == "delete_tag":
+            tag = self._tag(self._required(payload.tag, "delete_tag 必须提供 tag。"))
+            return {"tags": await asyncio.to_thread(adapter.delete_tag, tag=tag)}
+        if action == "list_submodules":
+            return {"submodules": await asyncio.to_thread(adapter.list_submodules)}
+        if action == "add_submodule":
+            repository = self._repository_url(payload.repository)
+            path = self._required(payload.submodule_path, "add_submodule 必须提供 submodulePath。")
+            return {"submodules": await asyncio.to_thread(adapter.add_submodule, url=repository, path=path)}
+        if action == "update_submodules":
+            return {"submodules": await asyncio.to_thread(adapter.update_submodules, paths=payload.paths, force=payload.force)}
         if action == "commit":
+            message = self._required(payload.message, "commit 必须提供 message。")
+            status = await asyncio.to_thread(adapter.status)
+            if not self._select_changes(status["changes"], payload.paths):
+                raise BadRequestError("没有可提交的改动。")
             identity = await self._identity(fallback_token)
-            sha = await asyncio.to_thread(
-                adapter.commit,
-                message=plan.arguments["message"],
-                paths=plan.arguments["paths"],
-                identity=identity,
-            )
-            data = {"commitSha": sha}
-        elif action == "push":
+            sha = await asyncio.to_thread(adapter.commit, message=message, paths=payload.paths, identity=identity)
+            return {"commitSha": sha}
+        if action == "push":
             token = await self._access_token(fallback_token)
-            data = await asyncio.to_thread(
+            overview = await asyncio.to_thread(adapter.overview)
+            branch = self._branch(payload.branch or overview.get("branch") or "main")
+            return await asyncio.to_thread(
                 adapter.push,
-                remote=plan.arguments["remote"],
-                branch=plan.arguments["branch"],
+                remote=self._remote(payload.remote),
+                branch=branch,
                 token=token,
+                force=payload.force,
             )
-        elif action == "pull":
+        if action == "pull":
             token = await self._access_token(fallback_token)
-            data = await asyncio.to_thread(
-                adapter.pull,
-                remote=plan.arguments["remote"],
-                branch=plan.arguments["branch"],
-                token=token,
-            )
-        elif action == "restore":
-            data = await asyncio.to_thread(adapter.restore, paths=plan.arguments["paths"])
-        elif action == "revert":
+            overview = await asyncio.to_thread(adapter.overview)
+            branch = self._branch(payload.branch or overview.get("branch") or "main")
+            return await asyncio.to_thread(adapter.pull, remote=self._remote(payload.remote), branch=branch, token=token)
+        if action == "restore":
+            paths = self._required_paths(payload.paths, "restore 必须提供 paths。")
+            return await asyncio.to_thread(adapter.restore, paths=paths)
+        if action == "revert":
+            revision = self._required(payload.revision, "revert 必须提供 revision。")
             identity = await self._identity(fallback_token)
-            sha = await asyncio.to_thread(
-                adapter.revert,
-                revision=plan.arguments["revision"],
-                identity=identity,
+            return {"commitSha": await asyncio.to_thread(adapter.revert, revision=revision, identity=identity)}
+        if action == "reset":
+            revision = self._required(payload.revision, "reset 必须提供 revision。")
+            return await asyncio.to_thread(adapter.reset, revision=revision, hard=payload.force)
+        raise BadRequestError(f"不支持的 Git 操作：{action}")
+
+    async def _preview(
+        self,
+        action: str,
+        payload: GitRepositoryToolRequest,
+        adapter: GitRepositoryAdapter,
+        fallback_token: str | None,
+    ) -> dict[str, Any]:
+        overview = await asyncio.to_thread(adapter.overview)
+        preview: dict[str, Any] = {"simulated": True, "wouldExecute": action, "repository": overview}
+        if action == "commit":
+            message = self._required(payload.message, "commit 必须提供 message。")
+            status = await asyncio.to_thread(adapter.status)
+            changes = self._select_changes(status["changes"], payload.paths)
+            if not changes:
+                raise BadRequestError("没有可提交的改动。")
+            preview.update({"message": message, "changes": changes})
+        elif action in {"push", "pull"}:
+            comparison = await asyncio.to_thread(
+                adapter.remote_comparison,
+                remote=self._remote(payload.remote),
             )
-            data = {"commitSha": sha}
+            if action == "pull" and not overview.get("clean", True):
+                raise ConflictError("当前项目还有未提交改动，不能拉取。")
+            if action == "pull" and (comparison.get("diverged") or comparison.get("ahead", 0) > 0):
+                raise ConflictError("本地含有远端没有的提交，不能快进拉取。")
+            if action == "push" and comparison.get("diverged") and not payload.force:
+                raise ConflictError("本地与远端已经分叉；若确认覆盖远端，请显式设置 force=true。")
+            preview.update(comparison)
+            preview["force"] = payload.force
+            preview["comparisonBasis"] = "lastFetchedRemoteState"
+        elif action in {"restore"}:
+            paths = self._required_paths(payload.paths, "restore 必须提供 paths。")
+            status = await asyncio.to_thread(adapter.status)
+            changes = self._select_changes(status["changes"], paths)
+            if not changes:
+                raise BadRequestError("指定文件没有可恢复的改动。")
+            preview["changes"] = changes
+        elif action in {"revert", "reset"}:
+            revision = self._required(payload.revision, f"{action} 必须提供 revision。")
+            preview["commit"] = await asyncio.to_thread(adapter.show_commit, revision)
+            preview["hard"] = payload.force if action == "reset" else None
         else:
-            raise BadRequestError(f"不支持的 Git 操作：{action}")
-        return self._result(action, project, data)
+            if action == "init":
+                self._branch(payload.branch or "main")
+                if overview.get("initialized"):
+                    raise BadRequestError("当前项目已经是 Git 仓库。")
+            elif action == "connect_remote":
+                self._remote(payload.remote)
+                self._repository_url(payload.repository)
+            elif action == "disconnect_remote":
+                remote = self._remote(payload.remote)
+                if remote not in {item["name"] for item in overview.get("remotes", [])}:
+                    raise BadRequestError(f"远端 {remote} 不存在。")
+            elif action in {"create_branch", "switch_branch", "delete_branch"}:
+                branch = self._branch(self._required(payload.branch, f"{action} 必须提供 branch。"))
+                if action == "delete_branch" and branch == overview.get("branch"):
+                    raise BadRequestError("不能删除当前正在使用的分支。")
+            elif action in {"create_tag", "delete_tag"}:
+                self._tag(self._required(payload.tag, f"{action} 必须提供 tag。"))
+            elif action == "add_submodule":
+                self._repository_url(payload.repository)
+                self._required(payload.submodule_path, "add_submodule 必须提供 submodulePath。")
+            preview.update({
+                "remote": payload.remote,
+                "repositoryUrl": payload.repository,
+                "branch": payload.branch,
+                "tag": payload.tag,
+                "paths": payload.paths,
+                "submodulePath": payload.submodule_path,
+                "force": payload.force,
+            })
+        return preview
 
     def _resolve_project(self, project_id: str | None) -> Project:
         normalized = (project_id or "").strip()
@@ -328,6 +289,13 @@ class GitRepositoryService:
         return normalized
 
     @staticmethod
+    def _tag(value: str) -> str:
+        normalized = value.strip()
+        if not _TAG_PATTERN.fullmatch(normalized):
+            raise BadRequestError("Git 标签名称无效。")
+        return normalized
+
+    @staticmethod
     def _remote(value: str) -> str:
         normalized = value.strip()
         if not _REMOTE_PATTERN.fullmatch(normalized):
@@ -336,18 +304,7 @@ class GitRepositoryService:
 
     @staticmethod
     def _result(action: str, project: Project, data: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "ok": True,
-            "action": action,
-            "project": {"id": project.project_id, "name": project.name},
-            **data,
-        }
-
-    def _prune_plans_locked(self) -> None:
-        now = monotonic()
-        for plan_id, plan in tuple(self._plans.items()):
-            if plan.expires_at <= now:
-                self._plans.pop(plan_id, None)
+        return {"ok": True, "action": action, "project": {"id": project.project_id, "name": project.name}, **data}
 
 
 @lru_cache

@@ -599,6 +599,12 @@
       "logout": "退出登录",
       "loggingOut": "正在退出…",
       "profile": "查看主页",
+      "permissions": {
+        "title": "GitHub App 能力",
+        "ready": "仓库、代码、PR、议题、发布和 Actions 所需权限已齐全。",
+        "incomplete": "GitHub App 缺少下列能力，相关工具会被 GitHub 拒绝。",
+        "reauthorize": "重新授权"
+      },
       "repositories": {
         "title": "已授权仓库",
         "description": "这里显示 GitHub App 的仓库授权范围和当前读写权限。",

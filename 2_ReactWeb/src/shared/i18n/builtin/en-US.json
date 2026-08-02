@@ -599,6 +599,12 @@
       "logout": "Sign out",
       "loggingOut": "Signing out…",
       "profile": "View profile",
+      "permissions": {
+        "title": "GitHub App capabilities",
+        "ready": "All required repository, code, PR, issue, release, and Actions permissions are available.",
+        "incomplete": "The GitHub App is missing the permissions below. Related tools will be rejected by GitHub.",
+        "reauthorize": "Reauthorize"
+      },
       "repositories": {
         "title": "Authorized repositories",
         "description": "This list shows the GitHub App repository scope and current write access.",

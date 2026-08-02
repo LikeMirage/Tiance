@@ -1,0 +1,5 @@
+[
+  {"title":"列出开放议题","input":{"action":"list","parameters":{"repository":"LikeMirage/Tiance","state":"open"}}},
+  {"title":"模拟创建议题","input":{"action":"create","dry_run":true,"parameters":{"repository":"LikeMirage/Tiance","title":"问题标题","body":"复现和预期"}}},
+  {"title":"模拟关闭议题","input":{"action":"update","dry_run":true,"parameters":{"repository":"LikeMirage/Tiance","number":3,"state":"closed","state_reason":"completed"}}}
+]

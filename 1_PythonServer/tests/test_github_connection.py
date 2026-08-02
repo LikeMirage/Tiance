@@ -41,6 +41,13 @@ class _FakeGithubClient:
             "default_branch": "main",
         }]
 
+    async def list_authorized_installations(self) -> list[dict[str, object]]:
+        return [{"id": 7, "permissions": {
+            "metadata": "read", "contents": "write", "administration": "write",
+            "pull_requests": "write", "issues": "write", "actions": "write",
+            "workflows": "write",
+        }}]
+
     async def start_device_flow(self) -> dict[str, object]:
         return {
             "device_code": "device-secret",
@@ -123,6 +130,7 @@ def test_device_flow_completion_returns_authorized_repositories() -> None:
     assert result.connection is not None
     assert result.connection.connected is True
     assert result.connection.repositories[0].full_name == "example/private-projects"
+    assert result.connection.requires_reauthorization is False
     assert client.saved_payload == {"access_token": "github-token"}
 
 

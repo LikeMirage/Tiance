@@ -10,9 +10,8 @@
     "error": {
       "type": "string"
     },
-    "plan": {
-      "type": "object"
-    },
+    "dryRun": {"type": "boolean"},
+    "preview": {"type": "object"},
     "project": {
       "type": "object"
     }

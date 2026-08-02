@@ -22,6 +22,16 @@ from app.schemas.github_connection import (
 
 
 GITHUB_INSTALLATIONS_URL = "https://github.com/settings/installations"
+_REQUIRED_PERMISSIONS = {
+    "metadata": "read",
+    "contents": "write",
+    "administration": "write",
+    "pull_requests": "write",
+    "issues": "write",
+    "actions": "write",
+    "workflows": "write",
+}
+_PERMISSION_LEVEL = {"read": 1, "write": 2}
 
 
 @dataclass(slots=True)
@@ -45,6 +55,7 @@ class GithubConnectionService:
             return self._disconnected_status()
         try:
             user = await self._client.get_authenticated_user()
+            installations = await self._client.list_authorized_installations()
             repositories = await self._client.list_authorized_repositories()
         except GithubAuthenticationRequiredError:
             return self._disconnected_status()
@@ -53,6 +64,13 @@ class GithubConnectionService:
         login = user.get("login")
         if not isinstance(login, str) or not login:
             raise BadRequestError("GitHub 账号信息无效。")
+        permissions = _merge_installation_permissions(installations)
+        missing_permissions = [
+            name
+            for name, required in _REQUIRED_PERMISSIONS.items()
+            if _PERMISSION_LEVEL.get(permissions.get(name, ""), 0)
+            < _PERMISSION_LEVEL[required]
+        ]
         return GithubConnectionStatusResponse(
             connected=True,
             account=GithubAccountSummary(
@@ -77,6 +95,9 @@ class GithubConnectionService:
                 and isinstance((full_name := item.get("full_name")), str)
                 and full_name
             ],
+            permissions=permissions,
+            missing_permissions=missing_permissions,
+            requires_reauthorization=bool(missing_permissions),
             authorization_url=GITHUB_INSTALLATIONS_URL,
         )
 
@@ -165,3 +186,17 @@ class GithubConnectionService:
 @lru_cache
 def get_github_connection_service() -> GithubConnectionService:
     return GithubConnectionService()
+
+
+def _merge_installation_permissions(installations: list[dict]) -> dict[str, str]:
+    merged: dict[str, str] = {}
+    for installation in installations:
+        raw = installation.get("permissions")
+        if not isinstance(raw, dict):
+            continue
+        for name, level in raw.items():
+            if not isinstance(name, str) or not isinstance(level, str):
+                continue
+            if _PERMISSION_LEVEL.get(level, 0) > _PERMISSION_LEVEL.get(merged.get(name, ""), 0):
+                merged[name] = level
+    return dict(sorted(merged.items()))

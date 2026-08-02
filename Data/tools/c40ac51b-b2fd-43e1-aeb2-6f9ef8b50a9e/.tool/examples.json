@@ -1,0 +1,5 @@
+[
+  {"title":"列出发布","input":{"action":"list","parameters":{"repository":"LikeMirage/Tiance"}}},
+  {"title":"模拟创建发布","input":{"action":"create","dry_run":true,"parameters":{"repository":"LikeMirage/Tiance","tag_name":"v0.3.0","name":"Tiance v0.3.0","generate_release_notes":true}}},
+  {"title":"模拟上传附件","input":{"action":"upload_asset","dry_run":true,"parameters":{"repository":"LikeMirage/Tiance","releaseId":1,"path":"发布包/Tiance.zip"}}}
+]

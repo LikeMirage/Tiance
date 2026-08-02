@@ -28,6 +28,9 @@ class GithubConnectionStatusResponse(GithubConnectionContract):
     connected: bool
     account: GithubAccountSummary | None = None
     repositories: list[GithubRepositorySummary] = Field(default_factory=list)
+    permissions: dict[str, str] = Field(default_factory=dict)
+    missing_permissions: list[str] = Field(default_factory=list, alias="missingPermissions")
+    requires_reauthorization: bool = Field(default=False, alias="requiresReauthorization")
     authorization_url: str = Field(alias="authorizationUrl")
 
 

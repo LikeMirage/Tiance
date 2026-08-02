@@ -194,7 +194,7 @@ class GithubClient:
         return await self._get_json_with_token("/user", access_token=access_token)
 
     async def list_authorized_repositories(self) -> list[dict[str, Any]]:
-        installations = await self._get_paginated("/user/installations", required_auth=True)
+        installations = await self.list_authorized_installations()
         repositories: dict[int, dict[str, Any]] = {}
         for installation in installations:
             installation_id = installation.get("id")
@@ -209,6 +209,9 @@ class GithubClient:
             repositories.values(),
             key=lambda item: str(item.get("full_name") or "").lower(),
         )
+
+    async def list_authorized_installations(self) -> list[dict[str, Any]]:
+        return await self._get_paginated("/user/installations", required_auth=True)
 
     async def get_repository_for_sync(
         self,
@@ -495,6 +498,132 @@ class GithubClient:
             required_auth=False,
         )
 
+    async def request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        access_token: str,
+        json_body: dict[str, Any] | None = None,
+        accept: str = "application/vnd.github+json",
+    ) -> dict[str, Any]:
+        response = await self._request(
+            method,
+            f"{_GITHUB_API}{path}",
+            token=access_token,
+            json_body=json_body,
+            accept=accept,
+        )
+        if response.status_code == 204 or not response.content:
+            return {}
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise GithubApiError("GitHub 返回了无效响应。", status_code=response.status_code) from exc
+        if not isinstance(payload, dict):
+            raise GithubApiError("GitHub 返回了无效响应。", status_code=response.status_code)
+        return payload
+
+    async def request_json_list(
+        self,
+        method: str,
+        path: str,
+        *,
+        access_token: str,
+        json_body: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        response = await self._request(
+            method,
+            f"{_GITHUB_API}{path}",
+            token=access_token,
+            json_body=json_body,
+        )
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise GithubApiError("GitHub 返回了无效响应。", status_code=response.status_code) from exc
+        if not isinstance(payload, list):
+            raise GithubApiError("GitHub 返回了无效响应。", status_code=response.status_code)
+        return [item for item in payload if isinstance(item, dict)]
+
+    async def request_bytes(
+        self,
+        path: str,
+        *,
+        access_token: str,
+        maximum_bytes: int,
+        accept: str = "application/vnd.github+json",
+    ) -> bytes:
+        chunks: list[bytes] = []
+        downloaded = 0
+        client = get_shared_http_client()
+        try:
+            async with client.stream(
+                "GET",
+                f"{_GITHUB_API}{path}",
+                headers=self._headers(access_token, accept=accept),
+                timeout=get_http_timeout(stream=True),
+            ) as response:
+                await self._raise_for_status(response, had_token=True)
+                self._require_safe_download_url(response.url)
+                async for chunk in response.aiter_bytes():
+                    downloaded += len(chunk)
+                    if downloaded > maximum_bytes:
+                        raise GithubApiError("GitHub 下载内容超过允许大小。")
+                    chunks.append(chunk)
+        except httpx.RequestError as exc:
+            raise GithubApiError("无法连接 GitHub。") from exc
+        return b"".join(chunks)
+
+    async def upload_release_asset(
+        self,
+        repository: GithubRepositorySource,
+        release_id: int,
+        *,
+        name: str,
+        content_type: str,
+        source: Path,
+        maximum_bytes: int,
+        access_token: str,
+    ) -> dict[str, Any]:
+        size = source.stat().st_size
+        if size > maximum_bytes:
+            raise GithubApiError("Release 附件超过允许大小。")
+        owner = quote(repository.owner, safe="")
+        repo = quote(repository.repository, safe="")
+        url = (
+            f"https://uploads.github.com/repos/{owner}/{repo}/releases/{release_id}/assets"
+            f"?name={quote(name, safe='')}"
+        )
+
+        async def content_stream():
+            with source.open("rb") as input_file:
+                while chunk := input_file.read(1024 * 1024):
+                    yield chunk
+
+        client = get_shared_http_client()
+        try:
+            response = await client.post(
+                url,
+                headers={
+                    **self._headers(access_token),
+                    "Content-Type": content_type,
+                    "Content-Length": str(size),
+                },
+                content=content_stream(),
+                timeout=get_http_timeout(stream=True),
+            )
+        except httpx.RequestError as exc:
+            raise GithubApiError("无法上传 GitHub Release 附件。") from exc
+        await self._raise_for_status(response, had_token=True)
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise GithubApiError("GitHub 返回了无效附件信息。") from exc
+        if not isinstance(payload, dict):
+            raise GithubApiError("GitHub 返回了无效附件信息。")
+        return payload
+
     async def _get_paginated(self, path: str, *, required_auth: bool) -> list[dict[str, Any]]:
         page = 1
         items: list[dict[str, Any]] = []
@@ -657,13 +786,14 @@ class GithubClient:
         *,
         token: str | None,
         json_body: dict[str, Any] | None = None,
+        accept: str = "application/vnd.github+json",
     ) -> httpx.Response:
         client = get_shared_http_client()
         try:
             response = await client.request(
                 method,
                 url,
-                headers=self._headers(token),
+                headers=self._headers(token, accept=accept),
                 json=json_body,
                 timeout=get_http_timeout(),
             )
@@ -744,7 +874,13 @@ class GithubClient:
 
     @staticmethod
     def _require_safe_download_url(url: httpx.URL) -> None:
-        if url.scheme != "https" or (url.host or "").lower() not in _GITHUB_DOWNLOAD_HOSTS:
+        host = (url.host or "").lower()
+        trusted = (
+            host in _GITHUB_DOWNLOAD_HOSTS
+            or host.endswith(".githubusercontent.com")
+            or host.endswith(".blob.core.windows.net")
+        )
+        if url.scheme != "https" or not trusted:
             raise GithubApiError("GitHub 返回了不安全的下载地址。")
 
 

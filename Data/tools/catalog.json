@@ -169,6 +169,51 @@
       "updated_at": "2026-08-03T00:00:00Z"
     },
     {
+      "project_id": "66d138af-7379-4a3c-b038-888708910ab1",
+      "name": "GitHub 仓库",
+      "category_id": "4850f094-68fb-464b-9c44-d687c0f69097",
+      "is_default": false,
+      "sort_order": 2,
+      "created_at": "2026-08-03T00:00:00Z",
+      "updated_at": "2026-08-03T00:00:00Z"
+    },
+    {
+      "project_id": "7ef483c5-64ad-4b4d-b279-3afc50c82913",
+      "name": "GitHub PR",
+      "category_id": "4850f094-68fb-464b-9c44-d687c0f69097",
+      "is_default": false,
+      "sort_order": 3,
+      "created_at": "2026-08-03T00:00:00Z",
+      "updated_at": "2026-08-03T00:00:00Z"
+    },
+    {
+      "project_id": "72c8bab1-d4ed-4c9f-9bba-a2aa80822e4c",
+      "name": "GitHub 议题",
+      "category_id": "4850f094-68fb-464b-9c44-d687c0f69097",
+      "is_default": false,
+      "sort_order": 4,
+      "created_at": "2026-08-03T00:00:00Z",
+      "updated_at": "2026-08-03T00:00:00Z"
+    },
+    {
+      "project_id": "c40ac51b-b2fd-43e1-aeb2-6f9ef8b50a9e",
+      "name": "GitHub 发布",
+      "category_id": "4850f094-68fb-464b-9c44-d687c0f69097",
+      "is_default": false,
+      "sort_order": 5,
+      "created_at": "2026-08-03T00:00:00Z",
+      "updated_at": "2026-08-03T00:00:00Z"
+    },
+    {
+      "project_id": "fe6f9871-cdbd-45c5-89bc-74ab68fa9c18",
+      "name": "GitHub Actions",
+      "category_id": "4850f094-68fb-464b-9c44-d687c0f69097",
+      "is_default": false,
+      "sort_order": 6,
+      "created_at": "2026-08-03T00:00:00Z",
+      "updated_at": "2026-08-03T00:00:00Z"
+    },
+    {
       "project_id": "7a70dd37-ca12-5ecc-9235-f12e3c14b1d2",
       "name": "文件读取",
       "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",

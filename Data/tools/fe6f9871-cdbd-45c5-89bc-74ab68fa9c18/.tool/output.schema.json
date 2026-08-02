@@ -1,0 +1,1 @@
+{"type":"object","required":["ok"],"additionalProperties":true,"properties":{"ok":{"type":"boolean"},"action":{"type":"string"},"dryRun":{"type":"boolean"},"error":{"type":"string"}}}

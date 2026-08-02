@@ -185,6 +185,15 @@ class GitRepositoryAdapter:
         finally:
             repo.close()
 
+    def remote_comparison(self, *, remote: str) -> dict[str, Any]:
+        """Compare against the last fetched remote ref without changing the repository."""
+        repo = self._open()
+        try:
+            self._remote_url(repo, remote)
+            return self._remote_comparison(repo, remote)
+        finally:
+            repo.close()
+
     def commit(
         self,
         *,
@@ -208,7 +217,7 @@ class GitRepositoryAdapter:
         finally:
             repo.close()
 
-    def push(self, *, remote: str, branch: str, token: str | None) -> dict[str, Any]:
+    def push(self, *, remote: str, branch: str, token: str | None, force: bool = False) -> dict[str, Any]:
         repo = self._open()
         try:
             remote_url = self._remote_url(repo, remote)
@@ -216,6 +225,7 @@ class GitRepositoryAdapter:
                 repo,
                 remote_url,
                 refspecs=f"refs/heads/{branch}:refs/heads/{branch}",
+                force=force,
                 **self._credentials(remote_url, token),
             )
             errors = [value.decode("utf-8", errors="replace") for value in result.ref_status.values() if value]
@@ -279,6 +289,79 @@ class GitRepositoryAdapter:
             repo.close()
         return self.overview()
 
+    def delete_branch(self, *, branch: str) -> dict[str, Any]:
+        repo = self._open()
+        try:
+            if self._active_branch(repo) == branch:
+                raise GitRepositoryError("不能删除当前正在使用的分支。")
+            porcelain.branch_delete(repo, branch)
+        except GitRepositoryError:
+            raise
+        except Exception as exc:
+            raise GitRepositoryError(self._friendly_error(exc)) from exc
+        finally:
+            repo.close()
+        return self.overview()
+
+    def list_tags(self) -> list[str]:
+        repo = self._open()
+        try:
+            return sorted(self._decode_path(tag) for tag in porcelain.tag_list(repo))
+        finally:
+            repo.close()
+
+    def create_tag(self, *, tag: str, revision: str) -> list[str]:
+        repo = self._open()
+        try:
+            porcelain.tag_create(repo, tag, objectish=revision)
+        except Exception as exc:
+            raise GitRepositoryError(self._friendly_error(exc)) from exc
+        finally:
+            repo.close()
+        return self.list_tags()
+
+    def delete_tag(self, *, tag: str) -> list[str]:
+        repo = self._open()
+        try:
+            porcelain.tag_delete(repo, tag.encode("utf-8"))
+        except Exception as exc:
+            raise GitRepositoryError(self._friendly_error(exc)) from exc
+        finally:
+            repo.close()
+        return self.list_tags()
+
+    def list_submodules(self) -> list[dict[str, str]]:
+        repo = self._open()
+        try:
+            return [
+                {"path": str(path).replace("\\", "/"), "url": str(url)}
+                for path, url in porcelain.submodule_list(repo)
+            ]
+        finally:
+            repo.close()
+
+    def add_submodule(self, *, url: str, path: str) -> list[dict[str, str]]:
+        normalized = self._normalize_path(path)
+        repo = self._open()
+        try:
+            porcelain.submodule_add(repo, url, path=normalized)
+        except Exception as exc:
+            raise GitRepositoryError(self._friendly_error(exc)) from exc
+        finally:
+            repo.close()
+        return self.list_submodules()
+
+    def update_submodules(self, *, paths: list[str] | None, force: bool) -> list[dict[str, str]]:
+        normalized = [self._normalize_path(path) for path in paths] if paths else None
+        repo = self._open()
+        try:
+            porcelain.submodule_update(repo, paths=normalized, init=True, force=force, recursive=True)
+        except Exception as exc:
+            raise GitRepositoryError(self._friendly_error(exc)) from exc
+        finally:
+            repo.close()
+        return self.list_submodules()
+
     def restore(self, *, paths: list[str]) -> dict[str, Any]:
         repo = self._open()
         try:
@@ -309,6 +392,16 @@ class GitRepositoryAdapter:
             raise GitRepositoryError(self._friendly_error(exc)) from exc
         finally:
             repo.close()
+
+    def reset(self, *, revision: str, hard: bool) -> dict[str, Any]:
+        repo = self._open()
+        try:
+            porcelain.reset(repo, "hard" if hard else "mixed", treeish=revision)
+        except Exception as exc:
+            raise GitRepositoryError(self._friendly_error(exc)) from exc
+        finally:
+            repo.close()
+        return self.overview()
 
     def fingerprint(self) -> str:
         import hashlib

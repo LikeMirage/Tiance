@@ -17,6 +17,9 @@ export type GithubConnectionStatus = {
     profileUrl: string;
   } | null;
   repositories: GithubRepositorySummary[];
+  permissions: Record<string, string>;
+  missingPermissions: string[];
+  requiresReauthorization: boolean;
   authorizationUrl: string;
 };
 

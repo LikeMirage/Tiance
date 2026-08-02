@@ -1,0 +1,1 @@
+{"schemaVersion":1,"kind":"tiance-tool-package","id":"github_issue","version":"1.0.0","author":{"name":"LikeMirage"},"license":"Apache-2.0","compatibility":{"minTianceVersion":"0.3.0","platforms":["windows-x64"]}}

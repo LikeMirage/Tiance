@@ -84,6 +84,27 @@
 .github-settings__account-copy .github-settings__connected { gap: 5px; color: var(--color-success-text); }
 
 .github-settings__section { display: grid; gap: 13px; padding-top: 3px; }
+.github-settings__permissions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 5px;
+  background: var(--color-surface-panel);
+}
+.github-settings__permissions--warning { border-color: var(--color-warning-border, var(--color-accent)); }
+.github-settings__permissions > div { display: grid; gap: 4px; }
+.github-settings__permissions span { color: var(--color-text-muted); font-size: 0.78rem; }
+.github-settings__permission-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.github-settings__permission-list span {
+  padding: 3px 7px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+}
 .github-settings__section-actions { gap: 8px; }
 .github-settings__repositories { display: grid; border: 1px solid var(--color-border-soft); border-radius: 5px; overflow: hidden; }
 .github-settings__repository { gap: 9px; min-height: 42px; padding: 0 12px; border-bottom: 1px solid var(--color-border-soft); }
