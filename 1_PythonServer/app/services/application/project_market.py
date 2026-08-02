@@ -441,6 +441,9 @@ def _find_installed_project(
     source: str,
     market_project_id: str,
 ):
+    direct_project = catalog.get_project(market_project_id)
+    if direct_project is not None:
+        return direct_project
     for project in catalog.list_projects():
         origin = read_project_market_origin(project.root_path)
         if origin is None:
@@ -505,7 +508,9 @@ def get_project_market_application_service() -> ProjectMarketApplicationService:
         cache_repository=ProjectMarketCacheRepository(
             settings.projects_data_path / ".market-cache"
         ),
-        remote_client=ProjectMarketRemoteClient(),
+        remote_client=ProjectMarketRemoteClient(
+            synchronized_catalog_kind="tiance-project-market"
+        ),
         archive=ProjectPackageArchive(),
         catalog=catalog,
         project_service=get_project_service(),

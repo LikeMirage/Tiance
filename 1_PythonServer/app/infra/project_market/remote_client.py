@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 import re
 from urllib.parse import quote, urljoin, urlsplit, urlunsplit
@@ -40,18 +41,29 @@ class ProjectMarketConnectionError(BadRequestError):
 
 
 class ProjectMarketRemoteClient:
+    def __init__(self, *, synchronized_catalog_kind: str | None = None) -> None:
+        self._synchronized_catalog_kind = synchronized_catalog_kind
+
     async def fetch_index(self, source: str) -> dict[str, object]:
         normalized_source = normalize_project_market_source(source)
         github = parse_github_repository_source(normalized_source)
         if github is not None:
             try:
                 default_ref = await get_github_client().get_repository_default_branch(github)
-                content = await get_github_client().fetch_repository_file(
-                    github,
-                    "index.json",
-                    maximum_bytes=MAX_PROJECT_MARKET_INDEX_BYTES,
-                    ref=default_ref,
-                )
+                try:
+                    content = await get_github_client().fetch_repository_file(
+                        github,
+                        "index.json",
+                        maximum_bytes=MAX_PROJECT_MARKET_INDEX_BYTES,
+                        ref=default_ref,
+                    )
+                except GithubApiError as exc:
+                    if exc.status_code != 404 or self._synchronized_catalog_kind is None:
+                        raise
+                    return await self._fetch_synchronized_catalog(
+                        github,
+                        default_ref=default_ref,
+                    )
             except GithubApiError as exc:
                 raise ProjectMarketConnectionError(f"无法连接在线项目仓库：{exc}") from exc
             payload = _decode_index(content)
@@ -67,6 +79,35 @@ class ProjectMarketRemoteClient:
         if content is None:
             raise ProjectMarketConnectionError("无法连接在线项目仓库。")
         return _decode_index(content)
+
+    async def _fetch_synchronized_catalog(
+        self,
+        github: GithubRepositorySource,
+        *,
+        default_ref: str,
+    ) -> dict[str, object]:
+        try:
+            content = await get_github_client().fetch_repository_file(
+                github,
+                "catalog.json",
+                maximum_bytes=MAX_PROJECT_MARKET_INDEX_BYTES,
+                ref=default_ref,
+            )
+        except GithubApiError as exc:
+            if exc.status_code != 404:
+                raise
+            return _synchronized_catalog_index(
+                github,
+                catalog={"categories": [], "projects": []},
+                default_ref=default_ref,
+                index_kind=self._synchronized_catalog_kind or "tiance-project-market",
+            )
+        return _synchronized_catalog_index(
+            github,
+            catalog=_decode_synchronized_catalog(content),
+            default_ref=default_ref,
+            index_kind=self._synchronized_catalog_kind or "tiance-project-market",
+        )
 
     async def download_package(
         self,
@@ -278,6 +319,82 @@ def _decode_index(content: bytes) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise BadRequestError("在线项目索引格式无效。")
     return payload
+
+
+def _decode_synchronized_catalog(content: bytes) -> dict[str, object]:
+    try:
+        payload = json.loads(content.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise BadRequestError("私人同步仓库的 catalog.json 不是有效 JSON。") from exc
+    if (
+        not isinstance(payload, dict)
+        or not isinstance(payload.get("categories"), list)
+        or not isinstance(payload.get("projects"), list)
+    ):
+        raise BadRequestError("私人同步仓库的 catalog.json 格式无效。")
+    return payload
+
+
+def _synchronized_catalog_index(
+    github: GithubRepositorySource,
+    *,
+    catalog: dict[str, object],
+    default_ref: str,
+    index_kind: str,
+) -> dict[str, object]:
+    category_names: dict[str, str] = {}
+    for raw_category in catalog.get("categories", []):
+        if not isinstance(raw_category, dict):
+            continue
+        category_id = raw_category.get("category_id")
+        category_name = raw_category.get("name")
+        if isinstance(category_id, str) and isinstance(category_name, str) and category_name.strip():
+            category_names[category_id] = category_name.strip()
+
+    now = datetime.now(UTC).isoformat()
+    projects: list[dict[str, object]] = []
+    updated_values: list[str] = []
+    for raw_project in catalog.get("projects", []):
+        if not isinstance(raw_project, dict):
+            raise BadRequestError("私人同步仓库的 catalog.json 包含无效项目。")
+        project_id = raw_project.get("project_id")
+        project_name = raw_project.get("name")
+        if not isinstance(project_id, str) or not project_id.strip():
+            raise BadRequestError("私人同步仓库包含缺少 ID 的项目。")
+        if not isinstance(project_name, str) or not project_name.strip():
+            raise BadRequestError("私人同步仓库包含缺少名称的项目。")
+        updated_at = raw_project.get("updated_at")
+        if not isinstance(updated_at, str) or not updated_at.strip():
+            updated_at = now
+        else:
+            updated_at = updated_at.strip()
+        updated_values.append(updated_at)
+        tags = ["私人同步"]
+        category_id = raw_project.get("category_id")
+        if isinstance(category_id, str) and category_id in category_names:
+            tags.insert(0, category_names[category_id])
+        projects.append({
+            "id": project_id.strip(),
+            "name": project_name.strip(),
+            "summary": f"来自 {github.owner}/{github.repository} 私人同步仓库的项目。",
+            "author": github.owner,
+            "version": "1.0.0",
+            "updatedAt": updated_at,
+            "download": {
+                "kind": "github-directory",
+                "path": project_id.strip(),
+                "ref": default_ref,
+            },
+            "tags": tags,
+        })
+    return {
+        "schemaVersion": 1,
+        "kind": index_kind,
+        "name": f"{github.owner}/{github.repository} 私人项目集",
+        "updatedAt": max(updated_values, default=now),
+        "defaultRef": default_ref,
+        "projects": projects,
+    }
 
 
 def _validate_download(

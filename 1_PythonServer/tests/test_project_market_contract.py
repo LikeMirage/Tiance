@@ -13,6 +13,7 @@ import pytest
 from app.core.errors import BadRequestError, ConflictError
 from app.domain.project import ProjectKind
 from app.infra.database import ensure_database_schema
+from app.infra.github import GithubApiError
 from app.infra.project_market.package_archive import ProjectPackageArchive
 from app.infra.project_market.remote_client import (
     ProjectMarketConnectionError,
@@ -152,6 +153,78 @@ def test_project_market_remote_client_uses_repository_default_branch(monkeypatch
 
     assert calls == [("index.json", "master")]
     assert result["defaultRef"] == "master"
+
+
+def test_project_market_reads_private_sync_catalog_without_market_index(monkeypatch) -> None:
+    client = ProjectMarketRemoteClient(
+        synchronized_catalog_kind="tiance-project-market"
+    )
+    calls: list[tuple[str, str | None]] = []
+    catalog = {
+        "schema_version": 1,
+        "categories": [{"category_id": "daily", "name": "日常项目"}],
+        "projects": [{
+            "project_id": "939f2aba-a88d-4517-b36e-2790c31fc78f",
+            "name": "公司会议",
+            "category_id": "daily",
+            "updated_at": "2026-08-03T00:00:00Z",
+        }],
+    }
+
+    class FakeGithubClient:
+        async def get_repository_default_branch(self, _repository) -> str:
+            return "main"
+
+        async def fetch_repository_file(self, _repository, path: str, *, ref: str, **_kwargs):
+            calls.append((path, ref))
+            if path == "index.json":
+                raise GithubApiError("not found", status_code=404)
+            return json.dumps(catalog).encode("utf-8")
+
+    monkeypatch.setattr(
+        "app.infra.project_market.remote_client.get_github_client",
+        lambda: FakeGithubClient(),
+    )
+    result = asyncio.run(client.fetch_index("https://github.com/LikeMirage/self-projects"))
+
+    assert calls == [("index.json", "main"), ("catalog.json", "main")]
+    assert result["kind"] == "tiance-project-market"
+    assert result["projects"] == [{
+        "id": "939f2aba-a88d-4517-b36e-2790c31fc78f",
+        "name": "公司会议",
+        "summary": "来自 LikeMirage/self-projects 私人同步仓库的项目。",
+        "author": "LikeMirage",
+        "version": "1.0.0",
+        "updatedAt": "2026-08-03T00:00:00Z",
+        "download": {
+            "kind": "github-directory",
+            "path": "939f2aba-a88d-4517-b36e-2790c31fc78f",
+            "ref": "main",
+        },
+        "tags": ["日常项目", "私人同步"],
+    }]
+
+
+def test_project_market_accepts_empty_private_sync_repository(monkeypatch) -> None:
+    client = ProjectMarketRemoteClient(
+        synchronized_catalog_kind="tiance-project-market"
+    )
+
+    class FakeGithubClient:
+        async def get_repository_default_branch(self, _repository) -> str:
+            return "main"
+
+        async def fetch_repository_file(self, _repository, _path: str, **_kwargs):
+            raise GithubApiError("not found", status_code=404)
+
+    monkeypatch.setattr(
+        "app.infra.project_market.remote_client.get_github_client",
+        lambda: FakeGithubClient(),
+    )
+    result = asyncio.run(client.fetch_index("https://github.com/LikeMirage/self-projects"))
+
+    assert result["name"] == "LikeMirage/self-projects 私人项目集"
+    assert result["projects"] == []
 
 
 def test_project_market_pages_source_uses_shared_index_contract() -> None:
