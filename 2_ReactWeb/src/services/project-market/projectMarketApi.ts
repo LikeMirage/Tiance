@@ -63,6 +63,14 @@ export function saveProjectMarketFilters(
   });
 }
 
+export function selectProjectOnlineSource(source: string, signal?: AbortSignal) {
+  return fetchJson<ProjectMarketSettings>("/api/projects/market/source", {
+    body: JSON.stringify({ source }),
+    method: "PUT",
+    signal,
+  });
+}
+
 export function startProjectMarketInstall(
   scope: ProjectMarketScope,
   marketProjectId: string,

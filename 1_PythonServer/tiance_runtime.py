@@ -20,6 +20,7 @@ API_BASE_URL_ENV = "TIANCE_API_BASE_URL"
 _HOST_CAPABILITY_PATHS = {
     "web_search": "/llm/provider-capabilities/web-search",
     "github_sync": "/github/sync/tool",
+    "git_repository": "/git/repository/tool",
 }
 
 
@@ -93,7 +94,7 @@ def call_host_capability(
             "Content-Type": "application/json; charset=utf-8",
             **(
                 {"X-Tiance-Github-Token": github_token}
-                if normalized_capability == "github_sync"
+                if normalized_capability in {"github_sync", "git_repository"}
                 and (github_token := os.environ.get("TIANCE_GITHUB_TOKEN", "").strip())
                 else {}
             ),

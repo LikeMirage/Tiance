@@ -1,0 +1,88 @@
+{
+  "additionalProperties": false,
+  "description": "操作当前会话所属普通项目的标准 Git 仓库。commit、push、pull、restore、revert 必须使用对应 plan_* 操作刚返回的 planId；项目状态变化后旧计划失效。",
+  "properties": {
+    "action": {
+      "enum": [
+        "overview",
+        "status",
+        "diff",
+        "log",
+        "show_commit",
+        "fetch",
+        "init",
+        "connect_remote",
+        "disconnect_remote",
+        "create_branch",
+        "switch_branch",
+        "plan_commit",
+        "commit",
+        "plan_push",
+        "push",
+        "plan_pull",
+        "pull",
+        "plan_restore",
+        "restore",
+        "plan_revert",
+        "revert"
+      ],
+      "type": "string"
+    },
+    "remote": {
+      "default": "origin",
+      "description": "远端名称。",
+      "maxLength": 80,
+      "type": "string"
+    },
+    "repository": {
+      "description": "connect_remote 使用的 GitHub HTTPS 仓库地址。",
+      "maxLength": 300,
+      "type": "string"
+    },
+    "branch": {
+      "description": "初始化、分支或远端操作使用的分支名称。",
+      "maxLength": 250,
+      "type": "string"
+    },
+    "revision": {
+      "description": "show_commit 或 plan_revert 使用的提交 SHA。",
+      "maxLength": 100,
+      "type": "string"
+    },
+    "paths": {
+      "description": "当前项目内的相对文件路径。省略时 plan_commit 包含全部改动。",
+      "items": {
+        "maxLength": 1000,
+        "type": "string"
+      },
+      "maxItems": 5000,
+      "type": "array"
+    },
+    "staged": {
+      "default": false,
+      "description": "diff 是否查看已暂存差异。",
+      "type": "boolean"
+    },
+    "limit": {
+      "default": 30,
+      "description": "log 返回的最大提交数。",
+      "maximum": 100,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "message": {
+      "description": "plan_commit 使用的提交说明。",
+      "maxLength": 500,
+      "type": "string"
+    },
+    "planId": {
+      "description": "对应 plan_* 操作返回的计划号。",
+      "maxLength": 80,
+      "type": "string"
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "type": "object"
+}

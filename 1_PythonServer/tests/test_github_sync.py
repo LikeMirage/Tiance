@@ -9,12 +9,19 @@ import pytest
 
 from app.core.config import Settings
 from app.core.errors import ConflictError
-from app.domain.github_sync import GithubSyncDirection
+from app.domain.github_sync import GithubSyncDirection, GithubSyncFile
 from app.domain.project import Project, ProjectKind
 from app.repositories.github_sync_binding_repository import GithubSyncBindingRepository
 from app.services.application.github_sync import GithubSyncService
+from app.services.application.github_project_sync import (
+    build_board,
+    merge_local_catalog_for_pull,
+    merge_portable_catalog,
+)
 from app.services.application.github_sync_snapshot import (
     GITHUB_SYNC_TOOL_ID,
+    LocalSnapshot,
+    LocalSnapshotFile,
     build_local_snapshot,
 )
 from app.services.tools.host_capability_access import (
@@ -344,6 +351,102 @@ def test_plan_stops_when_local_files_change(tmp_path: Path) -> None:
 
     with pytest.raises(ConflictError, match="本地文件已经改变"):
         asyncio.run(run())
+
+
+def test_project_board_groups_changed_files_by_catalog() -> None:
+    local_catalog = {
+        "categories": [{"category_id": "daily", "name": "日常项目", "sort_order": 0}],
+        "projects": [{
+            "project_id": "project-a",
+            "name": "公司会议",
+            "category_id": "daily",
+            "sort_order": 0,
+        }],
+    }
+    local = LocalSnapshot(
+        files={
+            "project-a/notes.md": LocalSnapshotFile(
+                path="project-a/notes.md", size=5, sha="local", content=b"local"
+            ),
+        },
+        fingerprint="local",
+    )
+    remote = {
+        "project-a/notes.md": GithubSyncFile(
+            path="project-a/notes.md", size=6, sha="remote"
+        ),
+    }
+
+    categories, projects, changed_files = build_board(
+        local=local,
+        remote=remote,
+        local_catalog=local_catalog,
+        remote_catalog=local_catalog,
+    )
+
+    assert changed_files == 1
+    assert categories[0]["name"] == "日常项目"
+    assert categories[0]["changedFiles"] == 1
+    assert projects[0]["name"] == "公司会议"
+    assert projects[0]["files"][0]["status"] == "different"
+
+
+def test_selective_project_catalog_push_keeps_unselected_remote_projects() -> None:
+    local = {
+        "categories": [{"category_id": "daily", "name": "本地分类"}],
+        "projects": [
+            {"project_id": "project-a", "name": "本地 A", "category_id": "daily"},
+            {"project_id": "project-b", "name": "本地 B", "category_id": "daily"},
+        ],
+    }
+    remote = {
+        "categories": [{"category_id": "daily", "name": "远端分类"}],
+        "projects": [
+            {"project_id": "project-b", "name": "远端 B", "category_id": "daily"},
+        ],
+    }
+
+    merged = merge_portable_catalog(
+        local=local,
+        remote=remote,
+        selected_project_ids=("project-a",),
+        direction="push",
+    )
+
+    projects = {item["project_id"]: item for item in merged["projects"]}
+    assert projects["project-a"]["name"] == "本地 A"
+    assert projects["project-b"]["name"] == "远端 B"
+
+
+def test_project_catalog_pull_preserves_existing_external_root(tmp_path: Path) -> None:
+    external = tmp_path / "external"
+    raw_local = {
+        "categories": [],
+        "projects": [{
+            "project_id": "project-a",
+            "name": "旧名称",
+            "root_path": str(external),
+        }],
+    }
+    remote = {
+        "categories": [{"category_id": "daily", "name": "日常项目"}],
+        "projects": [{
+            "project_id": "project-a",
+            "name": "新名称",
+            "category_id": "daily",
+        }],
+    }
+
+    merged = merge_local_catalog_for_pull(
+        raw_local=raw_local,
+        remote=remote,
+        selected_project_ids=("project-a",),
+        projects_root=tmp_path / "projects",
+    )
+
+    assert merged["projects"][0]["name"] == "新名称"
+    assert merged["projects"][0]["root_path"] == str(external)
+    assert merged["categories"][0]["category_id"] == "daily"
 
 
 def _settings(tmp_path: Path) -> Settings:

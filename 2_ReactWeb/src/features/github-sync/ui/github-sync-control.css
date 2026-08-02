@@ -53,7 +53,7 @@
   max-height: min(720px, calc(100vh - 48px));
   border: 1px solid var(--color-border-soft);
   border-radius: 10px;
-  background: var(--color-surface-elevated);
+  background: var(--color-surface-elevated-solid);
   color: var(--color-text-primary);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
   overflow: hidden;

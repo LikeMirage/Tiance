@@ -58,7 +58,7 @@ export const PROJECT_MARKET_BOARD_CLASSES: OnlineMarketBoardClasses = {
 };
 
 export function normalizeOnlineMarketSourceText(source: string): string {
-  return source.trim().replace(/\/+$/, "");
+  return source.trim().replace(/\/+$/, "").replace(/\.git$/i, "");
 }
 
 export type OnlineMarketSourceFormProps = {
@@ -75,6 +75,7 @@ export type OnlineMarketSourceFormProps = {
   placeholder: string;
   refreshText: string;
   source: string;
+  readOnly?: boolean;
 };
 
 export function OnlineMarketSourceForm({
@@ -90,6 +91,7 @@ export function OnlineMarketSourceForm({
   onDraftSourceChange,
   placeholder,
   refreshText,
+  readOnly = false,
   source,
 }: OnlineMarketSourceFormProps) {
   const normalizedDraft = normalizeOnlineMarketSourceText(draftSource);
@@ -110,6 +112,7 @@ export function OnlineMarketSourceForm({
           id={inputId}
           onChange={(event) => onDraftSourceChange(event.target.value)}
           placeholder={placeholder}
+          readOnly={readOnly}
           spellCheck={false}
           type="url"
           value={draftSource}

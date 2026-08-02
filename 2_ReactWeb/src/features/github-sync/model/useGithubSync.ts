@@ -11,6 +11,7 @@ import {
   type GithubSyncPlan,
 } from "../../../services/github/githubSyncApi";
 import { HttpRequestError } from "../../../services/http/httpClient";
+import { dispatchGithubSyncBindingChanged } from "./githubSyncBindingEvents";
 
 export function useGithubSync(collection: GithubSyncCollection, active: boolean) {
   const requestRef = useRef<AbortController | null>(null);
@@ -58,6 +59,7 @@ export function useGithubSync(collection: GithubSyncCollection, active: boolean)
     setOverview((current) => current ? { ...current, binding } : current);
     setPlan(null);
     setResult("bindingSaved");
+    dispatchGithubSyncBindingChanged({ binding, collection });
     return true;
   }, [collection, run]);
 
@@ -67,11 +69,20 @@ export function useGithubSync(collection: GithubSyncCollection, active: boolean)
     setOverview((current) => current ? { ...current, binding: null } : current);
     setPlan(null);
     setResult("bindingRemoved");
+    dispatchGithubSyncBindingChanged({ binding: null, collection });
     return true;
   }, [collection, run]);
 
-  const preview = useCallback(async (direction: "push" | "pull") => {
-    const value = await run((signal) => createGithubSyncPlan(collection, direction, signal));
+  const preview = useCallback(async (
+    direction: "push" | "pull",
+    selection?: { paths: string[]; projectIds: string[] },
+  ) => {
+    const value = await run((signal) => createGithubSyncPlan(
+      collection,
+      direction,
+      selection,
+      signal,
+    ));
     if (value) setPlan(value);
     return value;
   }, [collection, run]);

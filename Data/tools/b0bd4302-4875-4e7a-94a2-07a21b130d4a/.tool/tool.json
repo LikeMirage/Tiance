@@ -1,0 +1,38 @@
+{
+  "description": "管理当前普通项目的标准 Git 仓库。可查看状态、差异和历史，初始化仓库、连接 GitHub 远端、管理分支，并通过先预览后执行的方式提交、推送、拉取、恢复文件或撤销提交。仓库使用标准 .git，可与其他 Git 客户端互通；远程操作优先复用天策设定集中的 GitHub 登录。严禁跳过计划步骤执行写操作。",
+  "display_name": "Git 仓库",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "Git",
+    "GitHub",
+    "版本控制",
+    "提交",
+    "推送",
+    "拉取",
+    "分支",
+    "差异"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "git_repository",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 600,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

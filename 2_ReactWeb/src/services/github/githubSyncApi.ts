@@ -54,6 +54,41 @@ export type GithubSyncPlan = {
   createdAt: string;
 };
 
+export type GithubProjectSyncFile = {
+  path: string;
+  projectId: string;
+  relativePath: string;
+  status: "same" | "local-only" | "remote-only" | "different";
+  localSize: number | null;
+  remoteSize: number | null;
+};
+
+export type GithubProjectSyncProject = {
+  projectId: string;
+  name: string;
+  categoryId: string | null;
+  location: "local" | "remote" | "both";
+  changedFiles: number;
+  files: GithubProjectSyncFile[];
+};
+
+export type GithubProjectSyncCategory = {
+  categoryId: string;
+  name: string;
+  projectIds: string[];
+  changedFiles: number;
+};
+
+export type GithubProjectSyncBoard = {
+  repository: string;
+  branch: string;
+  remotePath: string;
+  remoteHeadSha: string | null;
+  categories: GithubProjectSyncCategory[];
+  projects: GithubProjectSyncProject[];
+  changedFiles: number;
+};
+
 export type GithubSyncApplyResult = {
   ok: true;
   collection: GithubSyncCollection;
@@ -91,13 +126,18 @@ export function deleteGithubSyncBinding(collection: GithubSyncCollection, signal
 export function createGithubSyncPlan(
   collection: GithubSyncCollection,
   direction: "push" | "pull",
+  selection?: { paths: string[]; projectIds: string[] },
   signal?: AbortSignal,
 ) {
   return fetchJson<GithubSyncPlan>("/api/github/sync/plans/create", {
-    body: JSON.stringify({ collection, direction }),
+    body: JSON.stringify({ collection, direction, ...selection }),
     method: "POST",
     signal,
   });
+}
+
+export function getGithubProjectSyncBoard(signal?: AbortSignal) {
+  return fetchJson<GithubProjectSyncBoard>("/api/github/sync/project/board", { signal });
 }
 
 export function applyGithubSyncPlan(
@@ -114,4 +154,3 @@ export function applyGithubSyncPlan(
     },
   );
 }
-

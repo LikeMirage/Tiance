@@ -626,7 +626,7 @@
     "onlineMarketSource": {
       "default": "Default source",
       "custom": "Custom source",
-      "privateRepositories": "Private market repositories (index.json required)",
+      "privateRepositories": "Private repositories",
       "loading": "Loading repositories…",
       "loadFailed": "Unable to load. Click to retry",
       "notConnected": "GitHub is not connected.",
@@ -678,6 +678,29 @@
         "tool": "Tools",
         "provider": "Providers"
       }
+    },
+    "githubProjectSync": {
+      "changed": "{count} changed files",
+      "loading": "Loading…",
+      "refresh": "Refresh",
+      "retry": "Retry",
+      "loadingBoard": "Comparing local projects with the private repository…",
+      "categories": "Categories",
+      "projects": "Projects",
+      "files": "File changes",
+      "selected": "{count} files selected",
+      "pull": "Pull selected",
+      "push": "Push selected",
+      "location": { "local": "Local only", "remote": "Remote only", "both": "Local and remote" },
+      "status": { "same": "Same", "local-only": "Local only", "remote-only": "Remote only", "different": "Different" },
+      "confirmPushTitle": "Confirm selected push",
+      "confirmPullTitle": "Confirm selected pull",
+      "planSummary": "Add {add} · Update {update} · Delete {delete}",
+      "commitPlaceholder": "Sync selected project files",
+      "cancel": "Cancel",
+      "applying": "Applying…",
+      "confirmPush": "Confirm push",
+      "confirmPull": "Confirm pull"
     },
     "languageSettings": {
       "title": "Language",

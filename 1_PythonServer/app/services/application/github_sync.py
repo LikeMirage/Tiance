@@ -28,6 +28,18 @@ from app.infra.github import GithubApiError, GithubClient, get_github_client
 from app.infra.github.client import parse_github_repository_source
 from app.repositories.github_sync_binding_repository import GithubSyncBindingRepository
 from app.repositories.project import ProjectRepository, get_project_repository
+from app.services.application.github_project_sync import (
+    CATALOG_PATH,
+    build_board,
+    catalog_bytes,
+    local_project_target,
+    merge_local_catalog_for_pull,
+    merge_portable_catalog,
+    parse_catalog,
+    project_ids_from_paths,
+    remote_with_catalog,
+    with_catalog,
+)
 from app.services.application.github_sync_snapshot import (
     LocalSnapshot,
     build_local_snapshot,
@@ -111,6 +123,8 @@ class GithubSyncService:
         *,
         collection: ProjectKind,
         direction: GithubSyncDirection,
+        paths: list[str] | None = None,
+        project_ids: list[str] | None = None,
         fallback_token: str | None = None,
     ) -> GithubSyncPlan:
         binding = self._require_binding(collection)
@@ -123,7 +137,32 @@ class GithubSyncService:
                 self._remote_snapshot(binding, token),
             )
             remote_head, _remote_tree, remote = remote_snapshot
-            changes = _compare_snapshots(local, remote, direction=direction)
+            selected_paths = _normalize_selected_paths(paths)
+            selected_project_ids = _normalize_project_ids(project_ids)
+            catalog_content: bytes | None = None
+            if collection is ProjectKind.PROJECT:
+                (
+                    local,
+                    remote,
+                    selected_project_ids,
+                    catalog_content,
+                ) = await self._prepare_project_state(
+                    local=local,
+                    remote=remote,
+                    binding=binding,
+                    access_token=token,
+                    direction=direction,
+                    selected_paths=selected_paths,
+                    selected_project_ids=selected_project_ids,
+                )
+            elif selected_project_ids is not None:
+                raise BadRequestError("projectIds 只适用于项目集同步。")
+            changes = _filter_changes(
+                _compare_snapshots(local, remote, direction=direction),
+                selected_paths=selected_paths,
+                selected_project_ids=selected_project_ids,
+                include_catalog=collection is ProjectKind.PROJECT,
+            )
             now = monotonic()
             plan = GithubSyncPlan(
                 plan_id=uuid4().hex,
@@ -133,6 +172,9 @@ class GithubSyncService:
                 local_fingerprint=local.fingerprint,
                 remote_head_sha=remote_head,
                 changes=changes,
+                selected_paths=selected_paths,
+                selected_project_ids=selected_project_ids,
+                catalog_content=catalog_content,
                 created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 expires_at=now + PLAN_LIFETIME_SECONDS,
             )
@@ -168,9 +210,27 @@ class GithubSyncService:
             remote_head, remote_tree, remote = remote_snapshot
             if remote_head != plan.remote_head_sha:
                 raise ConflictError("远端仓库已经出现新提交，请重新检查差异。")
-            current_changes = _compare_snapshots(local, remote, direction=plan.direction)
+            catalog_content: bytes | None = None
+            if plan.collection is ProjectKind.PROJECT:
+                local, remote, _project_ids, catalog_content = await self._prepare_project_state(
+                    local=local,
+                    remote=remote,
+                    binding=plan.binding,
+                    access_token=token,
+                    direction=plan.direction,
+                    selected_paths=plan.selected_paths,
+                    selected_project_ids=plan.selected_project_ids,
+                )
+            current_changes = _filter_changes(
+                _compare_snapshots(local, remote, direction=plan.direction),
+                selected_paths=plan.selected_paths,
+                selected_project_ids=plan.selected_project_ids,
+                include_catalog=plan.collection is ProjectKind.PROJECT,
+            )
             if current_changes != plan.changes:
                 raise ConflictError("同步差异已经改变，请重新生成计划。")
+            if catalog_content != plan.catalog_content:
+                raise ConflictError("项目索引已经改变，请重新生成计划。")
             if not plan.changes:
                 self._plans.pop(plan.plan_id, None)
                 return plan, remote_head
@@ -208,6 +268,98 @@ class GithubSyncService:
 
     def get_binding(self, collection: ProjectKind) -> GithubSyncBinding | None:
         return self._bindings.get_binding(collection)
+
+    async def get_project_board(self) -> tuple[GithubSyncBinding, str | None, list[dict], list[dict], int]:
+        binding = self._require_binding(ProjectKind.PROJECT)
+        token = await self._resolve_access_token(fallback_token=None, required=True)
+        async with self._locks[ProjectKind.PROJECT]:
+            local, remote_snapshot = await asyncio.gather(
+                asyncio.to_thread(self._local_snapshot, ProjectKind.PROJECT),
+                self._remote_snapshot(binding, token),
+            )
+            remote_head, _remote_tree, remote = remote_snapshot
+            local_catalog = parse_catalog(
+                local.files.get(CATALOG_PATH).read_bytes() if CATALOG_PATH in local.files else None,
+                label="本地项目集",
+            )
+            remote_catalog = await self._read_remote_catalog(
+                binding=binding,
+                remote=remote,
+                access_token=token,
+            )
+            categories, projects, changed_files = build_board(
+                local=local,
+                remote=remote,
+                local_catalog=local_catalog,
+                remote_catalog=remote_catalog,
+            )
+            return binding, remote_head, categories, projects, changed_files
+
+    async def _prepare_project_state(
+        self,
+        *,
+        local: LocalSnapshot,
+        remote: dict[str, GithubSyncFile],
+        binding: GithubSyncBinding,
+        access_token: str,
+        direction: GithubSyncDirection,
+        selected_paths: tuple[str, ...] | None,
+        selected_project_ids: tuple[str, ...] | None,
+    ) -> tuple[LocalSnapshot, dict[str, GithubSyncFile], tuple[str, ...], bytes]:
+        local_catalog = parse_catalog(
+            local.files.get(CATALOG_PATH).read_bytes() if CATALOG_PATH in local.files else None,
+            label="本地项目集",
+        )
+        remote_catalog = await self._read_remote_catalog(
+            binding=binding,
+            remote=remote,
+            access_token=access_token,
+        )
+        project_ids = selected_project_ids
+        if project_ids is None and selected_paths is not None:
+            project_ids = project_ids_from_paths(selected_paths)
+        if project_ids is None:
+            project_ids = tuple(sorted(
+                _catalog_project_ids(local_catalog)
+                | _catalog_project_ids(remote_catalog)
+                | set(project_ids_from_paths(set(local.files) | set(remote)))
+            ))
+        portable = merge_portable_catalog(
+            local=local_catalog,
+            remote=remote_catalog,
+            selected_project_ids=project_ids,
+            direction=direction.value,
+        )
+        portable_content = catalog_bytes(portable)
+        if direction is GithubSyncDirection.PUSH:
+            return with_catalog(local, portable_content), remote, project_ids, portable_content
+
+        raw_local = _read_raw_catalog(collection_root(self._settings, ProjectKind.PROJECT))
+        local_content = catalog_bytes(merge_local_catalog_for_pull(
+            raw_local=raw_local,
+            remote=remote_catalog,
+            selected_project_ids=project_ids,
+            projects_root=collection_root(self._settings, ProjectKind.PROJECT),
+        ))
+        return local, remote_with_catalog(remote, portable_content), project_ids, local_content
+
+    async def _read_remote_catalog(
+        self,
+        *,
+        binding: GithubSyncBinding,
+        remote: dict[str, GithubSyncFile],
+        access_token: str,
+    ) -> dict:
+        remote_file = remote.get(CATALOG_PATH)
+        if remote_file is None:
+            return parse_catalog(None, label="远端项目集")
+        repository = _parse_repository(binding.repository)
+        content = await self._github.fetch_blob(
+            repository,
+            remote_file.sha,
+            access_token=access_token,
+        )
+        return parse_catalog(content, label="远端项目集")
 
     async def _apply_push(
         self,
@@ -330,19 +482,22 @@ class GithubSyncService:
             for change in plan.changes:
                 if change.kind is GithubSyncChangeKind.DELETE:
                     continue
-                remote_file = remote[change.path]
-                content = await self._github.fetch_blob(
-                    repository,
-                    remote_file.sha,
-                    access_token=access_token,
-                )
+                if change.path == CATALOG_PATH and plan.catalog_content is not None:
+                    content = plan.catalog_content
+                else:
+                    remote_file = remote[change.path]
+                    content = await self._github.fetch_blob(
+                        repository,
+                        remote_file.sha,
+                        access_token=access_token,
+                    )
                 staged = staged_root.joinpath(*Path(change.path).parts)
                 staged.parent.mkdir(parents=True, exist_ok=True)
                 staged.write_bytes(content)
 
             try:
                 for change in plan.changes:
-                    target = _safe_local_target(root, change.path)
+                    target = self._local_target(plan.collection, root, change.path)
                     if target.exists():
                         backup = backup_root.joinpath(*Path(change.path).parts)
                         backup.parent.mkdir(parents=True, exist_ok=True)
@@ -352,7 +507,7 @@ class GithubSyncService:
                         created_paths.append(target)
 
                 for change in plan.changes:
-                    target = _safe_local_target(root, change.path)
+                    target = self._local_target(plan.collection, root, change.path)
                     if change.kind is GithubSyncChangeKind.DELETE:
                         target.unlink(missing_ok=True)
                         continue
@@ -371,6 +526,15 @@ class GithubSyncService:
                         shutil.copy2(backup, target)
                 raise
         _remove_empty_directories(root)
+
+    def _local_target(self, collection: ProjectKind, root: Path, path: str) -> Path:
+        if collection is ProjectKind.PROJECT:
+            return local_project_target(
+                projects_root=root,
+                project_repository=self._projects,
+                logical_path=path,
+            )
+        return _safe_local_target(root, path)
 
     async def _remote_snapshot(
         self,
@@ -397,6 +561,8 @@ class GithubSyncService:
             if local_path is None:
                 continue
             safe_path = require_safe_relative_path(local_path)
+            if safe_path.startswith(".tiance-sync-init"):
+                continue
             files[safe_path] = GithubSyncFile(
                 path=safe_path,
                 sha=sha,
@@ -494,6 +660,62 @@ def _compare_snapshots(
                 kind, size = GithubSyncChangeKind.UPDATE, remote_file.size
         changes.append(GithubSyncChange(path=path, kind=kind, size=size))
     return tuple(changes)
+
+
+def _normalize_selected_paths(paths: list[str] | None) -> tuple[str, ...] | None:
+    if paths is None:
+        return None
+    return tuple(sorted({require_safe_relative_path(path) for path in paths}))
+
+
+def _normalize_project_ids(project_ids: list[str] | None) -> tuple[str, ...] | None:
+    if project_ids is None:
+        return None
+    normalized: set[str] = set()
+    for project_id in project_ids:
+        value = project_id.strip()
+        if not value or "/" in value or "\\" in value or value in {".", ".."}:
+            raise BadRequestError("项目同步范围包含无效项目 ID。")
+        normalized.add(value)
+    return tuple(sorted(normalized))
+
+
+def _filter_changes(
+    changes: tuple[GithubSyncChange, ...],
+    *,
+    selected_paths: tuple[str, ...] | None,
+    selected_project_ids: tuple[str, ...] | None,
+    include_catalog: bool,
+) -> tuple[GithubSyncChange, ...]:
+    if selected_paths is None and selected_project_ids is None:
+        return changes
+    exact_paths = set(selected_paths or ())
+    project_prefixes = (
+        tuple(f"{project_id}/" for project_id in selected_project_ids or ())
+        if selected_paths is None
+        else ()
+    )
+    return tuple(
+        change for change in changes
+        if (include_catalog and change.path == CATALOG_PATH)
+        or change.path in exact_paths
+        or any(change.path.startswith(prefix) for prefix in project_prefixes)
+    )
+
+
+def _catalog_project_ids(catalog: dict) -> set[str]:
+    return {
+        item["project_id"]
+        for item in catalog.get("projects", [])
+        if isinstance(item, dict) and isinstance(item.get("project_id"), str)
+    }
+
+
+def _read_raw_catalog(root: Path) -> dict:
+    try:
+        return parse_catalog((root / CATALOG_PATH).read_bytes(), label="本地项目集")
+    except FileNotFoundError:
+        return parse_catalog(None, label="本地项目集")
 
 
 def _parse_repository(value: str):

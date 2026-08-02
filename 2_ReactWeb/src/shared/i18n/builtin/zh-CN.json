@@ -626,7 +626,7 @@
     "onlineMarketSource": {
       "default": "默认源",
       "custom": "自定义源",
-      "privateRepositories": "私人市场仓库（需 index.json）",
+      "privateRepositories": "私人仓库",
       "loading": "正在读取仓库…",
       "loadFailed": "读取失败，点击重试",
       "notConnected": "尚未登录 GitHub。",
@@ -678,6 +678,29 @@
         "tool": "工具集",
         "provider": "供应商集"
       }
+    },
+    "githubProjectSync": {
+      "changed": "{count} 个文件有变化",
+      "loading": "读取中…",
+      "refresh": "刷新",
+      "retry": "重试",
+      "loadingBoard": "正在比较本地与私人仓库…",
+      "categories": "项目分类",
+      "projects": "项目",
+      "files": "文件变化",
+      "selected": "已选择 {count} 个文件",
+      "pull": "拉取所选",
+      "push": "提交所选",
+      "location": { "local": "仅本地", "remote": "仅远端", "both": "本地与远端" },
+      "status": { "same": "一致", "local-only": "仅本地", "remote-only": "仅远端", "different": "内容不同" },
+      "confirmPushTitle": "确认提交所选文件",
+      "confirmPullTitle": "确认拉取所选文件",
+      "planSummary": "新增 {add} · 更新 {update} · 删除 {delete}",
+      "commitPlaceholder": "同步所选项目文件",
+      "cancel": "取消",
+      "applying": "处理中…",
+      "confirmPush": "确认提交",
+      "confirmPull": "确认拉取"
     },
     "languageSettings": {
       "title": "语言",

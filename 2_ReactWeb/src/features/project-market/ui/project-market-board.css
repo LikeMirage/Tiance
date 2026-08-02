@@ -9,9 +9,28 @@
   color: var(--color-text-primary);
 }
 
+.project-market-board__mode-loading {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  color: var(--color-text-muted);
+}
+
+.project-market-board__mode-error {
+  position: absolute;
+  z-index: 2;
+  right: 12px;
+  bottom: 12px;
+  max-width: min(520px, calc(100% - 24px));
+  padding: 8px 12px;
+  border-left: 2px solid var(--color-danger, #bd5b55);
+  background: var(--color-surface-elevated);
+  color: var(--color-danger, #bd5b55);
+}
+
 .project-market-board__source {
   display: grid;
-  grid-template-columns: 150px minmax(180px, 520px) auto auto;
+  grid-template-columns: 150px minmax(120px, 1fr) auto auto;
   align-items: center;
   gap: 0;
   padding: 10px 12px;

@@ -7,6 +7,7 @@ from app.api.routes.desktop import router as desktop_router
 from app.api.routes.health import router as health_router
 from app.api.routes.github_connection import router as github_connection_router
 from app.api.routes.github_sync import router as github_sync_router
+from app.api.routes.git_repository import router as git_repository_router
 from app.api.routes.locales import router as locales_router
 from app.api.routes.llm.client_tools import router as llm_client_tools_router
 from app.api.routes.llm.chat import router as llm_chat_router
@@ -40,6 +41,7 @@ api_router = APIRouter(prefix=settings.api_prefix)
 api_router.include_router(health_router)
 api_router.include_router(github_connection_router)
 api_router.include_router(github_sync_router)
+api_router.include_router(git_repository_router)
 api_router.include_router(desktop_router)
 api_router.include_router(project_router)
 api_router.include_router(roles_router)

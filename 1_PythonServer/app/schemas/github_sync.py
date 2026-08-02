@@ -55,6 +55,8 @@ class GithubSyncOverviewResponse(GithubSyncContract):
 class GithubSyncPlanRequest(GithubSyncContract):
     collection: ProjectKind | None = None
     direction: Literal["push", "pull"]
+    paths: list[str] | None = Field(default=None, max_length=20_000)
+    project_ids: list[str] | None = Field(default=None, alias="projectIds", max_length=5_000)
 
 
 class GithubSyncChangeResponse(GithubSyncContract):
@@ -97,6 +99,41 @@ class GithubSyncPlanResponse(GithubSyncContract):
             deletions=sum(item.kind.value == "delete" for item in plan.changes),
             created_at=plan.created_at,
         )
+
+
+class GithubProjectSyncFileResponse(GithubSyncContract):
+    path: str
+    project_id: str = Field(alias="projectId")
+    relative_path: str = Field(alias="relativePath")
+    status: Literal["same", "local-only", "remote-only", "different"]
+    local_size: int | None = Field(default=None, alias="localSize")
+    remote_size: int | None = Field(default=None, alias="remoteSize")
+
+
+class GithubProjectSyncProjectResponse(GithubSyncContract):
+    project_id: str = Field(alias="projectId")
+    name: str
+    category_id: str | None = Field(default=None, alias="categoryId")
+    location: Literal["local", "remote", "both"]
+    changed_files: int = Field(alias="changedFiles")
+    files: list[GithubProjectSyncFileResponse]
+
+
+class GithubProjectSyncCategoryResponse(GithubSyncContract):
+    category_id: str = Field(alias="categoryId")
+    name: str
+    project_ids: list[str] = Field(alias="projectIds")
+    changed_files: int = Field(alias="changedFiles")
+
+
+class GithubProjectSyncBoardResponse(GithubSyncContract):
+    repository: str
+    branch: str
+    remote_path: str = Field(alias="remotePath")
+    remote_head_sha: str | None = Field(alias="remoteHeadSha")
+    categories: list[GithubProjectSyncCategoryResponse]
+    projects: list[GithubProjectSyncProjectResponse]
+    changed_files: int = Field(alias="changedFiles")
 
 
 class GithubSyncApplyRequest(GithubSyncContract):

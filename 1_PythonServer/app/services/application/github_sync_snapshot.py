@@ -147,7 +147,6 @@ def _portable_project_files(
     }
     portable_projects: list[dict] = []
     files: dict[str, LocalSnapshotFile] = {}
-    managed_top_levels: set[str] = set()
     for raw_item in raw_catalog["projects"]:
         if not isinstance(raw_item, dict):
             raise BadRequestError("项目集 catalog.json 包含无效项目。")
@@ -160,8 +159,6 @@ def _portable_project_files(
         portable_item.pop("root_name", None)
         portable_projects.append(portable_item)
         project_root = Path(project.root_path).resolve()
-        if project_root.parent == root:
-            managed_top_levels.add(project_root.name)
         for relative_path, source_path in _iter_regular_files(project_root):
             _add_source_file(files, f"{project.project_id}/{relative_path}", source_path)
 
@@ -174,13 +171,6 @@ def _portable_project_files(
         sha=_git_blob_sha(content),
         content=content,
     )
-    for path, source_path in _iter_regular_files(root):
-        if path == "catalog.json":
-            continue
-        top_level = path.split("/", 1)[0]
-        if top_level in managed_top_levels:
-            continue
-        _add_source_file(files, path, source_path)
     return files
 
 
@@ -242,6 +232,9 @@ def _add_source_file(
     )
 
 
-def _git_blob_sha(content: bytes) -> str:
+def git_blob_sha(content: bytes) -> str:
     header = f"blob {len(content)}\0".encode("ascii")
     return hashlib.sha1(header + content, usedforsecurity=False).hexdigest()
+
+
+_git_blob_sha = git_blob_sha

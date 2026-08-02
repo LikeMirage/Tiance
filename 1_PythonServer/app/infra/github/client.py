@@ -190,6 +190,9 @@ class GithubClient:
     async def get_authenticated_user(self) -> dict[str, Any]:
         return await self._get_json("/user", required_auth=True)
 
+    async def get_authenticated_user_with_token(self, access_token: str) -> dict[str, Any]:
+        return await self._get_json_with_token("/user", access_token=access_token)
+
     async def list_authorized_repositories(self) -> list[dict[str, Any]]:
         installations = await self._get_paginated("/user/installations", required_auth=True)
         repositories: dict[int, dict[str, Any]] = {}

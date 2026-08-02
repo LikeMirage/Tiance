@@ -8,6 +8,7 @@ from app.schemas.project.project_market import (
     ProjectMarketInstallRequest,
     ProjectMarketSettingsResponse,
     ProjectMarketSettingsUpdateRequest,
+    ProjectMarketSourceUpdateRequest,
 )
 from app.services.application.project_market import (
     get_project_market_application_service,
@@ -27,6 +28,13 @@ def update_project_market_settings(
     payload: ProjectMarketSettingsUpdateRequest,
 ) -> ProjectMarketSettingsResponse:
     return get_project_market_application_service().save_filters(payload.filters)
+
+
+@router.put("/source", response_model=ProjectMarketSettingsResponse)
+def select_project_online_source(
+    payload: ProjectMarketSourceUpdateRequest,
+) -> ProjectMarketSettingsResponse:
+    return get_project_market_application_service().select_source(payload.source)
 
 
 @router.get("/index", response_model=ProjectMarketIndexResponse)

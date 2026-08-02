@@ -626,7 +626,7 @@
     "onlineMarketSource": {
       "default": "Источник по умолчанию",
       "custom": "Другой источник",
-      "privateRepositories": "Приватные магазины (требуется index.json)",
+      "privateRepositories": "Приватные репозитории",
       "loading": "Загрузка репозиториев…",
       "loadFailed": "Ошибка загрузки. Нажмите, чтобы повторить",
       "notConnected": "GitHub не подключён.",
@@ -678,6 +678,29 @@
         "tool": "Инструменты",
         "provider": "Провайдеры"
       }
+    },
+    "githubProjectSync": {
+      "changed": "Изменено файлов: {count}",
+      "loading": "Загрузка…",
+      "refresh": "Обновить",
+      "retry": "Повторить",
+      "loadingBoard": "Сравнение локальных проектов с приватным репозиторием…",
+      "categories": "Категории",
+      "projects": "Проекты",
+      "files": "Изменения файлов",
+      "selected": "Выбрано файлов: {count}",
+      "pull": "Получить выбранное",
+      "push": "Отправить выбранное",
+      "location": { "local": "Только локально", "remote": "Только удалённо", "both": "Локально и удалённо" },
+      "status": { "same": "Совпадает", "local-only": "Только локально", "remote-only": "Только удалённо", "different": "Различается" },
+      "confirmPushTitle": "Подтвердить отправку",
+      "confirmPullTitle": "Подтвердить получение",
+      "planSummary": "Добавлено {add} · Обновлено {update} · Удалено {delete}",
+      "commitPlaceholder": "Синхронизация выбранных файлов проекта",
+      "cancel": "Отмена",
+      "applying": "Выполнение…",
+      "confirmPush": "Отправить",
+      "confirmPull": "Получить"
     },
     "languageSettings": {
       "title": "Язык",

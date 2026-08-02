@@ -339,6 +339,7 @@ def _create_services(
     settings_overrides: dict | None = None,
     global_settings_overrides: dict | None = None,
 ):
+    (tmp_path / "project").mkdir()
     project_repository = _FakeProjectRepository(str(tmp_path / "project"))
     conversation = ProjectConversationService(
         ProjectConversationRepository(project_repository)

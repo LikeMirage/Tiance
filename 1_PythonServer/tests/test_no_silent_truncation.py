@@ -42,6 +42,7 @@ class FakeProjectRepository:
 
 
 def test_memory_repository_does_not_truncate_memory_content_reason_or_keywords(tmp_path):
+    (tmp_path / "project").mkdir()
     repository = ProjectConversationMemoryRepository(
         FakeProjectRepository(str(tmp_path / "project")),
         global_memory_root=tmp_path / "runtime" / "memory",
@@ -75,6 +76,7 @@ def test_memory_repository_does_not_truncate_memory_content_reason_or_keywords(t
 
 
 def test_memory_management_does_not_truncate_manual_keywords(tmp_path):
+    (tmp_path / "project").mkdir()
     repository = ProjectConversationMemoryRepository(
         FakeProjectRepository(str(tmp_path / "project")),
         global_memory_root=tmp_path / "runtime" / "memory",

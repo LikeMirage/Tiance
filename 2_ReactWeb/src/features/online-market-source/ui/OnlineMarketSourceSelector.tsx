@@ -21,15 +21,22 @@ type OnlineMarketSourceSelectorProps = {
   defaultSource: string;
   disabled: boolean;
   source: string;
+  sourceLabel?: string;
   onSelectDefault: () => void;
   onSelectSource: (source: string) => void;
+  onSelectRepository?: (repository: {
+    defaultBranch: string;
+    fullName: string;
+  }) => void;
 };
 
 export function OnlineMarketSourceSelector({
   defaultSource,
   disabled,
   source,
+  sourceLabel,
   onSelectDefault,
+  onSelectRepository,
   onSelectSource,
 }: OnlineMarketSourceSelectorProps) {
   const { t } = useI18n();
@@ -51,7 +58,7 @@ export function OnlineMarketSourceSelector({
   );
   const triggerLabel = normalizedSource === normalizedDefault
     ? t("onlineMarketSource.default")
-    : activeRepository?.fullName ?? t("onlineMarketSource.custom");
+    : sourceLabel ?? activeRepository?.fullName ?? t("onlineMarketSource.custom");
 
   const loadRepositories = useCallback(async () => {
     requestRef.current?.abort();
@@ -107,7 +114,9 @@ export function OnlineMarketSourceSelector({
         title={triggerLabel}
         type="button"
       >
-        {activeRepository ? <LockKey size={14} /> : <GlobeHemisphereWest size={14} />}
+        {activeRepository || sourceLabel
+          ? <LockKey size={14} />
+          : <GlobeHemisphereWest size={14} />}
         <span>{triggerLabel}</span>
         <CaretDown className={open ? "is-open" : ""} size={13} />
       </button>
@@ -162,7 +171,11 @@ export function OnlineMarketSourceSelector({
                 key={repository.id}
                 onClick={() => {
                   setOpen(false);
-                  onSelectSource(repositorySource);
+                  if (onSelectRepository) {
+                    onSelectRepository(repository);
+                  } else {
+                    onSelectSource(repositorySource);
+                  }
                 }}
                 role="menuitem"
                 type="button"

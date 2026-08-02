@@ -2509,7 +2509,13 @@ class _FakeMemoryService:
     def build_request_with_compressed_context(self, request):
         return request
 
-    def prepare_long_term_memory_delivery(self, project_id, session_id, user_message_id):
+    def prepare_long_term_memory_delivery(
+        self,
+        project_id,
+        session_id,
+        user_message_id,
+        **_kwargs,
+    ):
         self.long_term_delivery_calls.append(
             (project_id, session_id, user_message_id)
         )

@@ -1,0 +1,24 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "action": {
+      "type": "string"
+    },
+    "error": {
+      "type": "string"
+    },
+    "plan": {
+      "type": "object"
+    },
+    "project": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

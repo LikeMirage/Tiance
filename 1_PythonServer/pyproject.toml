@@ -9,6 +9,7 @@ description = "Local API server for the Tiance workspace."
 requires-python = ">=3.11"
 dependencies = [
   "cryptography>=42,<47",
+  "dulwich>=1.2,<2.0",
   "fastapi>=0.116,<1.0",
   "httpx[socks]>=0.28,<1.0",
   "keyring>=25,<26",

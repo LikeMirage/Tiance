@@ -10,11 +10,14 @@ import { OnlineMarketSourceSelector } from "../../online-market-source/ui/Online
 import {
   PROJECT_MARKET_BOARD_CLASSES,
 } from "../../../shared/online-market/OnlineMarketBoardControls";
+import { OnlineMarketSourceForm } from "../../../shared/online-market/OnlineMarketBoardControls";
 import { OnlineMarketBoardShell } from "../../../shared/online-market/OnlineMarketBoardShell";
 import {
   getDefaultProjectMarketSource,
   getProjectMarketPreviewUrl,
 } from "../../../services/project-market/projectMarketApi";
+import { ProjectPrivateSyncBoard } from "../../project-private-sync/ui/ProjectPrivateSyncBoard";
+import { useProjectOnlineMode } from "../../project-private-sync/model/useProjectOnlineMode";
 import type {
   ProjectMarketInstallOperation,
   ProjectMarketNamespace,
@@ -42,6 +45,108 @@ export function ProjectMarketBoard({
   categories: readonly ProjectCategory[];
   isActive: boolean;
   marketScope?: ProjectMarketScope;
+  selectedCategoryId: string | null;
+}) {
+  if (marketScope === "project") {
+    return (
+      <ProjectOnlineBoard
+        categories={categories}
+        isActive={isActive}
+        selectedCategoryId={selectedCategoryId}
+      />
+    );
+  }
+  return (
+    <PublicProjectMarketBoard
+      categories={categories}
+      isActive={isActive}
+      marketScope={marketScope}
+      selectedCategoryId={selectedCategoryId}
+    />
+  );
+}
+
+function ProjectOnlineBoard({
+  categories,
+  isActive,
+  selectedCategoryId,
+}: {
+  categories: readonly ProjectCategory[];
+  isActive: boolean;
+  selectedCategoryId: string | null;
+}) {
+  const { t } = useI18n();
+  const mode = useProjectOnlineMode(isActive);
+  if (!mode.ready) {
+    return (
+      <section className="project-market-board">
+        <div className="project-market-board__mode-loading">
+          {mode.loading ? t("projectMarket.loading") : mode.error}
+        </div>
+      </section>
+    );
+  }
+  if (mode.privateMode && mode.binding) {
+    const binding = mode.binding;
+    return (
+      <ProjectPrivateSyncBoard
+        active={isActive}
+        header={(refresh, syncLoading) => (
+          <OnlineMarketSourceForm
+            classes={PROJECT_MARKET_BOARD_CLASSES}
+            connectText={t("projectMarket.connect")}
+            connectingText={t("projectMarket.connecting")}
+            draftSource={binding.repository}
+            inputId="project-private-source"
+            isLoading={mode.loading || syncLoading}
+            onConnect={() => void refresh()}
+            onDraftSourceChange={() => undefined}
+            placeholder={t("projectMarket.sourcePlaceholder")}
+            readOnly
+            refreshText={t("common.actions.refresh")}
+            selector={(
+              <OnlineMarketSourceSelector
+                defaultSource={mode.defaultSource}
+                disabled={mode.loading}
+                onSelectDefault={() => void mode.selectDefault()}
+                onSelectRepository={(repository) => void mode.selectPrivate(repository)}
+                onSelectSource={() => undefined}
+                source={mode.source}
+                sourceLabel={mode.sourceLabel}
+              />
+            )}
+            source={binding.repository}
+          />
+        )}
+      />
+    );
+  }
+
+  return (
+    <>
+      {mode.error ? <div className="project-market-board__mode-error">{mode.error}</div> : null}
+      <PublicProjectMarketBoard
+        categories={categories}
+        isActive={isActive}
+        marketScope="project"
+        onSelectPrivate={mode.selectPrivate}
+        selectedCategoryId={selectedCategoryId}
+      />
+    </>
+  );
+}
+
+function PublicProjectMarketBoard({
+  categories,
+  isActive,
+  marketScope = "project",
+  onSelectPrivate,
+  selectedCategoryId,
+}: {
+  categories: readonly ProjectCategory[];
+  isActive: boolean;
+  marketScope?: ProjectMarketScope;
+  onSelectPrivate?: (repository: { defaultBranch: string; fullName: string }) => void;
   selectedCategoryId: string | null;
 }) {
   const { language, t } = useI18n();
@@ -121,6 +226,7 @@ export function ProjectMarketBoard({
               defaultSource={getDefaultProjectMarketSource(marketScope)}
               disabled={market.isLoading}
               onSelectDefault={() => void market.reset()}
+              onSelectRepository={onSelectPrivate}
               onSelectSource={(source) => void market.connectTo(source)}
               source={market.draftSource}
             />

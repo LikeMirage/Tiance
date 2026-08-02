@@ -40,6 +40,10 @@ class ProjectMarketConnectRequest(ProjectMarketContract):
     source: str
 
 
+class ProjectMarketSourceUpdateRequest(ProjectMarketContract):
+    source: str
+
+
 class ProjectMarketStats(ProjectMarketContract):
     file_count: int | None = Field(default=None, ge=0, alias="fileCount")
     conversation_count: int | None = Field(default=None, ge=0, alias="conversationCount")

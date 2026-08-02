@@ -3,7 +3,6 @@ from dataclasses import replace
 import pytest
 from pydantic import ValidationError
 
-from app.core.errors import BadRequestError
 from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatImageUrl,
@@ -344,7 +343,7 @@ def test_openai_compatible_body_includes_reasoning_content_for_volcengine_tool_h
     assert body["messages"][-2]["reasoning_content"] == ""
 
 
-def test_volcengine_seed_2_pro_rejects_unsupported_auto_before_upstream_request():
+def test_volcengine_profile_keeps_auto_mode_for_declared_rules_to_validate():
     request = replace(
         _request(),
         model_id="doubao-seed-2-0-pro-260215",
@@ -353,12 +352,13 @@ def test_volcengine_seed_2_pro_rejects_unsupported_auto_before_upstream_request(
         ),
     )
 
-    with pytest.raises(BadRequestError, match="不支持思考模式 'auto'"):
-        _build_request_body(
-            request,
-            stream=False,
-            provider_profile=VolcengineProfile(),
-        )
+    body = _build_request_body(
+        request,
+        stream=False,
+        provider_profile=VolcengineProfile(),
+    )
+
+    assert body["thinking"] == {"type": "auto"}
 
 
 def test_volcengine_seed_2_pro_sends_supported_enabled_mode():

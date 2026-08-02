@@ -12,6 +12,7 @@ from uuid import uuid4
 class HostCapability(StrEnum):
     WEB_SEARCH = "web_search"
     GITHUB_SYNC = "github_sync"
+    GIT_REPOSITORY = "git_repository"
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +32,7 @@ class HostCapabilityGrant:
 _TOOL_CAPABILITY_POLICY: dict[str, frozenset[HostCapability]] = {
     "network_search": frozenset({HostCapability.WEB_SEARCH}),
     "github_repository_sync": frozenset({HostCapability.GITHUB_SYNC}),
+    "git_repository": frozenset({HostCapability.GIT_REPOSITORY}),
 }
 
 

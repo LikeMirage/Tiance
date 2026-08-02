@@ -1,0 +1,40 @@
+[
+  {
+    "description": "查看当前项目是否已初始化、当前分支、远端和文件变化。",
+    "input": {
+      "action": "overview"
+    }
+  },
+  {
+    "description": "预览一次提交；确认 changes 后再用返回的 planId 调用 commit。",
+    "input": {
+      "action": "plan_commit",
+      "message": "完善项目说明",
+      "paths": [
+        "README.md"
+      ]
+    }
+  },
+  {
+    "description": "初始化新项目并连接用户已经创建好的 GitHub 仓库。",
+    "input": {
+      "action": "init",
+      "branch": "main"
+    }
+  },
+  {
+    "description": "连接 GitHub 仓库；远端操作会复用天策 GitHub 登录。",
+    "input": {
+      "action": "connect_remote",
+      "remote": "origin",
+      "repository": "https://github.com/owner/repository"
+    }
+  },
+  {
+    "description": "预览推送；确认 ahead、behind 和 diverged 后再用 planId 调用 push。",
+    "input": {
+      "action": "plan_push",
+      "remote": "origin"
+    }
+  }
+]

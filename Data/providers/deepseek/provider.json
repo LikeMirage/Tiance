@@ -3,19 +3,21 @@
   "id": "deepseek",
   "displayName": "DeepSeek",
   "profileId": "deepseek",
-  "protocolFamily": "openai_compatible",
+  "protocolFamily": "openai_responses",
   "generationAuthSchemes": {
     "anthropic_messages": "x_api_key",
-    "openai_compatible": "bearer_token"
+    "openai_compatible": "bearer_token",
+    "openai_responses": "bearer_token"
   },
   "modelDiscoveryStrategy": "openai_models",
   "modelDiscoveryAuthScheme": "bearer_token",
   "generationUrls": {
     "openai_compatible": "https://api.deepseek.com/chat/completions",
-    "anthropic_messages": "https://api.deepseek.com/anthropic/v1/messages"
+    "anthropic_messages": "https://api.deepseek.com/anthropic/v1/messages",
+    "openai_responses": "https://api.deepseek.com/v1/responses"
   },
   "modelDiscoveryUrl": "https://api.deepseek.com/v1/models",
-  "enabled": false,
+  "enabled": true,
   "createdAt": "2026-07-03T18:02:57.549257+00:00",
-  "updatedAt": "2026-08-02T00:00:00+00:00"
+  "updatedAt": "2026-08-02T17:33:19.466010+00:00"
 }

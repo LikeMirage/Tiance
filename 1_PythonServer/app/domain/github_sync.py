@@ -49,6 +49,8 @@ class GithubSyncPlan:
     local_fingerprint: str
     remote_head_sha: str | None
     changes: tuple[GithubSyncChange, ...]
+    selected_paths: tuple[str, ...] | None
+    selected_project_ids: tuple[str, ...] | None
+    catalog_content: bytes | None
     created_at: str
     expires_at: float
-

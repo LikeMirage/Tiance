@@ -16,6 +16,9 @@ from app.schemas.github_sync import (
     GithubSyncOverviewResponse,
     GithubSyncPlanRequest,
     GithubSyncPlanResponse,
+    GithubProjectSyncBoardResponse,
+    GithubProjectSyncCategoryResponse,
+    GithubProjectSyncProjectResponse,
     GithubSyncToolRequest,
 )
 from app.services.application.github_sync import get_github_sync_service
@@ -170,6 +173,25 @@ async def delete_github_sync_binding(collection: ProjectKind) -> dict:
     return {"ok": True}
 
 
+@router.get("/project/board", response_model=GithubProjectSyncBoardResponse)
+async def get_github_project_sync_board() -> GithubProjectSyncBoardResponse:
+    try:
+        binding, remote_head, categories, projects, changed_files = (
+            await get_github_sync_service().get_project_board()
+        )
+    except GithubApiError as exc:
+        raise BadRequestError(str(exc)) from exc
+    return GithubProjectSyncBoardResponse(
+        repository=binding.repository,
+        branch=binding.branch,
+        remote_path=binding.remote_path,
+        remote_head_sha=remote_head,
+        categories=[GithubProjectSyncCategoryResponse.model_validate(item) for item in categories],
+        projects=[GithubProjectSyncProjectResponse.model_validate(item) for item in projects],
+        changed_files=changed_files,
+    )
+
+
 @router.post("/plans/create", response_model=GithubSyncPlanResponse)
 async def create_github_sync_plan(
     payload: GithubSyncPlanRequest,
@@ -181,6 +203,8 @@ async def create_github_sync_plan(
         plan = await get_github_sync_service().create_plan(
             collection=payload.collection,
             direction=direction,
+            paths=payload.paths,
+            project_ids=payload.project_ids,
         )
     except GithubApiError as exc:
         raise BadRequestError(str(exc)) from exc

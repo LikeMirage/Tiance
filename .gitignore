@@ -70,8 +70,15 @@ Data/runtime/tool-processes/
 Data/runtime/python-packages/user/
 Data/runtime/python-packages/**/__pycache__/
 Data/runtime/python-packages/**/*.pyc
+Data/runtime/python-packages/backend/py313/site-packages/bin/dul-receive-pack
+Data/runtime/python-packages/backend/py313/site-packages/bin/dul-upload-pack
+Data/runtime/python-packages/backend/py313/site-packages/bin/dulwich.exe
 Data/tools/**/__pycache__/
 Data/tools/**/dependencies/py313/site-packages/playwright/driver/node.exe
+
+# Local workspace state may be created inside otherwise published collections.
+**/.Tiance/
+/.codex_tmp/
 
 # Generated exports and release packages
 /发布包/
