@@ -1,0 +1,31 @@
+{
+  "description": "统一返回结构。inspect 返回工作簿摘要；create 返回输出路径和 Sheet 摘要；edit 返回另存路径和操作摘要；validate 返回预检结果。失败时返回 error 和 error_info。",
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

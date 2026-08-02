@@ -1,0 +1,178 @@
+{
+  "additionalProperties": false,
+  "description": "返回会话交互结果。同一会话不允许同时生成两轮回复；目标会话正在运行时 send 返回错误，新消息不会排队或写入。成功结果包含目标 session_id 和 messages_file_path；本次发送在返回前产生持久化回复时，reply 只属于本次发送。",
+  "oneOf": [
+    {
+      "properties": {
+        "ok": { "const": false }
+      },
+      "required": ["error"]
+    },
+    {
+      "properties": {
+        "ok": { "const": true },
+        "action": { "const": "send" },
+        "outcome": { "const": "still_running" },
+        "accepted": { "const": true },
+        "runtime_status": { "const": "running" }
+      },
+      "required": [
+        "project_id",
+        "session_id",
+        "accepted",
+        "wait_for_reply",
+        "runtime_status",
+        "outcome",
+        "user_message_id",
+        "messages_file_path"
+      ]
+    },
+    {
+      "properties": {
+        "ok": { "const": true },
+        "action": { "const": "send" },
+        "outcome": { "const": "done" },
+        "accepted": { "const": true },
+        "runtime_status": { "const": "idle" }
+      },
+      "required": [
+        "project_id",
+        "session_id",
+        "accepted",
+        "wait_for_reply",
+        "runtime_status",
+        "outcome",
+        "user_message_id",
+        "assistant_message_id",
+        "reply",
+        "messages_file_path"
+      ]
+    },
+    {
+      "properties": {
+        "ok": { "const": true },
+        "action": { "const": "send" },
+        "outcome": { "const": "error" },
+        "accepted": { "const": true },
+        "runtime_status": { "const": "error" }
+      },
+      "required": [
+        "project_id",
+        "session_id",
+        "accepted",
+        "wait_for_reply",
+        "runtime_status",
+        "outcome",
+        "user_message_id",
+        "assistant_message_id",
+        "reply",
+        "messages_file_path"
+      ]
+    },
+    {
+      "properties": {
+        "ok": { "const": true },
+        "action": { "const": "send" },
+        "outcome": { "const": "cancelled" },
+        "accepted": { "const": true },
+        "runtime_status": { "const": "idle" }
+      },
+      "required": [
+        "project_id",
+        "session_id",
+        "accepted",
+        "wait_for_reply",
+        "runtime_status",
+        "outcome",
+        "user_message_id",
+        "messages_file_path"
+      ]
+    }
+  ],
+  "properties": {
+    "ok": {
+      "description": "动作是否成功。",
+      "type": "boolean"
+    },
+    "action": {
+      "description": "实际执行的动作。",
+      "type": "string"
+    },
+    "project_id": {
+      "description": "动作所属项目 ID。",
+      "type": "string"
+    },
+    "session_id": {
+      "description": "send 的目标会话 ID。",
+      "type": "string"
+    },
+    "accepted": {
+      "description": "目标会话是否已接受本次消息。",
+      "type": "boolean"
+    },
+    "wait_for_reply": {
+      "description": "本次 send 是否请求等待回复；false 时如果运行在 started 前已经终结，仍会直接返回该终态。",
+      "type": "boolean"
+    },
+    "runtime_status": {
+      "description": "返回时目标会话的运行状态。",
+      "enum": [
+        "idle",
+        "running",
+        "error"
+      ],
+      "type": "string"
+    },
+    "outcome": {
+      "description": "本次发送的运行结果。still_running 表示工具已在超时安全边界前返回，但目标会话仍继续后台运行。",
+      "enum": [
+        "done",
+        "error",
+        "cancelled",
+        "still_running"
+      ],
+      "type": "string"
+    },
+    "user_message_id": {
+      "description": "本次 send 持久化后的用户消息 ID；可确定时返回。",
+      "type": "string"
+    },
+    "assistant_message_id": {
+      "description": "本次发送在返回前已产生持久化回复时，该回复的消息 ID。done 和 error 终态必有；无正文取消时可省略。",
+      "type": "string"
+    },
+    "reply": {
+      "additionalProperties": false,
+      "description": "本次发送在返回前已产生持久化回复时，返回该回复的正文、状态、模型和用量；绝不返回发送前的旧回复。",
+      "properties": {
+        "message_id": { "type": "string" },
+        "role": { "enum": ["assistant", "error"], "type": "string" },
+        "content": { "type": "string" },
+        "status": { "enum": ["done", "error", "cancelled"], "type": "string" },
+        "provider_id": { "type": ["string", "null"] },
+        "model_id": { "type": ["string", "null"] },
+        "usage": { "type": ["object", "null"] },
+        "context_tokens": { "type": ["integer", "null"] },
+        "content_parts": {
+          "items": { "type": "object" },
+          "type": "array"
+        }
+      },
+      "required": ["message_id", "role", "content", "status"],
+      "type": "object"
+    },
+    "messages_file_path": {
+      "description": "目标会话 messages.jsonl 的项目内规范路径。send 成功时始终返回。",
+      "type": "string"
+    },
+    "error": {
+      "description": "动作失败时的稳定错误说明。目标会话正在运行时，应调用 wait，返回后用 list_sessions 重新检查，再决定是否重试发送。",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ok",
+    "action"
+  ],
+  "type": "object"
+}

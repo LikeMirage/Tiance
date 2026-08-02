@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "capabilities": {
+    "outputFormats": [
+      "text",
+      "json_object"
+    ],
+    "reasoning": {
+      "supported": true,
+      "modes": [
+        "default",
+        "auto",
+        "enabled",
+        "off"
+      ]
+    },
+    "sampling": {
+      "supported": true,
+      "parameters": [
+        "temperature",
+        "top_p",
+        "presence_penalty",
+        "frequency_penalty"
+      ]
+    },
+    "maxOutputTokens": {
+      "supported": true,
+      "min": 1
+    },
+    "toolCalling": {
+      "supported": true
+    },
+    "inputModalities": [
+      "text"
+    ]
+  },
+  "request": {
+    "maxOutputTokensParameter": "max_completion_tokens",
+    "jsonObjectResponseFormat": true,
+    "streamUsage": true
+  },
+  "behavior": {
+    "includeReasoningContentInMessages": true,
+    "includeResponsesMessagePhase": false,
+    "includeResponsesWebSearchSources": false
+  }
+}

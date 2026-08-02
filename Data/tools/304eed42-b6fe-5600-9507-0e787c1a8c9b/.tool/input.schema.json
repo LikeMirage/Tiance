@@ -1,0 +1,71 @@
+{
+  "type": "object",
+  "description": "调用 DMXAPI 图片生成接口。prompt 必填。API Key 不作为绘图参数传入，只从 config.json 或环境变量 DMXAPI_API_KEY 读取。",
+  "additionalProperties": false,
+  "required": [
+    "prompt"
+  ],
+  "properties": {
+    "prompt": {
+      "type": "string",
+      "title": "绘图提示词",
+      "description": "描述要生成的图片内容。"
+    },
+    "model": {
+      "type": "string",
+      "default": "gpt-image-2-03",
+      "description": "DMXAPI 模型名。默认 gpt-image-2-03，可按 DMXAPI 模型页改为其他图片模型。"
+    },
+    "base_url": {
+      "type": "string",
+      "default": "https://www.dmxapi.cn",
+      "description": "DMXAPI 基础地址。默认 https://www.dmxapi.cn。"
+    },
+    "output_path": {
+      "type": "string",
+      "description": "输出图片路径。相对路径按工作区根目录解析；不填时保存到 generated/images 下。"
+    },
+    "size": {
+      "type": "string",
+      "default": "1024x1024",
+      "description": "图片尺寸。DMXAPI 示例支持 1024x1024、1792x1024、1024x1792；gpt-image-2-03 是否支持更多尺寸以供应商实际返回为准。"
+    },
+    "n": {
+      "type": "integer",
+      "default": 1,
+      "minimum": 1,
+      "maximum": 1,
+      "description": "生成图片数量。DMXAPI 示例建议保持 1。"
+    },
+    "quality": {
+      "type": "string",
+      "description": "可选，透传给上游的质量参数，例如 auto、low、medium、high。供应商不支持时可能报错。"
+    },
+    "background": {
+      "type": "string",
+      "description": "可选，透传给上游的背景参数，例如 auto、transparent、opaque。供应商不支持时可能报错。"
+    },
+    "output_format": {
+      "type": "string",
+      "enum": [
+        "png",
+        "jpeg",
+        "webp"
+      ],
+      "default": "png",
+      "description": "本地保存文件格式，也是可选上游输出格式参数。"
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "default": 300,
+      "minimum": 30,
+      "maximum": 600,
+      "description": "请求超时时间。"
+    },
+    "extra": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "少量上游扩展参数透传。不要放 api_key、Authorization 或本地路径。"
+    }
+  }
+}

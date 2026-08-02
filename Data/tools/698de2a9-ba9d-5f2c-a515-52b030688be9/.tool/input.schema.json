@@ -1,0 +1,67 @@
+{
+  "additionalProperties": false,
+  "description": "创建、覆盖或追加文本文件。operation=create 默认不覆盖已有文件；operation=overwrite 才会覆盖。",
+  "properties": {
+    "file_path": {
+      "description": "目标文件路径。相对路径按工作区根目录解析。",
+      "title": "文件路径",
+      "type": "string"
+    },
+    "content": {
+      "description": "要写入的文本内容。",
+      "title": "内容",
+      "type": "string"
+    },
+    "operation": {
+      "default": "create",
+      "description": "写入模式。",
+      "enum": [
+        "create",
+        "overwrite",
+        "append"
+      ],
+      "title": "写入模式",
+      "type": "string"
+    },
+    "encoding": {
+      "default": "utf-8",
+      "description": "写入编码。",
+      "enum": [
+        "utf-8",
+        "utf-8-sig",
+        "gb18030",
+        "gbk"
+      ],
+      "title": "编码",
+      "type": "string"
+    },
+    "create_parent_dirs": {
+      "default": true,
+      "description": "父目录不存在时是否自动创建。",
+      "title": "创建父目录",
+      "type": "boolean"
+    },
+    "dry_run": {
+      "default": false,
+      "description": "为 true 时只校验写入条件并返回结果摘要，不写入文件，也不返回正文或 diff。",
+      "title": "只校验",
+      "type": "boolean"
+    },
+    "backup": {
+      "default": false,
+      "description": "覆盖或追加已有文件前是否创建 .bak 备份。",
+      "title": "备份",
+      "type": "boolean"
+    },
+    "expected_sha256": {
+      "description": "已有文件的预期 sha256。提供时会在写入前校验。",
+      "title": "预期哈希",
+      "type": "string"
+    }
+  },
+  "required": [
+    "file_path",
+    "content"
+  ],
+  "type": "object"
+}

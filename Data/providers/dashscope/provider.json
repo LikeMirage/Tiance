@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "dashscope",
+  "displayName": "阿里云百炼",
+  "profileId": "generic",
+  "protocolFamily": "openai_compatible",
+  "enabled": false,
+  "createdAt": "2026-07-19T12:22:43.557643+00:00",
+  "updatedAt": "2026-08-02T00:00:00+00:00",
+  "modelDiscoveryUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/models",
+  "generationUrls": {
+    "anthropic_messages": "https://dashscope.aliyuncs.com/apps/anthropic/v1/messages",
+    "openai_compatible": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+    "openai_responses": "https://dashscope.aliyuncs.com/compatible-mode/v1/responses"
+  },
+  "modelDiscoveryStrategy": "openai_models",
+  "generationAuthSchemes": {
+    "anthropic_messages": "x_api_key",
+    "openai_compatible": "bearer_token",
+    "openai_responses": "bearer_token"
+  },
+  "modelDiscoveryAuthScheme": "bearer_token"
+}

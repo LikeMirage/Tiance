@@ -1,0 +1,305 @@
+{
+  "additionalProperties": false,
+  "description": "返回会话管理动作的真实结果。list_sessions 按指定范围提供会话定位摘要；会话详细属性与关系由 get_session_info 返回；最近消息和用量由 get_session 返回。",
+  "oneOf": [
+    {
+      "properties": {
+        "ok": { "const": false }
+      },
+      "required": ["error"]
+    },
+    {
+      "properties": {
+        "ok": { "const": true },
+        "action": { "const": "query_models" }
+      },
+      "required": ["count", "providers", "models"]
+    },
+    {
+      "properties": {
+        "ok": { "const": true },
+        "action": { "const": "list_sessions" }
+      },
+      "required": [
+        "project_id",
+        "count",
+        "active_session_id",
+        "caller_session_id",
+        "scope",
+        "relation_depth",
+        "sessions"
+      ]
+    },
+    {
+      "properties": {
+        "ok": { "const": true },
+        "action": { "const": "get_session_info" }
+      },
+      "required": [
+        "project_id",
+        "session",
+        "relationship",
+        "relationship_file_path"
+      ]
+    },
+    {
+      "properties": {
+        "ok": { "const": true },
+        "action": { "const": "get_session" }
+      },
+      "required": [
+        "project_id",
+        "session_id",
+        "title",
+        "runtime_status",
+        "message_depth",
+        "message_format",
+        "messages",
+        "loaded_message_count",
+        "history_exhausted",
+        "usage",
+        "messages_file_path"
+      ]
+    },
+    {
+      "properties": {
+        "ok": { "const": true },
+        "action": { "enum": ["create_session", "configure_session"] }
+      },
+      "required": ["project_id", "session", "runtime_status", "messages_file_path"]
+    },
+    {
+      "properties": {
+        "ok": { "const": true },
+        "action": { "const": "name_parent_session" }
+      },
+      "required": [
+        "project_id",
+        "function_session_id",
+        "source_session_id",
+        "title",
+        "applied",
+        "status"
+      ]
+    },
+    {
+      "properties": {
+        "ok": { "const": true },
+        "action": { "const": "stop_session" }
+      },
+      "required": ["project_id", "stopped_session_id", "runtime_status", "messages_file_path"]
+    },
+    {
+      "properties": {
+        "ok": { "const": true },
+        "action": { "const": "delete_session" }
+      },
+      "required": ["project_id", "deleted_session_id", "messages_file_path"]
+    },
+    {
+      "properties": {
+        "ok": { "const": true },
+        "action": { "const": "show_session" }
+      },
+      "required": ["project_id", "session_id", "shown", "runtime_status", "messages_file_path"]
+    }
+  ],
+  "properties": {
+    "ok": {
+      "description": "动作是否成功。",
+      "type": "boolean"
+    },
+    "action": {
+      "description": "实际执行的动作。",
+      "type": "string"
+    },
+    "project_id": {
+      "description": "动作所属项目 ID。",
+      "type": "string"
+    },
+    "count": {
+      "description": "本次返回的供应商、模型或会话数量。",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "active_session_id": {
+      "description": "聊天面板当前显示的会话 ID；没有活动会话时为 null。",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "caller_session_id": {
+      "description": "发起本次工具调用的会话 ID。scope=related 时以此会话为关系中心；没有调用会话且 scope=all 时为 null。",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "scope": {
+      "description": "list_sessions 实际使用的查看范围。",
+      "enum": [
+        "related",
+        "all"
+      ],
+      "type": "string"
+    },
+    "relation_depth": {
+      "description": "scope=related 实际使用的最大关系深度；null 表示不限层级。scope=all 时固定为 null。",
+      "minimum": 1,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "providers": {
+      "description": "query_models 返回的供应商列表，包含供应商标识、名称和可用于对话的模型数量。",
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "models": {
+      "description": "query_models 返回的对话模型，包含所属供应商、模型标识、名称和能力标签。",
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "runtime_capabilities": {
+      "description": "query_models 精确指定供应商和模型时返回的运行能力，包括可选推理模式、支持的采样参数、最大输出范围、工具调用和输入输出能力。",
+      "type": "object"
+    },
+    "sessions": {
+      "description": "list_sessions 按 scope 和 relation_depth 筛选后的会话定位摘要。标题在执行时从最新会话列表实时取得。",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "description": "会话 ID。",
+            "type": "string"
+          },
+          "title": {
+            "description": "执行 list_sessions 时实时取得的会话名称。",
+            "type": "string"
+          },
+          "runtime_status": {
+            "description": "会话当前运行状态。",
+            "enum": ["idle", "running", "error"],
+            "type": "string"
+          }
+        },
+        "required": ["session_id", "title", "runtime_status"],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "session": {
+      "description": "get_session_info 返回的会话详细属性，或创建、配置动作完成后的最新会话信息。",
+      "type": "object"
+    },
+    "relationship": {
+      "description": "get_session_info 返回的会话关系节点。relation_kind 区分 root、child、fork 和 functional；created_by 表示用户、AI 或系统创建；parent_session 包含父会话实时名称和 ID。旧会话尚无关系节点时为 null。",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "relationship_file_path": {
+      "description": "项目内完整会话关系文件路径，固定为 .Tiance/conversations/branch_graph.json；需要查看全局关系图时可直接读取。",
+      "type": "string"
+    },
+    "runtime_status": {
+      "description": "目标会话当前运行状态。",
+      "enum": [
+        "idle",
+        "running",
+        "error"
+      ],
+      "type": "string"
+    },
+    "session_id": {
+      "description": "get_session 读取或 show_session 已显示的目标会话 ID。",
+      "type": "string"
+    },
+    "function_session_id": {
+      "description": "提交自动命名结果的功能会话 ID。",
+      "type": "string"
+    },
+    "source_session_id": {
+      "description": "自动命名实际修改的来源会话 ID。",
+      "type": "string"
+    },
+    "applied": {
+      "description": "自动命名标题是否实际写入来源会话。",
+      "type": "boolean"
+    },
+    "status": {
+      "description": "自动命名任务的最终状态。",
+      "enum": ["completed", "superseded"],
+      "type": "string"
+    },
+    "title": {
+      "description": "目标会话执行查询时实时取得的名称。",
+      "type": "string"
+    },
+    "shown": {
+      "description": "聊天面板是否已显示目标会话。",
+      "type": "boolean"
+    },
+    "messages": {
+      "description": "get_session 按 message_depth 取得的最近已完成轮次，按时间从旧到新排列。done 和 error 计入完成轮次；running、无回复和 cancelled 不计入。结构由 message_format 决定。",
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "message_depth": {
+      "description": "get_session 实际返回的已完成轮次数。",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "message_format": {
+      "description": "get_session 使用的消息返回形式。",
+      "enum": [
+        "content_only",
+        "full"
+      ],
+      "type": "string"
+    },
+    "loaded_message_count": {
+      "description": "为满足 message_depth 实际通过分页读取的原始消息数量。",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "history_exhausted": {
+      "description": "是否已经读取到该会话历史起点；false 表示达到所需完成轮次后停止继续向前翻页。",
+      "type": "boolean"
+    },
+    "usage": {
+      "description": "目标会话累计 token、缓存命中与未命中、推理 token、费用、记录数和分模型用量。",
+      "type": "object"
+    },
+    "messages_file_path": {
+      "description": "目标会话 messages.jsonl 的项目内规范路径，仅作为持久化记录的保底定位，不替代 get_session 的消息读取能力。",
+      "type": "string"
+    },
+    "stopped_session_id": {
+      "description": "stop_session 已请求停止的会话 ID。",
+      "type": "string"
+    },
+    "deleted_session_id": {
+      "description": "delete_session 已删除的会话 ID。",
+      "type": "string"
+    },
+    "error": {
+      "description": "动作失败时的稳定错误说明。",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ok",
+    "action"
+  ],
+  "type": "object"
+}

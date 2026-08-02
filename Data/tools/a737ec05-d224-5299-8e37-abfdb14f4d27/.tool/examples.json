@@ -1,0 +1,38 @@
+[
+  {
+    "title": "精简列出当前可用主题",
+    "content": "{\"action\":\"list\"}"
+  },
+  {
+    "title": "查看当前主题核心信息",
+    "content": "{\"action\":\"get_current\"}"
+  },
+  {
+    "title": "完整克隆主题并覆盖指定颜色",
+    "content": "{\"action\":\"clone\",\"source_theme_id\":\"cloud-gate\",\"theme_id\":\"cloud-gate-night\",\"theme_name\":\"云海天门·夜\",\"surface_base\":\"#101820\",\"text_primary\":\"#edf4f6\",\"accent_base\":\"#79aabd\",\"accent_rgb\":\"121, 170, 189\"}"
+  },
+  {
+    "title": "从四个基础色派生完整主题配色",
+    "content": "{\"action\":\"derive_palette\",\"theme_id\":\"cloud-gate-night\",\"palette\":{\"background\":\"#101820\",\"panel\":\"#182630\",\"text\":\"#EDF4F6\",\"accent\":\"#79AABD\"}}"
+  },
+  {
+    "title": "直接调整卡片、边框和文字颜色",
+    "content": "{\"action\":\"edit\",\"theme_id\":\"dark-gold\",\"surface_panel\":\"rgba(34, 34, 34, 0.82)\",\"surface_panel_alt\":\"rgba(24, 24, 24, 0.68)\",\"border_soft\":\"rgba(222, 160, 89, 0.2)\",\"text_primary\":\"#f7f1e8\",\"text_muted\":\"rgba(247, 241, 232, 0.5)\",\"accent_selection_border\":\"rgba(222, 160, 89, 0.46)\"}"
+  },
+  {
+    "title": "设置主题背景图",
+    "content": "{\"action\":\"edit\",\"theme_id\":\"dark-gold\",\"background_image_path\":\"C:/Users/WW/Pictures/background.png\",\"background_opacity\":0.18,\"background_blur\":8,\"background_overlay\":\"rgba(0, 0, 0, 0.12)\",\"background_position\":\"center\",\"background_size\":\"cover\",\"background_repeat\":\"no-repeat\"}"
+  },
+  {
+    "title": "切换当前主题",
+    "content": "{\"action\":\"switch\",\"theme_id\":\"dark-gold\"}"
+  },
+  {
+    "title": "删除未使用主题并清理独占背景图",
+    "content": "{\"action\":\"delete\",\"theme_id\":\"draft-theme\"}"
+  },
+  {
+    "title": "恢复内置暗金和浅色主题备份",
+    "content": "{\"action\":\"restore\",\"restore_theme_ids\":[\"dark-gold\",\"light\"]}"
+  }
+]

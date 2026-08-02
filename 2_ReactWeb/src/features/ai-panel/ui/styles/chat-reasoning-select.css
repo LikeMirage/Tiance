@@ -1,0 +1,55 @@
+.ai-panel__reasoning-select {
+  flex: 0 0 36px;
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+}
+
+.ai-panel__reasoning-select.ds-option-select--open {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ai-panel__reasoning-select .ds-option-select__trigger {
+  justify-content: center;
+  min-height: 24px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.ai-panel__reasoning-select .ds-option-select__trigger:hover {
+  color: var(--color-text-primary);
+}
+
+.ai-panel__reasoning-select .ds-option-select__value {
+  flex: 0 0 auto;
+  color: inherit;
+  font-size: 0.68rem;
+}
+
+.ai-panel__reasoning-select .ds-option-select__caret {
+  display: none;
+}
+
+.ai-panel__reasoning-select.ds-option-select--floating .ds-option-select__options {
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 6px);
+  left: auto;
+  min-width: 84px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--color-surface-menu);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.ai-panel__reasoning-select .ds-option-select__option {
+  min-height: 30px;
+  background: transparent;
+  font-size: 0.74rem;
+}

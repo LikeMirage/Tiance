@@ -1,0 +1,508 @@
+.pdf-preview {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-surface-panel);
+}
+
+.pdf-preview__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 34px;
+  padding: 0 10px 0 14px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-toolbar);
+  flex: 0 0 auto;
+}
+
+.pdf-preview__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--color-accent);
+}
+
+.pdf-preview__name {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-preview__path {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-preview__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.pdf-preview__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.pdf-preview__button:hover:not(:disabled) {
+  border-color: var(--color-selection-accent-border);
+  background: var(--color-selection-accent-bg);
+  color: var(--color-accent);
+}
+
+.pdf-preview__button:disabled {
+  cursor: default;
+  opacity: 0.38;
+}
+
+.pdf-preview__page-label {
+  min-width: 48px;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.pdf-preview__status {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: 0.75rem;
+}
+
+.pdf-preview__status--error {
+  border-bottom-color: var(--color-danger-border);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+
+.pdf-preview__body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pdf-preview__thumbnails {
+  width: 136px;
+  flex: 0 0 136px;
+  min-height: 0;
+  padding: 10px 8px;
+  border-right: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-panel-alt);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.pdf-preview__thumbnails::-webkit-scrollbar,
+.pdf-preview__viewer::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.pdf-preview__thumbnails::-webkit-scrollbar-track,
+.pdf-preview__viewer::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pdf-preview__thumbnails::-webkit-scrollbar-thumb,
+.pdf-preview__viewer::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+}
+
+.pdf-preview__thumbnail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.pdf-preview__thumbnail:hover,
+.pdf-preview__thumbnail--active {
+  color: var(--color-accent);
+}
+
+.pdf-preview__thumbnail-canvas-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 104px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: #fff;
+  filter: brightness(0.78) contrast(0.92);
+  opacity: 0.72;
+  transition: border-color 120ms ease, box-shadow 120ms ease, filter 120ms ease, opacity 120ms ease;
+}
+
+.pdf-preview__thumbnail:hover .pdf-preview__thumbnail-canvas-wrap,
+.pdf-preview__thumbnail--active .pdf-preview__thumbnail-canvas-wrap {
+  filter: none;
+  opacity: 1;
+  border-color: var(--color-selection-accent-border);
+  box-shadow: 0 0 0 1px var(--color-selection-accent-border);
+}
+
+.pdf-preview__thumbnail-canvas-wrap canvas {
+  display: block;
+}
+
+.pdf-preview__thumbnail-placeholder {
+  display: block;
+  width: 92px;
+  height: 130px;
+}
+
+.pdf-preview__thumbnail-error,
+.pdf-preview__thumbnail-label {
+  font-size: 0.72rem;
+}
+
+.pdf-preview__thumbnail-label {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 1;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--color-selection-accent-border);
+  border-radius: 3px;
+  background: var(--color-surface-menu);
+  color: var(--color-accent);
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+
+.pdf-preview__viewer {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--color-surface-panel-alt);
+  cursor: grab;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.pdf-preview__viewer--panning {
+  cursor: grabbing;
+}
+
+.pdf-preview__viewer:focus {
+  outline: none;
+}
+
+.pdf-preview__page-shell {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  min-width: max-content;
+  min-height: 100%;
+  padding: 22px;
+}
+
+.pdf-preview__page {
+  position: relative;
+  width: max-content;
+  height: max-content;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+}
+
+.pdf-preview__page--loading-hidden {
+  position: absolute;
+  inset: 22px;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.pdf-preview__canvas {
+  display: block;
+  background: #fff;
+}
+
+.pdf-preview__annotation-layer,
+.pdf-preview__text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  transform-origin: 0 0;
+}
+
+.pdf-preview__text-layer {
+  z-index: 1;
+  line-height: 1;
+  text-align: initial;
+}
+
+.pdf-preview__text-layer span,
+.pdf-preview__text-layer br {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+}
+
+.pdf-preview__text-layer span {
+  cursor: text;
+}
+
+.pdf-preview__text-layer ::selection {
+  background: var(--color-text-selection-bg);
+  color: var(--color-text-selection-text);
+}
+
+.pdf-preview__annotation-layer {
+  z-index: 2;
+  color-scheme: only light;
+  pointer-events: none;
+  --annotation-unfocused-field-background: rgba(37, 99, 235, 0.12);
+  --input-focus-border-color: var(--color-accent);
+  --input-unfocused-border-color: rgba(37, 99, 235, 0.18);
+  --input-disabled-border-color: transparent;
+  --input-hover-border-color: var(--color-accent-hover);
+}
+
+.pdf-preview__annotation-layer section {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: auto;
+  text-align: initial;
+  transform-origin: 0 0;
+  user-select: none;
+}
+
+.pdf-preview__annotation-layer .annotationContent {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.pdf-preview__annotation-layer :is(.linkAnnotation, .buttonWidgetAnnotation.pushButton) > a {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.pdf-preview__annotation-layer :is(.linkAnnotation, .buttonWidgetAnnotation.pushButton):not(.hasBorder) > a:hover,
+.pdf-preview__annotation-layer .linkAnnotation.hasBorder:hover {
+  background: var(--color-selection-accent-bg-hover);
+}
+
+.pdf-preview__annotation-layer .hasBorder {
+  background-size: 100% 100%;
+}
+
+.pdf-preview__annotation-layer .textAnnotation img,
+.pdf-preview__annotation-layer .fileAttachmentAnnotation img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.pdf-preview__annotation-layer .fileAttachmentAnnotation .popupTriggerArea {
+  width: 100%;
+  height: 100%;
+}
+
+.pdf-preview__annotation-layer .textWidgetAnnotation :is(input, textarea),
+.pdf-preview__annotation-layer .choiceWidgetAnnotation select,
+.pdf-preview__annotation-layer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 2px solid var(--input-unfocused-border-color);
+  background: var(--annotation-unfocused-field-background);
+  color: #111827;
+  font: calc(9px * var(--total-scale-factor, 1)) sans-serif;
+  vertical-align: top;
+}
+
+.pdf-preview__annotation-layer .textWidgetAnnotation :is(input, textarea),
+.pdf-preview__annotation-layer .choiceWidgetAnnotation select {
+  cursor: text;
+}
+
+.pdf-preview__annotation-layer .textWidgetAnnotation textarea {
+  resize: none;
+}
+
+.pdf-preview__annotation-layer .textWidgetAnnotation :is(input, textarea):disabled,
+.pdf-preview__annotation-layer .choiceWidgetAnnotation select:disabled,
+.pdf-preview__annotation-layer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input:disabled {
+  border-color: var(--input-disabled-border-color);
+  background: transparent;
+  cursor: not-allowed;
+}
+
+.pdf-preview__annotation-layer .textWidgetAnnotation :is(input, textarea):hover,
+.pdf-preview__annotation-layer .choiceWidgetAnnotation select:hover,
+.pdf-preview__annotation-layer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input:hover {
+  border-color: var(--input-hover-border-color);
+}
+
+.pdf-preview__annotation-layer .textWidgetAnnotation :is(input, textarea):focus,
+.pdf-preview__annotation-layer .choiceWidgetAnnotation select:focus,
+.pdf-preview__annotation-layer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input:focus {
+  border-color: var(--input-focus-border-color);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.94);
+  outline: 1px solid rgba(18, 18, 18, 0.92);
+}
+
+.pdf-preview__annotation-layer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input {
+  appearance: none;
+}
+
+.pdf-preview__annotation-layer .buttonWidgetAnnotation.radioButton input {
+  border-radius: 50%;
+}
+
+.pdf-preview__annotation-layer .buttonWidgetAnnotation.checkBox input:checked::before,
+.pdf-preview__annotation-layer .buttonWidgetAnnotation.checkBox input:checked::after,
+.pdf-preview__annotation-layer .buttonWidgetAnnotation.radioButton input:checked::before {
+  position: absolute;
+  display: block;
+  background: #111827;
+  content: "";
+}
+
+.pdf-preview__annotation-layer .buttonWidgetAnnotation.checkBox input:checked::before,
+.pdf-preview__annotation-layer .buttonWidgetAnnotation.checkBox input:checked::after {
+  top: 10%;
+  left: 45%;
+  width: 1px;
+  height: 80%;
+}
+
+.pdf-preview__annotation-layer .buttonWidgetAnnotation.checkBox input:checked::before {
+  transform: rotate(45deg);
+}
+
+.pdf-preview__annotation-layer .buttonWidgetAnnotation.checkBox input:checked::after {
+  transform: rotate(-45deg);
+}
+
+.pdf-preview__annotation-layer .buttonWidgetAnnotation.radioButton input:checked::before {
+  top: 25%;
+  left: 25%;
+  width: 50%;
+  height: 50%;
+  border-radius: 50%;
+}
+
+.pdf-preview__annotation-layer .popupAnnotation {
+  position: absolute;
+  width: max-content;
+  max-width: 45%;
+  height: auto;
+  font-size: calc(9px * var(--total-scale-factor, 1));
+  pointer-events: none;
+}
+
+.pdf-preview__annotation-layer .popup {
+  padding: calc(6px * var(--total-scale-factor, 1));
+  border: 1px solid var(--color-selection-accent-border);
+  border-radius: 4px;
+  background: var(--color-surface-elevated-solid);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: message-box;
+  pointer-events: auto;
+  user-select: text;
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+.pdf-preview__annotation-layer .popup > .header > .title {
+  display: inline;
+  font-weight: 700;
+}
+
+.pdf-preview__annotation-layer .popup > .header .popupDate {
+  display: inline-block;
+  margin-left: calc(5px * var(--total-scale-factor, 1));
+  color: var(--color-text-muted);
+}
+
+.pdf-preview__page-error,
+.pdf-preview__page-warning {
+  position: absolute;
+  top: 32px;
+  left: 50%;
+  z-index: 3;
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  border-radius: 5px;
+  background: var(--color-surface-menu);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.pdf-preview__page-loading {
+  z-index: 3;
+}
+
+.pdf-preview__page-error {
+  color: var(--color-danger-text);
+}
+
+.pdf-preview__page-warning {
+  top: 66px;
+  color: var(--color-warning-text);
+}
+
+.pdf-preview__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}

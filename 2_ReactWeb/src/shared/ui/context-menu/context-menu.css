@@ -1,0 +1,138 @@
+.ds-context-menu__dismiss-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: transparent;
+}
+
+.ds-context-menu {
+  position: fixed;
+  z-index: 1000;
+  display: grid;
+  gap: 2px;
+  max-width: min(340px, calc(100vw - 16px));
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--color-surface-menu);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  color: var(--color-text-primary);
+}
+
+.ds-context-menu > .ds-context-menu__item,
+.ds-context-menu > .ds-context-menu__separator {
+  grid-column: 1;
+}
+
+.ds-context-menu__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-context-menu__item:hover:not(:disabled) {
+  background: var(--color-surface-item-hover-strong);
+}
+
+.ds-context-menu__item:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.ds-context-menu__item--danger {
+  color: var(--color-danger);
+}
+
+.ds-context-menu__submenu-host {
+  display: contents;
+}
+
+.ds-context-menu__submenu-trigger {
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.ds-context-menu__submenu-trigger::after {
+  content: ">";
+  flex: 0 0 auto;
+  opacity: 0.62;
+}
+
+.ds-context-menu__submenu {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(100% - 1px);
+  z-index: 1;
+  display: grid;
+  align-content: start;
+  box-sizing: border-box;
+  gap: 2px;
+  min-width: 180px;
+  max-width: min(340px, calc(100vw - 16px));
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid transparent;
+  border-left: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 0 6px 6px 0;
+  background: var(--color-surface-menu);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  opacity: 0;
+  pointer-events: none;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.ds-context-menu__submenu-host:hover > .ds-context-menu__submenu,
+.ds-context-menu__submenu-host:focus-within > .ds-context-menu__submenu {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ds-context-menu__submenu::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+.ds-context-menu__submenu::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.ds-context-menu__submenu::-webkit-scrollbar-thumb {
+  min-height: 24px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+  background-clip: content-box;
+}
+
+.ds-context-menu__submenu::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+.ds-context-menu__submenu::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.ds-context-menu__separator {
+  height: 1px;
+  margin: 5px 0;
+  background: var(--color-border-soft);
+}

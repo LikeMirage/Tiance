@@ -1,0 +1,67 @@
+{
+  "additionalProperties": false,
+  "description": "精确替换一个文本文件中的字符串。默认 replace_all=false 且要求 old_text 仅出现一次。",
+  "properties": {
+    "file_path": {
+      "description": "要修改的文件路径。相对路径按工作区根目录解析。",
+      "title": "文件路径",
+      "type": "string"
+    },
+    "old_text": {
+      "description": "要替换的原文本，不能为空。",
+      "title": "原文本",
+      "type": "string"
+    },
+    "new_text": {
+      "description": "替换后的新文本。",
+      "title": "新文本",
+      "type": "string"
+    },
+    "replace_all": {
+      "default": false,
+      "description": "是否替换全部匹配。默认 false，只替换唯一匹配。",
+      "title": "替换全部",
+      "type": "boolean"
+    },
+    "expected_count": {
+      "description": "期望匹配次数。提供时实际匹配次数必须一致。",
+      "minimum": 0,
+      "title": "期望匹配次数",
+      "type": "integer"
+    },
+    "encoding": {
+      "default": "utf-8",
+      "enum": [
+        "utf-8",
+        "utf-8-sig",
+        "gb18030",
+        "gbk"
+      ],
+      "title": "编码",
+      "type": "string"
+    },
+    "dry_run": {
+      "default": false,
+      "description": "为 true 时只校验匹配和替换条件并返回结果摘要，不写入文件，也不返回正文或 diff。",
+      "title": "只校验",
+      "type": "boolean"
+    },
+    "backup": {
+      "default": false,
+      "description": "真正写入前是否创建 .bak 备份。",
+      "title": "备份",
+      "type": "boolean"
+    },
+    "expected_sha256": {
+      "description": "当前文件预期 sha256。提供时会在写入前校验。",
+      "title": "预期哈希",
+      "type": "string"
+    }
+  },
+  "required": [
+    "file_path",
+    "old_text",
+    "new_text"
+  ],
+  "type": "object"
+}

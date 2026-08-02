@@ -1,0 +1,166 @@
+.token-estimation-settings {
+  width: min(100%, 760px);
+  min-height: calc(100% - 44px);
+  margin: 22px;
+}
+
+.token-estimation-settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.token-estimation-settings__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.token-estimation-settings__title {
+  margin: 0;
+  color: var(--color-text-heading);
+  font-size: 1.35rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.token-estimation-settings__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.token-estimation-settings__secondary {
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.token-estimation-settings__secondary {
+  background: var(--color-surface-input);
+  color: var(--color-text-secondary);
+}
+
+.token-estimation-settings__secondary:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.token-estimation-settings__notice,
+.token-estimation-settings__error,
+.token-estimation-settings__loading {
+  padding: 11px 12px;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.token-estimation-settings__notice,
+.token-estimation-settings__loading {
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+}
+
+.token-estimation-settings__notice strong {
+  color: var(--color-text-primary);
+}
+
+.token-estimation-settings__notice p {
+  margin: 4px 0 0;
+}
+
+.token-estimation-settings__error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+
+.token-estimation-settings__algorithm {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+.token-estimation-settings__algorithm h3 {
+  margin: 0 0 5px;
+  color: var(--color-text-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.token-estimation-settings__algorithm p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.token-estimation-settings__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 12px;
+}
+
+.token-estimation-settings__field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.token-estimation-settings__label {
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+}
+
+.token-estimation-settings__number-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+}
+
+.token-estimation-settings__number-shell:focus-within {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 1px rgba(var(--color-accent-rgb), 0.18);
+}
+
+.token-estimation-settings__number {
+  min-width: 0;
+  height: 32px;
+  padding: 0 9px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 0.86rem;
+}
+
+.token-estimation-settings__number::-webkit-outer-spin-button,
+.token-estimation-settings__number::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.token-estimation-settings__number {
+  appearance: textfield;
+}
+
+.token-estimation-settings__unit {
+  padding-right: 9px;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .token-estimation-settings__grid {
+    grid-template-columns: 1fr;
+  }
+}

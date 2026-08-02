@@ -1,0 +1,129 @@
+.language-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: min(100% - 44px, 720px);
+  margin: 22px;
+  color: var(--color-text-primary);
+}
+
+.language-settings__head h2,
+.language-settings__section h3 {
+  margin: 0;
+  color: var(--color-text-heading);
+}
+
+.language-settings__head h2 {
+  font-size: 1.35rem;
+  font-weight: 650;
+}
+
+.language-settings__head p {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.language-settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.language-settings__section h3 {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.language-settings__options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.language-settings__option {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 62px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 5px;
+  background: var(--color-surface-input);
+  color: var(--color-text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.language-settings__option:hover:not(:disabled),
+.language-settings__option--active {
+  border-color: var(--color-accent);
+  background: var(--color-selection-accent-bg);
+}
+
+.language-settings__option--active {
+  color: var(--color-accent);
+}
+
+.language-settings__option:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.language-settings__option-copy {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+}
+
+.language-settings__option-copy strong {
+  color: var(--color-text-primary);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.language-settings__option-copy small,
+.language-settings__locale-code {
+  color: var(--color-text-muted);
+  font-size: 0.74rem;
+}
+
+.language-settings__locale-code {
+  width: 48px;
+  font-variant-numeric: tabular-nums;
+}
+
+.language-settings__notice,
+.language-settings__saving {
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  font-size: 0.82rem;
+}
+
+.language-settings__notice--error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+
+.language-settings__notice button {
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .language-settings__options {
+    grid-template-columns: 1fr;
+  }
+}

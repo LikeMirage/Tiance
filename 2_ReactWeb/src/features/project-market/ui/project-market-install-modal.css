@@ -1,0 +1,16 @@
+.project-market-install-select {
+  --ds-option-select-integrated-radius: 6px;
+  --ds-option-select-options-max-height: min(210px, 36vh);
+  width: 100%;
+}
+
+.project-market-install-select .ds-option-select__trigger {
+  min-height: 30px;
+  padding: 0 10px;
+  background: var(--color-surface-input);
+}
+
+.project-market-install-select.ds-option-select--open .ds-option-select__trigger,
+.project-market-install-select.ds-option-select--floating .ds-option-select__options {
+  background: var(--color-surface-menu);
+}

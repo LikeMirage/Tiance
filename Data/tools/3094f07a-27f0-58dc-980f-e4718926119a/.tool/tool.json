@@ -1,0 +1,37 @@
+{
+  "description": "向当前项目中已经存在且当前未运行的 AI 会话发送消息。同一会话不允许同时生成两轮回复，也不会为新消息排队；发送前先用 manage_ai_conversations 的 list_sessions 检查目标 runtime_status。若为 running，本轮只调用 wait，等待返回后重新检查，直到目标不再运行再发送，否则 send 返回错误。发送时既可等待本次回复，也可在消息被接受后立即返回并让会话在前端后台继续运行。工具会把本条消息的实时来源会话名称和 ID 追加到消息末尾；后台委派时，可要求目标 AI 完成后通过该来源会话 ID 汇报，并遵守相同的运行状态检查与等待规则。需要目标 AI 读取文件或图片时，直接在消息中写入可访问路径并明确要求读取。列出、创建、查看或配置会话请使用 manage_ai_conversations。",
+  "display_name": "AI 会话交互",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "client_json",
+    "output": "client_json"
+  },
+  "keywords": [
+    "AI会话",
+    "会话交互",
+    "发送消息",
+    "文件路径",
+    "图片路径",
+    "等待回复",
+    "后台运行",
+    "前端能力"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "interact_ai_conversation",
+  "runtime": {
+    "timeout_seconds": 3600,
+    "type": "client"
+  },
+  "state": {
+    "enabled": true
+  }
+}

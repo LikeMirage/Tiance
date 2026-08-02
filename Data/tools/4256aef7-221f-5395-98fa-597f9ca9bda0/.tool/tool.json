@@ -1,0 +1,39 @@
+{
+  "description": "管理天策内置 Python 的用户依赖，支持环境检查与修复、安装、查看、列表和卸载。依赖安装在与后端和桌面壳隔离的用户目录，供 Python 脚本执行工具自动加载。",
+  "display_name": "PIP 依赖管理",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "PIP",
+    "Python",
+    "依赖",
+    "安装",
+    "卸载",
+    "环境检查",
+    "权限修复",
+    "包管理",
+    "ModuleNotFoundError"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "pip_package_manager",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 660,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

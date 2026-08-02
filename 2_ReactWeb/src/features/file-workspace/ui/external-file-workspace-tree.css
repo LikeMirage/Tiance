@@ -1,0 +1,35 @@
+.external-file-workspace-tree {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.external-file-workspace-tree--drag-over {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--color-accent) 62%, transparent);
+  outline-offset: -1px;
+}
+
+.external-file-workspace-tree__notice {
+  position: absolute;
+  z-index: 4;
+  top: 6px;
+  right: 8px;
+  left: 8px;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 34%, var(--color-border));
+  border-radius: 6px;
+  background: var(--color-surface-menu);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.external-file-workspace-tree__notice--error {
+  border-color: color-mix(in srgb, var(--color-danger) 42%, var(--color-border));
+  color: var(--color-danger);
+}

@@ -1,0 +1,39 @@
+{
+  "description": "管理由 run_python_script 通过天策内置 Python 启动并登记的后台进程。需要日志时直接使用 read_logs；get 仅用于不读取日志的状态查询。支持可靠识别 orphaned 失联记录，并通过 prune 批量清理已结束或确认失联的安全候选；不会扫描或控制其他 Python 进程。",
+  "display_name": "Python 后台进程管理",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "Python",
+    "后台进程",
+    "进程状态",
+    "PID",
+    "日志",
+    "停止进程",
+    "清理记录",
+    "失联记录",
+    "批量清理"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "python_process_manager",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 90,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

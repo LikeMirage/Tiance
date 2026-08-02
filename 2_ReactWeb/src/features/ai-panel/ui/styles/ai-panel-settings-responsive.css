@@ -1,0 +1,10 @@
+@media (max-width: 480px) {
+  .ai-panel__memory-toolbar,
+  .ai-panel__memory-add-row {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-panel__memory-add-row {
+    display: grid;
+  }
+}

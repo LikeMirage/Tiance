@@ -1,0 +1,111 @@
+.role-market-board .theme-market-board__grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+}
+
+.role-market-card {
+  display: flex;
+  min-width: 0;
+  min-height: 168px;
+  flex-direction: column;
+  padding: 14px 15px 11px;
+  border-right: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: transparent;
+}
+
+.role-market-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.role-market-card__identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.role-market-card__identity strong {
+  overflow: hidden;
+  color: var(--color-text-heading);
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-market-card__identity span,
+.role-market-card__metadata {
+  color: var(--color-text-muted);
+  font-size: 0.67rem;
+}
+
+.role-market-card__status {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: 0.66rem;
+}
+
+.role-market-card__status--update-available {
+  color: var(--color-selection-accent-text);
+}
+
+.role-market-card__summary {
+  display: -webkit-box;
+  margin: 12px 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.58;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.role-market-card__footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  margin-top: auto;
+}
+
+.role-market-card__details {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.role-market-card__error {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--color-danger-text);
+  font-size: 0.67rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-market-card__action {
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--color-selection-accent-border);
+  border-radius: 3px;
+  background: var(--color-selection-accent-bg-subtle);
+  color: var(--color-selection-accent-text);
+  font: inherit;
+  font-size: 0.69rem;
+  cursor: pointer;
+}
+
+.role-market-card__action:hover:not(:disabled) {
+  background: var(--color-selection-accent-bg-hover);
+}
+
+.role-market-card__action:disabled {
+  cursor: default;
+  opacity: 0.5;
+}

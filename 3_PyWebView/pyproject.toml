@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tiance-desktop-shell"
+version = "0.1.0"
+description = "Standalone pywebview desktop shell for Tiance."
+requires-python = ">=3.11"
+dependencies = [
+  "psutil>=5.9,<8.0",
+  "pywebview>=6.1,<7.0"
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]

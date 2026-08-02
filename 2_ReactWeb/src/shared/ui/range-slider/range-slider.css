@@ -1,0 +1,53 @@
+.range-slider {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 8px;
+  min-width: 0;
+}
+
+.range-slider__visual {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  background: transparent;
+  pointer-events: none;
+}
+
+.range-slider__progress {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 1px;
+  background: var(--color-accent);
+  clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 100%, 0 100%);
+}
+
+.range-slider__input {
+  appearance: none;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 18px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.range-slider:has(.range-slider__input:focus-visible) .range-slider__visual {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.range-slider[data-disabled="true"] {
+  opacity: 0.45;
+}
+
+.range-slider[data-disabled="true"] .range-slider__input {
+  cursor: default;
+}

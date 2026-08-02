@@ -1,0 +1,10 @@
+[
+  {
+    "title": "读取动态加载工具的参数",
+    "content": "当系统提示词只给出某个工具的轻量目录、但没有完整参数说明时，先读取参数详情。\n\n输入参数：\n{\n  \"operation\": \"get_parameters\",\n  \"tool_name\": \"read_file\"\n}\n\n预期返回：目标工具的 input_schema、参数名、必填字段和基础说明。"
+  },
+  {
+    "title": "读取某个工具的应用示例",
+    "content": "当知道工具参数但不确定典型用法时，读取一个或多个应用示例。\n\n输入参数：\n{\n  \"operation\": \"get_examples\",\n  \"tool_name\": \"parse_document_mineru_dmx\",\n  \"example_indexes\": [1]\n}\n\n预期返回：指定示例的标题和内容。"
+  }
+]

@@ -1,0 +1,10 @@
+[
+  {
+    "title": "使用已配置的 DMXAPI Key 生成图片",
+    "content": "输入参数：\n{\n  \"prompt\": \"一张简洁的产品海报，白色背景，中心是一台银色笔记本电脑，中文标题：智能工作台\",\n  \"output_format\": \"png\"\n}\n\n如果没有配置 DMXAPI Key，工具会返回明确错误，AI 应向用户索要 Key。"
+  },
+  {
+    "title": "指定输出路径和尺寸",
+    "content": "输入参数：\n{\n  \"prompt\": \"科技感店铺门口，招牌文字为 DMXAPI，夜晚霓虹灯，写实风格\",\n  \"output_path\": \"generated/images/dmxapi_shop.png\",\n  \"size\": \"1024x1024\"\n}\n\nKey 不在绘图参数里传，必须先写入 config.json 或配置环境变量 DMXAPI_API_KEY。"
+  }
+]

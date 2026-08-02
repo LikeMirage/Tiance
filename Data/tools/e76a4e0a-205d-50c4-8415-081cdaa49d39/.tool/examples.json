@@ -1,0 +1,30 @@
+[
+  {
+    "title": "把项目内 Markdown 文件转换为 DOCX",
+    "content": "输入参数：\n{\n  \"input_path\": \"docs/report.md\",\n  \"output_path\": \"docs/report.docx\"\n}\n\noutput_path 可省略；省略时输出到输入文件同目录同名 .docx。"
+  },
+  {
+    "title": "覆盖已有 DOCX",
+    "content": "输入参数：\n{\n  \"input_path\": \"docs/report.md\",\n  \"output_path\": \"docs/report.docx\",\n  \"overwrite\": true\n}\n\n目标文件已存在且需要更新时使用 overwrite=true。"
+  },
+  {
+    "title": "生成整份横向 Word 文档",
+    "content": "输入参数：\n{\n  \"input_path\": \"docs/report.md\",\n  \"output_path\": \"docs/report-landscape.docx\",\n  \"page_orientation\": \"landscape\"\n}\n\n页面方向默认是 portrait（纵向）；设置 landscape 后整份文档使用横向页面。"
+  },
+  {
+    "title": "生成 A4 Word 文档",
+    "content": "输入参数：\n{\n  \"input_path\": \"docs/report.md\",\n  \"output_path\": \"docs/report-a4.docx\",\n  \"page_size\": \"a4\"\n}\n\n纸张规格默认保持 letter；需要 A4 时明确设置 page_size=a4。"
+  },
+  {
+    "title": "指定 Word 字体",
+    "content": "输入参数：\n{\n  \"input_path\": \"docs/report.md\",\n  \"output_path\": \"docs/report.docx\",\n  \"chinese_font\": \"微软雅黑\",\n  \"english_font\": \"Times New Roman\",\n  \"math_font\": \"Cambria Math\"\n}\n\n字体参数可省略；省略时使用上述默认字体。"
+  },
+  {
+    "title": "从 Word 样本提取模板",
+    "content": "输入参数：\n{\n  \"action\": \"extract_template\",\n  \"template_source_path\": \"docs/客户排版样本.docx\",\n  \"template_name\": \"客户报告格式\"\n}\n\n模板名称可省略；省略时使用样本文件名。提取成功后保存 template_id。"
+  },
+  {
+    "title": "列出并使用模板",
+    "content": "先调用：\n{\n  \"action\": \"list_templates\"\n}\n\n再把列表返回的 template_id 用于转换：\n{\n  \"action\": \"convert\",\n  \"input_path\": \"docs/report.md\",\n  \"template_id\": \"模板列表返回的标识\"\n}\n\n不传 template_id 或使用 builtin-default 时保持当前默认排版。"
+  }
+]

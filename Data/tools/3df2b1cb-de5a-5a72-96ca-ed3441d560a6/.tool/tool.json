@@ -1,0 +1,33 @@
+{
+  "description": "提交系统明确要求生成的记忆压缩结果。请勿自行调用；只有当前会话收到记忆压缩任务要求时才使用。",
+  "display_name": "提交记忆压缩",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "记忆压缩",
+    "摘要",
+    "提交"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "submit_memory_compaction",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 30,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

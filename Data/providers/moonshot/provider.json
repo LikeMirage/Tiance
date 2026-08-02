@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "moonshot",
+  "displayName": "Moonshot",
+  "profileId": "generic",
+  "protocolFamily": "openai_compatible",
+  "enabled": false,
+  "createdAt": "2026-07-19T12:22:43.557643+00:00",
+  "updatedAt": "2026-08-02T00:00:00+00:00",
+  "modelDiscoveryUrl": "https://api.moonshot.cn/v1/models",
+  "generationUrls": {
+    "anthropic_messages": "https://api.moonshot.cn/anthropic/v1/messages",
+    "openai_compatible": "https://api.moonshot.cn/v1/chat/completions"
+  },
+  "modelDiscoveryStrategy": "openai_models",
+  "generationAuthSchemes": {
+    "anthropic_messages": "bearer_token",
+    "openai_compatible": "bearer_token"
+  },
+  "modelDiscoveryAuthScheme": "bearer_token"
+}

@@ -1,0 +1,221 @@
+.ai-panel__usage-area {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.ai-panel__usage-trigger {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 120px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  cursor: pointer;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-panel__usage-trigger:hover {
+  color: var(--color-text-primary);
+}
+
+.ai-panel__usage-popover {
+  position: fixed;
+  z-index: 5000;
+  width: 310px;
+  max-width: calc(100vw - 16px);
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--color-surface-menu);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  color: var(--color-text-primary);
+}
+
+.ai-panel__usage-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  margin-bottom: 8px;
+}
+
+.ai-panel__usage-popover-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-text-primary);
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ai-panel__usage-estimate-warning {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-warning, #d89b45);
+  cursor: help;
+  line-height: 1;
+}
+
+.ai-panel__usage-estimate-warning:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 2px;
+}
+
+.ai-panel__usage-context {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+
+.ai-panel__usage-context strong {
+  color: var(--color-text-primary);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.ai-panel__usage-layout {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  height: 148px;
+  min-width: 0;
+}
+
+.ai-panel__usage-scope-list {
+  display: grid;
+  grid-auto-rows: 42px;
+  align-content: start;
+  flex: 1 1 auto;
+  height: 100%;
+  min-width: 0;
+  overflow-y: auto;
+  margin: 0;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-panel);
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
+.ai-panel__usage-scope-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ai-panel__usage-scope-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ai-panel__usage-scope-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+}
+
+.ai-panel__usage-scope-list::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+.ai-panel__usage-scope-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  height: 42px;
+  min-height: 42px;
+  padding: 5px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 0.7rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ai-panel__usage-scope-option:hover,
+.ai-panel__usage-scope-option[aria-selected="true"] {
+  background: var(--color-surface-item-hover);
+  color: var(--color-text-primary);
+}
+
+.ai-panel__usage-scope-option + .ai-panel__usage-scope-option {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.ai-panel__usage-scope-option-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ai-panel__usage-scope-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-panel__usage-scope-option-feature {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.62rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-panel__usage-scope-option-provider {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+
+.ai-panel__usage-grid {
+  display: grid;
+  grid-template-rows: repeat(7, minmax(0, 1fr));
+  flex: 0 0 88px;
+  gap: 2px;
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.ai-panel__usage-grid div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-panel__usage-grid dt {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.66rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-panel__usage-grid dd {
+  flex: 0 0 auto;
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "content": "需要在执行下一步前等待 30 秒。\n\n输入参数：\n{\n  \"duration_seconds\": 30\n}\n\n预期返回：ok=true，data.requested_seconds=30，并返回实际经过秒数和 UTC 起止时间。",
+    "title": "等待 30 秒"
+  },
+  {
+    "content": "需要在五分钟后再检查外部状态。先单独调用等待工具，返回后再执行检查。\n\n输入参数：\n{\n  \"duration_seconds\": 300\n}\n\n预期返回：ok=true，等待完成后当前 AI 才继续下一步。",
+    "title": "五分钟后继续"
+  }
+]

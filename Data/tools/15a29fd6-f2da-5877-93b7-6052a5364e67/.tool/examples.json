@@ -1,0 +1,22 @@
+[
+  {
+    "title": "不经过 Shell 查看 Git 状态",
+    "content": "{\"argv\":[\"git\",\"status\",\"--short\"],\"timeout_seconds\":20}"
+  },
+  {
+    "title": "运行项目测试",
+    "content": "{\"command\":\"python -m pytest\",\"workdir\":\"1_PythonServer\",\"timeout_seconds\":120,\"max_output_chars\":40000}"
+  },
+  {
+    "title": "使用结构化字段查询 Windows 系统信息",
+    "content": "{\"command\":\"$os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop; $computer = Get-CimInstance Win32_ComputerSystem -ErrorAction Stop; [pscustomobject]@{ OSName = $os.Caption; OSVersion = $os.Version; OSArchitecture = $os.OSArchitecture; SystemType = $computer.SystemType } | ConvertTo-Json -Compress\",\"shell\":\"powershell\",\"timeout_seconds\":30}"
+  },
+  {
+    "title": "单独查询 Windows 磁盘空间",
+    "content": "{\"command\":\"Get-PSDrive -Name C -ErrorAction Stop | Select-Object Name,Used,Free | ConvertTo-Json -Compress\",\"shell\":\"powershell\",\"timeout_seconds\":20}"
+  },
+  {
+    "title": "接受命令约定的非零退出码",
+    "content": "{\"argv\":[\"git\",\"diff\",\"--quiet\"],\"expected_exit_codes\":[0,1],\"timeout_seconds\":20}"
+  }
+]

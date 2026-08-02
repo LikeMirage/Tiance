@@ -1,0 +1,1107 @@
+{
+  "schemaVersion": 1,
+  "locale": "en-US",
+  "displayName": "English",
+  "direction": "ltr",
+  "messages": {
+    "common": {
+      "productName": "Tiance",
+      "documentTitle": "Tiance",
+      "actions": {
+        "add": "Add",
+        "cancel": "Cancel",
+        "clear": "Clear",
+        "close": "Close",
+        "confirm": "Confirm",
+        "delete": "Delete",
+        "deleting": "Deleting",
+        "edit": "Edit",
+        "open": "Open",
+        "pin": "Pin",
+        "refresh": "Refresh",
+        "rename": "Rename",
+        "reset": "Reset",
+        "retry": "Retry",
+        "save": "Save",
+        "saving": "Saving",
+        "search": "Search",
+        "unpin": "Unpin"
+      },
+      "status": {
+        "loading": "Loading",
+        "unavailable": "Unavailable",
+        "unknownError": "Unknown error"
+      },
+      "windowControls": {
+        "group": "Window controls",
+        "minimize": "Minimize window",
+        "maximize": "Maximize window",
+        "restore": "Restore window",
+        "close": "Close window"
+      }
+    },
+    "sidebar": {
+      "aria": {
+        "primary": "Primary sidebar",
+        "resize": "Resize sidebar",
+        "workspaceSections": "Workspace sections"
+      },
+      "sections": {
+        "overview": "Projects",
+        "tools": "Tools",
+        "literature": "Literature",
+        "experience": "Experience",
+        "roles": "Roles",
+        "models": "Models",
+        "settings": "Settings",
+        "themes": "Themes",
+        "knowledge": "Knowledge Base"
+      },
+      "subitems": {
+        "projectCategories": "Project categories",
+        "toolsets": "Toolsets",
+        "emptyProjectCategories": "No project categories",
+        "saveName": "Save name",
+        "addProjectCategory": "Add project category",
+        "addToolset": "Add toolset",
+        "roleCategories": "Role categories",
+        "themeCategories": "Theme categories",
+        "emptyRoleCategories": "No role categories",
+        "emptyThemeCategories": "No theme categories",
+        "addRoleCategory": "Add role category",
+        "addThemeCategory": "Add theme category"
+      },
+      "theme": {
+        "fallback": "Theme",
+        "select": "Select theme"
+      },
+      "delete": {
+        "projectCategoryTitle": "Delete Project Category",
+        "projectCategoryMessage": "Deleting \"{label}\" also deletes every project and project folder in it. This cannot be undone in the app.",
+        "toolsetTitle": "Delete Toolset",
+        "toolsetMessage": "After deleting \"{label}\", tool folders in this toolset will also be deleted.",
+        "roleCategoryTitle": "Delete Role Category",
+        "roleCategoryMessage": "Deleting \"{label}\" also deletes every role and role folder in it. This cannot be undone in the app.",
+        "themeCategoryTitle": "Delete Theme Category",
+        "themeCategoryMessage": "Deleting \"{label}\" also deletes every theme and theme folder in it. The active theme cannot be deleted with its category."
+      }
+    },
+    "appFrame": {
+      "statusBar": "Application status bar",
+      "zoom": {
+        "status": "Zoom {percent}",
+        "panelTitle": "Interface Zoom",
+        "decrease": "Zoom out",
+        "increase": "Zoom in",
+        "ratio": "Interface zoom ratio",
+        "native": "Native page zoom",
+        "fallback": "Browser fallback zoom",
+        "waiting": "Waiting for desktop shell",
+        "auto": "Auto zoom",
+        "manual": "Manual zoom"
+      },
+      "metrics": {
+        "aria": "Performance and usage",
+        "panelAria": "Performance and usage panel",
+        "title": "Performance usage",
+        "performanceTab": "Performance",
+        "usageTab": "Usage",
+        "loading": "Reading performance data",
+        "shellDisconnected": "Desktop shell disconnected",
+        "apiUnavailable": "Performance API is not ready",
+        "dataUnavailable": "Performance data is unavailable",
+        "readFailed": "Failed to read performance data",
+        "statusLoading": "Reading performance",
+        "statusUnavailable": "Performance --",
+        "app": "This app",
+        "system": "This device",
+        "processCount": "{count} processes",
+        "memory": "Memory {percent} · {used} / {total}",
+        "reading": "Reading",
+        "unavailable": "Unavailable",
+        "totalTokens": "Token usage",
+        "toolCalls": "Tool calls",
+        "mostUsedTools": "Most-used tools",
+        "noToolUsage": "No tool calls yet",
+        "toolCallCount": "{count} calls",
+        "conversationTotal": "Total conversations",
+        "sentMessages": "Messages sent",
+        "aiRuntime": "Total AI runtime",
+        "usageReadFailed": "Failed to load",
+        "usageSummary": "Cumulative data",
+        "usageActions": "Actions",
+        "syncConversationCount": "Sync current count",
+        "clearConversationCount": "Clear conversation count",
+        "clearConversationTitle": "Clear cumulative conversation count",
+        "clearConversationMessage": "Only the displayed cumulative count will be cleared. No conversations will be deleted. New conversations will continue accumulating from 0.",
+        "clearConversationConfirm": "Confirm clear",
+        "usageOperationInProgress": "Processing",
+        "usageOperationFailed": "Operation failed. Please try again"
+      }
+    },
+    "workspace": {
+      "settings": {
+        "title": "Settings",
+        "panel": "Settings panel",
+        "search": "Search settings",
+        "categories": "Settings categories",
+        "noMatches": "No matching settings",
+        "appearance": "Appearance",
+        "usage": "Usage",
+        "themeSettings": "Theme Settings",
+        "connection": "Connection",
+        "network": "Network",
+        "tokenEstimation": "Token Estimation",
+        "functionalModel": "Functional Models",
+        "functionalModelCategories": "Functional model categories",
+        "functionalSections": {
+          "defaultConversation": "Default Conversation Model",
+          "conversationNaming": "Conversation Naming Model",
+          "memoryCompression": "Memory Management Model"
+        },
+        "language": "Language",
+        "github": "GitHub Sign-in"
+      },
+      "projectsPanel": {
+        "fallbackTitle": "Projects",
+        "duplicateTitle": "Project Already Exists",
+        "duplicateMessage": "This project already exists in \"{categoryName}\".\n{projectName}",
+        "jump": "Jump",
+        "createFile": "New file",
+        "createFolder": "New folder",
+        "refreshFiles": "Refresh file list",
+        "backToProjectList": "Back to project list",
+        "collapse": "Collapse",
+        "importFolder": "Import folder",
+        "importExternalFolder": "Import external folder",
+        "createProject": "Add project",
+        "searchFiles": "Search files",
+        "searchProjects": "Search projects",
+        "projectFiles": "Project files",
+        "emptyProjectFiles": "This project has no files.",
+        "rootDirectory": "Project root directory",
+        "externalFileDropHint": "Release to copy into the project root",
+        "externalFileImporting": "Copying external files…",
+        "externalFileClipboardEmpty": "The clipboard contains no external files to paste.",
+        "externalFoldersUnsupported": "Only external files are supported for now; folders are not supported.",
+        "externalFileImportFailed": "Failed to copy the external files.",
+        "externalFileImportPartial": "Copied {importedCount} files; {failedCount} could not be copied.",
+        "externalFilePathsUnavailable": "The desktop shell could not read the local paths of the dropped files.",
+        "externalFileImportUnavailable": "External file copying is unavailable in this environment.",
+        "externalProjectFolderDropHint": "Release to import the folders as projects",
+        "externalProjectFolderImporting": "Importing external project folders…",
+        "externalProjectFoldersOnly": "The project list accepts external folders only.",
+        "externalProjectFolderPathsUnavailable": "The desktop shell could not read the local paths of the dropped folders.",
+        "externalProjectFolderImportFailed": "Failed to import the external project folders.",
+        "searchThemes": "Search themes"
+      }
+    },
+    "projectList": {
+      "loading": "Loading projects...",
+      "loadFailed": "Failed to load project list.",
+      "emptyAll": "No projects yet.",
+      "emptyCategory": "No projects in this category.",
+      "emptySearch": "No matching projects.",
+      "ariaList": "Project list",
+      "saveProjectName": "Save project name",
+      "createdUnknown": "Unknown creation time",
+      "context": {
+        "pinTop": "Pin to Top",
+        "reveal": "Show in Explorer",
+        "moveTo": "Move to...",
+        "removeProject": "Remove Project",
+        "deleteLocalFiles": "Delete Local Files"
+      }
+    },
+    "fileWorkspace": {
+      "empty": "No files.",
+      "loading": "Loading files...",
+      "root": "File root",
+      "files": "Files",
+      "confirmRename": "Confirm rename",
+      "nameRequired": "File name cannot be empty.",
+      "renameFailed": "Rename failed.",
+      "external": {
+        "dropHint": "Release to copy into this folder.",
+        "importing": "Copying external files...",
+        "clipboardEmpty": "The system clipboard contains no files or folders.",
+        "importFailed": "Failed to copy external files.",
+        "importPartial": "Copied {importedCount} items; {failedCount} failed.",
+        "pathsUnavailable": "The local paths of the dropped files are unavailable.",
+        "unavailable": "External file transfer is unavailable in this desktop environment."
+      },
+      "context": {
+        "createFile": "New file",
+        "createFolder": "New folder",
+        "paste": "Paste",
+        "clearClipboard": "Clear clipboard",
+        "copyItems": "Copy {count} items",
+        "cutItems": "Cut {count} items",
+        "deleteItems": "Delete {count} items",
+        "open": "Open",
+        "referenceToChat": "Reference in chat",
+        "collapse": "Collapse",
+        "expand": "Expand",
+        "reveal": "Show in Explorer",
+        "copy": "Copy",
+        "cut": "Cut"
+      },
+      "delete": {
+        "title": "Confirm Delete",
+        "single": "Deleting will modify the real folder contents. Continue?",
+        "multiple": "Deleting {count} files or folders will modify the real folder contents. Continue?",
+        "failedTitle": "Some Items Were Not Deleted",
+        "failedMessage": "The following {count} items could not be deleted and may be in use by another program:",
+        "failedFallback": "Delete failed."
+      }
+    },
+    "providerCatalog": {
+      "panel": "Model provider list",
+      "title": "Models",
+      "addProvider": "Add provider",
+      "search": "Search providers",
+      "loading": "Loading provider list...",
+      "loadFailed": "Failed to load provider catalog.",
+      "empty": "No providers available.",
+      "emptySearch": "No matching providers.",
+      "list": "Model provider list",
+      "renameSave": "Save provider name",
+      "context": {
+        "reveal": "Open in File Explorer"
+      },
+      "deleteConfirm": {
+        "title": "Delete provider",
+        "message": "Delete provider \"{provider}\"? Its API keys, models, and cache will also be deleted.",
+        "deleting": "Deleting..."
+      },
+      "create": {
+        "title": "Add Custom Provider",
+        "providerName": "Provider name",
+        "providerNamePlaceholder": "e.g. My OpenAI Proxy",
+        "apiBaseUrl": "Full generation API URL",
+        "protocol": "Protocol",
+        "auth": "Auth"
+      },
+      "protocol": {
+        "openaiCompatible": "OpenAI Chat Completions",
+        "openaiResponses": "OpenAI Responses",
+        "anthropicMessages": "Anthropic Messages",
+        "geminiGenerateContent": "Gemini GenerateContent"
+      }
+    },
+    "aiPanel": {
+      "header": {
+        "noSession": "No session selected",
+        "openHistory": "Open conversation history",
+        "backToChat": "Back to conversation",
+        "actions": "AI conversation actions",
+        "exportConversation": "Export conversation",
+        "history": "History",
+        "settings": "Settings",
+        "newConversation": "New conversation",
+        "branches": "Conversation branches",
+        "conversationOverview": "Conversation overview"
+      },
+      "exportDialog": {
+        "title": "Export settings",
+        "close": "Close export settings",
+        "formatList": "Export formats",
+        "directory": "Export path",
+        "chooseDirectory": "Choose export folder",
+        "directoryError": "Unable to choose the export folder.",
+        "scope": "Export scope",
+        "currentConversation": "Current full conversation",
+        "currentReply": "Current AI reply",
+        "fileName": "Export file name",
+        "cancel": "Cancel",
+        "export": "Export",
+        "exportAndOpen": "Export and open",
+        "exporting": "Exporting…",
+        "requestError": "Export failed. Please try again.",
+        "description": {
+          "docx": "Create an editable Word document for archiving, refinement, and formal delivery.",
+          "markdown": "Preserve headings, lists, code blocks, and links for editing or version control.",
+          "txt": "Export plain text without styling for maximum compatibility and easy searching.",
+          "html": "Create a browser-ready page that preserves reading layout and code styling."
+        }
+      },
+      "composer": {
+        "placeholder": "Type a message...",
+        "stopGeneration": "Stop generation",
+        "send": "Send",
+        "resizeInput": "Resize input area"
+      },
+      "settingsTabs": {
+        "aria": "Session settings",
+        "basic": "Basic",
+        "memory": "Memory Compression",
+        "globalMemory": "Global Memory",
+        "tools": "Tools",
+        "data": "Data Dashboards",
+        "close": "Close session settings",
+        "empty": "No configurable session."
+      },
+      "history": {
+        "title": "Project History",
+        "empty": "This project has no conversations.",
+        "messageCount": "{count} messages",
+        "noModel": "No model bound",
+        "deleting": "Deleting",
+        "pinFailed": "Failed to update the conversation pin.",
+        "runtime": {
+          "running": "Running",
+          "error": "Error",
+          "idle": "Idle"
+        },
+        "unknownTime": "Unknown time"
+      },
+      "messageList": {
+        "loadingSession": "Loading session...",
+        "empty": "Send a message to start the conversation."
+      },
+      "usage": {
+        "aria": "Session token usage",
+        "title": "Usage",
+        "scope": "Usage scope",
+        "total": "Total",
+        "input": "Input",
+        "output": "Output",
+        "reasoning": "Reasoning",
+        "cacheHit": "Cache hit",
+        "cacheMiss": "Miss",
+        "cost": "Cost",
+        "context": "Context",
+        "contextEstimated": "The provider did not return context tokens for this request. This value uses the local mixed-character estimation algorithm and is for reference only.",
+        "totalEstimated": "This summary includes local estimates for requests where the provider returned no usage. Token and cost values are for reference only."
+      },
+      "basicSettings": {
+        "sessionTitle": "Session title",
+        "reasoningDepth": "Reasoning depth",
+        "unsupportedByModel": "Not supported by current model",
+        "temperature": "Temperature",
+        "defaultValue": "Default",
+        "maxOutputTokens": "Max output length, including reasoning",
+        "returnThinkingContent": "Return reasoning content from tool calls",
+        "returnCancelledMessages": "Return cancelled messages",
+        "returnUserBeforeCancelled": "Return user message before cancellation",
+        "streamingOutput": "Streaming output",
+        "autoCollapseProcess": "Auto-collapse assistant process",
+        "injectWorkspaceInfo": "Inject workspace information",
+        "injectMessageTimestamps": "Inject user message timestamps",
+        "systemPrompt": "System prompt",
+        "selectSystemPromptPreset": "Select prompt preset",
+        "noSystemPromptPresets": "No presets available",
+        "clearSystemPrompt": "Clear system prompt"
+      },
+      "memorySettings": {
+        "enabled": "Memory compression",
+        "contextCompaction": "Context compaction",
+        "recentRawTurns": "Protected recent turns",
+        "recentRawTurnsDescription": "Keep the latest N model-response rounds and N user requests verbatim; older content may be merged into the cumulative summary.",
+        "units": {
+          "turn": "turns",
+          "token": "tokens"
+        },
+        "compressionManager": "Compression memory manager",
+        "injectionPreview": "Injection preview dashboard",
+        "contextTokenThreshold": "Compaction target",
+        "contextTokenThresholdDescription": "Create a compaction conversation when the full context reaches N tokens plus the raw reserve. System prompts, tool definitions, workspace data, long-term memory, and messages all count; each batch compacts at most N tokens of history.",
+        "rawContextTokenReserve": "Raw context reserve",
+        "rawContextTokenReserveDescription": "Keep at least N tokens of the newest complete messages verbatim. Whole-message boundaries may make the actual reserve larger."
+      },
+      "globalMemorySettings": {
+        "memoryReceiving": "Receive long-term memory",
+        "receiveGlobalMemory": "Receive global memory",
+        "receiveProjectMemory": "Receive project memory",
+        "memoryExtraction": "Extract long-term memory",
+        "extractGlobalMemory": "Extract global memory from this conversation",
+        "extractProjectMemory": "Extract project memory from this conversation"
+      },
+      "memoryDashboard": {
+        "title": "Long-term memory manager",
+        "description": "View and maintain long-term memories that will be injected into the conversation. Project memories belong to the current project; global memories are shared across projects.",
+        "refresh": "Refresh long-term memory",
+        "scope": "Memory scope",
+        "projectMemory": "Project memory",
+        "globalMemory": "Global memory",
+        "search": "Search {scope}",
+        "add": "Add {scope}",
+        "keywordsPlaceholder": "Keywords, separated by commas or spaces",
+        "noProject": "No project is selected, so long-term memory cannot be loaded.",
+        "loading": "Reading long-term memory.",
+        "empty": "No {scope}.",
+        "loadFailed": "Failed to read long-term memory.",
+        "addFailed": "Failed to add long-term memory.",
+        "updateFailed": "Failed to update long-term memory.",
+        "deleteFailed": "Failed to delete long-term memory.",
+        "eventCount": "{count} events",
+        "source": {
+          "none": "No source",
+          "manual": "Manual",
+          "compression": "Generated by compression"
+        },
+        "operation": {
+          "add": "Add",
+          "update": "Update",
+          "delete": "Delete",
+          "fallback": "Event"
+        },
+        "eventSource": "Event source",
+        "noEvents": "No events.",
+        "confirmDelete": "Confirm delete",
+        "cancelDelete": "Cancel delete",
+        "reasonPlaceholder": "Basis for this change (explicit facts only; do not infer motives)",
+        "deleteReasonPlaceholder": "Basis for deletion (required)",
+        "reasonUnavailable": "No basis recorded for this historical event"
+      },
+      "toolSettings": {
+        "loadFailed": "Failed to load tools.",
+        "title": "Conversation tools",
+        "refresh": "Refresh tool list",
+        "maxToolCalls": "Max tool calls",
+        "loading": "Loading tools.",
+        "empty": "No enabled tools.",
+        "noDescription": "No summary.",
+        "disableTool": "Disable tool",
+        "enableTool": "Enable tool"
+      },
+      "dataDashboard": {
+        "title": "Data dashboards",
+        "items": {
+          "compressions": {
+            "title": "Compression memory manager",
+            "description": "View cumulative summaries, compression items, failure records, and raw compression JSON."
+          },
+          "injectionPreview": {
+            "title": "Injection preview dashboard",
+            "description": "View the system prompt, memories, messages, and tool parameters that will be injected into the next request."
+          },
+          "messages": {
+            "title": "Conversation messages dashboard",
+            "description": "View raw messages, tool calls, tool results, and token usage for the current conversation."
+          },
+          "session": {
+            "title": "Conversation settings dashboard",
+            "description": "View the current conversation title, model, generation parameters, memory parameters, and tool settings."
+          },
+          "index": {
+            "title": "Conversation index dashboard",
+            "description": "View project conversation indexes, active sessions, runtime state, and draft state."
+          },
+          "projectMemory": {
+            "title": "Project memory dashboard",
+            "description": "View long-term memories shared within the current project. The data does not belong to a single conversation."
+          },
+          "globalMemory": {
+            "title": "Global memory dashboard",
+            "description": "View global long-term memories shared across projects. All projects read the same data."
+          }
+        }
+      },
+      "reasoningModes": {
+        "default": "Default",
+        "auto": "Auto",
+        "enabled": "On",
+        "off": "Off",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "max": "Max"
+      }
+    },
+    "networkSettings": {
+      "title": "Network",
+      "loading": "Loading network settings...",
+      "reset": "Restore defaults",
+      "save": "Save",
+      "saving": "Saving",
+      "seconds": "seconds",
+      "connection": {
+        "title": "External connections",
+        "description": "Control how model providers, GitHub, and other backend network requests connect.",
+        "mode": "Connection mode",
+        "system": "Use system proxy",
+        "direct": "Direct",
+        "custom": "Custom proxy",
+        "scheme": "Proxy protocol",
+        "host": "Proxy host",
+        "port": "Proxy port"
+      },
+      "timeout": {
+        "title": "Request timeouts",
+        "description": "Standard reads cover model discovery and similar calls. Streaming reads cover continuous AI output.",
+        "connect": "Connect timeout",
+        "read": "Standard read timeout",
+        "stream": "Streaming read timeout"
+      },
+      "localService": {
+        "title": "Local service port",
+        "description": "Automatic mode selects an available port from 18000 through 18020. Fixed mode always attempts the selected port.",
+        "auto": "Automatic",
+        "fixed": "Fixed",
+        "port": "Fixed port",
+        "restart": "Port changes take effect the next time the app starts. Environment variables always take priority."
+      },
+      "diagnostic": {
+        "title": "GitHub connectivity",
+        "description": "Test GitHub with the saved network settings as the future tools and themes marketplace endpoint.",
+        "test": "Test GitHub",
+        "testing": "Testing",
+        "saveFirst": "Save the current changes first",
+        "success": "Connected in {elapsed} ms.",
+        "failure": "Connection failed: {error}"
+      }
+    },
+    "tokenEstimationSettings": {
+      "title": "Token Estimation",
+      "activationTitle": "When it applies",
+      "activationDescription": "Estimation is used only when a provider omits input, output, or total token usage. Provider-reported values always take priority. Estimated values are marked and included in context and aggregate usage.",
+      "historyDescription": "Changes apply only to future estimates. Historical records and provider-reported usage are never recalculated.",
+      "algorithmTitle": "Estimation algorithm",
+      "algorithmDescription": "Text is estimated from separate runs of ASCII letters and digits versus other visible characters, then message overhead, tool definitions, and image placeholders are added. Tokenizers differ by model, so provider usage remains authoritative.",
+      "loading": "Loading token estimation settings...",
+      "save": "Save",
+      "saving": "Saving",
+      "reset": "Restore defaults",
+      "fields": {
+        "asciiCharsPerToken": "ASCII letter and digit ratio",
+        "otherCharsPerToken": "CJK and other visible character ratio",
+        "messageOverheadTokens": "Per-message structure overhead",
+        "imagePlaceholderTokens": "Per-image placeholder"
+      },
+      "units": {
+        "charsPerToken": "characters / token",
+        "tokensPerMessage": "tokens / message",
+        "tokensPerImage": "tokens / image"
+      }
+    },
+    "functionalModelSettings": {
+      "common": {
+        "model": "Model",
+        "loadingModels": "Loading models",
+        "modelDefault": "Model default",
+        "reasoningDepth": "Reasoning depth",
+        "defaultConversationReasoningDepth": "Default conversation reasoning depth",
+        "maxOutputTokens": "Max output length, including reasoning",
+        "temperature": "Temperature",
+        "topP": "Top P",
+        "jsonOutput": "JSON Output",
+        "prompt": "Prompt",
+        "promptType": "{title} prompt type",
+        "resetPrompt": "Reset prompt",
+        "noTextModels": "No available text models. Enable a provider and add a text generation model in Models first.",
+        "recommendedDeepSeek": "Not selected. Recommended: deepseek-v4-flash",
+        "outputFormats": {
+          "jsonObject": "On",
+          "text": "Off"
+        }
+      },
+      "sections": {
+        "defaultConversation": "Default Conversation Model",
+        "conversationNaming": "Conversation Naming Model",
+        "memoryCompression": "Memory Compression Model",
+        "projectMemoryManagement": "Project Memory Management Model",
+        "globalMemoryManagement": "Global Memory Management Model"
+      },
+      "defaultConversation": {
+        "placeholder": "Use current conversation model when unspecified",
+        "emptyModels": "No available conversation models. Enable a provider and add a text generation model in Models first.",
+        "returnThinkingContent": "Return reasoning content from tool calls",
+        "streamingOutput": "Streaming output",
+        "returnCancelledMessages": "Return cancelled messages",
+        "returnUserBeforeCancelled": "Return user message before cancellation",
+        "systemPrompt": "Main Agent system prompt",
+        "role": "Role",
+        "description": "Use all settings from this role when creating a standard conversation."
+      },
+      "conversationNaming": {
+        "triggerTokenThreshold": "Trigger token threshold",
+        "triggerTokenDescription": "Create an automatic naming functional conversation when the latest complete request context reaches this value. The default is 20K; the configured token estimator is used when the provider reports no usage.",
+        "cacheHitOptimizationMode": "Cache-hit optimization mode",
+        "cacheHitOptimizationDescription": "Reuse the model, generation settings, and conversation prefix from the real request that triggered naming, then append the automatic naming task.",
+        "cacheHitOptimizationSettingsNote": "Model, reasoning, temperature, Top P, and maximum output length all follow the latest real request that triggered naming.",
+        "cacheHitOptimizationBoundaryNote": "Naming material accumulates from the conversation start through the threshold, then rounds forward to the next complete legal message group. Tool calls are never separated from their tool results. No task is created without a real request snapshot and a legal boundary.",
+        "modelModeGroup": "Run modes",
+        "sessionReasoningPlaceholder": "Follow the current run"
+      },
+      "memoryCompression": {
+        "prompt": "Compaction and long-term memory",
+        "failureRetryCount": "Failure retry count",
+        "failureRetryDescription": "Additional attempts after the first failure. Network and timeout failures use short backoff; invalid output is retried at most once. Set 0 to disable automatic retries. Maximum: 10.",
+        "cacheHitOptimizationMode": "Cache-hit optimization mode",
+        "cacheHitOptimizationDescription": "Reuse the actual conversation model and request prefix that triggered compression, then append only the memory-compression task to improve the chance of an upstream context-cache hit and reduce repeated input costs.",
+        "cacheHitOptimizationSettingsNote": "The model and reasoning settings follow the triggering request; temperature, Top P, and maximum output length still use the settings on this page.",
+        "cacheHitOptimizationBoundaryNote": "Cache hits depend on the provider and are not guaranteed. If the real request snapshot is missing or the compression boundary cannot be located precisely, compression fails explicitly and does not switch to a dedicated model.",
+        "modelModeGroup": "Run modes",
+        "sessionReasoningPlaceholder": "Follow the current run"
+      },
+      "longTermMemoryManagement": {
+        "triggerTokenThreshold": "Incremental trigger token threshold",
+        "projectTriggerTokenDescription": "Create a project memory management functional conversation when complete valid message groups added since the last successful run reach this value. Default: 50K. Tool calls are never separated from their results.",
+        "globalTriggerTokenDescription": "Create a global memory management functional conversation when complete valid message groups added since the last successful run reach this value. Default: 100K. Tool calls are never separated from their results.",
+        "blockingEnabled": "Blocking management",
+        "blockingDescription": "When enabled, the current conversation waits for long-term memory management to finish after reaching the threshold. When disabled, it runs asynchronously in the background.",
+        "failureRetryCount": "Failure retry count",
+        "failureRetryDescription": "Additional attempts after the first failure. Network and timeout failures use short backoff; a missing valid tool call is retried at most once. Set 0 to disable automatic retries. Maximum: 10.",
+        "cacheHitOptimizationMode": "Cache-hit optimization mode",
+        "cacheHitOptimizationDescription": "Reuse the real request model, generation settings, and complete effective conversation prefix that triggered the task, then append the long-term memory management task.",
+        "cacheHitOptimizationSettingsNote": "Model, reasoning, temperature, Top P, and maximum output length all follow the latest real request that triggered the task.",
+        "cacheHitOptimizationBoundaryNote": "Each task reads the current complete effective history. The incremental boundary advances only after manage_memory succeeds. Messages added during an asynchronous run are handled by the next task.",
+        "modelModeGroup": "Run modes",
+        "sessionReasoningPlaceholder": "Follow the current run"
+      }
+    },
+    "themeSettings": {
+      "title": "Theme Settings",
+      "themeFile": "Theme file",
+      "selectThemeFile": "Select theme file",
+      "params": "Theme parameters",
+      "paramCategories": "Theme parameter categories",
+      "empty": "No editable themes.",
+      "colorPickerSuffix": " color picker",
+      "errors": {
+        "loadListFailed": "Failed to load theme list.",
+        "loadFailed": "Failed to load theme.",
+        "idMismatch": "Theme id must match the current theme folder.",
+        "saveFailed": "Failed to save theme."
+      },
+      "options": {
+        "mode": {
+          "dark": "Dark base",
+          "light": "Light base"
+        },
+        "shiki": {
+          "githubLight": "GitHub light",
+          "githubLightDefault": "GitHub light default",
+          "githubDark": "GitHub dark",
+          "githubDarkDefault": "GitHub dark default"
+        },
+        "mermaid": {
+          "default": "Default light",
+          "neutral": "Neutral",
+          "dark": "Dark",
+          "forest": "Forest"
+        }
+      },
+      "sections": {
+        "componentColors": "Component Colors",
+        "editor": "Editor",
+        "background": "Background Layer",
+        "integrations": "Code and Charts"
+      },
+      "groups": {
+        "info": "Theme info",
+        "surface": "Surface colors",
+        "text": "Text colors",
+        "border": "Borders",
+        "accent": "Accent colors",
+        "state": "State colors",
+        "collapse": "Collapse fade",
+        "scrollbar": "Scrollbar",
+        "shadow": "Shadows",
+        "editor": "Editor",
+        "background": "Background layer",
+        "integrations": "Code and chart themes"
+      },
+      "fields": {
+        "schemaVersion": "Schema version",
+        "id": "Theme id",
+        "name": "Theme name",
+        "mode": "Theme base",
+        "surfaceBase": "Base background",
+        "surfacePanel": "Panel",
+        "surfacePanelAlt": "Alternate panel",
+        "surfaceToolbar": "Toolbar",
+        "surfaceTitlebar": "Title bar",
+        "surfaceStatusbar": "Status bar",
+        "surfaceSidebar": "Sidebar",
+        "surfaceCanvas": "Canvas",
+        "surfaceElevated": "Elevated layer",
+        "surfaceMuted": "Muted background",
+        "surfaceOverlay": "Overlay",
+        "surfaceMenu": "Menu",
+        "surfaceInput": "Input",
+        "surfaceInputHover": "Input hover",
+        "surfaceItemHover": "Item hover",
+        "surfaceItemHoverStrong": "Strong item hover",
+        "textPrimary": "Body text",
+        "textSecondary": "Secondary text",
+        "textMuted": "Muted text",
+        "textHeading": "Heading",
+        "textHeadingAccent": "Accent heading",
+        "textInverse": "Inverse text",
+        "textSelection": "Selection text",
+        "borderSoft": "Soft border",
+        "borderSubtle": "Subtle border",
+        "borderStrong": "Strong border",
+        "borderFocus": "Focus border",
+        "borderSeparator": "Separator",
+        "accentBase": "Primary accent",
+        "accentRgb": "Primary accent RGB",
+        "accentHover": "Accent hover",
+        "accentText": "Accent text",
+        "accentSoftText": "Soft accent text",
+        "accentSelectionText": "Accent selection text",
+        "accentSelectionBgSubtle": "Subtle selected background",
+        "accentSelectionBg": "Selected background",
+        "accentSelectionBgHover": "Selected hover background",
+        "accentSelectionBorder": "Selected border",
+        "accentTextSelectionBg": "Text selection background",
+        "stateDanger": "Danger",
+        "stateDangerText": "Danger text",
+        "stateDangerSoftText": "Soft danger text",
+        "stateDangerBg": "Danger background",
+        "stateDangerBorder": "Danger border",
+        "stateWarning": "Warning",
+        "stateWarningText": "Warning text",
+        "stateSuccess": "Success",
+        "stateSuccessText": "Success text",
+        "collapseFadeStart": "Fade start",
+        "collapseFadeMid": "Fade middle",
+        "collapseFadeEnd": "Fade end",
+        "collapseCaret": "Collapse caret",
+        "scrollbarTrack": "Track",
+        "scrollbarThumb": "Thumb",
+        "scrollbarThumbHover": "Thumb hover",
+        "shadowFloating": "Floating shadow",
+        "shadowPanel": "Panel shadow",
+        "editorBackground": "Editor background",
+        "editorForeground": "Editor text",
+        "editorGutterBackground": "Gutter background",
+        "editorGutterForeground": "Gutter text",
+        "editorActiveLine": "Active line",
+        "editorSelectionMatch": "Selection match",
+        "editorTooltipBackground": "Tooltip background",
+        "backgroundImage": "Image path",
+        "backgroundOpacity": "Opacity",
+        "backgroundBlur": "Blur",
+        "backgroundOverlay": "Overlay color",
+        "backgroundPosition": "Position",
+        "backgroundSize": "Size",
+        "backgroundRepeat": "Repeat",
+        "shikiTheme": "Code highlighting",
+        "mermaidTheme": "Mermaid chart"
+      }
+    },
+    "projectDelete": {
+      "title": {
+        "remove": "Remove Project",
+        "delete": "Delete Project",
+        "deleteLocal": "Delete Local Files"
+      },
+      "message": {
+        "remove": "Remove \"{projectName}\" from {productName} only. Real files will not be deleted.",
+        "delete": "This cannot be undone. Continue?",
+        "deleteLocal": "Delete the local folder and files for \"{projectName}\", and remove the project from {productName}."
+      },
+      "confirm": {
+        "remove": "Remove",
+        "delete": "Confirm",
+        "deleteLocal": "Delete",
+        "removing": "Removing",
+        "deleting": "Deleting"
+      }
+    },
+    "projectOverview": {
+      "activeSessions": "Active {count}",
+      "deleteFailed": "Failed to delete conversation.",
+      "deleteSessionDeleting": "Deleting...",
+      "deleteSessionMessage": "Delete conversation \"{title}\"? Its messages will also be removed.",
+      "deleteSessionTitle": "Delete Conversation",
+      "emptyCategory": "This category has no projects.",
+      "errorSessions": "Errors {count}",
+      "idleSessions": "Idle {count}",
+      "loadFailed": "Failed to load project overview.",
+      "loadingAria": "Loading project overview",
+      "newConversation": "New conversation",
+      "noCategory": "Select a project category.",
+      "pinFailed": "Failed to update the conversation pin.",
+      "projectActions": "Project actions",
+      "renameFailed": "Failed to rename conversation.",
+      "sectionAria": "{category} project overview",
+      "sessionCount": "{count} conversations",
+      "projectCount": "{count} projects",
+      "switchCategory": "Switch project category",
+      "totalsAria": "Category conversation status totals",
+      "card": {
+        "branchGroup": "Conversation branches",
+        "childSessionGroup": "AI child conversations",
+        "collapseSession": "Collapse conversation “{title}”",
+        "createdUnknown": "Created time unknown",
+        "createSession": "New conversation",
+        "emptySessionGroup": "None",
+        "emptySessions": "No conversations.",
+        "enterCurrentSession": "Enter current conversation",
+        "expandSession": "Expand conversation “{title}”",
+        "maximize": "Maximize project card",
+        "noSessionToEnter": "No conversation to enter",
+        "revealInExplorer": "Show in File Explorer",
+        "restore": "Restore project card",
+        "saveSessionName": "Save conversation name",
+        "sessionsAria": "Conversation list",
+        "functionalSessionGroup": "Functional branches",
+        "automaticNamingGroup": "Automatic naming",
+        "memoryCompactionGroup": "Memory compaction",
+        "projectMemoryManagementGroup": "Project memory management",
+        "globalMemoryManagementGroup": "Global memory management"
+      },
+      "usage": {
+        "allTotal": "All total",
+        "closeAria": "Close usage statistics",
+        "sessionTotalTitle": "Conversation total {value}",
+        "title": "Usage statistics",
+        "metrics": {
+          "cacheHit": "Cache hit",
+          "cacheMiss": "Miss",
+          "cost": "Cost",
+          "input": "Input",
+          "output": "Output",
+          "reasoning": "Reasoning",
+          "total": "Total"
+        }
+      },
+      "views": {
+        "branches": "Branch Dashboard",
+        "conversation": "Conversation Overview",
+        "projects": "Project Overview",
+        "providers": "Provider Configuration",
+        "roles": "Role Overview",
+        "themes": "Theme Overview",
+        "tabsAria": "Project collection views",
+        "tools": "Tool Overview",
+        "toolTabsAria": "Tool collection views",
+        "roleTabsAria": "Role collection views",
+        "themeTabsAria": "Theme collection views",
+        "providerTabsAria": "Model provider views"
+      }
+    },
+    "providerCanvas": {
+      "disable": "Disable",
+      "enable": "Enable",
+      "providerLinksAria": "{provider} links",
+      "renameProvider": "Rename {provider}",
+      "selectCustomProviderProtocol": "Select custom provider protocol",
+      "links": {
+        "docs": "Docs",
+        "models": "Models",
+        "official": "Official"
+      },
+      "apiAddress": {
+        "placeholder": "Enter the full request URL; no path is appended",
+        "title": "API URL",
+        "generation": "Full generation API URL",
+        "models": "Model list API URL (generated automatically, editable)",
+        "modelsPlaceholder": "Enter the full model list URL"
+      },
+      "cacheSettings": {
+        "title": "Cache settings", "retention": "Prefix cache lifetime threshold",
+        "unitAria": "Select cache lifetime unit",
+        "hint": "Controls when long-term memory updates are folded into the leading prompt. It does not change the provider's actual cache lifetime.",
+        "units": { "minutes": "Minutes", "hours": "Hours" }
+      },
+      "apiKey": {
+        "add": "Add API key",
+        "clearAria": "Clear {provider} API key {index}",
+        "emptyPlaceholder": "Enter {provider} API key",
+        "pollAria": "{provider} API key {index} polling weight",
+        "pollLabel": "Polling weight:",
+        "pollTitle": "Polling weight. 0 temporarily disables this key.",
+        "rpmTitle": "Times this key was selected in the last 60 seconds",
+        "savedPlaceholder": "Saved {hint}. Enter a new key to replace it.",
+        "title": "API KEY"
+      },
+      "errors": {
+        "protocolUpdateFailed": "Failed to update protocol.",
+        "providerNameRequired": "Provider name is required."
+      },
+      "modelCheck": {
+        "configSaveFailed": "{model}: failed to save configuration.",
+        "currentKey": "current key",
+        "passed": "{model} passed with {key}",
+        "testFailed": "{model} test failed."
+      },
+      "usage": {
+        "metrics": {
+          "cacheHit": "Cache hit",
+          "cost": "Cost",
+          "input": "Input",
+          "output": "Output",
+          "total": "Total"
+        }
+      },
+      "modelManagement": {
+        "title": "Model Management",
+        "modeAria": "Model management mode",
+        "modelFallback": "Model",
+        "unnamedModel": "Unnamed model",
+        "tabs": {
+          "added": "Added",
+          "cloud": "Cloud sync",
+          "custom": "Custom"
+        },
+        "capabilities": {
+          "aria": "Model capability tags",
+          "embedding": "Embedding",
+          "functionCalling": "Tools",
+          "imageGeneration": "Image generation",
+          "reasoning": "Reasoning",
+          "rerank": "Rerank",
+          "speechToText": "Speech recognition",
+          "tts": "TTS",
+          "videoGeneration": "Video generation",
+          "vision": "Vision"
+        },
+        "currency": {
+          "cny": "CNY",
+          "usd": "USD"
+        },
+        "pricing": {
+          "perMillionTokens": "million tokens",
+          "separator": ", "
+        },
+        "test": {
+          "failed": "Connection failed",
+          "retestAria": "Retest {model}",
+          "success": "Connected",
+          "testAria": "Test {model}",
+          "testing": "Testing connection...",
+          "title": "Test model"
+        },
+        "added": {
+          "all": "All",
+          "categoryAria": "Added model categories",
+          "details": "Details",
+          "editAria": "Edit {model}",
+          "empty": "No custom models have been added yet.",
+          "emptyFiltered": "No models match the current search or category.",
+          "loadFailed": "Failed to load added models.",
+          "loading": "Loading added models...",
+          "searchAria": "Search added models",
+          "searchPlaceholder": "Search model name / ID / note",
+          "tokenUsageLabel": "Token usage:",
+          "usageDetailsAria": "View usage details for {model}",
+          "tooltip": {
+            "group": "Group: {value}",
+            "modelId": "Model ID: {value}",
+            "note": "Note: {value}",
+            "price": "Price: {value}"
+          }
+        },
+        "cloud": {
+          "addModelAria": "Add {model}",
+          "addToAdded": "Add to added list",
+          "adding": "Adding",
+          "deleteModelAria": "Delete {model}",
+          "empty": "The remote endpoint returned no models.",
+          "emptyFiltered": "No matching models.",
+          "expandGroupAria": "Expand {group} group",
+          "groupAria": "{group} group",
+          "loadFailed": "Failed to fetch remote models.",
+          "loading": "Fetching remote model list...",
+          "needsApiKey": "Enter an API key first",
+          "removeFromAdded": "Remove from added list",
+          "searchLabel": "Search models",
+          "searchPlaceholder": "Search model name, ID, or group",
+          "staleCache": "Sync failed. Showing the last cached list.",
+          "syncAria": "Sync cloud models"
+        },
+        "custom": {
+          "add": "← Add",
+          "cacheHitPrice": "Cache hit price",
+          "cacheHitPricePlaceholder": "Cache hit price / million tokens",
+          "capabilities": "Model categories",
+          "deleteFailed": "Failed to delete custom model.",
+          "inputPrice": "Input price",
+          "inputPricePlaceholder": "Input price / million tokens",
+          "invalidPriceFormat": "Invalid model price format.",
+          "modelGroup": "Model group",
+          "modelGroupPlaceholder": "Used for list grouping, for example deepseek-ai",
+          "modelId": "Model ID",
+          "modelIdPlaceholder": "Request model ID, for example deepseek-ai/DeepSeek-R1",
+          "modelIdRequired": "Model ID is required.",
+          "modelName": "Model name",
+          "modelNamePlaceholder": "Name shown in the interface",
+          "note": "Note",
+          "notePlaceholder": "Add model purpose, source, or special notes",
+          "outputPrice": "Output price",
+          "outputPricePlaceholder": "Output price / million tokens",
+          "price": "Price",
+          "priceCurrencyAria": "Model price currency",
+          "priceMustBeNonNegative": "{field} must be a number greater than or equal to 0.",
+          "saveChanges": "Save changes",
+          "saveFailed": "Failed to save custom model."
+        },
+        "usageDetails": {
+          "allUsage": "All usage",
+          "byUsage": "By usage",
+          "closeAria": "Close usage details",
+          "empty": "No usage records broken down by purpose.",
+          "title": "Usage details"
+        },
+        "usageFeatures": {
+          "conversationNaming": "Conversation naming model",
+          "projectMemoryManagement": "Project memory management model",
+          "globalMemoryManagement": "Global memory management model",
+          "mainChat": "Main conversation",
+          "memoryCompression": "Memory compression model",
+          "providerWebSearch": "Provider web search"
+        }
+      },
+      "selectProviderProtocol": "Select provider protocol"
+    },
+    "languageSettings": {
+      "title": "Language",
+      "description": "Choose the language used by the Tiance interface. Language packages are loaded from Data/locales.",
+      "selection": "Interface language",
+      "system": "Follow system",
+      "systemDescription": "Choose automatically from the operating system language. Current: {language}",
+      "available": "Available languages",
+      "selected": "In use",
+      "select": "Click to switch",
+      "switching": "Switching language…",
+      "loading": "Loading language settings…",
+      "saveFailed": "Language setting operation failed.",
+      "retry": "Retry",
+      "loadFailed": "Unable to load language settings.",
+      "empty": "No language packages are available."
+    },
+    "githubSettings": {
+      "loading": "Loading GitHub connection…",
+      "title": "GitHub Sign-in",
+      "description": "Connect GitHub to read private repositories authorized for Tiance Desktop from online markets.",
+      "connected": "Connected",
+      "logout": "Sign out",
+      "loggingOut": "Signing out…",
+      "profile": "View profile",
+      "repositories": {
+        "title": "Authorized repositories",
+        "description": "Use the default open-source repositories as examples when configuring a private repository.",
+        "refresh": "Refresh",
+        "manage": "Add or remove repositories",
+        "private": "Private",
+        "public": "Public",
+        "empty": "No repositories are currently authorized."
+      },
+      "login": {
+        "title": "Connect GitHub",
+        "description": "Sign-in opens in your system browser. Tiance only requests read access to repositories you explicitly authorize.",
+        "codeLabel": "Device code",
+        "waiting": "Enter the code in GitHub and approve access. This page will update automatically.",
+        "cancel": "Cancel",
+        "openAgain": "Open GitHub again",
+        "starting": "Connecting…",
+        "action": "Sign in to GitHub"
+      }
+    },
+    "onlineMarketSource": {
+      "default": "Default source",
+      "custom": "Custom source",
+      "privateRepositories": "Private repositories",
+      "loading": "Loading repositories…",
+      "loadFailed": "Unable to load. Click to retry",
+      "notConnected": "GitHub is not connected.",
+      "empty": "No private repositories are authorized.",
+      "addPrivateRepository": "Add private repository"
+    }
+  }
+}

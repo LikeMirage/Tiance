@@ -1,0 +1,22 @@
+[
+  {
+    "title": "默认转 PNG",
+    "content": "把整个 PDF 按默认 200 DPI 转成 PNG 图片。\n\n输入参数：\n{\n  \"file_path\": \"docs/report.pdf\"\n}\n\n默认输出到源文件同级的 report_images 文件夹。"
+  },
+  {
+    "title": "只转指定页",
+    "content": "页码使用 1 基序号，支持范围表达式。\n\n输入参数：\n{\n  \"file_path\": \"docs/report.pdf\",\n  \"page_ranges\": \"1-3,5,last\",\n  \"dpi\": 300,\n  \"output_folder_name\": \"report_selected_pages\"\n}\n\n适合只把关键页交给视觉模型处理。"
+  },
+  {
+    "title": "转 JPEG 并降低体积",
+    "content": "JPEG 不支持透明背景，工具会自动关闭 alpha。\n\n输入参数：\n{\n  \"file_path\": \"docs/report.pdf\",\n  \"image_format\": \"jpg\",\n  \"jpg_quality\": 85,\n  \"dpi\": 180\n}\n\n适合页面较多但只需要普通阅读质量的场景。"
+  },
+  {
+    "title": "裁剪局部区域",
+    "content": "clip 单位是 PDF point，用于只渲染页面中的某块区域。\n\n输入参数：\n{\n  \"file_path\": \"docs/report.pdf\",\n  \"page_ranges\": \"2\",\n  \"clip\": {\"x0\": 72, \"y0\": 72, \"x1\": 520, \"y1\": 720},\n  \"dpi\": 300\n}\n\n适合只导出表格、图表或页面局部内容。"
+  },
+  {
+    "title": "预演输出",
+    "content": "dry_run 只计算页码和输出路径，不实际写入图片。\n\n输入参数：\n{\n  \"file_path\": \"docs/report.pdf\",\n  \"page_ranges\": \"1-10\",\n  \"dry_run\": true\n}\n\n适合在大文件渲染前确认页码和输出目录。"
+  }
+]

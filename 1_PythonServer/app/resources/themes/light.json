@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 2,
+  "id": "light",
+  "name": "浅色",
+  "mode": "light",
+  "tokens": {
+    "color": {
+      "surface": {
+        "base": "#f0f0f1",
+        "panel": "#ffffff",
+        "panelAlt": "#f7f7f8",
+        "toolbar": "#f7f7f8",
+        "titlebar": "rgb(245, 245, 245)",
+        "statusbar": "rgb(245, 245, 245)",
+        "sidebar": "rgb(245, 245, 245)",
+        "canvas": "#ffffff",
+        "elevated": "#ffffff",
+        "muted": "#eeeeef",
+        "overlay": "rgba(17, 24, 39, 0.026)",
+        "menu": "rgba(255, 255, 255, 0.98)",
+        "input": "#ffffff",
+        "inputHover": "#eeeeef",
+        "itemHover": "rgba(17, 24, 39, 0.045)",
+        "itemHoverStrong": "rgba(17, 24, 39, 0.075)"
+      },
+      "text": {
+        "primary": "#0f172a",
+        "secondary": "#475569",
+        "muted": "#7b8796",
+        "heading": "#0f172a",
+        "headingAccent": "#1d4ed8",
+        "inverse": "#ffffff",
+        "selectionText": "#ffffff"
+      },
+      "border": {
+        "soft": "#d8d8dc",
+        "subtle": "#e6e6e8",
+        "strong": "#c6c6cb",
+        "focus": "rgba(37, 99, 235, 0.38)",
+        "separator": "#dedee2"
+      },
+      "accent": {
+        "base": "#2563eb",
+        "rgb": "37, 99, 235",
+        "hover": "#1d4ed8",
+        "text": "#1d4ed8",
+        "softText": "#3b6fb6",
+        "selectionText": "#0f3fa8",
+        "selectionBgSubtle": "rgba(37, 99, 235, 0.075)",
+        "selectionBg": "rgba(37, 99, 235, 0.12)",
+        "selectionBgHover": "rgba(37, 99, 235, 0.18)",
+        "selectionBorder": "rgba(37, 99, 235, 0.28)",
+        "textSelectionBg": "rgba(37, 99, 235, 0.72)"
+      },
+      "state": {
+        "danger": "#b42318",
+        "dangerText": "#7f1d1d",
+        "dangerSoftText": "#9f2f24",
+        "dangerBg": "rgba(220, 38, 38, 0.08)",
+        "dangerBorder": "rgba(220, 38, 38, 0.18)",
+        "warning": "#a16207",
+        "warningText": "#8a4f12",
+        "success": "#16803a",
+        "successText": "#166534"
+      },
+      "collapse": {
+        "fadeStart": "rgba(255, 255, 255, 0)",
+        "fadeMid": "rgba(255, 255, 255, 0.82)",
+        "fadeEnd": "rgba(255, 255, 255, 0.98)",
+        "caret": "rgba(37, 99, 235, 0.72)"
+      },
+      "scrollbar": {
+        "track": "transparent",
+        "thumb": "rgba(100, 116, 139, 0.32)",
+        "thumbHover": "rgba(71, 85, 105, 0.46)"
+      }
+    },
+    "structure": {
+      "enabled": true,
+      "width": 1,
+      "color": "#dedee2",
+      "hoverColor": "#c6c6cb",
+      "activeColor": "rgba(37, 99, 235, 0.38)",
+      "lines": {
+        "titlebarBottom": true,
+        "statusbarTop": true,
+        "navigationRight": true,
+        "sidePanelRight": true,
+        "assistantPanelLeft": true,
+        "contentSplit": true
+      }
+    },
+    "shadow": {
+      "floating": "0 18px 36px rgba(15, 23, 42, 0.12)",
+      "panel": "12px 0 24px rgba(15, 23, 42, 0.08)"
+    },
+    "editor": {
+      "background": "#ffffff",
+      "foreground": "#1f2937",
+      "gutterBackground": "#f3f3f4",
+      "gutterForeground": "#7b8494",
+      "activeLine": "rgba(17, 24, 39, 0.035)",
+      "selectionMatch": "rgba(37, 99, 235, 0.12)",
+      "tooltipBackground": "#ffffff"
+    },
+    "background": {
+      "image": "",
+      "opacity": 0,
+      "blur": 0,
+      "overlay": "transparent",
+      "position": "center",
+      "size": "cover",
+      "repeat": "no-repeat"
+    }
+  },
+  "integrations": {
+    "codeMirror": "light",
+    "shiki": "github-light",
+    "mermaid": "default",
+    "milkdown": "light"
+  }
+}

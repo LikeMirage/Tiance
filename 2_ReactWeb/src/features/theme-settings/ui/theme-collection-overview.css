@@ -1,0 +1,89 @@
+.theme-collection-overview__preview {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22% minmax(0, 1fr) 28%;
+  min-height: 0;
+  margin: 8px 10px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--theme-preview-text) 18%, transparent);
+  border-radius: 6px;
+  background: var(--theme-preview-canvas);
+  box-shadow: var(--shadow-panel);
+}
+
+.theme-collection-overview__preview--image {
+  display: block;
+  background: var(--color-surface-muted);
+}
+
+.theme-collection-overview__preview--image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.theme-collection-overview__preview-sidebar {
+  background: var(--theme-preview-panel-alt);
+  border-right: 1px solid color-mix(in srgb, var(--theme-preview-text) 14%, transparent);
+}
+
+.theme-collection-overview__preview-content {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 15px 12px;
+  background: var(--theme-preview-canvas);
+}
+
+.theme-collection-overview__preview-content i {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--theme-preview-text) 36%, transparent);
+}
+
+.theme-collection-overview__preview-content i:nth-child(2) {
+  width: 72%;
+}
+
+.theme-collection-overview__preview-content i:nth-child(3) {
+  width: 48%;
+  background: var(--theme-preview-accent);
+}
+
+.theme-collection-overview__preview-panel {
+  background: var(--theme-preview-panel);
+  border-left: 1px solid color-mix(in srgb, var(--theme-preview-text) 14%, transparent);
+}
+
+.theme-collection-overview__swatches {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.theme-collection-overview__swatches i {
+  width: 12px;
+  height: 12px;
+  border: 1px solid color-mix(in srgb, var(--theme-preview-text) 20%, transparent);
+  border-radius: 50%;
+}
+
+.theme-collection-overview__swatches i:nth-child(1) {
+  background: var(--theme-preview-accent);
+}
+
+.theme-collection-overview__swatches i:nth-child(2) {
+  background: var(--theme-preview-canvas);
+}
+
+.theme-collection-overview__swatches i:nth-child(3) {
+  background: var(--theme-preview-panel);
+}
+
+.theme-collection-overview__swatches i:nth-child(4) {
+  background: var(--theme-preview-text);
+}

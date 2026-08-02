@@ -1,0 +1,44 @@
+{
+  "type": "object",
+  "description": "成功时返回目标工具参数或示例；失败时返回 ok=false 和 error_info。",
+  "required": [
+    "ok"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "description": "本次操作是否成功。"
+    },
+    "summary": {
+      "type": "string",
+      "description": "适合 AI 直接阅读的简短结果摘要。"
+    },
+    "operation": {
+      "type": "string",
+      "description": "实际执行的操作。"
+    },
+    "tool_name": {
+      "type": "string",
+      "description": "目标工具调用名。"
+    },
+    "data": {
+      "type": "object",
+      "description": "参数详情、示例详情或目标工具执行结果。"
+    },
+    "error": {
+      "type": "string",
+      "description": "失败时的错误说明。"
+    },
+    "error_info": {
+      "type": "object",
+      "description": "失败时的结构化错误信息。"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

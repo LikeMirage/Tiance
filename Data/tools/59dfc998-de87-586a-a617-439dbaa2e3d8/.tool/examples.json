@@ -1,0 +1,10 @@
+[
+  {
+    "title": "读取多个配置文件",
+    "content": "{\"files\":[\"package.json\",\"2_ReactWeb/package.json\",\"1_PythonServer/pyproject.toml\"],\"total_max_chars\":80000}"
+  },
+  {
+    "title": "读取指定行段",
+    "content": "{\"files\":[{\"file_path\":\"1_PythonServer/app/services/tools/tool_execution.py\",\"start_line\":1,\"max_lines\":160}],\"include_line_numbers\":true}"
+  }
+]

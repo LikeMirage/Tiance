@@ -1,0 +1,54 @@
+.project-conversation-overview-dashboard {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  padding: 18px 0 18px 18px;
+  overflow: hidden;
+}
+
+.project-conversation-overview-dashboard__card {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.project-conversation-overview-dashboard__card
+  > .project-category-overview__card {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  border-color: var(--color-border-soft);
+  box-shadow: none;
+}
+
+.project-conversation-overview-dashboard__card
+  > .project-category-overview__card--active::after {
+  content: none;
+}
+
+.project-conversation-overview-dashboard__status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  color: var(--color-text-muted);
+}
+
+.project-conversation-overview-dashboard__status button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.project-conversation-overview-dashboard__loading {
+  height: 100%;
+}

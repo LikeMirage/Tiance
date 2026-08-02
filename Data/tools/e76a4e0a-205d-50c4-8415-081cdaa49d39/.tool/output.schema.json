@@ -1,0 +1,197 @@
+{
+  "type": "object",
+  "description": "返回转换结果、模板提取结果或模板列表；失败时返回 ok=false 和 error。",
+  "additionalProperties": false,
+  "required": [
+    "ok",
+    "action"
+  ],
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "description": "是否执行成功。"
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "convert",
+        "extract_template",
+        "list_templates"
+      ],
+      "description": "本次实际执行的操作。"
+    },
+    "input_path": {
+      "type": "string",
+      "description": "转换时实际读取的 Markdown 文件绝对路径。"
+    },
+    "output_path": {
+      "type": "string",
+      "description": "转换生成的 .docx 文件绝对路径。"
+    },
+    "overwritten": {
+      "type": "boolean",
+      "description": "是否覆盖了已有目标文件。"
+    },
+    "message": {
+      "type": "string",
+      "description": "简短执行说明。"
+    },
+    "warnings": {
+      "type": "array",
+      "description": "转换时产生的非致命警告。",
+      "items": {
+        "type": "string"
+      }
+    },
+    "template_id": {
+      "type": "string",
+      "description": "转换实际使用的模板标识。"
+    },
+    "template_name": {
+      "type": "string",
+      "description": "转换实际使用的模板名称。"
+    },
+    "template": {
+      "type": "object",
+      "description": "新提取模板的摘要。",
+      "additionalProperties": false,
+      "required": [
+        "template_id",
+        "name",
+        "source_file_name",
+        "created_at",
+        "builtin",
+        "json_path",
+        "source_summary",
+        "extracted_roles"
+      ],
+      "properties": {
+        "template_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "source_file_name": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "builtin": {
+          "type": "boolean"
+        },
+        "json_path": {
+          "type": "string"
+        },
+        "source_summary": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "extracted_roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "templates": {
+      "type": "array",
+      "description": "可用于转换的模板列表。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "template_id",
+          "name",
+          "source_file_name",
+          "created_at",
+          "builtin"
+        ],
+        "properties": {
+          "template_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "source_file_name": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "builtin": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "error": {
+      "type": "string",
+      "description": "失败时的错误说明。"
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "ok": {
+          "const": false
+        }
+      },
+      "required": [
+        "error"
+      ]
+    },
+    {
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "action": {
+          "const": "convert"
+        }
+      },
+      "required": [
+        "input_path",
+        "output_path",
+        "overwritten",
+        "message",
+        "warnings",
+        "template_id",
+        "template_name"
+      ]
+    },
+    {
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "action": {
+          "const": "extract_template"
+        }
+      },
+      "required": [
+        "message",
+        "template"
+      ]
+    },
+    {
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "action": {
+          "const": "list_templates"
+        }
+      },
+      "required": [
+        "message",
+        "templates"
+      ]
+    }
+  ]
+}

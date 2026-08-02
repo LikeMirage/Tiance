@@ -1,0 +1,22 @@
+[
+  {
+    "title": "查看全部当前有效记忆",
+    "content": "{\"operation\":\"list\"}"
+  },
+  {
+    "title": "新增项目记忆",
+    "content": "{\"operation\":\"add\",\"scope\":\"project\",\"content\":\"本项目的工具都应通过 .tool JSON 和 program/main.py 组成标准结构。\",\"keywords\":[\"工具系统\",\"标准结构\"],\"reason\":\"用户明确确定了工具标准结构\"}"
+  },
+  {
+    "title": "搜索全部记忆",
+    "content": "{\"operation\":\"search\",\"query\":\"提示词\"}"
+  },
+  {
+    "title": "更新指定记忆",
+    "content": "{\"operation\":\"update\",\"scope\":\"project\",\"memory_id\":\"pm_xxx\",\"content\":\"替换后的完整记忆内容。\",\"keywords\":[\"关键词\"],\"reason\":\"用户给出了替代原记忆的新事实\"}"
+  },
+  {
+    "title": "删除指定记忆",
+    "content": "{\"operation\":\"delete\",\"scope\":\"project\",\"memory_id\":\"pm_xxx\",\"reason\":\"用户明确说明该记忆已不再适用\"}"
+  }
+]

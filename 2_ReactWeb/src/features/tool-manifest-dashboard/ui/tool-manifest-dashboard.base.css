@@ -1,0 +1,192 @@
+.tool-dashboard {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 22px 26px 30px;
+  background: var(--color-surface-panel);
+  color: var(--color-text-primary);
+  scrollbar-gutter: stable;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
+.tool-dashboard--error {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tool-dashboard::-webkit-scrollbar,
+.tool-dashboard__textarea::-webkit-scrollbar,
+.tool-dashboard__json-textarea::-webkit-scrollbar,
+.tool-dashboard__raw-editor::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.tool-dashboard::-webkit-scrollbar-track,
+.tool-dashboard__textarea::-webkit-scrollbar-track,
+.tool-dashboard__json-textarea::-webkit-scrollbar-track,
+.tool-dashboard__raw-editor::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tool-dashboard::-webkit-scrollbar-thumb,
+.tool-dashboard__textarea::-webkit-scrollbar-thumb,
+.tool-dashboard__json-textarea::-webkit-scrollbar-thumb,
+.tool-dashboard__raw-editor::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+}
+
+.tool-dashboard::-webkit-scrollbar-thumb:hover,
+.tool-dashboard__textarea::-webkit-scrollbar-thumb:hover,
+.tool-dashboard__json-textarea::-webkit-scrollbar-thumb:hover,
+.tool-dashboard__raw-editor::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+.tool-dashboard::-webkit-scrollbar-corner,
+.tool-dashboard__textarea::-webkit-scrollbar-corner,
+.tool-dashboard__json-textarea::-webkit-scrollbar-corner,
+.tool-dashboard__raw-editor::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.tool-dashboard__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.tool-dashboard h1,
+.tool-dashboard h2,
+.tool-dashboard p {
+  margin: 0;
+}
+
+.tool-dashboard h1 {
+  font-size: 1.42rem;
+  line-height: 1.25;
+}
+
+.tool-dashboard h2 {
+  margin-bottom: 10px;
+  color: var(--color-text-primary);
+  font-size: 0.88rem;
+}
+
+.tool-dashboard p {
+  color: var(--color-text-secondary);
+  font-size: 0.84rem;
+  line-height: 1.65;
+}
+
+.tool-dashboard__header p {
+  max-width: 760px;
+  margin-top: 8px;
+}
+
+.tool-dashboard__header-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tool-dashboard__dynamic-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 7px 0 10px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.tool-dashboard__dynamic-toggle:hover {
+  border-color: rgba(var(--color-accent-rgb), 0.28);
+  background: rgba(var(--color-accent-rgb), 0.08);
+  color: var(--color-text-primary);
+}
+
+.tool-dashboard__dynamic-toggle i {
+  position: relative;
+  width: 28px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--color-surface-item-hover-strong);
+  transition: background-color 160ms ease;
+}
+
+.tool-dashboard__dynamic-toggle i::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.tool-dashboard__dynamic-toggle--on {
+  border-color: rgba(var(--color-accent-rgb), 0.28);
+  color: var(--color-accent);
+}
+
+.tool-dashboard__dynamic-toggle--on i {
+  background: var(--color-selection-accent-bg-hover);
+}
+
+.tool-dashboard__dynamic-toggle--on i::after {
+  background: var(--color-accent);
+  transform: translateX(14px);
+}
+
+.tool-dashboard__save-error {
+  margin-top: 10px;
+  color: var(--color-danger-soft-text);
+}
+
+.tool-dashboard__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.tool-dashboard__chips span {
+  max-width: 180px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  font-size: 0.74rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-dashboard__chips--compact {
+  margin-top: 0;
+}

@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "description": "成功时返回生成图片保存路径、模型、尺寸和上游请求 ID；失败时返回稳定错误码和修复建议。",
+  "additionalProperties": true,
+  "required": [
+    "ok"
+  ],
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "type": "object"
+    }
+  }
+}

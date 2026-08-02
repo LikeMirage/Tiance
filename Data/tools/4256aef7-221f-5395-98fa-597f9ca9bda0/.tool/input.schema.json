@@ -1,0 +1,76 @@
+{
+  "additionalProperties": false,
+  "description": "管理天策内置 Python 用户依赖。check 检查环境权限和可复制性；repair 只修复天策用户依赖目录；install 时 packages 填写 1-20 个包名或版本范围；show 或 uninstall 时只填写包名；list、check、repair 不传 packages。",
+  "properties": {
+    "operation": {
+      "description": "要执行的依赖管理操作。",
+      "enum": [
+        "check",
+        "install",
+        "list",
+        "repair",
+        "show",
+        "uninstall"
+      ],
+      "options": [
+        {
+          "description": "检查用户依赖环境权限、候选目录和可复制性。",
+          "value": "check"
+        },
+        {
+          "description": "安装或升级指定依赖。",
+          "value": "install"
+        },
+        {
+          "description": "列出用户依赖目录中的全部包。",
+          "value": "list"
+        },
+        {
+          "description": "恢复用户依赖目录权限并清理失败残留。",
+          "value": "repair"
+        },
+        {
+          "description": "查看指定包的已安装版本。",
+          "value": "show"
+        },
+        {
+          "description": "从用户依赖目录卸载指定包。",
+          "value": "uninstall"
+        }
+      ],
+      "title": "操作",
+      "type": "string"
+    },
+    "packages": {
+      "default": [],
+      "description": "包列表。install 支持例如 requests、openpyxl==3.1.5、pandas>=2.2,<3；show 和 uninstall 只支持包名；list、check、repair 留空。",
+      "items": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "依赖包",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "index_url": {
+      "default": "https://mirrors.aliyun.com/pypi/simple/",
+      "description": "install 使用的 PyPI 镜像地址，默认使用阿里云 PyPI 镜像。必须是不含用户名、密码、查询参数和片段的 http/https 地址。",
+      "title": "PyPI 镜像",
+      "type": "string"
+    },
+    "timeout_seconds": {
+      "default": 300,
+      "description": "安装命令超时时间，范围 10-600 秒。",
+      "maximum": 600,
+      "minimum": 10,
+      "title": "超时秒数",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "operation"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "volcengine",
+  "displayName": "火山引擎",
+  "profileId": "volcengine",
+  "protocolFamily": "openai_compatible",
+  "generationUrls": {
+    "openai_responses": "https://ark.cn-beijing.volces.com/api/v3/responses",
+    "openai_compatible": "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+  },
+  "modelDiscoveryUrl": "https://ark.cn-beijing.volces.com/api/v3/models",
+  "enabled": false,
+  "createdAt": "2026-07-12T11:09:17.369475+00:00",
+  "updatedAt": "2026-08-02T00:00:00+00:00",
+  "modelDiscoveryStrategy": "openai_models",
+  "generationAuthSchemes": {
+    "openai_compatible": "bearer_token",
+    "openai_responses": "bearer_token"
+  },
+  "modelDiscoveryAuthScheme": "bearer_token"
+}

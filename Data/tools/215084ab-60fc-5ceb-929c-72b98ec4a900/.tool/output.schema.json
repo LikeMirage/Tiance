@@ -1,0 +1,31 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "description": "进程状态、日志或清理结果。state 是当前推导状态，recorded_state 是子进程最后写入的原始状态；orphaned 表示已用存活锁或 PID 不存在确认进程失联，unknown 表示仍不能安全判断。prune 返回候选、已删除、跳过和失败清单。",
+      "type": "object"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

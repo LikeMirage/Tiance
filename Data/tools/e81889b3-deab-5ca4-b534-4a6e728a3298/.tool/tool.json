@@ -1,0 +1,36 @@
+{
+  "description": "按 glob 路径模式查找工作区内文件或目录，支持排除目录、隐藏文件控制和结果数量限制。",
+  "display_name": "文件匹配",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "glob",
+    "文件匹配",
+    "按模式找文件",
+    "路径",
+    "文件列表",
+    "目录"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "glob_files",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 60,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.local/
+build/
+dist/
+!2_ReactWeb/dist/
+!2_ReactWeb/dist/**
+3_PyWebView/launcher/windows/bin/
+3_PyWebView/launcher/windows/obj/
+
+# Node
+node_modules/
+*.tsbuildinfo
+2_ReactWeb/vite.config.js
+2_ReactWeb/vite.config.d.ts
+
+# IDE and operating system
+.vscode/
+.idea/
+.playwright-mcp/
+.tiance_backups/
+/tmp/
+.DS_Store
+Thumbs.db
+
+# Environment and local databases
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.tmp
+
+# WebView2 fixed runtime is distributed separately.
+3_PyWebView/vendor/webview2-fixed/
+
+# Workspace-local application state
+/.Tiance/
+**/.Tiance/
+/Data/*
+!/Data/runtime/
+!/Data/runtime/**
+!/Data/tools/
+!/Data/tools/**
+!/Data/themes/
+!/Data/themes/**
+!/Data/providers/
+!/Data/providers/**
+!/Data/locales/
+!/Data/locales/**
+
+# Runtime-generated data inside published collections
+Data/**/.market-cache/
+Data/**/.downloads/
+Data/**/.trash/
+Data/**/market-settings.json
+Data/locales/locale-settings.json
+Data/providers/catalog.json
+Data/providers/*/credentials.json
+Data/providers/*/cloud-model-cache.json
+Data/runtime/tool-processes/
+Data/runtime/python-packages/user/
+Data/runtime/python-packages/**/__pycache__/
+Data/runtime/python-packages/**/*.pyc
+Data/tools/**/__pycache__/
+Data/tools/**/dependencies/py313/site-packages/playwright/driver/node.exe
+
+# Generated exports and release packages
+/发布包/

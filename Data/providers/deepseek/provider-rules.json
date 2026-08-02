@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "capabilities": {
+    "outputFormats": [
+      "text",
+      "json_object"
+    ],
+    "reasoning": {
+      "supported": true,
+      "modes": [
+        "off",
+        "high",
+        "max"
+      ]
+    },
+    "sampling": {
+      "supported": true,
+      "parameters": [
+        "temperature",
+        "top_p"
+      ],
+      "disabledWhenReasoning": true,
+      "disabledReason": "DeepSeek 思考模式下 temperature、top_p 不生效。"
+    },
+    "maxOutputTokens": {
+      "supported": true,
+      "min": 32,
+      "max": 384000
+    },
+    "toolCalling": {
+      "supported": true
+    },
+    "inputModalities": [
+      "text"
+    ]
+  },
+  "request": {
+    "omitParameters": [
+      "presence_penalty",
+      "frequency_penalty"
+    ],
+    "jsonObjectResponseFormat": true,
+    "streamUsage": true
+  },
+  "behavior": {
+    "includeReasoningContentInMessages": true,
+    "includeResponsesMessagePhase": false,
+    "includeResponsesWebSearchSources": false,
+    "promptCacheRetentionSeconds": 21600
+  }
+}

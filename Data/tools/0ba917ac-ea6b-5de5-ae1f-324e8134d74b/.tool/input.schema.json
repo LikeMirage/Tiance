@@ -1,0 +1,59 @@
+{
+  "additionalProperties": false,
+  "description": "应用 unified diff 补丁。支持 ---/+++ 文件头和 @@ hunk。默认直接应用；dry_run=true 时只验证和返回摘要。",
+  "properties": {
+    "patch_text": {
+      "description": "完整 unified diff 补丁文本。",
+      "title": "补丁文本",
+      "type": "string"
+    },
+    "dry_run": {
+      "default": false,
+      "description": "为 true 时只验证补丁，不写入文件。",
+      "title": "只预览",
+      "type": "boolean"
+    },
+    "backup": {
+      "default": false,
+      "description": "写入、删除已有文件前是否创建 .bak 备份。",
+      "title": "备份",
+      "type": "boolean"
+    },
+    "encoding": {
+      "default": "utf-8",
+      "description": "补丁内所有已有目标文件使用的编码。读取失败时拒绝写入；UTF-8 BOM 会自动保留。",
+      "enum": [
+        "utf-8",
+        "utf-8-sig",
+        "gb18030",
+        "gbk"
+      ],
+      "title": "文件编码",
+      "type": "string"
+    },
+    "create_parent_dirs": {
+      "default": true,
+      "description": "新增文件父目录不存在时是否自动创建。",
+      "title": "创建父目录",
+      "type": "boolean"
+    },
+    "strip_ab_prefix": {
+      "default": true,
+      "description": "是否自动去掉 a/ 和 b/ 前缀。",
+      "title": "去掉 a/b 前缀",
+      "type": "boolean"
+    },
+    "expected_sha256_map": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "可选的每文件 sha256 校验，键为补丁中的相对路径或规范化后的相对路径。",
+      "title": "文件哈希校验表",
+      "type": "object"
+    }
+  },
+  "required": [
+    "patch_text"
+  ],
+  "type": "object"
+}

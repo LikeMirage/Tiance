@@ -1,0 +1,226 @@
+.workspace-page__canvas {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(
+        in srgb,
+        var(--color-surface-overlay) var(--app-background-surface-weight),
+        transparent
+      ),
+      transparent
+    ),
+    color-mix(in srgb, var(--color-surface-canvas) var(--app-background-surface-weight), transparent);
+}
+
+.workspace-page__canvas-shell {
+  display: flex;
+  flex: 1;
+  align-items: stretch;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-page__canvas-stage {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-page__canvas-view {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+.workspace-page__canvas-view--static {
+  position: relative;
+}
+
+.workspace-page__canvas-view--layer {
+  position: absolute;
+  inset: 0;
+}
+
+.workspace-page__canvas-view--hidden {
+  display: none;
+}
+
+.workspace-page__canvas-view--fade-in {
+  z-index: 1;
+  opacity: 0;
+  animation: workspace-canvas-fade-in 180ms ease-out both;
+}
+
+.workspace-page__canvas-view--fade-out {
+  display: none;
+}
+
+.workspace-page__settings-canvas {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-page__settings-view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.workspace-page__settings-view--hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* -- 编辑器 + AI 聊天分屏 -- */
+
+.workspace-page__canvas-chat-shell {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+.workspace-page__canvas-chat-main {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+.workspace-page__canvas-chat-resizer {
+  flex: 0 0 1px;
+  min-width: 1px;
+  position: relative;
+  z-index: 1;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+  transition: background-color 160ms ease;
+  margin: 0;
+  padding: 0;
+}
+
+.workspace-page__canvas-chat-resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+}
+
+.workspace-page__canvas-chat-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: var(--structure-assistant-panel-left-width);
+  background: var(--structure-line-color);
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: background-color 160ms ease;
+}
+
+.workspace-page__canvas-chat-resizer:hover,
+.workspace-page__canvas-chat-resizer--active {
+  background: transparent;
+}
+
+.workspace-page__canvas-chat-resizer:hover::after {
+  background: var(--structure-line-hover-color);
+}
+
+.workspace-page__canvas-chat-resizer--active::after {
+  background: var(--structure-line-active-color);
+}
+
+.workspace-page__ai-panel {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-self: stretch;
+  width: 364px;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  border-left: 0;
+  background: color-mix(in srgb, var(--color-surface-sidebar) var(--app-background-surface-weight), transparent);
+  overflow: hidden;
+}
+
+.workspace-page__tool-canvas {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-page__tool-canvas-main,
+.workspace-page__tool-canvas-chat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 20px 22px;
+  overflow: auto;
+}
+
+.workspace-page__tool-canvas-main {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+.workspace-page__tool-canvas-chat {
+  flex: 0 0 336px;
+  width: 336px;
+  max-width: 40%;
+  border-left: var(--structure-content-split-width) solid var(--structure-line-color);
+  background: color-mix(in srgb, var(--color-surface-panel) var(--app-background-surface-weight), transparent);
+}
+
+@keyframes workspace-canvas-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 900px) {
+  .workspace-page__canvas {
+    padding: 16px;
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "additionalProperties": true,
+  "description": "成功时返回结果文件夹、原文件名 Markdown、images 图片文件夹、MinerU 任务信息和图片分析统计；成功后会清理中间产物。失败时返回 ok=false，并在 error_info 中说明原因。",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

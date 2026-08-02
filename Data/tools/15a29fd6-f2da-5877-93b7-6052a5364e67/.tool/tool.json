@@ -1,0 +1,37 @@
+{
+  "description": "执行测试、构建、环境检查等会自行结束的短命令，等待退出并返回稳定的状态、实际 Shell、退出码、标准输出和标准错误。command 与 argv 必须二选一，复杂参数优先使用不经过 Shell 的 argv；可使用任意真实存在的工作目录。不用于 GUI、服务或后台程序。通过 command 提交的大段、多行或复杂换行形式 python -c 会被拒绝；完整 Python 脚本使用 run_python_script 的 script_text。",
+  "display_name": "命令行执行",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "命令行",
+    "终端",
+    "shell",
+    "测试",
+    "构建",
+    "执行",
+    "验证"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "run_command",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 180,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

@@ -1,0 +1,118 @@
+.chat-role-selector {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+}
+
+.chat-role-selector__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chat-role-selector__trigger,
+.chat-role-selector__save {
+  height: 30px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.chat-role-selector__trigger {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  width: min(220px, 100%);
+  min-width: 112px;
+  gap: 10px;
+  padding: 0 9px;
+  text-align: left;
+}
+
+.chat-role-selector__trigger > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-role-selector__save {
+  flex: 0 0 auto;
+  padding: 0 9px;
+  color: var(--color-accent);
+}
+
+.chat-role-selector__trigger:hover:not(:disabled),
+.chat-role-selector__save:hover:not(:disabled) {
+  border-color: rgba(var(--color-accent-rgb), 0.46);
+  background: var(--color-surface-input-hover);
+}
+
+.chat-role-selector__trigger:disabled,
+.chat-role-selector__save:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.chat-role-selector__caret {
+  width: 7px;
+  height: 7px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+}
+
+.chat-role-selector__error {
+  margin-top: -6px;
+  color: var(--color-danger-soft-text);
+  font-size: 0.72rem;
+}
+
+.chat-role-selector__save-fields {
+  display: grid;
+  gap: 12px;
+  margin: -8px 0 18px;
+}
+
+.chat-role-selector__save-fields label,
+.chat-role-selector__save-field {
+  display: grid;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+}
+
+.chat-role-selector__save-fields input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.chat-role-selector__category-select {
+  width: 100%;
+  --ds-option-select-options-max-height: min(168px, 32vh);
+}
+
+.chat-role-selector__category-select .ds-option-select__trigger {
+  min-height: 30px;
+  padding: 0 9px;
+  background: var(--color-surface-input);
+}
+
+.chat-role-selector__category-select.ds-option-select--open
+  .ds-option-select__trigger,
+.chat-role-selector__category-select .ds-option-select__options {
+  background: var(--color-surface-menu);
+}

@@ -1,0 +1,39 @@
+{
+  "description": "调用 MinerU 解析 PDF、Word、PPT、HTML 和图片等文档，再通过 DMXAPI 调用豆包视觉模型还原图片承载的信息，并在工作区生成同名结果文件夹：原文件名.md 和 images 图片文件夹。",
+  "display_name": "MinerU 文档解析 + DMX 豆包视觉",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "文档解析",
+    "MinerU",
+    "DMXAPI",
+    "豆包",
+    "视觉还原",
+    "PDF",
+    "Word",
+    "PPT",
+    "Markdown"
+  ],
+  "loading": {
+    "dynamic": true
+  },
+  "name": "parse_document_mineru_dmx",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 7200,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

@@ -1,0 +1,172 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "items": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "ok": {
+                    "const": true
+                  },
+                  "file_path": {
+                    "type": "string"
+                  },
+                  "relative_path": {
+                    "type": "string"
+                  },
+                  "encoding": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  },
+                  "size_bytes": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "total_lines": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "start_line": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "line_count": {
+                    "description": "实际返回内容包含的行数。",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "selected_line_count": {
+                    "description": "应用字符预算前按行数范围选中的行数。",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "truncated": {
+                    "type": "boolean"
+                  },
+                  "truncation_reasons": {
+                    "items": {
+                      "enum": [
+                        "line_limit",
+                        "file_char_limit",
+                        "total_char_limit"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  }
+                },
+                "required": [
+                  "ok",
+                  "file_path",
+                  "relative_path",
+                  "encoding",
+                  "sha256",
+                  "size_bytes",
+                  "total_lines",
+                  "start_line",
+                  "line_count",
+                  "selected_line_count",
+                  "content",
+                  "truncated",
+                  "truncation_reasons"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "ok": {
+                    "const": false
+                  },
+                  "index": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "requested_path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "error": {
+                    "type": "string"
+                  },
+                  "error_info": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "message": {
+                        "type": "string"
+                      },
+                      "details": {
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                      "details"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "ok",
+                  "index",
+                  "error",
+                  "error_info"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "type": "array"
+        },
+        "total_chars": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "files",
+        "total_chars"
+      ],
+      "type": "object"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

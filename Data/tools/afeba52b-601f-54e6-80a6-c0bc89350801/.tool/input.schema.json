@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "description": "默认检查当前工作区。该工具只报告风险和建议命令，不修改文件、不执行构建。",
+  "properties": {
+    "root_path": {
+      "description": "项目根目录。为空时使用当前工作区根目录。",
+      "title": "项目根目录",
+      "type": "string"
+    },
+    "max_findings": {
+      "default": 200,
+      "description": "最多返回的问题数量。",
+      "maximum": 1000,
+      "minimum": 1,
+      "title": "最大问题数",
+      "type": "integer"
+    },
+    "include_git_status": {
+      "default": true,
+      "description": "是否包含 git status --short 摘要。",
+      "title": "包含 Git 状态",
+      "type": "boolean"
+    },
+    "scan_local_urls": {
+      "default": true,
+      "description": "是否扫描代码中的 localhost、127.0.0.1 和 http:// 字符串。",
+      "title": "扫描本地地址",
+      "type": "boolean"
+    },
+    "scan_empty_dirs": {
+      "default": false,
+      "description": "是否扫描空目录。默认关闭，避免历史运行目录产生噪音。",
+      "title": "扫描空目录",
+      "type": "boolean"
+    }
+  },
+  "required": [],
+  "type": "object"
+}

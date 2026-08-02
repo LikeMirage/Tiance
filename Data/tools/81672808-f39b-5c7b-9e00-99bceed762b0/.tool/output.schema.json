@@ -1,0 +1,31 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "description": "执行详情，包含 run_mode、exit_code、expected_exit_codes 和输出。真正转入后台的程序还会包含 execution_id、pid、脚本保存目录及 stdout/stderr 日志路径；detached 的 process_state 为 unchecked，不声称程序仍在运行。",
+      "type": "object"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

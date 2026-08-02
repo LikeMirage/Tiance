@@ -1,0 +1,18 @@
+[
+  {
+    "title": "通用网络搜索",
+    "content": "适合查询实时网页资料、产品资料、公开新闻或普通背景信息。默认返回 5 条结果和 Tavily basic answer，不返回原文，避免占用太多上下文。\n\n输入参数：\n{\n  \"query\": \"Tavily Search API parameters\"\n}\n\n预期返回：\n{\n  \"ok\": true,\n  \"summary\": \"Tavily 搜索完成：Tavily Search API parameters，返回 5 条结果。\",\n  \"data\": {\n    \"query\": \"Tavily Search API parameters\",\n    \"answer\": \"...\",\n    \"results\": [\n      {\n        \"index\": 1,\n        \"title\": \"...\",\n        \"url\": \"https://...\",\n        \"content\": \"...\",\n        \"score\": 0.9\n      }\n    ]\n  },\n  \"warnings\": []\n}"
+  },
+  {
+    "title": "搜索近期新闻",
+    "content": "当用户问最近发生的事情时使用 news 和 time_range。日期和新闻具有时效性，建议优先限制时间范围。\n\n输入参数：\n{\n  \"query\": \"OpenAI latest product announcement\",\n  \"topic\": \"news\",\n  \"time_range\": \"week\",\n  \"max_results\": 8\n}\n\n返回结果中的 data.results 会包含标题、链接、摘要、相关度和可能的发布时间。"
+  },
+  {
+    "title": "限制搜索来源",
+    "content": "当需要只查官方文档、政府网站或某个公司站点时使用 include_domains。\n\n输入参数：\n{\n  \"query\": \"Gemini API models\",\n  \"include_domains\": [\"ai.google.dev\"],\n  \"max_results\": 5\n}\n\n工具只把 include_domains 传给 Tavily，不会自行扩大来源范围。"
+  },
+  {
+    "title": "需要网页正文片段",
+    "content": "当搜索摘要不够，需要让 AI 读取搜索结果里的更多正文时，把 include_raw_content 设为 markdown。工具会按配置截断过长正文，并在 warnings 中提示。\n\n输入参数：\n{\n  \"query\": \"Tavily Search best practices\",\n  \"include_raw_content\": \"markdown\",\n  \"search_depth\": \"advanced\"\n}\n\n如果需要完整控制指定 URL 的正文读取，后续应使用单独的网页读取工具。"
+  }
+]

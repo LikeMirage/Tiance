@@ -1,0 +1,33 @@
+{
+  "description": "执行当前会话已启用的动态加载工具。先读取目标工具完整参数，再通过 tool_name 和 arguments 提交真实调用。",
+  "display_name": "动态工具执行",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "internal_json",
+    "output": "internal_json"
+  },
+  "keywords": [
+    "动态工具",
+    "工具执行",
+    "统一调用"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "execute_dynamic_tool",
+  "runtime": {
+    "entry": "execute_dynamic_tool",
+    "timeout_seconds": 600,
+    "type": "internal"
+  },
+  "state": {
+    "enabled": true
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "description": "在完成代码修改前检查常见收尾风险，包括包管理器锁文件、依赖分类、环境变量样例、本地地址、临时文件和建议验证命令。",
+  "display_name": "项目收尾检查",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "收尾检查",
+    "验收",
+    "pnpm",
+    "环境变量",
+    "临时文件",
+    "验证命令"
+  ],
+  "loading": {
+    "dynamic": true
+  },
+  "name": "project_finish_check",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 60,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

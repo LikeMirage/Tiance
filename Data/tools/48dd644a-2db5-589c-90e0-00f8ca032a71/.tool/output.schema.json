@@ -1,0 +1,30 @@
+{
+  "additionalProperties": false,
+  "description": "返回长期记忆管理结果。",
+  "properties": {
+    "ok": {
+      "description": "操作是否成功。",
+      "type": "boolean"
+    },
+    "summary": {
+      "description": "结果摘要。",
+      "type": "string"
+    },
+    "data": {
+      "description": "操作结果数据。",
+      "type": "object"
+    },
+    "error": {
+      "description": "失败时的错误说明。",
+      "type": "string"
+    },
+    "error_info": {
+      "description": "失败时的结构化错误。",
+      "type": "object"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

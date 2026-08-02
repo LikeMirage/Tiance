@@ -1,0 +1,305 @@
+.tool-dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.tool-dashboard__section {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 6px;
+  background: var(--color-surface-muted);
+}
+
+.tool-dashboard__section--wide {
+  margin-top: 0;
+}
+
+.tool-dashboard > .tool-dashboard__section {
+  margin-top: 16px;
+}
+
+.tool-dashboard__form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.tool-dashboard__compact-form {
+  display: grid;
+  gap: 10px;
+}
+
+.tool-dashboard__section-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: -2px 0 10px;
+}
+
+.tool-dashboard__examples-page {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.tool-dashboard__examples-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tool-dashboard__field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tool-dashboard__field--wide {
+  grid-column: 1 / -1;
+}
+
+.tool-dashboard__field > span {
+  color: var(--color-text-muted);
+  font-size: 0.74rem;
+}
+
+.tool-dashboard__call-rules-field {
+  margin-bottom: 12px;
+}
+
+.tool-dashboard__input,
+.tool-dashboard__textarea,
+.tool-dashboard__raw-editor {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.tool-dashboard__input:focus,
+.tool-dashboard__textarea:focus,
+.tool-dashboard__raw-editor:focus {
+  border-color: rgba(var(--color-accent-rgb), 0.42);
+  box-shadow: 0 0 0 1px rgba(var(--color-accent-rgb), 0.16);
+}
+
+.tool-dashboard__input {
+  height: 30px;
+  padding: 0 8px;
+}
+
+.tool-dashboard__input[readonly],
+.tool-dashboard__readonly-value {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 30px;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 4px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+}
+
+.tool-dashboard__readonly-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-dashboard__input[type="number"]::-webkit-outer-spin-button,
+.tool-dashboard__input[type="number"]::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.tool-dashboard__input[type="number"] {
+  appearance: textfield;
+}
+
+.tool-dashboard__select {
+  width: 100%;
+  overflow: visible;
+}
+
+.tool-dashboard__select .ds-option-select__trigger {
+  min-height: 30px;
+  padding: 0 8px;
+}
+
+.tool-dashboard__select.ds-option-select--floating .ds-option-select__options {
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--color-surface-menu);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.tool-dashboard__select .ds-option-select__option {
+  min-height: 30px;
+  background: var(--color-surface-menu);
+  font-size: 0.76rem;
+}
+
+.tool-dashboard__token-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.tool-dashboard__token-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 180px;
+  height: 24px;
+  min-width: 0;
+  padding: 0 8px;
+  border: 1px solid rgba(var(--color-accent-rgb), 0.28);
+  border-radius: 4px;
+  background: rgba(var(--color-accent-rgb), 0.08);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.tool-dashboard__token-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px dashed rgba(var(--color-accent-rgb), 0.36);
+  border-radius: 4px;
+  background: rgba(var(--color-accent-rgb), 0.08);
+  color: var(--tool-dashboard-accent);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.tool-dashboard__token-chip:hover,
+.tool-dashboard__token-add:hover {
+  border-color: rgba(var(--color-accent-rgb), 0.5);
+  background: rgba(var(--color-accent-rgb), 0.14);
+  color: var(--color-accent-hover);
+}
+
+.tool-dashboard__token-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-dashboard__token-chip strong {
+  flex: 0 0 auto;
+  margin-left: 6px;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  line-height: 1;
+}
+
+.tool-dashboard__token-empty {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.tool-dashboard__option-editor {
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+}
+
+.tool-dashboard__option-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.65fr) minmax(220px, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.tool-dashboard__option-row:first-child {
+  border-top: 0;
+}
+
+.tool-dashboard__option-row--head {
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.tool-dashboard__option-empty {
+  padding: 10px;
+}
+
+.tool-dashboard__option-note {
+  min-width: 0;
+}
+
+.tool-dashboard__textarea,
+.tool-dashboard__raw-editor {
+  padding: 8px;
+  line-height: 1.55;
+  resize: none;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
+.tool-dashboard__raw-editor {
+  min-height: 220px;
+  font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+  font-size: 0.76rem;
+}
+
+.tool-dashboard__json-editor {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tool-dashboard__json-textarea {
+  min-height: 142px;
+  font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+  font-size: 0.76rem;
+  resize: vertical;
+}
+
+.tool-dashboard__scenario-textarea {
+  min-height: 320px;
+  font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+  font-size: 0.76rem;
+  resize: vertical;
+}
+
+.tool-dashboard__json-textarea--readonly {
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  resize: none;
+}
+
+.tool-dashboard__field-error {
+  color: var(--color-danger-soft-text);
+}

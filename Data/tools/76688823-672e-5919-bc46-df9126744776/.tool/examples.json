@@ -1,0 +1,14 @@
+[
+  {
+    "title": "唯一匹配替换",
+    "content": "{\"file_path\":\"README.md\",\"old_text\":\"old phrase\",\"new_text\":\"new phrase\"}"
+  },
+  {
+    "title": "校验全部替换条件",
+    "content": "{\"file_path\":\"docs/a.md\",\"old_text\":\"TODO\",\"new_text\":\"DONE\",\"replace_all\":true,\"dry_run\":true}"
+  },
+  {
+    "title": "带期望次数替换",
+    "content": "{\"file_path\":\"src/app.py\",\"old_text\":\"foo\",\"new_text\":\"bar\",\"replace_all\":true,\"expected_count\":3}"
+  }
+]

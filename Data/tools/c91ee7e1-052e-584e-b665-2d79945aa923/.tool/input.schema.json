@@ -1,0 +1,91 @@
+{
+  "additionalProperties": false,
+  "description": "解析一个工作区内的文档。默认输出到工作区根目录下与源文件同名的文件夹；文件夹已存在时默认失败，overwrite=true 时会先备份旧文件夹再重新生成。",
+  "properties": {
+    "file_path": {
+      "description": "要解析的源文件路径。相对路径按工作区根目录解析；默认要求源文件在工作区内。",
+      "title": "源文件路径",
+      "type": "string"
+    },
+    "output_root": {
+      "description": "结果文件夹所在目录。相对路径按工作区根目录解析，必须位于工作区内；不填则为工作区根目录。",
+      "title": "输出根目录",
+      "type": "string"
+    },
+    "output_folder_name": {
+      "description": "结果文件夹名称。不填时使用源文件名去掉扩展名后的名称。",
+      "title": "输出文件夹名",
+      "type": "string"
+    },
+    "overwrite": {
+      "default": false,
+      "description": "结果文件夹已存在时是否重新生成。true 时不会直接删除旧内容，而是移动到带时间戳的备份目录。",
+      "title": "覆盖旧结果",
+      "type": "boolean"
+    },
+    "allow_source_outside_workspace": {
+      "default": false,
+      "description": "是否允许源文件位于工作区外。输出目录仍然必须在工作区内。",
+      "title": "允许外部源文件",
+      "type": "boolean"
+    },
+    "analyze_images": {
+      "default": true,
+      "description": "是否通过 DMXAPI 调用豆包视觉模型还原 MinerU 解析结果中的图片信息，并把结果插入到 Markdown 对应图片下方。",
+      "title": "分析图片",
+      "type": "boolean"
+    },
+    "max_images": {
+      "default": 50,
+      "description": "最多分析多少张图片。",
+      "maximum": 200,
+      "minimum": 0,
+      "title": "最大图片数",
+      "type": "integer"
+    },
+    "image_concurrency": {
+      "default": 4,
+      "description": "图片并发分析数量。",
+      "maximum": 12,
+      "minimum": 1,
+      "title": "图片并发数",
+      "type": "integer"
+    },
+    "parse_timeout_seconds": {
+      "default": 1800,
+      "description": "MinerU 解析轮询的业务超时时间。",
+      "maximum": 7200,
+      "minimum": 60,
+      "title": "解析超时秒数",
+      "type": "integer"
+    },
+    "poll_interval_seconds": {
+      "default": 3,
+      "description": "MinerU 状态轮询间隔。",
+      "maximum": 30,
+      "minimum": 1,
+      "title": "轮询间隔秒数",
+      "type": "integer"
+    },
+    "request_timeout_seconds": {
+      "default": 60,
+      "description": "普通 HTTP 请求超时时间。",
+      "maximum": 300,
+      "minimum": 10,
+      "title": "请求超时秒数",
+      "type": "integer"
+    },
+    "vision_timeout_seconds": {
+      "default": 120,
+      "description": "单张图片视觉分析请求超时时间。",
+      "maximum": 600,
+      "minimum": 10,
+      "title": "视觉请求超时秒数",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "file_path"
+  ],
+  "type": "object"
+}

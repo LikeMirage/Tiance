@@ -1,0 +1,209 @@
+.ai-panel__setting-group {
+  display: grid;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.ai-panel__setting-group-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.ai-panel__setting-group-title::after {
+  content: "";
+  flex: 1 1 auto;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.ai-panel__tool-settings-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ai-panel__tool-settings-heading .ai-panel__setting-group-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ai-panel__tool-settings-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.ai-panel__tool-settings-refresh:hover:not(:disabled),
+.ai-panel__tool-settings-refresh:focus-visible {
+  border-color: rgba(var(--color-accent-rgb), 0.38);
+  background: var(--color-surface-input-hover);
+  color: var(--color-text-primary);
+}
+
+.ai-panel__tool-settings-refresh:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+.ai-panel__number-with-suffix {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  width: 112px;
+  min-width: 112px;
+}
+
+.ai-panel__number-with-suffix .ai-panel__number-input {
+  flex: 0 0 66px;
+  width: 66px;
+}
+
+.ai-panel__tool-settings-empty,
+.ai-panel__tool-settings-error {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.ai-panel__tool-settings-error {
+  color: var(--color-danger-soft-text);
+}
+
+.ai-panel__tool-settings-list {
+  display: grid;
+  gap: 8px;
+}
+
+.ai-panel__tool-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-panel);
+}
+
+.ai-panel__tool-setting-row:hover {
+  border-color: rgba(var(--color-accent-rgb), 0.28);
+  background: var(--color-surface-item-hover);
+}
+
+.ai-panel__tool-setting-main {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 5px;
+  min-width: 0;
+}
+
+.ai-panel__tool-setting-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+
+.ai-panel__tool-setting-title {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-panel__tool-setting-name,
+.ai-panel__tool-setting-meta {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  line-height: 1.3;
+}
+
+.ai-panel__tool-setting-description {
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-panel__tool-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.ai-panel__tool-toggle:hover:not(:disabled) {
+  color: var(--color-accent);
+}
+
+.ai-panel__tool-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.ai-panel__tool-toggle i {
+  position: relative;
+  width: 28px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--color-surface-item-hover-strong);
+  transition: background-color 160ms ease;
+}
+
+.ai-panel__tool-toggle i::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-surface-elevated);
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.ai-panel__tool-toggle--on {
+  color: var(--color-accent);
+}
+
+.ai-panel__tool-toggle--on i {
+  background: var(--color-selection-accent-bg-hover);
+}
+
+.ai-panel__tool-toggle--on i::after {
+  background: var(--color-accent);
+  transform: translateX(14px);
+}

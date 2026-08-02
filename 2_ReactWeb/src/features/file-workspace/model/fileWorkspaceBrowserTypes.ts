@@ -1,0 +1,31 @@
+import type { FileWorkspaceBrowserNode } from "./fileWorkspaceBrowserTreeModel";
+
+export type UseFileWorkspaceBrowserResult = {
+  cancelInlineEdit: () => void;
+  copyNode: (nodeId: string, targetParentNodeId: string | null) => Promise<void>;
+  createFile: (parentNodeId?: string) => Promise<void>;
+  createFolder: (parentNodeId?: string) => Promise<void>;
+  deleteNode: (nodeId: string) => Promise<void>;
+  editingNodeId: string | null;
+  errorMessage: string | null;
+  expandedNodeIds: Set<string>;
+  isLoading: boolean;
+  isLoadingNodeIds: Set<string>;
+  loadFolderChildren: (nodeId: string) => Promise<void>;
+  moveNode: (nodeId: string, targetParentNodeId: string | null) => Promise<void>;
+  revealNode: (nodeId: string) => Promise<void>;
+  revealPath: (path: string) => Promise<void>;
+  refreshTree: () => void;
+  renameNode: (nodeId: string, newName: string) => Promise<FileWorkspaceBrowserNode | null>;
+  restoreExpandedPaths: (paths: string[]) => void;
+  searchKeyword: string;
+  selectNode: (nodeId: string, options?: { toggle?: boolean }) => void;
+  selectRoot: () => void;
+  selectedNodeId: string | null;
+  selectedNodeIds: Set<string>;
+  setSearchKeyword: (keyword: string) => void;
+  startInlineEdit: (nodeId: string) => void;
+  toggleNode: (nodeId: string) => void;
+  treeData: FileWorkspaceBrowserNode[];
+  userExpandedNodeIds: Set<string>;
+};

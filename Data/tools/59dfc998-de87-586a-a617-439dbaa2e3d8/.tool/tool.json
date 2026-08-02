@@ -1,0 +1,36 @@
+{
+  "description": "已知多个目标文本文件并需要一次读取时使用；单个文件使用 read_file，尚不确定相关文件时使用 find_project_files。按单文件和总字符预算自动截断，并返回明确的截断原因与预算跳过记录。",
+  "display_name": "批量读取文件",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "批量读取",
+    "多文件",
+    "上下文",
+    "源码",
+    "文档",
+    "配置"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "read_many_files",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 60,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

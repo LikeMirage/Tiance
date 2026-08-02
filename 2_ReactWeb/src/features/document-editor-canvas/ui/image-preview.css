@@ -1,0 +1,127 @@
+.image-preview {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-surface-panel);
+}
+
+.image-preview__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 34px;
+  padding: 0 10px 0 14px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-toolbar);
+  flex: 0 0 auto;
+}
+
+.image-preview__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.image-preview__name {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-preview__path {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-preview__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.image-preview__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.image-preview__button:hover {
+  border-color: var(--color-selection-accent-border);
+  background: var(--color-selection-accent-bg);
+  color: var(--color-accent);
+}
+
+.image-preview__viewport {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  cursor: grab;
+  overscroll-behavior: contain;
+  touch-action: none;
+}
+
+.image-preview__viewport--panning {
+  cursor: grabbing;
+}
+
+.image-preview__stage {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  user-select: none;
+}
+
+.image-preview__loading {
+  width: 100%;
+  height: 100%;
+}
+
+.image-preview__image {
+  display: block;
+  flex: 0 0 auto;
+  max-width: none;
+  max-height: none;
+  pointer-events: none;
+  transform-origin: center center;
+  user-select: none;
+  will-change: transform;
+}
+
+.image-preview__error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}

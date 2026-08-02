@@ -1,0 +1,37 @@
+{
+  "description": "把网页资料、搜索结果和 PDF 链接保存到工作区。普通网页保存原始 HTML 和提取后的 Markdown，PDF 和其他二进制资源保存原文件，并为每条资料生成 metadata.json。",
+  "display_name": "网页资料保存",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "网页保存",
+    "资料归档",
+    "HTML",
+    "Markdown",
+    "PDF",
+    "下载",
+    "搜索结果保存"
+  ],
+  "loading": {
+    "dynamic": true
+  },
+  "name": "save_web_materials",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 900,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "description": "默认查看当前执行工作区摘要；mode=tree 查看目录树；mode=find 按文件名搜索。",
+  "properties": {
+    "workspace_path": {
+      "type": "string",
+      "title": "工作区路径",
+      "description": "要查看的工作区根目录。留空时使用 TIANCE_WORKSPACE_ROOT、WORKSPACE_ROOT 或当前执行目录。"
+    },
+    "mode": {
+      "type": "string",
+      "title": "查看模式",
+      "description": "summary=查看根路径和统计；tree=查看目录树；find=按文件名搜索。",
+      "default": "summary",
+      "enum": [
+        "summary",
+        "tree",
+        "find"
+      ],
+      "options": [
+        {
+          "value": "summary",
+          "description": "只返回工作区根路径、扫描范围和文件/目录数量。"
+        },
+        {
+          "value": "tree",
+          "description": "返回目录树文本和结构化条目，适合先了解项目结构。"
+        },
+        {
+          "value": "find",
+          "description": "按文件名或目录名包含关系搜索，适合定位要读取的文件。"
+        }
+      ]
+    },
+    "max_depth": {
+      "type": "integer",
+      "title": "最大深度",
+      "description": "从工作区根目录向下扫描的最大层级。0 只查看根目录，默认 2，最大 8。",
+      "default": 2,
+      "minimum": 0,
+      "maximum": 8
+    },
+    "max_entries": {
+      "type": "integer",
+      "title": "最大条目数",
+      "description": "最多返回多少个文件或目录条目，避免一次返回过大的目录树。",
+      "default": 300,
+      "minimum": 1,
+      "maximum": 5000
+    },
+    "directories_only": {
+      "type": "boolean",
+      "title": "只看目录",
+      "description": "tree 或 find 模式下是否只返回目录，不返回文件。",
+      "default": false
+    },
+    "include_hidden": {
+      "type": "boolean",
+      "title": "包含隐藏项",
+      "description": "是否包含以点开头的隐藏文件或隐藏目录。",
+      "default": false
+    },
+    "query": {
+      "type": "string",
+      "title": "搜索关键词",
+      "description": "仅 mode=find 时使用，按文件名或目录名不区分大小写包含匹配。"
+    },
+    "exclude_dirs": {
+      "type": "array",
+      "title": "排除目录",
+      "description": "扫描时跳过的目录名列表，用于避开 node_modules、.git、缓存和构建产物。",
+      "default": [
+        ".git",
+        "node_modules",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".venv",
+        "venv",
+        "dist",
+        "build",
+        ".next",
+        ".nuxt",
+        "site-packages"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  },
+  "required": []
+}

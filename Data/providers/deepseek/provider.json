@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "deepseek",
+  "displayName": "DeepSeek",
+  "profileId": "deepseek",
+  "protocolFamily": "openai_compatible",
+  "generationAuthSchemes": {
+    "anthropic_messages": "x_api_key",
+    "openai_compatible": "bearer_token"
+  },
+  "modelDiscoveryStrategy": "openai_models",
+  "modelDiscoveryAuthScheme": "bearer_token",
+  "generationUrls": {
+    "openai_compatible": "https://api.deepseek.com/chat/completions",
+    "anthropic_messages": "https://api.deepseek.com/anthropic/v1/messages"
+  },
+  "modelDiscoveryUrl": "https://api.deepseek.com/v1/models",
+  "enabled": false,
+  "createdAt": "2026-07-03T18:02:57.549257+00:00",
+  "updatedAt": "2026-08-02T00:00:00+00:00"
+}

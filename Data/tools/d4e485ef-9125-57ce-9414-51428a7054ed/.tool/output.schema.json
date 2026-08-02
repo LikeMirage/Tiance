@@ -1,0 +1,26 @@
+{
+  "additionalProperties": true,
+  "description": "返回目标动态工具的真实执行结果。",
+  "properties": {
+    "data": {
+      "description": "目标工具名称、参数和真实返回值。",
+      "type": "object"
+    },
+    "error": {
+      "description": "执行失败时的错误说明。",
+      "type": "string"
+    },
+    "ok": {
+      "description": "目标动态工具是否执行成功。",
+      "type": "boolean"
+    },
+    "summary": {
+      "description": "执行成功时的简短摘要。",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

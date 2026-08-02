@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>__TIANCE_TITLE__ Shell</title>
+    <style>
+__TIANCE_STARTUP_STYLES__
+    </style>
+  </head>
+  <body data-titlebar-visible="false">
+    <div class="titlebar">
+      <div class="titlebar__title pywebview-drag-region">__TIANCE_TITLE__</div>
+      <div class="titlebar__controls">
+        <button class="titlebar__button" type="button" id="minimize-window" aria-label="最小化">-</button>
+        <button class="titlebar__button titlebar__button--close" type="button" id="close-window" aria-label="关闭">×</button>
+      </div>
+    </div>
+    <main>
+      <div class="loader" id="loader" data-state="loading">
+        <div class="wordmark" aria-label="__TIANCE_TITLE__ 正在启动">
+          <span class="wordmark__text" data-text="Tiance">Tiance</span>
+        </div>
+        <p class="status" id="summary">正在启动服务</p>
+        <p class="error" id="hint">未发现前端开发服务，也没有找到可用的本地页面。</p>
+        <div class="actions">
+          <button type="button" id="open-target">重试</button>
+          <button type="button" id="reload-page">刷新</button>
+        </div>
+      </div>
+    </main>
+    <script>
+__TIANCE_STARTUP_SCRIPT__
+    </script>
+  </body>
+</html>

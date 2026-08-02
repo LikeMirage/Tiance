@@ -1,0 +1,4 @@
+ripgrep 15.1.0 (Windows x64)
+Project: https://github.com/BurntSushi/ripgrep
+SHA256: DECDD4992F3F1B9A5EF9898F1B40AB16886D579D6516B4EFD3D5EAA19364E408
+Licenses: MIT or The Unlicense

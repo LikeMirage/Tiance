@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.ico" />
+    <title>Tiance</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --tiance-boot-surface-base: rgb(30, 30, 30);
+        --tiance-boot-border-separator: rgba(255, 255, 255, 0.06);
+        --tiance-boot-text-primary: #f3f4f7;
+        --tiance-boot-text-muted: rgba(243, 244, 247, 0.48);
+        --tiance-boot-accent: #dea059;
+        --tiance-boot-accent-rgb: 222, 160, 89;
+      }
+
+      html,
+      body,
+      #root {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        min-height: 100%;
+      }
+
+      body {
+        background: var(--tiance-boot-surface-base);
+        color: var(--tiance-boot-text-primary);
+        overflow: hidden;
+      }
+
+      .tiance-boot-placeholder {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        display: grid;
+        place-items: center;
+        background: var(--tiance-boot-surface-base);
+        pointer-events: none;
+      }
+
+      .tiance-boot-placeholder__loader {
+        position: relative;
+        display: grid;
+        width: min(920px, calc(100vw - 64px));
+        height: 190px;
+        place-items: center;
+      }
+
+      .tiance-boot-placeholder__wordmark {
+        position: relative;
+        display: grid;
+        min-width: 700px;
+        min-height: 190px;
+        place-items: center;
+      }
+
+      .tiance-boot-placeholder__wordmark-text {
+        position: relative;
+        transform: translateY(-0.045em);
+        color: var(--tiance-boot-text-primary);
+        font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+        font-size: 9.5rem;
+        font-weight: 650;
+        line-height: 1;
+        letter-spacing: 0;
+      }
+
+      .tiance-boot-placeholder__wordmark-text::after {
+        content: attr(data-text);
+        position: absolute;
+        inset: 0;
+        color: transparent;
+        background: linear-gradient(
+          100deg,
+          transparent 30%,
+          rgba(var(--tiance-boot-accent-rgb), 0.5) 42%,
+          var(--tiance-boot-accent) 47%,
+          var(--tiance-boot-text-primary) 50%,
+          var(--tiance-boot-accent) 53%,
+          rgba(var(--tiance-boot-accent-rgb), 0.5) 58%,
+          transparent 70%
+        );
+        background-position: 135% 0;
+        background-size: 300% 100%;
+        background-clip: text;
+        -webkit-background-clip: text;
+        filter: drop-shadow(0 0 10px rgba(var(--tiance-boot-accent-rgb), 0.28));
+        animation: tiance-boot-placeholder-wordmark-sweep 1.8s ease-in-out infinite;
+        pointer-events: none;
+      }
+
+      .tiance-boot-placeholder__status {
+        position: absolute;
+        top: calc(50% + 112px);
+        left: 50%;
+        width: min(360px, calc(100vw - 64px));
+        min-height: 20px;
+        margin: 0;
+        color: var(--tiance-boot-text-muted);
+        font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+        font-size: 0.8rem;
+        line-height: 1.5;
+        text-align: center;
+        transform: translateX(-50%);
+      }
+
+      @keyframes tiance-boot-placeholder-wordmark-sweep {
+        0% {
+          background-position: 135% 0;
+        }
+
+        100% {
+          background-position: -35% 0;
+        }
+      }
+
+      @media (max-width: 720px), (max-height: 560px) {
+        .tiance-boot-placeholder__loader {
+          width: min(560px, calc(100vw - 48px));
+          height: 130px;
+        }
+
+        .tiance-boot-placeholder__wordmark {
+          min-width: 420px;
+          min-height: 130px;
+        }
+
+        .tiance-boot-placeholder__wordmark-text {
+          font-size: 6rem;
+        }
+
+        .tiance-boot-placeholder__status {
+          top: calc(50% + 80px);
+        }
+      }
+    </style>
+    <script>
+      (() => {
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        const apiBaseUrl = hashParams.get("tianceApiBaseUrl");
+        if (apiBaseUrl) {
+          window.__tianceApiBaseUrl = apiBaseUrl;
+        }
+
+        const bootStatus = hashParams.get("tianceBootStatus");
+        if (bootStatus) {
+          window.__tianceBootStatus = bootStatus;
+        }
+
+        const bootTheme = hashParams.get("tianceBootTheme");
+        if (!bootTheme) return;
+
+        try {
+          const theme = JSON.parse(bootTheme);
+          const root = document.documentElement;
+          if (theme.mode === "dark" || theme.mode === "light") {
+            root.dataset.bootThemeMode = theme.mode;
+            root.style.colorScheme = theme.mode;
+          }
+          if (typeof theme.surfaceBase === "string" && theme.surfaceBase.trim()) {
+            root.style.setProperty("--tiance-boot-surface-base", theme.surfaceBase);
+            root.style.setProperty("--color-surface-base", theme.surfaceBase);
+          }
+          if (typeof theme.borderSeparator === "string" && theme.borderSeparator.trim()) {
+            root.style.setProperty("--tiance-boot-border-separator", theme.borderSeparator);
+          }
+          if (typeof theme.textPrimary === "string" && theme.textPrimary.trim()) {
+            root.style.setProperty("--tiance-boot-text-primary", theme.textPrimary);
+            root.style.setProperty("--color-text-primary", theme.textPrimary);
+          }
+          if (typeof theme.textMuted === "string" && theme.textMuted.trim()) {
+            root.style.setProperty("--tiance-boot-text-muted", theme.textMuted);
+          }
+          if (typeof theme.accent === "string" && theme.accent.trim()) {
+            root.style.setProperty("--tiance-boot-accent", theme.accent);
+          }
+          if (typeof theme.accentRgb === "string" && theme.accentRgb.trim()) {
+            root.style.setProperty("--tiance-boot-accent-rgb", theme.accentRgb);
+          }
+          window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+        } catch (_error) {
+          // 启动背景不能影响应用主流程。
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="tiance-boot-placeholder" class="tiance-boot-placeholder" aria-label="Tiance 正在启动">
+      <div class="tiance-boot-placeholder__loader">
+        <div class="tiance-boot-placeholder__wordmark" aria-hidden="true">
+          <span class="tiance-boot-placeholder__wordmark-text" data-text="Tiance">Tiance</span>
+        </div>
+        <p class="tiance-boot-placeholder__status">正在加载界面</p>
+      </div>
+    </div>
+    <script>
+      (() => {
+        const status = window.__tianceBootStatus;
+        if (typeof status !== "string" || !status.trim()) return;
+        const element = document.querySelector(".tiance-boot-placeholder__status");
+        if (element) element.textContent = status;
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

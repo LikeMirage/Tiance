@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "description": "按 glob 模式查找文件。patterns 可以是字符串或字符串数组，如 **/*.py、**/package.json。",
+  "properties": {
+    "patterns": {
+      "description": "glob 模式或模式数组。",
+      "title": "匹配模式",
+      "type": [
+        "string",
+        "array"
+      ]
+    },
+    "base_path": {
+      "description": "搜索起点目录，默认工作区根目录。",
+      "title": "起点目录",
+      "type": "string"
+    },
+    "include_hidden": {
+      "default": false,
+      "description": "是否包含隐藏文件和隐藏目录。",
+      "title": "包含隐藏项",
+      "type": "boolean"
+    },
+    "match_directories": {
+      "default": false,
+      "description": "是否返回目录匹配。默认只返回文件。",
+      "title": "匹配目录",
+      "type": "boolean"
+    },
+    "max_results": {
+      "default": 500,
+      "description": "最多返回结果数。",
+      "maximum": 10000,
+      "minimum": 1,
+      "title": "最大结果数",
+      "type": "integer"
+    },
+    "exclude_dirs": {
+      "description": "额外排除的目录名数组。",
+      "items": {
+        "type": "string"
+      },
+      "title": "排除目录",
+      "type": "array"
+    }
+  },
+  "required": [
+    "patterns"
+  ],
+  "type": "object"
+}

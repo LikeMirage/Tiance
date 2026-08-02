@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "providers": {
+    "deepseek": {
+      "providerRules": {
+        "schemaVersion": 1,
+        "capabilities": {
+          "outputFormats": ["text", "json_object"],
+          "reasoning": {
+            "supported": true,
+            "modes": ["off", "high", "max"]
+          },
+          "sampling": {
+            "supported": true,
+            "parameters": ["temperature", "top_p"],
+            "disabledWhenReasoning": true,
+            "disabledReason": "DeepSeek 思考模式下 temperature、top_p 不生效。"
+          },
+          "maxOutputTokens": {
+            "supported": true,
+            "min": 32,
+            "max": 384000
+          },
+          "toolCalling": {"supported": true},
+          "inputModalities": ["text"]
+        },
+        "request": {
+          "omitParameters": ["presence_penalty", "frequency_penalty"],
+          "jsonObjectResponseFormat": true,
+          "streamUsage": true
+        },
+        "behavior": {
+          "includeReasoningContentInMessages": true,
+          "includeResponsesMessagePhase": false,
+          "includeResponsesWebSearchSources": false,
+          "promptCacheRetentionSeconds": 21600
+        }
+      },
+      "modelRules": {
+        "schemaVersion": 1,
+        "families": {},
+        "models": {}
+      }
+    },
+    "volcengine": {
+      "providerRules": {
+        "schemaVersion": 1,
+        "capabilities": {
+          "outputFormats": ["text", "json_object"],
+          "reasoning": {
+            "supported": true,
+            "modes": ["default", "auto", "enabled", "off"]
+          },
+          "sampling": {
+            "supported": true,
+            "parameters": ["temperature", "top_p", "presence_penalty", "frequency_penalty"]
+          },
+          "maxOutputTokens": {
+            "supported": true,
+            "min": 1
+          },
+          "toolCalling": {"supported": true},
+          "inputModalities": ["text"]
+        },
+        "request": {
+          "maxOutputTokensParameter": "max_completion_tokens",
+          "jsonObjectResponseFormat": true,
+          "streamUsage": true
+        },
+        "behavior": {
+          "includeReasoningContentInMessages": true,
+          "includeResponsesMessagePhase": false,
+          "includeResponsesWebSearchSources": false
+        }
+      },
+      "modelRules": {
+        "schemaVersion": 1,
+        "families": {},
+        "models": {
+          "doubao-seed-2-0-pro-260215": {
+            "capabilities": {
+              "reasoning": {
+                "supported": true,
+                "modes": ["default", "enabled", "off"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "openai": {
+      "providerRules": {
+        "schemaVersion": 1,
+        "capabilities": {
+          "outputFormats": ["text"],
+          "reasoning": {
+            "supported": true,
+            "modes": ["low", "medium", "high", "max"]
+          },
+          "sampling": {
+            "supported": true,
+            "parameters": ["temperature", "top_p"]
+          },
+          "maxOutputTokens": {
+            "supported": true,
+            "min": 1
+          },
+          "toolCalling": {"supported": true},
+          "inputModalities": ["text"]
+        },
+        "request": {},
+        "behavior": {
+          "includeReasoningContentInMessages": false,
+          "includeResponsesMessagePhase": true,
+          "includeResponsesWebSearchSources": true
+        }
+      },
+      "modelRules": {
+        "schemaVersion": 1,
+        "families": {},
+        "models": {}
+      }
+    }
+  }
+}

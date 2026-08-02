@@ -1,0 +1,10 @@
+[
+  {
+    "title": "开发收尾前检查",
+    "content": "完成一组代码修改后，先检查是否有包管理器、环境变量、临时文件和验证命令风险。\n\n输入参数：\n{\n  \"max_findings\": 200,\n  \"include_git_status\": true\n}\n\n返回 status、findings 和 recommended_commands。这个工具不会替代真实构建或测试，只提供收尾检查清单。"
+  },
+  {
+    "title": "减少噪音的快速检查",
+    "content": "如果只是想快速看包管理器和环境变量风险，可以关闭本地地址和空目录扫描。\n\n输入参数：\n{\n  \"scan_local_urls\": false,\n  \"scan_empty_dirs\": false,\n  \"max_findings\": 100\n}\n\n适合在大型工作区里快速获得高价值检查结果。"
+  }
+]

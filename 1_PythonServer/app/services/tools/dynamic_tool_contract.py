@@ -1,0 +1,9 @@
+DYNAMIC_TOOL_EXECUTOR_NAME = "execute_dynamic_tool"
+TOOL_INFO_LOADER_NAME = "load_tool_info"
+
+DYNAMIC_TOOL_INFRASTRUCTURE_NAMES = frozenset(
+    {
+        DYNAMIC_TOOL_EXECUTOR_NAME,
+        TOOL_INFO_LOADER_NAME,
+    }
+)

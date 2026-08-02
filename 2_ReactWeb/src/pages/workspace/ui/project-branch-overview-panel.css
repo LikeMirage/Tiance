@@ -1,0 +1,26 @@
+.project-branch-overview-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-surface-canvas);
+}
+
+.project-branch-overview-panel > .conversation-branch-dashboard {
+  min-height: 0;
+}
+
+.project-branch-overview-panel--without-tabs {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.project-branch-overview-panel__loading {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "siliconflow",
+  "displayName": "SiliconFlow",
+  "profileId": "generic",
+  "protocolFamily": "openai_compatible",
+  "enabled": false,
+  "createdAt": "2026-07-19T12:22:43.557643+00:00",
+  "updatedAt": "2026-08-02T00:00:00+00:00",
+  "modelDiscoveryUrl": "https://api.siliconflow.cn/v1/models",
+  "generationUrls": {
+    "openai_compatible": "https://api.siliconflow.cn/v1/chat/completions"
+  },
+  "modelDiscoveryStrategy": "openai_models",
+  "generationAuthSchemes": {
+    "openai_compatible": "bearer_token"
+  },
+  "modelDiscoveryAuthScheme": "bearer_token"
+}

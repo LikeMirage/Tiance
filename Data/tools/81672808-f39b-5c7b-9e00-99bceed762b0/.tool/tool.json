@@ -1,0 +1,40 @@
+{
+  "description": "执行完整、多行、复杂引号或需要用户依赖的 Python 脚本时使用；测试、构建和环境检查等普通短命令使用 run_command。默认等待脚本结束并返回结果；长期运行时显式选择 detached，需要先等待再自动转后台时选择 auto_detach。支持 expected_exit_codes，前台和后台使用相同的成功判定；后台脚本与日志会持久保存。",
+  "display_name": "Python 脚本执行",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "Python",
+    "脚本",
+    "执行",
+    "固定解释器",
+    "用户依赖",
+    "stdout",
+    "stderr",
+    "后台运行",
+    "自动分离",
+    "验证"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "run_python_script",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 660,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

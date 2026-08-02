@@ -1,0 +1,30 @@
+[
+  {
+    "title": "列出 Python 后台进程",
+    "content": "{\"operation\":\"list\",\"limit\":100,\"offset\":0}"
+  },
+  {
+    "title": "查看指定进程",
+    "content": "{\"operation\":\"get\",\"execution_id\":\"0123456789abcdef0123456789abcdef\"}"
+  },
+  {
+    "title": "一次读取最新状态和日志",
+    "content": "{\"operation\":\"read_logs\",\"execution_id\":\"0123456789abcdef0123456789abcdef\",\"stream\":\"both\",\"tail_chars\":20000}"
+  },
+  {
+    "title": "安全停止后台进程",
+    "content": "{\"operation\":\"stop\",\"execution_id\":\"0123456789abcdef0123456789abcdef\",\"timeout_seconds\":10}"
+  },
+  {
+    "title": "清理已结束记录",
+    "content": "{\"operation\":\"cleanup\",\"execution_id\":\"0123456789abcdef0123456789abcdef\"}"
+  },
+  {
+    "title": "预览可安全批量清理的记录",
+    "content": "{\"operation\":\"prune\",\"older_than_seconds\":60,\"dry_run\":true}"
+  },
+  {
+    "title": "批量清理已结束和确认失联记录",
+    "content": "{\"operation\":\"prune\",\"older_than_seconds\":60}"
+  }
+]

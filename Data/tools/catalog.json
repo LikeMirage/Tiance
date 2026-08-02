@@ -1,0 +1,398 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "categories.builtin_bootstrapped": "1"
+  },
+  "categories": [
+    {
+      "category_id": "toolset_a8b8eef5210548778c229305f6a4d2c3",
+      "name": "基础工具",
+      "is_default": false,
+      "sort_order": 0,
+      "created_at": "2026-05-30T21:04:15.671155+00:00",
+      "updated_at": "2026-07-20T12:00:00Z"
+    },
+    {
+      "category_id": "toolset_eff52b03022144539c1f7253131b3199",
+      "name": "文档解析",
+      "is_default": false,
+      "sort_order": 1,
+      "created_at": "2026-05-30T22:29:00.000000+00:00",
+      "updated_at": "2026-06-12T12:00:00+00:00"
+    },
+    {
+      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
+      "name": "网络搜索",
+      "is_default": false,
+      "sort_order": 2,
+      "created_at": "2026-06-11T01:28:43+00:00",
+      "updated_at": "2026-07-19T00:00:00+00:00"
+    },
+    {
+      "category_id": "toolset_c14f6e2593194fe88f2b218a0d7c6a9e",
+      "name": "AI 协作",
+      "is_default": false,
+      "sort_order": 3,
+      "created_at": "2026-06-12T00:00:00+00:00",
+      "updated_at": "2026-06-12T04:05:00+00:00"
+    },
+    {
+      "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
+      "name": "文件与工作区",
+      "is_default": false,
+      "sort_order": 4,
+      "created_at": "2026-08-02T01:06:44.515073+00:00",
+      "updated_at": "2026-08-02T01:06:44.515073+00:00"
+    },
+    {
+      "category_id": "c3b8c681-bf0c-4ec5-8247-b66be22d8e5b",
+      "name": "开发与运行",
+      "is_default": false,
+      "sort_order": 5,
+      "created_at": "2026-08-02T01:06:44.521642+00:00",
+      "updated_at": "2026-08-02T01:06:44.521642+00:00"
+    },
+    {
+      "category_id": "c2c208d3-0003-4972-8bdf-55170f6d2abe",
+      "name": "办公文档",
+      "is_default": false,
+      "sort_order": 6,
+      "created_at": "2026-08-02T01:06:44.528958+00:00",
+      "updated_at": "2026-08-02T01:06:44.528958+00:00"
+    },
+    {
+      "category_id": "f7889dde-1a63-41bf-bf79-f55da3961be3",
+      "name": "图像与设计",
+      "is_default": false,
+      "sort_order": 7,
+      "created_at": "2026-08-02T01:06:44.534284+00:00",
+      "updated_at": "2026-08-02T01:06:44.534284+00:00"
+    }
+  ],
+  "projects": [
+    {
+      "project_id": "be90bad1-e47e-54c8-82ca-781caafa3bcf",
+      "name": "工作区信息查看",
+      "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
+      "is_default": false,
+      "sort_order": 0,
+      "created_at": "2026-05-26T03:34:28.5946529Z",
+      "updated_at": "2026-08-02T01:06:44.565452+00:00"
+    },
+    {
+      "project_id": "c91ee7e1-052e-584e-b665-2d79945aa923",
+      "name": "MinerU 文档解析 + DMX 豆包视觉",
+      "category_id": "toolset_eff52b03022144539c1f7253131b3199",
+      "is_default": false,
+      "sort_order": 0,
+      "created_at": "2026-05-30T22:29:00.000000+00:00",
+      "updated_at": "2026-06-01T06:38:50.942237+00:00"
+    },
+    {
+      "project_id": "a95b5a17-ef14-5af7-ad45-c5a5377a23f3",
+      "name": "Tavily 网络搜索",
+      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
+      "is_default": false,
+      "sort_order": 0,
+      "created_at": "2026-06-11T01:28:43+00:00",
+      "updated_at": "2026-07-31T09:13:35.207446+00:00"
+    },
+    {
+      "project_id": "3094f07a-27f0-58dc-980f-e4718926119a",
+      "name": "AI 会话交互",
+      "category_id": "toolset_c14f6e2593194fe88f2b218a0d7c6a9e",
+      "is_default": false,
+      "sort_order": 0,
+      "created_at": "2026-06-12T00:00:00+00:00",
+      "updated_at": "2026-07-20T11:06:06.774858+00:00"
+    },
+    {
+      "project_id": "15a29fd6-f2da-5877-93b7-6052a5364e67",
+      "name": "命令行执行",
+      "category_id": "c3b8c681-bf0c-4ec5-8247-b66be22d8e5b",
+      "is_default": false,
+      "sort_order": 1,
+      "created_at": "2026-05-30T21:04:15.679444+00:00",
+      "updated_at": "2026-08-02T01:06:47.428173+00:00"
+    },
+    {
+      "project_id": "280b107b-5f97-5c66-9b79-97e478dd3dd4",
+      "name": "SerpAPI 多引擎搜索",
+      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
+      "is_default": false,
+      "sort_order": 1,
+      "created_at": "2026-06-11T01:42:50+00:00",
+      "updated_at": "2026-06-11T01:42:50+00:00"
+    },
+    {
+      "project_id": "d624fd9b-5b9c-5bf4-8126-6610868e64ba",
+      "name": "AI 会话管理",
+      "category_id": "toolset_c14f6e2593194fe88f2b218a0d7c6a9e",
+      "is_default": false,
+      "sort_order": 1,
+      "created_at": "2026-06-12T00:00:00+00:00",
+      "updated_at": "2026-07-20T11:06:08.943668+00:00"
+    },
+    {
+      "project_id": "2af2e79b-8504-5da0-b601-8aea1dcafa09",
+      "name": "PDF 转图片",
+      "category_id": "toolset_eff52b03022144539c1f7253131b3199",
+      "is_default": false,
+      "sort_order": 1,
+      "created_at": "2026-06-12T01:16:00+00:00",
+      "updated_at": "2026-06-12T01:16:00+00:00"
+    },
+    {
+      "project_id": "7a70dd37-ca12-5ecc-9235-f12e3c14b1d2",
+      "name": "文件读取",
+      "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
+      "is_default": false,
+      "sort_order": 2,
+      "created_at": "2026-05-30T21:04:15.694591+00:00",
+      "updated_at": "2026-08-02T01:06:44.792569+00:00"
+    },
+    {
+      "project_id": "3cab028e-6c0c-5217-a228-ed700e932ac9",
+      "name": "网页资料保存",
+      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
+      "is_default": false,
+      "sort_order": 2,
+      "created_at": "2026-06-12T01:00:44+00:00",
+      "updated_at": "2026-06-12T01:00:44+00:00"
+    },
+    {
+      "project_id": "f9748927-58e5-56b8-b8ec-6c154365f0cc",
+      "name": "DMX 豆包视觉解析",
+      "category_id": "toolset_eff52b03022144539c1f7253131b3199",
+      "is_default": false,
+      "sort_order": 2,
+      "created_at": "2026-06-12T12:00:00+00:00",
+      "updated_at": "2026-06-12T12:00:00+00:00"
+    },
+    {
+      "project_id": "59dfc998-de87-586a-a617-439dbaa2e3d8",
+      "name": "批量读取文件",
+      "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
+      "is_default": false,
+      "sort_order": 3,
+      "created_at": "2026-05-30T21:04:15.714962+00:00",
+      "updated_at": "2026-08-02T01:06:45.007616+00:00"
+    },
+    {
+      "project_id": "304eed42-b6fe-5600-9507-0e787c1a8c9b",
+      "name": "DMXAPI 绘图",
+      "category_id": "f7889dde-1a63-41bf-bf79-f55da3961be3",
+      "is_default": false,
+      "sort_order": 3,
+      "created_at": "2026-07-05T00:00:00+00:00",
+      "updated_at": "2026-08-02T01:06:50.543736+00:00"
+    },
+    {
+      "project_id": "0510e798-3244-534d-84be-1c9ffa16cfd4",
+      "name": "模型内置网络搜索",
+      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
+      "is_default": false,
+      "sort_order": 3,
+      "created_at": "2026-07-19T00:00:00+00:00",
+      "updated_at": "2026-07-19T17:58:42.180648+00:00"
+    },
+    {
+      "project_id": "0ba917ac-ea6b-5de5-ae1f-324e8134d74b",
+      "name": "文件补丁编辑",
+      "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
+      "is_default": false,
+      "sort_order": 4,
+      "created_at": "2026-05-30T21:04:15.736561+00:00",
+      "updated_at": "2026-08-02T01:06:45.229779+00:00"
+    },
+    {
+      "project_id": "2143d169-9bf4-55d3-88c3-3fb6608cbbb6",
+      "name": "内容搜索",
+      "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
+      "is_default": false,
+      "sort_order": 5,
+      "created_at": "2026-05-30T21:04:15.759248+00:00",
+      "updated_at": "2026-08-02T01:06:45.433441+00:00"
+    },
+    {
+      "project_id": "e81889b3-deab-5ca4-b534-4a6e728a3298",
+      "name": "文件匹配",
+      "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
+      "is_default": false,
+      "sort_order": 6,
+      "created_at": "2026-05-30T21:04:15.782249+00:00",
+      "updated_at": "2026-08-02T01:06:45.671859+00:00"
+    },
+    {
+      "project_id": "698de2a9-ba9d-5f2c-a515-52b030688be9",
+      "name": "文件写入",
+      "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
+      "is_default": false,
+      "sort_order": 7,
+      "created_at": "2026-05-30T21:04:15.830249+00:00",
+      "updated_at": "2026-08-02T01:06:46.030136+00:00"
+    },
+    {
+      "project_id": "76688823-672e-5919-bc46-df9126744776",
+      "name": "精准替换",
+      "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
+      "is_default": false,
+      "sort_order": 8,
+      "created_at": "2026-05-30T21:04:15.854249+00:00",
+      "updated_at": "2026-08-02T01:06:46.500078+00:00"
+    },
+    {
+      "project_id": "efeaa0ec-ae7b-5abd-9e9b-225628487ebe",
+      "name": "工具信息加载",
+      "category_id": "toolset_a8b8eef5210548778c229305f6a4d2c3",
+      "is_default": false,
+      "sort_order": 9,
+      "created_at": "2026-06-02T00:00:00+00:00",
+      "updated_at": "2026-06-02T03:40:34.536760+00:00"
+    },
+    {
+      "project_id": "48dd644a-2db5-589c-90e0-00f8ca032a71",
+      "name": "记忆管理",
+      "category_id": "toolset_a8b8eef5210548778c229305f6a4d2c3",
+      "is_default": false,
+      "sort_order": 10,
+      "created_at": "2026-06-08T00:00:00+00:00",
+      "updated_at": "2026-06-08T07:51:26.881691+00:00"
+    },
+    {
+      "project_id": "51d20d43-f24f-5a2d-92d4-00781dfd044b",
+      "name": "工具体检",
+      "category_id": "c3b8c681-bf0c-4ec5-8247-b66be22d8e5b",
+      "is_default": false,
+      "sort_order": 11,
+      "created_at": "2026-06-10T15:40:00+00:00",
+      "updated_at": "2026-08-02T01:06:48.987326+00:00"
+    },
+    {
+      "project_id": "3fc42754-9ad1-504a-837c-fe3243c0bfd2",
+      "name": "查找项目相关文件",
+      "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
+      "is_default": false,
+      "sort_order": 12,
+      "created_at": "2026-06-10T15:40:00+00:00",
+      "updated_at": "2026-08-02T01:06:46.755480+00:00"
+    },
+    {
+      "project_id": "afeba52b-601f-54e6-80a6-c0bc89350801",
+      "name": "项目收尾检查",
+      "category_id": "c3b8c681-bf0c-4ec5-8247-b66be22d8e5b",
+      "is_default": false,
+      "sort_order": 13,
+      "created_at": "2026-06-10T15:40:00+00:00",
+      "updated_at": "2026-08-02T01:06:49.184749+00:00"
+    },
+    {
+      "project_id": "8e37be06-85d4-59ae-8791-71f7b4604ff9",
+      "name": "编辑器标签页管理",
+      "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
+      "is_default": false,
+      "sort_order": 14,
+      "created_at": "2026-06-19T00:00:00+00:00",
+      "updated_at": "2026-08-02T01:06:47.032410+00:00"
+    },
+    {
+      "project_id": "81672808-f39b-5c7b-9e00-99bceed762b0",
+      "name": "Python 脚本执行",
+      "category_id": "c3b8c681-bf0c-4ec5-8247-b66be22d8e5b",
+      "is_default": false,
+      "sort_order": 15,
+      "created_at": "2026-06-19T10:35:50.371056+00:00",
+      "updated_at": "2026-08-02T01:06:47.831726+00:00"
+    },
+    {
+      "project_id": "3a2d1f5a-2a7c-545f-a059-be72f864212c",
+      "name": "Excel 工作簿",
+      "category_id": "c2c208d3-0003-4972-8bdf-55170f6d2abe",
+      "is_default": false,
+      "sort_order": 16,
+      "created_at": "2026-06-19T10:35:50.433904+00:00",
+      "updated_at": "2026-08-02T01:06:49.373509+00:00"
+    },
+    {
+      "project_id": "e96f9546-bd60-5d03-a470-3d6e2175189c",
+      "name": "PPT 制作编辑",
+      "category_id": "c2c208d3-0003-4972-8bdf-55170f6d2abe",
+      "is_default": false,
+      "sort_order": 17,
+      "created_at": "2026-06-19T10:55:01.867729+00:00",
+      "updated_at": "2026-08-02T01:06:49.686031+00:00"
+    },
+    {
+      "project_id": "41bb3f91-fe61-5f69-ba29-bcd98c4720b3",
+      "name": "Word 制作编辑",
+      "category_id": "c2c208d3-0003-4972-8bdf-55170f6d2abe",
+      "is_default": false,
+      "sort_order": 18,
+      "created_at": "2026-06-19T11:19:47.314498+00:00",
+      "updated_at": "2026-08-02T01:06:50.107016+00:00"
+    },
+    {
+      "project_id": "e76a4e0a-205d-50c4-8415-081cdaa49d39",
+      "name": "Markdown 转 DOCX",
+      "category_id": "c2c208d3-0003-4972-8bdf-55170f6d2abe",
+      "is_default": false,
+      "sort_order": 19,
+      "created_at": "2026-07-03T00:00:00+00:00",
+      "updated_at": "2026-08-02T01:06:50.319360+00:00"
+    },
+    {
+      "project_id": "a737ec05-d224-5299-8e37-abfdb14f4d27",
+      "name": "主题设计工具",
+      "category_id": "f7889dde-1a63-41bf-bf79-f55da3961be3",
+      "is_default": false,
+      "sort_order": 20,
+      "created_at": "2026-07-04T00:00:00+00:00",
+      "updated_at": "2026-08-02T01:06:51.354546+00:00"
+    },
+    {
+      "project_id": "d4e485ef-9125-57ce-9414-51428a7054ed",
+      "name": "动态工具执行",
+      "category_id": "toolset_a8b8eef5210548778c229305f6a4d2c3",
+      "is_default": false,
+      "sort_order": 21,
+      "created_at": "2026-07-12T00:00:00+00:00",
+      "updated_at": "2026-07-12T00:00:00+00:00"
+    },
+    {
+      "project_id": "cbb8296b-08bd-5ddd-bc26-8b33a1e4f470",
+      "name": "等待",
+      "category_id": "toolset_a8b8eef5210548778c229305f6a4d2c3",
+      "is_default": false,
+      "sort_order": 22,
+      "created_at": "2026-07-17T08:29:43.972403Z",
+      "updated_at": "2026-07-17T08:29:43.972403Z"
+    },
+    {
+      "project_id": "4256aef7-221f-5395-98fa-597f9ca9bda0",
+      "name": "PIP 依赖管理",
+      "category_id": "c3b8c681-bf0c-4ec5-8247-b66be22d8e5b",
+      "is_default": false,
+      "sort_order": 23,
+      "created_at": "2026-07-20T12:00:00Z",
+      "updated_at": "2026-08-02T01:06:48.171482+00:00"
+    },
+    {
+      "project_id": "215084ab-60fc-5ceb-929c-72b98ec4a900",
+      "name": "Python 后台进程管理",
+      "category_id": "c3b8c681-bf0c-4ec5-8247-b66be22d8e5b",
+      "is_default": false,
+      "sort_order": 24,
+      "created_at": "2026-07-21T08:43:01.0233677Z",
+      "updated_at": "2026-08-02T01:06:48.599177+00:00"
+    },
+    {
+      "project_id": "3df2b1cb-de5a-5a72-96ca-ed3441d560a6",
+      "name": "提交记忆压缩",
+      "category_id": "toolset_a8b8eef5210548778c229305f6a4d2c3",
+      "is_default": false,
+      "sort_order": 25,
+      "created_at": "2026-07-29T00:00:00+00:00",
+      "updated_at": "2026-07-29T00:00:00+00:00"
+    }
+  ]
+}

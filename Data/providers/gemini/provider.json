@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "gemini",
+  "displayName": "Google Gemini",
+  "profileId": "generic",
+  "protocolFamily": "gemini_generate_content",
+  "enabled": false,
+  "createdAt": "2026-07-19T12:22:43.557643+00:00",
+  "updatedAt": "2026-08-02T00:00:00+00:00",
+  "modelDiscoveryUrl": "https://generativelanguage.googleapis.com/v1beta/models",
+  "generationUrls": {
+    "gemini_generate_content": "https://generativelanguage.googleapis.com/v1beta/models/{model}:{action}"
+  },
+  "modelDiscoveryStrategy": "gemini_models",
+  "generationAuthSchemes": {
+    "gemini_generate_content": "x_goog_api_key"
+  },
+  "modelDiscoveryAuthScheme": "x_goog_api_key"
+}

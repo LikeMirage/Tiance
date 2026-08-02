@@ -1,0 +1,35 @@
+{
+  "description": "阻塞当前工具调用指定秒数，等待结束后再继续后续步骤。适合短时间延迟、稍后重试或等待外部状态变化；只负责本次调用内等待，不创建后台任务。",
+  "display_name": "等待",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "等待",
+    "延时",
+    "暂停",
+    "稍后重试",
+    "阻塞"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "wait",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 3660,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

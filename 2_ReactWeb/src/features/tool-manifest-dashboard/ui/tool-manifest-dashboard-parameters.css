@@ -1,0 +1,207 @@
+.tool-dashboard__param-list {
+  display: grid;
+  gap: 8px;
+}
+
+.tool-dashboard__param-card {
+  overflow: hidden;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-muted);
+}
+
+.tool-dashboard__param-card--expanded {
+  border-color: rgba(var(--color-accent-rgb), 0.24);
+  overflow: visible;
+}
+
+.tool-dashboard__param-summary {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tool-dashboard__param-summary:hover {
+  background: var(--color-surface-item-hover);
+}
+
+.tool-dashboard__example-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  transition: background-color 160ms ease;
+}
+
+.tool-dashboard__example-header:hover {
+  background: var(--color-surface-item-hover);
+}
+
+.tool-dashboard__example-summary {
+  min-width: 0;
+}
+
+.tool-dashboard__example-summary:hover {
+  background: transparent;
+}
+
+.tool-dashboard__example-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--color-danger);
+  cursor: pointer;
+}
+
+.tool-dashboard__example-delete-button:hover {
+  color: var(--color-danger-text);
+}
+
+.tool-dashboard__example-description-textarea {
+  min-height: 96px;
+  max-height: 160px;
+  overflow-y: auto;
+  resize: vertical;
+}
+
+.tool-dashboard__param-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--tool-dashboard-accent);
+}
+
+.tool-dashboard__param-summary-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.tool-dashboard__param-summary-main strong {
+  min-width: 0;
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-dashboard__param-summary-main span {
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.76rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-dashboard__param-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+  min-width: 0;
+}
+
+.tool-dashboard__param-badges span,
+.tool-dashboard__param-badges strong {
+  display: inline-flex;
+  max-width: 140px;
+  height: 22px;
+  align-items: center;
+  padding: 0 7px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-dashboard__param-badges strong {
+  border-color: rgba(var(--color-accent-rgb), 0.28);
+  color: var(--tool-dashboard-accent);
+}
+
+.tool-dashboard__param-badges .tool-dashboard__validation-badge--error {
+  border-color: rgba(225, 92, 76, 0.35);
+  color: var(--color-danger);
+}
+
+.tool-dashboard__param-badges .tool-dashboard__validation-badge--ok {
+  border-color: rgba(var(--color-accent-rgb), 0.28);
+  color: var(--tool-dashboard-accent);
+}
+
+.tool-dashboard__validation-list {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid rgba(225, 92, 76, 0.24);
+  border-radius: 4px;
+  background: var(--color-danger-bg);
+}
+
+.tool-dashboard__validation-list p {
+  color: var(--color-danger-text);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.tool-dashboard__param-panel {
+  padding: 12px;
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-panel);
+}
+
+.tool-dashboard__param-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tool-dashboard__param-advanced {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tool-dashboard__param-advanced > span {
+  color: var(--color-text-muted);
+  font-size: 0.74rem;
+}
+
+.tool-dashboard__param-advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tool-dashboard__param-required-toggle {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+}
+
+.tool-dashboard__param-required-toggle input {
+  accent-color: var(--tool-dashboard-accent);
+}

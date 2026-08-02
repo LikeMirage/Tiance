@@ -1,0 +1,420 @@
+{
+  "type": "object",
+  "description": "统一 Excel 工作簿工具。action=inspect 读取摘要；action=create 新建工作簿；action=edit 编辑已有 .xlsx 并默认另存；action=validate 只预检不写目标文件。未提供 action 时按 create 处理。",
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "inspect",
+        "create",
+        "edit",
+        "validate"
+      ],
+      "description": "要执行的动作。"
+    },
+    "target_action": {
+      "type": "string",
+      "enum": [
+        "create",
+        "edit"
+      ],
+      "description": "action=validate 时可指定要预检 create 还是 edit。"
+    },
+    "validate_only": {
+      "type": "boolean",
+      "default": false,
+      "description": "用于 create/edit：只预检输入，不写入输出文件。"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "advanced",
+        "simple_table"
+      ],
+      "description": "action=create 时可用。simple_table 用 columns 和 rows 快速创建普通表格；advanced 使用 sheets 完整结构。"
+    },
+    "input_path": {
+      "type": "string",
+      "title": "输入 Excel 路径",
+      "description": "action=inspect/edit 时必填，必须是工作区内 .xlsx 文件。"
+    },
+    "output_path": {
+      "type": "string",
+      "title": "输出 Excel 路径",
+      "description": "action=create 时必填；action=edit 时可省略，默认另存为 原文件名_edited.xlsx。"
+    },
+    "overwrite": {
+      "type": "boolean",
+      "default": false,
+      "description": "目标文件已存在时是否覆盖。编辑已有文件默认不覆盖原文件。"
+    },
+    "create_parent_dirs": {
+      "type": "boolean",
+      "default": true,
+      "description": "输出目录不存在时是否创建。"
+    },
+    "sheet_name": {
+      "type": "string",
+      "description": "mode=simple_table 时的 Sheet 名称。"
+    },
+    "columns": {
+      "type": "array",
+      "description": "mode=simple_table 时的表头。",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rows": {
+      "type": "array",
+      "description": "mode=simple_table 时的数据行，或部分 edit 操作里的二维数据。",
+      "items": {
+        "type": "array",
+        "items": {}
+      }
+    },
+    "active_sheet": {
+      "type": "string",
+      "description": "打开文件时默认激活的 Sheet 名称。"
+    },
+    "properties": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "工作簿属性，例如 title、subject、creator、company、category、keywords、description。"
+    },
+    "sheets": {
+      "type": "array",
+      "minItems": 1,
+      "description": "action=create 的完整工作表定义。mode=advanced 或未提供 mode 时使用。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Sheet 名称，最长 31 个字符，不能包含 Excel 禁止字符。"
+          },
+          "tab_color": {
+            "type": "string",
+            "description": "标签颜色，6 位 RGB。"
+          },
+          "freeze_panes": {
+            "type": "string",
+            "description": "冻结窗格位置，例如 A2、B3。"
+          },
+          "auto_filter": {
+            "type": "string",
+            "description": "普通自动筛选范围。若同一 sheet 已定义 tables，不要再设置 auto_filter。"
+          },
+          "column_widths": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "列宽映射，键可以是 A 或 A:C。"
+          },
+          "row_heights": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "行高映射，键是行号字符串，例如 \"1\"。"
+          },
+          "data_blocks": {
+            "type": "array",
+            "description": "批量数据块。",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rows"
+              ],
+              "properties": {
+                "start_cell": {
+                  "type": "string",
+                  "default": "A1"
+                },
+                "rows": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {}
+                  }
+                },
+                "header": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "style": {
+                  "type": "object"
+                },
+                "header_style": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "cells": {
+            "type": "array",
+            "description": "单独设置单元格值、公式、样式、超链接和批注。",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cell"
+              ],
+              "properties": {
+                "cell": {
+                  "type": "string"
+                },
+                "value": {
+                  "description": "单元格值。"
+                },
+                "formula": {
+                  "type": "string",
+                  "description": "公式，建议以 = 开头。"
+                },
+                "style": {
+                  "type": "object"
+                },
+                "number_format": {
+                  "type": "string"
+                },
+                "hyperlink": {
+                  "type": "string"
+                },
+                "comment": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "ranges": {
+            "type": "array",
+            "description": "对一段区域统一应用样式或数字格式。",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "range"
+              ],
+              "properties": {
+                "range": {
+                  "type": "string"
+                },
+                "style": {
+                  "type": "object"
+                },
+                "number_format": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "merges": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "合并单元格区域数组，例如 A1:H1。"
+          },
+          "tables": {
+            "type": "array",
+            "description": "Excel 表格定义。",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "range"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "range": {
+                  "type": "string"
+                },
+                "style": {
+                  "type": "string",
+                  "default": "TableStyleMedium9"
+                },
+                "show_row_stripes": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "show_column_stripes": {
+                  "type": "boolean",
+                  "default": false
+                }
+              }
+            }
+          },
+          "conditional_formats": {
+            "type": "array",
+            "description": "条件格式。支持 color_scale、data_bar、icon_set、cell_is、formula。",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": [
+                "range",
+                "type"
+              ],
+              "properties": {
+                "range": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "color_scale",
+                    "data_bar",
+                    "icon_set",
+                    "cell_is",
+                    "formula"
+                  ]
+                }
+              }
+            }
+          },
+          "data_validations": {
+            "type": "array",
+            "description": "数据验证，例如下拉列表、整数、日期范围。",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "range",
+                "type"
+              ],
+              "properties": {
+                "range": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "operator": {
+                  "type": "string"
+                },
+                "formula1": {
+                  "type": "string"
+                },
+                "formula2": {
+                  "type": "string"
+                },
+                "allow_blank": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "prompt": {
+                  "type": "string"
+                },
+                "error": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "charts": {
+            "type": "array",
+            "description": "图表定义。支持 bar、line、pie、area。",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "data_range"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "bar",
+                    "line",
+                    "pie",
+                    "area"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "anchor": {
+                  "type": "string",
+                  "default": "J2"
+                },
+                "data_range": {
+                  "type": "string"
+                },
+                "categories_range": {
+                  "type": "string"
+                },
+                "titles_from_data": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "from_rows": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "bar_direction": {
+                  "type": "string",
+                  "enum": [
+                    "col",
+                    "bar"
+                  ],
+                  "default": "col"
+                },
+                "x_axis_title": {
+                  "type": "string"
+                },
+                "y_axis_title": {
+                  "type": "string"
+                },
+                "height": {
+                  "type": "number"
+                },
+                "width": {
+                  "type": "number"
+                },
+                "style": {
+                  "type": "integer"
+                },
+                "legend_position": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "page": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "页面设置，例如 orientation、paper_size、fit_to_width、fit_to_height。"
+          }
+        }
+      }
+    },
+    "operations": {
+      "type": "array",
+      "description": "action=edit 时的编辑操作列表。支持 set_cells、append_rows、write_block、add_sheet、delete_sheet、rename_sheet、copy_sheet、merge_cells、unmerge_cells、set_style、set_dimensions、insert_rows、delete_rows、insert_columns、delete_columns、clear_range、set_freeze_panes、set_auto_filter、add_table、remove_table、add_data_validation、add_conditional_format、add_chart、set_page。",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "sheet": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

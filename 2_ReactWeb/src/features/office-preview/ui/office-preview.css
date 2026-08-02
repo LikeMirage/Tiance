@@ -1,0 +1,389 @@
+.office-preview {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-surface-panel);
+  color: var(--color-text-primary);
+}
+
+.office-preview__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 34px;
+  padding: 0 10px 0 14px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-toolbar);
+  flex: 0 0 auto;
+}
+
+.office-preview--content-loading .office-preview__toolbar {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.office-preview__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.office-preview__type {
+  color: var(--color-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.office-preview__name {
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.office-preview__path {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.office-preview__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.office-preview__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.office-preview__button:hover:not(:disabled) {
+  border-color: var(--color-selection-accent-border);
+  background: var(--color-selection-accent-bg);
+  color: var(--color-accent);
+}
+
+.office-preview__button:disabled {
+  cursor: default;
+  opacity: 0.38;
+}
+
+.office-preview__body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.office-preview__scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.office-preview__scroll--loading-hidden {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.office-preview__scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.office-preview__scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.office-preview__scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+}
+
+.office-preview__status,
+.office-preview__empty {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.office-preview__status--error {
+  border-bottom-color: var(--color-danger-border);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+
+.office-preview__word {
+  width: max-content;
+  min-width: 100%;
+  margin: 0 auto;
+}
+
+.office-preview__word .office-docx-wrapper {
+  background: transparent;
+}
+
+.office-preview__word .office-docx {
+  color: #111827;
+  line-height: 1.42;
+}
+
+.office-preview__word .office-docx :where(p, li) {
+  line-height: 1.48 !important;
+}
+
+.office-preview__word .office-docx :where(h1, h2, h3, h4, h5, h6) {
+  line-height: 1.22 !important;
+}
+
+.office-preview__word .office-docx :where(td, th) :where(p, li) {
+  line-height: 1.28 !important;
+}
+
+.office-preview__excel-shell {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #f7f7f7;
+}
+
+.office-preview__excel-loading {
+  z-index: 40;
+}
+
+.office-preview__excel-host {
+  width: 100%;
+  height: 100%;
+}
+
+.office-preview__excel-host .x-spreadsheet {
+  width: 100%;
+  height: 100%;
+}
+
+.office-preview__excel-shell--loading .x-spreadsheet-scrollbar {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.office-preview__excel-shell--loading .office-preview__excel-host {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.office-preview__presentation-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.office-preview__presentation-shell {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.office-preview__presentation-shell--loading-hidden {
+  position: absolute;
+  inset: 34px 0 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.office-preview__scroll--presentation {
+  flex: 1;
+  padding: 0;
+  background: var(--color-surface-panel-alt);
+  cursor: grab;
+  user-select: none;
+}
+
+.office-preview__scroll--dragging {
+  cursor: grabbing;
+}
+
+.office-preview__presentation-stage {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100%;
+  min-height: 100%;
+  padding: 18px;
+}
+
+.office-preview__presentation-canvas {
+  flex: 0 0 auto;
+  display: block;
+  background: #ffffff;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.32);
+}
+
+.office-preview__presentation-nav {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 58px;
+  padding: 0;
+  border: 1px solid var(--color-selection-accent-border);
+  border-radius: 4px;
+  background: var(--color-surface-menu);
+  color: var(--color-accent);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.office-preview__presentation-nav:hover:not(:disabled) {
+  border-color: var(--color-selection-accent-border);
+  background: var(--color-selection-accent-bg);
+}
+
+.office-preview__presentation-nav:disabled {
+  cursor: default;
+  opacity: 0.26;
+}
+
+.office-preview__presentation-nav--prev {
+  left: 14px;
+}
+
+.office-preview__presentation-nav--next {
+  right: 14px;
+}
+
+.office-preview__presentation-thumbnails {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  min-height: 92px;
+  max-height: 104px;
+  padding: 10px 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-toolbar);
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.office-preview__presentation-thumbnails::-webkit-scrollbar {
+  height: 8px;
+}
+
+.office-preview__presentation-thumbnails::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.office-preview__presentation-thumbnails::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+}
+
+.office-preview__presentation-thumbnail {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 128px;
+  height: 74px;
+  padding: 5px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+  cursor: pointer;
+}
+
+.office-preview__presentation-thumbnail:hover,
+.office-preview__presentation-thumbnail--active {
+  border-color: var(--color-selection-accent-border);
+  background: var(--color-selection-accent-bg);
+}
+
+.office-preview__presentation-thumbnail canvas {
+  display: block;
+  max-width: 116px;
+  max-height: 64px;
+  background: #ffffff;
+  filter: brightness(0.78) contrast(0.92);
+  opacity: 0.72;
+  transition: filter 120ms ease, opacity 120ms ease;
+}
+
+.office-preview__presentation-thumbnail-placeholder {
+  display: block;
+  width: 116px;
+  height: 64px;
+  background: #ffffff;
+  filter: brightness(0.78) contrast(0.92);
+  opacity: 0.42;
+}
+
+.office-preview__presentation-thumbnail:hover canvas,
+.office-preview__presentation-thumbnail--active canvas {
+  filter: none;
+  opacity: 1;
+}
+
+.office-preview__presentation-thumbnail-number {
+  position: absolute;
+  z-index: 1;
+  top: 4px;
+  left: 4px;
+  min-width: 18px;
+  padding: 1px 4px;
+  border: 1px solid var(--color-selection-accent-border);
+  border-radius: 3px;
+  background: var(--color-surface-menu);
+  color: var(--color-accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}

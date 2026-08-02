@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tiance-api-server"
+version = "0.1.0"
+description = "Local API server for the Tiance workspace."
+requires-python = ">=3.11"
+dependencies = [
+  "cryptography>=42,<47",
+  "fastapi>=0.116,<1.0",
+  "httpx[socks]>=0.28,<1.0",
+  "keyring>=25,<26",
+  "latex2mathml>=3.78,<4.0",
+  "lxml>=5.2,<7.0",
+  "Markdown>=3.8,<4.0",
+  "pillow>=10.0,<13.0",
+  "pydantic>=2.10,<3.0",
+  "pydantic-settings>=2.10,<3.0",
+  "python-docx>=1.1,<2.0",
+  "starlette>=0.47,<1.0",
+  "typing-extensions>=4.12,<5.0",
+  "uvicorn[standard]>=0.35,<1.0",
+  "watchfiles>=1.1,<2.0"
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.0,<9.0"
+]
+
+[tool.fastapi]
+entrypoint = "app.main:app"
+
+[tool.setuptools]
+py-modules = ["tiance_runtime"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+"app.resources.locales" = ["*.json"]
+"app.resources.themes" = ["*.json"]
+"app.resources" = ["provider_presets.json", "provider_rule_presets.json"]
+"app.services.document_conversion.markdown_docx" = [
+  "assets/*",
+  "assets/katex/*",
+  "assets/katex/fonts/*",
+]

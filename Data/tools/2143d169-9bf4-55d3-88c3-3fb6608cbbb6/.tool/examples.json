@@ -1,0 +1,18 @@
+[
+  {
+    "title": "搜索函数名",
+    "content": "{\"query\":\"ToolExecutionService\",\"include_globs\":[\"**/*.py\"],\"context_lines\":2}"
+  },
+  {
+    "title": "正则搜索 API 路由",
+    "content": "{\"query\":\"@router\\\\.(get|post|put|delete)\",\"regex\":true,\"include_globs\":[\"1_PythonServer/**/*.py\"],\"max_matches\":100}"
+  },
+  {
+    "title": "搜索前端组件引用",
+    "content": "{\"query\":\"ToolCatalogPanel\",\"include_globs\":[\"2_ReactWeb/src/**/*.ts\",\"2_ReactWeb/src/**/*.tsx\"]}"
+  },
+  {
+    "title": "搜索 GBK 中文文件",
+    "content": "{\"query\":\"中文目标\",\"encoding\":\"gbk\",\"include_globs\":[\"**/*.txt\"],\"context_lines\":1}"
+  }
+]

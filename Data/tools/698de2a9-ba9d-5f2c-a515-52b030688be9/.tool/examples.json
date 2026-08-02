@@ -1,0 +1,14 @@
+[
+  {
+    "title": "创建新 Markdown 文件",
+    "content": "{\"file_path\":\"notes/example.md\",\"content\":\"# Example\\n\\ncontent\\n\",\"operation\":\"create\"}"
+  },
+  {
+    "title": "校验覆盖条件",
+    "content": "{\"file_path\":\"notes/example.md\",\"content\":\"new content\\n\",\"operation\":\"overwrite\",\"dry_run\":true}"
+  },
+  {
+    "title": "追加日志",
+    "content": "{\"file_path\":\"logs/work.md\",\"content\":\"\\n- done\\n\",\"operation\":\"append\",\"create_parent_dirs\":true}"
+  }
+]

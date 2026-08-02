@@ -1,0 +1,14 @@
+[
+  {
+    "title": "查看工作区摘要",
+    "content": "先确认当前工作区根路径，以及有限深度内大概有多少文件和目录。\n\n输入参数：\n{\n  \"mode\": \"summary\",\n  \"workspace_path\": \"C:/work/project\"\n}\n\n预期返回：\n{\n  \"ok\": true,\n  \"mode\": \"summary\",\n  \"root_path\": \"C:/work/project\",\n  \"content\": \"Workspace: C:/work/project\\nDirectories: 18\\nFiles: 64\",\n  \"summary\": {\n    \"directory_count\": 18,\n    \"file_count\": 64,\n    \"returned_entry_count\": 0,\n    \"max_depth\": 2,\n    \"max_entries\": 300,\n    \"truncated\": false\n  }\n}"
+  },
+  {
+    "title": "查看两层目录树",
+    "content": "了解项目结构时使用 tree 模式，默认会跳过 .git、node_modules、缓存和构建目录。\n\n输入参数：\n{\n  \"mode\": \"tree\",\n  \"workspace_path\": \"C:/work/project\",\n  \"max_depth\": 2,\n  \"max_entries\": 200\n}\n\n预期返回：\n{\n  \"ok\": true,\n  \"mode\": \"tree\",\n  \"content\": \"project\\n[D] src\\n  [F] src/app.py\\n[D] docs\\n  [F] docs/readme.md\",\n  \"entries\": [\n    {\n      \"path\": \"src/app.py\",\n      \"name\": \"app.py\",\n      \"type\": \"file\",\n      \"depth\": 2,\n      \"size_bytes\": 8600\n    }\n  ]\n}"
+  },
+  {
+    "title": "按文件名搜索",
+    "content": "需要搭配文本读取工具时，先用 find 模式定位可能要读取的文件路径。\n\n输入参数：\n{\n  \"mode\": \"find\",\n  \"workspace_path\": \"C:/work/project\",\n  \"query\": \"config\",\n  \"max_depth\": 5,\n  \"max_entries\": 100\n}\n\n预期返回：\n{\n  \"ok\": true,\n  \"mode\": \"find\",\n  \"content\": \"[F] src/config.py\\n[F] config/app.json\",\n  \"entries\": [\n    {\n      \"path\": \"src/config.py\",\n      \"name\": \"config.py\",\n      \"type\": \"file\",\n      \"depth\": 2,\n      \"size_bytes\": 2400\n    }\n  ]\n}"
+  }
+]

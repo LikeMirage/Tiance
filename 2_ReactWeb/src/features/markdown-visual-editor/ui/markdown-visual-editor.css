@@ -1,0 +1,367 @@
+.markdown-visual-editor {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--editor-background);
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.markdown-visual-editor::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.markdown-visual-editor::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.markdown-visual-editor::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+}
+
+.markdown-visual-editor::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+.markdown-visual-editor__root {
+  min-height: 100%;
+}
+
+.markdown-visual-editor__root--loading {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.markdown-visual-editor__loading {
+  background: var(--editor-background);
+}
+
+.markdown-visual-editor .milkdown {
+  min-height: 100%;
+  background: var(--editor-background);
+  color: var(--color-text-primary);
+  --crepe-color-background: var(--editor-background);
+  --crepe-color-on-background: var(--color-text-primary);
+  --crepe-color-surface: var(--color-surface-panel);
+  --crepe-color-surface-low: var(--color-surface-muted);
+  --crepe-color-on-surface: var(--color-text-primary);
+  --crepe-color-on-surface-variant: var(--color-text-secondary);
+  --crepe-color-outline: var(--color-border-soft);
+  --crepe-color-primary: var(--color-accent);
+  --crepe-color-secondary: var(--color-surface-muted);
+  --crepe-color-on-secondary: var(--color-text-secondary);
+  --crepe-color-inverse: var(--color-text-primary);
+  --crepe-color-on-inverse: var(--color-text-inverse);
+  --crepe-color-inline-code: var(--color-accent-text);
+  --crepe-color-error: var(--color-danger);
+  --crepe-color-hover: var(--color-surface-item-hover);
+  --crepe-color-selected: var(--color-selection-accent-bg);
+  --crepe-color-inline-area: var(--color-surface-muted);
+  --crepe-shadow-1: var(--shadow-floating);
+  --crepe-shadow-2: var(--shadow-floating);
+  --crepe-font-default: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+  --crepe-font-title: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+  --crepe-font-code: "Consolas", "Courier New", monospace;
+}
+
+.markdown-visual-editor .milkdown,
+.markdown-visual-editor .milkdown .ProseMirror,
+.markdown-visual-editor .milkdown .editor {
+  color: var(--color-text-primary);
+}
+
+.markdown-visual-editor .milkdown .editor {
+  box-sizing: border-box;
+  max-width: 980px;
+  min-height: calc(100vh - 160px);
+  margin: 0 auto;
+  padding: 18px 28px 64px;
+}
+
+.markdown-visual-editor .milkdown .ProseMirror {
+  outline: none;
+  font-size: 13px;
+  line-height: 1.62;
+}
+
+.markdown-visual-editor .milkdown .ProseMirror p,
+.markdown-visual-editor .milkdown .ProseMirror li {
+  font-size: 13px;
+}
+
+.markdown-visual-editor .milkdown .ProseMirror h1 {
+  font-size: 1.38rem;
+  line-height: 1.35;
+}
+
+.markdown-visual-editor .milkdown .ProseMirror h2 {
+  font-size: 1.2rem;
+  line-height: 1.38;
+}
+
+.markdown-visual-editor .milkdown .ProseMirror h3 {
+  font-size: 1.08rem;
+  line-height: 1.42;
+}
+
+.markdown-visual-editor .milkdown .ProseMirror h4,
+.markdown-visual-editor .milkdown .ProseMirror h5,
+.markdown-visual-editor .milkdown .ProseMirror h6 {
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.markdown-visual-editor .milkdown .milkdown-top-bar {
+  min-height: 34px;
+  padding: 0 8px;
+}
+
+.markdown-visual-editor .milkdown .milkdown-top-bar .top-bar-divider {
+  height: 18px;
+  margin: 6px;
+}
+
+.markdown-visual-editor .milkdown .milkdown-top-bar .top-bar-heading-selector {
+  padding: 3px;
+}
+
+.markdown-visual-editor .milkdown .milkdown-top-bar .top-bar-heading-button {
+  height: 26px;
+  padding: 3px 3px 3px 8px;
+}
+
+.markdown-visual-editor
+  .milkdown
+  .milkdown-top-bar
+  .top-bar-heading-button
+  .top-bar-heading-label {
+  min-width: 68px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.markdown-visual-editor
+  .milkdown
+  .milkdown-top-bar
+  .top-bar-heading-button
+  .top-bar-chevron {
+  width: 18px;
+  height: 18px;
+}
+
+.markdown-visual-editor
+  .milkdown
+  .milkdown-top-bar
+  .top-bar-heading-button
+  .top-bar-chevron
+  svg {
+  width: 12px;
+  height: 12px;
+}
+
+.markdown-visual-editor .milkdown .milkdown-top-bar .top-bar-item {
+  width: 26px;
+  height: 26px;
+  margin: 3px;
+  padding: 3px;
+}
+
+.markdown-visual-editor .milkdown .milkdown-top-bar .top-bar-item svg {
+  width: 18px;
+  height: 18px;
+}
+
+.markdown-visual-editor .milkdown .milkdown-table-block {
+  display: block;
+  max-width: 100%;
+  margin: 12px 0;
+  overflow-x: auto;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+}
+
+.markdown-visual-editor .milkdown .milkdown-table-block table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.markdown-visual-editor .milkdown .milkdown-table-block th,
+.markdown-visual-editor .milkdown .milkdown-table-block td {
+  min-width: 120px;
+  max-width: 560px;
+  padding: 7px 10px;
+  vertical-align: top;
+  border-color: var(--color-border-soft);
+  line-height: 1.55;
+}
+
+.markdown-visual-editor .milkdown .milkdown-table-block th {
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.markdown-visual-editor .milkdown .milkdown-table-block td {
+  background: var(--editor-background);
+}
+
+.markdown-visual-editor .milkdown .milkdown-table-block p {
+  margin: 0.2em 0;
+}
+
+.markdown-visual-editor .milkdown .milkdown-table-block .selectedCell,
+.markdown-visual-editor .milkdown .milkdown-table-block .selectedCell *,
+.markdown-visual-editor .milkdown .milkdown-table-block .ProseMirror-selectednode,
+.markdown-visual-editor .milkdown .milkdown-table-block .ProseMirror-selectednode * {
+  color: var(--color-text-primary) !important;
+  opacity: 1;
+  visibility: visible;
+}
+
+.markdown-visual-editor .milkdown .milkdown-table-block .selectedCell::after {
+  background-color: rgba(var(--color-accent-rgb), 0.08);
+  opacity: 1;
+}
+
+.markdown-visual-editor .milkdown .milkdown-table-block .selectedCell ::selection,
+.markdown-visual-editor
+  .milkdown
+  .milkdown-table-block
+  .ProseMirror-selectednode::selection,
+.markdown-visual-editor
+  .milkdown
+  .milkdown-table-block
+  .ProseMirror-selectednode
+  ::selection {
+  background: rgba(var(--color-accent-rgb), 0.22);
+  color: var(--color-text-primary);
+}
+
+.markdown-visual-editor .milkdown .milkdown-table-block span[data-type="math_inline"] {
+  position: relative;
+  z-index: 1;
+  min-width: 1em;
+  max-width: 100%;
+  overflow-x: auto;
+  color: var(--color-accent);
+  vertical-align: middle;
+}
+
+.markdown-visual-editor
+  .milkdown
+  .milkdown-table-block
+  span[data-type="math_inline"].ProseMirror-selectednode {
+  background: transparent !important;
+  color: var(--color-accent);
+}
+
+.markdown-visual-editor
+  .milkdown
+  .milkdown-table-block
+  span[data-type="math_inline"].ProseMirror-selectednode
+  .katex {
+  color: currentColor;
+  opacity: 1;
+  visibility: visible;
+}
+
+.markdown-visual-editor .milkdown .milkdown-latex-inline-edit {
+  z-index: 50;
+  color: var(--color-text-primary);
+}
+
+.markdown-visual-editor .milkdown .milkdown-latex-inline-edit .ProseMirror {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.markdown-visual-editor .milkdown .milkdown-code-block,
+.markdown-visual-editor .milkdown .milkdown-code-block .cm-editor,
+.markdown-visual-editor .milkdown .milkdown-code-block .cm-gutters,
+.markdown-visual-editor .milkdown .milkdown-code-block .cm-panel {
+  background: var(--color-surface-muted);
+  color: var(--editor-foreground);
+  font-size: 12px;
+}
+
+.markdown-visual-editor .milkdown .milkdown-code-block .cm-content,
+.markdown-visual-editor .milkdown .milkdown-code-block .cm-line,
+.markdown-visual-editor .milkdown .milkdown-code-block .cm-line span,
+.markdown-visual-editor .milkdown .milkdown-code-block .milkdown-code-block-placeholder,
+.markdown-visual-editor .milkdown .milkdown-code-block .milkdown-code-block-placeholder code {
+  color: var(--editor-foreground) !important;
+}
+
+.markdown-visual-editor .milkdown .milkdown-code-block .cm-gutter,
+.markdown-visual-editor .milkdown .milkdown-code-block .cm-gutterElement {
+  color: var(--editor-gutter-foreground);
+}
+
+.markdown-visual-editor .milkdown .milkdown-code-block .tools .tools-button-group button,
+.markdown-visual-editor .milkdown .milkdown-code-block .tools .language-button,
+.markdown-visual-editor .milkdown .milkdown-code-block .cm-panel > button {
+  border: 1px solid var(--color-border-soft);
+  background: var(--color-surface-elevated);
+  color: var(--color-text-secondary);
+}
+
+.markdown-visual-editor .milkdown .milkdown-code-block .tools .tools-button-group button svg {
+  fill: currentColor;
+}
+
+.markdown-visual-editor .milkdown .milkdown-code-block .tools .tools-button-group button:hover,
+.markdown-visual-editor .milkdown .milkdown-code-block .tools .language-button:hover,
+.markdown-visual-editor .milkdown .milkdown-code-block .cm-panel > button:hover {
+  border-color: var(--color-selection-accent-border);
+  background: var(--color-surface-item-hover);
+  color: var(--color-accent);
+}
+
+.markdown-visual-editor__native-latex-preview-hidden {
+  display: none !important;
+}
+
+.markdown-visual-editor__latex-preview {
+  border-top: 1px solid var(--color-border-separator);
+  background: var(--editor-background);
+}
+
+.markdown-visual-editor__latex-preview-label {
+  padding: 8px 14px 0;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.markdown-visual-editor__latex-preview-body {
+  padding: 8px 14px 14px;
+  overflow-x: auto;
+  color: var(--color-text-primary);
+}
+
+.markdown-visual-editor__latex-preview-body .katex-display {
+  max-width: 100%;
+  margin: 0.35em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.markdown-visual-editor__latex-preview-body .katex-display > .katex {
+  display: inline-block;
+  max-width: none;
+}

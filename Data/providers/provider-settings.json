@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "initializedAt": "2026-08-02T00:00:00+00:00",
+  "legacyMigrationCompletedAt": "2026-08-02T00:00:00+00:00",
+  "providerOrder": [
+    "dashscope",
+    "volcengine",
+    "zhipu",
+    "anthropic",
+    "deepseek",
+    "dmxapi",
+    "gemini",
+    "grok",
+    "minimax",
+    "moonshot",
+    "openai",
+    "openrouter",
+    "siliconflow"
+  ],
+  "updatedAt": "2026-08-02T00:00:00+00:00",
+  "modelDiscoveryUrlAutofillVersion": 1,
+  "generationUrlContractVersion": 1,
+  "generationUrlStorageVersion": 1,
+  "presetGenerationUrlDefaultsVersion": 2,
+  "modelDiscoveryStrategyVersion": 1,
+  "providerAuthContractVersion": 1
+}

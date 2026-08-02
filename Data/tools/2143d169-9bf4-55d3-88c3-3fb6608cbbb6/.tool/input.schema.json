@@ -1,0 +1,102 @@
+{
+  "additionalProperties": false,
+  "description": "使用内置 ripgrep 搜索工作区文件内容。默认遵守 ignore 文件，跳过隐藏文件、二进制文件、.git、node_modules、缓存和构建目录。",
+  "properties": {
+    "query": {
+      "description": "要搜索的文本或正则表达式。",
+      "title": "查询",
+      "type": "string"
+    },
+    "regex": {
+      "default": false,
+      "description": "是否按正则表达式搜索。",
+      "title": "正则模式",
+      "type": "boolean"
+    },
+    "case_sensitive": {
+      "default": false,
+      "description": "是否大小写敏感。",
+      "title": "大小写敏感",
+      "type": "boolean"
+    },
+    "encoding": {
+      "default": "auto",
+      "description": "搜索文件使用的编码。auto 仅自动识别带 BOM 的 UTF-8/UTF-16；搜索普通 GBK 文件时请显式选择 gbk 或 gb18030。",
+      "enum": [
+        "auto",
+        "utf-8",
+        "utf-16le",
+        "utf-16be",
+        "gbk",
+        "gb18030"
+      ],
+      "title": "文件编码",
+      "type": "string"
+    },
+    "base_path": {
+      "description": "搜索起点目录，默认工作区根目录。",
+      "title": "起点目录",
+      "type": "string"
+    },
+    "include_globs": {
+      "description": "包含的路径模式数组，如 [\"**/*.py\"]。",
+      "items": {
+        "type": "string"
+      },
+      "title": "包含模式",
+      "type": "array"
+    },
+    "exclude_globs": {
+      "description": "排除的路径模式数组。",
+      "items": {
+        "type": "string"
+      },
+      "title": "排除模式",
+      "type": "array"
+    },
+    "exclude_dirs": {
+      "description": "额外排除目录名数组。",
+      "items": {
+        "type": "string"
+      },
+      "title": "排除目录",
+      "type": "array"
+    },
+    "context_lines": {
+      "default": 0,
+      "description": "每个匹配前后返回的上下文行数。",
+      "maximum": 10,
+      "minimum": 0,
+      "title": "上下文行数",
+      "type": "integer"
+    },
+    "max_matches": {
+      "default": 200,
+      "description": "最多返回匹配条数。",
+      "maximum": 5000,
+      "minimum": 1,
+      "title": "最大匹配数",
+      "type": "integer"
+    },
+    "max_file_size_bytes": {
+      "default": 2000000,
+      "description": "跳过超过该大小的文件。",
+      "maximum": 20000000,
+      "minimum": 1000,
+      "title": "最大文件大小",
+      "type": "integer"
+    },
+    "timeout_seconds": {
+      "default": 30,
+      "description": "搜索超时时间，范围 1-60 秒。",
+      "maximum": 60,
+      "minimum": 1,
+      "title": "超时秒数",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "query"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "title": "创建一份专业项目报告",
+    "content": "{\"action\":\"create\",\"output_path\":\"reports/project_report.docx\",\"overwrite\":true,\"properties\":{\"title\":\"项目阶段报告\",\"author\":\"天策\"},\"theme\":{\"font_family\":\"微软雅黑\",\"heading_color\":\"1F4E79\",\"accent_color\":\"00A6A6\",\"table_header_color\":\"1F4E79\"},\"header\":\"天策 项目报告\",\"footer\":\"内部资料\",\"elements\":[{\"type\":\"heading\",\"text\":\"项目阶段报告\",\"level\":1},{\"type\":\"paragraph\",\"text\":\"本文档用于汇总当前阶段目标、完成情况、风险和下一步计划。\",\"style\":{\"font_size\":12,\"space_after\":8}},{\"type\":\"heading\",\"text\":\"一、核心结论\",\"level\":2},{\"type\":\"bullets\",\"items\":[\"工具体系已形成基础闭环\",\"复杂 Office 文档需要专门工具支持\",\"后续重点是稳定性、可验证和模板化\"]},{\"type\":\"heading\",\"text\":\"二、阶段计划\",\"level\":2},{\"type\":\"table\",\"rows\":[[\"阶段\",\"目标\",\"交付物\"],[\"1\",\"工具梳理\",\"工具清单与边界\"],[\"2\",\"能力补齐\",\"Excel/PPT/Word 专门工具\"],[\"3\",\"质量提升\",\"失败分析与回归验证\"]],\"style\":{\"table_style\":\"Table Grid\",\"header_fill\":\"1F4E79\",\"header_color\":\"FFFFFF\"}},{\"type\":\"page_break\"},{\"type\":\"heading\",\"text\":\"三、风险说明\",\"level\":2},{\"type\":\"numbered\",\"items\":[\"编辑已有文档默认输出新文件\",\"PDF 导出需要 Word/WPS/LibreOffice\",\"复杂目录刷新不由纯 Python 完成\"]}]}"
+  },
+  {
+    "title": "检查 Word 文档结构",
+    "content": "{\"action\":\"inspect\",\"input_path\":\"reports/project_report.docx\",\"inspect\":{\"include_paragraphs\":true,\"include_tables\":true,\"max_paragraphs\":120,\"max_text_chars\":30000}}"
+  },
+  {
+    "title": "安全编辑已有 Word 并输出新文件",
+    "content": "{\"action\":\"edit\",\"input_path\":\"reports/project_report.docx\",\"output_path\":\"reports/project_report_v2.docx\",\"overwrite\":true,\"operations\":[{\"type\":\"replace_text\",\"old_text\":\"当前阶段\",\"new_text\":\"本阶段\"},{\"type\":\"append_content\",\"elements\":[{\"type\":\"heading\",\"text\":\"四、补充说明\",\"level\":2},{\"type\":\"paragraph\",\"text\":\"本节由 Word 制作编辑工具追加。\"}]},{\"type\":\"set_footer\",\"text\":\"内部资料 - V2\"}]}"
+  },
+  {
+    "title": "创建包含 Word 原生公式的文档",
+    "content": "{\"action\":\"create\",\"output_path\":\"reports/formula_note.docx\",\"overwrite\":true,\"elements\":[{\"type\":\"heading\",\"text\":\"公式说明\",\"level\":1},{\"type\":\"paragraph\",\"text\":\"下面的公式会写入为 Word 原生公式对象。\"},{\"type\":\"equation\",\"latex\":\"\\\\sum_{i=1}^{N} x_i = \\\\frac{N(N+1)}{2}\",\"display\":true},{\"type\":\"paragraph\",\"text\":\"保存后可在 Word 中继续编辑公式。\"}]}"
+  }
+]

@@ -1,0 +1,37 @@
+{
+  "description": "查看工作区根路径、目录树、文件名搜索和基础统计，帮助定位后续要读取的文件。",
+  "display_name": "工作区信息查看",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "工作区",
+    "路径",
+    "目录树",
+    "文件树",
+    "文件搜索",
+    "项目结构",
+    "定位"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "inspect_workspace",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 30,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

@@ -1,0 +1,6 @@
+[
+  {
+    "title": "切换主题",
+    "content": "先读取 theme_designer 的完整参数，再执行主题切换。\n\n输入参数：\n{\n  \"tool_name\": \"theme_designer\",\n  \"arguments\": {\n    \"action\": \"switch\",\n    \"theme_id\": \"dark-gold\"\n  }\n}\n\n预期返回：theme_designer 的真实执行结果。"
+  }
+]

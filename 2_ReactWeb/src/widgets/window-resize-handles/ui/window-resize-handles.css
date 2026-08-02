@@ -1,0 +1,77 @@
+.window-resize-handles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+}
+
+.window-resize-handle {
+  position: fixed;
+  pointer-events: auto;
+  background: transparent;
+  touch-action: none;
+}
+
+.window-resize-handle--top,
+.window-resize-handle--bottom {
+  left: 12px;
+  right: 12px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.window-resize-handle--top {
+  top: 0;
+}
+
+.window-resize-handle--bottom {
+  bottom: 0;
+}
+
+.window-resize-handle--left,
+.window-resize-handle--right {
+  top: 12px;
+  bottom: 12px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.window-resize-handle--left {
+  left: 0;
+}
+
+.window-resize-handle--right {
+  right: 0;
+}
+
+.window-resize-handle--top-left,
+.window-resize-handle--top-right,
+.window-resize-handle--bottom-right,
+.window-resize-handle--bottom-left {
+  width: 12px;
+  height: 12px;
+}
+
+.window-resize-handle--top-left {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.window-resize-handle--top-right {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.window-resize-handle--bottom-right {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+
+.window-resize-handle--bottom-left {
+  left: 0;
+  bottom: 0;
+  cursor: nesw-resize;
+}

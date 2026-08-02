@@ -1,0 +1,63 @@
+{
+  "additionalProperties": false,
+  "description": "读取一个本机文本文件或图片。相对路径按工作区根目录解析，绝对路径可以指向工作区外。文本默认最多返回 2000 行和 50000 字符；PNG、JPEG、WebP、GIF、BMP 图片会交给当前支持视觉理解的 AI 分析，不支持视觉理解时会提示改用图片解析工具。",
+  "properties": {
+    "file_path": {
+      "description": "要读取的文本或图片路径。相对路径按工作区根目录解析，也可以传入工作区外的绝对路径。",
+      "title": "文件路径",
+      "type": "string"
+    },
+    "start_line": {
+      "default": 1,
+      "description": "开始读取的 1 基行号。",
+      "minimum": 1,
+      "title": "开始行号",
+      "type": "integer"
+    },
+    "max_lines": {
+      "default": 2000,
+      "description": "最多读取多少行。",
+      "maximum": 20000,
+      "minimum": 1,
+      "title": "最大行数",
+      "type": "integer"
+    },
+    "max_chars": {
+      "default": 50000,
+      "description": "返回内容最大字符数。",
+      "maximum": 1000000,
+      "minimum": 1000,
+      "title": "最大字符数",
+      "type": "integer"
+    },
+    "encoding": {
+      "default": "auto",
+      "description": "文本编码。auto 会尝试 utf-8-sig、utf-8、gb18030。",
+      "enum": [
+        "auto",
+        "utf-8",
+        "utf-8-sig",
+        "gb18030",
+        "gbk"
+      ],
+      "title": "编码",
+      "type": "string"
+    },
+    "include_line_numbers": {
+      "default": false,
+      "description": "是否在返回内容中包含行号前缀。",
+      "title": "包含行号",
+      "type": "boolean"
+    },
+    "allow_binary": {
+      "default": false,
+      "description": "是否允许把非图片的疑似二进制文件按文本读取。默认 false。",
+      "title": "允许二进制",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "file_path"
+  ],
+  "type": "object"
+}

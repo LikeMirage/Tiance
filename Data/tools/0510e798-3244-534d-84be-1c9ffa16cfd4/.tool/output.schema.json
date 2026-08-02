@@ -1,0 +1,22 @@
+{
+  "additionalProperties": true,
+  "description": "成功时完整返回供应商生成的答案、实际搜索词、来源、调用动作、供应商元数据和用量；列表不设置应用层条数上限。失败时返回 ok=false 和明确错误。",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object"
+    },
+    "error": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

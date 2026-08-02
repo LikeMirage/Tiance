@@ -1,0 +1,39 @@
+{
+  "description": "调用 SerpAPI 多引擎搜索接口，支持 Google、Google Scholar、Bing、Baidu 以及其他 SerpAPI engine。返回结构化结果、搜索元信息、相关搜索和可选原始响应片段。",
+  "display_name": "SerpAPI 多引擎搜索",
+  "execution": {
+    "parallel": true
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "SerpAPI",
+    "网络搜索",
+    "多引擎搜索",
+    "Google",
+    "Google Scholar",
+    "Bing",
+    "Baidu",
+    "学术搜索",
+    "搜索引擎"
+  ],
+  "loading": {
+    "dynamic": true
+  },
+  "name": "serpapi_search",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 120,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

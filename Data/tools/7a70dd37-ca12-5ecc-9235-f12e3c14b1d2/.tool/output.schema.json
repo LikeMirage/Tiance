@@ -1,0 +1,67 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object"
+    },
+    "content": {
+      "description": "图片读取成功时返回通用富媒体内容块。",
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "type": {
+            "const": "resource_link"
+          },
+          "uri": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "size": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "type",
+          "uri",
+          "name",
+          "mimeType",
+          "size"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "structuredContent": {
+      "description": "图片读取成功时返回可供程序使用的文件元信息。",
+      "type": "object"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

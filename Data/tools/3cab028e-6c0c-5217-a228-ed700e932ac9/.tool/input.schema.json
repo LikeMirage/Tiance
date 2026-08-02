@@ -1,0 +1,109 @@
+{
+  "additionalProperties": false,
+  "description": "保存网页资料到工作区。可传 urls，也可传 Tavily/SerpAPI 的 data.results 到 items，或把完整 data 对象传给 search_result。至少提供 url、urls、items、search_result 之一。",
+  "properties": {
+    "url": {
+      "description": "单个 URL。",
+      "title": "单个 URL",
+      "type": "string"
+    },
+    "urls": {
+      "description": "URL 列表。",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 100,
+      "title": "URL 列表",
+      "type": "array"
+    },
+    "items": {
+      "description": "搜索结果条目列表。支持 Tavily 的 url/content/raw_content，也支持 SerpAPI 的 link/snippet/resources。",
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "maxItems": 100,
+      "title": "搜索结果条目",
+      "type": "array"
+    },
+    "search_result": {
+      "additionalProperties": true,
+      "description": "可直接传 Tavily/SerpAPI 工具返回的 data 对象，工具会读取其中的 results。",
+      "title": "搜索结果对象",
+      "type": "object"
+    },
+    "output_root": {
+      "default": "web_materials",
+      "description": "归档根目录。相对路径按工作区根目录解析，必须位于工作区内。",
+      "title": "输出根目录",
+      "type": "string"
+    },
+    "archive_name": {
+      "description": "本次归档文件夹名称。不填则自动使用 archive_年月日_时分秒。",
+      "title": "归档名称",
+      "type": "string"
+    },
+    "fetch": {
+      "default": true,
+      "description": "是否访问 URL 下载网页或文件。关闭时只保存搜索结果中已有的摘要/原文内容和 metadata。",
+      "title": "访问 URL",
+      "type": "boolean"
+    },
+    "save_html": {
+      "default": true,
+      "description": "普通网页是否保存 raw.html。",
+      "title": "保存 HTML",
+      "type": "boolean"
+    },
+    "extract_markdown": {
+      "default": true,
+      "description": "普通网页是否提取正文并保存 content.md。",
+      "title": "提取 Markdown",
+      "type": "boolean"
+    },
+    "save_search_content": {
+      "default": true,
+      "description": "是否保存搜索结果里已有的摘要、content 或 raw_content。",
+      "title": "保存搜索内容",
+      "type": "boolean"
+    },
+    "download_pdf_resources": {
+      "default": true,
+      "description": "是否下载 SerpAPI Scholar resources 中的 PDF 链接。",
+      "title": "下载 PDF 资源",
+      "type": "boolean"
+    },
+    "deduplicate": {
+      "default": true,
+      "description": "是否按 URL 去重。",
+      "title": "URL 去重",
+      "type": "boolean"
+    },
+    "max_items": {
+      "default": 20,
+      "description": "最多处理多少条资料。",
+      "maximum": 100,
+      "minimum": 1,
+      "title": "最大条目数",
+      "type": "integer"
+    },
+    "max_file_bytes": {
+      "default": 52428800,
+      "description": "单个 URL 最大读取字节数，默认 50MB。",
+      "maximum": 524288000,
+      "minimum": 1024,
+      "title": "单文件大小上限",
+      "type": "integer"
+    },
+    "request_timeout_seconds": {
+      "default": 30,
+      "description": "单个 URL 请求超时时间。",
+      "maximum": 300,
+      "minimum": 5,
+      "title": "请求超时秒数",
+      "type": "integer"
+    }
+  },
+  "required": [],
+  "type": "object"
+}

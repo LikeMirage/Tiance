@@ -1,0 +1,41 @@
+{
+  "description": "已知一个本机目标文件并需要读取其内容时使用，支持工作区内相对路径和任意绝对路径；已知多个工作区文件时使用 read_many_files，尚不确定相关文件时使用 find_project_files。支持文本起始行、最大行数、字符预算、编码和行号；PNG、JPEG、WebP、GIF、BMP 图片会按当前模型视觉能力直接读取或明确提示改用图片解析工具。",
+  "display_name": "文件读取",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "读取",
+    "文件",
+    "文本",
+    "行号",
+    "源码",
+    "配置",
+    "Markdown",
+    "图片",
+    "视觉理解",
+    "PNG",
+    "JPEG"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "read_file",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 60,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

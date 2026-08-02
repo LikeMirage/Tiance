@@ -1,0 +1,113 @@
+.provider-canvas__added-model-capability-item {
+  display: inline;
+}
+
+.provider-canvas__added-model-capability-label {
+  display: inline;
+  line-height: inherit;
+  vertical-align: baseline;
+}
+
+.provider-canvas__added-model-capability-separator {
+  display: inline;
+  margin: 0 4px;
+  line-height: inherit;
+  color: var(--color-text-muted);
+  vertical-align: baseline;
+}
+
+.provider-canvas__added-model-check,
+.provider-canvas__added-model-edit,
+.provider-canvas__added-model-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent);
+  cursor: pointer;
+  transition:
+    color 180ms ease,
+    opacity 180ms ease;
+}
+
+.provider-canvas__added-model-check {
+  width: 20px;
+  min-width: 20px;
+}
+
+.provider-canvas__added-model-check-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.72rem;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 180ms ease,
+    opacity 180ms ease;
+}
+
+.provider-canvas__added-model-check-state--pending {
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+.provider-canvas__added-model-check-state--success {
+  color: #69c97d;
+}
+
+.provider-canvas__added-model-check-state--success:hover:not(:disabled) {
+  color: #86e39a;
+}
+
+.provider-canvas__added-model-check-state--error {
+  color: #ff6b5f;
+}
+
+.provider-canvas__added-model-check-state--error:hover:not(:disabled) {
+  color: #ff8e84;
+}
+
+.provider-canvas__added-model-edit,
+.provider-canvas__added-model-delete {
+  width: 20px;
+}
+
+.provider-canvas__added-model-check:hover:not(:disabled),
+.provider-canvas__added-model-edit:hover:not(:disabled) {
+  color: var(--color-accent-hover);
+}
+
+.provider-canvas__added-model-delete:hover:not(:disabled) {
+  color: var(--color-accent-hover);
+}
+
+.provider-canvas__added-model-edit--active,
+.provider-canvas__added-model-edit--active:hover:not(:disabled) {
+  color: var(--color-accent-hover);
+}
+
+.provider-canvas__added-model-check:disabled,
+.provider-canvas__added-model-check-state:disabled,
+.provider-canvas__added-model-edit:disabled,
+.provider-canvas__added-model-delete:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.provider-canvas__added-model-check svg,
+.provider-canvas__added-model-edit svg,
+.provider-canvas__added-model-delete svg {
+  display: block;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}

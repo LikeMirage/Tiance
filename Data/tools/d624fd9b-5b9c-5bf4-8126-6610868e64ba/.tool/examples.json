@@ -1,0 +1,38 @@
+[
+  {
+    "title": "查询模型选择器中的对话模型",
+    "content": "先按供应商或模型名称搜索聊天面板实际可选的模型。\n\n输入参数：\n{\n  \"action\": \"query_models\",\n  \"query\": \"模型关键词\"\n}\n\n再使用查询结果中真实存在的 provider_id 和 model_id 精确查询该模型的推理模式与运行能力：\n{\n  \"action\": \"query_models\",\n  \"provider_id\": \"查询结果中的供应商ID\",\n  \"model_id\": \"查询结果中的模型ID\"\n}"
+  },
+  {
+    "title": "列出自己的关联会话",
+    "content": "默认只列出调用会话的父级链和自己的下级树，不包含调用会话本身，也不会混入同级会话；省略 relation_depth 表示不限层级。每项只包含实时 title、session_id 和 runtime_status，顶层 active_session_id 表示聊天面板当前正在显示的会话。\n\n输入参数：\n{\n  \"action\": \"list_sessions\"\n}\n\n只查看直接父级和直接下级：\n{\n  \"action\": \"list_sessions\",\n  \"relation_depth\": 1\n}\n\n取得目标 session_id 后，可使用 interact_ai_conversation 发送任务；后台委派时可要求目标 AI 完成后通过消息末尾自动附带的来源会话 ID 直接汇报。"
+  },
+  {
+    "title": "列出项目全部会话",
+    "content": "需要跳出当前会话关系树查找目标时，显式查看当前项目全部会话。\n\n输入参数：\n{\n  \"action\": \"list_sessions\",\n  \"scope\": \"all\"\n}"
+  },
+  {
+    "title": "查看会话属性和来源关系",
+    "content": "查看目标会话的模型、推理模式、系统提示词、启用工具、消息数量、时间与文件路径，并取得 relation_kind、created_by、父会话实时标题和 ID、历史继承方式等关系属性。完整关系数据统一保存在项目内 .Tiance/conversations/branch_graph.json。\n\n输入参数：\n{\n  \"action\": \"get_session_info\",\n  \"session_id\": \"sess_xxx\"\n}"
+  },
+  {
+    "title": "查看最近已完成回复",
+    "content": "默认读取目标会话最后一个已完成轮次，只返回用户正文、最终助手正文、累计用量和消息文件路径。需要模型、设置或来源关系时使用 get_session_info。\n\n输入参数：\n{\n  \"action\": \"get_session\",\n  \"session_id\": \"sess_xxx\"\n}"
+  },
+  {
+    "title": "查看多个完整轮次",
+    "content": "读取最近 3 个已完成轮次的完整结构，包含轮次内的工具调用、工具结果、思考、状态和用量。message_depth 按已完成轮次计算。\n\n输入参数：\n{\n  \"action\": \"get_session\",\n  \"session_id\": \"sess_xxx\",\n  \"message_depth\": 3,\n  \"message_format\": \"full\"\n}"
+  },
+  {
+    "title": "继承当前会话并覆盖少量配置",
+    "content": "创建新会话时，模型、生成参数、工具和记忆设置默认完整继承调用会话。configuration 只写需要改变的部分。\n\n输入参数：\n{\n  \"action\": \"create_session\",\n  \"configuration\": {\n    \"title\": \"专项分析\",\n    \"settings\": {\n      \"memory_recent_raw_turns\": 0\n    }\n  }\n}"
+  },
+  {
+    "title": "配置已有会话",
+    "content": "使用与创建会话相同的 configuration 结构修改已有会话，只改变明确给出的字段。切换模型前先用 query_models 取得真实供应商、模型及可选推理模式。\n\n只修改模型无关设置的输入参数：\n{\n  \"action\": \"configure_session\",\n  \"session_id\": \"sess_xxx\",\n  \"configuration\": {\n    \"settings\": {\n      \"max_tool_calls\": 40\n    }\n  }\n}"
+  },
+  {
+    "title": "停止、显示或删除会话",
+    "content": "停止运行中的会话：\n{\n  \"action\": \"stop_session\",\n  \"session_id\": \"sess_xxx\"\n}\n\n在聊天面板中显示会话：\n{\n  \"action\": \"show_session\",\n  \"session_id\": \"sess_xxx\"\n}\n\n删除会话必须显式确认：\n{\n  \"action\": \"delete_session\",\n  \"session_id\": \"sess_xxx\",\n  \"confirm\": true\n}"
+  }
+]

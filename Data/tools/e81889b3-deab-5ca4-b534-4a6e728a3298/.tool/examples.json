@@ -1,0 +1,14 @@
+[
+  {
+    "title": "查找 Python 文件",
+    "content": "{\"patterns\":\"**/*.py\",\"max_results\":200}"
+  },
+  {
+    "title": "查找前端 package.json",
+    "content": "{\"patterns\":[\"**/package.json\",\"**/vite.config.*\"],\"exclude_dirs\":[\"node_modules\"]}"
+  },
+  {
+    "title": "查找 Markdown 文档",
+    "content": "{\"patterns\":\"**/*.md\",\"base_path\":\"4_文档\",\"max_results\":300}"
+  }
+]

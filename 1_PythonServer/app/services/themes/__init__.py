@@ -1,0 +1,31 @@
+from .theme_catalog import (
+    DEFAULT_THEME_ID,
+    ThemeAssetNotFoundError,
+    ThemeCatalogError,
+    ThemeNotFoundError,
+    ThemeSaveRejectedError,
+    ensure_active_theme_selection,
+    get_active_theme_id,
+    get_active_theme,
+    get_theme_asset_path,
+    get_theme,
+    list_themes,
+    save_theme,
+    set_active_theme,
+)
+
+__all__ = [
+    "DEFAULT_THEME_ID",
+    "ThemeAssetNotFoundError",
+    "ThemeCatalogError",
+    "ThemeNotFoundError",
+    "ThemeSaveRejectedError",
+    "ensure_active_theme_selection",
+    "get_active_theme_id",
+    "get_active_theme",
+    "get_theme_asset_path",
+    "get_theme",
+    "list_themes",
+    "save_theme",
+    "set_active_theme",
+]

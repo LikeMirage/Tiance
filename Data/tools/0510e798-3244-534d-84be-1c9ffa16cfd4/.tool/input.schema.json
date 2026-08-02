@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "description": "把一个完整、可独立理解的问题交给当前会话模型，并要求该模型使用供应商内置网络搜索后回答。只发送本次 query，不上传会话历史。",
+  "properties": {
+    "query": {
+      "description": "需要联网搜索并回答的完整问题。应包含必要的时间、地区、对象和比较条件。",
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "query"
+  ],
+  "type": "object"
+}

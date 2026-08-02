@@ -1,0 +1,43 @@
+{
+  "additionalProperties": false,
+  "description": "向工具调用上下文所属项目中已经存在且当前未运行的 AI 会话发送消息。同一会话不允许同时生成两轮回复，新消息不会排队。发送前先用 manage_ai_conversations 的 list_sessions 检查目标 runtime_status；若为 running，本轮只调用 wait，返回后重新检查，直到目标不再运行再发送，否则 send 返回错误。系统会把实时来源会话名称和 ID 追加到消息末尾；后台委派后的汇报也必须遵守这项检查与等待规则。",
+  "properties": {
+    "action": {
+      "description": "要执行的会话交互动作。",
+      "enum": [
+        "send"
+      ],
+      "options": [
+        {
+          "description": "向指定且当前未运行的会话发送一条用户消息，可等待本次回复或在消息被接受后立即返回。",
+          "value": "send"
+        }
+      ],
+      "title": "动作",
+      "type": "string"
+    },
+    "session_id": {
+      "description": "send 的目标会话 ID，必须是当前项目中已经存在且 runtime_status 不为 running 的会话。若正在运行，先调用 wait，返回后通过 list_sessions 重新检查。",
+      "title": "会话 ID",
+      "type": "string"
+    },
+    "message": {
+      "description": "send 要作为一条新用户消息发送给目标会话的正文。工具会自动在正文末尾追加本条消息实时取得的来源会话名称和 ID，不需要手工重复填写；可要求目标 AI 完成后通过该来源会话 ID 直接汇报。汇报前若来源会话正在运行，目标 AI 必须先调用 wait，等待返回后用 list_sessions 重新检查，直到来源会话不再运行再汇报。需要读取文件或图片时，直接在正文中写入目标可访问的完整路径并明确要求读取。",
+      "minLength": 1,
+      "title": "消息正文",
+      "type": "string"
+    },
+    "wait_for_reply": {
+      "default": true,
+      "description": "send 是否等待这次发送对应的回复完成。true 在工具超时安全边界内完成时返回本次回复，届时仍未完成则返回 outcome=still_running 且目标会话继续后台运行；false 在消息被接受后立即返回。所有结果都返回 messages_file_path。",
+      "title": "等待回复",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "action",
+    "session_id",
+    "message"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "title": "读取文件前 200 行",
+    "content": "{\"file_path\":\"README.md\",\"max_lines\":200}"
+  },
+  {
+    "title": "带行号读取源码片段",
+    "content": "{\"file_path\":\"1_PythonServer/app/main.py\",\"start_line\":1,\"max_lines\":120,\"include_line_numbers\":true}"
+  },
+  {
+    "title": "限制返回字符数",
+    "content": "{\"file_path\":\"4_文档/项目详情.md\",\"max_chars\":20000}"
+  },
+  {
+    "title": "读取工作区外的本机文件",
+    "content": "{\"file_path\":\"D:/Videos/7月23日.txt\",\"max_lines\":2000}"
+  },
+  {
+    "title": "读取图片并进行视觉理解",
+    "content": "{\"file_path\":\"images/interface.png\"}"
+  },
+  {
+    "title": "当前模型不支持视觉输入时读取图片",
+    "content": "{\"file_path\":\"images/interface.png\"}\n\n工具会根据统一模型能力上下文拒绝直接读取，并提示改用图片解析工具。"
+  }
+]

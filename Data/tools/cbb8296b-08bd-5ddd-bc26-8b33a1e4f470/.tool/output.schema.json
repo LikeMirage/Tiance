@@ -1,0 +1,89 @@
+{
+  "additionalProperties": false,
+  "description": "成功时返回请求时长、实际经过时长和起止时间；参数无效时返回结构化错误。",
+  "properties": {
+    "data": {
+      "additionalProperties": false,
+      "properties": {
+        "completed_at": {
+          "description": "等待结束时的 UTC 时间。",
+          "format": "date-time",
+          "type": "string"
+        },
+        "elapsed_seconds": {
+          "description": "单调时钟测得的实际经过秒数。",
+          "minimum": 0,
+          "type": "number"
+        },
+        "requested_seconds": {
+          "description": "本次请求等待的秒数。",
+          "maximum": 3600,
+          "minimum": 0.1,
+          "type": "number"
+        },
+        "started_at": {
+          "description": "等待开始时的 UTC 时间。",
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requested_seconds",
+        "elapsed_seconds",
+        "started_at",
+        "completed_at"
+      ],
+      "type": "object"
+    },
+    "error": {
+      "description": "失败时的错误说明。",
+      "type": "string"
+    },
+    "error_info": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "const": "INVALID_DURATION",
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "maximum_seconds": {
+              "type": "number"
+            },
+            "minimum_seconds": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "minimum_seconds",
+            "maximum_seconds"
+          ],
+          "type": "object"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "details"
+      ],
+      "type": "object"
+    },
+    "ok": {
+      "description": "是否完成等待。",
+      "type": "boolean"
+    },
+    "summary": {
+      "description": "成功结果摘要。",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,461 @@
+.theme-market-board {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-surface-panel);
+  color: var(--color-text-primary);
+}
+
+.theme-market-board__source {
+  display: grid;
+  grid-template-columns: minmax(118px, auto) minmax(220px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-panel-alt);
+}
+
+.theme-market-board__source-input,
+.theme-market-board__search {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+  color: var(--color-text-muted);
+}
+
+.theme-market-board__source-input:focus-within,
+.theme-market-board__search:focus-within {
+  border-color: var(--color-border-focus);
+}
+
+.theme-market-board__source-input > svg,
+.theme-market-board__search > svg {
+  flex: 0 0 auto;
+  margin-left: 9px;
+}
+
+.theme-market-board input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 9px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 0.74rem;
+}
+
+.theme-market-board input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.theme-market-board__button,
+.theme-market-board__error button,
+.theme-market-board__filter-button,
+.theme-market-board__refresh {
+  box-sizing: border-box;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.theme-market-board__button:hover:not(:disabled),
+.theme-market-board__error button:hover:not(:disabled),
+.theme-market-board__filter-button:hover:not(:disabled),
+.theme-market-board__refresh:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-input-hover);
+  color: var(--color-text-primary);
+}
+
+.theme-market-board__button--primary {
+  border-color: var(--color-selection-accent-border);
+  color: var(--color-selection-accent-text);
+}
+
+.theme-market-board button:disabled,
+.theme-market-board input:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.theme-market-board__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  min-height: 42px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.theme-market-board__status,
+.theme-market-board__filters {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.theme-market-board__status {
+  gap: 8px;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.theme-market-board__status strong {
+  overflow: hidden;
+  color: var(--color-text-heading);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+}
+
+.theme-market-board__status span + span::before {
+  margin-right: 8px;
+  color: var(--color-border-strong);
+  content: "·";
+}
+
+.theme-market-board__filters {
+  flex: 0 1 540px;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.theme-market-board__search {
+  flex: 1 1 220px;
+  max-width: 280px;
+}
+
+.theme-market-board__filter-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.theme-market-board__filter-button.is-active {
+  background: var(--color-selection-accent-bg-subtle);
+  color: var(--color-selection-accent-text);
+}
+
+.theme-market-board__filter-button > span {
+  display: grid;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--color-selection-accent-bg);
+  font-size: 0.62rem;
+}
+
+.theme-market-board__refresh {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 30px;
+  padding: 0;
+}
+
+.theme-market-board__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--color-danger-border);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  font-size: 0.74rem;
+}
+
+.theme-market-board__auxiliary:empty {
+  display: none;
+}
+
+.theme-market-filter-panel {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  max-height: 230px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-panel-alt);
+}
+
+.theme-market-filter-panel__groups {
+  display: flex;
+  flex-direction: column;
+  padding: 7px 0;
+  border-right: 1px solid var(--color-border-subtle);
+}
+
+.theme-market-filter-panel__groups button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.72rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.theme-market-filter-panel__groups button:hover,
+.theme-market-filter-panel__groups button.is-active {
+  background: var(--color-surface-item-hover);
+  color: var(--color-text-primary);
+}
+
+.theme-market-filter-panel__groups button.is-active {
+  box-shadow: inset 2px 0 var(--color-selection-accent-border);
+}
+
+.theme-market-filter-panel__groups small {
+  color: var(--color-selection-accent-text);
+  font-size: 0.62rem;
+}
+
+.theme-market-filter-panel__options {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  min-height: 37px;
+  overflow: auto;
+  padding: 11px 12px;
+}
+
+.theme-market-filter-panel__options strong {
+  padding-top: 4px;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+.theme-market-filter-panel__options > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.theme-market-filter-panel__options button {
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+
+.theme-market-filter-panel__options button:hover {
+  background: var(--color-surface-item-hover);
+}
+
+.theme-market-filter-panel__options button.is-active {
+  border-color: var(--color-selection-accent-border);
+  background: var(--color-selection-accent-bg-subtle);
+  color: var(--color-selection-accent-text);
+}
+
+.theme-market-board__error button {
+  flex: 0 0 auto;
+  height: 26px;
+  color: inherit;
+}
+
+.theme-market-board__content {
+  min-height: 0;
+  overflow: auto;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
+.theme-market-board__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr));
+  align-content: start;
+}
+
+.theme-market-card {
+  display: grid;
+  grid-template-rows: auto minmax(94px, 1fr);
+  min-width: 0;
+  min-height: 230px;
+  border-right: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: transparent;
+}
+
+.theme-market-card__preview {
+  display: grid;
+  aspect-ratio: 16 / 9;
+  place-items: center;
+  overflow: hidden;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+}
+
+.theme-market-card__preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.theme-market-card__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 10px 11px 8px;
+}
+
+.theme-market-card__body header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.theme-market-card__body strong {
+  overflow: hidden;
+  color: var(--color-text-heading);
+  font-size: 0.88rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-market-card__mode {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  font-size: 0.64rem;
+}
+
+.theme-market-card__mode--dark {
+  background: color-mix(in srgb, var(--color-surface-elevated-solid) 86%, #000);
+}
+
+.theme-market-card__mode--light {
+  background: color-mix(in srgb, var(--color-surface-elevated-solid) 86%, #fff);
+}
+
+.theme-market-card__body p {
+  display: -webkit-box;
+  margin: 7px 0 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 0.73rem;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.theme-market-card__details {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  margin-top: auto;
+  padding-top: 9px;
+  color: var(--color-text-muted);
+  font-size: 0.66rem;
+}
+
+.theme-market-card__details-copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.theme-market-card__details-copy span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-market-card__details--error .theme-market-card__details-copy span:last-child {
+  color: var(--color-danger-text);
+}
+
+.theme-market-card__details button {
+  flex: 0 0 auto;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--color-selection-accent-border);
+  border-radius: 3px;
+  background: var(--color-selection-accent-bg-subtle);
+  color: var(--color-selection-accent-text);
+  font: inherit;
+  font-size: 0.67rem;
+  cursor: pointer;
+}
+
+.theme-market-card__details button:hover:not(:disabled) {
+  background: var(--color-selection-accent-bg-hover);
+}
+
+.theme-market-card__details button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.theme-market-board__state {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  padding: 24px;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+@media (max-width: 780px) {
+  .theme-market-board__source {
+    grid-template-columns: minmax(105px, auto) minmax(0, 1fr) auto;
+  }
+
+  .theme-market-board__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    padding-block: 8px;
+  }
+
+  .theme-market-board__filters,
+  .theme-market-board__search {
+    max-width: none;
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "tavily": {
+    "base_url": "https://api.tavily.com",
+    "api_key": "",
+    "project_id": "",
+    "defaults": {
+      "search_depth": "basic",
+      "topic": "general",
+      "max_results": 5,
+      "include_answer": "basic",
+      "include_raw_content": false,
+      "include_images": false,
+      "include_image_descriptions": false,
+      "include_favicon": true,
+      "include_usage": true,
+      "auto_parameters": false,
+      "exact_match": false,
+      "chunks_per_source": 3,
+      "request_timeout_seconds": 60,
+      "max_content_chars": 1200,
+      "max_raw_content_chars": 4000
+    }
+  }
+}

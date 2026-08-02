@@ -1,0 +1,60 @@
+{
+  "additionalProperties": false,
+  "description": "读取会话已启用工具的参数详情或应用示例。可用工具名称见系统提示词中的动态加载工具目录和当前会话工具设置。",
+  "properties": {
+    "example_indexes": {
+      "default": [],
+      "description": "仅 operation=get_examples 时使用。按 examples.json 中的 1 基序号读取指定示例；不填写且 include_all_examples=false 时默认读取全部示例。",
+      "items": {
+        "minimum": 1,
+        "type": "integer"
+      },
+      "title": "示例序号",
+      "type": "array"
+    },
+    "example_titles": {
+      "default": [],
+      "description": "仅 operation=get_examples 时使用。按标题读取指定示例，可与 example_indexes 搭配。",
+      "items": {
+        "type": "string"
+      },
+      "title": "示例标题",
+      "type": "array"
+    },
+    "include_all_examples": {
+      "default": false,
+      "description": "仅 operation=get_examples 时使用。为 true 时忽略示例序号和标题，返回全部示例。",
+      "title": "读取全部示例",
+      "type": "boolean"
+    },
+    "operation": {
+      "description": "get_parameters=读取目标工具完整输入参数；get_examples=读取目标工具应用示例。",
+      "enum": [
+        "get_parameters",
+        "get_examples"
+      ],
+      "options": [
+        {
+          "description": "读取目标工具的 input.schema.json 和轻量说明。",
+          "value": "get_parameters"
+        },
+        {
+          "description": "读取目标工具的一个、多个或全部应用示例。",
+          "value": "get_examples"
+        }
+      ],
+      "title": "操作",
+      "type": "string"
+    },
+    "tool_name": {
+      "description": "目标工具调用名，例如 read_file、parse_document_mineru_dmx。不要猜测；可用工具见系统提示词中的动态加载工具目录和当前会话工具设置。",
+      "title": "目标工具",
+      "type": "string"
+    }
+  },
+  "required": [
+    "operation",
+    "tool_name"
+  ],
+  "type": "object"
+}

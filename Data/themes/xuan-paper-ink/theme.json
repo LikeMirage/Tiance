@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 2,
+  "id": "xuan-paper-ink",
+  "name": "宣纸墨晕",
+  "mode": "light",
+  "tokens": {
+    "color": {
+      "surface": {
+        "base": "rgba(246, 242, 233, 0.96)",
+        "panel": "rgba(250, 248, 242, 0.97)",
+        "panelAlt": "rgba(244, 241, 233, 0.96)",
+        "toolbar": "rgba(242, 238, 229, 0.97)",
+        "titlebar": "rgba(239, 235, 226, 0.98)",
+        "statusbar": "rgba(237, 233, 224, 0.98)",
+        "sidebar": "rgba(247, 244, 237, 0.97)",
+        "canvas": "rgba(252, 250, 245, 0.95)",
+        "elevated": "rgba(255, 253, 248, 0.99)",
+        "muted": "rgba(232, 228, 219, 0.95)",
+        "overlay": "rgba(45, 43, 39, 0.18)",
+        "menu": "rgba(253, 251, 246, 0.99)",
+        "input": "rgba(255, 253, 248, 0.98)",
+        "inputHover": "rgba(250, 247, 240, 0.99)",
+        "itemHover": "rgba(109, 119, 118, 0.09)",
+        "itemHoverStrong": "rgba(143, 90, 79, 0.14)"
+      },
+      "text": {
+        "primary": "#292825",
+        "secondary": "#55524C",
+        "muted": "#77736B",
+        "heading": "#1F1E1B",
+        "headingAccent": "#744A42",
+        "inverse": "#FFFDF8",
+        "selectionText": "#211F1B"
+      },
+      "border": {
+        "soft": "rgba(73, 70, 64, 0.18)",
+        "subtle": "rgba(73, 70, 64, 0.10)",
+        "strong": "rgba(55, 53, 48, 0.32)",
+        "focus": "#8F5A4F",
+        "separator": "rgba(73, 70, 64, 0.14)"
+      },
+      "accent": {
+        "base": "#8F5A4F",
+        "rgb": "143, 90, 79",
+        "hover": "#79483F",
+        "text": "#744A42",
+        "softText": "#876861",
+        "selectionText": "#3B2824",
+        "selectionBgSubtle": "rgba(143, 90, 79, 0.10)",
+        "selectionBg": "rgba(143, 90, 79, 0.17)",
+        "selectionBgHover": "rgba(143, 90, 79, 0.23)",
+        "selectionBorder": "rgba(143, 90, 79, 0.48)",
+        "textSelectionBg": "rgba(143, 90, 79, 0.28)"
+      },
+      "state": {
+        "danger": "#A04842",
+        "dangerText": "#823832",
+        "dangerSoftText": "#965A55",
+        "dangerBg": "rgba(160, 72, 66, 0.10)",
+        "dangerBorder": "rgba(160, 72, 66, 0.34)",
+        "warning": "#9A6B2F",
+        "warningText": "#725021",
+        "success": "#55745F",
+        "successText": "#3F624B"
+      },
+      "collapse": {
+        "fadeStart": "rgba(250, 248, 242, 0)",
+        "fadeMid": "rgba(250, 248, 242, 0.76)",
+        "fadeEnd": "rgba(250, 248, 242, 0.98)",
+        "caret": "#69655E"
+      },
+      "scrollbar": {
+        "track": "rgba(71, 68, 63, 0.05)",
+        "thumb": "rgba(71, 68, 63, 0.24)",
+        "thumbHover": "rgba(71, 68, 63, 0.38)"
+      }
+    },
+    "structure": {
+      "color": "rgba(65, 62, 57, 0.14)",
+      "hoverColor": "rgba(103, 113, 112, 0.38)",
+      "activeColor": "rgba(143, 90, 79, 0.56)",
+      "enabled": true,
+      "lines": {
+        "titlebarBottom": true,
+        "statusbarTop": true,
+        "navigationRight": true,
+        "sidePanelRight": true,
+        "assistantPanelLeft": true,
+        "contentSplit": true
+      },
+      "width": 1
+    },
+    "shadow": {
+      "floating": "0 12px 34px rgba(37, 34, 29, 0.16), 0 2px 8px rgba(37, 34, 29, 0.08)",
+      "panel": "0 3px 14px rgba(37, 34, 29, 0.08)"
+    },
+    "editor": {
+      "background": "#FBF9F3",
+      "foreground": "#292825",
+      "gutterBackground": "#F1EEE6",
+      "gutterForeground": "#89847B",
+      "activeLine": "rgba(103, 113, 112, 0.09)",
+      "selectionMatch": "rgba(143, 90, 79, 0.19)",
+      "tooltipBackground": "#FFFDF8"
+    },
+    "background": {
+      "image": "assets/xuan-paper-ink-theme-background-4k-dfd245985b.png",
+      "opacity": 0.72,
+      "blur": 0,
+      "overlay": "rgba(250, 247, 239, 0.08)",
+      "position": "center",
+      "size": "cover",
+      "repeat": "no-repeat"
+    }
+  },
+  "integrations": {
+    "codeMirror": "light",
+    "shiki": "github-light-default",
+    "mermaid": "neutral",
+    "milkdown": "light"
+  }
+}

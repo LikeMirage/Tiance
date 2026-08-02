@@ -1,0 +1,36 @@
+{
+  "description": "不知道应先阅读哪些文件时使用。根据多个 keywords 在项目文件路径和文本内容中做字面包含匹配，按分数返回相关文件排名、命中原因和内容预览，并附目录概览和可选 Git 状态；paths 可强制纳入指定文件或目录。它不做语义检索、同义词扩展或中文分词。需要定位某个文本或正则的精确命中行时使用 workspace_grep；已知文件路径时使用 read_file 或 read_many_files。",
+  "display_name": "查找项目相关文件",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "候选文件",
+    "文件发现",
+    "内容预览",
+    "非语义检索",
+    "相关文件",
+    "项目摘要"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "find_project_files",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 90,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

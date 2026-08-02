@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 2,
+  "id": "kunlun-snow-night",
+  "name": "昆仑雪境",
+  "mode": "dark",
+  "tokens": {
+    "color": {
+      "surface": {
+        "base": "#071322",
+        "panel": "rgba(9, 23, 40, 0.96)",
+        "panelAlt": "rgba(12, 29, 49, 0.94)",
+        "toolbar": "rgba(7, 19, 34, 0.97)",
+        "titlebar": "rgba(5, 15, 28, 0.98)",
+        "statusbar": "rgba(6, 17, 30, 0.98)",
+        "sidebar": "rgba(7, 20, 36, 0.96)",
+        "canvas": "rgba(8, 22, 39, 0.91)",
+        "elevated": "rgba(14, 33, 54, 0.98)",
+        "muted": "rgba(20, 42, 65, 0.84)",
+        "overlay": "rgba(2, 9, 18, 0.74)",
+        "menu": "rgba(10, 26, 44, 0.98)",
+        "input": "rgba(5, 17, 31, 0.96)",
+        "inputHover": "rgba(13, 32, 52, 0.98)",
+        "itemHover": "rgba(117, 163, 190, 0.11)",
+        "itemHoverStrong": "rgba(129, 181, 210, 0.19)"
+      },
+      "text": {
+        "primary": "#E6EDF2",
+        "secondary": "#B7C7D2",
+        "muted": "#8096A6",
+        "heading": "#F2F6F8",
+        "headingAccent": "#C5DCE8",
+        "inverse": "#06131F",
+        "selectionText": "#F6FAFC"
+      },
+      "border": {
+        "soft": "rgba(145, 180, 201, 0.24)",
+        "subtle": "rgba(132, 166, 188, 0.14)",
+        "strong": "rgba(167, 201, 219, 0.43)",
+        "focus": "#83B4CC",
+        "separator": "rgba(139, 173, 194, 0.19)"
+      },
+      "accent": {
+        "base": "#82B4CC",
+        "rgb": "130, 180, 204",
+        "hover": "#9AC6D9",
+        "text": "#A9D1E1",
+        "softText": "#7FA8BC",
+        "selectionText": "#F2F8FA",
+        "selectionBgSubtle": "rgba(79, 133, 163, 0.20)",
+        "selectionBg": "rgba(78, 140, 171, 0.34)",
+        "selectionBgHover": "rgba(91, 154, 185, 0.43)",
+        "selectionBorder": "rgba(143, 195, 218, 0.72)",
+        "textSelectionBg": "rgba(68, 127, 158, 0.58)"
+      },
+      "state": {
+        "danger": "#D47C80",
+        "dangerText": "#F2B7BA",
+        "dangerSoftText": "#C99195",
+        "dangerBg": "rgba(132, 48, 57, 0.25)",
+        "dangerBorder": "rgba(218, 118, 125, 0.55)",
+        "warning": "#C7A66A",
+        "warningText": "#E4C994",
+        "success": "#70B39D",
+        "successText": "#A8D8C9"
+      },
+      "collapse": {
+        "fadeStart": "rgba(9, 23, 40, 0)",
+        "fadeMid": "rgba(9, 23, 40, 0.72)",
+        "fadeEnd": "rgba(9, 23, 40, 0.98)",
+        "caret": "#8FB7C9"
+      },
+      "scrollbar": {
+        "track": "rgba(4, 13, 24, 0.38)",
+        "thumb": "rgba(128, 165, 187, 0.36)",
+        "thumbHover": "rgba(151, 190, 210, 0.58)"
+      }
+    },
+    "structure": {
+      "color": "rgba(132, 168, 191, 0.20)",
+      "hoverColor": "rgba(147, 190, 214, 0.48)",
+      "activeColor": "rgba(186, 215, 229, 0.72)",
+      "enabled": true,
+      "lines": {
+        "titlebarBottom": true,
+        "statusbarTop": true,
+        "navigationRight": true,
+        "sidePanelRight": true,
+        "assistantPanelLeft": true,
+        "contentSplit": true
+      },
+      "width": 1
+    },
+    "shadow": {
+      "floating": "0 16px 42px rgba(0, 5, 13, 0.58), 0 2px 10px rgba(0, 8, 18, 0.42)",
+      "panel": "0 8px 26px rgba(0, 6, 15, 0.32)"
+    },
+    "editor": {
+      "background": "#081523",
+      "foreground": "#DCE7ED",
+      "gutterBackground": "#06111E",
+      "gutterForeground": "#667F90",
+      "activeLine": "rgba(111, 157, 183, 0.10)",
+      "selectionMatch": "rgba(177, 151, 96, 0.30)",
+      "tooltipBackground": "#0F263D"
+    },
+    "background": {
+      "image": "assets/kunlun-snow-night-theme-background-9fb0d04f8e.png",
+      "opacity": 0.58,
+      "blur": 1,
+      "overlay": "rgba(3, 13, 27, 0.34)",
+      "position": "center",
+      "size": "cover",
+      "repeat": "no-repeat"
+    }
+  },
+  "integrations": {
+    "codeMirror": "dark",
+    "shiki": "github-dark-default",
+    "mermaid": "dark",
+    "milkdown": "dark"
+  }
+}

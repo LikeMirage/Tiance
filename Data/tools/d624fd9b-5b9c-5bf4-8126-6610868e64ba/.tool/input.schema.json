@@ -1,0 +1,305 @@
+{
+  "additionalProperties": false,
+  "description": "管理工具调用上下文所属项目的 AI 会话。list_sessions 默认只返回调用会话的父级链和自己的下级树，可选择查看项目全部会话，并只提供用于定位会话的实时标题、ID、状态和聊天面板当前显示的 active_session_id；get_session_info 查看配置及分支、子会话来源等属性；get_session 读取最近消息和用量。会话关系统一保存在项目内 .Tiance/conversations/branch_graph.json。create_session 的继承来源固定为工具调用上下文中的会话。取得会话 ID 后可交给 interact_ai_conversation 发送消息，并要求目标 AI 通过来源会话 ID 直接汇报。",
+  "properties": {
+    "action": {
+      "description": "要执行的会话管理动作。",
+      "enum": [
+        "query_models",
+        "list_sessions",
+        "get_session_info",
+        "get_session",
+        "create_session",
+        "configure_session",
+        "name_parent_session",
+        "stop_session",
+        "delete_session",
+        "show_session"
+      ],
+      "options": [
+        {
+          "description": "按聊天面板的对话模型筛选规则查询供应商、模型、能力标签和可选运行参数。",
+          "value": "query_models"
+        },
+        {
+          "description": "简要列出会话的实时标题、ID 和运行状态，并返回聊天面板当前显示的 active_session_id。默认只列调用会话的父级链和自己的下级树；可通过 scope=all 查看项目全部会话。跨会话发送或汇报前用此状态确认目标未在运行；若为 running，先调用 wait，返回后重新检查。",
+          "value": "list_sessions"
+        },
+        {
+          "description": "查看一个会话的模型、设置、时间、消息数量、文件路径，以及分支或子会话关系属性。",
+          "value": "get_session_info"
+        },
+        {
+          "description": "读取一个会话最近已完成的消息和累计用量。",
+          "value": "get_session"
+        },
+        {
+          "description": "创建会话，默认完整继承调用会话的模型和全部可配置参数。",
+          "value": "create_session"
+        },
+        {
+          "description": "使用与创建动作相同的 configuration 契约修改已有会话。",
+          "value": "configure_session"
+        },
+        {
+          "description": "仅供系统创建的自动命名功能会话，在当前任务明确要求为其父会话生成标题时调用。普通会话、其他功能会话或未被明确要求时禁止调用；目标父会话由后端根据调用会话的任务记录和分支关系确定，不得传 session_id。",
+          "value": "name_parent_session"
+        },
+        {
+          "description": "停止目标会话当前正在运行的回复。",
+          "value": "stop_session"
+        },
+        {
+          "description": "删除目标会话，必须同时传 confirm=true。",
+          "value": "delete_session"
+        },
+        {
+          "description": "在聊天面板中显示目标会话，不会发送消息。",
+          "value": "show_session"
+        }
+      ],
+      "title": "动作",
+      "type": "string"
+    },
+    "scope": {
+      "default": "related",
+      "description": "list_sessions 的查看范围。related 只返回调用会话的父级链和自己的下级树，不包含调用会话本身及同级会话；all 返回当前项目全部会话。",
+      "enum": [
+        "related",
+        "all"
+      ],
+      "options": [
+        {
+          "description": "只查看与调用会话有上下级关系的会话。",
+          "value": "related"
+        },
+        {
+          "description": "查看当前项目全部会话。",
+          "value": "all"
+        }
+      ],
+      "title": "会话范围",
+      "type": "string"
+    },
+    "relation_depth": {
+      "description": "scope=related 时向上和向下各自最多查看多少级。1 表示直接父级与直接下级；省略表示不限层级。scope=all 时不要传。",
+      "minimum": 1,
+      "title": "关系深度",
+      "type": "integer"
+    },
+    "session_id": {
+      "description": "目标会话 ID。get_session_info、get_session、configure_session、stop_session、delete_session 和 show_session 必填；create_session 和 name_parent_session 不使用此参数。",
+      "title": "会话 ID",
+      "type": "string"
+    },
+    "title": {
+      "description": "name_parent_session 要提交的最终父会话标题。",
+      "minLength": 1,
+      "title": "会话标题",
+      "type": "string"
+    },
+    "query": {
+      "description": "query_models 的搜索词。按模型选择器现有规则匹配供应商、模型、模型族、来源和能力标签。",
+      "title": "模型搜索词",
+      "type": "string"
+    },
+    "provider_id": {
+      "description": "query_models 的供应商筛选。只传此项时返回该供应商下可用于对话的模型。",
+      "title": "供应商 ID",
+      "type": "string"
+    },
+    "model_id": {
+      "description": "query_models 的模型筛选。与 provider_id 一起精确指定模型时，返回该模型的运行能力和实际可选推理模式。",
+      "title": "模型 ID",
+      "type": "string"
+    },
+    "configuration": {
+      "additionalProperties": false,
+      "description": "create_session 和 configure_session 共用的局部配置。create_session 先完整继承调用会话配置，再应用这里明确给出的字段；configure_session 只修改明确给出的字段。推理模式、采样参数支持性和最大输出长度会按目标模型的运行能力校验。",
+      "properties": {
+        "title": {
+          "description": "明确指定的会话标题。create_session 不传时使用新会话默认标题；传入后视为手动标题。",
+          "minLength": 1,
+          "type": "string"
+        },
+        "provider_id": {
+          "description": "对话模型供应商 ID。与 model_id 配套使用。",
+          "minLength": 1,
+          "type": "string"
+        },
+        "model_id": {
+          "description": "对话模型 ID。与 provider_id 配套使用。",
+          "minLength": 1,
+          "type": "string"
+        },
+        "reasoning_mode": {
+          "description": "推理模式，必须是 query_models 对该供应商和模型返回的可选值。",
+          "enum": [
+            "default",
+            "auto",
+            "enabled",
+            "off",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ],
+          "type": "string"
+        },
+        "settings": {
+          "additionalProperties": false,
+          "description": "会话设置补丁。create_session 继承调用会话的完整 settings 后应用此补丁；configure_session 只修改这里明确给出的字段。",
+          "properties": {
+            "system_prompt": {
+              "description": "会话系统提示词。",
+              "type": "string"
+            },
+            "temperature": {
+              "description": "采样温度；null 表示使用模型或供应商默认值。是否支持由 query_models 返回的运行能力决定。",
+              "minimum": 0,
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "top_p": {
+              "description": "Top-p 采样参数；null 表示使用模型或供应商默认值。",
+              "maximum": 1,
+              "minimum": 0,
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_output_tokens": {
+              "description": "最大输出 token 数，实际范围由目标模型运行能力决定。",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "return_thinking_content": {
+              "description": "是否在供应商支持时返回思考内容。",
+              "type": "boolean"
+            },
+            "streaming_enabled": {
+              "description": "是否启用流式回复。",
+              "type": "boolean"
+            },
+            "inject_workspace_info": {
+              "description": "是否向模型上下文注入当前项目工作区信息。",
+              "type": "boolean"
+            },
+            "inject_message_timestamps": {
+              "description": "是否向正式对话消息注入其不可变创建时间。",
+              "type": "boolean"
+            },
+            "auto_collapse_assistant_process": {
+              "description": "聊天面板是否自动折叠助手执行过程。",
+              "type": "boolean"
+            },
+            "enabled_tool_names": {
+              "description": "会话可用工具调用名；null 使用默认工具集合，空数组禁用全部工具。",
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ],
+              "uniqueItems": true
+            },
+            "max_tool_calls": {
+              "description": "单次回复允许的最大工具调用次数。",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "global_memory_enabled": {
+              "description": "是否启用全局记忆注入。",
+              "type": "boolean"
+            },
+            "project_memory_enabled": {
+              "description": "是否启用项目记忆注入。",
+              "type": "boolean"
+            },
+            "memory_compression_enabled": {
+              "description": "是否启用会话记忆压缩。",
+              "type": "boolean"
+            },
+            "memory_raw_turns": {
+              "description": "一级压缩触发轮次阈值。",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "memory_recent_raw_turns": {
+              "description": "一级压缩保护区轮数，允许设为 0。",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "memory_block_protected_count": {
+              "description": "多级压缩中每层受保护的最新压缩块数量。",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "memory_block_trigger_count": {
+              "description": "多级压缩块的合并触发阈值。",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "memory_character_trigger_threshold": {
+              "description": "一级压缩触发字符数阈值。",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "return_cancelled_messages": {
+              "description": "构建模型上下文时是否包含已取消的助手消息。",
+              "type": "boolean"
+            },
+            "return_user_before_cancelled": {
+              "description": "构建模型上下文时是否包含取消回复之前的用户消息。",
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "message_depth": {
+      "default": 1,
+      "description": "get_session 返回最近多少个已完成对话轮次。按轮次向前读取直到满足请求深度，默认 1；不是原始消息条数。",
+      "minimum": 1,
+      "title": "消息深度",
+      "type": "integer"
+    },
+    "message_format": {
+      "default": "content_only",
+      "description": "get_session 的消息返回形式。content_only 只返回所选轮次的用户正文和最终回复正文（assistant 或 error）；full 返回所选轮次完整结构，包括工具调用、工具结果、思考、状态和用量。",
+      "enum": [
+        "content_only",
+        "full"
+      ],
+      "options": [
+        {
+          "description": "只返回用户正文与最终回复正文。",
+          "value": "content_only"
+        },
+        {
+          "description": "返回所选轮次内的完整结构化消息。",
+          "value": "full"
+        }
+      ],
+      "title": "消息格式",
+      "type": "string"
+    },
+    "confirm": {
+      "default": false,
+      "description": "delete_session 的显式删除确认，必须为 true。",
+      "title": "确认删除",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "type": "object"
+}

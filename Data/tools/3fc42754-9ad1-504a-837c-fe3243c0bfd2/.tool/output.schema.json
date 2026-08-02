@@ -1,0 +1,94 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "additionalProperties": false,
+      "properties": {
+        "workspace_root": {
+          "type": "string"
+        },
+        "base_path": {
+          "type": "string"
+        },
+        "keywords": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "selected_files": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "description": "相对工作区根目录的文件路径。",
+                "type": "string"
+              },
+              "score": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "reasons": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "path",
+              "score",
+              "reasons"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "git_status_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "context_pack": {
+          "description": "目录概览、文件排名、命中片段和文件内容预览组成的文本包。",
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "workspace_root",
+        "base_path",
+        "keywords",
+        "selected_files",
+        "git_status_count",
+        "context_pack",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

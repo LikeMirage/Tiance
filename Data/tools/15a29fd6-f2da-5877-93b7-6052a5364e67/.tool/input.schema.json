@@ -1,0 +1,74 @@
+{
+  "additionalProperties": false,
+  "description": "执行并等待一个会自行结束的短命令。command 与 argv 必须且只能提供一个；复杂参数使用 argv。默认工作目录是工作区根目录，也允许指定工作区外的真实目录。不同目的或需要独立判断成败的查询应分开调用；同一目的可以组合后输出结构化 JSON。不启动 GUI、服务和后台程序，Python 脚本使用 run_python_script。",
+  "properties": {
+    "command": {
+      "description": "交给指定 Shell 执行的短命令文本。不要依赖 systeminfo 等命令的本地化显示文字；Windows 结构化系统查询优先使用 Get-CimInstance。不与 argv 同时提供。",
+      "title": "Shell 命令",
+      "type": "string"
+    },
+    "argv": {
+      "description": "直接启动短命令的参数数组，不经过 Shell。适合复杂参数、带空格路径或大量引号。不与 command 或非默认 shell 同时提供。",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "进程参数数组",
+      "type": "array"
+    },
+    "stdin": {
+      "description": "按 UTF-8 写入命令标准输入的文本。",
+      "title": "标准输入",
+      "type": "string"
+    },
+    "workdir": {
+      "description": "命令工作目录。相对路径按工作区根目录解析，绝对路径直接使用；默认使用工作区根目录。",
+      "title": "工作目录",
+      "type": "string"
+    },
+    "shell": {
+      "default": "default",
+      "description": "command 模式使用的 Shell。Windows 默认 PowerShell，其他平台默认 sh；argv 模式不使用 Shell。",
+      "enum": [
+        "default",
+        "powershell",
+        "cmd",
+        "bash",
+        "sh"
+      ],
+      "title": "Shell",
+      "type": "string"
+    },
+    "timeout_seconds": {
+      "default": 30,
+      "description": "命令内部超时时间，范围 1-300 秒。",
+      "maximum": 300,
+      "minimum": 1,
+      "title": "内部超时秒数",
+      "type": "integer"
+    },
+    "max_output_chars": {
+      "default": 20000,
+      "description": "stdout 和 stderr 各自最多返回的可见字符数。执行期间同时限制原始输出的内存保留量。",
+      "maximum": 200000,
+      "minimum": 1000,
+      "title": "最大输出字符数",
+      "type": "integer"
+    },
+    "expected_exit_codes": {
+      "default": [
+        0
+      ],
+      "description": "视为成功的退出码列表。只在命令本身明确约定非零退出码具有正常业务含义时扩展。",
+      "items": {
+        "type": "integer"
+      },
+      "minItems": 1,
+      "title": "预期退出码",
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [],
+  "type": "object"
+}

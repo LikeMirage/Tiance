@@ -1,0 +1,114 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "description": "成功时返回工作区路径、摘要统计、文本化目录树或搜索结果；失败时返回 ok=false 和 error。",
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "description": "是否执行成功。"
+    },
+    "mode": {
+      "type": "string",
+      "description": "实际查看模式。",
+      "enum": [
+        "summary",
+        "tree",
+        "find"
+      ]
+    },
+    "root_path": {
+      "type": "string",
+      "description": "实际查看的工作区根目录绝对路径。"
+    },
+    "content": {
+      "type": "string",
+      "description": "面向 AI 阅读的文本结果。summary 模式是摘要，tree 模式是目录树，find 模式是匹配列表。"
+    },
+    "summary": {
+      "type": "object",
+      "description": "本次扫描的基础统计。",
+      "additionalProperties": false,
+      "properties": {
+        "directory_count": {
+          "type": "integer",
+          "description": "扫描到的目录数量。"
+        },
+        "file_count": {
+          "type": "integer",
+          "description": "扫描到的文件数量。"
+        },
+        "returned_entry_count": {
+          "type": "integer",
+          "description": "实际返回的条目数量。"
+        },
+        "max_depth": {
+          "type": "integer",
+          "description": "本次扫描使用的最大深度。"
+        },
+        "max_entries": {
+          "type": "integer",
+          "description": "本次扫描使用的最大返回条目数。"
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "是否因为 max_entries 限制而截断。"
+        }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "description": "结构化文件或目录条目，适合程序继续处理。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "相对工作区根目录的路径。"
+          },
+          "name": {
+            "type": "string",
+            "description": "文件名或目录名。"
+          },
+          "type": {
+            "type": "string",
+            "description": "条目类型。",
+            "enum": [
+              "directory",
+              "file"
+            ]
+          },
+          "depth": {
+            "type": "integer",
+            "description": "条目相对根目录的深度。"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "description": "文件字节大小；目录为 0。"
+          }
+        },
+        "required": [
+          "path",
+          "name",
+          "type",
+          "depth",
+          "size_bytes"
+        ]
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "description": "扫描过程中遇到的非致命问题，例如部分目录无权限读取。",
+      "items": {
+        "type": "string"
+      }
+    },
+    "error": {
+      "type": "string",
+      "description": "失败时的错误说明。"
+    }
+  },
+  "required": [
+    "ok"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "description": "统一 Excel 工作簿工具。通过 action 执行 inspect、create、edit、validate：可读取工作簿摘要，新建多 sheet 报表，编辑已有 .xlsx，预检复杂输入。支持批量数据、单元格值/公式、样式、合并单元格、行列调整、Sheet 管理、表格、筛选、冻结窗格、数据验证、条件格式和常用图表。编辑已有文件默认另存为新文件，不覆盖原文件；复杂宏、透视表、切片器和已有复杂图表不承诺深度编辑。",
+  "display_name": "Excel 工作簿",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "Excel",
+    "xlsx",
+    "工作簿",
+    "多sheet",
+    "样式",
+    "公式",
+    "图表",
+    "条件格式",
+    "数据验证",
+    "看板",
+    "编辑",
+    "读取摘要"
+  ],
+  "loading": {
+    "dynamic": true
+  },
+  "name": "excel_workbook",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 300,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

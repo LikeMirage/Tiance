@@ -1,0 +1,138 @@
+{
+  "additionalProperties": false,
+  "description": "成功时返回 ripgrep 匹配项和搜索统计；失败时返回稳定错误信息。",
+  "properties": {
+    "ok": {
+      "description": "是否执行成功。无匹配也属于成功。",
+      "type": "boolean"
+    },
+    "summary": {
+      "description": "成功结果摘要。",
+      "type": "string"
+    },
+    "data": {
+      "additionalProperties": false,
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "regex": {
+          "type": "boolean"
+        },
+        "encoding": {
+          "type": "string"
+        },
+        "engine": {
+          "const": "ripgrep"
+        },
+        "matches": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "file": {
+                "description": "相对工作区根目录的文件路径。",
+                "type": "string"
+              },
+              "path": {
+                "description": "已校验位于工作区内的绝对文件路径。",
+                "type": "string"
+              },
+              "line": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "column": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "text": {
+                "type": "string"
+              },
+              "before": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "after": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "file",
+              "path",
+              "line",
+              "column",
+              "text",
+              "before",
+              "after"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "searched_files": {
+          "description": "ripgrep 实际搜索的文件数量；提前截断时为终止前已完成统计的数量。",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "skipped_files": {
+          "description": "保留原工具输出字段。ripgrep 不枚举被 ignore、隐藏、二进制和大小规则过滤的文件，因此当前返回 0。",
+          "const": 0
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "query",
+        "regex",
+        "encoding",
+        "engine",
+        "matches",
+        "searched_files",
+        "skipped_files",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "error": {
+      "description": "失败时的错误说明。",
+      "type": "string"
+    },
+    "error_info": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "details"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "ok",
+    "warnings"
+  ],
+  "type": "object"
+}

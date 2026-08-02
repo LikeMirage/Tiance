@@ -1,0 +1,1107 @@
+{
+  "schemaVersion": 1,
+  "locale": "zh-CN",
+  "displayName": "简体中文",
+  "direction": "ltr",
+  "messages": {
+    "common": {
+      "productName": "天策",
+      "documentTitle": "天策",
+      "actions": {
+        "add": "新增",
+        "cancel": "取消",
+        "clear": "清空",
+        "close": "关闭",
+        "confirm": "确认",
+        "delete": "删除",
+        "deleting": "删除中",
+        "edit": "编辑",
+        "open": "打开",
+        "pin": "置顶",
+        "refresh": "刷新",
+        "rename": "重命名",
+        "reset": "重置",
+        "retry": "重试",
+        "save": "保存",
+        "saving": "保存中",
+        "search": "搜索",
+        "unpin": "取消置顶"
+      },
+      "status": {
+        "loading": "正在载入",
+        "unavailable": "不可用",
+        "unknownError": "未知错误"
+      },
+      "windowControls": {
+        "group": "窗口控制",
+        "minimize": "最小化窗口",
+        "maximize": "最大化窗口",
+        "restore": "还原窗口",
+        "close": "关闭窗口"
+      }
+    },
+    "sidebar": {
+      "aria": {
+        "primary": "主侧边栏",
+        "resize": "调整菜单栏宽度",
+        "workspaceSections": "工作区分区"
+      },
+      "sections": {
+        "overview": "项目集",
+        "tools": "工具集",
+        "literature": "文献集",
+        "experience": "经验集",
+        "roles": "角色集",
+        "models": "模型集",
+        "settings": "设定集",
+        "themes": "主题集",
+        "knowledge": "知识集"
+      },
+      "subitems": {
+        "projectCategories": "项目集分类",
+        "toolsets": "工具集分类",
+        "emptyProjectCategories": "暂无项目分类",
+        "saveName": "保存名称",
+        "addProjectCategory": "新增项目分类",
+        "addToolset": "新增工具集",
+        "roleCategories": "角色集分类",
+        "themeCategories": "主题集分类",
+        "emptyRoleCategories": "暂无角色分类",
+        "emptyThemeCategories": "暂无主题分类",
+        "addRoleCategory": "新增角色分类",
+        "addThemeCategory": "新增主题分类"
+      },
+      "theme": {
+        "fallback": "主题",
+        "select": "选择主题"
+      },
+      "delete": {
+        "projectCategoryTitle": "删除项目分类",
+        "projectCategoryMessage": "删除“{label}”分类后，分类下的全部项目及其文件夹都会一并删除。此操作不可在软件内撤销。",
+        "toolsetTitle": "删除工具集",
+        "toolsetMessage": "删除“{label}”工具集后，其中的工具文件夹也会一起删除。",
+        "roleCategoryTitle": "删除角色分类",
+        "roleCategoryMessage": "删除“{label}”分类后，分类下的全部角色及其文件夹都会一并删除。此操作不可在软件内撤销。",
+        "themeCategoryTitle": "删除主题分类",
+        "themeCategoryMessage": "删除“{label}”分类后，分类下的全部主题及其文件夹都会一并删除。当前正在使用的主题不能随分类删除。"
+      }
+    },
+    "appFrame": {
+      "statusBar": "应用状态栏",
+      "zoom": {
+        "status": "缩放 {percent}",
+        "panelTitle": "界面缩放",
+        "decrease": "缩小界面",
+        "increase": "放大界面",
+        "ratio": "界面缩放比例",
+        "native": "原生页面缩放",
+        "fallback": "浏览器回退缩放",
+        "waiting": "等待桌面壳",
+        "auto": "自动缩放",
+        "manual": "手动缩放"
+      },
+      "metrics": {
+        "aria": "性能与使用情况",
+        "panelAria": "性能与使用情况面板",
+        "title": "性能占用",
+        "performanceTab": "性能",
+        "usageTab": "使用情况",
+        "loading": "正在读取性能数据",
+        "shellDisconnected": "桌面壳未连接",
+        "apiUnavailable": "性能接口未就绪",
+        "dataUnavailable": "性能数据暂不可用",
+        "readFailed": "性能数据读取失败",
+        "statusLoading": "性能读取中",
+        "statusUnavailable": "性能 --",
+        "app": "本软件",
+        "system": "本机整体",
+        "processCount": "{count} 进程",
+        "memory": "内存 {percent} · {used} / {total}",
+        "reading": "读取中",
+        "unavailable": "不可用",
+        "totalTokens": "Token 用量",
+        "toolCalls": "工具调用次数",
+        "mostUsedTools": "最常用工具",
+        "noToolUsage": "暂无工具调用",
+        "toolCallCount": "{count} 次",
+        "conversationTotal": "累计会话数量",
+        "sentMessages": "累计发送次数",
+        "aiRuntime": "AI 总运行时长",
+        "usageReadFailed": "读取失败",
+        "usageSummary": "累计数据",
+        "usageActions": "操作",
+        "syncConversationCount": "同步当前数量",
+        "clearConversationCount": "清零累计会话",
+        "clearConversationTitle": "清零累计会话数量",
+        "clearConversationMessage": "只清零累计显示，不会删除任何会话。之后新建会话将从 0 继续累计。",
+        "clearConversationConfirm": "确认清零",
+        "usageOperationInProgress": "处理中",
+        "usageOperationFailed": "操作失败，请重试"
+      }
+    },
+    "workspace": {
+      "settings": {
+        "title": "设定集",
+        "panel": "设定集面板",
+        "search": "搜索设置项",
+        "categories": "设定集分类",
+        "noMatches": "无匹配设置项",
+        "appearance": "外观",
+        "usage": "用量",
+        "themeSettings": "主题设定",
+        "connection": "连接",
+        "network": "网络设置",
+        "tokenEstimation": "Token 估算",
+        "functionalModel": "功能模型",
+        "functionalModelCategories": "功能模型分类",
+        "functionalSections": {
+          "defaultConversation": "默认会话模型",
+          "conversationNaming": "会话命名模型",
+          "memoryCompression": "记忆管理模型"
+        },
+        "language": "语言",
+        "github": "GitHub 登录"
+      },
+      "projectsPanel": {
+        "fallbackTitle": "项目",
+        "duplicateTitle": "项目已存在",
+        "duplicateMessage": "此项目已存在于“{categoryName}”分类中。\n{projectName}",
+        "jump": "跳转",
+        "createFile": "新建文件",
+        "createFolder": "新建文件夹",
+        "refreshFiles": "刷新文件列表",
+        "backToProjectList": "返回项目列表",
+        "collapse": "收起",
+        "importFolder": "导入文件夹",
+        "importExternalFolder": "导入外部文件夹",
+        "createProject": "新增项目",
+        "searchFiles": "搜索文件",
+        "searchProjects": "搜索项目",
+        "projectFiles": "项目文件",
+        "emptyProjectFiles": "此项目暂无文件。",
+        "rootDirectory": "项目根目录",
+        "externalFileDropHint": "释放后复制到项目根目录",
+        "externalFileImporting": "正在复制外部文件……",
+        "externalFileClipboardEmpty": "剪贴板中没有可粘贴的外部文件。",
+        "externalFoldersUnsupported": "目前只支持复制外部文件，不支持文件夹。",
+        "externalFileImportFailed": "外部文件复制失败。",
+        "externalFileImportPartial": "已复制 {importedCount} 个文件，{failedCount} 个未能复制。",
+        "externalFilePathsUnavailable": "桌面壳未能读取拖入文件的本机路径。",
+        "externalFileImportUnavailable": "当前环境不支持复制外部文件。",
+        "externalProjectFolderDropHint": "释放后将文件夹导入为项目",
+        "externalProjectFolderImporting": "正在导入外部项目文件夹……",
+        "externalProjectFoldersOnly": "项目列表只接受外部文件夹。",
+        "externalProjectFolderPathsUnavailable": "桌面壳未能读取拖入文件夹的本机路径。",
+        "externalProjectFolderImportFailed": "外部项目文件夹导入失败。",
+        "searchThemes": "搜索主题"
+      }
+    },
+    "projectList": {
+      "loading": "正在载入项目……",
+      "loadFailed": "项目列表载入失败。",
+      "emptyAll": "当前没有项目。",
+      "emptyCategory": "当前分类没有项目。",
+      "emptySearch": "没有匹配的项目。",
+      "ariaList": "项目列表",
+      "saveProjectName": "保存项目名称",
+      "createdUnknown": "创建时间未知",
+      "context": {
+        "pinTop": "置顶",
+        "reveal": "在资源管理器中显示",
+        "moveTo": "移动至...",
+        "removeProject": "移除项目",
+        "deleteLocalFiles": "删除本地文件"
+      }
+    },
+    "fileWorkspace": {
+      "empty": "暂无文件。",
+      "loading": "正在载入文件……",
+      "root": "文件根目录",
+      "files": "文件",
+      "confirmRename": "确认重命名",
+      "nameRequired": "文件名称不能为空。",
+      "renameFailed": "命名失败。",
+      "external": {
+        "dropHint": "松开后复制到当前文件夹。",
+        "importing": "正在复制外部文件……",
+        "clipboardEmpty": "系统剪贴板中没有可复制的文件或文件夹。",
+        "importFailed": "外部文件复制失败。",
+        "importPartial": "已复制 {importedCount} 项，{failedCount} 项失败。",
+        "pathsUnavailable": "无法读取拖入文件的本机路径。",
+        "unavailable": "当前桌面环境不支持外部文件复制。"
+      },
+      "context": {
+        "createFile": "新建文件",
+        "createFolder": "新建文件夹",
+        "paste": "粘贴",
+        "clearClipboard": "清除剪贴板",
+        "copyItems": "复制 {count} 项",
+        "cutItems": "剪切 {count} 项",
+        "deleteItems": "删除 {count} 项",
+        "open": "打开",
+        "referenceToChat": "引用到对话",
+        "collapse": "折叠",
+        "expand": "展开",
+        "reveal": "在资源管理器中显示",
+        "copy": "复制",
+        "cut": "剪切"
+      },
+      "delete": {
+        "title": "确认删除",
+        "single": "删除会修改真实文件夹内容，确认继续？",
+        "multiple": "删除 {count} 个文件或文件夹会修改真实文件夹内容，确认继续？",
+        "failedTitle": "部分内容未删除",
+        "failedMessage": "以下 {count} 项未能删除，可能正被其他程序占用：",
+        "failedFallback": "删除失败。"
+      }
+    },
+    "providerCatalog": {
+      "panel": "模型集供应商列表",
+      "title": "模型集",
+      "addProvider": "新增供应商",
+      "search": "搜索供应商",
+      "loading": "正在载入供应商列表……",
+      "loadFailed": "供应商目录载入失败。",
+      "empty": "当前没有可用供应商。",
+      "emptySearch": "没有匹配的供应商。",
+      "list": "模型供应商列表",
+      "renameSave": "保存供应商名称",
+      "context": {
+        "reveal": "在资源管理器中打开"
+      },
+      "deleteConfirm": {
+        "title": "删除供应商",
+        "message": "确定删除供应商“{provider}”吗？该供应商的 API Key、模型和缓存也会一并删除。",
+        "deleting": "删除中……"
+      },
+      "create": {
+        "title": "新增自定义供应商",
+        "providerName": "供应商名称",
+        "providerNamePlaceholder": "例如 My OpenAI Proxy",
+        "apiBaseUrl": "完整生成 API 地址",
+        "protocol": "协议",
+        "auth": "鉴权"
+      },
+      "protocol": {
+        "openaiCompatible": "OpenAI Chat Completions",
+        "openaiResponses": "OpenAI Responses",
+        "anthropicMessages": "Anthropic Messages",
+        "geminiGenerateContent": "Gemini GenerateContent"
+      }
+    },
+    "aiPanel": {
+      "header": {
+        "noSession": "未选择会话",
+        "openHistory": "打开对话历史",
+        "backToChat": "返回会话",
+        "actions": "AI 对话操作",
+        "exportConversation": "导出会话",
+        "history": "历史",
+        "settings": "设置",
+        "newConversation": "新建对话",
+        "branches": "会话分支",
+        "conversationOverview": "会话总览"
+      },
+      "exportDialog": {
+        "title": "导出设置",
+        "close": "关闭导出设置",
+        "formatList": "导出格式",
+        "directory": "导出路径",
+        "chooseDirectory": "选择导出文件夹",
+        "directoryError": "无法选择导出文件夹。",
+        "scope": "导出范围",
+        "currentConversation": "当前完整会话",
+        "currentReply": "当前 AI 回复",
+        "fileName": "导出文件名",
+        "cancel": "取消",
+        "export": "导出",
+        "exportAndOpen": "导出后打开",
+        "exporting": "导出中…",
+        "requestError": "导出失败，请稍后重试。",
+        "description": {
+          "docx": "生成可继续编辑的 Word 文档，适合归档、整理和正式交付。",
+          "markdown": "保留标题、列表、代码块和链接结构，适合继续编辑或进入版本管理。",
+          "txt": "导出为不包含样式的纯文本，兼容性最好，适合快速保存和检索。",
+          "html": "生成可直接在浏览器中打开的网页文件，适合保留阅读排版和代码样式。"
+        }
+      },
+      "composer": {
+        "placeholder": "输入消息...",
+        "stopGeneration": "停止生成",
+        "send": "发送",
+        "resizeInput": "调整输入区高度"
+      },
+      "settingsTabs": {
+        "aria": "会话设置",
+        "basic": "基础设置",
+        "memory": "记忆压缩",
+        "globalMemory": "全局记忆",
+        "tools": "工具设置",
+        "data": "数据看板",
+        "close": "关闭会话设置",
+        "empty": "当前没有可配置的会话。"
+      },
+      "history": {
+        "title": "项目历史",
+        "empty": "当前项目没有对话。",
+        "messageCount": "{count} 条消息",
+        "noModel": "未绑定模型",
+        "deleting": "删除中",
+        "pinFailed": "会话置顶状态修改失败。",
+        "runtime": {
+          "running": "运行",
+          "error": "异常",
+          "idle": "空闲"
+        },
+        "unknownTime": "未知时间"
+      },
+      "messageList": {
+        "loadingSession": "正在载入会话…",
+        "empty": "发送消息开始对话。"
+      },
+      "usage": {
+        "aria": "会话 Token 统计",
+        "title": "用量统计",
+        "scope": "用量统计范围",
+        "total": "总计",
+        "input": "输入",
+        "output": "输出",
+        "reasoning": "思考",
+        "cacheHit": "缓存命中",
+        "cacheMiss": "未命中",
+        "cost": "金额",
+        "context": "上下文",
+        "contextEstimated": "供应商未返回本次请求的上下文 Token，当前数值由本地混合字符估算算法计算，仅供参考。",
+        "totalEstimated": "当前统计包含供应商未返回用量时生成的本地估算数据，Token 与金额仅供参考。"
+      },
+      "basicSettings": {
+        "sessionTitle": "会话标题",
+        "reasoningDepth": "思考深度",
+        "unsupportedByModel": "当前模型不支持",
+        "temperature": "温度",
+        "defaultValue": "默认",
+        "maxOutputTokens": "最大输出长度（含思维链）",
+        "returnThinkingContent": "工具调用时返回思考内容",
+        "returnCancelledMessages": "返回截断消息",
+        "returnUserBeforeCancelled": "返回截断前用户消息",
+        "streamingOutput": "流式输出",
+        "autoCollapseProcess": "自动折叠处理过程",
+        "injectWorkspaceInfo": "注入工作区信息",
+        "injectMessageTimestamps": "注入用户消息时间戳",
+        "systemPrompt": "系统提示词",
+        "selectSystemPromptPreset": "选择预设提示词",
+        "noSystemPromptPresets": "暂无预设",
+        "clearSystemPrompt": "清空系统提示词"
+      },
+      "memorySettings": {
+        "enabled": "记忆压缩",
+        "contextCompaction": "上下文压缩",
+        "recentRawTurns": "保护区轮次长度",
+        "recentRawTurnsDescription": "最近 N 个模型回复轮次及最近 N 条用户请求保留原文；更早内容可并入累计摘要。",
+        "units": {
+          "turn": "轮",
+          "token": "Tokens"
+        },
+        "compressionManager": "压缩记忆管理",
+        "injectionPreview": "注入预览看板",
+        "contextTokenThreshold": "单次压缩目标",
+        "contextTokenThresholdDescription": "完整上下文达到 N Token 加原文保护区时创建压缩会话。系统提示词、工具定义、工作区信息、长期记忆和会话消息全部计入；单批最多压缩 N Token 的历史。",
+        "rawContextTokenReserve": "原文保护区",
+        "rawContextTokenReserveDescription": "保留末尾至少 N Token 的原始消息；只按完整消息切割，因此实际保护区可能略大。"
+      },
+      "globalMemorySettings": {
+        "memoryReceiving": "接收长期记忆",
+        "receiveGlobalMemory": "接收全局记忆",
+        "receiveProjectMemory": "接收项目记忆",
+        "memoryExtraction": "提取长期记忆",
+        "extractGlobalMemory": "从本会话提取全局记忆",
+        "extractProjectMemory": "从本会话提取项目记忆"
+      },
+      "memoryDashboard": {
+        "title": "长期记忆管理",
+        "description": "查看和维护当前会注入给会话的长期记忆。项目记忆只属于当前项目，全局记忆跨项目共用。",
+        "refresh": "刷新长期记忆",
+        "scope": "记忆范围",
+        "projectMemory": "项目记忆",
+        "globalMemory": "全局记忆",
+        "search": "搜索{scope}",
+        "add": "新增{scope}",
+        "keywordsPlaceholder": "关键词，用逗号或空格分隔",
+        "noProject": "当前没有项目，无法读取长期记忆。",
+        "loading": "正在读取长期记忆。",
+        "empty": "暂无{scope}。",
+        "loadFailed": "长期记忆读取失败。",
+        "addFailed": "新增长期记忆失败。",
+        "updateFailed": "更新长期记忆失败。",
+        "deleteFailed": "删除长期记忆失败。",
+        "eventCount": "{count} 个事件",
+        "source": {
+          "none": "无来源",
+          "manual": "手动维护",
+          "compression": "压缩生成"
+        },
+        "operation": {
+          "add": "新增",
+          "update": "更新",
+          "delete": "删除",
+          "fallback": "事件"
+        },
+        "eventSource": "事件来源",
+        "noEvents": "暂无事件。",
+        "confirmDelete": "确认删除",
+        "cancelDelete": "取消删除",
+        "reasonPlaceholder": "变更依据（只写明确事实，不推测动机）",
+        "deleteReasonPlaceholder": "删除依据（必填）",
+        "reasonUnavailable": "历史事件未记录依据"
+      },
+      "toolSettings": {
+        "loadFailed": "工具列表加载失败。",
+        "title": "会话工具",
+        "refresh": "刷新工具列表",
+        "maxToolCalls": "最大工具调用次数",
+        "loading": "正在加载工具。",
+        "empty": "当前没有已启用工具。",
+        "noDescription": "暂无摘要。",
+        "disableTool": "关闭工具",
+        "enableTool": "启用工具"
+      },
+      "dataDashboard": {
+        "title": "数据看板",
+        "items": {
+          "compressions": {
+            "title": "压缩记忆管理",
+            "description": "查看累计摘要、压缩事项、失败记录和原始压缩 JSON。"
+          },
+          "injectionPreview": {
+            "title": "注入预览看板",
+            "description": "查看下一次请求会注入给 AI 的系统提示词、记忆、消息和工具参数。"
+          },
+          "messages": {
+            "title": "会话消息看板",
+            "description": "查看当前会话原始消息、工具调用、工具返回和 token 用量。"
+          },
+          "session": {
+            "title": "会话配置看板",
+            "description": "查看当前会话标题、模型、生成参数、记忆参数和工具设置。"
+          },
+          "index": {
+            "title": "会话索引看板",
+            "description": "查看项目会话索引、活动会话、运行状态和草稿状态。"
+          },
+          "projectMemory": {
+            "title": "项目记忆看板",
+            "description": "查看当前项目共用的长期记忆，数据源不属于单个会话。"
+          },
+          "globalMemory": {
+            "title": "全局记忆看板",
+            "description": "查看跨项目共用的全局长期记忆，所有项目读取同一份数据。"
+          }
+        }
+      },
+      "reasoningModes": {
+        "default": "默认",
+        "auto": "自动",
+        "enabled": "开启",
+        "off": "关闭",
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "max": "最大"
+      }
+    },
+    "networkSettings": {
+      "title": "网络设置",
+      "loading": "正在载入网络设置...",
+      "reset": "恢复默认",
+      "save": "保存",
+      "saving": "保存中",
+      "seconds": "秒",
+      "connection": {
+        "title": "外网连接",
+        "description": "控制模型供应商、GitHub 和其他后端外网请求使用的连接方式。",
+        "mode": "连接模式",
+        "system": "使用系统代理",
+        "direct": "直连",
+        "custom": "自定义代理",
+        "scheme": "代理协议",
+        "host": "代理主机",
+        "port": "代理端口"
+      },
+      "timeout": {
+        "title": "请求超时",
+        "description": "普通读取适用于模型发现等请求；流式读取适用于 AI 持续输出。",
+        "connect": "连接超时",
+        "read": "普通读取超时",
+        "stream": "流式读取超时"
+      },
+      "localService": {
+        "title": "本地服务端口",
+        "description": "自动模式会从 18000 至 18020 选择可用端口；固定模式始终尝试指定端口。",
+        "auto": "自动选择",
+        "fixed": "固定端口",
+        "port": "固定端口",
+        "restart": "端口设置在下次启动软件时生效。环境变量配置始终优先。"
+      },
+      "diagnostic": {
+        "title": "GitHub 连通性",
+        "description": "使用当前已保存的网络配置检测 GitHub，作为未来工具和主题市场的连接目标。",
+        "test": "检测 GitHub",
+        "testing": "检测中",
+        "saveFirst": "请先保存当前修改",
+        "success": "连接正常，耗时 {elapsed} 毫秒。",
+        "failure": "连接失败：{error}"
+      }
+    },
+    "tokenEstimationSettings": {
+      "title": "Token 估算",
+      "activationTitle": "启用条件",
+      "activationDescription": "仅当供应商没有返回输入、输出或总 Token 用量时，程序才估算缺失字段；供应商已返回的真实数值始终优先。估算值会标记提示，并计入上下文和总用量统计。",
+      "historyDescription": "修改参数只影响之后产生的估算，不重算历史记录，也不会修改供应商已返回的真实用量。",
+      "algorithmTitle": "估算算法",
+      "algorithmDescription": "文本按连续 ASCII 字母数字和其他可见字符分别换算，再加上每条消息的结构开销、工具定义及图片占位。不同模型的 tokenizer 不同，精确结果仍以供应商返回为准。",
+      "loading": "正在载入 Token 估算设置...",
+      "save": "保存",
+      "saving": "保存中",
+      "reset": "恢复默认",
+      "fields": {
+        "asciiCharsPerToken": "ASCII 字母数字换算比例",
+        "otherCharsPerToken": "中文及其他可见字符换算比例",
+        "messageOverheadTokens": "每条消息结构开销",
+        "imagePlaceholderTokens": "每张图片占位"
+      },
+      "units": {
+        "charsPerToken": "字符 / Token",
+        "tokensPerMessage": "Token / 条",
+        "tokensPerImage": "Token / 张"
+      }
+    },
+    "functionalModelSettings": {
+      "common": {
+        "model": "模型",
+        "loadingModels": "模型加载中",
+        "modelDefault": "模型默认",
+        "reasoningDepth": "思考深度",
+        "defaultConversationReasoningDepth": "默认会话思考深度",
+        "maxOutputTokens": "最大输出长度（含思维链）",
+        "temperature": "温度",
+        "topP": "Top P",
+        "jsonOutput": "JSON Output",
+        "prompt": "提示词",
+        "promptType": "{title}提示词类型",
+        "resetPrompt": "重置提示词",
+        "noTextModels": "没有可用的文本类已添加模型。请先在模型集启用供应商并添加文本生成模型。",
+        "recommendedDeepSeek": "暂未选择，推荐 deepseek-v4-flash",
+        "outputFormats": {
+          "jsonObject": "开启",
+          "text": "关闭"
+        }
+      },
+      "sections": {
+        "defaultConversation": "默认会话模型",
+        "conversationNaming": "会话命名模型",
+        "memoryCompression": "记忆压缩模型",
+        "projectMemoryManagement": "项目记忆管理模型",
+        "globalMemoryManagement": "全局记忆管理模型"
+      },
+      "defaultConversation": {
+        "placeholder": "未指定时使用当前会话模型",
+        "emptyModels": "没有可用的会话模型。请先在模型集启用供应商并添加文本生成模型。",
+        "returnThinkingContent": "工具调用时返回思考内容",
+        "streamingOutput": "流式输出",
+        "returnCancelledMessages": "返回截断消息",
+        "returnUserBeforeCancelled": "返回截断前用户消息",
+        "systemPrompt": "主 Agent 系统提示词",
+        "role": "角色",
+        "description": "新建普通会话时使用此角色的全部配置。"
+      },
+      "conversationNaming": {
+        "triggerTokenThreshold": "触发 Token 阈值",
+        "triggerTokenDescription": "会话最近一次完整请求的上下文达到该值后创建自动命名功能会话。默认 20K；供应商未返回真实用量时使用当前 Token 估算设置。",
+        "cacheHitOptimizationMode": "缓存命中优化模式",
+        "cacheHitOptimizationDescription": "复用触发命名的真实请求模型、生成设置和会话前缀，再追加自动命名任务。",
+        "cacheHitOptimizationSettingsNote": "模型、推理、温度、Top P 和最大输出长度均跟随触发命名的最近一次真实请求。",
+        "cacheHitOptimizationBoundaryNote": "命名材料从会话开头累计到阈值，并向后取到最近的完整合法消息组；不会拆开工具调用与工具结果。缺少真实请求快照或合法边界时不创建任务。",
+        "modelModeGroup": "运行模式",
+        "sessionReasoningPlaceholder": "跟随本轮会话"
+      },
+      "memoryCompression": {
+        "prompt": "压缩与长期记忆",
+        "failureRetryCount": "失败重试次数",
+        "failureRetryDescription": "首次失败后的额外尝试次数。网络与超时错误按短暂退避重试；输出格式错误最多重试一次；0 表示不自动重试，最大 10 次。",
+        "cacheHitOptimizationMode": "缓存命中优化模式",
+        "cacheHitOptimizationDescription": "复用触发本次压缩的真实会话模型和原请求前缀，只在末尾追加记忆压缩任务，尽量提高供应商上下文缓存的命中机会，降低重复输入成本。",
+        "cacheHitOptimizationSettingsNote": "模型和推理设置跟随触发压缩的那次真实请求；温度、Top P 和最大输出长度仍使用本页设置。",
+        "cacheHitOptimizationBoundaryNote": "缓存命中取决于供应商，不保证每次命中。缺少真实请求快照或无法精确定位压缩范围时会明确失败，不会自动改用独立模型。",
+        "modelModeGroup": "运行模式",
+        "sessionReasoningPlaceholder": "跟随本轮会话"
+      },
+      "longTermMemoryManagement": {
+        "triggerTokenThreshold": "增量触发 Token 阈值",
+        "projectTriggerTokenDescription": "自上次成功管理后，新增的完整合法消息组累计达到该值时创建项目记忆管理功能会话。默认 50K；工具调用与工具结果不会被拆开。",
+        "globalTriggerTokenDescription": "自上次成功管理后，新增的完整合法消息组累计达到该值时创建全局记忆管理功能会话。默认 100K；工具调用与工具结果不会被拆开。",
+        "blockingEnabled": "阻塞管理",
+        "blockingDescription": "开启后，达到阈值时等待长期记忆管理完成再继续当前会话；关闭时在后台异步执行。",
+        "failureRetryCount": "失败重试次数",
+        "failureRetryDescription": "首次失败后的额外尝试次数。网络与超时错误按短暂退避重试；缺少有效工具调用时最多重试一次；0 表示不自动重试，最大 10 次。",
+        "cacheHitOptimizationMode": "缓存命中优化模式",
+        "cacheHitOptimizationDescription": "复用触发任务的真实请求模型、生成设置和完整有效会话前缀，再追加长期记忆管理任务。",
+        "cacheHitOptimizationSettingsNote": "模型、推理、温度、Top P 和最大输出长度均跟随触发任务的最近一次真实请求。",
+        "cacheHitOptimizationBoundaryNote": "每次任务读取当前完整有效历史；只有 manage_memory 成功完成后才推进增量边界。异步期间新增的消息由下一次任务处理。",
+        "modelModeGroup": "运行模式",
+        "sessionReasoningPlaceholder": "跟随本轮会话"
+      }
+    },
+    "themeSettings": {
+      "title": "主题设定",
+      "themeFile": "主题文件",
+      "selectThemeFile": "选择主题文件",
+      "params": "主题参数",
+      "paramCategories": "主题参数分类",
+      "empty": "暂无可编辑主题。",
+      "colorPickerSuffix": "取色器",
+      "errors": {
+        "loadListFailed": "主题列表载入失败。",
+        "loadFailed": "主题载入失败。",
+        "idMismatch": "主题 id 必须和当前主题文件夹一致。",
+        "saveFailed": "主题保存失败。"
+      },
+      "options": {
+        "mode": {
+          "dark": "深色基类",
+          "light": "浅色基类"
+        },
+        "shiki": {
+          "githubLight": "GitHub 浅色",
+          "githubLightDefault": "GitHub 浅色默认",
+          "githubDark": "GitHub 深色",
+          "githubDarkDefault": "GitHub 深色默认"
+        },
+        "mermaid": {
+          "default": "默认浅色",
+          "neutral": "中性",
+          "dark": "深色",
+          "forest": "森林"
+        }
+      },
+      "sections": {
+        "componentColors": "组件配色",
+        "editor": "编辑器",
+        "background": "背景图层",
+        "integrations": "代码与图表"
+      },
+      "groups": {
+        "info": "主题信息",
+        "surface": "表面颜色",
+        "text": "文字颜色",
+        "border": "边框",
+        "accent": "强调色",
+        "state": "状态色",
+        "collapse": "折叠渐隐",
+        "scrollbar": "滚动条",
+        "shadow": "阴影",
+        "editor": "编辑器",
+        "background": "背景图层",
+        "integrations": "代码与图表主题"
+      },
+      "fields": {
+        "schemaVersion": "结构版本",
+        "id": "主题标识",
+        "name": "主题名称",
+        "mode": "主题基类",
+        "surfaceBase": "基础背景",
+        "surfacePanel": "面板",
+        "surfacePanelAlt": "备用面板",
+        "surfaceToolbar": "工具栏",
+        "surfaceTitlebar": "标题栏",
+        "surfaceStatusbar": "状态栏",
+        "surfaceSidebar": "侧边栏",
+        "surfaceCanvas": "画布",
+        "surfaceElevated": "浮起层",
+        "surfaceMuted": "弱背景",
+        "surfaceOverlay": "遮罩",
+        "surfaceMenu": "菜单",
+        "surfaceInput": "输入框",
+        "surfaceInputHover": "输入框悬停",
+        "surfaceItemHover": "条目悬停",
+        "surfaceItemHoverStrong": "条目强悬停",
+        "textPrimary": "正文",
+        "textSecondary": "次级文字",
+        "textMuted": "弱文字",
+        "textHeading": "标题",
+        "textHeadingAccent": "强调标题",
+        "textInverse": "反色文字",
+        "textSelection": "选区文字",
+        "borderSoft": "柔和边框",
+        "borderSubtle": "细边框",
+        "borderStrong": "强边框",
+        "borderFocus": "焦点边框",
+        "borderSeparator": "分隔线",
+        "accentBase": "主强调色",
+        "accentRgb": "主强调 RGB",
+        "accentHover": "强调悬停",
+        "accentText": "强调文字",
+        "accentSoftText": "柔和强调文字",
+        "accentSelectionText": "强调选中文字",
+        "accentSelectionBgSubtle": "弱选中背景",
+        "accentSelectionBg": "选中背景",
+        "accentSelectionBgHover": "选中悬停背景",
+        "accentSelectionBorder": "选中边框",
+        "accentTextSelectionBg": "文本选区背景",
+        "stateDanger": "危险",
+        "stateDangerText": "危险文字",
+        "stateDangerSoftText": "柔和危险文字",
+        "stateDangerBg": "危险背景",
+        "stateDangerBorder": "危险边框",
+        "stateWarning": "警告",
+        "stateWarningText": "警告文字",
+        "stateSuccess": "成功",
+        "stateSuccessText": "成功文字",
+        "collapseFadeStart": "渐隐起点",
+        "collapseFadeMid": "渐隐中段",
+        "collapseFadeEnd": "渐隐终点",
+        "collapseCaret": "折叠箭头",
+        "scrollbarTrack": "轨道",
+        "scrollbarThumb": "滑块",
+        "scrollbarThumbHover": "滑块悬停",
+        "shadowFloating": "浮层阴影",
+        "shadowPanel": "面板阴影",
+        "editorBackground": "编辑器背景",
+        "editorForeground": "编辑器文字",
+        "editorGutterBackground": "行号背景",
+        "editorGutterForeground": "行号文字",
+        "editorActiveLine": "当前行",
+        "editorSelectionMatch": "选中匹配",
+        "editorTooltipBackground": "提示背景",
+        "backgroundImage": "图片路径",
+        "backgroundOpacity": "透明度",
+        "backgroundBlur": "模糊",
+        "backgroundOverlay": "覆盖色",
+        "backgroundPosition": "位置",
+        "backgroundSize": "尺寸",
+        "backgroundRepeat": "重复",
+        "shikiTheme": "代码高亮",
+        "mermaidTheme": "Mermaid 图表"
+      }
+    },
+    "projectDelete": {
+      "title": {
+        "remove": "移除项目",
+        "delete": "确认删除项目",
+        "deleteLocal": "删除本地文件"
+      },
+      "message": {
+        "remove": "仅从 {productName} 移除“{projectName}”，不会删除真实文件。",
+        "delete": "删除后将无法恢复，确认继续？",
+        "deleteLocal": "会删除“{projectName}”的本地文件夹和其中的文件，同时从 {productName} 移除项目。"
+      },
+      "confirm": {
+        "remove": "移除",
+        "delete": "确认",
+        "deleteLocal": "删除",
+        "removing": "移除中",
+        "deleting": "删除中"
+      }
+    },
+    "projectOverview": {
+      "activeSessions": "活跃 {count}",
+      "deleteFailed": "会话删除失败。",
+      "deleteSessionDeleting": "删除中...",
+      "deleteSessionMessage": "确定删除会话“{title}”吗？删除后会话消息也会一起移除。",
+      "deleteSessionTitle": "删除会话",
+      "emptyCategory": "当前分类没有项目。",
+      "errorSessions": "异常 {count}",
+      "idleSessions": "空闲 {count}",
+      "loadFailed": "项目总览载入失败。",
+      "loadingAria": "正在载入项目总览",
+      "newConversation": "新对话",
+      "noCategory": "请选择一个项目分类。",
+      "pinFailed": "会话置顶状态修改失败。",
+      "projectActions": "项目操作",
+      "renameFailed": "会话重命名失败。",
+      "sectionAria": "{category} 项目总览",
+      "sessionCount": "{count} 个会话",
+      "projectCount": "{count} 个项目",
+      "switchCategory": "切换项目分类",
+      "totalsAria": "分类会话状态统计",
+      "card": {
+        "branchGroup": "对话分支",
+        "childSessionGroup": "AI 子会话",
+        "collapseSession": "收起会话“{title}”",
+        "createdUnknown": "创建时间未知",
+        "createSession": "新建会话",
+        "emptySessionGroup": "暂无",
+        "emptySessions": "暂无会话。",
+        "enterCurrentSession": "进入当前会话",
+        "expandSession": "展开会话“{title}”",
+        "maximize": "放大项目卡片",
+        "noSessionToEnter": "暂无可进入的会话",
+        "revealInExplorer": "在资源管理器中显示",
+        "restore": "还原项目卡片",
+        "saveSessionName": "保存会话名称",
+        "sessionsAria": "会话列表",
+        "functionalSessionGroup": "功能分支",
+        "automaticNamingGroup": "自动命名",
+        "memoryCompactionGroup": "记忆压缩",
+        "projectMemoryManagementGroup": "项目记忆管理",
+        "globalMemoryManagementGroup": "全局记忆管理"
+      },
+      "usage": {
+        "allTotal": "全部总计",
+        "closeAria": "关闭用量统计",
+        "sessionTotalTitle": "会话总计 {value}",
+        "title": "用量统计",
+        "metrics": {
+          "cacheHit": "缓存命中",
+          "cacheMiss": "未命中",
+          "cost": "金额",
+          "input": "输入",
+          "output": "输出",
+          "reasoning": "思考",
+          "total": "总计"
+        }
+      },
+      "views": {
+        "branches": "分支看板",
+        "conversation": "会话总览",
+        "projects": "项目总览",
+        "providers": "供应商配置",
+        "roles": "角色总览",
+        "themes": "主题总览",
+        "tabsAria": "项目集看板",
+        "tools": "工具总览",
+        "toolTabsAria": "工具集看板",
+        "roleTabsAria": "角色集看板",
+        "themeTabsAria": "主题集看板",
+        "providerTabsAria": "模型集看板"
+      }
+    },
+    "providerCanvas": {
+      "disable": "停用",
+      "enable": "启用",
+      "providerLinksAria": "{provider} 相关链接",
+      "renameProvider": "重命名 {provider}",
+      "selectCustomProviderProtocol": "选择自定义供应商协议",
+      "links": {
+        "docs": "文档",
+        "models": "模型",
+        "official": "官网"
+      },
+      "apiAddress": {
+        "placeholder": "输入完整请求地址，程序不会追加路径",
+        "title": "API 地址",
+        "generation": "完整生成 API 地址",
+        "models": "模型列表 API 地址（自动生成，可修改）",
+        "modelsPlaceholder": "输入完整模型列表地址"
+      },
+      "cacheSettings": {
+        "title": "缓存设置", "retention": "前缀缓存有效期阈值",
+        "unitAria": "选择缓存有效期单位",
+        "hint": "用于判断何时把长期记忆更新写入前部注入，不会改变供应商实际缓存时间。",
+        "units": { "minutes": "分钟", "hours": "小时" }
+      },
+      "apiKey": {
+        "add": "新增 API KEY",
+        "clearAria": "清空 {provider} API KEY {index}",
+        "emptyPlaceholder": "输入 {provider} 的 API KEY",
+        "pollAria": "{provider} API KEY {index} 轮询权重",
+        "pollLabel": "轮询权重：",
+        "pollTitle": "轮询权重，0 表示暂时禁用当前 Key",
+        "rpmTitle": "过去 60 秒当前 Key 被调度选中的次数",
+        "savedPlaceholder": "已保存 {hint}，输入新 KEY 可替换",
+        "title": "API KEY"
+      },
+      "errors": {
+        "protocolUpdateFailed": "协议更新失败。",
+        "providerNameRequired": "供应商名称不能为空。"
+      },
+      "modelCheck": {
+        "configSaveFailed": "{model}：配置保存失败。",
+        "currentKey": "当前 Key",
+        "passed": "{model} 已通过 {key}",
+        "testFailed": "{model} 测试失败。"
+      },
+      "usage": {
+        "metrics": {
+          "cacheHit": "命中",
+          "cost": "金额",
+          "input": "输入",
+          "output": "输出",
+          "total": "总计"
+        }
+      },
+      "modelManagement": {
+        "title": "模型管理",
+        "modeAria": "模型管理模式",
+        "modelFallback": "模型",
+        "unnamedModel": "未命名模型",
+        "tabs": {
+          "added": "已添加",
+          "cloud": "云同步",
+          "custom": "自定义"
+        },
+        "capabilities": {
+          "aria": "模型能力标签",
+          "embedding": "嵌入",
+          "functionCalling": "工具",
+          "imageGeneration": "图像生成",
+          "reasoning": "推理",
+          "rerank": "重排",
+          "speechToText": "语音识别",
+          "tts": "TTS",
+          "videoGeneration": "视频生成",
+          "vision": "视觉理解"
+        },
+        "currency": {
+          "cny": "人民币",
+          "usd": "美元"
+        },
+        "pricing": {
+          "perMillionTokens": "百万 Token",
+          "separator": "，"
+        },
+        "test": {
+          "failed": "连接失败",
+          "retestAria": "重新测试 {model}",
+          "success": "连接成功",
+          "testAria": "测试 {model}",
+          "testing": "连接测试中...",
+          "title": "测试模型"
+        },
+        "added": {
+          "all": "全部",
+          "categoryAria": "已添加模型分类",
+          "details": "详情",
+          "editAria": "编辑 {model}",
+          "empty": "当前还没有已添加的自定义模型。",
+          "emptyFiltered": "没有匹配当前搜索或分类的模型。",
+          "loadFailed": "读取已添加模型失败。",
+          "loading": "正在读取已添加模型……",
+          "searchAria": "搜索已添加模型",
+          "searchPlaceholder": "搜索模型名称 / ID / 备注",
+          "tokenUsageLabel": "Token用量：",
+          "usageDetailsAria": "查看 {model} 用量详情",
+          "tooltip": {
+            "group": "分组：{value}",
+            "modelId": "模型 ID：{value}",
+            "note": "备注：{value}",
+            "price": "价格：{value}"
+          }
+        },
+        "cloud": {
+          "addModelAria": "添加 {model}",
+          "addToAdded": "添加到已添加列表",
+          "adding": "添加中",
+          "deleteModelAria": "删除 {model}",
+          "empty": "远端未返回模型项。",
+          "emptyFiltered": "没有匹配的模型。",
+          "expandGroupAria": "展开 {group} 分组",
+          "groupAria": "{group} 分组",
+          "loadFailed": "远端模型拉取失败。",
+          "loading": "正在拉取远端模型列表……",
+          "needsApiKey": "先输入 API KEY",
+          "removeFromAdded": "从已添加列表删除",
+          "searchLabel": "搜索模型",
+          "searchPlaceholder": "搜索模型名称、ID 或分组",
+          "staleCache": "同步失败，当前显示上次缓存。",
+          "syncAria": "同步云模型"
+        },
+        "custom": {
+          "add": "← 添加",
+          "cacheHitPrice": "缓存命中价格",
+          "cacheHitPricePlaceholder": "缓存命中价格 / 百万 Token",
+          "capabilities": "模型分类",
+          "deleteFailed": "删除自定义模型失败。",
+          "inputPrice": "输入价格",
+          "inputPricePlaceholder": "输入价格 / 百万 Token",
+          "invalidPriceFormat": "模型价格格式无效。",
+          "modelGroup": "模型分组",
+          "modelGroupPlaceholder": "用于列表分组，例如 deepseek-ai",
+          "modelId": "模型 ID",
+          "modelIdPlaceholder": "用于请求的模型 ID，例如 deepseek-ai/DeepSeek-R1",
+          "modelIdRequired": "模型 ID 不能为空。",
+          "modelName": "模型名称",
+          "modelNamePlaceholder": "显示在界面里的名称",
+          "note": "备注",
+          "notePlaceholder": "补充模型用途、来源或特殊说明",
+          "outputPrice": "输出价格",
+          "outputPricePlaceholder": "输出价格 / 百万 Token",
+          "price": "价格",
+          "priceCurrencyAria": "模型价格币种",
+          "priceMustBeNonNegative": "{field}必须是大于等于 0 的数字。",
+          "saveChanges": "保存修改",
+          "saveFailed": "保存自定义模型失败。"
+        },
+        "usageDetails": {
+          "allUsage": "全部用途",
+          "byUsage": "按用途",
+          "closeAria": "关闭用量详情",
+          "empty": "暂无按用途拆分的用量记录。",
+          "title": "用量详情"
+        },
+        "usageFeatures": {
+          "conversationNaming": "会话命名模型",
+          "projectMemoryManagement": "项目记忆管理模型",
+          "globalMemoryManagement": "全局记忆管理模型",
+          "mainChat": "主会话",
+          "memoryCompression": "记忆压缩模型",
+          "providerWebSearch": "内置网络搜索"
+        }
+      },
+      "selectProviderProtocol": "选择供应商协议"
+    },
+    "languageSettings": {
+      "title": "语言",
+      "description": "选择天策界面使用的语言。语言包统一从本地 Data/locales 读取。",
+      "selection": "界面语言",
+      "system": "跟随系统",
+      "systemDescription": "按照操作系统语言自动选择，当前为 {language}",
+      "available": "可用语言",
+      "selected": "正在使用",
+      "select": "点击切换",
+      "switching": "正在切换语言…",
+      "loading": "正在载入语言设置…",
+      "saveFailed": "语言设置操作失败。",
+      "retry": "重试",
+      "loadFailed": "无法载入语言设置。",
+      "empty": "没有可用的语言包。"
+    },
+    "githubSettings": {
+      "loading": "正在读取 GitHub 连接状态…",
+      "title": "GitHub 登录",
+      "description": "连接 GitHub 后，可在各在线市场读取已授权给 Tiance Desktop 的私人仓库。",
+      "connected": "已连接",
+      "logout": "退出登录",
+      "loggingOut": "正在退出…",
+      "profile": "查看主页",
+      "repositories": {
+        "title": "已授权仓库",
+        "description": "可参考各默认开源仓库的配置方法配置私人仓库。",
+        "refresh": "刷新",
+        "manage": "添加或移除仓库",
+        "private": "私人仓库",
+        "public": "公开仓库",
+        "empty": "当前账号还没有授权任何仓库。"
+      },
+      "login": {
+        "title": "连接 GitHub",
+        "description": "登录将在系统浏览器中完成。天策只申请读取你明确授权仓库的权限。",
+        "codeLabel": "设备验证码",
+        "waiting": "请在浏览器中输入验证码并完成授权，此页面会自动更新。",
+        "cancel": "取消",
+        "openAgain": "重新打开 GitHub",
+        "starting": "正在连接…",
+        "action": "登录 GitHub"
+      }
+    },
+    "onlineMarketSource": {
+      "default": "默认源",
+      "custom": "自定义源",
+      "privateRepositories": "私人仓库",
+      "loading": "正在读取仓库…",
+      "loadFailed": "读取失败，点击重试",
+      "notConnected": "尚未登录 GitHub。",
+      "empty": "尚未授权私人仓库。",
+      "addPrivateRepository": "添加私人仓库"
+    }
+  }
+}

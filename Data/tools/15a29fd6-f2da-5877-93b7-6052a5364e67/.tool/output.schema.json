@@ -1,0 +1,141 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "completed",
+            "timeout",
+            "start_failed"
+          ],
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "execution_mode": {
+          "enum": [
+            "shell",
+            "argv"
+          ],
+          "type": "string"
+        },
+        "requested_shell": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resolved_shell": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "shell_executable": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "workdir": {
+          "type": "string"
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "expected_exit_codes": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "stdout_truncated": {
+          "type": "boolean"
+        },
+        "stderr_truncated": {
+          "type": "boolean"
+        },
+        "stdout_omitted_bytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stderr_omitted_bytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "timeout_seconds": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "elapsed_ms": {
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "details"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "ok",
+    "summary",
+    "data",
+    "warnings"
+  ],
+  "type": "object"
+}

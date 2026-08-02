@@ -1,0 +1,14 @@
+[
+  {
+    "title": "解析单张图片并直接返回",
+    "content": "输入参数：\n{\n  \"image_paths\": [\"images/page_001.png\"]\n}\n\n适合让 AI 快速读取图片内容。默认不保存文件。"
+  },
+  {
+    "title": "批量解析并保存 Markdown",
+    "content": "输入参数：\n{\n  \"image_paths\": [\"images/page_001.png\", \"images/page_002.png\"],\n  \"save_results\": true,\n  \"output_dir\": \"vision_results\",\n  \"concurrency\": 20\n}\n\n每张图片会保存为原文件名对应的 .md 文件。"
+  },
+  {
+    "title": "自定义用户要求",
+    "content": "输入参数：\n{\n  \"image_paths\": [\"screenshots/app.png\"],\n  \"user_prompt\": \"重点识别界面中的按钮、表单字段、错误提示和它们的位置关系。\",\n  \"thinking_type\": \"disabled\"\n}\n\n系统识别规则固定，user_prompt 只补充当前任务重点。"
+  }
+]

@@ -1,0 +1,17 @@
+{
+  "additionalProperties": false,
+  "description": "需要确保后续动作发生在等待之后时，本轮只调用此工具，等待返回后再发起后续调用。",
+  "properties": {
+    "duration_seconds": {
+      "description": "阻塞等待的秒数，允许小数，范围 0.1–3600 秒。",
+      "maximum": 3600,
+      "minimum": 0.1,
+      "title": "等待秒数",
+      "type": "number"
+    }
+  },
+  "required": [
+    "duration_seconds"
+  ],
+  "type": "object"
+}

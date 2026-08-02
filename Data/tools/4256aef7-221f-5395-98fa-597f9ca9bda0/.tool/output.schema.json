@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "description": "成功时返回操作、内置 Python 路径和对应结果；check 返回环境健康信息，repair 返回权限修复与残留清理明细，包操作返回安装或卸载结果。失败时返回稳定错误码和结构化详情。",
+  "properties": {
+    "data": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

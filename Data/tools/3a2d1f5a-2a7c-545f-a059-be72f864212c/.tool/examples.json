@@ -1,0 +1,22 @@
+[
+  {
+    "title": "快速创建普通 Excel 表格",
+    "content": "{\"action\":\"create\",\"mode\":\"simple_table\",\"output_path\":\"reports/sales_simple.xlsx\",\"overwrite\":true,\"sheet_name\":\"销售表\",\"columns\":[\"区域\",\"销售额\",\"完成率\"],\"rows\":[[\"华东\",120,0.8],[\"华南\",98,0.7],[\"华北\",88,0.65]]}"
+  },
+  {
+    "title": "创建带样式、表格和柱状图的销售看板",
+    "content": "{\"action\":\"create\",\"output_path\":\"reports/sales_dashboard.xlsx\",\"overwrite\":true,\"properties\":{\"title\":\"销售看板\",\"creator\":\"天策\"},\"sheets\":[{\"name\":\"销售看板\",\"tab_color\":\"1F4E79\",\"freeze_panes\":\"A4\",\"merges\":[\"A1:H1\"],\"column_widths\":{\"A\":14,\"B:H\":12},\"row_heights\":{\"1\":28,\"3\":22},\"data_blocks\":[{\"start_cell\":\"A1\",\"rows\":[[\"2026 年销售看板\"]],\"style\":{\"font\":{\"bold\":true,\"size\":16,\"color\":\"FFFFFF\"},\"fill\":{\"color\":\"1F4E79\"},\"alignment\":{\"horizontal\":\"center\",\"vertical\":\"center\"}}},{\"start_cell\":\"A3\",\"header\":true,\"rows\":[[\"区域\",\"一月\",\"二月\",\"三月\",\"四月\",\"合计\",\"完成率\",\"评级\"],[\"华东\",120,135,148,160,\"=SUM(B4:E4)\",\"=F4/600\",\"A\"],[\"华南\",98,112,126,141,\"=SUM(B5:E5)\",\"=F5/560\",\"B\"],[\"华北\",88,95,110,123,\"=SUM(B6:E6)\",\"=F6/520\",\"B\"],[\"西部\",72,84,97,105,\"=SUM(B7:E7)\",\"=F7/460\",\"C\"]],\"header_style\":{\"font\":{\"bold\":true,\"color\":\"FFFFFF\"},\"fill\":{\"color\":\"5B9BD5\"},\"alignment\":{\"horizontal\":\"center\"}},\"style\":{\"border\":{\"style\":\"thin\",\"color\":\"D9E2F3\"},\"alignment\":{\"horizontal\":\"center\"}}}],\"ranges\":[{\"range\":\"G4:G7\",\"number_format\":\"0.0%\"},{\"range\":\"F4:F7\",\"number_format\":\"#,##0\"}],\"tables\":[{\"name\":\"SalesTable\",\"range\":\"A3:H7\",\"style\":\"TableStyleMedium2\"}],\"conditional_formats\":[{\"type\":\"data_bar\",\"range\":\"F4:F7\",\"color\":\"63C384\"},{\"type\":\"color_scale\",\"range\":\"G4:G7\",\"colors\":[\"F8696B\",\"FFEB84\",\"63BE7B\"]}],\"charts\":[{\"type\":\"bar\",\"title\":\"区域销售合计\",\"anchor\":\"J3\",\"data_range\":\"B3:F7\",\"categories_range\":\"A4:A7\",\"height\":8,\"width\":14,\"y_axis_title\":\"销售额\"}]}]}"
+  },
+  {
+    "title": "读取已有 Excel 摘要",
+    "content": "{\"action\":\"inspect\",\"input_path\":\"reports/sales_dashboard.xlsx\"}"
+  },
+  {
+    "title": "编辑已有 Excel 并另存为新文件",
+    "content": "{\"action\":\"edit\",\"input_path\":\"reports/sales_dashboard.xlsx\",\"output_path\":\"reports/sales_dashboard_edited.xlsx\",\"operations\":[{\"type\":\"set_cells\",\"sheet\":\"销售看板\",\"cells\":[{\"cell\":\"A10\",\"value\":\"备注\"},{\"cell\":\"B10\",\"formula\":\"=SUM(F4:F7)\"}]},{\"type\":\"merge_cells\",\"sheet\":\"销售看板\",\"ranges\":[\"A10:D10\"]},{\"type\":\"set_style\",\"sheet\":\"销售看板\",\"range\":\"A10:D10\",\"style\":{\"font\":{\"bold\":true,\"size\":12,\"color\":\"FFFFFF\"},\"fill\":{\"color\":\"1F4E79\"},\"alignment\":{\"horizontal\":\"center\"}}},{\"type\":\"set_dimensions\",\"sheet\":\"销售看板\",\"column_widths\":{\"A:D\":16},\"row_heights\":{\"10\":24}}]}"
+  },
+  {
+    "title": "预检编辑操作但不写文件",
+    "content": "{\"action\":\"validate\",\"target_action\":\"edit\",\"input_path\":\"reports/sales_dashboard.xlsx\",\"operations\":[{\"type\":\"append_rows\",\"sheet\":\"销售看板\",\"rows\":[[\"东北\",80,90,100,110,\"=SUM(B8:E8)\",\"=F8/480\",\"B\"]]}]}"
+  }
+]

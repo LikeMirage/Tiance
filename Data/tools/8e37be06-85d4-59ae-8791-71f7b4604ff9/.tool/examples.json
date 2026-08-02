@@ -1,0 +1,18 @@
+[
+  {
+    "title": "查看当前打开的标签页",
+    "content": "{\"action\":\"list_tabs\"}"
+  },
+  {
+    "title": "打开并展示项目文件",
+    "content": "{\"action\":\"open_file\",\"path\":\"docs/report.md\"}"
+  },
+  {
+    "title": "生成后展示 Office 文件",
+    "content": "{\"action\":\"open_file\",\"path\":\"reports/project_report.docx\"}"
+  },
+  {
+    "title": "清理其它已保存标签",
+    "content": "{\"action\":\"close_others_clean\",\"path\":\"docs/report.md\"}"
+  }
+]

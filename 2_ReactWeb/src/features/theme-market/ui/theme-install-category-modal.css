@@ -1,0 +1,22 @@
+.theme-install-category-select {
+  --ds-option-select-integrated-radius: 6px;
+  --ds-option-select-options-max-height: min(210px, 36vh);
+
+  width: 100%;
+}
+
+.theme-install-category-select .ds-option-select__trigger {
+  min-height: 30px;
+  padding: 0 10px;
+  background: var(--color-surface-input);
+}
+
+.theme-install-category-select.ds-option-select--open .ds-option-select__trigger,
+.theme-install-category-select.ds-option-select--floating .ds-option-select__options {
+  background: var(--color-surface-menu);
+}
+
+.theme-install-category-select .ds-option-select__option {
+  min-height: 30px;
+  font-size: 0.8rem;
+}

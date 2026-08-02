@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "categories.builtin_bootstrapped": "1"
+  },
+  "categories": [
+    {
+      "category_id": "default-theme-category",
+      "name": "基础主题",
+      "is_default": true,
+      "sort_order": 0,
+      "created_at": "2026-08-01T14:38:39.132840+00:00",
+      "updated_at": "2026-08-01T14:38:39.132840+00:00"
+    },
+    {
+      "category_id": "9ba5ec95-9bc6-49cc-a349-f84be3c85743",
+      "name": "新建分类",
+      "is_default": false,
+      "sort_order": 1,
+      "created_at": "2026-08-01T15:39:17.745807+00:00",
+      "updated_at": "2026-08-01T15:39:17.745807+00:00"
+    }
+  ],
+  "projects": [
+    {
+      "project_id": "dd909ba9-5e66-527d-b50d-955135f38b02",
+      "name": "暗金",
+      "category_id": "default-theme-category",
+      "is_default": false,
+      "sort_order": 0,
+      "created_at": "2026-08-01T14:38:52.266349+00:00",
+      "updated_at": "2026-08-01T14:38:52.266349+00:00",
+      "root_name": "dark-gold"
+    },
+    {
+      "project_id": "1c495642-3bcb-5b5d-b4cc-60a0a4661ec3",
+      "name": "宣纸墨晕",
+      "category_id": "9ba5ec95-9bc6-49cc-a349-f84be3c85743",
+      "is_default": false,
+      "sort_order": 0,
+      "created_at": "2026-08-01T15:46:55.968560+00:00",
+      "updated_at": "2026-08-01T15:46:55.994407+00:00",
+      "root_name": "xuan-paper-ink"
+    },
+    {
+      "project_id": "11bd8a92-fd48-5059-b8db-4149384d2ac4",
+      "name": "浅色",
+      "category_id": "default-theme-category",
+      "is_default": false,
+      "sort_order": 1,
+      "created_at": "2026-08-01T14:38:52.267941+00:00",
+      "updated_at": "2026-08-01T14:38:52.267941+00:00",
+      "root_name": "light"
+    },
+    {
+      "project_id": "3e10ff4d-ab27-5968-901f-50aa16453625",
+      "name": "枫汀秋霁",
+      "category_id": "9ba5ec95-9bc6-49cc-a349-f84be3c85743",
+      "is_default": false,
+      "sort_order": 1,
+      "created_at": "2026-08-01T15:55:52.628410+00:00",
+      "updated_at": "2026-08-01T15:55:52.664280+00:00",
+      "root_name": "autumn-rain-clear"
+    },
+    {
+      "project_id": "3cb8146f-b09f-536e-a51a-923ba1242bba",
+      "name": "昆仑雪境",
+      "category_id": "default-theme-category",
+      "is_default": false,
+      "sort_order": 2,
+      "created_at": "2026-08-02T00:27:56.732431+00:00",
+      "updated_at": "2026-08-02T00:27:56.732431+00:00",
+      "root_name": "kunlun-snow-night"
+    },
+    {
+      "project_id": "cff08cf0-bbc3-5155-9e72-da404918bd4a",
+      "name": "霁雪寒川",
+      "category_id": "9ba5ec95-9bc6-49cc-a349-f84be3c85743",
+      "is_default": false,
+      "sort_order": 2,
+      "created_at": "2026-08-02T00:53:30.783664+00:00",
+      "updated_at": "2026-08-02T00:53:30.800304+00:00",
+      "root_name": "winter-snow"
+    }
+  ]
+}

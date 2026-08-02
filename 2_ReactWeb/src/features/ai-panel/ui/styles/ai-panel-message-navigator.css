@@ -1,0 +1,175 @@
+.ai-panel__message-navigator {
+  position: absolute;
+  top: 20%;
+  right: calc(var(--scrollbar-size) + 1px);
+  bottom: 20%;
+  z-index: 6;
+  width: 6px;
+  pointer-events: auto;
+}
+
+.ai-panel__message-navigator-track {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 28px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  opacity: 0;
+  overscroll-behavior: contain;
+  pointer-events: none;
+  scrollbar-width: none;
+  transform: translateX(10px);
+  transition: opacity 120ms ease, transform 140ms ease;
+}
+
+.ai-panel__message-navigator-track::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-panel__message-navigator--expanded,
+.ai-panel__message-navigator:has(:focus-visible) {
+  width: 28px;
+}
+
+.ai-panel__message-navigator-marks {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: max(calc(var(--message-nav-count) * 10px), 100%);
+}
+
+.ai-panel__message-navigator--expanded .ai-panel__message-navigator-track,
+.ai-panel__message-navigator:has(:focus-visible) .ai-panel__message-navigator-track {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.ai-panel__message-navigator-mark {
+  position: relative;
+  z-index: 0;
+  display: grid;
+  flex: 0 0 10px;
+  place-items: center end;
+  width: 28px;
+  height: 10px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ai-panel__message-navigator-mark:hover,
+.ai-panel__message-navigator-mark:focus-visible {
+  z-index: 1;
+  outline: none;
+}
+
+.ai-panel__message-navigator-tick {
+  display: block;
+  width: 12px;
+  height: 2px;
+  background: var(--color-text-muted);
+  opacity: 0.55;
+  transition: width 120ms ease, height 120ms ease, background-color 120ms ease, opacity 120ms ease;
+}
+
+.ai-panel__message-navigator-mark:hover .ai-panel__message-navigator-tick,
+.ai-panel__message-navigator-mark--hovered .ai-panel__message-navigator-tick,
+.ai-panel__message-navigator-mark:focus-visible .ai-panel__message-navigator-tick {
+  width: 20px;
+  background: var(--color-text-primary);
+  opacity: 0.92;
+}
+
+.ai-panel__message-navigator-mark--active .ai-panel__message-navigator-tick {
+  width: 20px;
+  height: 2px;
+  background: var(--color-accent);
+  opacity: 1;
+}
+
+.ai-panel__message-navigator--hovering
+  .ai-panel__message-navigator-mark--active
+  .ai-panel__message-navigator-tick {
+  width: 12px;
+  background: var(--color-text-muted);
+  opacity: 0.55;
+}
+
+.ai-panel__message-navigator-mark--near-hover .ai-panel__message-navigator-tick {
+  width: var(--message-nav-hover-width);
+  opacity: 0.92;
+}
+
+.ai-panel__message-navigator--hovering
+  .ai-panel__message-navigator-mark--hovered
+  .ai-panel__message-navigator-tick {
+  width: 28px;
+  background: var(--color-accent);
+  opacity: 1;
+}
+
+.ai-panel__message-navigator-preview {
+  position: fixed;
+  z-index: 5000;
+  display: grid;
+  gap: 4px;
+  box-sizing: border-box;
+  width: min(270px, calc(100vw - 72px));
+  max-width: calc(100vw - 72px);
+  padding: 9px 10px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 6px;
+  background: var(--color-surface-menu);
+  box-shadow: var(--shadow-floating);
+  color: var(--color-text-primary);
+  text-align: left;
+  pointer-events: none;
+  transform: translateY(-50%);
+  animation: ai-panel-message-preview-in 120ms ease both;
+}
+
+@keyframes ai-panel-message-preview-in {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) translateX(4px);
+  }
+}
+
+.ai-panel__message-navigator-preview strong,
+.ai-panel__message-navigator-preview small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
+}
+
+.ai-panel__message-navigator-preview strong {
+  -webkit-line-clamp: 2;
+  font-size: 0.76rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.ai-panel__message-navigator-preview small {
+  -webkit-line-clamp: 2;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+html.ds-window-resizing .ai-panel__message-navigator-track,
+html.ds-window-resizing .ai-panel__message-navigator-tick {
+  transition: none;
+}
+
+.ai-panel__message-navigator + .ai-panel__scroll-bottom {
+  right: 42px;
+}

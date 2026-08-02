@@ -1,0 +1,10 @@
+[
+  {
+    "title": "按关键词发现工具系统相关文件",
+    "content": "当不知道工具系统代码具体在哪时，按多个关键词筛选文件路径和文本内容，并返回高分文件预览。\n\n输入参数：\n{\n  \"keywords\": [\"工具系统\", \"工具制作\", \"tool\"],\n  \"include_globs\": [\"1_PythonServer/app/**/*tool*.py\", \"2_ReactWeb/src/**/*tool*.*\", \"4_文档/*工具*.md\"],\n  \"max_files\": 10,\n  \"max_total_chars\": 20000\n}\n\n各关键词独立做字面包含匹配；不会自动识别同义词或中英文对应关系。"
+  },
+  {
+    "title": "固定关键文件并补充关键词搜索",
+    "content": "当已知少量关键文件、还需要发现相关文件时，用 paths 强制纳入关键文件，再用 keywords 补充筛选。\n\n输入参数：\n{\n  \"keywords\": [\"聊天\", \"工具调用\", \"tool_execution\"],\n  \"paths\": [\"1_PythonServer/app/services/project/conversation_tool_loop.py\", \"1_PythonServer/app/services/tools/tool_execution.py\"],\n  \"max_files\": 8,\n  \"max_total_chars\": 18000\n}\n\n如果全部文件路径都已明确，直接使用 read_many_files。"
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "title": "预览新增文件",
+    "content": "{\"dry_run\":true,\"patch_text\":\"--- /dev/null\\n+++ b/docs/example.md\\n@@ -0,0 +1,3 @@\\n+# Example\\n+\\n+content\\n\"}"
+  },
+  {
+    "title": "应用单文件修改",
+    "content": "{\"patch_text\":\"--- a/README.md\\n+++ b/README.md\\n@@ -1,1 +1,1 @@\\n-old title\\n+new title\\n\"}"
+  },
+  {
+    "title": "带备份应用补丁",
+    "content": "{\"patch_text\":\"--- a/docs/a.md\\n+++ b/docs/a.md\\n@@ -2,1 +2,1 @@\\n-old\\n+new\\n\",\"backup\":true}"
+  },
+  {
+    "title": "修改 GBK 文件",
+    "content": "{\"encoding\":\"gbk\",\"patch_text\":\"--- a/legacy.txt\\n+++ b/legacy.txt\\n@@ -1 +1 @@\\n-旧值\\n+新值\\n\"}"
+  }
+]

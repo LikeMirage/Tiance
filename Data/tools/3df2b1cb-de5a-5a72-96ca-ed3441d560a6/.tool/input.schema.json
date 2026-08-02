@@ -1,0 +1,11 @@
+{
+  "additionalProperties": false,
+  "description": "提交当前记忆压缩任务的结构化结果。",
+  "properties": {
+    "result": {
+      "description": "按本次记忆压缩任务要求生成的完整 JSON 对象。",
+      "type": "object"
+    }
+  },
+  "type": "object"
+}

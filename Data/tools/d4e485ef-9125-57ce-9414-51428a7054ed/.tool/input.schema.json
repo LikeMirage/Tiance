@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "description": "执行一个已启用的动态加载工具。目标工具必须来自动态工具目录，arguments 必须符合目标工具的完整参数定义。",
+  "properties": {
+    "arguments": {
+      "additionalProperties": true,
+      "description": "目标动态工具需要的真实参数对象。",
+      "title": "目标工具参数",
+      "type": "object"
+    },
+    "tool_name": {
+      "description": "目标动态工具调用名。使用动态工具目录中的准确名称。",
+      "title": "目标工具",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tool_name",
+    "arguments"
+  ],
+  "type": "object"
+}
