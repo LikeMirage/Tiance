@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Tiance API Server"
-    app_version: str = "0.1.0"
+    app_version: str = "0.2.0"
     environment: str = "development"
     log_level: str = "INFO"
     api_prefix: str = "/api"
