@@ -1,0 +1,75 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "description": "为当前项目建立和检索 SQLite FTS5 文本索引。没有索引时先执行 index；文件变化后执行 update。check_changes 可列出新增、修改、删除和无法读取的文件。",
+  "properties": {
+    "operation": {
+      "type": "string",
+      "enum": ["index", "update", "search", "check_changes", "status", "rebuild", "delete_index"],
+      "default": "search",
+      "description": "要执行的索引操作。"
+    },
+    "source_path": {
+      "type": "string",
+      "description": "要索引的工作区内文件或目录，默认整个工作区。已有索引会沿用首次记录的来源路径。"
+    },
+    "database_path": {
+      "type": "string",
+      "description": "索引数据库在工作区内的路径，默认 .Tiance/cache/text-search/index.sqlite3。"
+    },
+    "query": {"type": "string", "description": "search 使用的查询文本。"},
+    "mode": {
+      "type": "string",
+      "enum": ["simple", "all", "any", "phrase", "raw"],
+      "default": "simple",
+      "description": "检索模式。raw 直接使用 FTS5 MATCH 查询语法；其他模式会安全构造查询。"
+    },
+    "path_prefix": {"type": "string", "description": "只返回指定工作区相对目录或文件下的结果。"},
+    "extensions": {
+      "type": "array",
+      "items": {"type": "string"},
+      "maxItems": 50,
+      "description": "只返回指定扩展名，例如 [\".md\", \"py\"]。"
+    },
+    "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
+    "offset": {"type": "integer", "minimum": 0, "maximum": 100000, "default": 0},
+    "context_chars": {"type": "integer", "minimum": 40, "maximum": 1000, "default": 160},
+    "check_stale": {
+      "type": "boolean",
+      "default": false,
+      "description": "search 或 status 时是否同时检查索引与本地文件的差异。"
+    },
+    "verification": {
+      "type": "string",
+      "enum": ["quick", "hash"],
+      "default": "quick",
+      "description": "过期检查方式。quick 比较文件大小和纳秒修改时间；hash 重新读取内容并计算哈希。"
+    },
+    "change_type": {
+      "type": "string",
+      "enum": ["all", "new", "modified", "deleted", "unreadable"],
+      "default": "all",
+      "description": "check_changes 只返回指定变化类型。"
+    },
+    "max_file_bytes": {
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 104857600,
+      "default": 5242880,
+      "description": "单个文本文件的最大索引大小，默认 5 MiB。"
+    },
+    "include_globs": {
+      "type": "array",
+      "items": {"type": "string"},
+      "maxItems": 100,
+      "description": "可选包含规则，例如 [\"docs/**\", \"src/**/*.py\"]。"
+    },
+    "exclude_globs": {
+      "type": "array",
+      "items": {"type": "string"},
+      "maxItems": 100,
+      "description": "额外排除规则，例如 [\"archive/**\", \"**/*.min.js\"]。"
+    }
+  },
+  "required": ["operation"]
+}

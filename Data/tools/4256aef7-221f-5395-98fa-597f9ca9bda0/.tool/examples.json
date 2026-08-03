@@ -1,7 +1,7 @@
 [
   {
     "title": "主动安装工具依赖",
-    "content": "已确定 PDF 转图片工具缺少 PyMuPDF 时，调用 {\"operation\":\"install\",\"target_tool\":\"pdf_to_images_pymupdf\",\"packages\":[\"PyMuPDF>=1.26,<2\"]}。主动安装不要求依赖已写入 requirements.txt。"
+    "content": "已确定某个工具缺少 httpx 时，调用 {\"operation\":\"install\",\"target_tool\":\"目标工具名称或 ID\",\"packages\":[\"httpx>=0.28,<1\"]}。主动安装不要求依赖已写入 requirements.txt。"
   },
   {
     "title": "根据工具声明一键补齐",

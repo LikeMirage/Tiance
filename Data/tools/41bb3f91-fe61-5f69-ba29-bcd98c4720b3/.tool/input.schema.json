@@ -162,7 +162,7 @@
           },
           "style": {
             "additionalProperties": true,
-            "description": "样式设置，例如 font_size、font_family、east_asia_font、bold、italic、color、align、space_after、table_style、header_fill。",
+            "description": "样式设置，例如 font_size、font_family、east_asia_font、bold、italic、color、align、space_after、table_style、header_fill。表格可用 column_widths 显式指定各列比例；不传时按中英文内容、换行代价和页面可用宽度自动计算。",
             "type": "object"
           }
         },

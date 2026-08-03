@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "ok": {"type": "boolean"},
+    "summary": {"type": "string"},
+    "data": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "operation": {"type": "string"},
+        "workspace_root": {"type": "string"},
+        "database_path": {"type": "string"},
+        "stale": {"type": "boolean"},
+        "changes": {"type": ["array", "object"]},
+        "results": {"type": "array"}
+      },
+      "required": ["operation", "workspace_root", "database_path"]
+    },
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "error": {"type": "string"},
+    "error_info": {"type": "object"}
+  },
+  "required": ["ok"]
+}

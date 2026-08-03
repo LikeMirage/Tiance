@@ -12,6 +12,15 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 from word_formula import latex_to_word_omml, preprocess_latex
+from word_table_width import (
+    CELL_HORIZONTAL_PADDING_POINTS,
+    FontTextMeasurer,
+    apply_column_widths,
+    calculate_column_widths,
+    document_available_width_points,
+    set_cell_margins,
+    set_repeat_header,
+)
 
 
 DEFAULT_THEME = {
@@ -236,13 +245,41 @@ def add_table(doc: Document, spec: dict[str, Any], theme: dict[str, Any]) -> Any
     style = spec.get("style") if isinstance(spec.get("style"), dict) else {}
     table.style = str(style.get("table_style") or "Table Grid")
     table.alignment = table_alignment(style.get("align") or "center")
+    normalized_rows = [
+        ["" if index >= len(row) or row[index] is None else str(row[index]) for index in range(col_count)]
+        if isinstance(row, list)
+        else [""] * col_count
+        for row in rows
+    ]
+    explicit_widths = style.get("column_widths")
+    if isinstance(explicit_widths, list) and len(explicit_widths) == col_count:
+        try:
+            column_widths = [max(0.0, float(value)) for value in explicit_widths]
+        except (TypeError, ValueError):
+            column_widths = []
+    else:
+        column_widths = []
+    if not column_widths or sum(column_widths) <= 0:
+        font_name = str(style.get("font_family") or theme["font_family"])
+        font_size = float(style.get("font_size") or 11)
+        with FontTextMeasurer(font_name=font_name, size_points=font_size) as measurer:
+            column_widths = calculate_column_widths(
+                normalized_rows[0],
+                normalized_rows[1:],
+                available_width_points=document_available_width_points(doc),
+                cell_padding_points=CELL_HORIZONTAL_PADDING_POINTS,
+                measurer=measurer,
+            )
+    apply_column_widths(table, column_widths, doc)
+    set_repeat_header(table.rows[0])
     for row_index, row in enumerate(rows):
         if not isinstance(row, list):
             continue
         for col_index in range(col_count):
             cell = table.cell(row_index, col_index)
             cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-            cell.text = "" if col_index >= len(row) or row[col_index] is None else str(row[col_index])
+            set_cell_margins(cell)
+            cell.text = normalized_rows[row_index][col_index]
             if row_index == 0:
                 shade_cell(cell, str(style.get("header_fill") or theme["table_header_color"]))
                 apply_cell_text_style(cell, {"bold": True, "color": style.get("header_color") or "FFFFFF"}, theme)
@@ -300,7 +337,7 @@ def add_formula_to_paragraph(paragraph: Any, latex: str, theme: dict[str, Any], 
         run.font.size = Pt(11)
         return False
 
-    omml, error = latex_to_word_omml(normalized, xsl_path=FORMULA_XSL_PATH)
+    omml, error = latex_to_word_omml(latex, xsl_path=FORMULA_XSL_PATH)
     if omml is not None:
         paragraph._p.append(omml)
         return False

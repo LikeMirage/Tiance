@@ -1,0 +1,18 @@
+[
+  {
+    "title": "建立整个项目的全文索引",
+    "content": "首次使用时调用：\n{\n  \"operation\": \"index\"\n}\n索引默认保存到 .Tiance/cache/text-search/index.sqlite3。"
+  },
+  {
+    "title": "检索中文内容并检查是否过期",
+    "content": "{\n  \"operation\": \"search\",\n  \"query\": \"长期记忆变更通知\",\n  \"mode\": \"phrase\",\n  \"extensions\": [\".md\", \".py\"],\n  \"check_stale\": true\n}"
+  },
+  {
+    "title": "查看已过期文件",
+    "content": "快速比较路径、大小和纳秒修改时间：\n{\n  \"operation\": \"check_changes\",\n  \"verification\": \"quick\",\n  \"change_type\": \"all\"\n}\n需要确认内容是否真正变化时把 verification 改为 hash。"
+  },
+  {
+    "title": "增量更新索引",
+    "content": "{\n  \"operation\": \"update\"\n}\n只重建新增或内容变化的文件，并清理已删除文件。"
+  }
+]
