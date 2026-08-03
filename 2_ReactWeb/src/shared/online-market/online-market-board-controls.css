@@ -1,0 +1,74 @@
+.online-market-source-form.online-market-source-form {
+  grid-template-columns: 168px minmax(0, 1fr) 58px auto;
+  min-width: 0;
+  min-height: 36px;
+  height: 36px;
+  padding: 0;
+}
+
+.online-market-source-form.online-market-source-form .online-market-source-selector {
+  width: 168px;
+}
+
+.online-market-source-form.online-market-source-form .online-market-source-selector__trigger {
+  width: 168px;
+  min-width: 168px;
+  max-width: 168px;
+  height: 35px;
+  min-height: 35px;
+  border: 0;
+  border-right: 1px solid var(--color-border-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+
+.online-market-source-form.online-market-source-form .online-market-source-form__input {
+  align-self: stretch;
+  height: auto;
+  border: 0;
+  border-right: 1px solid var(--color-border-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+
+.online-market-source-form.online-market-source-form .online-market-source-form__button,
+.online-market-source-form.online-market-source-form > .github-sync-control__trigger {
+  align-self: stretch;
+  height: auto;
+  min-height: 35px;
+  border: 0;
+  border-right: 1px solid var(--color-border-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+
+.online-market-source-form.online-market-source-form > .github-sync-control__trigger {
+  border-right: 0;
+}
+
+.online-market-source-form__address-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 10px;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 0.74rem;
+  line-height: 35px;
+  text-overflow: ellipsis;
+  user-select: text;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .online-market-source-form.online-market-source-form {
+    grid-template-columns: 150px minmax(180px, 1fr) 58px auto;
+    overflow-x: auto;
+  }
+
+  .online-market-source-form.online-market-source-form .online-market-source-selector,
+  .online-market-source-form.online-market-source-form .online-market-source-selector__trigger {
+    width: 150px;
+    min-width: 150px;
+    max-width: 150px;
+  }
+}

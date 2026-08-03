@@ -5,6 +5,7 @@ import {
   MagnifyingGlass,
 } from "@phosphor-icons/react";
 import type { FormEvent, ReactNode } from "react";
+import "./online-market-board-controls.css";
 
 export type OnlineMarketBoardClasses = {
   button: string;
@@ -95,31 +96,47 @@ export function OnlineMarketSourceForm({
   source,
 }: OnlineMarketSourceFormProps) {
   const normalizedDraft = normalizeOnlineMarketSourceText(draftSource);
+  const displaySource = normalizedDraft.replace(/^https?:\/\/(?:www\.)?/i, "");
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onConnect();
   };
 
   return (
-    <form className={`${classes.source} online-market-source-form`} onSubmit={handleSubmit}>
+    <form
+      className={`${classes.source} online-market-source-form${readOnly ? " online-market-source-form--readonly" : ""}`}
+      onSubmit={handleSubmit}
+    >
       {selector}
-      <div className={classes.input}>
+      <div className={`${classes.input} online-market-source-form__input`}>
         <LinkSimple size={15} aria-hidden="true" />
-        <input
-          autoComplete="off"
-          aria-label={placeholder}
-          disabled={isLoading}
-          id={inputId}
-          onChange={(event) => onDraftSourceChange(event.target.value)}
-          placeholder={placeholder}
-          readOnly={readOnly}
-          spellCheck={false}
-          type="url"
-          value={draftSource}
-        />
+        {readOnly ? (
+          <span
+            aria-label={placeholder}
+            aria-readonly="true"
+            className="online-market-source-form__address-text"
+            id={inputId}
+            role="textbox"
+            title={normalizedDraft}
+          >
+            {displaySource}
+          </span>
+        ) : (
+          <input
+            autoComplete="off"
+            aria-label={placeholder}
+            disabled={isLoading}
+            id={inputId}
+            onChange={(event) => onDraftSourceChange(event.target.value)}
+            placeholder={placeholder}
+            spellCheck={false}
+            type="url"
+            value={draftSource}
+          />
+        )}
       </div>
       <button
-        className={`${classes.button} ${classes.primaryButton}`}
+        className={`${classes.button} ${classes.primaryButton} online-market-source-form__button`}
         disabled={isLoading || !normalizedDraft}
         type="submit"
       >

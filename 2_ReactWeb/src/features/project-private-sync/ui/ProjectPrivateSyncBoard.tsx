@@ -10,7 +10,7 @@ import {
   Square,
   X,
 } from "@phosphor-icons/react";
-import { useMemo, useState } from "react";
+import { Children, useMemo, useState } from "react";
 
 import type {
   GithubProjectSyncFile,
@@ -18,6 +18,7 @@ import type {
 } from "../../../services/github/githubSyncApi";
 import { useI18n } from "../../../shared/i18n";
 import type { TranslationKey } from "../../../shared/i18n/locales";
+import { useOverlayScrollbar } from "../../../shared/model/overlay-scrollbar/useOverlayScrollbar";
 import { useProjectPrivateSync } from "../model/useProjectPrivateSync";
 import "./project-private-sync-board.css";
 
@@ -154,10 +155,42 @@ export function ProjectPrivateSyncBoard({ active, header }: ProjectPrivateSyncBo
 }
 
 function SyncColumn({ children, title }: { children: React.ReactNode; title: string }) {
+  const scrollbar = useOverlayScrollbar(`${title}:${Children.count(children)}`);
+
   return (
     <section className="project-private-sync-board__column">
       <header>{title}</header>
-      <div>{children}</div>
+      <div className="project-private-sync-board__column-body-shell">
+        <div
+          className="project-private-sync-board__column-body"
+          onScroll={scrollbar.handleScroll}
+          ref={scrollbar.scrollRef}
+        >
+          {children}
+        </div>
+        {scrollbar.isVisible ? (
+          <div
+            className={
+              scrollbar.isActive
+                ? "project-private-sync-board__scrollbar project-private-sync-board__scrollbar--active"
+                : "project-private-sync-board__scrollbar"
+            }
+            onPointerDown={scrollbar.handleTrackPointerDown}
+          >
+            <div
+              className="project-private-sync-board__scrollbar-thumb"
+              onPointerCancel={scrollbar.handleThumbPointerCancel}
+              onPointerDown={scrollbar.handleThumbPointerDown}
+              onPointerMove={scrollbar.handleThumbPointerMove}
+              onPointerUp={scrollbar.handleThumbPointerUp}
+              style={{
+                height: `${scrollbar.thumbHeight}px`,
+                transform: `translateY(${scrollbar.thumbTop}px)`,
+              }}
+            />
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }
