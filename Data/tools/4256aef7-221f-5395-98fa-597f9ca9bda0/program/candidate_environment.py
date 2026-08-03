@@ -21,18 +21,18 @@ from windows_permissions import (
     PermissionManagementError,
     inspect_protected_paths,
     reset_environment_path_permissions,
-    reset_user_package_permissions,
+    reset_package_permissions,
 )
 
 
 class CandidateEnvironment:
     def __init__(
         self,
-        user_packages_root: Path,
+        packages_root: Path,
         *,
         auto_repair_permissions: bool = True,
     ) -> None:
-        self._user_packages_root = user_packages_root
+        self._packages_root = packages_root
         self._auto_repair_permissions = auto_repair_permissions
         self._working_root: Path | None = None
         self.path: Path | None = None
@@ -46,21 +46,21 @@ class CandidateEnvironment:
             self._discard_working_environment()
             if not self._auto_repair_permissions:
                 raise _clone_environment_error(exc) from exc
-            repair = reset_user_package_permissions(self._user_packages_root)
+            repair = reset_package_permissions(self._packages_root)
             if not repair.succeeded:
                 raise EnvironmentError(
                     "ENVIRONMENT_PERMISSION_REPAIR_FAILED",
-                    "用户依赖环境权限异常，自动修复失败。",
+                    "工具依赖环境权限异常，自动修复失败。",
                     {
                         "requires_elevation": True,
                         "permission_repair": repair.to_dict(),
                     },
                 ) from exc
             removed_candidates, failed_candidates = _cleanup_failed_candidates(
-                self._user_packages_root
+                self._packages_root
             )
             self.preparation_warnings.append(
-                "检测到用户依赖环境权限异常，已自动恢复目录权限。"
+                "检测到工具依赖环境权限异常，已自动恢复目录权限。"
             )
             if removed_candidates:
                 self.preparation_warnings.append(
@@ -95,7 +95,7 @@ class CandidateEnvironment:
         generation_site_packages = generation_root / "site-packages"
         try:
             _write_active_environment(
-                self._user_packages_root,
+                self._packages_root,
                 generation_site_packages,
             )
         except Exception:
@@ -105,17 +105,17 @@ class CandidateEnvironment:
         self._working_root = None
         self.path = generation_site_packages
         return _cleanup_obsolete_environments(
-            self._user_packages_root,
+            self._packages_root,
             active_generation=generation_root,
         )
 
     def _create_working_environment(self) -> None:
-        environments_root = self._user_packages_root / ENVIRONMENTS_DIRECTORY
+        environments_root = self._packages_root / ENVIRONMENTS_DIRECTORY
         environments_root.mkdir(parents=True, exist_ok=True)
         self._working_root = environments_root / f".candidate-{uuid.uuid4().hex}"
         self._working_root.mkdir()
         self.path = self._working_root / "site-packages"
-        active_directory = resolve_active_site_packages(self._user_packages_root)
+        active_directory = resolve_active_site_packages(self._packages_root)
         if active_directory.is_dir():
             shutil.copytree(active_directory, self.path)
         else:
@@ -127,7 +127,7 @@ class CandidateEnvironment:
     ) -> None:
         assert self._working_root is not None
         permission_result = reset_environment_path_permissions(
-            self._user_packages_root,
+            self._packages_root,
             self._working_root,
         )
         if not permission_result.succeeded:
@@ -165,7 +165,7 @@ class CandidateEnvironment:
                 *tuple(self.path.iterdir()),
             )
             return inspect_protected_paths(
-                self._user_packages_root,
+                self._packages_root,
                 check_paths,
             )
         except (OSError, PermissionManagementError) as exc:
@@ -197,13 +197,13 @@ def _clone_environment_error(exc: BaseException) -> EnvironmentError:
         ]
     return EnvironmentError(
         "ENVIRONMENT_CLONE_FAILED",
-        "无法复制当前用户依赖环境。",
+        "无法复制当前工具依赖环境。",
         details,
     )
 
 
-def _write_active_environment(user_packages_root: Path, site_packages: Path) -> None:
-    root = user_packages_root.resolve()
+def _write_active_environment(packages_root: Path, site_packages: Path) -> None:
+    root = packages_root.resolve()
     target = site_packages.resolve()
     try:
         relative_target = target.relative_to(root)
@@ -229,13 +229,13 @@ def _write_active_environment(user_packages_root: Path, site_packages: Path) -> 
 
 
 def _cleanup_obsolete_environments(
-    user_packages_root: Path,
+    packages_root: Path,
     *,
     active_generation: Path,
 ) -> list[str]:
-    environments_root = user_packages_root / ENVIRONMENTS_DIRECTORY
+    environments_root = packages_root / ENVIRONMENTS_DIRECTORY
     warnings: list[str] = []
-    if _has_active_runtime_leases(user_packages_root):
+    if _has_active_runtime_leases(packages_root):
         return warnings
     try:
         candidates = tuple(environments_root.iterdir())
@@ -256,8 +256,8 @@ def _cleanup_obsolete_environments(
     return warnings
 
 
-def _cleanup_failed_candidates(user_packages_root: Path) -> tuple[int, int]:
-    environments_root = user_packages_root / ENVIRONMENTS_DIRECTORY
+def _cleanup_failed_candidates(packages_root: Path) -> tuple[int, int]:
+    environments_root = packages_root / ENVIRONMENTS_DIRECTORY
     removed = 0
     failed = 0
     try:
@@ -275,8 +275,8 @@ def _cleanup_failed_candidates(user_packages_root: Path) -> tuple[int, int]:
     return removed, failed
 
 
-def _has_active_runtime_leases(user_packages_root: Path) -> bool:
-    leases_root = user_packages_root / LEASES_DIRECTORY
+def _has_active_runtime_leases(packages_root: Path) -> bool:
+    leases_root = packages_root / LEASES_DIRECTORY
     if not leases_root.is_dir():
         return False
     cutoff = time.time() - LEASE_STALE_SECONDS

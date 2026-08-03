@@ -27,11 +27,8 @@ class EnvironmentError(RuntimeError):
 class RuntimePaths:
     python_executable: Path
     pip_runner: Path
-    user_packages_root: Path
-
-    @property
-    def target_directory(self) -> Path:
-        return resolve_active_site_packages(self.user_packages_root)
+    runtime_root: Path
+    tools_root: Path
 
 
 def resolve_runtime_paths(python_executable: str | Path) -> RuntimePaths:
@@ -55,13 +52,14 @@ def resolve_runtime_paths(python_executable: str | Path) -> RuntimePaths:
     return RuntimePaths(
         python_executable=executable,
         pip_runner=pip_runner,
-        user_packages_root=runtime_root / "python-packages" / "user" / "py313",
+        runtime_root=runtime_root,
+        tools_root=runtime_root.parent / "tools",
     )
 
 
-def resolve_active_site_packages(user_packages_root: Path) -> Path:
-    legacy_directory = user_packages_root / LEGACY_SITE_PACKAGES_DIRECTORY
-    pointer_file = user_packages_root / ACTIVE_ENVIRONMENT_FILE
+def resolve_active_site_packages(packages_root: Path) -> Path:
+    legacy_directory = packages_root / LEGACY_SITE_PACKAGES_DIRECTORY
+    pointer_file = packages_root / ACTIVE_ENVIRONMENT_FILE
     if not pointer_file.is_file():
         return legacy_directory
 
@@ -70,44 +68,44 @@ def resolve_active_site_packages(user_packages_root: Path) -> Path:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise EnvironmentError(
             "ACTIVE_ENVIRONMENT_INVALID",
-            "用户依赖活动环境记录损坏。",
+            "工具依赖活动环境记录损坏。",
             {"pointer_file": str(pointer_file)},
         ) from exc
     if not isinstance(payload, dict) or payload.get("schema_version") != ACTIVE_ENVIRONMENT_SCHEMA_VERSION:
         raise EnvironmentError(
             "ACTIVE_ENVIRONMENT_INVALID",
-            "用户依赖活动环境记录版本无效。",
+            "工具依赖活动环境记录版本无效。",
             {"pointer_file": str(pointer_file)},
         )
     relative_value = payload.get("site_packages")
     if not isinstance(relative_value, str) or not relative_value.strip():
         raise EnvironmentError(
             "ACTIVE_ENVIRONMENT_INVALID",
-            "用户依赖活动环境路径无效。",
+            "工具依赖活动环境路径无效。",
             {"pointer_file": str(pointer_file)},
         )
 
-    root = user_packages_root.resolve()
+    root = packages_root.resolve()
     relative_path = Path(relative_value)
     site_packages = (root / relative_path).resolve()
     if relative_path.is_absolute() or not _is_relative_to(site_packages, root):
         raise EnvironmentError(
             "ACTIVE_ENVIRONMENT_INVALID",
-            "用户依赖活动环境路径越出存储目录。",
+            "工具依赖活动环境路径越出存储目录。",
             {"pointer_file": str(pointer_file)},
         )
     if not site_packages.is_dir():
         raise EnvironmentError(
             "ACTIVE_ENVIRONMENT_MISSING",
-            "用户依赖活动环境不存在。",
+            "工具依赖活动环境不存在。",
             {"target_directory": str(site_packages)},
         )
     return site_packages
 
 
 class EnvironmentLock:
-    def __init__(self, user_packages_root: Path) -> None:
-        self._lock_file = user_packages_root / ".package-manager.lock"
+    def __init__(self, packages_root: Path) -> None:
+        self._lock_file = packages_root / ".package-manager.lock"
         self._acquired = False
 
     def __enter__(self) -> "EnvironmentLock":

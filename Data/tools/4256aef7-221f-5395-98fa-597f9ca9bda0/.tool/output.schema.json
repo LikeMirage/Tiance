@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "成功时返回操作、内置 Python 路径和对应结果；check 返回环境健康信息，repair 返回权限修复与残留清理明细，包操作返回安装或卸载结果。失败时返回稳定错误码和结构化详情。",
+  "description": "成功时返回目标工具或目录、实际依赖路径和对应结果；check 返回环境健康信息，repair 返回权限修复与残留清理明细，包操作返回安装或卸载结果。失败时返回稳定错误码和结构化详情。",
   "properties": {
     "data": {
       "additionalProperties": true,

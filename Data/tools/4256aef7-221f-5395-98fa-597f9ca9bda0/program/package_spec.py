@@ -6,7 +6,15 @@ from typing import Any
 from urllib.parse import urlsplit
 
 
-OPERATIONS = {"check", "install", "list", "repair", "show", "uninstall"}
+OPERATIONS = {
+    "check",
+    "install",
+    "install_requirements",
+    "list",
+    "repair",
+    "show",
+    "uninstall",
+}
 DEFAULT_INDEX_URL = "https://mirrors.aliyun.com/pypi/simple/"
 _PACKAGE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _REQUIREMENT_RE = re.compile(
@@ -29,6 +37,8 @@ class InputError(ValueError):
 class PackageRequest:
     operation: str
     packages: tuple[str, ...]
+    target_path: str | None
+    target_tool: str | None
     index_url: str
     timeout_seconds: int
 
@@ -38,15 +48,26 @@ def parse_request(payload: dict[str, Any]) -> PackageRequest:
     if operation not in OPERATIONS:
         raise InputError(
             "INVALID_OPERATION",
-            "operation 必须是 check、install、list、repair、show 或 uninstall。",
+            "operation 必须是 check、install、install_requirements、list、repair、show 或 uninstall。",
             {"operation": payload.get("operation")},
         )
     packages = _read_packages(payload.get("packages"), operation=operation)
+    target_tool, target_path = _read_target(
+        payload.get("target_tool"),
+        payload.get("target_path"),
+    )
+    if operation == "install_requirements" and target_path is not None:
+        raise InputError(
+            "TOOL_TARGET_REQUIRED",
+            "install_requirements 只能用于工具目标。",
+        )
     index_url = _read_index_url(payload.get("index_url"), operation=operation)
     timeout_seconds = _read_timeout(payload.get("timeout_seconds"))
     return PackageRequest(
         operation=operation,
         packages=packages,
+        target_path=target_path,
+        target_tool=target_tool,
         index_url=index_url,
         timeout_seconds=timeout_seconds,
     )
@@ -69,7 +90,7 @@ def _read_packages(value: Any, *, operation: str) -> tuple[str, ...]:
     else:
         raise InputError("INVALID_PACKAGES", "packages 必须是字符串数组。")
 
-    if operation in {"check", "list", "repair"}:
+    if operation in {"check", "install_requirements", "list", "repair"}:
         if items:
             raise InputError(
                 "PACKAGES_NOT_ALLOWED",
@@ -123,7 +144,7 @@ def _parse_package_name(value: str) -> str:
 
 
 def _read_index_url(value: Any, *, operation: str) -> str:
-    if operation != "install":
+    if operation not in {"install", "install_requirements"}:
         if value not in {None, ""}:
             raise InputError("INDEX_URL_NOT_ALLOWED", f"{operation} 操作不接收 index_url。")
         return DEFAULT_INDEX_URL
@@ -134,6 +155,35 @@ def _read_index_url(value: Any, *, operation: str) -> str:
     if parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise InputError("UNSAFE_INDEX_URL", "index_url 不能包含凭证、查询参数或片段。")
     return index_url
+
+
+def parse_install_requirement(value: str) -> str:
+    return _parse_requirement(value.strip())
+
+
+def _read_target(tool_value: Any, path_value: Any) -> tuple[str | None, str | None]:
+    target_tool = _read_optional_target_text(tool_value, field_name="target_tool")
+    target_path = _read_optional_target_text(path_value, field_name="target_path")
+    if target_tool is not None and target_path is not None:
+        raise InputError(
+            "AMBIGUOUS_TARGET",
+            "target_tool 和 target_path 不能同时填写。",
+        )
+    return target_tool, target_path
+
+
+def _read_optional_target_text(value: Any, *, field_name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise InputError("INVALID_TARGET", f"{field_name} 必须是字符串。")
+    normalized = value.strip()
+    if not normalized or len(normalized) > 500 or "\x00" in normalized:
+        raise InputError(
+            "INVALID_TARGET",
+            f"{field_name} 长度必须在 1-500 个字符之间。",
+        )
+    return normalized
 
 
 def _read_timeout(value: Any) -> int:

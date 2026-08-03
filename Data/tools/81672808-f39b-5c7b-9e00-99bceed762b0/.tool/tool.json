@@ -1,5 +1,5 @@
 {
-  "description": "执行完整、多行、复杂引号或需要用户依赖的 Python 脚本时使用；测试、构建和环境检查等普通短命令使用 run_command。默认等待脚本结束并返回结果；长期运行时显式选择 detached，需要先等待再自动转后台时选择 auto_detach。支持 expected_exit_codes，前台和后台使用相同的成功判定；后台脚本与日志会持久保存。",
+  "description": "执行完整、多行、复杂引号或需要额外依赖的 Python 脚本时使用；额外依赖由 pip_package_manager 安装到本工具自己的 dependencies 目录。测试、构建和环境检查等普通短命令使用 run_command。支持等待、后台运行、预期退出码和持久日志。",
   "display_name": "Python 脚本执行",
   "execution": {
     "parallel": false
@@ -18,7 +18,7 @@
     "脚本",
     "执行",
     "固定解释器",
-    "用户依赖",
+    "独立依赖",
     "stdout",
     "stderr",
     "后台运行",

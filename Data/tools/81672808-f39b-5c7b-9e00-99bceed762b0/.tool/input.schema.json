@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "执行 Python 脚本。script_text 和 script_path 二选一；运行时会自动加载 pip_package_manager 安装的用户依赖。默认使用 wait 并等待脚本结束；需要后台运行时显式选择 detached 或 auto_detach。默认工作目录是工作区根目录，脚本和工作目录默认不能越出工作区。",
+  "description": "执行 Python 脚本。script_text 和 script_path 二选一；运行时会自动加载 pip_package_manager 安装到本工具 dependencies 目录的独立依赖。默认使用 wait 并等待脚本结束；需要后台运行时显式选择 detached 或 auto_detach。默认工作目录是工作区根目录，脚本和工作目录默认不能越出工作区。",
   "properties": {
     "script_text": {
       "description": "要执行的 Python 脚本文本。适合多行脚本、复杂引号和临时验证脚本。与 script_path 二选一。",

@@ -9,6 +9,7 @@ import pytest
 from app.core.errors import BadRequestError
 from app.infra.tools.tool_project_config_constants import TOOL_REQUIREMENTS_FILE
 from app.services.tools.tool_dependency_tasks import ToolDependencyTaskService
+from app.services.tools.tool_dependency_runtime import resolve_tool_site_packages
 from app.services.tools.tool_dependencies import ToolDependencyService
 from tests.tool_project_test_support import ToolProjectFixture
 
@@ -44,6 +45,21 @@ def _write_dist_info(
         "\n".join(f"{path},," for path in record_files),
         encoding="utf-8",
     )
+
+
+def test_tool_dependency_runtime_prefers_active_environment(tmp_path):
+    tool_root = tmp_path / "tool"
+    dependency_root = tool_root / "dependencies" / "py313"
+    legacy = dependency_root / "site-packages"
+    active = dependency_root / "environments" / "env-test" / "site-packages"
+    legacy.mkdir(parents=True)
+    active.mkdir(parents=True)
+    (dependency_root / "active.json").write_text(
+        '{"schema_version":1,"site_packages":"environments/env-test/site-packages"}',
+        encoding="utf-8",
+    )
+
+    assert resolve_tool_site_packages(tool_root) == active.resolve()
 
 
 def test_tool_dependency_service_lists_requirement_statuses(tmp_path):

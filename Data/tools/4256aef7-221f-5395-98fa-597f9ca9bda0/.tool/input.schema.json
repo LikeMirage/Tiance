@@ -1,54 +1,40 @@
 {
   "additionalProperties": false,
-  "description": "管理天策内置 Python 用户依赖。check 检查环境权限和可复制性；repair 只修复天策用户依赖目录；install 时 packages 填写 1-20 个包名或版本范围；show 或 uninstall 时只填写包名；list、check、repair 不传 packages。",
+  "description": "管理天策内置 Python 依赖。默认目标是 Python 脚本执行工具；也可用 target_tool 按工具名、显示名称、市场 ID 或文件夹 ID 定位工具，或用 target_path 指定其他安装目录。install 主动安装 packages，不与 requirements.txt 校对；install_requirements 一键安装目标工具 program/requirements.txt 中的全部声明。",
   "properties": {
     "operation": {
       "description": "要执行的依赖管理操作。",
-      "enum": [
-        "check",
-        "install",
-        "list",
-        "repair",
-        "show",
-        "uninstall"
-      ],
+      "enum": ["check", "install", "install_requirements", "list", "repair", "show", "uninstall"],
       "options": [
-        {
-          "description": "检查用户依赖环境权限、候选目录和可复制性。",
-          "value": "check"
-        },
-        {
-          "description": "安装或升级指定依赖。",
-          "value": "install"
-        },
-        {
-          "description": "列出用户依赖目录中的全部包。",
-          "value": "list"
-        },
-        {
-          "description": "恢复用户依赖目录权限并清理失败残留。",
-          "value": "repair"
-        },
-        {
-          "description": "查看指定包的已安装版本。",
-          "value": "show"
-        },
-        {
-          "description": "从用户依赖目录卸载指定包。",
-          "value": "uninstall"
-        }
+        {"description": "检查目标依赖目录。", "value": "check"},
+        {"description": "主动安装或升级 packages，不校对依赖声明。", "value": "install"},
+        {"description": "根据目标工具的 program/requirements.txt 一键补齐依赖。", "value": "install_requirements"},
+        {"description": "列出目标目录中的全部包。", "value": "list"},
+        {"description": "修复工具独立依赖目录的权限和失败残留。", "value": "repair"},
+        {"description": "查看指定包的已安装版本。", "value": "show"},
+        {"description": "从目标依赖目录卸载指定包。", "value": "uninstall"}
       ],
       "title": "操作",
       "type": "string"
     },
+    "target_tool": {
+      "description": "目标工具名称、显示名称、市场 ID 或工具文件夹 ID。与 target_path 二选一；两者都不填时默认 Python 脚本执行工具。",
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "目标工具",
+      "type": "string"
+    },
+    "target_path": {
+      "description": "显式指定其他依赖安装目录，支持绝对路径或相对当前工作目录的路径。不能与 target_tool 同时填写；install_requirements 和 repair 不支持路径目标。",
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "目标目录",
+      "type": "string"
+    },
     "packages": {
       "default": [],
-      "description": "包列表。install 支持例如 requests、openpyxl==3.1.5、pandas>=2.2,<3；show 和 uninstall 只支持包名；list、check、repair 留空。",
-      "items": {
-        "maxLength": 200,
-        "minLength": 1,
-        "type": "string"
-      },
+      "description": "install 支持普通 PyPI 包名和版本范围；show、uninstall 只填写包名；其他操作留空。主动安装不要求依赖已写入 requirements.txt。",
+      "items": {"maxLength": 200, "minLength": 1, "type": "string"},
       "maxItems": 20,
       "title": "依赖包",
       "type": "array",
@@ -56,7 +42,7 @@
     },
     "index_url": {
       "default": "https://mirrors.aliyun.com/pypi/simple/",
-      "description": "install 使用的 PyPI 镜像地址，默认使用阿里云 PyPI 镜像。必须是不含用户名、密码、查询参数和片段的 http/https 地址。",
+      "description": "install 和 install_requirements 使用的 PyPI 镜像地址。",
       "title": "PyPI 镜像",
       "type": "string"
     },
@@ -69,8 +55,6 @@
       "type": "integer"
     }
   },
-  "required": [
-    "operation"
-  ],
+  "required": ["operation"],
   "type": "object"
 }

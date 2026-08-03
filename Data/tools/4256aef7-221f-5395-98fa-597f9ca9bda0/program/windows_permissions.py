@@ -55,10 +55,10 @@ class PermissionRepairResult:
 
 
 def inspect_protected_paths(
-    user_packages_root: Path,
+    packages_root: Path,
     paths: tuple[Path, ...],
 ) -> tuple[Path, ...]:
-    root = validate_user_packages_root(user_packages_root)
+    root = validate_managed_packages_root(packages_root)
     checked_paths = tuple(_validated_child(root, path) for path in paths)
     if os.name != "nt" or not checked_paths:
         return ()
@@ -127,16 +127,16 @@ def inspect_protected_paths(
     return tuple(protected)
 
 
-def reset_user_package_permissions(user_packages_root: Path) -> PermissionRepairResult:
-    root = validate_user_packages_root(user_packages_root)
+def reset_package_permissions(packages_root: Path) -> PermissionRepairResult:
+    root = validate_managed_packages_root(packages_root)
     return _reset_permissions(root)
 
 
 def reset_environment_path_permissions(
-    user_packages_root: Path,
+    packages_root: Path,
     target_path: Path,
 ) -> PermissionRepairResult:
-    root = validate_user_packages_root(user_packages_root)
+    root = validate_managed_packages_root(packages_root)
     target = _validated_child(root, target_path)
     return _reset_permissions(target)
 
@@ -193,18 +193,19 @@ def _reset_permissions(target: Path) -> PermissionRepairResult:
     )
 
 
-def validate_user_packages_root(user_packages_root: Path) -> Path:
-    root = user_packages_root.resolve(strict=False)
-    if (
-        not _RUNTIME_VERSION_PATTERN.fullmatch(root.name)
-        or root.parent.name != "user"
-        or root.parent.parent.name != "python-packages"
-        or root.parent.parent.parent.name != "runtime"
+def validate_managed_packages_root(packages_root: Path) -> Path:
+    root = packages_root.resolve(strict=False)
+    tool_root = root.parent.parent
+    if not (
+        _RUNTIME_VERSION_PATTERN.fullmatch(root.name)
+        and root.parent.name == "dependencies"
+        and tool_root.parent.name == "tools"
+        and tool_root.parent.parent.name == "Data"
     ):
         raise PermissionManagementError(
             "UNSAFE_PERMISSION_ROOT",
-            "拒绝修改不属于天策用户 Python 依赖区的目录权限。",
-            {"user_packages_root": str(root)},
+            "拒绝修改不属于天策工具 Python 依赖区的目录权限。",
+            {"packages_root": str(root)},
         )
     return root
 
@@ -217,7 +218,7 @@ def _validated_child(root: Path, path: Path) -> Path:
         raise PermissionManagementError(
             "UNSAFE_PERMISSION_PATH",
             "权限检查路径越出天策用户 Python 依赖区。",
-            {"path": str(resolved), "user_packages_root": str(root)},
+            {"path": str(resolved), "packages_root": str(root)},
         ) from exc
     return resolved
 

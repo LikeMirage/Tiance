@@ -296,7 +296,7 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
         data = {
             "python_executable": sys.executable,
             "python_version": sys.version.split()[0],
-            "user_site_packages": str(runtime.user_site_packages or ""),
+            "dependency_site_packages": str(runtime.dependency_site_packages or ""),
             "command": list(outcome.command),
             "workdir": str(workdir),
             "source": outcome.source,

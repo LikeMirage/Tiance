@@ -17,16 +17,41 @@ import python_runtime  # noqa: E402
 
 
 class PythonRuntimeTests(unittest.TestCase):
+    def test_moves_legacy_shared_environment_into_tool_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runtime_root = Path(temp_dir) / "Data" / "runtime"
+            legacy_root = runtime_root / "python-packages" / "user" / "py313"
+            legacy_site = legacy_root / "site-packages"
+            legacy_site.mkdir(parents=True)
+            (legacy_site / "marker.txt").write_text("kept", encoding="utf-8")
+            target_root = (
+                Path(temp_dir)
+                / "Data"
+                / "tools"
+                / "python-tool"
+                / "dependencies"
+                / "py313"
+            )
+            with patch.object(
+                python_runtime,
+                "resolve_embedded_runtime_root",
+                return_value=runtime_root,
+            ), patch.object(
+                python_runtime,
+                "resolve_tool_dependencies_root",
+                return_value=target_root,
+            ):
+                resolved = python_runtime.resolve_dependency_site_packages_path()
+            self.assertEqual(resolved, target_root / "site-packages")
+            self.assertEqual((resolved / "marker.txt").read_text(encoding="utf-8"), "kept")
+            self.assertFalse(legacy_root.exists())
+
     def test_resolves_versioned_active_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            runtime_root = Path(temp_dir) / "runtime"
-            executable = runtime_root / "python/py313/python.exe"
-            executable.parent.mkdir(parents=True)
-            executable.touch()
-            user_root = runtime_root / "python-packages/user/py313"
-            site_packages = user_root / "environments/env-test/site-packages"
+            dependencies_root = Path(temp_dir) / "Data/tools/tool/dependencies/py313"
+            site_packages = dependencies_root / "environments/env-test/site-packages"
             site_packages.mkdir(parents=True)
-            (user_root / "active.json").write_text(
+            (dependencies_root / "active.json").write_text(
                 json.dumps(
                     {
                         "schema_version": 1,
@@ -35,7 +60,12 @@ class PythonRuntimeTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            resolved = python_runtime.resolve_user_site_packages_path(executable)
+            with patch.object(
+                python_runtime,
+                "resolve_tool_dependencies_root",
+                return_value=dependencies_root,
+            ):
+                resolved = python_runtime.resolve_dependency_site_packages_path()
         self.assertEqual(resolved, site_packages)
 
     def test_explicitly_injects_user_and_caller_import_paths(self) -> None:
@@ -48,7 +78,7 @@ class PythonRuntimeTests(unittest.TestCase):
                 path.mkdir()
             with patch.object(
                 python_runtime,
-                "resolve_user_site_packages_path",
+                "resolve_dependency_site_packages_path",
                 return_value=user_packages,
             ):
                 runtime = python_runtime.build_runtime(
@@ -77,11 +107,11 @@ class PythonRuntimeTests(unittest.TestCase):
             )
             with patch.object(
                 python_runtime,
-                "resolve_user_packages_root",
+                "resolve_tool_dependencies_root",
                 return_value=root,
             ):
                 with python_runtime.prepared_runtime(root, {}) as runtime:
-                    self.assertEqual(runtime.user_site_packages, site_packages)
+                    self.assertEqual(runtime.dependency_site_packages, site_packages)
                     self.assertEqual(len(list((root / "leases").glob("lease-*.json"))), 1)
                 self.assertEqual(list((root / "leases").glob("lease-*.json")), [])
 
@@ -108,7 +138,7 @@ class PythonRuntimeTests(unittest.TestCase):
                     if (value := os.environ.get(key))
                 },
                 import_paths=(workdir, user_packages),
-                user_site_packages=user_packages,
+                dependency_site_packages=user_packages,
             )
             completed = python_runtime.run_script(
                 script,

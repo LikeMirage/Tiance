@@ -22,13 +22,13 @@ from windows_permissions import (  # noqa: E402
     PermissionManagementError,
     PermissionRepairResult,
     inspect_protected_paths,
-    reset_user_package_permissions,
-    validate_user_packages_root,
+    reset_package_permissions,
+    validate_managed_packages_root,
 )
 
 
-def _user_packages_root(temp_dir: str) -> Path:
-    root = Path(temp_dir) / "runtime" / "python-packages" / "user" / "py313"
+def _tool_packages_root(temp_dir: str) -> Path:
+    root = Path(temp_dir) / "Data" / "tools" / "tool-id" / "dependencies" / "py313"
     (root / "site-packages").mkdir(parents=True)
     return root
 
@@ -37,12 +37,12 @@ class EnvironmentHealthTests(unittest.TestCase):
     def test_permission_root_rejects_unrelated_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             with self.assertRaises(PermissionManagementError) as raised:
-                validate_user_packages_root(Path(temp_dir))
+                validate_managed_packages_root(Path(temp_dir))
             self.assertEqual(raised.exception.code, "UNSAFE_PERMISSION_ROOT")
 
     def test_candidate_retries_after_scoped_permission_repair(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = _user_packages_root(temp_dir)
+            root = _tool_packages_root(temp_dir)
             source = root / "site-packages"
             (source / "marker.txt").write_text("kept", encoding="utf-8")
             real_copytree = shutil.copytree
@@ -57,7 +57,7 @@ class EnvironmentHealthTests(unittest.TestCase):
 
             repair = PermissionRepairResult(True, 0, "", "", True)
             with patch("candidate_environment.shutil.copytree", side_effect=flaky_copytree), patch(
-                "candidate_environment.reset_user_package_permissions",
+                "candidate_environment.reset_package_permissions",
                 return_value=repair,
             ):
                 with CandidateEnvironment(root) as candidate:
@@ -71,13 +71,13 @@ class EnvironmentHealthTests(unittest.TestCase):
 
     def test_candidate_returns_stable_error_when_repair_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = _user_packages_root(temp_dir)
+            root = _tool_packages_root(temp_dir)
             repair = PermissionRepairResult(True, 5, "denied", "", False)
             with patch(
                 "candidate_environment.shutil.copytree",
                 side_effect=OSError(5, "access denied"),
             ), patch(
-                "candidate_environment.reset_user_package_permissions",
+                "candidate_environment.reset_package_permissions",
                 return_value=repair,
             ):
                 with self.assertRaises(EnvironmentError) as raised:
@@ -90,7 +90,7 @@ class EnvironmentHealthTests(unittest.TestCase):
 
     def test_health_report_marks_protected_paths_unhealthy(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = _user_packages_root(temp_dir)
+            root = _tool_packages_root(temp_dir)
             protected = root / "site-packages" / "protected-package"
             protected.mkdir()
             with patch(
@@ -104,7 +104,7 @@ class EnvironmentHealthTests(unittest.TestCase):
 
     def test_health_report_marks_failed_candidate_residue_unhealthy(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = _user_packages_root(temp_dir)
+            root = _tool_packages_root(temp_dir)
             residue = root / "environments" / ".candidate-leftover"
             residue.mkdir(parents=True)
             report = inspect_environment(root)
@@ -121,7 +121,7 @@ class EnvironmentHealthTests(unittest.TestCase):
         if not icacls:
             self.skipTest("icacls is unavailable")
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = _user_packages_root(temp_dir)
+            root = _tool_packages_root(temp_dir)
             protected = root / "site-packages" / "protected-package"
             protected.mkdir()
             changed = subprocess.run(
@@ -132,7 +132,7 @@ class EnvironmentHealthTests(unittest.TestCase):
             self.assertEqual(changed.returncode, 0)
             before = inspect_protected_paths(root, (protected,))
             self.assertEqual(before, (protected.resolve(),))
-            repaired = reset_user_package_permissions(root)
+            repaired = reset_package_permissions(root)
             self.assertTrue(repaired.succeeded)
             after = inspect_protected_paths(root, (protected,))
             self.assertEqual(after, ())

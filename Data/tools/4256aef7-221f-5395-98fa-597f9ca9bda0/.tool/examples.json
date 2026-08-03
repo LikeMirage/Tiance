@@ -1,18 +1,22 @@
 [
   {
-    "title": "检查并修复依赖环境",
-    "content": "安装或卸载出现 ENVIRONMENT_UNHEALTHY、ENVIRONMENT_CLONE_FAILED 或 WinError 5 时，先调用 {\"operation\":\"check\"} 查看环境状态，再调用 {\"operation\":\"repair\"} 恢复天策用户依赖目录权限。repair 不接收任意路径。"
+    "title": "主动安装工具依赖",
+    "content": "已确定 PDF 转图片工具缺少 PyMuPDF 时，调用 {\"operation\":\"install\",\"target_tool\":\"pdf_to_images_pymupdf\",\"packages\":[\"PyMuPDF>=1.26,<2\"]}。主动安装不要求依赖已写入 requirements.txt。"
   },
   {
-    "title": "安装脚本缺少的依赖",
-    "content": "Python 脚本因 ModuleNotFoundError 缺少 requests 时，调用 {\"operation\":\"install\",\"packages\":[\"requests>=2.32,<3\"]}。安装成功后重新调用 run_python_script，无需手动设置 PYTHONPATH。"
+    "title": "根据工具声明一键补齐",
+    "content": "调用 {\"operation\":\"install_requirements\",\"target_tool\":\"Markdown 转 DOCX\"}，读取该工具 program/requirements.txt 并把全部依赖安装到它自己的独立目录。"
   },
   {
-    "title": "查看已安装的用户依赖",
-    "content": "调用 {\"operation\":\"list\"}，返回用户依赖目录中的包名和版本。"
+    "title": "为 Python 脚本安装依赖",
+    "content": "Python 脚本因 ModuleNotFoundError 缺少 requests 时，调用 {\"operation\":\"install\",\"packages\":[\"requests>=2.32,<3\"]}。省略目标时默认安装到 Python 脚本执行工具自己的 dependencies 目录。"
   },
   {
-    "title": "卸载不再使用的依赖",
-    "content": "调用 {\"operation\":\"uninstall\",\"packages\":[\"requests\"]}。只会修改隔离的用户依赖目录，不会更改后端和桌面壳依赖。"
+    "title": "安装到明确的其他目录",
+    "content": "确实需要把依赖安装到其他目录时，调用 {\"operation\":\"install\",\"target_path\":\"C:/my-python-libs\",\"packages\":[\"requests\"]}。"
+  },
+  {
+    "title": "检查和修复工具依赖环境",
+    "content": "安装或卸载出现环境权限异常时，先调用 {\"operation\":\"check\",\"target_tool\":\"工具名\"}，再调用 repair。repair 只修改目标工具自己的 dependencies 目录。"
   }
 ]

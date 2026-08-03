@@ -11,7 +11,6 @@ from app.domain.tools import (
     ToolDependencyUninstallResult,
 )
 from app.infra.tools.tool_project_config_constants import (
-    TOOL_DEPENDENCIES_DIR,
     TOOL_REQUIREMENTS_FILE,
 )
 from app.services.tools.tool_dependency_requirements import (
@@ -23,6 +22,7 @@ from app.services.tools.tool_dependency_requirements import (
 from app.services.tools.tool_dependency_runtime import (
     CommandRunner,
     normalize_index_url,
+    resolve_tool_site_packages,
     run_command,
 )
 from app.services.tools.tool_dependency_site_packages import (
@@ -160,7 +160,7 @@ class ToolDependencyService:
     def _target_site_packages(self, folder_root: Path) -> Path:
         if self._fixed_target_site_packages is not None:
             return self._fixed_target_site_packages
-        return folder_root / TOOL_DEPENDENCIES_DIR / "py313" / "site-packages"
+        return resolve_tool_site_packages(folder_root)
 
     def _is_pip_available(self) -> bool:
         if not self._python_executable.is_file() or not self._pip_runner.is_file():

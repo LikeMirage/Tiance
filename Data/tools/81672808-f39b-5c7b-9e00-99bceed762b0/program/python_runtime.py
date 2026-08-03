@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -74,7 +75,7 @@ class PythonRuntimeError(RuntimeError):
 class PythonRuntime:
     environment: dict[str, str]
     import_paths: tuple[Path, ...]
-    user_site_packages: Path | None
+    dependency_site_packages: Path | None
 
 
 @dataclass(slots=True)
@@ -105,26 +106,15 @@ class ScriptRunResult:
     timed_out: bool
 
 
-def resolve_user_packages_root(
-    python_executable: str | Path | None = None,
-) -> Path | None:
-    executable = Path(python_executable or sys.executable).resolve()
-    if executable.parent.name != "py313" or executable.parent.parent.name != "python":
-        return None
-    runtime_root = executable.parents[2]
-    if runtime_root.name != "runtime":
-        return None
-    return runtime_root / "python-packages" / "user" / "py313"
+def resolve_tool_dependencies_root() -> Path:
+    return Path(__file__).resolve().parents[1] / "dependencies" / "py313"
 
 
-def resolve_user_site_packages_path(
-    python_executable: str | Path | None = None,
-) -> Path | None:
-    user_packages_root = resolve_user_packages_root(python_executable)
-    if user_packages_root is None:
-        return None
-    legacy_directory = user_packages_root / "site-packages"
-    pointer_file = user_packages_root / "active.json"
+def resolve_dependency_site_packages_path() -> Path:
+    dependencies_root = resolve_tool_dependencies_root()
+    _migrate_legacy_shared_environment(dependencies_root)
+    legacy_directory = dependencies_root / "site-packages"
+    pointer_file = dependencies_root / "active.json"
     if not pointer_file.is_file():
         return legacy_directory
     try:
@@ -132,7 +122,7 @@ def resolve_user_site_packages_path(
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise PythonRuntimeError(
             "ACTIVE_ENVIRONMENT_INVALID",
-            "用户依赖活动环境记录损坏。",
+            "Python 脚本工具依赖活动环境记录损坏。",
             {"pointer_file": str(pointer_file)},
         ) from exc
     relative_value = payload.get("site_packages") if isinstance(payload, dict) else None
@@ -144,10 +134,10 @@ def resolve_user_site_packages_path(
     ):
         raise PythonRuntimeError(
             "ACTIVE_ENVIRONMENT_INVALID",
-            "用户依赖活动环境记录无效。",
+            "Python 脚本工具依赖活动环境记录无效。",
             {"pointer_file": str(pointer_file)},
         )
-    root = user_packages_root.resolve()
+    root = dependencies_root.resolve()
     relative_path = Path(relative_value)
     site_packages = (root / relative_path).resolve()
     try:
@@ -155,13 +145,13 @@ def resolve_user_site_packages_path(
     except ValueError as exc:
         raise PythonRuntimeError(
             "ACTIVE_ENVIRONMENT_INVALID",
-            "用户依赖活动环境路径越出存储目录。",
+            "Python 脚本工具依赖活动环境路径越出存储目录。",
             {"pointer_file": str(pointer_file)},
         ) from exc
     if relative_path.is_absolute() or not site_packages.is_dir():
         raise PythonRuntimeError(
             "ACTIVE_ENVIRONMENT_MISSING",
-            "用户依赖活动环境不存在。",
+            "Python 脚本工具依赖活动环境不存在。",
             {"target_directory": str(site_packages)},
         )
     return site_packages
@@ -174,25 +164,22 @@ def prepared_runtime(workdir: Path, extra_env: dict[str, str]) -> Iterator[Pytho
 
 
 def acquire_environment_lease() -> EnvironmentLease:
-    user_packages_root = resolve_user_packages_root()
-    if user_packages_root is None or not (user_packages_root / "active.json").is_file():
+    dependencies_root = resolve_tool_dependencies_root()
+    _migrate_legacy_shared_environment(dependencies_root)
+    if not (dependencies_root / "active.json").is_file():
         return EnvironmentLease(None)
-    leases_root = user_packages_root / "leases"
+    leases_root = dependencies_root / "leases"
     lease_file = leases_root / f"lease-{uuid.uuid4().hex}.json"
     try:
         leases_root.mkdir(parents=True, exist_ok=True)
         lease_file.write_text(
-            json.dumps(
-                {"pid": os.getpid(), "created_at": time.time()},
-                ensure_ascii=False,
-            )
-            + "\n",
+            json.dumps({"pid": os.getpid(), "created_at": time.time()}, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
     except OSError as exc:
         raise PythonRuntimeError(
-            "USER_ENVIRONMENT_LEASE_FAILED",
-            "无法锁定当前用户依赖环境。",
+            "DEPENDENCY_ENVIRONMENT_LEASE_FAILED",
+            "无法锁定当前 Python 脚本工具依赖环境。",
             {"lease_file": str(lease_file)},
         ) from exc
     return EnvironmentLease(lease_file)
@@ -208,20 +195,28 @@ def build_runtime(workdir: Path, extra_env: dict[str, str]) -> PythonRuntime:
 
     inherited_pythonpath = environment.pop("PYTHONPATH", "")
     import_paths: list[Path] = [workdir]
-    user_site_packages = resolve_user_site_packages_path()
-    if user_site_packages is not None and user_site_packages.is_dir():
-        import_paths.append(user_site_packages)
-    import_paths.extend(
-        Path(path)
-        for path in inherited_pythonpath.split(os.pathsep)
-        if path
-    )
+    dependency_site_packages = resolve_dependency_site_packages_path()
+    if dependency_site_packages.is_dir():
+        import_paths.append(dependency_site_packages)
+    import_paths.extend(Path(path) for path in inherited_pythonpath.split(os.pathsep) if path)
     environment["PYTHONIOENCODING"] = "utf-8"
     return PythonRuntime(
         environment=environment,
         import_paths=_unique_paths(import_paths),
-        user_site_packages=user_site_packages,
+        dependency_site_packages=(
+            dependency_site_packages if dependency_site_packages.is_dir() else None
+        ),
     )
+
+
+def resolve_embedded_runtime_root(
+    python_executable: str | Path | None = None,
+) -> Path | None:
+    executable = Path(python_executable or sys.executable).resolve()
+    if executable.parent.name != "py313" or executable.parent.parent.name != "python":
+        return None
+    runtime_root = executable.parents[2]
+    return runtime_root if runtime_root.name == "runtime" else None
 
 
 def run_script(
@@ -283,6 +278,47 @@ def build_script_command(
         *[str(path) for path in import_paths],
         *args,
     ]
+
+
+def _migrate_legacy_shared_environment(target_root: Path) -> None:
+    runtime_root = resolve_embedded_runtime_root()
+    if runtime_root is None:
+        return
+    legacy_root = runtime_root / "python-packages" / "user" / "py313"
+    if not legacy_root.exists():
+        return
+    if target_root.exists() and any(target_root.iterdir()):
+        raise PythonRuntimeError(
+            "LEGACY_ENVIRONMENT_CONFLICT",
+            "旧共享脚本依赖与 Python 脚本工具依赖同时存在，已停止迁移以避免覆盖。",
+            {"legacy_root": str(legacy_root), "target_root": str(target_root)},
+        )
+    target_root.parent.mkdir(parents=True, exist_ok=True)
+    if target_root.exists():
+        target_root.rmdir()
+    try:
+        os.replace(legacy_root, target_root)
+    except OSError:
+        try:
+            shutil.copytree(legacy_root, target_root)
+            shutil.rmtree(legacy_root)
+        except (OSError, shutil.Error) as exc:
+            raise PythonRuntimeError(
+                "LEGACY_ENVIRONMENT_MIGRATION_FAILED",
+                "无法把旧共享脚本依赖迁入 Python 脚本执行工具。",
+                {"legacy_root": str(legacy_root), "target_root": str(target_root)},
+            ) from exc
+    _remove_empty_parents(legacy_root.parent, runtime_root / "python-packages")
+
+
+def _remove_empty_parents(path: Path, stop: Path) -> None:
+    current = path
+    while current != stop:
+        try:
+            current.rmdir()
+        except OSError:
+            return
+        current = current.parent
 
 
 def _unique_paths(paths: list[Path]) -> tuple[Path, ...]:

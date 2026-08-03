@@ -745,7 +745,7 @@ def test_run_python_script_warns_when_auto_detach_moves_to_background(
 
     @contextmanager
     def fake_runtime(_workdir: Path, _extra_env: dict[str, str]):
-        yield SimpleNamespace(user_site_packages=None)
+        yield SimpleNamespace(dependency_site_packages=None)
 
     outcome = SimpleNamespace(
         command=("python", "script.py"),

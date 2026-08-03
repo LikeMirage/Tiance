@@ -18,8 +18,8 @@ from windows_permissions import (
     PermissionManagementError,
     PermissionRepairResult,
     inspect_protected_paths,
-    reset_user_package_permissions,
-    validate_user_packages_root,
+    reset_package_permissions,
+    validate_managed_packages_root,
 )
 
 
@@ -85,8 +85,8 @@ class EnvironmentRepairReport:
         }
 
 
-def inspect_environment(user_packages_root: Path) -> EnvironmentHealthReport:
-    root = validate_user_packages_root(user_packages_root)
+def inspect_environment(packages_root: Path) -> EnvironmentHealthReport:
+    root = validate_managed_packages_root(packages_root)
     active_site_packages = resolve_active_site_packages(root)
     active_leases, stale_leases = _lease_counts(root)
     issues: list[dict[str, object]] = []
@@ -105,7 +105,7 @@ def inspect_environment(user_packages_root: Path) -> EnvironmentHealthReport:
         issues.append(
             {
                 "code": "PROTECTED_WINDOWS_ACL",
-                "message": "用户依赖环境中存在未继承父目录权限的路径。",
+                "message": "工具依赖环境中存在未继承父目录权限的路径。",
                 "paths": [str(path) for path in protected_paths],
             }
         )
@@ -124,7 +124,7 @@ def inspect_environment(user_packages_root: Path) -> EnvironmentHealthReport:
         issues.append(
             {
                 "code": "FAILED_CANDIDATE_RESIDUE",
-                "message": "用户依赖环境中存在未清理的失败候选目录。",
+                "message": "工具依赖环境中存在未清理的失败候选目录。",
                 "paths": [str(path) for path in candidates],
             }
         )
@@ -132,7 +132,7 @@ def inspect_environment(user_packages_root: Path) -> EnvironmentHealthReport:
         issues.append(
             {
                 "code": "STALE_RUNTIME_LEASES",
-                "message": "用户依赖环境中存在过期的运行标记。",
+                "message": "工具依赖环境中存在过期的运行标记。",
                 "count": stale_leases,
             }
         )
@@ -149,9 +149,9 @@ def inspect_environment(user_packages_root: Path) -> EnvironmentHealthReport:
     )
 
 
-def repair_environment(user_packages_root: Path) -> EnvironmentRepairReport:
-    root = validate_user_packages_root(user_packages_root)
-    permission_result = reset_user_package_permissions(root)
+def repair_environment(packages_root: Path) -> EnvironmentRepairReport:
+    root = validate_managed_packages_root(packages_root)
+    permission_result = reset_package_permissions(root)
     removed_candidates, cleanup_failures = _cleanup_candidate_directories(root)
     removed_stale_leases = _cleanup_stale_leases(root)
     health = inspect_environment(root)

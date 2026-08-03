@@ -42,7 +42,7 @@ def _runtime(workdir: Path) -> python_runtime.PythonRuntime:
             if (value := os.environ.get(key))
         },
         import_paths=(workdir,),
-        user_site_packages=None,
+        dependency_site_packages=None,
     )
 
 
@@ -58,7 +58,7 @@ class ManagedProcessTests(unittest.TestCase):
                 ),
                 patch.object(
                     managed_process,
-                    "resolve_user_packages_root",
+                    "resolve_embedded_runtime_root",
                     return_value=None,
                 ),
             ):

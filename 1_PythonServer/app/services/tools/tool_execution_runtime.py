@@ -9,7 +9,7 @@ import threading
 from time import monotonic, sleep
 from typing import Callable
 
-from app.infra.tools.tool_project_config_constants import TOOL_DEPENDENCIES_DIR
+from app.services.tools.tool_dependency_runtime import resolve_tool_site_packages
 
 _PYTHON_TOOL_LAUNCHER = """
 import os
@@ -186,7 +186,7 @@ def build_tool_python_paths(
 ) -> tuple[Path, ...]:
     return (
         entry_path.parent,
-        tool_root / TOOL_DEPENDENCIES_DIR / "py313" / "site-packages",
+        resolve_tool_site_packages(tool_root),
         _backend_site_packages_path(),
         _backend_root(),
     )

@@ -20,7 +20,7 @@ from python_runtime import (
     PythonRuntimeError,
     acquire_environment_lease,
     build_script_command,
-    resolve_user_packages_root,
+    resolve_embedded_runtime_root,
 )
 
 
@@ -51,9 +51,8 @@ class ProcessCompletion:
 
 
 def default_execution_root() -> Path:
-    user_packages_root = resolve_user_packages_root()
-    if user_packages_root is not None:
-        runtime_root = user_packages_root.parents[2]
+    runtime_root = resolve_embedded_runtime_root()
+    if runtime_root is not None:
         return runtime_root / "tool-processes" / "run_python_script"
     workspace = os.environ.get("TIANCE_WORKSPACE_ROOT") or os.getcwd()
     return (
