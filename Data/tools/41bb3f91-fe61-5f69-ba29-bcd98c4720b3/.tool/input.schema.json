@@ -16,7 +16,7 @@
         },
         {
           "value": "inspect",
-        "description": "读取 DOCX 概况、标题、段落、表格、图片数量、公式数量和页眉页脚文本。"
+          "description": "读取 DOCX 概况、标题、段落、表格、图片数量、公式数量和页眉页脚文本。"
         },
         {
           "value": "edit",
@@ -175,7 +175,7 @@
       "type": "array"
     },
     "operations": {
-      "description": "edit 操作数组。支持 replace_text、append_content、set_header、set_footer。",
+      "description": "edit 操作数组。支持旧式文字替换、末尾追加、页眉页脚，以及由纯文字边界定位的选区操作。选区边界始终保留。",
       "items": {
         "additionalProperties": true,
         "properties": {
@@ -184,7 +184,8 @@
               "replace_text",
               "append_content",
               "set_header",
-              "set_footer"
+              "set_footer",
+              "selection"
             ],
             "type": "string"
           },
@@ -206,6 +207,70 @@
           },
           "text": {
             "type": "string"
+          },
+          "selection": {
+            "additionalProperties": false,
+            "description": "纯文字边界定义的选区。左边界必填且始终保留；右边界省略时表示左边界之后的零长度插入点。右边界存在时，选中两边界之间的内容。",
+            "properties": {
+              "start_anchor": {
+                "description": "左边界纯文字。选区从该文字之后开始。",
+                "type": "string"
+              },
+              "end_anchor": {
+                "description": "可选右边界纯文字。选区在该文字之前结束；省略表示插入点。",
+                "type": "string"
+              },
+              "start_occurrence": {
+                "default": 1,
+                "description": "左边界在文档中第几次出现，从 1 开始。",
+                "minimum": 1,
+                "type": "integer"
+              },
+              "end_occurrence": {
+                "default": 1,
+                "description": "从左边界之后开始计算，右边界第几次出现。",
+                "minimum": 1,
+                "type": "integer"
+              },
+              "match_case": {
+                "default": true,
+                "description": "英文边界匹配是否区分大小写。",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "start_anchor"
+            ],
+            "type": "object"
+          },
+          "action": {
+            "description": "selection 操作动作。insert 在左边界之后插入且不删除原选区；replace/delete/format/extract 需要非零选区。",
+            "enum": [
+              "insert",
+              "replace",
+              "delete",
+              "format",
+              "extract"
+            ],
+            "type": "string"
+          },
+          "content_mode": {
+            "default": "text",
+            "description": "selection insert/replace 的写入模式。text 为行内纯文字；markdown 转换常用标题、段落、粗斜体、删除线、代码、链接、列表、引用、表格、本地图片、分页及 Word 原生公式。",
+            "enum": [
+              "text",
+              "markdown"
+            ],
+            "type": "string"
+          },
+          "content": {
+            "description": "selection insert/replace 写入的纯文字或 Markdown。",
+            "type": "string"
+          },
+          "style": {
+            "additionalProperties": true,
+            "description": "text 写入格式，或 format 对已有文字进行的增量格式修改。支持 font_family、east_asia_font、font_size、bold、italic、underline、strike、color、align、space_before、space_after、line_spacing。format 未提供的属性保持原样。",
+            "type": "object"
           }
         },
         "required": [
@@ -239,6 +304,36 @@
           "maximum": 100000,
           "minimum": 1000,
           "type": "integer"
+        },
+        "selection": {
+          "additionalProperties": false,
+          "description": "可选。只定位并返回选区实况，不修改文档。边界规则与 selection 编辑操作相同。",
+          "properties": {
+            "start_anchor": {
+              "type": "string"
+            },
+            "end_anchor": {
+              "type": "string"
+            },
+            "start_occurrence": {
+              "default": 1,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "end_occurrence": {
+              "default": 1,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "match_case": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "start_anchor"
+          ],
+          "type": "object"
         }
       },
       "title": "检查选项",

@@ -10,6 +10,7 @@ from docx import Document
 
 from tiance_runtime import run_tool
 from word_editing import apply_operations, inspect_document
+from word_selection import resolve_selection
 from word_elements import (
     add_elements,
     apply_core_properties,
@@ -161,6 +162,9 @@ def inspect_docx(payload: dict[str, Any], root: Path) -> dict[str, Any]:
         max_paragraphs=read_int(inspect_options.get("max_paragraphs"), 80, minimum=1, maximum=500),
         max_text_chars=read_int(inspect_options.get("max_text_chars"), 20000, minimum=1000, maximum=100000),
     )
+    selection_spec = inspect_options.get("selection")
+    if isinstance(selection_spec, dict):
+        data["selection"] = resolve_selection(doc, selection_spec).summary()
     data.update({"action": "inspect", "input_path": str(input_path)})
     return ok(f"DOCX 检查完成：{input_path.name}。", data)
 

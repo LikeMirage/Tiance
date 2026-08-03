@@ -2,7 +2,19 @@ from __future__ import annotations
 
 from typing import Any
 
+from word_markdown import append_markdown_fragment
 from word_elements import add_elements, set_header_footer
+from word_selection import resolve_selection
+from word_selection_editing import (
+    body_nodes_snapshot,
+    delete_selection,
+    detach_appended_body_nodes,
+    format_selection,
+    insert_body_nodes,
+    insert_text,
+    prepare_block_insertion,
+    replace_selection_with_text,
+)
 
 OMML_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 OMATH_TAG = f"{{{OMML_NS}}}oMath"
@@ -85,9 +97,69 @@ def apply_operations(doc: Any, operations: list[Any], theme: dict[str, Any], roo
                 raise ValueError("set_footer.text 必须是字符串。")
             set_header_footer(doc, footer=text, theme=theme)
             summaries.append({"type": "set_footer"})
+        elif operation_type == "selection":
+            summaries.append(apply_selection_operation(doc, operation, theme, root))
         else:
             raise ValueError(f"不支持的 Word 编辑操作：{operation_type}")
     return summaries
+
+
+def apply_selection_operation(
+    doc: Any,
+    operation: dict[str, Any],
+    theme: dict[str, Any],
+    root: Any,
+) -> dict[str, Any]:
+    selection = resolve_selection(doc, operation.get("selection"))
+    action = str(operation.get("action") or "").strip().lower()
+    summary: dict[str, Any] = {
+        "type": "selection",
+        "action": action,
+        "selection": selection.summary(),
+        "warnings": [],
+    }
+    if action == "extract":
+        return summary
+    if action == "delete":
+        summary["removed"] = delete_selection(selection)
+        return summary
+    if action == "format":
+        style = operation.get("style")
+        if not isinstance(style, dict) or not style:
+            raise ValueError("selection format 操作必须提供非空 style。")
+        summary["formatted"] = format_selection(doc, selection, style, theme)
+        if selection.equation_count:
+            summary["warnings"].append("选区中的 Word 公式保持原样，格式操作仅应用于文字和段落。")
+        return summary
+    if action not in {"insert", "replace"}:
+        raise ValueError("selection.action 必须是 insert、replace、delete、format 或 extract。")
+
+    mode = str(operation.get("content_mode") or "text").strip().lower()
+    content = operation.get("content")
+    if not isinstance(content, str) or not content:
+        raise ValueError("selection insert/replace 操作必须提供非空 content。")
+    if mode == "text":
+        style = operation.get("style") if isinstance(operation.get("style"), dict) else {}
+        if action == "insert":
+            insert_text(selection, content, style, theme)
+        else:
+            summary["removed"] = replace_selection_with_text(selection, content, style, theme)
+        summary["content_mode"] = "text"
+        summary["inserted_char_count"] = len(content)
+        return summary
+    if mode != "markdown":
+        raise ValueError("selection.content_mode 必须是 text 或 markdown。")
+
+    before = body_nodes_snapshot(doc)
+    warnings: list[str] = []
+    stats = append_markdown_fragment(doc, content, theme, root, warnings)
+    nodes = detach_appended_body_nodes(doc, before)
+    parent, insertion_index = prepare_block_insertion(selection, replace=action == "replace")
+    summary["inserted_block_count"] = insert_body_nodes(parent, insertion_index, nodes)
+    summary["content_mode"] = "markdown"
+    summary["stats"] = stats
+    summary["warnings"].extend(warnings)
+    return summary
 
 
 def replace_text(doc: Any, operation: dict[str, Any]) -> dict[str, Any]:

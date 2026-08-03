@@ -14,5 +14,13 @@
   {
     "title": "创建包含 Word 原生公式的文档",
     "content": "{\"action\":\"create\",\"output_path\":\"reports/formula_note.docx\",\"overwrite\":true,\"elements\":[{\"type\":\"heading\",\"text\":\"公式说明\",\"level\":1},{\"type\":\"paragraph\",\"text\":\"下面的公式会写入为 Word 原生公式对象。\"},{\"type\":\"equation\",\"latex\":\"\\\\sum_{i=1}^{N} x_i = \\\\frac{N(N+1)}{2}\",\"display\":true},{\"type\":\"paragraph\",\"text\":\"保存后可在 Word 中继续编辑公式。\"}]}"
+  },
+  {
+    "title": "用边界选区替换为 Markdown 原生内容",
+    "content": "{\"action\":\"edit\",\"input_path\":\"reports/project_report.docx\",\"output_path\":\"reports/project_report_v3.docx\",\"overwrite\":true,\"dry_run\":false,\"operations\":[{\"type\":\"selection\",\"selection\":{\"start_anchor\":\"二、阶段计划\",\"end_anchor\":\"三、风险说明\"},\"action\":\"replace\",\"content_mode\":\"markdown\",\"content\":\"阶段结论可表示为：$S=\\\\sum_{i=1}^{n}w_i x_i$。\\n\\n| 阶段 | 状态 |\\n| --- | --- |\\n| 工具改造 | 已完成 |\"}]}"
+  },
+  {
+    "title": "插入带格式文字并修改已有内容格式",
+    "content": "{\"action\":\"edit\",\"input_path\":\"reports/project_report.docx\",\"output_path\":\"reports/project_report_styled.docx\",\"overwrite\":true,\"operations\":[{\"type\":\"selection\",\"selection\":{\"start_anchor\":\"核心结论\"},\"action\":\"insert\",\"content_mode\":\"text\",\"content\":\"（已复核）\",\"style\":{\"bold\":true,\"color\":\"C00000\"}},{\"type\":\"selection\",\"selection\":{\"start_anchor\":\"本文档用于\",\"end_anchor\":\"。\"},\"action\":\"format\",\"style\":{\"font_size\":14,\"bold\":true,\"color\":\"1F4E79\"}}]}"
   }
 ]
