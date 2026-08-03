@@ -9,8 +9,8 @@ using System.Threading;
 [assembly: AssemblyTitle("Tiance Updater")]
 [assembly: AssemblyProduct("Tiance")]
 [assembly: AssemblyCompany("Tiance")]
-[assembly: AssemblyVersion("0.3.7.0")]
-[assembly: AssemblyFileVersion("0.3.7.0")]
+[assembly: AssemblyVersion("0.3.8.0")]
+[assembly: AssemblyFileVersion("0.3.8.0")]
 
 internal static class TianceUpdater
 {
@@ -26,6 +26,8 @@ internal static class TianceUpdater
         "3_PyWebView",
         "assets",
         "docs",
+        "runtime",
+        // v0.3.8 uses this path only in the one-time package accepted by v0.3.7.
         Path.Combine("Data", "runtime"),
     };
 

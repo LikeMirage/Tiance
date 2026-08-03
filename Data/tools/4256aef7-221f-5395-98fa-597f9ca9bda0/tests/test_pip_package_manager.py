@@ -24,6 +24,7 @@ from package_environment import (  # noqa: E402
     EnvironmentError,
     RuntimePaths,
     resolve_active_site_packages,
+    resolve_runtime_paths,
 )
 from package_spec import InputError, parse_request  # noqa: E402
 from package_target import resolve_package_target  # noqa: E402
@@ -35,7 +36,7 @@ def _tool_packages_root(temp_dir: str) -> Path:
 
 def _runtime_paths(temp_dir: str) -> RuntimePaths:
     root = Path(temp_dir)
-    runtime_root = root / "Data" / "runtime"
+    runtime_root = root / "runtime"
     tools_root = root / "Data" / "tools"
     python_executable = runtime_root / "python" / "py313" / "python.exe"
     pip_runner = runtime_root / "python" / "run_pip.py"
@@ -48,6 +49,17 @@ def _runtime_paths(temp_dir: str) -> RuntimePaths:
         runtime_root=runtime_root,
         tools_root=tools_root,
     )
+
+
+class RuntimeLayoutTests(unittest.TestCase):
+    def test_root_runtime_resolves_data_tools_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            paths = _runtime_paths(temp_dir)
+
+            resolved = resolve_runtime_paths(paths.python_executable)
+
+            self.assertEqual(resolved.runtime_root, Path(temp_dir).resolve() / "runtime")
+            self.assertEqual(resolved.tools_root, Path(temp_dir).resolve() / "Data" / "tools")
 
 
 def _create_tool(

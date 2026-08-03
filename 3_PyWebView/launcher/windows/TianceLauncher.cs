@@ -19,8 +19,9 @@ internal static class TianceLauncher
                 Path.DirectorySeparatorChar,
                 Path.AltDirectorySeparatorChar
             );
-            string pythonwPath = Path.Combine(projectRoot, "Data", "runtime", "python", "py313", "pythonw.exe");
-            string pythonPath = Path.Combine(projectRoot, "Data", "runtime", "python", "py313", "python.exe");
+            string runtimeRoot = ResolveRuntimeRoot(projectRoot);
+            string pythonwPath = Path.Combine(runtimeRoot, "python", "py313", "pythonw.exe");
+            string pythonPath = Path.Combine(runtimeRoot, "python", "py313", "python.exe");
             string shellRunPath = Path.Combine(projectRoot, "3_PyWebView", "run.py");
             string shellRoot = Path.Combine(projectRoot, "3_PyWebView");
 
@@ -49,6 +50,57 @@ internal static class TianceLauncher
         {
             ShowError("Failed to start Tiance.\n\n" + ex.Message);
             return 1;
+        }
+    }
+
+    private static string ResolveRuntimeRoot(string projectRoot)
+    {
+        string runtimeRoot = Path.Combine(projectRoot, "runtime");
+        string legacyRuntimeRoot = Path.Combine(projectRoot, "Data", "runtime");
+        if (HasEmbeddedPython(runtimeRoot))
+        {
+            PreserveUnexpectedLegacyRuntime(projectRoot, legacyRuntimeRoot);
+            return runtimeRoot;
+        }
+
+        if (!HasEmbeddedPython(legacyRuntimeRoot))
+        {
+            return runtimeRoot;
+        }
+
+        try
+        {
+            Directory.Move(legacyRuntimeRoot, runtimeRoot);
+            return runtimeRoot;
+        }
+        catch
+        {
+            // A failed migration must not make an otherwise usable installation unstartable.
+            return legacyRuntimeRoot;
+        }
+    }
+
+    private static bool HasEmbeddedPython(string runtimeRoot)
+    {
+        return File.Exists(Path.Combine(runtimeRoot, "python", "py313", "python.exe"));
+    }
+
+    private static void PreserveUnexpectedLegacyRuntime(string projectRoot, string legacyRuntimeRoot)
+    {
+        if (!Directory.Exists(legacyRuntimeRoot))
+        {
+            return;
+        }
+        try
+        {
+            string backupRoot = Path.Combine(projectRoot, ".tiance-runtime-backup");
+            Directory.CreateDirectory(backupRoot);
+            string backupPath = Path.Combine(backupRoot, DateTime.UtcNow.ToString("yyyyMMddHHmmssfff"));
+            Directory.Move(legacyRuntimeRoot, backupPath);
+        }
+        catch
+        {
+            // The valid root runtime remains authoritative; preserving legacy files is best-effort.
         }
     }
 

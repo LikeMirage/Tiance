@@ -273,7 +273,7 @@ def default_execution_root() -> Path:
         if runtime_root.name == "runtime":
             return runtime_root / "tool-processes" / "run_python_script"
     workspace = os.environ.get("TIANCE_WORKSPACE_ROOT") or os.getcwd()
-    return Path(workspace).resolve(strict=False) / "Data/runtime/tool-processes/run_python_script"
+    return Path(workspace).resolve(strict=False) / "runtime/tool-processes/run_python_script"
 
 
 def _read_json_object(path: Path) -> dict[str, object]:

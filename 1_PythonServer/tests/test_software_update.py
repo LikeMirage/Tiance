@@ -36,16 +36,52 @@ def test_update_archive_rejects_user_data(tmp_path: Path) -> None:
         _extract_update_archive(archive_path, tmp_path / "out")
 
 
-def test_update_archive_accepts_runtime_parent_directory(tmp_path: Path) -> None:
+def test_update_archive_accepts_root_runtime(tmp_path: Path) -> None:
     archive_path = tmp_path / "update.zip"
     with zipfile.ZipFile(archive_path, "w") as archive:
-        archive.writestr("Tiance/Data/", "")
-        archive.writestr("Tiance/Data/runtime/", "")
-        archive.writestr("Tiance/Data/runtime/runtime.txt", "runtime")
+        archive.writestr("Tiance/runtime/", "")
+        archive.writestr("Tiance/runtime/runtime.txt", "runtime")
 
     _extract_update_archive(archive_path, tmp_path / "out")
 
-    assert (tmp_path / "out" / "Tiance" / "Data" / "runtime" / "runtime.txt").is_file()
+    assert (tmp_path / "out" / "Tiance" / "runtime" / "runtime.txt").is_file()
+
+
+def test_v038_staged_payload_accepts_one_time_legacy_runtime(tmp_path: Path) -> None:
+    stage_root = tmp_path / "Tiance"
+    required = [
+        stage_root / "Tiance.exe",
+        stage_root / "TianceUpdater.exe",
+        stage_root / "1_PythonServer" / "run.py",
+        stage_root / "2_ReactWeb" / "dist" / "index.html",
+        stage_root / "3_PyWebView" / "run.py",
+        stage_root / "Data" / "runtime" / "python" / "py313" / "python.exe",
+    ]
+    for path in required:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+    (stage_root / "version.json").write_text('{"version":"0.3.8"}', encoding="utf-8")
+
+    _validate_staged_payload(stage_root, "0.3.8")
+
+
+def test_future_staged_payload_rejects_legacy_runtime(tmp_path: Path) -> None:
+    stage_root = tmp_path / "Tiance"
+    required = [
+        stage_root / "Tiance.exe",
+        stage_root / "TianceUpdater.exe",
+        stage_root / "1_PythonServer" / "run.py",
+        stage_root / "2_ReactWeb" / "dist" / "index.html",
+        stage_root / "3_PyWebView" / "run.py",
+        stage_root / "Data" / "runtime" / "python" / "py313" / "python.exe",
+    ]
+    for path in required:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+    (stage_root / "version.json").write_text('{"version":"0.3.9"}', encoding="utf-8")
+
+    with pytest.raises(SoftwareUpdateError, match="必要程序文件"):
+        _validate_staged_payload(stage_root, "0.3.9")
 
 
 def test_staged_payload_requires_complete_runtime(tmp_path: Path) -> None:

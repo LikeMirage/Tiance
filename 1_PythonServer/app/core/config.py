@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     themes_data_dir: str = "Data/themes"
     providers_data_dir: str = "Data/providers"
     locales_data_dir: str = "Data/locales"
-    runtime_env_dir: str = "Data/runtime"
+    runtime_env_dir: str = "runtime"
     frontend_dist_dir: str = "2_ReactWeb/dist"
     github_client_id: str = "Iv23liNTtDOlpz60vMVw"
     tool_dependency_index_url: str = "https://mirrors.aliyun.com/pypi/simple/"

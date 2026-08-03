@@ -35,7 +35,7 @@ Windows 10/11 通常已经具有系统 WebView2 Runtime。当前发布包使用�
 3. **前端源码和编译产物同时更新。** 修改前端后必须重新构建并提交 `2_ReactWeb/dist`。
 4. **发布包不单独维护文件清单。** 哪些内容进入正式包，以仓库跟踪状态和 `.gitignore` 为准；修改这条边界时必须同时检查发布包。
 5. **Release 附件名称保持简短。** 当前统一使用 `Tiance.zip`，避免 Windows 深层解压时放大路径长度问题。
-6. **在线更新不得覆盖用户数据。** 更新包只能包含程序目录、桌面入口、内置运行环境和文档；`Data/runtime` 之外的 `Data` 内容全部由用户和各在线市场管理。
+6. **在线更新不得覆盖用户数据。** 更新包只能包含程序目录、桌面入口、内置运行环境和文档；根目录 `runtime` 属于程序；`Data` 下的所有内容全部由用户和各在线市场管理，更新包不得覆盖。
 7. **版本号以根目录 `version.json` 为运行时唯一来源。** 前端包、Python 包和 Windows 文件版本在发布时同步到同一版本，标签使用对应的 `vX.Y.Z`。
 
 ## 一、发布前检查
@@ -55,7 +55,7 @@ git pull --ff-only origin main
 - 本地 `main` 已和远端同步；
 - 本次版本号尚未被 GitHub 使用。
 
-修改根目录 `version.json`，并同步前端包、两个 Python 包和 Windows 启动器文件版本。发布版本 `0.3.7` 对应 Git 标签 `v0.3.7`。发布前必须确认这些版本一致。
+修改根目录 `version.json`，并同步前端包、两个 Python 包和 Windows 启动器文件版本。发布版本 `0.3.8` 对应 Git 标签 `v0.3.8`。发布前必须确认这些版本一致。
 
 ## 二、验证并构建前端
 
@@ -87,15 +87,15 @@ git diff --check
 
 ```powershell
 git add -A
-git commit -m "chore: release v0.3.7"
+git commit -m "chore: release v0.3.8"
 git push origin main
 ```
 
 再次确认工作区干净，然后创建带说明的正式标签：
 
 ```powershell
-git tag -a v0.3.7 -m "Tiance v0.3.7"
-git push origin v0.3.7
+git tag -a v0.3.8 -m "Tiance v0.3.8"
+git push origin v0.3.8
 ```
 
 标签创建后不要移动。若内容还要变化，继续发布下一个补丁版本。
@@ -106,22 +106,22 @@ git push origin v0.3.7
 
 ```powershell
 New-Item -ItemType Directory -Force -Path "发布包" | Out-Null
-git archive --format=zip --prefix=Tiance/ -o "发布包/Tiance.zip" v0.3.7
+git archive --format=zip --prefix=Tiance/ -o "发布包/Tiance.zip" v0.3.8
 Get-FileHash "发布包/Tiance.zip" -Algorithm SHA256
 ```
 
 在线更新包只归档下列程序文件：
 
 ```powershell
-git archive --format=zip --prefix=Tiance/ -o "发布包/Tiance-update.zip" v0.3.7 -- `
+git archive --format=zip --prefix=Tiance/ -o "发布包/Tiance-update.zip" v0.3.8 -- `
   version.json Tiance.exe TianceUpdater.exe LICENSE README.md `
-  1_PythonServer 2_ReactWeb 3_PyWebView assets docs Data/runtime
+  1_PythonServer 2_ReactWeb 3_PyWebView assets docs runtime
 
 $updateFile = Get-Item "发布包/Tiance-update.zip"
 $updateHash = (Get-FileHash $updateFile.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 @{
   schemaVersion = 1
-  version = "0.3.7"
+  version = "0.3.8"
   assetName = "Tiance-update.zip"
   sha256 = $updateHash
   size = $updateFile.Length
@@ -129,6 +129,8 @@ $updateHash = (Get-FileHash $updateFile.FullName -Algorithm SHA256).Hash.ToLower
 ```
 
 `update.json` 是软件校验更新包的发布合同。版本、文件名、大小和 SHA-256 任一项不一致，后端都会拒绝进入安装阶段。
+
+`v0.3.8` 是运行环境移出 `Data` 的一次性迁移版本。为了让 `v0.3.7` 的旧更新器接受，实际发布的 `v0.3.8` 更新包把标签中的根目录 `runtime` 映射为包内 `Data/runtime`；新版 `Tiance.exe` 第一次重启时会把整个目录迁到根目录。完整安装包始终直接使用根目录 `runtime`。从 `v0.3.9` 起，更新包也必须直接归档根目录 `runtime`，不得继续使用这项迁移例外。
 
 `发布包` 目录本身被 `.gitignore` 排除，压缩包不会再次进入源码仓库。
 
@@ -149,19 +151,19 @@ tar -tf "发布包/Tiance.zip" | Select-String -Pattern "Tiance.exe|2_ReactWeb/d
 
 还必须单独确认 `Tiance-update.zip`：
 
-- 包含 `TianceUpdater.exe`、前端 `dist` 和 `Data/runtime`；
+- 包含 `TianceUpdater.exe`、前端 `dist` 和根目录 `runtime`；
 - 不包含 `Data/projects`、`Data/tools`、`Data/themes`、`Data/providers`、数据库、密钥或本地设置；
 - 不包含 `.git`；
 - 解压后的统一根目录仍为 `Tiance/`。
 
-最严格的完整性检查是：压缩包中的文件集合应与该标签的 `git ls-tree -r --name-only v0.3.7` 一致，只多一层统一的 `Tiance/` 根目录。
+最严格的完整性检查是：压缩包中的文件集合应与该标签的 `git ls-tree -r --name-only v0.3.8` 一致，只多一层统一的 `Tiance/` 根目录。
 
 ## 五、创建 GitHub Release 并上传
 
 可以使用天策内置的 `GitHub 发布` 工具完成，不要求安装 GitHub CLI：
 
 1. 在设定集登录 GitHub，并确认 Tiance Desktop 对该仓库具有 Contents 读写权限。
-2. 调用 `GitHub 发布` 工具创建 Release：仓库为 `LikeMirage/Tiance`，标签为 `v0.3.7`，名称为 `Tiance v0.3.7`。
+2. 调用 `GitHub 发布` 工具创建 Release：仓库为 `LikeMirage/Tiance`，标签为 `v0.3.8`，名称为 `Tiance v0.3.8`。
 3. 填写本版本真实完成的修复和变化，不把未来计划写成已完成功能。
 4. 使用同一工具上传 `发布包/Tiance.zip`、`发布包/Tiance-update.zip` 和 `发布包/update.json`。
 5. 打开 GitHub Release 页面，确认标签、发布时间、附件名称和附件大小正确。

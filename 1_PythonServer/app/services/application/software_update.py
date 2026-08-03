@@ -36,7 +36,14 @@ ALLOWED_ROOT_FILES = {
     "TianceUpdater.exe",
     "version.json",
 }
-ALLOWED_ROOT_DIRECTORIES = {"1_PythonServer", "2_ReactWeb", "3_PyWebView", "assets", "docs"}
+ALLOWED_ROOT_DIRECTORIES = {
+    "1_PythonServer",
+    "2_ReactWeb",
+    "3_PyWebView",
+    "assets",
+    "docs",
+    "runtime",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -289,9 +296,15 @@ def _validate_staged_payload(stage_root: Path, version: str) -> None:
         stage_root / "1_PythonServer" / "run.py",
         stage_root / "2_ReactWeb" / "dist" / "index.html",
         stage_root / "3_PyWebView" / "run.py",
-        stage_root / "Data" / "runtime" / "python" / "py313" / "python.exe",
     ]
-    if not all(path.is_file() for path in required):
+    runtime_python = stage_root / "runtime" / "python" / "py313" / "python.exe"
+    legacy_runtime_python = (
+        stage_root / "Data" / "runtime" / "python" / "py313" / "python.exe"
+    )
+    runtime_is_complete = runtime_python.is_file() or (
+        version == "0.3.8" and legacy_runtime_python.is_file()
+    )
+    if not all(path.is_file() for path in required) or not runtime_is_complete:
         raise SoftwareUpdateError("更新包缺少必要程序文件。", code="update_package_invalid")
     try:
         payload = json.loads((stage_root / "version.json").read_text(encoding="utf-8"))

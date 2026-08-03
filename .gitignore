@@ -25,6 +25,7 @@ node_modules/
 .idea/
 .playwright-mcp/
 .tiance_backups/
+/.tiance-runtime-backup/
 /tmp/
 .DS_Store
 Thumbs.db
@@ -48,8 +49,6 @@ Thumbs.db
 /.Tiance/
 **/.Tiance/
 /Data/*
-!/Data/runtime/
-!/Data/runtime/**
 !/Data/tools/
 !/Data/tools/**
 !/Data/themes/
@@ -68,12 +67,13 @@ Data/locales/locale-settings.json
 Data/providers/catalog.json
 Data/providers/*/credentials.json
 Data/providers/*/cloud-model-cache.json
-Data/runtime/tool-processes/
-Data/runtime/python-packages/**/__pycache__/
-Data/runtime/python-packages/**/*.pyc
-Data/runtime/python-packages/backend/py313/site-packages/bin/dul-receive-pack
-Data/runtime/python-packages/backend/py313/site-packages/bin/dul-upload-pack
-Data/runtime/python-packages/backend/py313/site-packages/bin/dulwich.exe
+!/runtime/**
+runtime/tool-processes/
+runtime/python-packages/**/__pycache__/
+runtime/python-packages/**/*.pyc
+runtime/python-packages/backend/py313/site-packages/bin/dul-receive-pack
+runtime/python-packages/backend/py313/site-packages/bin/dul-upload-pack
+runtime/python-packages/backend/py313/site-packages/bin/dulwich.exe
 Data/tools/**/__pycache__/
 Data/tools/81672808-f39b-5c7b-9e00-99bceed762b0/dependencies/
 Data/tools/**/dependencies/py313/site-packages/playwright/driver/node.exe

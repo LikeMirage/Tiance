@@ -254,7 +254,7 @@ if __name__ == "__main__":
     if sys.version_info < (3, 11):
         raise SystemExit(
             "Python 3.11+ is required. Use the embedded runtime at "
-            "`Data/runtime/python/py313/python.exe`."
+            "`runtime/python/py313/python.exe`."
         )
 
     UvicornConfig, UvicornServer, run_uvicorn = _load_uvicorn_runtime()

@@ -53,7 +53,7 @@ def resolve_runtime_paths(python_executable: str | Path) -> RuntimePaths:
         python_executable=executable,
         pip_runner=pip_runner,
         runtime_root=runtime_root,
-        tools_root=runtime_root.parent / "tools",
+        tools_root=runtime_root.parent / "Data" / "tools",
     )
 
 
