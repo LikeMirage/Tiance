@@ -313,6 +313,50 @@ test("空正文的取消终态会合并同一回合的工具过程并保留用�
   );
 });
 
+test("同一用户回合的多次模型调用显示累计用量且保留最后上下文长度", () => {
+  const displayMessages = buildChatDisplayMessages([
+    message({ id: "user-usage-turn", role: "user", content: "读取文件后回答" }),
+    message({
+      id: "assistant-usage-tool-round",
+      content: "先读取文件。",
+      usage: {
+        prompt_tokens: 100,
+        completion_tokens: 20,
+        total_tokens: 120,
+        prompt_cache_hit_tokens: 80,
+        prompt_cache_miss_tokens: 20,
+        reasoning_tokens: 5,
+      },
+      contextTokens: 100,
+    }),
+    message({
+      id: "assistant-usage-final-round",
+      content: "这是最终答案。",
+      usage: {
+        prompt_tokens: 200,
+        completion_tokens: 30,
+        total_tokens: 230,
+        prompt_cache_hit_tokens: 150,
+        prompt_cache_miss_tokens: 50,
+        reasoning_tokens: 10,
+      },
+      contextTokens: 200,
+    }),
+  ], { runtimeStatus: "idle" });
+
+  assert.equal(displayMessages.length, 2);
+  assert.equal(displayMessages[1].id, "assistant-usage-final-round");
+  assert.deepEqual(displayMessages[1].usage, {
+    prompt_tokens: 300,
+    completion_tokens: 50,
+    total_tokens: 350,
+    prompt_cache_hit_tokens: 230,
+    prompt_cache_miss_tokens: 70,
+    reasoning_tokens: 15,
+  });
+  assert.equal(displayMessages[1].contextTokens, 200);
+});
+
 test("下一条用户消息已开始时会合并前一轮没有独立取消终态的工具过程", () => {
   const firstTool = tool({
     id: "tool-first-closed-turn",

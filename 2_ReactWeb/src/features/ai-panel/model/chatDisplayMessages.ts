@@ -5,6 +5,7 @@ import {
   type ChatMessage,
   type ChatToolProcessItem,
 } from "./chatMessage";
+import type { ChatUsage } from "../../../entities/llm-chat/model/chatCompletion";
 import type { ConversationRuntimeStatus } from "../../../entities/llm-chat/model/conversation";
 
 type BuildChatDisplayMessagesOptions = {
@@ -175,13 +176,54 @@ function mergeAssistantTurnMessages(
   const finalizedToolCalls = terminalToolStatus
     ? toolCalls.map((tool) => finalizeUnresolvedTool(tool, terminalToolStatus, finalMessage))
     : toolCalls;
+  const turnUsage = mergeAssistantTurnUsage(messages);
 
   return [{
     ...finalMessage,
     createdAt: messages[0].createdAt ?? finalMessage.createdAt,
     processItems: finalizedProcessItems,
     toolCalls: finalizedToolCalls,
+    usage: turnUsage,
   }];
+}
+
+const CHAT_USAGE_FIELDS = [
+  "prompt_tokens",
+  "completion_tokens",
+  "total_tokens",
+  "prompt_cache_hit_tokens",
+  "prompt_cache_miss_tokens",
+  "reasoning_tokens",
+] as const satisfies readonly (keyof ChatUsage)[];
+
+function mergeAssistantTurnUsage(messages: ChatMessage[]): ChatUsage | null {
+  const usages = messages.flatMap((message) => message.usage ? [message.usage] : []);
+  if (usages.length === 0) return null;
+  if (usages.length === 1) return usages[0];
+
+  const merged: ChatUsage = {};
+  for (const field of CHAT_USAGE_FIELDS) {
+    const values = usages
+      .map((usage) => usage[field])
+      .filter((value): value is number => typeof value === "number");
+    if (values.length > 0) {
+      merged[field] = values.reduce((total, value) => total + value, 0);
+    }
+  }
+
+  if (
+    merged.total_tokens === undefined &&
+    (merged.prompt_tokens !== undefined || merged.completion_tokens !== undefined)
+  ) {
+    merged.total_tokens = (merged.prompt_tokens ?? 0) + (merged.completion_tokens ?? 0);
+  }
+
+  const estimatedFields = [...new Set(usages.flatMap((usage) => usage.estimated_fields ?? []))]
+    .sort();
+  if (estimatedFields.length > 0) {
+    merged.estimated_fields = estimatedFields;
+  }
+  return merged;
 }
 
 function isAssistantTurnClosed(
