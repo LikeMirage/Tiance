@@ -65,9 +65,11 @@ class BackendProcessManager:
                 self._stop_health_monitor()
                 self._close_backend_log()
                 clear_managed_backend_record(PROJECT_ROOT, pid=process.pid)
-                raise RuntimeError(
-                    "Backend process exited unexpectedly "
-                    f"with code {returncode}. Log: {backend_log_path(PROJECT_ROOT)}"
+                mark(
+                    "backend process: previous attempt exited",
+                    pid=process.pid,
+                    returncode=returncode,
+                    log=backend_log_path(PROJECT_ROOT),
                 )
 
             if not self._settings.manage_backend:

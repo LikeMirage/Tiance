@@ -141,6 +141,16 @@ def _activate_backend_dependencies() -> None:
         sys.path.insert(0, backend_site_packages)
 
 
+def _load_uvicorn_runtime():
+    """Load stable Uvicorn implementation modules instead of package re-exports."""
+
+    from uvicorn.config import Config
+    from uvicorn.main import run
+    from uvicorn.server import Server
+
+    return Config, Server, run
+
+
 def _windows_process_handle(pid: int):
     if os.name != "nt":
         return None
@@ -247,7 +257,7 @@ if __name__ == "__main__":
             "`Data/runtime/python/py313/python.exe`."
         )
 
-    import uvicorn
+    UvicornConfig, UvicornServer, run_uvicorn = _load_uvicorn_runtime()
 
     # Uvicorn 的 WatchFiles reloader 会额外监听当前工作目录。
     # 允许用户从仓库任意位置用绝对路径启动，但实际监听范围收口到 api-server。
@@ -272,14 +282,14 @@ if __name__ == "__main__":
     if not reload_enabled:
         from app.core.shell_lease import start_shell_lease_monitor
 
-        config = uvicorn.Config(
+        config = UvicornConfig(
             "app.main:app",
             host=host,
             port=port,
             reload=False,
             timeout_graceful_shutdown=graceful_shutdown_timeout,
         )
-        server = uvicorn.Server(config)
+        server = UvicornServer(config)
         if shell_parent_pid is not None:
             _start_shell_parent_monitor(server, shell_parent_pid)
         lease_monitor = start_shell_lease_monitor(server)
@@ -289,7 +299,7 @@ if __name__ == "__main__":
             if lease_monitor is not None:
                 lease_monitor.stop()
     else:
-        uvicorn.run(
+        run_uvicorn(
             "app.main:app",
             host=host,
             port=port,

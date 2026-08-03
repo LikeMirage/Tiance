@@ -36,7 +36,7 @@ def test_backend_start_failure_returns_stable_error_without_internal_details(mon
         "ok": False,
         "startedByShell": False,
         "errorCode": "backend_start_failed",
-        "error": "后端服务启动失败，详情已写入桌面日志。",
+        "error": "后端服务启动失败。请重试；仍失败时查看 Data/logs/desktop-backend.log。",
     }
     assert "private" not in result["error"]
 

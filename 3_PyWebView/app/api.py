@@ -99,7 +99,7 @@ class ShellApi:
                 "ok": False,
                 "startedByShell": self._backend_manager.started_by_shell,
                 "errorCode": "backend_start_failed",
-                "error": "后端服务启动失败，详情已写入桌面日志。",
+                "error": "后端服务启动失败。请重试；仍失败时查看 Data/logs/desktop-backend.log。",
             }
 
         return {
