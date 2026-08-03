@@ -804,6 +804,9 @@ export function WorkspacePage({
   const handleSelectLanguageSettings = useCallback(() => {
     setActiveSettingsSectionId("language");
   }, []);
+  const handleSelectSoftwareUpdateSettings = useCallback(() => {
+    setActiveSettingsSectionId("software-update");
+  }, []);
   const handleSelectGithubSettings = useCallback(() => {
     setActiveSettingsSectionId("github");
   }, []);
@@ -912,6 +915,7 @@ export function WorkspacePage({
           onSelectFunctionalModelSection={handleSelectFunctionalModelSection}
           onSelectGithubSettings={handleSelectGithubSettings}
           onSelectLanguageSettings={handleSelectLanguageSettings}
+          onSelectSoftwareUpdateSettings={handleSelectSoftwareUpdateSettings}
           onSelectNetworkSettings={handleSelectNetworkSettings}
           onSelectTokenEstimationSettings={handleSelectTokenEstimationSettings}
           onToggleFunctionalModelGroup={functionalModelSectionSelection.toggleSectionGroup}

@@ -1,0 +1,42 @@
+.software-update {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: min(100% - 44px, 860px);
+  margin: 22px;
+  color: var(--color-text-primary);
+}
+.software-update__head,
+.software-update__button,
+.software-update__notice,
+.software-update__versions { display: flex; align-items: center; }
+.software-update__head { justify-content: space-between; gap: 18px; }
+.software-update__head h2 { margin: 0; color: var(--color-text-heading); font-size: 1.35rem; }
+.software-update__head p { margin: 5px 0 0; color: var(--color-text-muted); font-size: .8rem; }
+.software-update__button {
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.software-update__button--primary { align-self: flex-end; border-color: var(--color-accent); background: var(--color-accent); color: var(--color-text-selection-text); }
+.software-update__button:disabled { cursor: default; opacity: .55; }
+.software-update__card { display: grid; gap: 16px; padding: 18px; border: 1px solid var(--color-border-soft); border-radius: 6px; background: var(--color-surface-panel); }
+.software-update__versions { gap: 32px; padding-bottom: 15px; border-bottom: 1px solid var(--color-border-soft); }
+.software-update__versions > div { display: grid; gap: 4px; }
+.software-update__versions span { color: var(--color-text-muted); font-size: .75rem; }
+.software-update__versions strong { color: var(--color-text-heading); }
+.software-update__notice { gap: 10px; padding: 12px; background: var(--color-surface-muted); }
+.software-update__notice > div { display: grid; gap: 3px; }
+.software-update__notice span { color: var(--color-text-muted); font-size: .78rem; }
+.software-update__notice--available { border-left: 2px solid var(--color-accent); }
+.software-update__notes h3 { margin: 0 0 8px; font-size: .9rem; }
+.software-update__notes div { max-height: 240px; overflow: auto; white-space: pre-wrap; color: var(--color-text-secondary); font-size: .8rem; line-height: 1.65; }
+.software-update__error,.software-update__loading { padding: 11px 13px; background: var(--color-surface-muted); color: var(--color-text-secondary); font-size: .82rem; }
+.software-update__error { background: var(--color-danger-bg); color: var(--color-danger-text); }
+@media (max-width: 760px) { .software-update__head { align-items: flex-start; flex-direction: column; } .software-update__versions { flex-wrap: wrap; } }

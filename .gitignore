@@ -11,6 +11,8 @@ dist/
 !2_ReactWeb/dist/**
 3_PyWebView/launcher/windows/bin/
 3_PyWebView/launcher/windows/obj/
+3_PyWebView/updater/windows/bin/
+3_PyWebView/updater/windows/obj/
 
 # Node
 node_modules/

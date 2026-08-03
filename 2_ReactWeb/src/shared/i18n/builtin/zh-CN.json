@@ -152,6 +152,7 @@
         "usage": "用量",
         "connection": "连接",
         "language": "语言",
+        "softwareUpdate": "软件更新",
         "github": "GitHub 登录",
         "network": "网络设置",
         "tokenEstimation": "Token 估算",
@@ -628,6 +629,24 @@
         "starting": "正在连接…",
         "action": "登录 GitHub"
       }
+    },
+    "softwareUpdate": {
+      "title": "软件更新",
+      "description": "检查并安装天策正式发布版本。更新只替换程序文件，不覆盖本地项目、会话、密钥、工具、主题或供应商数据。",
+      "check": "检查更新",
+      "checking": "正在检查…",
+      "current": "当前版本",
+      "latest": "最新版本",
+      "size": "下载大小",
+      "available": "发现新版本",
+      "upToDate": "已经是最新版本",
+      "upToDateDescription": "当前无需更新。",
+      "sourceTitle": "当前为源码工作区",
+      "sourceDescription": "为保护未提交修改，源码工作区请使用 Git 更新，不能在线覆盖。",
+      "notes": "版本说明",
+      "install": "下载并重启安装",
+      "downloading": "正在下载并校验…",
+      "installing": "正在退出并安装…"
     },
     "onlineMarketSource": {
       "default": "默认源",

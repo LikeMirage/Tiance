@@ -28,6 +28,7 @@ from app.api.routes.llm.token_estimation_settings import (
     router as llm_token_estimation_settings_router,
 )
 from app.api.routes.network_settings import router as network_settings_router
+from app.api.routes.software_update import router as software_update_router
 from app.api.routes.llm.usage import router as llm_usage_router
 from app.api.routes.project import router as project_router
 from app.api.routes.roles import router as roles_router
@@ -64,3 +65,4 @@ api_router.include_router(llm_functional_model_settings_router)
 api_router.include_router(llm_token_estimation_settings_router)
 api_router.include_router(llm_usage_router)
 api_router.include_router(network_settings_router)
+api_router.include_router(software_update_router)

@@ -4,7 +4,13 @@ import threading
 import sys
 import socket
 import webbrowser
+import json
+import os
+import shutil
+import subprocess
+import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, build_opener
@@ -26,6 +32,36 @@ if TYPE_CHECKING:
 
 
 URL_AVAILABILITY_DEFAULT_TIMEOUT_MS = 1000
+
+
+def _project_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _local_tiance_root() -> Path:
+    local_app_data = os.getenv("LOCALAPPDATA")
+    if not local_app_data:
+        raise RuntimeError("LOCALAPPDATA is unavailable")
+    return Path(local_app_data).resolve() / "Tiance"
+
+
+def _validate_software_update_stage(raw_path: str) -> Path:
+    project_root = _project_root()
+    if (project_root / ".git").exists():
+        raise PermissionError("Source checkouts cannot be updated in place")
+    stage_root = Path(raw_path).resolve(strict=True)
+    expected_root = (_local_tiance_root() / "updates").resolve()
+    if expected_root not in stage_root.parents:
+        raise PermissionError("Update stage is outside the managed cache")
+    ready_file = stage_root / ".tiance-update-ready"
+    version_file = stage_root / "version.json"
+    if not ready_file.is_file() or not version_file.is_file():
+        raise ValueError("Update stage is incomplete")
+    payload = json.loads(version_file.read_text(encoding="utf-8"))
+    version = payload.get("version") if isinstance(payload, dict) else None
+    if not isinstance(version, str) or ready_file.read_text(encoding="utf-8").strip() != version:
+        raise ValueError("Update stage version does not match")
+    return stage_root
 
 
 @dataclass
@@ -181,6 +217,44 @@ class ShellApi:
 
     def close_window(self) -> None:
         self._require_allowed_window().destroy()
+
+    def install_software_update(self, stage_path: str) -> dict[str, str | bool]:
+        window = self._require_allowed_window()
+        try:
+            stage_root = _validate_software_update_stage(stage_path)
+            updater_source = _project_root() / "TianceUpdater.exe"
+            if not updater_source.is_file():
+                raise FileNotFoundError("TianceUpdater.exe is missing")
+            runner_root = _local_tiance_root() / "updater-run"
+            runner_root.mkdir(parents=True, exist_ok=True)
+            updater_runner = runner_root / f"TianceUpdater-{uuid.uuid4().hex}.exe"
+            shutil.copy2(updater_source, updater_runner)
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+            subprocess.Popen(
+                [
+                    str(updater_runner),
+                    "--install-root",
+                    str(_project_root()),
+                    "--stage-root",
+                    str(stage_root),
+                    "--parent-pid",
+                    str(os.getpid()),
+                ],
+                cwd=str(runner_root),
+                creationflags=creationflags,
+                close_fds=True,
+            )
+        except Exception as exc:
+            mark("software update: updater launch failed", error=type(exc).__name__)
+            return {
+                "ok": False,
+                "errorCode": "updater_launch_failed",
+                "error": "无法启动更新程序，请重新下载后再试。",
+            }
+
+        mark("software update: updater launched", stage=stage_root)
+        threading.Timer(0.2, window.destroy).start()
+        return {"ok": True, "errorCode": "", "error": ""}
 
     def get_window_state(self) -> dict[str, bool | int]:
         self._require_allowed_window()

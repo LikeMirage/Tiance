@@ -152,6 +152,7 @@
         "usage": "Usage",
         "connection": "Connection",
         "language": "Language",
+        "softwareUpdate": "Software Update",
         "github": "GitHub Sign-in",
         "network": "Network",
         "tokenEstimation": "Token Estimation",
@@ -628,6 +629,24 @@
         "starting": "Connecting…",
         "action": "Sign in to GitHub"
       }
+    },
+    "softwareUpdate": {
+      "title": "Software Update",
+      "description": "Check and install official Tiance releases. Updates replace program files without overwriting local projects, conversations, secrets, tools, themes, or providers.",
+      "check": "Check for updates",
+      "checking": "Checking…",
+      "current": "Current version",
+      "latest": "Latest version",
+      "size": "Download size",
+      "available": "A new version is available",
+      "upToDate": "Tiance is up to date",
+      "upToDateDescription": "No update is required.",
+      "sourceTitle": "Source checkout detected",
+      "sourceDescription": "Use Git to update source checkouts so uncommitted work is never overwritten.",
+      "notes": "Release notes",
+      "install": "Download, restart, and install",
+      "downloading": "Downloading and verifying…",
+      "installing": "Closing and installing…"
     },
     "onlineMarketSource": {
       "default": "Default source",

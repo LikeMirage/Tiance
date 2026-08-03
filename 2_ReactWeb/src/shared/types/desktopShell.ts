@@ -99,6 +99,11 @@ export interface DesktopShellApi {
   minimize_window: () => Promise<void>;
   toggle_maximize_window: () => Promise<WindowStateSnapshot>;
   close_window: () => Promise<void>;
+  install_software_update?: (stagePath: string) => Promise<{
+    ok: boolean;
+    errorCode: string;
+    error: string;
+  }>;
   get_window_state: () => Promise<WindowStateSnapshot>;
   get_shell_capabilities?: () => Promise<DesktopShellCapabilities>;
   get_window_bounds: () => Promise<WindowBounds>;

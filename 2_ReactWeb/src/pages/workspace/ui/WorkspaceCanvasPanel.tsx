@@ -23,6 +23,7 @@ import { TokenEstimationSettingsPanel } from "../../../features/token-estimation
 import { NetworkSettingsPanel } from "../../../features/network-settings/ui/NetworkSettingsPanel";
 import { LanguageSettingsPanel } from "../../../features/locale-settings/ui/LanguageSettingsPanel";
 import { GithubSettingsPanel } from "../../../features/github-settings/ui/GithubSettingsPanel";
+import { SoftwareUpdatePanel } from "../../../features/software-update/ui/SoftwareUpdatePanel";
 import type { UseProviderModelDiscoveryResult } from "../../../features/provider-model-discovery/model/useProviderModelDiscovery";
 import type { HoverSidebarSectionId } from "../../../widgets/hover-sidebar/model/sidebarSections";
 import type { UseProviderConfigStateResult } from "../../../features/provider-config/model/useProviderConfigState";
@@ -278,6 +279,9 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
   const markGithubSettingsReady = useCallback(() => {
     markSettingsSectionReady("github");
   }, [markSettingsSectionReady]);
+  const markSoftwareUpdateSettingsReady = useCallback(() => {
+    markSettingsSectionReady("software-update");
+  }, [markSettingsSectionReady]);
 
   useLayoutEffect(() => {
     const previousSection = previousSectionRef.current;
@@ -496,6 +500,7 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
             displayedSettingsSectionId={displayedSettingsSectionId}
             onFunctionalModelSettingsReady={markFunctionalModelSettingsReady}
             onGithubSettingsReady={markGithubSettingsReady}
+            onSoftwareUpdateSettingsReady={markSoftwareUpdateSettingsReady}
             onLanguageSettingsReady={markLanguageSettingsReady}
             onNetworkSettingsReady={markNetworkSettingsReady}
             onSelectFunctionalModelSection={onSelectFunctionalModelSection}
@@ -576,6 +581,7 @@ function WorkspaceSettingsCanvas({
   displayedSettingsSectionId,
   onFunctionalModelSettingsReady,
   onGithubSettingsReady,
+  onSoftwareUpdateSettingsReady,
   onLanguageSettingsReady,
   onNetworkSettingsReady,
   onSelectFunctionalModelSection,
@@ -585,6 +591,7 @@ function WorkspaceSettingsCanvas({
   displayedSettingsSectionId: WorkspaceSettingsSectionId;
   onFunctionalModelSettingsReady: () => void;
   onGithubSettingsReady: () => void;
+  onSoftwareUpdateSettingsReady: () => void;
   onLanguageSettingsReady: () => void;
   onNetworkSettingsReady: () => void;
   onSelectFunctionalModelSection: (sectionId: FunctionalModelSettingsSectionId) => void;
@@ -594,12 +601,21 @@ function WorkspaceSettingsCanvas({
     displayedSettingsSectionId === "token-estimation";
   const isLanguageDisplayed = displayedSettingsSectionId === "language";
   const isGithubDisplayed = displayedSettingsSectionId === "github";
+  const isSoftwareUpdateDisplayed = displayedSettingsSectionId === "software-update";
   const isNetworkDisplayed = displayedSettingsSectionId === "network";
   const isFunctionalModelDisplayed =
-    !isGithubDisplayed && !isLanguageDisplayed && !isTokenEstimationDisplayed && !isNetworkDisplayed;
+    !isGithubDisplayed && !isSoftwareUpdateDisplayed && !isLanguageDisplayed && !isTokenEstimationDisplayed && !isNetworkDisplayed;
 
   return (
     <div className="workspace-page__settings-canvas">
+      <div
+        className={isSoftwareUpdateDisplayed
+          ? "workspace-page__settings-view"
+          : "workspace-page__settings-view workspace-page__settings-view--hidden"}
+        aria-hidden={isSoftwareUpdateDisplayed ? undefined : "true"}
+      >
+        <SoftwareUpdatePanel onReady={onSoftwareUpdateSettingsReady} />
+      </div>
       <div
         className={
           isGithubDisplayed

@@ -52,6 +52,20 @@ def test_shell_mutation_is_rejected_after_navigation_to_remote_page() -> None:
         shell_api.minimize_window()
 
 
+def test_software_update_is_rejected_in_source_checkout(monkeypatch, tmp_path) -> None:
+    shell_api = ShellApi(SimpleNamespace(allow_remote_shell_api=False), SimpleNamespace())
+    shell_api._window = SimpleNamespace(url="http://127.0.0.1:18100")
+    stage_root = tmp_path / "stage"
+    stage_root.mkdir()
+    monkeypatch.setattr(api_module, "_project_root", lambda: tmp_path / "source")
+    (tmp_path / "source" / ".git").mkdir(parents=True)
+
+    result = shell_api.install_software_update(str(stage_root))
+
+    assert result["ok"] is False
+    assert result["errorCode"] == "updater_launch_failed"
+
+
 def test_external_browser_only_accepts_github_https_urls(monkeypatch) -> None:
     shell_api = ShellApi(
         SimpleNamespace(allow_remote_shell_api=False),

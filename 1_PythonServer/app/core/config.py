@@ -1,10 +1,24 @@
 # 应用配置模块
 # 从 .env 和环境变量读取运行时配置：CORS、数据库路径、项目存储路径等
 
+import json
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _read_application_version() -> str:
+    version_file = _find_project_root() / "version.json"
+    try:
+        payload = json.loads(version_file.read_text(encoding="utf-8"))
+        version = payload.get("version")
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        version = None
+    if not isinstance(version, str) or not version.strip():
+        raise RuntimeError("The application version file is missing or invalid.")
+    return version.strip()
 
 
 class Settings(BaseSettings):
@@ -15,7 +29,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Tiance API Server"
-    app_version: str = "0.3.0"
+    app_version: str = Field(default_factory=_read_application_version)
     environment: str = "development"
     log_level: str = "INFO"
     api_prefix: str = "/api"
@@ -117,6 +131,10 @@ class Settings(BaseSettings):
     @property
     def frontend_dist_path(self) -> Path:
         return self._resolve_project_path(self.frontend_dist_dir)
+
+    @property
+    def project_root_path(self) -> Path:
+        return _find_project_root()
 
     @property
     def embedded_python_file(self) -> Path:

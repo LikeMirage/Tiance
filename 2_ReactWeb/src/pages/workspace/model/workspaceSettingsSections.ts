@@ -2,6 +2,7 @@ import type { FunctionalModelSettingsSectionId } from "../../../features/functio
 
 export type WorkspaceSettingsSectionId =
   | "language"
+  | "software-update"
   | "github"
   | "network"
   | "token-estimation"

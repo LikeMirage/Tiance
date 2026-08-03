@@ -53,6 +53,7 @@ type WorkspaceSidePanelProps = {
   onSelectFunctionalModelSection: (sectionId: FunctionalModelSettingsSectionId) => void;
   onSelectGithubSettings: () => void;
   onSelectLanguageSettings: () => void;
+  onSelectSoftwareUpdateSettings: () => void;
   onSelectNetworkSettings: () => void;
   onSelectTokenEstimationSettings: () => void;
   onToggleFunctionalModelGroup: () => void;
@@ -96,6 +97,7 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
   onSelectFunctionalModelSection,
   onSelectGithubSettings,
   onSelectLanguageSettings,
+  onSelectSoftwareUpdateSettings,
   onSelectNetworkSettings,
   onSelectTokenEstimationSettings,
   onToggleFunctionalModelGroup,
@@ -113,6 +115,7 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
   const isTokenEstimationSettingsActive =
     activeSettingsSectionId === "token-estimation";
   const isLanguageSettingsActive = activeSettingsSectionId === "language";
+  const isSoftwareUpdateSettingsActive = activeSettingsSectionId === "software-update";
   const isGithubSettingsActive = activeSettingsSectionId === "github";
   const isNetworkSettingsActive = activeSettingsSectionId === "network";
   const isFunctionalModelGroupActive =
@@ -131,6 +134,11 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
     !isSearchingSettings
     || normalizeSettingsSearchText(
       `${t("workspace.settings.language")} language locale 语言 язык`,
+    ).includes(normalizedSettingsSearchKeyword);
+  const shouldShowSoftwareUpdateSearchResult =
+    !isSearchingSettings
+    || normalizeSettingsSearchText(
+      `${t("workspace.settings.softwareUpdate")} update version release`,
     ).includes(normalizedSettingsSearchKeyword);
   const shouldShowGithubSettingsSearchResult =
     !isSearchingSettings
@@ -201,6 +209,19 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
       <nav className="workspace-settings-panel__list" aria-label={t("workspace.settings.categories")}>
         {isSearchingSettings ? (
           <div className="workspace-settings-panel__search-results">
+            {shouldShowSoftwareUpdateSearchResult ? (
+              <button
+                className={isSoftwareUpdateSettingsActive
+                  ? "workspace-settings-panel__search-result workspace-settings-panel__search-result--active"
+                  : "workspace-settings-panel__search-result"}
+                type="button"
+                aria-current={isSoftwareUpdateSettingsActive ? "page" : undefined}
+                onClick={onSelectSoftwareUpdateSettings}
+              >
+                <span className="workspace-settings-panel__search-result-title">{t("workspace.settings.softwareUpdate")}</span>
+                <span className="workspace-settings-panel__search-result-meta">{t("softwareUpdate.check")}</span>
+              </button>
+            ) : null}
             {shouldShowLanguageSettingsSearchResult ? (
               <button
                 className={
@@ -303,7 +324,8 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
                 </button>
               ))
             ) : null}
-            {!shouldShowLanguageSettingsSearchResult
+            {!shouldShowSoftwareUpdateSearchResult
+              && !shouldShowLanguageSettingsSearchResult
               && !shouldShowGithubSettingsSearchResult
               && !shouldShowNetworkSettingsSearchResult
               && !shouldShowTokenEstimationSearchResult
@@ -315,6 +337,16 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
           </div>
         ) : (
           <>
+            <button
+              className={isSoftwareUpdateSettingsActive
+                ? "workspace-settings-panel__standalone workspace-settings-panel__standalone--active"
+                : "workspace-settings-panel__standalone"}
+              type="button"
+              aria-current={isSoftwareUpdateSettingsActive ? "page" : undefined}
+              onClick={onSelectSoftwareUpdateSettings}
+            >
+              {t("workspace.settings.softwareUpdate")}
+            </button>
             <button
               className={
                 isGithubSettingsActive
