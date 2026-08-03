@@ -151,7 +151,7 @@ tar -tf "发布包/Tiance.zip" | Select-String -Pattern "Tiance.exe|2_ReactWeb/d
 
 还必须单独确认 `Tiance-update.zip`：
 
-- 包含 `TianceUpdater.exe`、前端 `dist` 和根目录 `runtime`；
+- 包含 `TianceUpdater.exe`、前端 `dist`，且仅在 `v0.3.8` 更新包中将运行环境映射为 `Data/runtime`；从 `v0.3.9` 起恢复为根目录 `runtime`；
 - 不包含 `Data/projects`、`Data/tools`、`Data/themes`、`Data/providers`、数据库、密钥或本地设置；
 - 不包含 `.git`；
 - 解压后的统一根目录仍为 `Tiance/`。
