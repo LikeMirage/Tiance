@@ -106,14 +106,14 @@ git push origin v0.3.8
 
 ```powershell
 New-Item -ItemType Directory -Force -Path "发布包" | Out-Null
-git archive --format=zip --prefix=Tiance/ -o "发布包/Tiance.zip" v0.3.8
+git archive --format=zip --prefix=Tiance/ -o "发布包/Tiance.zip" v<版本号>
 Get-FileHash "发布包/Tiance.zip" -Algorithm SHA256
 ```
 
 在线更新包只归档下列程序文件：
 
 ```powershell
-git archive --format=zip --prefix=Tiance/ -o "发布包/Tiance-update.zip" v0.3.8 -- `
+git archive --format=zip --prefix=Tiance/ -o "发布包/Tiance-update.zip" v<版本号> -- `
   version.json Tiance.exe TianceUpdater.exe LICENSE README.md `
   1_PythonServer 2_ReactWeb 3_PyWebView assets docs runtime
 
@@ -121,7 +121,7 @@ $updateFile = Get-Item "发布包/Tiance-update.zip"
 $updateHash = (Get-FileHash $updateFile.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 @{
   schemaVersion = 1
-  version = "0.3.8"
+  version = "<版本号>"
   assetName = "Tiance-update.zip"
   sha256 = $updateHash
   size = $updateFile.Length
@@ -130,7 +130,7 @@ $updateHash = (Get-FileHash $updateFile.FullName -Algorithm SHA256).Hash.ToLower
 
 `update.json` 是软件校验更新包的发布合同。版本、文件名、大小和 SHA-256 任一项不一致，后端都会拒绝进入安装阶段。
 
-`v0.3.8` 是运行环境移出 `Data` 的一次性迁移版本。为了让 `v0.3.7` 的旧更新器接受，实际发布的 `v0.3.8` 更新包把标签中的根目录 `runtime` 映射为包内 `Data/runtime`；新版 `Tiance.exe` 第一次重启时会把整个目录迁到根目录。完整安装包始终直接使用根目录 `runtime`。从 `v0.3.9` 起，更新包也必须直接归档根目录 `runtime`，不得继续使用这项迁移例外。
+完整安装包始终直接使用根目录 `runtime`。为兼容仍在使用 `v0.3.7` 的客户端，在线更新包暂时把标签中的根目录 `runtime` 映射为包内 `Data/runtime`：旧更新器会先放入旧位置，新启动器会迁移到根目录；`v0.3.8` 及以后更新器会直接把这份桥接载荷替换到根目录 `runtime`。这不是用户数据覆盖，更新包不得包含 `Data/runtime` 以外的任何 `Data` 文件。待停止支持 `v0.3.7` 后，更新包再恢复为根目录 `runtime`。
 
 `发布包` 目录本身被 `.gitignore` 排除，压缩包不会再次进入源码仓库。
 
@@ -151,12 +151,12 @@ tar -tf "发布包/Tiance.zip" | Select-String -Pattern "Tiance.exe|2_ReactWeb/d
 
 还必须单独确认 `Tiance-update.zip`：
 
-- 包含 `TianceUpdater.exe`、前端 `dist`，且仅在 `v0.3.8` 更新包中将运行环境映射为 `Data/runtime`；从 `v0.3.9` 起恢复为根目录 `runtime`；
+- 包含 `TianceUpdater.exe`、前端 `dist`，运行环境桥接载荷仅可位于 `Data/runtime`；
 - 不包含 `Data/projects`、`Data/tools`、`Data/themes`、`Data/providers`、数据库、密钥或本地设置；
 - 不包含 `.git`；
 - 解压后的统一根目录仍为 `Tiance/`。
 
-最严格的完整性检查是：压缩包中的文件集合应与该标签的 `git ls-tree -r --name-only v0.3.8` 一致，只多一层统一的 `Tiance/` 根目录。
+最严格的完整性检查是：压缩包中的文件集合应与该标签的 `git ls-tree -r --name-only v<版本号>` 一致，只多一层统一的 `Tiance/` 根目录。
 
 ## 五、创建 GitHub Release 并上传
 

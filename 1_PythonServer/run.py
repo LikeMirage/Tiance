@@ -11,7 +11,7 @@ from pathlib import Path
 
 API_SERVER_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = API_SERVER_ROOT.parent
-RUNTIME_ROOT = PROJECT_ROOT / "Data" / "runtime"
+RUNTIME_ROOT = PROJECT_ROOT / "runtime"
 WINDOWS_EMBEDDED_PYTHON = RUNTIME_ROOT / "python" / "py313" / "python.exe"
 WINDOWS_EMBEDDED_PYTHONW = RUNTIME_ROOT / "python" / "py313" / "pythonw.exe"
 LEGACY_POSIX_EMBEDDED_PYTHON = RUNTIME_ROOT / "python" / "py313" / "python"

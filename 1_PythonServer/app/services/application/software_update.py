@@ -301,9 +301,12 @@ def _validate_staged_payload(stage_root: Path, version: str) -> None:
     legacy_runtime_python = (
         stage_root / "Data" / "runtime" / "python" / "py313" / "python.exe"
     )
-    runtime_is_complete = runtime_python.is_file() or (
-        version == "0.3.8" and legacy_runtime_python.is_file()
-    )
+    if runtime_python.is_file() and legacy_runtime_python.is_file():
+        raise SoftwareUpdateError(
+            "更新包包含冲突的运行环境目录。",
+            code="update_package_invalid",
+        )
+    runtime_is_complete = runtime_python.is_file() or legacy_runtime_python.is_file()
     if not all(path.is_file() for path in required) or not runtime_is_complete:
         raise SoftwareUpdateError("更新包缺少必要程序文件。", code="update_package_invalid")
     try:

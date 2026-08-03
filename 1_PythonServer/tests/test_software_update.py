@@ -47,7 +47,7 @@ def test_update_archive_accepts_root_runtime(tmp_path: Path) -> None:
     assert (tmp_path / "out" / "Tiance" / "runtime" / "runtime.txt").is_file()
 
 
-def test_v038_staged_payload_accepts_one_time_legacy_runtime(tmp_path: Path) -> None:
+def test_staged_payload_accepts_legacy_runtime_bridge(tmp_path: Path) -> None:
     stage_root = tmp_path / "Tiance"
     required = [
         stage_root / "Tiance.exe",
@@ -62,10 +62,10 @@ def test_v038_staged_payload_accepts_one_time_legacy_runtime(tmp_path: Path) -> 
         path.touch()
     (stage_root / "version.json").write_text('{"version":"0.3.8"}', encoding="utf-8")
 
-    _validate_staged_payload(stage_root, "0.3.8")
+    _validate_staged_payload(stage_root, "0.3.9")
 
 
-def test_future_staged_payload_rejects_legacy_runtime(tmp_path: Path) -> None:
+def test_staged_payload_rejects_conflicting_runtime_layouts(tmp_path: Path) -> None:
     stage_root = tmp_path / "Tiance"
     required = [
         stage_root / "Tiance.exe",
@@ -73,6 +73,7 @@ def test_future_staged_payload_rejects_legacy_runtime(tmp_path: Path) -> None:
         stage_root / "1_PythonServer" / "run.py",
         stage_root / "2_ReactWeb" / "dist" / "index.html",
         stage_root / "3_PyWebView" / "run.py",
+        stage_root / "runtime" / "python" / "py313" / "python.exe",
         stage_root / "Data" / "runtime" / "python" / "py313" / "python.exe",
     ]
     for path in required:
@@ -80,7 +81,7 @@ def test_future_staged_payload_rejects_legacy_runtime(tmp_path: Path) -> None:
         path.touch()
     (stage_root / "version.json").write_text('{"version":"0.3.9"}', encoding="utf-8")
 
-    with pytest.raises(SoftwareUpdateError, match="必要程序文件"):
+    with pytest.raises(SoftwareUpdateError, match="冲突"):
         _validate_staged_payload(stage_root, "0.3.9")
 
 

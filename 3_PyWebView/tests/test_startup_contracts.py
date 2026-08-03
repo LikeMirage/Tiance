@@ -1,5 +1,6 @@
 from contextlib import closing
 from dataclasses import replace
+import subprocess
 import json
 import os
 from pathlib import Path
@@ -30,6 +31,34 @@ from app.startup_preferences import (
     load_desktop_window_size_preferences,
 )
 from app.startup_theme import DEFAULT_STARTUP_THEME, load_startup_theme
+
+
+class EmbeddedRuntimeContractTests(unittest.TestCase):
+    def test_root_runtime_loads_desktop_shell_dependencies(self) -> None:
+        project_root = Path(__file__).resolve().parents[2]
+        embedded_python = project_root / "runtime" / "python" / "py313" / "python.exe"
+        if not embedded_python.is_file():
+            self.skipTest("嵌入式 Python 不在当前测试环境中")
+
+        completed = subprocess.run(
+            [
+                str(embedded_python),
+                "-c",
+                (
+                    "import sys; "
+                    f"sys.path.insert(0, {str(project_root / '3_PyWebView')!r}); "
+                    "import run; "
+                    "assert run._is_current_embedded_python(); "
+                    "run._activate_desktop_shell_dependencies(); "
+                    "import psutil"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
 
 
 class ShellConfigPortSelectionTests(unittest.TestCase):

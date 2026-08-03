@@ -27,10 +27,9 @@ def test_server_entrypoint_does_not_depend_on_uvicorn_package_reexports(
 
 def test_embedded_backend_runtime_contains_uvicorn_implementation() -> None:
     project_root = Path(__file__).resolve().parents[2]
-    embedded_python = project_root / "Data" / "runtime" / "python" / "py313" / "python.exe"
+    embedded_python = project_root / "runtime" / "python" / "py313" / "python.exe"
     backend_packages = (
         project_root
-        / "Data"
         / "runtime"
         / "python-packages"
         / "backend"

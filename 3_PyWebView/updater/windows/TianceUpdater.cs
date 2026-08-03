@@ -9,8 +9,8 @@ using System.Threading;
 [assembly: AssemblyTitle("Tiance Updater")]
 [assembly: AssemblyProduct("Tiance")]
 [assembly: AssemblyCompany("Tiance")]
-[assembly: AssemblyVersion("0.3.8.0")]
-[assembly: AssemblyFileVersion("0.3.8.0")]
+[assembly: AssemblyVersion("0.3.9.0")]
+[assembly: AssemblyFileVersion("0.3.9.0")]
 
 internal static class TianceUpdater
 {
@@ -27,7 +27,8 @@ internal static class TianceUpdater
         "assets",
         "docs",
         "runtime",
-        // v0.3.8 uses this path only in the one-time package accepted by v0.3.7.
+        // Legacy clients require the runtime payload under Data/runtime. Newer updaters
+        // install that bridge payload into the root runtime directory instead.
         Path.Combine("Data", "runtime"),
     };
 
@@ -81,14 +82,17 @@ internal static class TianceUpdater
                 {
                     continue;
                 }
-                string destination = Path.Combine(installRoot, relativePath);
-                string backup = Path.Combine(backupRoot, relativePath);
+                string destinationRelativePath = IsLegacyRuntimeBridge(relativePath)
+                    ? "runtime"
+                    : relativePath;
+                string destination = Path.Combine(installRoot, destinationRelativePath);
+                string backup = Path.Combine(backupRoot, destinationRelativePath);
                 Replacement replacement = new Replacement(destination, backup);
                 BackupExisting(destination, backup, replacement);
                 replacements.Add(replacement);
                 CopyEntry(source, destination);
                 replacement.Installed = true;
-                Log(logPath, "Replaced " + relativePath);
+                Log(logPath, "Replaced " + relativePath + " -> " + destinationRelativePath);
             }
         }
         catch
@@ -96,6 +100,15 @@ internal static class TianceUpdater
             Rollback(replacements, logPath);
             throw;
         }
+    }
+
+    private static bool IsLegacyRuntimeBridge(string relativePath)
+    {
+        return string.Equals(
+            relativePath,
+            Path.Combine("Data", "runtime"),
+            StringComparison.OrdinalIgnoreCase
+        );
     }
 
     private static void BackupExisting(string destination, string backup, Replacement replacement)
