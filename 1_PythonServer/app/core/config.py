@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _read_application_version() -> str:
-    version_file = _find_project_root() / "version.json"
+    version_file = _find_project_root() / "system" / "version.json"
     try:
         payload = json.loads(version_file.read_text(encoding="utf-8"))
         version = payload.get("version")

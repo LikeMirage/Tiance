@@ -54,7 +54,7 @@ def _validate_software_update_stage(raw_path: str) -> Path:
     if expected_root not in stage_root.parents:
         raise PermissionError("Update stage is outside the managed cache")
     ready_file = stage_root / ".tiance-update-ready"
-    version_file = stage_root / "version.json"
+    version_file = stage_root / "system" / "version.json"
     if not ready_file.is_file() or not version_file.is_file():
         raise ValueError("Update stage is incomplete")
     payload = json.loads(version_file.read_text(encoding="utf-8"))
@@ -222,7 +222,7 @@ class ShellApi:
         window = self._require_allowed_window()
         try:
             stage_root = _validate_software_update_stage(stage_path)
-            updater_source = _project_root() / "TianceUpdater.exe"
+            updater_source = _project_root() / "system" / "TianceUpdater.exe"
             if not updater_source.is_file():
                 raise FileNotFoundError("TianceUpdater.exe is missing")
             runner_root = _local_tiance_root() / "updater-run"

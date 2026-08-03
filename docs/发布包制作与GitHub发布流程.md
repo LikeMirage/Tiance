@@ -16,7 +16,7 @@
 - PyWebView 桌面壳源码和根目录 `Tiance.exe`；
 - 内置 Python 运行环境及后端、桌面壳运行依赖；
 - 已公开的预置工具、供应商、主题、语言和对应设置文件；
-- README、许可证、文档和真实使用的图片资源。
+- 许可证与 `system/` 内的版本、升级器文件。
 
 它不会包含 Git 没有跟踪的本地状态：
 
@@ -25,6 +25,7 @@
 - 本地项目、会话、数据库、日志和市场缓存；
 - GitHub 登录信息、供应商凭证及其他私人密钥；
 - `3_PyWebView/vendor/webview2-fixed` 固定 WebView2 环境。
+- 根目录 `docs/`、`assets/` 和 `README.md`。
 
 Windows 10/11 通常已经具有系统 WebView2 Runtime。当前发布包使用系统运行时，不额外携带固定 WebView2 环境。
 
@@ -33,10 +34,10 @@ Windows 10/11 通常已经具有系统 WebView2 Runtime。当前发布包使用�
 1. **只从已经提交的标签制作包。** `git archive` 读取标签对应的 Git 内容，不读取尚未提交的工作区修改。
 2. **一个版本对应一个标签和一个 Release。** 发布后发现变化，应增加补丁版本，例如从 `0.3.0` 升到 `0.3.1`，不要把新包悄悄塞回旧标签。
 3. **前端源码和编译产物同时更新。** 修改前端后必须重新构建并提交 `2_ReactWeb/dist`。
-4. **发布包不单独维护文件清单。** 哪些内容进入正式包，以仓库跟踪状态和 `.gitignore` 为准；修改这条边界时必须同时检查发布包。
+4. **发布包使用明确白名单。** 完整包包含可运行程序与公开预置数据；更新包只包含程序文件。两者都不携带说明文档、宣传图片和 README。
 5. **Release 附件名称保持简短。** 当前统一使用 `Tiance.zip`，避免 Windows 深层解压时放大路径长度问题。
-6. **在线更新不得覆盖用户数据。** 更新包只能包含程序目录、桌面入口、内置运行环境和文档；根目录 `runtime` 属于程序；`Data` 下的所有内容全部由用户和各在线市场管理，更新包不得覆盖。
-7. **版本号以根目录 `version.json` 为运行时唯一来源。** 前端包、Python 包和 Windows 文件版本在发布时同步到同一版本，标签使用对应的 `vX.Y.Z`。
+6. **在线更新不得覆盖用户数据。** 更新包只能包含程序目录、桌面入口、内置运行环境与 `system/`；根目录 `runtime` 属于程序；`Data` 下的所有内容全部由用户和各在线市场管理，更新包不得出现。
+7. **版本号以 `system/version.json` 为运行时唯一来源。** 前端包、Python 包和 Windows 文件版本在发布时同步到同一版本，标签使用对应的 `vX.Y.Z`。
 
 ## 一、发布前检查
 
@@ -55,7 +56,7 @@ git pull --ff-only origin main
 - 本地 `main` 已和远端同步；
 - 本次版本号尚未被 GitHub 使用。
 
-修改根目录 `version.json`，并同步前端包、两个 Python 包和 Windows 启动器文件版本。发布版本 `0.3.8` 对应 Git 标签 `v0.3.8`。发布前必须确认这些版本一致。
+修改 `system/version.json`，并同步前端包、两个 Python 包和 Windows 启动器文件版本。发布版本 `X.Y.Z` 对应 Git 标签 `vX.Y.Z`。发布前必须确认这些版本一致。
 
 ## 二、验证并构建前端
 
@@ -87,15 +88,15 @@ git diff --check
 
 ```powershell
 git add -A
-git commit -m "chore: release v0.3.8"
+git commit -m "chore: release vX.Y.Z"
 git push origin main
 ```
 
 再次确认工作区干净，然后创建带说明的正式标签：
 
 ```powershell
-git tag -a v0.3.8 -m "Tiance v0.3.8"
-git push origin v0.3.8
+git tag -a vX.Y.Z -m "Tiance vX.Y.Z"
+git push origin vX.Y.Z
 ```
 
 标签创建后不要移动。若内容还要变化，继续发布下一个补丁版本。
@@ -106,7 +107,8 @@ git push origin v0.3.8
 
 ```powershell
 New-Item -ItemType Directory -Force -Path "发布包" | Out-Null
-git archive --format=zip --prefix=Tiance/ -o "发布包/Tiance.zip" v<版本号>
+git archive --format=zip --prefix=Tiance/ -o "发布包/Tiance.zip" v<版本号> -- `
+  Tiance.exe LICENSE system runtime Data 1_PythonServer 2_ReactWeb 3_PyWebView
 Get-FileHash "发布包/Tiance.zip" -Algorithm SHA256
 ```
 
@@ -114,8 +116,7 @@ Get-FileHash "发布包/Tiance.zip" -Algorithm SHA256
 
 ```powershell
 git archive --format=zip --prefix=Tiance/ -o "发布包/Tiance-update.zip" v<版本号> -- `
-  version.json Tiance.exe TianceUpdater.exe LICENSE README.md `
-  1_PythonServer 2_ReactWeb 3_PyWebView assets docs runtime
+  Tiance.exe LICENSE system runtime 1_PythonServer 2_ReactWeb 3_PyWebView
 
 $updateFile = Get-Item "发布包/Tiance-update.zip"
 $updateHash = (Get-FileHash $updateFile.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -130,7 +131,7 @@ $updateHash = (Get-FileHash $updateFile.FullName -Algorithm SHA256).Hash.ToLower
 
 `update.json` 是软件校验更新包的发布合同。版本、文件名、大小和 SHA-256 任一项不一致，后端都会拒绝进入安装阶段。
 
-完整安装包始终直接使用根目录 `runtime`。为兼容仍在使用 `v0.3.7` 的客户端，在线更新包暂时把标签中的根目录 `runtime` 映射为包内 `Data/runtime`：旧更新器会先放入旧位置，新启动器会迁移到根目录；`v0.3.8` 及以后更新器会直接把这份桥接载荷替换到根目录 `runtime`。这不是用户数据覆盖，更新包不得包含 `Data/runtime` 以外的任何 `Data` 文件。待停止支持 `v0.3.7` 后，更新包再恢复为根目录 `runtime`。
+完整安装包与在线更新包都直接使用根目录 `runtime`，并且不得出现 `Data/`。这意味着仍停留在 `v0.3.7` 的极旧安装不能再使用软件内更新，需下载一次完整包；之后更新始终只替换程序文件，用户 `Data/` 永不参与更新。
 
 `发布包` 目录本身被 `.gitignore` 排除，压缩包不会再次进入源码仓库。
 
@@ -147,12 +148,13 @@ tar -tf "发布包/Tiance.zip" | Select-String -Pattern "Tiance.exe|2_ReactWeb/d
 - `node_modules`、`__pycache__` 或 `.pyc`；
 - `Data/secrets`、`Data/projects`、数据库或日志；
 - 供应商 `credentials.json`；
-- WebView2 固定运行环境。
+- WebView2 固定运行环境；
+- 根目录 `docs/`、`assets/` 与 `README.md`。
 
 还必须单独确认 `Tiance-update.zip`：
 
-- 包含 `TianceUpdater.exe`、前端 `dist`，运行环境桥接载荷仅可位于 `Data/runtime`；
-- 不包含 `Data/projects`、`Data/tools`、`Data/themes`、`Data/providers`、数据库、密钥或本地设置；
+- 包含 `system/TianceUpdater.exe`、`system/version.json`、前端 `dist` 和根目录 `runtime`；
+- 不包含任何 `Data/`、数据库、密钥或本地设置；
 - 不包含 `.git`；
 - 解压后的统一根目录仍为 `Tiance/`。
 

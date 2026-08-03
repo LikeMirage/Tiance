@@ -9,27 +9,21 @@ using System.Threading;
 [assembly: AssemblyTitle("Tiance Updater")]
 [assembly: AssemblyProduct("Tiance")]
 [assembly: AssemblyCompany("Tiance")]
-[assembly: AssemblyVersion("0.3.9.0")]
-[assembly: AssemblyFileVersion("0.3.9.0")]
+[assembly: AssemblyVersion("0.3.10.0")]
+[assembly: AssemblyFileVersion("0.3.10.0")]
 
 internal static class TianceUpdater
 {
     private static readonly string[] ReplacementPaths = new string[]
     {
         "Tiance.exe",
-        "TianceUpdater.exe",
-        "version.json",
+        "system",
         "LICENSE",
         "README.md",
         "1_PythonServer",
         "2_ReactWeb",
         "3_PyWebView",
-        "assets",
-        "docs",
         "runtime",
-        // Legacy clients require the runtime payload under Data/runtime. Newer updaters
-        // install that bridge payload into the root runtime directory instead.
-        Path.Combine("Data", "runtime"),
     };
 
     [STAThread]
@@ -82,17 +76,14 @@ internal static class TianceUpdater
                 {
                     continue;
                 }
-                string destinationRelativePath = IsLegacyRuntimeBridge(relativePath)
-                    ? "runtime"
-                    : relativePath;
-                string destination = Path.Combine(installRoot, destinationRelativePath);
-                string backup = Path.Combine(backupRoot, destinationRelativePath);
+                string destination = Path.Combine(installRoot, relativePath);
+                string backup = Path.Combine(backupRoot, relativePath);
                 Replacement replacement = new Replacement(destination, backup);
                 BackupExisting(destination, backup, replacement);
                 replacements.Add(replacement);
                 CopyEntry(source, destination);
                 replacement.Installed = true;
-                Log(logPath, "Replaced " + relativePath + " -> " + destinationRelativePath);
+                Log(logPath, "Replaced " + relativePath);
             }
         }
         catch
@@ -100,15 +91,6 @@ internal static class TianceUpdater
             Rollback(replacements, logPath);
             throw;
         }
-    }
-
-    private static bool IsLegacyRuntimeBridge(string relativePath)
-    {
-        return string.Equals(
-            relativePath,
-            Path.Combine("Data", "runtime"),
-            StringComparison.OrdinalIgnoreCase
-        );
     }
 
     private static void BackupExisting(string destination, string backup, Replacement replacement)
@@ -214,7 +196,8 @@ internal static class TianceUpdater
             throw new InvalidOperationException("The staged update path is outside the Tiance update cache.");
         }
         if (!File.Exists(Path.Combine(stageRoot, "Tiance.exe")) ||
-            !File.Exists(Path.Combine(stageRoot, "version.json")))
+            !File.Exists(Path.Combine(stageRoot, "system", "version.json")) ||
+            !File.Exists(Path.Combine(stageRoot, "system", "TianceUpdater.exe")))
         {
             throw new InvalidOperationException("The staged update is incomplete.");
         }

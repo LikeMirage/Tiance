@@ -31,18 +31,14 @@ MAX_UPDATE_PACKAGE_BYTES = 1024 * 1024 * 1024
 MAX_EXTRACTED_UPDATE_BYTES = 2 * 1024 * 1024 * 1024
 ALLOWED_ROOT_FILES = {
     "LICENSE",
-    "README.md",
     "Tiance.exe",
-    "TianceUpdater.exe",
-    "version.json",
 }
 ALLOWED_ROOT_DIRECTORIES = {
     "1_PythonServer",
     "2_ReactWeb",
     "3_PyWebView",
-    "assets",
-    "docs",
     "runtime",
+    "system",
 }
 
 
@@ -283,34 +279,25 @@ def _validate_update_relative_path(parts: tuple[str, ...]) -> None:
         return
     if first in ALLOWED_ROOT_DIRECTORIES:
         return
-    if first == "Data" and len(parts) >= 2 and parts[1] == "runtime":
-        return
     raise SoftwareUpdateError("更新包包含不允许覆盖的用户数据。", code="update_package_invalid")
 
 
 def _validate_staged_payload(stage_root: Path, version: str) -> None:
     required = [
-        stage_root / "version.json",
+        stage_root / "system" / "version.json",
         stage_root / "Tiance.exe",
-        stage_root / "TianceUpdater.exe",
+        stage_root / "system" / "TianceUpdater.exe",
         stage_root / "1_PythonServer" / "run.py",
         stage_root / "2_ReactWeb" / "dist" / "index.html",
         stage_root / "3_PyWebView" / "run.py",
     ]
     runtime_python = stage_root / "runtime" / "python" / "py313" / "python.exe"
-    legacy_runtime_python = (
-        stage_root / "Data" / "runtime" / "python" / "py313" / "python.exe"
-    )
-    if runtime_python.is_file() and legacy_runtime_python.is_file():
-        raise SoftwareUpdateError(
-            "更新包包含冲突的运行环境目录。",
-            code="update_package_invalid",
-        )
-    runtime_is_complete = runtime_python.is_file() or legacy_runtime_python.is_file()
-    if not all(path.is_file() for path in required) or not runtime_is_complete:
+    if not all(path.is_file() for path in required) or not runtime_python.is_file():
         raise SoftwareUpdateError("更新包缺少必要程序文件。", code="update_package_invalid")
     try:
-        payload = json.loads((stage_root / "version.json").read_text(encoding="utf-8"))
+        payload = json.loads(
+            (stage_root / "system" / "version.json").read_text(encoding="utf-8")
+        )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         raise SoftwareUpdateError("更新包版本文件无效。", code="update_package_invalid") from exc
     if payload.get("version") != version:

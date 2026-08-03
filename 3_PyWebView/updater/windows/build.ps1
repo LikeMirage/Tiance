@@ -7,7 +7,7 @@ Set-StrictMode -Version Latest
 $projectFile = Join-Path $PSScriptRoot "TianceUpdater.csproj"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path
 $builtUpdater = Join-Path $PSScriptRoot "bin\Release\TianceUpdater.exe"
-$targetUpdater = Join-Path $projectRoot "TianceUpdater.exe"
+$targetUpdater = Join-Path $projectRoot "system\TianceUpdater.exe"
 $msbuildCandidates = @(
     (Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe"),
     (Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\MSBuild.exe")
