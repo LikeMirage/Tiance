@@ -59,7 +59,7 @@ GitHub App 建议从一开始配置以下 Repository permissions：
 4. 回到天策“设定集 → GitHub 登录”点击刷新。
 5. 确认“GitHub App 能力”显示权限齐全，仓库行显示“读写”。如 GitHub 要求重新授权，则退出登录后重新走一次设备登录。
 
-推荐使用 `Only select repositories`。创建新仓库后如果工具暂时看不到它，需要回到安装配置页把新仓库加入授权范围。
+希望让 AI 便捷管理个人账号中各类项目的新手，推荐使用 `All repositories`。账号中存在不希望天策访问的敏感仓库时，再使用 `Only select repositories`；手动创建新仓库后如果工具暂时看不到它，需要回到安装配置页把新仓库加入授权范围。由 Tiance Desktop 自己创建的仓库会自动获得访问权限。
 
 ## 4. 备用登录：工具自己的 Token 配置
 
