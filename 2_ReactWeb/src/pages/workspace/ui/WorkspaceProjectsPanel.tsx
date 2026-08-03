@@ -331,7 +331,11 @@ function WorkspaceProjectsBody({
     <div className="workspace-projects-panel__body-shell">
       <div
         ref={controller.projectScrollbar.scrollRef}
-        className="workspace-projects-panel__body"
+        className={
+          controller.activeView === "detail"
+            ? "workspace-projects-panel__body workspace-projects-panel__body--detail"
+            : "workspace-projects-panel__body"
+        }
         onScroll={controller.projectScrollbar.handleScroll}
       >
         <SlidingViewStage

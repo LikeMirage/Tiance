@@ -106,7 +106,14 @@ def test_preset_provider_uses_same_update_delete_rules_and_stays_deleted(tmp_pat
 
     deepseek = catalog.get_entry("deepseek")
     assert deepseek is not None
+    assert deepseek.protocol_family == ProviderProtocolFamily.OPENAI_COMPATIBLE
+    assert deepseek.endpoints.api_base_url == (
+        "https://api.deepseek.com/chat/completions"
+    )
     assert deepseek.model_discovery_strategy == ModelDiscoveryStrategy.OPENAI_MODELS
+    assert deepseek.endpoints.generation_urls[
+        ProviderProtocolFamily.OPENAI_RESPONSES
+    ] == "https://api.deepseek.com/v1/responses"
     assert deepseek.endpoints.generation_urls[
         ProviderProtocolFamily.ANTHROPIC_MESSAGES
     ] == "https://api.deepseek.com/anthropic/v1/messages"
@@ -134,16 +141,13 @@ def test_preset_provider_uses_same_update_delete_rules_and_stays_deleted(tmp_pat
         native_anthropic.model_discovery_strategy
         == ModelDiscoveryStrategy.ANTHROPIC_MODELS
     )
-    unconfigured = mutation.update_provider(
+    responses = mutation.update_provider(
         "deepseek",
         display_name="DeepSeek Local",
         protocol_family=ProviderProtocolFamily.OPENAI_RESPONSES,
     )
-    assert unconfigured.endpoints.api_base_url == ""
-    assert unconfigured.auth_scheme == AuthScheme.BEARER_TOKEN
-    unconfigured_manifest = store.read_provider_file("deepseek", "provider.json")
-    assert unconfigured_manifest is not None
-    assert unconfigured_manifest["enabled"] is False
+    assert responses.endpoints.api_base_url == "https://api.deepseek.com/v1/responses"
+    assert responses.auth_scheme == AuthScheme.BEARER_TOKEN
     restored = mutation.update_provider(
         "deepseek",
         display_name=None,
@@ -555,7 +559,7 @@ def test_preset_generation_url_defaults_repair_auto_generated_legacy_url(tmp_pat
     assert migrated_settings["presetGenerationUrlDefaultsVersion"] == 2
 
 
-def test_preset_generation_url_defaults_add_supported_protocols_and_remove_old_guess(
+def test_preset_generation_url_defaults_add_supported_protocols_and_replace_old_guess(
     tmp_path,
 ):
     providers_path = tmp_path / "providers"
@@ -587,7 +591,9 @@ def test_preset_generation_url_defaults_add_supported_protocols_and_remove_old_g
     assert migrated_grok["generationUrls"]["openai_responses"] == (
         "https://api.x.ai/v1/responses"
     )
-    assert "openai_responses" not in migrated_deepseek["generationUrls"]
+    assert migrated_deepseek["generationUrls"]["openai_responses"] == (
+        "https://api.deepseek.com/v1/responses"
+    )
 
 
 def test_preset_generation_url_defaults_preserve_user_entered_base_url(tmp_path):

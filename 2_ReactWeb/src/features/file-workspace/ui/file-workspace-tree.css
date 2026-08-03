@@ -22,7 +22,6 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-color: var(--scrollbar-thumb) transparent;
-  scrollbar-gutter: stable;
   scrollbar-width: thin;
   user-select: none;
 }

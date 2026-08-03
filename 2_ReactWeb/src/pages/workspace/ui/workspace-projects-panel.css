@@ -195,6 +195,10 @@
   background: transparent;
 }
 
+.workspace-projects-panel__body--detail {
+  width: calc(100% + 10px);
+}
+
 .workspace-projects-panel__view-stage {
   height: 100%;
   min-height: 100%;

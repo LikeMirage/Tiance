@@ -230,6 +230,19 @@ export function ProviderApiBaseUrlSection({
           role="tabpanel"
           aria-labelledby="provider-api-address-tab-generation"
         >
+          <label className="provider-canvas__canvas-field-label">
+            {t("providerCanvas.apiAddress.generationProtocol")}
+          </label>
+          <OptionSelect
+            ariaLabel={t("providerCanvas.selectProviderProtocol")}
+            className="provider-canvas__provider-protocol-select"
+            disabled={isUpdatingProviderProtocol}
+            options={protocolFamilyOptions}
+            value={protocolFamily}
+            variant="integrated-overlay"
+            onChange={onUpdateProviderProtocol}
+          />
+
           <label
             className="provider-canvas__canvas-field-label"
             htmlFor="provider-generation-api-url"
@@ -269,19 +282,6 @@ export function ProviderApiBaseUrlSection({
           </div>
 
           <label className="provider-canvas__canvas-field-label">
-            {t("providerCanvas.apiAddress.generationProtocol")}
-          </label>
-          <OptionSelect
-            ariaLabel={t("providerCanvas.selectProviderProtocol")}
-            className="provider-canvas__provider-protocol-select"
-            disabled={isUpdatingProviderProtocol}
-            options={protocolFamilyOptions}
-            value={protocolFamily}
-            variant="integrated-overlay"
-            onChange={onUpdateProviderProtocol}
-          />
-
-          <label className="provider-canvas__canvas-field-label">
             {t("providerCanvas.apiAddress.generationAuth")}
           </label>
           <OptionSelect
@@ -300,6 +300,18 @@ export function ProviderApiBaseUrlSection({
           role="tabpanel"
           aria-labelledby="provider-api-address-tab-models"
         >
+          <label className="provider-canvas__canvas-field-label">
+            {t("providerCanvas.apiAddress.modelStrategy")}
+          </label>
+          <OptionSelect
+            ariaLabel={t("providerCanvas.apiAddress.modelStrategy")}
+            disabled={providerConfigState.savingProviderId !== null}
+            options={PROVIDER_MODEL_DISCOVERY_STRATEGY_OPTIONS}
+            value={selectedProviderDraft.modelDiscoveryStrategy}
+            variant="integrated-overlay"
+            onChange={providerConfigState.updateSelectedModelDiscoveryStrategy}
+          />
+
           <label
             className="provider-canvas__canvas-field-label"
             htmlFor="provider-model-discovery-url"
@@ -337,18 +349,6 @@ export function ProviderApiBaseUrlSection({
               </button>
             ) : null}
           </div>
-
-          <label className="provider-canvas__canvas-field-label">
-            {t("providerCanvas.apiAddress.modelStrategy")}
-          </label>
-          <OptionSelect
-            ariaLabel={t("providerCanvas.apiAddress.modelStrategy")}
-            disabled={providerConfigState.savingProviderId !== null}
-            options={PROVIDER_MODEL_DISCOVERY_STRATEGY_OPTIONS}
-            value={selectedProviderDraft.modelDiscoveryStrategy}
-            variant="integrated-overlay"
-            onChange={providerConfigState.updateSelectedModelDiscoveryStrategy}
-          />
 
           <label className="provider-canvas__canvas-field-label">
             {t("providerCanvas.apiAddress.modelAuth")}

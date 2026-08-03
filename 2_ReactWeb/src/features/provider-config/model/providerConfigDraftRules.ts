@@ -226,8 +226,6 @@ function createProviderDraft(
     persistedConfig?.prompt_cache_retention_seconds ?? 5 * 60,
   );
   if (persistedConfig) {
-    const isPersistedActiveProtocol =
-      persistedConfig.protocol_family === provider.protocol_family;
     return {
       apiBaseUrl: activeApiBaseUrl,
       protocolFamily: provider.protocol_family,
@@ -250,13 +248,10 @@ function createProviderDraft(
               value: "",
             }))
           : [createApiKeyDraft(provider.provider_id, 1)],
-      enabled:
-        isPersistedActiveProtocol
-        && activeApiBaseUrl.trim().length > 0
-        && persistedConfig.enabled,
+      enabled: activeApiBaseUrl.trim().length > 0 && persistedConfig.enabled,
       promptCacheRetentionUnit: cacheRetention.unit,
       promptCacheRetentionValue: cacheRetention.value,
-      hasManualEnabledOverride: isPersistedActiveProtocol,
+      hasManualEnabledOverride: true,
       persistedUpdatedAt: persistedConfig.updated_at,
       persistedPromptCacheRetentionSeconds: persistedConfig.prompt_cache_retention_seconds,
       presetApiBaseUrl,
