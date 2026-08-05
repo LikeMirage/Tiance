@@ -29,6 +29,7 @@ VERSION_PATTERN = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 MAX_MANIFEST_BYTES = 64 * 1024
 MAX_UPDATE_PACKAGE_BYTES = 1024 * 1024 * 1024
 MAX_EXTRACTED_UPDATE_BYTES = 2 * 1024 * 1024 * 1024
+UPDATE_MANIFEST_PATH = PurePosixPath("system/update-manifest.json")
 ALLOWED_ROOT_FILES = {
     "LICENSE",
     "Tiance.exe",
@@ -283,17 +284,27 @@ def _validate_update_relative_path(parts: tuple[str, ...]) -> None:
 
 
 def _validate_staged_payload(stage_root: Path, version: str) -> None:
-    required = [
-        stage_root / "system" / "version.json",
-        stage_root / "Tiance.exe",
-        stage_root / "system" / "TianceUpdater.exe",
-        stage_root / "1_PythonServer" / "run.py",
-        stage_root / "2_ReactWeb" / "dist" / "index.html",
-        stage_root / "3_PyWebView" / "run.py",
-    ]
-    runtime_python = stage_root / "runtime" / "python" / "py313" / "python.exe"
-    if not all(path.is_file() for path in required) or not runtime_python.is_file():
-        raise SoftwareUpdateError("更新包缺少必要程序文件。", code="update_package_invalid")
+    manifest_path = stage_root / UPDATE_MANIFEST_PATH.as_posix()
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise SoftwareUpdateError("更新文件清单无效。", code="update_package_invalid") from exc
+    if not isinstance(manifest, dict) or manifest.get("schemaVersion") != 2:
+        raise SoftwareUpdateError("更新文件清单版本无效。", code="update_package_invalid")
+    replace = _validate_update_manifest_paths(manifest.get("replace"), "replace")
+    deleted = _validate_update_manifest_paths(manifest.get("delete"), "delete")
+    if set(replace) & set(deleted) or "system/version.json" not in replace:
+        raise SoftwareUpdateError("更新文件清单存在冲突或缺少版本文件。", code="update_package_invalid")
+    listed = set(replace) | {UPDATE_MANIFEST_PATH.as_posix()}
+    actual = {
+        path.relative_to(stage_root).as_posix()
+        for path in stage_root.rglob("*")
+        if path.is_file() and path.name != ".tiance-update-ready"
+    }
+    if actual != listed:
+        raise SoftwareUpdateError("更新包内容与文件清单不一致。", code="update_package_invalid")
+    if manifest.get("version") != version:
+        raise SoftwareUpdateError("更新文件清单版本与发布版本不一致。", code="update_package_invalid")
     try:
         payload = json.loads(
             (stage_root / "system" / "version.json").read_text(encoding="utf-8")
@@ -303,6 +314,24 @@ def _validate_staged_payload(stage_root: Path, version: str) -> None:
     if payload.get("version") != version:
         raise SoftwareUpdateError("更新包版本与发布版本不一致。", code="update_package_invalid")
     (stage_root / ".tiance-update-ready").write_text(version, encoding="utf-8")
+
+
+def _validate_update_manifest_paths(raw: object, field: str) -> list[str]:
+    if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
+        raise SoftwareUpdateError(f"更新文件清单的 {field} 字段无效。", code="update_package_invalid")
+    result: list[str] = []
+    for value in raw:
+        path = PurePosixPath(value)
+        if (
+            not value or path.is_absolute() or ".." in path.parts or "\\" in value
+            or path.as_posix() != value or path == UPDATE_MANIFEST_PATH
+        ):
+            raise SoftwareUpdateError("更新文件清单包含非法路径。", code="update_package_invalid")
+        _validate_update_relative_path(path.parts)
+        if value in result:
+            raise SoftwareUpdateError("更新文件清单包含重复路径。", code="update_package_invalid")
+        result.append(value)
+    return result
 
 
 _service = SoftwareUpdateService()

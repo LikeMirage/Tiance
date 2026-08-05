@@ -70,6 +70,23 @@ def test_staged_payload_accepts_root_runtime(tmp_path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.touch()
     (stage_root / "system" / "version.json").write_text('{"version":"0.3.10"}', encoding="utf-8")
+    (stage_root / "system" / "update-manifest.json").write_text(
+        json.dumps({
+            "schemaVersion": 2,
+            "version": "0.3.10",
+            "replace": [
+                "Tiance.exe",
+                "system/TianceUpdater.exe",
+                "system/version.json",
+                "1_PythonServer/run.py",
+                "2_ReactWeb/dist/index.html",
+                "3_PyWebView/run.py",
+                "runtime/python/py313/python.exe",
+            ],
+            "delete": [],
+        }),
+        encoding="utf-8",
+    )
 
     _validate_staged_payload(stage_root, "0.3.10")
 
@@ -78,7 +95,7 @@ def test_staged_payload_requires_complete_runtime(tmp_path: Path) -> None:
     stage_root = tmp_path / "Tiance"
     stage_root.mkdir()
 
-    with pytest.raises(SoftwareUpdateError, match="必要程序文件"):
+    with pytest.raises(SoftwareUpdateError, match="更新文件清单"):
         _validate_staged_payload(stage_root, "0.3.7")
 
 

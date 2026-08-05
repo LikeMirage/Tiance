@@ -12,7 +12,7 @@
 它包含仓库已经正式跟踪的内容：
 
 - FastAPI 后端源码；
-- React 前端源码与 `2_ReactWeb/dist` 最新生产构建；
+- React 前端 `2_ReactWeb/dist` 最新生产构建；发布包不包含前端源码；
 - PyWebView 桌面壳源码和根目录 `Tiance.exe`；
 - 内置 Python 运行环境及后端、桌面壳运行依赖；
 - 已公开的预置工具、供应商、主题、语言和对应设置文件；
@@ -33,10 +33,10 @@ Windows 10/11 通常已经具有系统 WebView2 Runtime。当前发布包使用�
 
 1. **只从已经提交的标签制作包。** `git archive` 读取标签对应的 Git 内容，不读取尚未提交的工作区修改。
 2. **一个版本对应一个标签和一个 Release。** 发布后发现变化，应增加补丁版本，例如从 `0.3.0` 升到 `0.3.1`，不要把新包悄悄塞回旧标签。
-3. **前端源码和编译产物同时更新。** 修改前端后必须重新构建并提交 `2_ReactWeb/dist`。
+3. **前端源码和编译产物同时更新。** 修改前端后必须重新构建并提交 `2_ReactWeb/dist`；发布包只取 `dist`。
 4. **发布包使用明确白名单。** 完整包包含可运行程序与公开预置数据；更新包只包含程序文件。两者都不携带说明文档、宣传图片和 README。
 5. **Release 附件名称保持简短。** 当前统一使用 `Tiance.zip`，避免 Windows 深层解压时放大路径长度问题。
-6. **在线更新不得覆盖用户数据。** 更新包只能包含程序目录、桌面入口、内置运行环境与 `system/`；根目录 `runtime` 属于程序；`Data` 下的所有内容全部由用户和各在线市场管理，更新包不得出现。
+6. **在线更新不得覆盖用户数据。** 差分更新包只能列出程序文件和删除清单；`Data` 下的所有内容全部由用户和各在线市场管理，更新包不得出现。
 7. **版本号以 `system/version.json` 为运行时唯一来源。** 前端包、Python 包和 Windows 文件版本在发布时同步到同一版本，标签使用对应的 `vX.Y.Z`。
 
 ## 一、发布前检查
@@ -103,35 +103,30 @@ git push origin vX.Y.Z
 
 ## 四、制作完整安装包和在线更新包
 
-从标签生成压缩包，而不是压缩当前目录：
+从标签生成压缩包，而不是压缩当前目录。推荐使用仓库内脚本：
 
 ```powershell
-New-Item -ItemType Directory -Force -Path "发布包" | Out-Null
-git archive --format=zip --prefix=Tiance/ -o "发布包/Tiance.zip" v<版本号> -- `
-  Tiance.exe LICENSE system runtime Data 1_PythonServer 2_ReactWeb 3_PyWebView
-Get-FileHash "发布包/Tiance.zip" -Algorithm SHA256
+./scripts/package-release.ps1 -Version <版本号> -Tag v<版本号> -PreviousTag v<上一版本号>
 ```
 
-在线更新包只归档下列程序文件：
+在线更新包使用文件级差分，只包含本次版本新增或修改的程序文件，并在包内写入删除清单。`system/update-manifest.json` 格式如下：
 
-```powershell
-git archive --format=zip --prefix=Tiance/ -o "发布包/Tiance-update.zip" v<版本号> -- `
-  Tiance.exe LICENSE system runtime 1_PythonServer 2_ReactWeb 3_PyWebView
-
-$updateFile = Get-Item "发布包/Tiance-update.zip"
-$updateHash = (Get-FileHash $updateFile.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-@{
-  schemaVersion = 1
-  version = "<版本号>"
-  assetName = "Tiance-update.zip"
-  sha256 = $updateHash
-  size = $updateFile.Length
-} | ConvertTo-Json | Set-Content "发布包/update.json" -Encoding utf8
+```json
+{
+  "schemaVersion": 2,
+  "version": "0.3.11",
+  "replace": ["system/version.json", "2_ReactWeb/dist/index.html"],
+  "delete": ["2_ReactWeb/dist/assets/old-hash.js"]
+}
 ```
+
+更新器逐文件备份、替换和删除，失败时按同一清单回滚；禁止列入 `Data/`。
+
+脚本会同时生成 `Tiance.zip`、`Tiance-update.zip` 和 `update.json`。
 
 `update.json` 是软件校验更新包的发布合同。版本、文件名、大小和 SHA-256 任一项不一致，后端都会拒绝进入安装阶段。
 
-完整安装包与在线更新包都直接使用根目录 `runtime`，并且不得出现 `Data/`。这意味着仍停留在 `v0.3.7` 的极旧安装不能再使用软件内更新，需下载一次完整包；之后更新始终只替换程序文件，用户 `Data/` 永不参与更新。
+完整安装包使用根目录 `runtime`，差分更新包只携带本次变化的程序文件。新发布规则从下一正式版本开始生效，用户 `Data/` 永不参与更新。
 
 `发布包` 目录本身被 `.gitignore` 排除，压缩包不会再次进入源码仓库。
 

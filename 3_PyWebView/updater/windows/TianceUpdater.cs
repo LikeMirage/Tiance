@@ -5,6 +5,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Reflection;
 using System.Threading;
+using System.Web.Script.Serialization;
 
 [assembly: AssemblyTitle("Tiance Updater")]
 [assembly: AssemblyProduct("Tiance")]
@@ -14,18 +15,6 @@ using System.Threading;
 
 internal static class TianceUpdater
 {
-    private static readonly string[] ReplacementPaths = new string[]
-    {
-        "Tiance.exe",
-        "system",
-        "LICENSE",
-        "README.md",
-        "1_PythonServer",
-        "2_ReactWeb",
-        "3_PyWebView",
-        "runtime",
-    };
-
     [STAThread]
     private static int Main(string[] args)
     {
@@ -69,13 +58,10 @@ internal static class TianceUpdater
         List<Replacement> replacements = new List<Replacement>();
         try
         {
-            foreach (string relativePath in ReplacementPaths)
+            UpdatePlan plan = ReadUpdatePlan(stageRoot);
+            foreach (string relativePath in plan.Replace)
             {
                 string source = Path.Combine(stageRoot, relativePath);
-                if (!File.Exists(source) && !Directory.Exists(source))
-                {
-                    continue;
-                }
                 string destination = Path.Combine(installRoot, relativePath);
                 string backup = Path.Combine(backupRoot, relativePath);
                 Replacement replacement = new Replacement(destination, backup);
@@ -84,6 +70,18 @@ internal static class TianceUpdater
                 CopyEntry(source, destination);
                 replacement.Installed = true;
                 Log(logPath, "Replaced " + relativePath);
+            }
+            foreach (string relativePath in plan.Delete)
+            {
+                string destination = Path.Combine(installRoot, relativePath);
+                if (!File.Exists(destination) && !Directory.Exists(destination)) continue;
+                string backup = Path.Combine(backupRoot, relativePath);
+                Replacement replacement = new Replacement(destination, backup);
+                BackupExisting(destination, backup, replacement);
+                replacements.Add(replacement);
+                DeleteEntry(destination);
+                replacement.Installed = true;
+                Log(logPath, "Deleted " + relativePath);
             }
         }
         catch
@@ -195,12 +193,70 @@ internal static class TianceUpdater
         {
             throw new InvalidOperationException("The staged update path is outside the Tiance update cache.");
         }
-        if (!File.Exists(Path.Combine(stageRoot, "Tiance.exe")) ||
-            !File.Exists(Path.Combine(stageRoot, "system", "version.json")) ||
-            !File.Exists(Path.Combine(stageRoot, "system", "TianceUpdater.exe")))
+        if (!File.Exists(Path.Combine(stageRoot, "system", "update-manifest.json")))
         {
             throw new InvalidOperationException("The staged update is incomplete.");
         }
+    }
+
+    private static UpdatePlan ReadUpdatePlan(string stageRoot)
+    {
+        string manifestPath = Path.Combine(stageRoot, "system", "update-manifest.json");
+        Dictionary<string, object> payload = new JavaScriptSerializer()
+            .DeserializeObject(File.ReadAllText(manifestPath)) as Dictionary<string, object>;
+        if (payload == null || Convert.ToInt32(payload["schemaVersion"]) != 2)
+            throw new InvalidOperationException("The update manifest is invalid.");
+        UpdatePlan plan = new UpdatePlan(
+            ReadManifestPaths(payload, "replace"),
+            ReadManifestPaths(payload, "delete")
+        );
+        foreach (string path in plan.Replace) ValidateManifestPath(path);
+        foreach (string path in plan.Delete) ValidateManifestPath(path);
+        return plan;
+    }
+
+    private static List<string> ReadManifestPaths(Dictionary<string, object> payload, string key)
+    {
+        object raw;
+        if (!payload.TryGetValue(key, out raw))
+            throw new InvalidOperationException("The update manifest is invalid.");
+        object[] values = raw as object[];
+        if (values == null) throw new InvalidOperationException("The update manifest is invalid.");
+        List<string> result = new List<string>();
+        foreach (object value in values)
+        {
+            string path = value as string;
+            if (path == null || result.Contains(path))
+                throw new InvalidOperationException("The update manifest is invalid.");
+            result.Add(path);
+        }
+        return result;
+    }
+
+    private static void ValidateManifestPath(string value)
+    {
+        string normalized = value.Replace('\\', '/');
+        if (String.IsNullOrWhiteSpace(value) || normalized != value || value.StartsWith("/") ||
+            value.Contains("..") || value.Equals("system/update-manifest.json", StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith("Data/", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The update manifest contains an unsafe path.");
+        string[] parts = value.Split('/');
+        string first = parts[0];
+        if (first == "Tiance.exe" || first == "LICENSE")
+        {
+            if (parts.Length != 1) throw new InvalidOperationException("The update manifest contains an unsafe path.");
+            return;
+        }
+        if (first != "Tiance.exe" && first != "LICENSE" && first != "system" &&
+            first != "1_PythonServer" && first != "2_ReactWeb" && first != "3_PyWebView" && first != "runtime")
+            throw new InvalidOperationException("The update manifest contains an unsafe path.");
+    }
+
+    private sealed class UpdatePlan
+    {
+        internal UpdatePlan(List<string> replace, List<string> delete) { Replace = replace; Delete = delete; }
+        internal List<string> Replace { get; private set; }
+        internal List<string> Delete { get; private set; }
     }
 
     private static void WaitForProcessExit(int pid, TimeSpan timeout)
