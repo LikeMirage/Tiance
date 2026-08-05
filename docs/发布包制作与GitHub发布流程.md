@@ -148,24 +148,32 @@ tar -tf "发布包/Tiance.zip" | Select-String -Pattern "Tiance.exe|2_ReactWeb/d
 
 还必须单独确认 `Tiance-update.zip`：
 
-- 包含 `system/TianceUpdater.exe`、`system/version.json`、前端 `dist` 和根目录 `runtime`；
+- 包含 `system/update-manifest.json`、`system/version.json` 以及清单中列出的全部文件；
 - 不包含任何 `Data/`、数据库、密钥或本地设置；
 - 不包含 `.git`；
 - 解压后的统一根目录仍为 `Tiance/`。
+
+旧版 `3.10` 更新器有额外的核心文件检查，不能直接安装 `3.11` 的新协议差分包。旧版本迁移应使用完整安装包；从 `3.11` 开始，更新器按 `schemaVersion: 2` 的文件清单工作。
 
 最严格的完整性检查是：压缩包中的文件集合应与该标签的 `git ls-tree -r --name-only v<版本号>` 一致，只多一层统一的 `Tiance/` 根目录。
 
 ## 五、创建 GitHub Release 并上传
 
-可以使用天策内置的 `GitHub 发布` 工具完成，不要求安装 GitHub CLI：
+维护者发布优先使用已登录的 GitHub CLI：
 
-1. 在设定集登录 GitHub，并确认 Tiance Desktop 对该仓库具有 Contents 读写权限。
-2. 调用 `GitHub 发布` 工具创建 Release：仓库为 `LikeMirage/Tiance`，标签为 `v0.3.8`，名称为 `Tiance v0.3.8`。
-3. 填写本版本真实完成的修复和变化，不把未来计划写成已完成功能。
-4. 使用同一工具上传 `发布包/Tiance.zip`、`发布包/Tiance-update.zip` 和 `发布包/update.json`。
-5. 打开 GitHub Release 页面，确认标签、发布时间、附件名称和附件大小正确。
+```powershell
+gh auth login
+gh auth status
+gh release create vX.Y.Z `
+  发布包/Tiance.zip `
+  发布包/Tiance-update.zip `
+  发布包/update.json `
+  --repo LikeMirage/Tiance `
+  --verify-tag `
+  --title "Tiance vX.Y.Z"
+```
 
-也可以在 GitHub 网页的 Releases 页面选择已经推送的标签，手工上传同一个压缩包。无论使用哪种入口，都不能绕过前面的标签和内容校验。
+也可以在 GitHub 网页的 Releases 页面选择已经推送的标签，手工上传同一个压缩包。软件内置的 `GitHub 发布` 工具是应用能力入口，不是维护者发布自己仓库的必要条件。无论使用哪种入口，都不能绕过前面的标签和内容校验。
 
 ## 六、发布后核对
 
