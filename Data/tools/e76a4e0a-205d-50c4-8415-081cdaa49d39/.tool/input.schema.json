@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "转换 Markdown、从 Word 样本提取模板，或列出已有模板。action 省略时保持原有转换行为。",
+  "description": "转换 Markdown、从 Word 样本提取模板，或列出已有模板。Markdown 中的复杂表格使用 table-ref 指令引用外部 .xlsx；action 省略时为 convert。",
   "additionalProperties": false,
   "properties": {
     "action": {

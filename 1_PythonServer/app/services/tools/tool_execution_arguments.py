@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from json import dumps, loads
+import re
 from typing import Any
 
 
@@ -21,7 +22,7 @@ def validate_tool_arguments(arguments: dict[str, Any], schema: dict[str, Any]) -
     if not isinstance(schema, dict) or not schema:
         return []
     errors: list[str] = []
-    _validate_schema_value(arguments, schema, path="参数", errors=errors)
+    _validate_schema_value(arguments, schema, path="参数", errors=errors, root_schema=schema)
     return errors
 
 
@@ -31,7 +32,52 @@ def _validate_schema_value(
     *,
     path: str,
     errors: list[str],
+    root_schema: dict[str, Any],
 ) -> None:
+    reference = schema.get("$ref")
+    if isinstance(reference, str):
+        resolved = _resolve_local_reference(reference, root_schema)
+        if resolved is None:
+            errors.append(f"{path} 使用了无法解析的 schema 引用：{reference}。")
+        else:
+            _validate_schema_value(value, resolved, path=path, errors=errors, root_schema=root_schema)
+        return
+
+    all_of = schema.get("allOf")
+    if isinstance(all_of, list):
+        for branch in all_of:
+            if isinstance(branch, dict):
+                _validate_schema_value(value, branch, path=path, errors=errors, root_schema=root_schema)
+
+    condition = schema.get("if")
+    if isinstance(condition, dict):
+        branch_key = "then" if _schema_matches(value, condition, root_schema) else "else"
+        branch = schema.get(branch_key)
+        if isinstance(branch, dict):
+            _validate_schema_value(value, branch, path=path, errors=errors, root_schema=root_schema)
+
+    one_of = schema.get("oneOf")
+    if isinstance(one_of, list):
+        matches = [branch for branch in one_of if isinstance(branch, dict) and _schema_matches(value, branch, root_schema)]
+        if len(matches) != 1:
+            errors.append(f"{path} 必须且只能匹配一种参数结构。")
+            return
+        _validate_schema_value(value, matches[0], path=path, errors=errors, root_schema=root_schema)
+        return
+
+    any_of = schema.get("anyOf")
+    if isinstance(any_of, list) and not any(
+        isinstance(branch, dict) and _schema_matches(value, branch, root_schema)
+        for branch in any_of
+    ):
+        errors.append(f"{path} 不符合任何允许的参数结构。")
+        return
+
+    denied = schema.get("not")
+    if isinstance(denied, dict) and _schema_matches(value, denied, root_schema):
+        errors.append(f"{path} 包含互斥参数。")
+        return
+
     expected_types = _schema_types(schema.get("type"))
     if expected_types and not _matches_schema_type(value, expected_types):
         errors.append(f"{path} 类型应为 {_format_schema_types(expected_types)}。")
@@ -42,10 +88,14 @@ def _validate_schema_value(
         errors.append(f"{path} 必须是 {', '.join(map(str, enum_values))} 之一。")
         return
 
+    if "const" in schema and value != schema["const"]:
+        errors.append(f"{path} 必须是 {schema['const']}。")
+        return
+
     if isinstance(value, dict):
-        _validate_object_value(value, schema, path=path, errors=errors)
+        _validate_object_value(value, schema, path=path, errors=errors, root_schema=root_schema)
     elif isinstance(value, list):
-        _validate_array_value(value, schema, path=path, errors=errors)
+        _validate_array_value(value, schema, path=path, errors=errors, root_schema=root_schema)
     elif isinstance(value, str):
         _validate_string_value(value, schema, path=path, errors=errors)
     elif _is_number(value):
@@ -58,7 +108,14 @@ def _validate_object_value(
     *,
     path: str,
     errors: list[str],
+    root_schema: dict[str, Any],
 ) -> None:
+    min_properties = _optional_int(schema.get("minProperties"))
+    max_properties = _optional_int(schema.get("maxProperties"))
+    if min_properties is not None and len(value) < min_properties:
+        errors.append(f"{path} 至少需要 {min_properties} 个字段。")
+    if max_properties is not None and len(value) > max_properties:
+        errors.append(f"{path} 最多允许 {max_properties} 个字段。")
     properties = schema.get("properties")
     properties = properties if isinstance(properties, dict) else {}
     required = schema.get("required")
@@ -76,7 +133,9 @@ def _validate_object_value(
     for name, child_schema in properties.items():
         if name not in value or not isinstance(child_schema, dict):
             continue
-        _validate_schema_value(value[name], child_schema, path=f"{path}.{name}", errors=errors)
+        _validate_schema_value(
+            value[name], child_schema, path=f"{path}.{name}", errors=errors, root_schema=root_schema
+        )
 
 
 def _validate_array_value(
@@ -85,6 +144,7 @@ def _validate_array_value(
     *,
     path: str,
     errors: list[str],
+    root_schema: dict[str, Any],
 ) -> None:
     min_items = _optional_int(schema.get("minItems"))
     max_items = _optional_int(schema.get("maxItems"))
@@ -100,7 +160,9 @@ def _validate_array_value(
     item_schema = schema.get("items")
     if isinstance(item_schema, dict):
         for index, item in enumerate(value):
-            _validate_schema_value(item, item_schema, path=f"{path}[{index}]", errors=errors)
+            _validate_schema_value(
+                item, item_schema, path=f"{path}[{index}]", errors=errors, root_schema=root_schema
+            )
 
 
 def _validate_string_value(
@@ -116,6 +178,13 @@ def _validate_string_value(
         errors.append(f"{path} 长度不能小于 {min_length}。")
     if max_length is not None and len(value) > max_length:
         errors.append(f"{path} 长度不能大于 {max_length}。")
+    pattern = schema.get("pattern")
+    if isinstance(pattern, str):
+        try:
+            if re.search(pattern, value) is None:
+                errors.append(f"{path} 格式不正确。")
+        except re.error:
+            errors.append(f"{path} 的 schema pattern 无效。")
 
 
 def _validate_number_value(
@@ -127,10 +196,37 @@ def _validate_number_value(
 ) -> None:
     minimum = _optional_float(schema.get("minimum"))
     maximum = _optional_float(schema.get("maximum"))
+    exclusive_minimum = _optional_float(schema.get("exclusiveMinimum"))
     if minimum is not None and value < minimum:
         errors.append(f"{path} 不能小于 {minimum:g}。")
     if maximum is not None and value > maximum:
         errors.append(f"{path} 不能大于 {maximum:g}。")
+    if exclusive_minimum is not None and value <= exclusive_minimum:
+        errors.append(f"{path} 必须大于 {exclusive_minimum:g}。")
+
+
+def _schema_matches(value: Any, schema: dict[str, Any], root_schema: dict[str, Any]) -> bool:
+    branch_errors: list[str] = []
+    _validate_schema_value(
+        value,
+        schema,
+        path="参数",
+        errors=branch_errors,
+        root_schema=root_schema,
+    )
+    return not branch_errors
+
+
+def _resolve_local_reference(reference: str, root_schema: dict[str, Any]) -> dict[str, Any] | None:
+    if not reference.startswith("#/"):
+        return None
+    current: Any = root_schema
+    for raw_part in reference[2:].split("/"):
+        part = raw_part.replace("~1", "/").replace("~0", "~")
+        if not isinstance(current, dict) or part not in current:
+            return None
+        current = current[part]
+    return current if isinstance(current, dict) else None
 
 
 def _schema_types(value: object) -> tuple[str, ...]:

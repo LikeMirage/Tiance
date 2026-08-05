@@ -15,6 +15,9 @@ from app.repositories.project.conversation_branch_copy import (
     write_inherited_long_term_memory_state,
     write_inherited_memory_delivery_state,
 )
+from app.repositories.project.conversation_attachment_repository import (
+    copy_referenced_attachments,
+)
 from app.repositories.project.conversation_branch_store import (
     CREATED_BY_USER,
     RELATION_KIND_FORK,
@@ -164,6 +167,12 @@ class ProjectConversationBranchRepository:
                 temporary_dir.mkdir(parents=True, exist_ok=False)
                 self._session_store.write_session(temporary_dir, child_session)
                 self._message_store.write_messages(temporary_dir, copied_messages)
+                copy_referenced_attachments(
+                    source_session_dir,
+                    temporary_dir,
+                    copied_messages,
+                    references,
+                )
                 write_inherited_compressions(
                     source_session_dir,
                     temporary_dir,

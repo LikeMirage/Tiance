@@ -382,6 +382,9 @@ def _content_parts_from_payload(value: object) -> tuple[ChatMessageContentPart, 
                                 detail=_optional_str(image_ref.get("detail")),
                                 name=_optional_str(image_ref.get("name")),
                                 size_bytes=_optional_int_or_none(image_ref.get("size_bytes")),
+                                attachment_id=_optional_str(image_ref.get("attachment_id")),
+                                source_path=_optional_str(image_ref.get("source_path")),
+                                source_kind=_optional_str(image_ref.get("source_kind")),
                             ),
                         )
                     )
@@ -404,6 +407,9 @@ def _content_part_to_payload(part: ChatMessageContentPart) -> dict:
             "detail": part.image_ref.detail,
             "name": part.image_ref.name,
             "size_bytes": part.image_ref.size_bytes,
+            "attachment_id": part.image_ref.attachment_id,
+            "source_path": part.image_ref.source_path,
+            "source_kind": part.image_ref.source_kind,
         }
     return payload
 

@@ -6,6 +6,8 @@ from app.core.errors import ConflictError
 from app.schemas.llm.usage import LlmSessionUsageSummaryResponse
 from app.schemas.project import (
     ApplyConversationRoleRequest,
+    ConversationImageAttachmentCreateRequest,
+    ConversationImageAttachmentResponse,
     ProjectConversationAutomaticNamingSettleRequest,
     ProjectConversationAutomaticNamingSettleResponse,
     ProjectConversationAutomaticTitleRequest,
@@ -47,8 +49,38 @@ from app.services.project.conversation_run_manager import get_conversation_run_m
 from app.services.project.conversation_naming import (
     get_project_conversation_naming_service,
 )
+from app.services.project.conversation_attachments import (
+    get_conversation_attachment_service,
+)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+@router.post(
+    "/{project_id}/conversations/{session_id}/attachments/images",
+    response_model=ConversationImageAttachmentResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Save an image as a session-owned conversation attachment",
+)
+def create_conversation_image_attachment(
+    project_id: str,
+    session_id: str,
+    payload: ConversationImageAttachmentCreateRequest,
+) -> ConversationImageAttachmentResponse:
+    image_ref = get_conversation_attachment_service().save_uploaded_image(
+        project_id,
+        session_id,
+        filename=payload.filename,
+        mime_type=payload.mime_type,
+        data_base64=payload.data_base64,
+        source_kind=payload.source_kind,
+        source_path=payload.source_path,
+    )
+    return ConversationImageAttachmentResponse.from_domain(
+        project_id=project_id,
+        session_id=session_id,
+        image_ref=image_ref,
+    )
 
 
 @router.get(

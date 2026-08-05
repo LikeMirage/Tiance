@@ -13,6 +13,10 @@
 .software-update__head { justify-content: space-between; gap: 18px; }
 .software-update__head h2 { margin: 0; color: var(--color-text-heading); font-size: 1.35rem; }
 .software-update__head p { margin: 5px 0 0; color: var(--color-text-muted); font-size: .8rem; }
+.software-update__links { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.software-update__links a { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-secondary); font-size: .8rem; text-decoration: none; }
+.software-update__links a:hover { color: var(--color-accent); text-decoration: underline; }
+.software-update__links a svg:last-child { color: var(--color-text-muted); }
 .software-update__button {
   justify-content: center;
   gap: 6px;

@@ -1,5 +1,9 @@
 [
   {
+    "title": "把 Excel 反向提取为双 Markdown",
+    "content": "{\"action\":\"export_markdown\",\"input_path\":\"reports/sales_dashboard.xlsx\",\"content_path\":\"reports/sales_dashboard.content.md\",\"format_path\":\"reports/sales_dashboard.format.md\",\"report_path\":\"reports/sales_dashboard.extract-report.md\",\"overwrite\":true}"
+  },
+  {
     "title": "快速创建普通 Excel 表格",
     "content": "{\"action\":\"create\",\"mode\":\"simple_table\",\"output_path\":\"reports/sales_simple.xlsx\",\"overwrite\":true,\"sheet_name\":\"销售表\",\"columns\":[\"区域\",\"销售额\",\"完成率\"],\"rows\":[[\"华东\",120,0.8],[\"华南\",98,0.7],[\"华北\",88,0.65]]}"
   },

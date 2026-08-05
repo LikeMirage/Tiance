@@ -20,6 +20,7 @@ from excel_edit import edit_workbook
 from excel_errors import ToolError
 from excel_formulas import formula_value
 from excel_inspect import inspect_workbook
+from excel_markdown_export import export_workbook
 from excel_rules import add_conditional_format
 from excel_styles import apply_style, apply_style_to_range, normalize_color
 
@@ -80,6 +81,22 @@ def resolve_output_path(payload: dict[str, Any], root: Path) -> Path:
         ) from exc
     if resolved.suffix.lower() != ".xlsx":
         resolved = resolved.with_suffix(".xlsx")
+    return resolved
+
+
+def resolve_workspace_path(raw: Any, root: Path, *, label: str, suffix: str | None = None) -> Path:
+    if not isinstance(raw, str) or not raw.strip():
+        raise ToolError("INVALID_ARGUMENT", f"{label} 必须是非空字符串。")
+    path = Path(raw.strip()).expanduser()
+    if not path.is_absolute():
+        path = root / path
+    resolved = path.resolve(strict=False)
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ToolError("PATH_OUTSIDE_WORKSPACE", f"{label} 必须位于工作区内。") from exc
+    if suffix and resolved.suffix.lower() != suffix:
+        resolved = resolved.with_suffix(suffix)
     return resolved
 
 
@@ -512,6 +529,40 @@ def resolve_existing_workbook_path(payload: dict[str, Any], root: Path) -> Path:
     return resolved
 
 
+def export_markdown_action(payload: dict[str, Any], root: Path) -> dict[str, Any]:
+    input_path = resolve_workspace_path(payload.get("input_path"), root, label="input_path")
+    if input_path.suffix.lower() not in {".xlsx", ".xlsm"}:
+        raise ToolError("INVALID_ARGUMENT", "input_path 必须是 .xlsx 或 .xlsm 文件。")
+    if not input_path.is_file():
+        raise ToolError("INPUT_NOT_FOUND", "input_path 指向的 Excel 文件不存在。", {"input_path": str(input_path)})
+    content_path = resolve_workspace_path(payload.get("content_path"), root, label="content_path", suffix=".md")
+    format_path = resolve_workspace_path(payload.get("format_path"), root, label="format_path", suffix=".md")
+    assets_raw = payload.get("assets_dir")
+    assets_dir = resolve_workspace_path(assets_raw, root, label="assets_dir") if assets_raw else content_path.parent / f"{content_path.stem}_assets"
+    report_raw = payload.get("report_path")
+    report_path = resolve_workspace_path(report_raw, root, label="report_path", suffix=".md") if report_raw else None
+    overwrite = read_bool(payload.get("overwrite"), False)
+    targets = [content_path, format_path] + ([report_path] if report_path else [])
+    if not overwrite:
+        existing = [str(path) for path in targets if path is not None and path.exists()]
+        if existing:
+            raise ToolError("OUTPUT_EXISTS", "反向提取目标文件已存在，请显式传 overwrite=true。", {"paths": existing})
+    for path in targets:
+        if path is not None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+    selected = payload.get("sheets")
+    selected_sheets = selected if isinstance(selected, list) and all(isinstance(item, str) for item in selected) else None
+    return export_workbook(
+        input_path,
+        content_path,
+        format_path,
+        assets_dir,
+        report_path,
+        include_empty_rows=read_bool(payload.get("include_empty_rows"), False),
+        selected_sheets=selected_sheets,
+    )
+
+
 def read_action(payload: dict[str, Any]) -> str:
     raw = payload.get("action")
     if not isinstance(raw, str) or not raw.strip():
@@ -541,6 +592,9 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
         if action == "inspect":
             data = inspect_workbook(resolve_existing_workbook_path(payload, root))
             return ok("Excel 工作簿摘要读取完成。", data)
+        if action == "export_markdown":
+            data = export_markdown_action(payload, root)
+            return ok("Excel 已提取为双 Markdown，并附带 AI 读取规则。", data, data.get("warnings"))
         if action == "create":
             return create_workbook(payload, validate_only=validate_only)
         if action == "edit":
@@ -557,7 +611,7 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
             raise ToolError("INVALID_ARGUMENT", "validate.target_action 只支持 create 或 edit。")
         raise ToolError(
             "INVALID_ACTION",
-            "action 只支持 inspect、create、edit、validate。",
+            "action 只支持 inspect、export_markdown、create、edit、validate。",
             {"action": action},
         )
     except ToolError as exc:

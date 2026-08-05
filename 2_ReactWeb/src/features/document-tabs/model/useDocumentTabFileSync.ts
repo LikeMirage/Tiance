@@ -109,7 +109,19 @@ export function useDocumentTabFileSync({
           ) {
             return tab;
           }
-          if (tab.isDirty) {
+          if (tab.isDirty && res.content === tab.savedContent && res.content !== tab.content) {
+            return {
+              ...tab,
+              displayPath: resolvedPath,
+              filePath: resolvedPath,
+              mtimeMs: res.mtime_ms,
+              projectFilePath: isProjectFileSource(tab.fileSource, tab.projectId)
+                ? resolvedPath
+                : tab.projectFilePath,
+              isMissing: false,
+            };
+          }
+          if (tab.isDirty && res.content !== tab.content) {
             return {
               ...tab,
               displayPath: resolvedPath,

@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "ok": { "type": "boolean" },
+    "summary": { "type": "string" },
+    "data": { "type": "object" },
+    "error": { "type": "string" },
+    "error_info": { "type": "object" }
+  },
+  "required": ["ok"]
+}

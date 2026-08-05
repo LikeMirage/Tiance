@@ -56,6 +56,9 @@ from app.services.project.conversation_image_references import (
     ConversationImageReferenceResolver,
     get_conversation_image_reference_resolver,
 )
+from app.services.project.conversation_attachments import (
+    get_conversation_attachment_service,
+)
 from app.services.project.conversation_stream_persistence import ConversationStreamPersistence
 from app.services.project.conversation_stream_settlement import ConversationStreamSettlement
 from app.services.project.conversation_stream_events import stream_event_to_payload
@@ -163,6 +166,7 @@ class ProjectConversationStreamService:
             tool_call_record_service=tool_call_record_service,
             client_tool_bridge_service=client_tool_bridge_service,
             runtime_capabilities_service=runtime_capabilities_service,
+            attachment_service=get_conversation_attachment_service(),
         )
         if hasattr(memory_service, "set_functional_conversation_runner"):
             memory_service.set_functional_conversation_runner(

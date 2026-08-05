@@ -1,4 +1,31 @@
 {
   "schemaVersion": 1,
-  "items": []
+  "items": [
+    {
+      "modelId": "deepseek-v4-flash-0731",
+      "displayName": "deepseek-v4-flash-0731",
+      "familyGroup": "deepseek",
+      "capabilityTags": [],
+      "note": "",
+      "priceCurrency": "CNY",
+      "inputPricePerMillion": null,
+      "cacheHitPricePerMillion": null,
+      "outputPricePerMillion": null,
+      "createdAt": "2026-08-05T06:04:28.911360+00:00",
+      "updatedAt": "2026-08-05T06:04:28.911360+00:00"
+    },
+    {
+      "modelId": "deepseek-v4-flash-guan",
+      "displayName": "deepseek-v4-flash-guan",
+      "familyGroup": "deepseek",
+      "capabilityTags": [],
+      "note": "",
+      "priceCurrency": "CNY",
+      "inputPricePerMillion": null,
+      "cacheHitPricePerMillion": null,
+      "outputPricePerMillion": null,
+      "createdAt": "2026-08-05T06:04:33.705667+00:00",
+      "updatedAt": "2026-08-05T06:04:33.705667+00:00"
+    }
+  ]
 }

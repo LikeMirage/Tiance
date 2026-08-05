@@ -54,3 +54,21 @@ def test_grant_is_not_issued_without_complete_model_context():
         session_id=None,
         lifetime_seconds=60,
     ) is None
+
+
+def test_manage_memory_receives_only_memory_capability():
+    access = HostCapabilityAccessService()
+    grant = access.issue_grant(
+        tool_name="manage_memory",
+        tool_call_id="call-memory",
+        provider_id=None,
+        model_id=None,
+        project_id="project-1",
+        session_id="session-1",
+        lifetime_seconds=60,
+    )
+
+    assert grant is not None
+    assert grant.capability is HostCapability.MEMORY_MANAGEMENT
+    assert access.authorize(grant.token, HostCapability.MEMORY_MANAGEMENT) == grant
+    assert access.authorize(grant.token, HostCapability.GITHUB_PLATFORM) is None

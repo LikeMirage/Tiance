@@ -6,12 +6,7 @@ import type {
   ProjectFileDragData,
   ProjectFileReferenceRequest,
 } from "../../../entities/project/model/projectFileDragData";
-import { publishProjectFileMutation } from "../../../entities/project/model/projectFileMutation";
-import {
-  buildUserUploadImagesFolderNode,
-  buildUserUploadsRootNode,
-} from "../../../entities/project/model/projectUploadFolderNodes";
-import { uploadProjectPastedImage } from "../../../services/project/uploadProjectPastedImage";
+import { uploadConversationImageAttachment } from "../../../services/project/uploadConversationImageAttachment";
 import type { DesktopPathEntry } from "../../../shared/types/desktopShell";
 import { readDesktopClipboardPathEntries } from "../../desktop-shell/model/desktopClipboard";
 import type { DesktopFileDropEvent } from "../../desktop-shell/model/desktopFileDropBridge";
@@ -95,6 +90,10 @@ export function useChatComposerReferences({
       setUploadStatus({ kind: "error", message: "当前没有可建立引用的项目。" });
       return;
     }
+    if (!startedSessionId) {
+      setUploadStatus({ kind: "error", message: "当前没有可保存附件的会话。" });
+      return;
+    }
     setUploadStatus({ kind: "saving", message: null });
     try {
       const clipboardEntries = await readDesktopClipboardPathEntries();
@@ -123,31 +122,16 @@ export function useChatComposerReferences({
         return;
       }
       for (const file of imageFiles) {
-        const uploaded = await uploadProjectPastedImage(projectId, file);
+        const uploaded = await uploadConversationImageAttachment(projectId, startedSessionId, file);
         if (
           uploadRequestIdRef.current !== requestId ||
           activeProjectIdRef.current !== projectId ||
           activeSessionIdRef.current !== startedSessionId
         ) return;
-        publishProjectFileMutation({
-          projectId,
-          node: buildUserUploadsRootNode(),
-          sourceId: "chat-pasted-image",
-        });
-        publishProjectFileMutation({
-          projectId,
-          node: buildUserUploadImagesFolderNode(),
-          sourceId: "chat-pasted-image",
-        });
-        publishProjectFileMutation({
-          projectId,
-          node: uploaded.node,
-          sourceId: "chat-pasted-image",
-        });
         onReferenceProjectFile?.({
           projectId,
           path: uploaded.path,
-          name: uploaded.node.name,
+          name: uploaded.name,
           kind: "file",
         });
       }

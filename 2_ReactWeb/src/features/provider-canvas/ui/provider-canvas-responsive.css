@@ -4,6 +4,16 @@
     align-items: flex-start;
   }
 
+  .provider-canvas__api-key-section-head {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .provider-canvas__api-address-section-head {
+    flex-direction: row;
+    align-items: center;
+  }
+
   .provider-canvas__model-management-actions {
     width: 100%;
     justify-content: flex-start;

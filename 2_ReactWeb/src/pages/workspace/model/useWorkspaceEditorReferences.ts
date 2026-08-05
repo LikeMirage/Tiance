@@ -11,19 +11,13 @@ import type {
   EditorTextReference,
   EditorTextReferenceDraft,
 } from "../../../entities/editor/model/editorReference";
-import type { ProjectFileNode } from "../../../entities/project/model/project";
 import type { ProjectFileDragData } from "../../../entities/project/model/projectFileDragData";
-import { publishProjectFileMutation } from "../../../entities/project/model/projectFileMutation";
-import {
-  buildUserUploadImagesFolderNode,
-  buildUserUploadsRootNode,
-} from "../../../entities/project/model/projectUploadFolderNodes";
 import type {
   ConversationMessageReference,
   ConversationMessageReferences,
 } from "../../../entities/llm-chat/model/chatCompletion";
 import type { useDocumentTabs } from "../../../features/document-tabs/model/useDocumentTabs";
-import { uploadProjectPastedImage } from "../../../services/project/uploadProjectPastedImage";
+import { uploadConversationImageAttachment } from "../../../services/project/uploadConversationImageAttachment";
 
 type UseWorkspaceEditorReferencesOptions = {
   documentTabs: ReturnType<typeof useDocumentTabs>;
@@ -46,28 +40,6 @@ type WorkspaceReferenceItem = ConversationMessageReference | PendingImageReferen
 
 function createReferenceId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function publishUploadedImage(
-  projectId: string,
-  node: ProjectFileNode,
-  sourceId: string,
-) {
-  publishProjectFileMutation({
-    projectId,
-    node: buildUserUploadsRootNode(),
-    sourceId,
-  });
-  publishProjectFileMutation({
-    projectId,
-    node: buildUserUploadImagesFolderNode(),
-    sourceId,
-  });
-  publishProjectFileMutation({
-    projectId,
-    node,
-    sourceId,
-  });
 }
 
 export function useWorkspaceEditorReferences({
@@ -255,14 +227,22 @@ export function useWorkspaceEditorReferences({
     }
     const startedProjectId = projectId;
     const operation = beginImageReferenceOperation(startedProjectId);
+    if (!operation.sessionId) {
+      finishImageReferenceOperation(operation);
+      throw new Error("当前没有可保存附件的会话。");
+    }
     try {
-      const uploaded = await uploadProjectPastedImage(startedProjectId, request.file);
+      const uploaded = await uploadConversationImageAttachment(
+        startedProjectId,
+        operation.sessionId,
+        request.file,
+        { sourceKind: "preview_reference", sourcePath: request.sourceFilePath },
+      );
       if (!isCurrentImageReferenceOperation(operation)) return;
 
-      publishUploadedImage(startedProjectId, uploaded.node, "pdf-page-image-reference");
       completeImageReferenceOperation(operation, {
           displayPath: uploaded.path,
-          fileName: uploaded.node.name,
+          fileName: uploaded.name,
           filePath: uploaded.path,
           id: createReferenceId("image-ref"),
           imagePath: uploaded.path,
@@ -294,14 +274,22 @@ export function useWorkspaceEditorReferences({
     }
     const startedProjectId = projectId;
     const operation = beginImageReferenceOperation(startedProjectId);
+    if (!operation.sessionId) {
+      finishImageReferenceOperation(operation);
+      throw new Error("当前没有可保存附件的会话。");
+    }
     try {
-      const uploaded = await uploadProjectPastedImage(startedProjectId, request.file);
+      const uploaded = await uploadConversationImageAttachment(
+        startedProjectId,
+        operation.sessionId,
+        request.file,
+        { sourceKind: "preview_reference", sourcePath: request.sourceFilePath },
+      );
       if (!isCurrentImageReferenceOperation(operation)) return;
 
-      publishUploadedImage(startedProjectId, uploaded.node, "ppt-slide-image-reference");
       completeImageReferenceOperation(operation, {
           displayPath: uploaded.path,
-          fileName: uploaded.node.name,
+          fileName: uploaded.name,
           filePath: uploaded.path,
           id: createReferenceId("image-ref"),
           imagePath: uploaded.path,
@@ -334,18 +322,26 @@ export function useWorkspaceEditorReferences({
     const startedProjectId = projectId;
     if (!isCurrentDocumentSource(startedProjectId, request.sourceFilePath)) return;
     const operation = beginImageReferenceOperation(startedProjectId);
+    if (!operation.sessionId) {
+      finishImageReferenceOperation(operation);
+      throw new Error("当前没有可保存附件的会话。");
+    }
     try {
-      const uploaded = await uploadProjectPastedImage(startedProjectId, request.file);
+      const uploaded = await uploadConversationImageAttachment(
+        startedProjectId,
+        operation.sessionId,
+        request.file,
+        { sourceKind: "preview_reference", sourcePath: request.sourceFilePath },
+      );
       if (
         !isCurrentImageReferenceOperation(operation) ||
         !isCurrentDocumentSource(startedProjectId, request.sourceFilePath)
       ) return;
 
-      publishUploadedImage(startedProjectId, uploaded.node, "xlsx-range-image-reference");
       completeImageReferenceOperation(operation, {
           cells: request.cells,
           displayPath: uploaded.path,
-          fileName: uploaded.node.name,
+          fileName: uploaded.name,
           filePath: uploaded.path,
           id: createReferenceId("image-ref"),
           imagePath: uploaded.path,

@@ -1,347 +1,196 @@
 {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Word 文档编辑器",
+  "description": "创建、检查或编辑 DOCX。edit 必须先 dry_run，再使用返回的 validation_token 写入。",
+  "type": "object",
   "additionalProperties": false,
-  "description": "创建、检查或安全编辑 .docx。action=create 时传 output_path 和 elements；action=inspect 时传 input_path；action=edit 时传 input_path、output_path 和 operations。编辑默认输出新文件，不直接改原文件。",
   "properties": {
-    "action": {
-      "description": "操作类型。",
-      "enum": [
-        "create",
-        "inspect",
-        "edit"
-      ],
-      "options": [
-        {
-          "value": "create",
-          "description": "从结构化 JSON 新建 DOCX。"
-        },
-        {
-          "value": "inspect",
-          "description": "读取 DOCX 概况、标题、段落、表格、图片数量、公式数量和页眉页脚文本。"
-        },
-        {
-          "value": "edit",
-          "description": "对已有 DOCX 做安全编辑并输出到新文件或覆盖文件。"
-        }
-      ],
-      "title": "操作",
-      "type": "string"
-    },
-    "input_path": {
-      "description": "已有 DOCX 路径。inspect/edit 必填。相对路径按工作区根目录解析。",
-      "title": "输入 DOCX",
-      "type": "string"
-    },
-    "output_path": {
-      "description": "输出 DOCX 路径。create/edit 必填。相对路径按工作区根目录解析。",
-      "title": "输出 DOCX",
-      "type": "string"
-    },
-    "overwrite": {
-      "default": false,
-      "description": "输出文件已存在时是否覆盖。默认 false。",
-      "title": "覆盖输出文件",
-      "type": "boolean"
-    },
-    "backup": {
-      "default": true,
-      "description": "edit 且覆盖原文件时是否先创建 .bak 备份。",
-      "title": "覆盖原文件前备份",
-      "type": "boolean"
-    },
-    "dry_run": {
-      "default": false,
-      "description": "只检查编辑操作，不写文件。create 时忽略。",
-      "title": "预演编辑",
-      "type": "boolean"
-    },
-    "properties": {
-      "additionalProperties": true,
-      "description": "文档属性，例如 title、subject、author、category、keywords、comments。",
-      "title": "文档属性",
-      "type": "object"
-    },
+    "action": { "type": "string", "enum": ["create", "inspect", "edit"] },
+    "input_path": { "type": "string", "description": "工作区内的输入 DOCX 路径。" },
+    "output_path": { "type": "string", "description": "工作区内的输出 DOCX 路径。" },
+    "overwrite": { "type": "boolean", "default": false },
+    "backup": { "type": "boolean", "default": true, "description": "原位覆盖时备份到 .Tiance/tool-backups/word_document_editor。" },
+    "dry_run": { "type": "boolean", "default": false, "description": "edit 预演，不写文件，并返回 validation_token。" },
+    "validation_token": { "type": "string", "pattern": "^dryrun:[0-9a-f]{64}$", "description": "同一输入文档、输出路径和 operations 的 dry_run 返回值。" },
+    "properties": { "type": "object", "additionalProperties": true },
     "page": {
+      "type": "object",
       "additionalProperties": false,
-      "description": "页面和边距设置，单位英寸。orientation 支持 portrait、landscape。",
       "properties": {
-        "orientation": {
-          "default": "portrait",
-          "enum": [
-            "portrait",
-            "landscape"
-          ],
-          "type": "string"
-        },
-        "margin_top": {
-          "type": "number"
-        },
-        "margin_bottom": {
-          "type": "number"
-        },
-        "margin_left": {
-          "type": "number"
-        },
-        "margin_right": {
-          "type": "number"
-        }
-      },
-      "title": "页面设置",
-      "type": "object"
+        "orientation": { "type": "string", "enum": ["portrait", "landscape"], "default": "portrait" },
+        "margin_top": { "type": "number" },
+        "margin_bottom": { "type": "number" },
+        "margin_left": { "type": "number" },
+        "margin_right": { "type": "number" }
+      }
     },
-    "theme": {
-      "additionalProperties": true,
-      "description": "主题设置。支持 font_family、east_asia_font/eastAsia_font/cjk_font、complex_script_font、heading_color、text_color、accent_color、table_header_color。font_family 不传时默认使用微软雅黑；中文字体不单独指定时跟随 font_family。",
-      "title": "主题",
-      "type": "object"
-    },
-    "header": {
-      "description": "创建文档时设置页眉文本。",
-      "title": "页眉",
-      "type": "string"
-    },
-    "footer": {
-      "description": "创建文档时设置页脚文本。",
-      "title": "页脚",
-      "type": "string"
-    },
-    "elements": {
-      "description": "create 或 append_content 使用的元素数组。支持 heading、paragraph、bullets、numbered、table、image、equation、page_break。equation 会把 LaTeX 转为 Word 原生公式。",
-      "items": {
-        "additionalProperties": true,
-        "properties": {
-          "type": {
-            "enum": [
-              "heading",
-              "paragraph",
-              "bullets",
-              "numbered",
-              "table",
-              "image",
-              "equation",
-              "page_break"
-            ],
-            "type": "string"
-          },
-          "text": {
-            "description": "普通文本；equation 未提供 latex 时也可用 text 作为公式内容。",
-            "type": "string"
-          },
-          "latex": {
-            "description": "equation 的 LaTeX 公式内容，例如 \\\\frac{a}{b} 或 \\\\sum_{i=1}^{N} x_i。",
-            "type": "string"
-          },
-          "display": {
-            "default": true,
-            "description": "equation 是否按展示公式居中排版。false 时左对齐。",
-            "type": "boolean"
-          },
-          "level": {
-            "description": "heading 级别，1-9。",
-            "type": "integer"
-          },
-          "items": {
-            "description": "bullets/numbered 列表项。",
-            "items": {},
-            "type": "array"
-          },
-          "rows": {
-            "description": "table 二维数组。",
-            "items": {
-              "items": {},
-              "type": "array"
-            },
-            "type": "array"
-          },
-          "image_path": {
-            "description": "图片路径，相对路径按工作区根目录解析。",
-            "type": "string"
-          },
-          "width": {
-            "description": "图片宽度，单位英寸。",
-            "type": "number"
-          },
-          "style": {
-            "additionalProperties": true,
-            "description": "样式设置，例如 font_size、font_family、east_asia_font、bold、italic、color、align、space_after、table_style、header_fill。表格可用 column_widths 显式指定各列比例；不传时按中英文内容、换行代价和页面可用宽度自动计算。",
-            "type": "object"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "title": "文档元素",
-      "type": "array"
-    },
-    "operations": {
-      "description": "edit 操作数组。支持旧式文字替换、末尾追加、页眉页脚，以及由纯文字边界定位的选区操作。选区边界始终保留。",
-      "items": {
-        "additionalProperties": true,
-        "properties": {
-          "type": {
-            "enum": [
-              "replace_text",
-              "append_content",
-              "set_header",
-              "set_footer",
-              "selection"
-            ],
-            "type": "string"
-          },
-          "old_text": {
-            "type": "string"
-          },
-          "new_text": {
-            "type": "string"
-          },
-          "match_case": {
-            "default": true,
-            "type": "boolean"
-          },
-          "elements": {
-            "items": {
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "text": {
-            "type": "string"
-          },
-          "selection": {
-            "additionalProperties": false,
-            "description": "纯文字边界定义的选区。左边界必填且始终保留；右边界省略时表示左边界之后的零长度插入点。右边界存在时，选中两边界之间的内容。",
-            "properties": {
-              "start_anchor": {
-                "description": "左边界纯文字。选区从该文字之后开始。",
-                "type": "string"
-              },
-              "end_anchor": {
-                "description": "可选右边界纯文字。选区在该文字之前结束；省略表示插入点。",
-                "type": "string"
-              },
-              "start_occurrence": {
-                "default": 1,
-                "description": "左边界在文档中第几次出现，从 1 开始。",
-                "minimum": 1,
-                "type": "integer"
-              },
-              "end_occurrence": {
-                "default": 1,
-                "description": "从左边界之后开始计算，右边界第几次出现。",
-                "minimum": 1,
-                "type": "integer"
-              },
-              "match_case": {
-                "default": true,
-                "description": "英文边界匹配是否区分大小写。",
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "start_anchor"
-            ],
-            "type": "object"
-          },
-          "action": {
-            "description": "selection 操作动作。insert 在左边界之后插入且不删除原选区；replace/delete/format/extract 需要非零选区。",
-            "enum": [
-              "insert",
-              "replace",
-              "delete",
-              "format",
-              "extract"
-            ],
-            "type": "string"
-          },
-          "content_mode": {
-            "default": "text",
-            "description": "selection insert/replace 的写入模式。text 为行内纯文字；markdown 转换常用标题、段落、粗斜体、删除线、代码、链接、列表、引用、表格、本地图片、分页及 Word 原生公式。",
-            "enum": [
-              "text",
-              "markdown"
-            ],
-            "type": "string"
-          },
-          "content": {
-            "description": "selection insert/replace 写入的纯文字或 Markdown。",
-            "type": "string"
-          },
-          "style": {
-            "additionalProperties": true,
-            "description": "text 写入格式，或 format 对已有文字进行的增量格式修改。支持 font_family、east_asia_font、font_size、bold、italic、underline、strike、color、align、space_before、space_after、line_spacing。format 未提供的属性保持原样。",
-            "type": "object"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "title": "编辑操作",
-      "type": "array"
-    },
+    "theme": { "type": "object", "additionalProperties": true },
+    "header": { "type": "string" },
+    "footer": { "type": "string" },
+    "elements": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/element" } },
+    "operations": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/editOperation" } },
     "inspect": {
+      "type": "object",
       "additionalProperties": false,
-      "description": "inspect 输出控制。",
       "properties": {
-        "include_paragraphs": {
-          "default": true,
-          "type": "boolean"
-        },
-        "include_tables": {
-          "default": true,
-          "type": "boolean"
-        },
-        "max_paragraphs": {
-          "default": 80,
-          "maximum": 500,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "max_text_chars": {
-          "default": 20000,
-          "maximum": 100000,
-          "minimum": 1000,
-          "type": "integer"
-        },
-        "selection": {
-          "additionalProperties": false,
-          "description": "可选。只定位并返回选区实况，不修改文档。边界规则与 selection 编辑操作相同。",
-          "properties": {
-            "start_anchor": {
-              "type": "string"
-            },
-            "end_anchor": {
-              "type": "string"
-            },
-            "start_occurrence": {
-              "default": 1,
-              "minimum": 1,
-              "type": "integer"
-            },
-            "end_occurrence": {
-              "default": 1,
-              "minimum": 1,
-              "type": "integer"
-            },
-            "match_case": {
-              "default": true,
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "start_anchor"
-          ],
-          "type": "object"
-        }
-      },
-      "title": "检查选项",
-      "type": "object"
+        "include_paragraphs": { "type": "boolean", "default": true },
+        "include_tables": { "type": "boolean", "default": true },
+        "include_formulas": { "type": "boolean", "description": "局部 selection 查询时默认 false，避免返回全量公式清单。" },
+        "max_paragraphs": { "type": "integer", "minimum": 1, "maximum": 500, "default": 80 },
+        "max_text_chars": { "type": "integer", "minimum": 1000, "maximum": 100000, "default": 20000 },
+        "max_formulas": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 200 },
+        "document_fingerprint": { "$ref": "#/$defs/documentFingerprint" },
+        "selection": { "$ref": "#/$defs/selection" }
+      }
     }
   },
-  "required": [
-    "action"
+  "required": ["action"],
+  "allOf": [
+    {
+      "if": { "properties": { "action": { "const": "create" } }, "required": ["action"] },
+      "then": { "required": ["output_path", "elements"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "inspect" } }, "required": ["action"] },
+      "then": { "required": ["input_path"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "edit" } }, "required": ["action"] },
+      "then": {
+        "required": ["input_path", "output_path", "operations"],
+        "anyOf": [
+          { "properties": { "dry_run": { "const": true } }, "required": ["dry_run"] },
+          { "required": ["validation_token"] }
+        ]
+      }
+    }
   ],
-  "type": "object"
+  "$defs": {
+    "documentFingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "引用时的 DOCX SHA256；不一致时返回 STALE_REFERENCE。"
+    },
+    "wordPosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "container": { "type": "string", "enum": ["body", "table"], "description": "当前工具的坐标编辑支持正文与表格；页眉页脚使用 set_header/set_footer。" },
+        "pageNumber": { "type": "integer", "minimum": 1 },
+        "paragraphIndex": { "type": "integer", "minimum": 1 },
+        "tableIndex": { "type": "integer", "minimum": 1 },
+        "rowIndex": { "type": "integer", "minimum": 1 },
+        "columnIndex": { "type": "integer", "minimum": 1 },
+        "cellParagraphIndex": { "type": "integer", "minimum": 1 },
+        "characterOffset": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["container", "characterOffset"]
+    },
+    "wordRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "word_range" },
+        "start": { "$ref": "#/$defs/wordPosition" },
+        "end": { "$ref": "#/$defs/wordPosition" },
+        "nearestHeading": { "type": "string" },
+        "prefix": { "type": "string" },
+        "suffix": { "type": "string" }
+      },
+      "required": ["kind", "start", "end"]
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "start_anchor": { "type": "string", "minLength": 1 },
+        "end_anchor": { "type": "string", "minLength": 1 },
+        "formula_ref": { "type": "string", "pattern": "^formula:[0-9a-f]{16}$", "description": "inspect 返回的稳定公式引用。" },
+        "word_range": { "$ref": "#/$defs/wordRange", "description": "直接使用预览引用的结构坐标。" },
+        "document_fingerprint": { "$ref": "#/$defs/documentFingerprint" },
+        "expected_text": { "type": "string", "description": "引用的纯文本内容；与当前位置不一致时拒绝操作。" },
+        "boundary_mode": { "type": "string", "enum": ["exclusive", "inclusive"], "default": "exclusive" },
+        "expand": { "type": "string", "enum": ["none", "paragraph_end", "cell_end"], "default": "none" },
+        "start_occurrence": { "type": "integer", "minimum": 1, "default": 1 },
+        "end_occurrence": { "type": "integer", "minimum": 1, "default": 1 },
+        "match_case": { "type": "boolean", "default": true }
+      },
+      "oneOf": [
+        { "required": ["start_anchor"], "not": { "anyOf": [{ "required": ["formula_ref"] }, { "required": ["word_range"] }] } },
+        { "required": ["formula_ref"], "not": { "anyOf": [{ "required": ["start_anchor"] }, { "required": ["word_range"] }] } },
+        { "required": ["word_range"], "not": { "anyOf": [{ "required": ["start_anchor"] }, { "required": ["formula_ref"] }] } }
+      ]
+    },
+    "style": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "font_family": { "type": "string" },
+        "east_asia_font": { "type": "string" },
+        "complex_script_font": { "type": "string" },
+        "font_size": { "type": "number", "exclusiveMinimum": 0 },
+        "bold": { "type": "boolean" },
+        "italic": { "type": "boolean" },
+        "underline": { "type": "boolean" },
+        "strike": { "type": "boolean" },
+        "color": { "type": "string" },
+        "align": { "type": "string" },
+        "space_before": { "type": "number" },
+        "space_after": { "type": "number" },
+        "line_spacing": { "type": "number" }
+      },
+      "minProperties": 1
+    },
+    "element": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "type": { "type": "string", "enum": ["heading", "paragraph", "bullets", "numbered", "table", "image", "equation", "page_break"] },
+        "text": { "type": "string" },
+        "latex": { "type": "string" },
+        "display": { "type": "boolean", "default": true },
+        "level": { "type": "integer", "minimum": 1, "maximum": 9 },
+        "items": { "type": "array" },
+        "rows": { "type": "array" },
+        "image_path": { "type": "string" },
+        "width": { "type": "number" },
+        "style": { "type": "object", "additionalProperties": true }
+      },
+      "required": ["type"]
+    },
+    "editOperation": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "properties": { "type": { "const": "replace_text" }, "old_text": { "type": "string", "minLength": 1 }, "new_text": { "type": "string" }, "match_case": { "type": "boolean", "default": true } },
+          "required": ["type", "old_text", "new_text"]
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "properties": { "type": { "const": "append_content" }, "elements": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/element" } } },
+          "required": ["type", "elements"]
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "properties": { "type": { "enum": ["set_header", "set_footer"] }, "text": { "type": "string" } },
+          "required": ["type", "text"]
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "properties": { "type": { "const": "selection" }, "selection": { "$ref": "#/$defs/selection" }, "action": { "enum": ["extract", "delete"] } },
+          "required": ["type", "selection", "action"]
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "properties": { "type": { "const": "selection" }, "selection": { "$ref": "#/$defs/selection" }, "action": { "const": "format" }, "style": { "$ref": "#/$defs/style" } },
+          "required": ["type", "selection", "action", "style"]
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "properties": { "type": { "const": "selection" }, "selection": { "$ref": "#/$defs/selection" }, "action": { "enum": ["insert", "replace"] }, "content_mode": { "enum": ["text", "equation", "markdown"], "default": "text" }, "content": { "type": "string", "minLength": 1 }, "style": { "$ref": "#/$defs/style" } },
+          "required": ["type", "selection", "action", "content"]
+        }
+      ]
+    }
+  }
 }

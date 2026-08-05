@@ -1,5 +1,5 @@
 {
-  "description": "统一返回结构。inspect 返回工作簿摘要；create 返回输出路径和 Sheet 摘要；edit 返回另存路径和操作摘要；validate 返回预检结果。失败时返回 error 和 error_info。",
+  "description": "统一返回结构。inspect 返回工作簿摘要；export_markdown 返回 content.md、format.md、提取报告、资源目录、AI 读取规则和未映射警告；create 返回输出路径和 Sheet 摘要；edit 返回另存路径和操作摘要；validate 返回预检结果。失败时返回 error 和 error_info。",
   "additionalProperties": true,
   "properties": {
     "ok": {

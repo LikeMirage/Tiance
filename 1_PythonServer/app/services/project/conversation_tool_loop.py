@@ -29,6 +29,7 @@ from app.services.project.conversation_request_provenance import tag_conversatio
 from app.services.project.conversation_stream_usage import merge_usage, usage_to_payload
 from app.services.project.project_conversations import ProjectConversationService
 from app.services.project.projects import ProjectService
+from app.services.project.conversation_attachments import ConversationAttachmentService
 from app.services.tools.client_tool_bridge import (
     ClientToolBridgeService,
     ClientToolResultPayload,
@@ -49,11 +50,22 @@ from app.services.tools.tool_metadata import normalize_tool_name
 from app.services.tools.tool_execution_runtime import ToolExecutionCancellation
 from app.services.tools.tool_result_guidance import ToolResultGuidanceService
 from app.services.tools.tool_result_content import (
-    image_parts_from_tool_results,
+    image_parts_from_tool_content,
     tool_resource_message,
 )
 
 _DEFAULT_MAX_TOOL_CALLS = 99999
+
+
+def _deduplicate_image_parts(parts):
+    unique = []
+    seen = set()
+    for part in parts:
+        if part.image_ref is None or part.image_ref.path in seen:
+            continue
+        seen.add(part.image_ref.path)
+        unique.append(part)
+    return tuple(unique)
 
 
 class _RuntimeCapabilitiesProvider(Protocol):
@@ -78,6 +90,7 @@ class ConversationToolLoop:
         tool_call_record_service: ToolCallRecordService | None,
         client_tool_bridge_service: ClientToolBridgeService | None,
         runtime_capabilities_service: _RuntimeCapabilitiesProvider | None = None,
+        attachment_service: ConversationAttachmentService | None = None,
     ) -> None:
         self._chat_service = chat_service
         self._conversation_service = conversation_service
@@ -87,6 +100,7 @@ class ConversationToolLoop:
         self._tool_call_record_service = tool_call_record_service
         self._client_tool_bridge_service = client_tool_bridge_service
         self._runtime_capabilities_service = runtime_capabilities_service
+        self._attachment_service = attachment_service
 
     def should_run(self, request: ChatCompletionRequest) -> bool:
         return bool(request.tools and self._tool_execution_service is not None)
@@ -223,7 +237,7 @@ class ConversationToolLoop:
                 self._build_tool_call_batches,
                 tuple(round_tool_calls),
             )
-            round_tool_results: list[ChatToolResult] = []
+            round_resource_parts = []
             for tool_call_batch in tool_call_batches:
                 for tool_call in tool_call_batch:
                     yield ChatStreamEvent(
@@ -239,7 +253,6 @@ class ConversationToolLoop:
                         ):
                             checkpoint = None
                             if event.kind == ChatStreamEventKind.TOOL_RESULT and event.tool_result is not None:
-                                round_tool_results.append(event.tool_result)
                                 tool_message = await self._persist_tool_result(
                                     original_request,
                                     event.tool_result,
@@ -255,10 +268,17 @@ class ConversationToolLoop:
                                             content=event.tool_result.content,
                                             name=event.tool_result.name,
                                             tool_call_id=event.tool_result.call_id,
+                                            content_parts=(
+                                                tool_message.content_parts
+                                                if tool_message is not None
+                                                else ()
+                                            ),
                                         ),
                                         tool_message.message_id if tool_message is not None else None,
                                     )
                                 )
+                                if tool_message is not None:
+                                    round_resource_parts.extend(tool_message.content_parts)
                             yield event
                             if checkpoint is not None:
                                 yield checkpoint
@@ -284,7 +304,6 @@ class ConversationToolLoop:
                             await self._persist_tool_result(original_request, settled_result)
                     raise
                 for tool_result in tool_results:
-                    round_tool_results.append(tool_result)
                     tool_message = await self._persist_tool_result(
                         original_request,
                         tool_result,
@@ -302,12 +321,19 @@ class ConversationToolLoop:
                                 content=tool_result.content,
                                 name=tool_result.name,
                                 tool_call_id=tool_result.call_id,
+                                content_parts=(
+                                    tool_message.content_parts
+                                    if tool_message is not None
+                                    else ()
+                                ),
                             ),
                             tool_message.message_id if tool_message is not None else None,
                         )
                     )
+                    if tool_message is not None:
+                        round_resource_parts.extend(tool_message.content_parts)
             resource_message = tool_resource_message(
-                image_parts_from_tool_results(round_tool_results)
+                _deduplicate_image_parts(round_resource_parts)
             )
             if resource_message is not None:
                 next_messages.append(resource_message)
@@ -772,6 +798,21 @@ class ConversationToolLoop:
             return None
         status = "done" if tool_result.ok else "error"
         content = tool_result_message_content(tool_result)
+        content_parts = image_parts_from_tool_content(tool_result.content)
+        if self._attachment_service is not None:
+            content_parts = tuple(
+                replace(
+                    part,
+                    image_ref=self._attachment_service.snapshot_image_ref(
+                        request.project_id,
+                        request.session_id,
+                        part.image_ref,
+                        source_kind="tool_artifact",
+                    ),
+                )
+                for part in content_parts
+                if part.image_ref is not None
+            )
         return self._append_conversation_message(
             request.project_id,
             request.session_id,
@@ -779,6 +820,7 @@ class ConversationToolLoop:
             content=content,
             name=tool_result.name,
             tool_call_id=tool_result.call_id,
+            content_parts=content_parts,
             status=status,
             sync_session_model=False,
         )

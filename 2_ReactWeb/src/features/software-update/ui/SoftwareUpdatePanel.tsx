@@ -1,7 +1,11 @@
 import { useEffect } from "react";
-import { ArrowClockwise, DownloadSimple, GitBranch, Package } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowSquareOut, DownloadSimple, GitBranch, GithubLogo, Package } from "@phosphor-icons/react";
 
 import { useI18n } from "../../../shared/i18n";
+import {
+  LATEST_SOFTWARE_DOWNLOAD_URL,
+  OPEN_SOURCE_REPOSITORY_URL,
+} from "../../../services/system/softwareUpdate";
 import { useSoftwareUpdate } from "../model/useSoftwareUpdate";
 import "./software-update.css";
 
@@ -34,6 +38,19 @@ export function SoftwareUpdatePanel({ onReady }: SoftwareUpdatePanelProps) {
       </header>
 
       {softwareUpdate.error ? <div className="software-update__error" role="alert">{softwareUpdate.error}</div> : null}
+
+      <nav className="software-update__links" aria-label={t("softwareUpdate.linksAria")}>
+        <a href={OPEN_SOURCE_REPOSITORY_URL} target="_blank" rel="noreferrer">
+          <GithubLogo size={17} />
+          <span>{t("softwareUpdate.sourceLink")}</span>
+          <ArrowSquareOut size={14} />
+        </a>
+        <a href={LATEST_SOFTWARE_DOWNLOAD_URL} target="_blank" rel="noreferrer">
+          <DownloadSimple size={17} />
+          <span>{t("softwareUpdate.downloadLink")}</span>
+          <ArrowSquareOut size={14} />
+        </a>
+      </nav>
 
       {update ? (
         <section className="software-update__card">

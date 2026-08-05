@@ -1,12 +1,13 @@
 {
   "type": "object",
-  "description": "统一 Excel 工作簿工具。action=inspect 读取摘要；action=create 新建工作簿；action=edit 编辑已有 .xlsx 并默认另存；action=validate 只预检不写目标文件。未提供 action 时按 create 处理。",
+  "description": "统一 Excel 工作簿工具。action=inspect 读取摘要；action=export_markdown 将已有 Excel 提取为规范化 content.md、format.md 和规则报告；action=create 新建工作簿；action=edit 编辑已有 .xlsx；action=validate 只预检不写目标文件。",
   "additionalProperties": false,
   "properties": {
     "action": {
       "type": "string",
       "enum": [
         "inspect",
+        "export_markdown",
         "create",
         "edit",
         "validate"
@@ -37,7 +38,33 @@
     "input_path": {
       "type": "string",
       "title": "输入 Excel 路径",
-      "description": "action=inspect/edit 时必填，必须是工作区内 .xlsx 文件。"
+      "description": "action=inspect/edit/export_markdown 时必填，必须是工作区内 Excel 文件。"
+    },
+    "content_path": {
+      "type": "string",
+      "description": "action=export_markdown 时的内容 Markdown 输出路径。"
+    },
+    "format_path": {
+      "type": "string",
+      "description": "action=export_markdown 时的格式 Markdown 输出路径。"
+    },
+    "assets_dir": {
+      "type": "string",
+      "description": "action=export_markdown 时的图片资源目录；省略时使用内容文件名_assets。"
+    },
+    "report_path": {
+      "type": "string",
+      "description": "action=export_markdown 时的 AI 读取规则和未映射对象报告路径。"
+    },
+    "include_empty_rows": {
+      "type": "boolean",
+      "default": false,
+      "description": "是否保留末尾完全空白行。"
+    },
+    "sheets": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "action=export_markdown 时只提取指定 Sheet；省略时提取全部。"
     },
     "output_path": {
       "type": "string",

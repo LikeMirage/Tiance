@@ -95,6 +95,7 @@ def _workspace_readme_content() -> str:
 - `conversations/branch_graph.json`：会话分支关系、已删除分支墓碑和消息版本切换索引。
 - `conversations/sessions/{session_id}/session.json`：单个会话的基础信息、模型和会话设置。
 - `conversations/sessions/{session_id}/messages.jsonl`：单个会话的原始消息记录。
+- `conversations/sessions/{session_id}/attachments/`：该会话独立持有的模型附件副本和来源清单；会话分支会复制自己的副本，删除会话时一并清理。
 - `conversations/sessions/{session_id}/naming_calls.jsonl`：会话自动命名调用记录。
 - `conversations/sessions/{session_id}/injection_preview.json`：该会话下一次请求预览或最近一次真实请求快照。
 - `conversations/sessions/{session_id}/compressions.jsonl`：该会话的记忆压缩记录。成功和失败的压缩尝试都会按完成顺序保留；最新成功累计摘要替代前一摘要进入模型上下文，原始消息仍保留在 `messages.jsonl`。

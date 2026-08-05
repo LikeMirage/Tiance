@@ -4,6 +4,7 @@ import type { ProviderProtocolFamily } from "../../../entities/llm-provider/mode
 import { useI18n } from "../../../shared/i18n";
 import { OptionSelect } from "../../../shared/ui/option-select/OptionSelect";
 import type { UseProviderConfigStateResult } from "../model/useProviderConfigState";
+import { completeProviderGenerationUrl } from "../model/completeProviderGenerationUrl";
 import {
   PROVIDER_AUTH_SCHEME_OPTIONS,
   PROVIDER_MODEL_DISCOVERY_STRATEGY_OPTIONS,
@@ -45,7 +46,7 @@ export function ProviderApiKeySection({
 
   return (
     <div className="provider-canvas__canvas-group">
-      <header className="provider-canvas__canvas-section-head">
+      <header className="provider-canvas__canvas-section-head provider-canvas__api-key-section-head">
         <div>
           <h3 className="provider-canvas__canvas-section-title">
             {t("providerCanvas.apiKey.title")}
@@ -170,6 +171,14 @@ export function ProviderApiBaseUrlSection({
   selectedProviderDraft,
 }: ProviderApiBaseUrlSectionProps) {
   const { t } = useI18n();
+  const completedApiBaseUrl = completeProviderGenerationUrl(
+    selectedProviderDraft.apiBaseUrl,
+    protocolFamily,
+    selectedProviderDraft.presetApiBaseUrl,
+  );
+  const canCompleteApiBaseUrl =
+    completedApiBaseUrl.length > 0
+    && completedApiBaseUrl !== selectedProviderDraft.apiBaseUrl.trim();
   const [activeConfigMode, setActiveConfigMode] =
     useState<ApiAddressConfigMode>("generation");
   const protocolFamilyOptions = PROVIDER_PROTOCOL_FAMILY_OPTIONS.map((option) => ({
@@ -179,7 +188,7 @@ export function ProviderApiBaseUrlSection({
 
   return (
     <div className="provider-canvas__canvas-group">
-      <header className="provider-canvas__canvas-section-head">
+      <header className="provider-canvas__canvas-section-head provider-canvas__api-address-section-head">
         <div className="provider-canvas__api-address-heading">
           <h3 className="provider-canvas__canvas-section-title">
             {t("providerCanvas.apiAddress.title")}
@@ -221,6 +230,23 @@ export function ProviderApiBaseUrlSection({
             </button>
           </div>
         </div>
+        {activeConfigMode === "generation" ? (
+          <button
+            className="provider-canvas__endpoint-complete-button"
+            type="button"
+            disabled={!canCompleteApiBaseUrl}
+            title={t("providerCanvas.apiAddress.completeEndpointTitle")}
+            onClick={() => {
+              if (!canCompleteApiBaseUrl) return;
+              providerConfigState.updateSelectedApiBaseUrl(completedApiBaseUrl);
+              window.requestAnimationFrame(() => {
+                void providerConfigState.saveSelectedProviderConfig();
+              });
+            }}
+          >
+            {t("providerCanvas.apiAddress.completeEndpoint")}
+          </button>
+        ) : null}
       </header>
 
       {activeConfigMode === "generation" ? (
@@ -419,9 +445,6 @@ export function ProviderCacheSettingsSection({
             onChange={providerConfigState.updateSelectedPromptCacheRetentionUnit}
           />
         </div>
-        <p className="provider-canvas__cache-policy-hint">
-          {t("providerCanvas.cacheSettings.hint")}
-        </p>
       </div>
     </div>
   );

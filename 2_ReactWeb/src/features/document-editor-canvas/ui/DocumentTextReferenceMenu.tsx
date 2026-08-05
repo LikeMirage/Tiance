@@ -6,9 +6,12 @@ import { getEditorDocumentPath } from "../../../entities/editor/model/editorWork
 import type {
   EditorTextReferenceDraft,
   EditorTextReferenceSource,
+  EditorWordTextReferenceLocation,
 } from "../../../entities/editor/model/editorReference";
 import { ContextMenu, ContextMenuItem } from "../../../shared/ui/context-menu";
 import type { CodeEditorTextSelectionContextMenu } from "../../editor/ui/CodeEditor";
+import { readWordTextReferenceLocation } from "../model/wordTextReferenceLocation";
+import { renderedSelectionMarkdown } from "../model/renderedSelectionMarkdown";
 
 type TextReferenceMenuState = {
   reference: EditorTextReferenceDraft;
@@ -34,7 +37,10 @@ export function useDocumentTextReferenceMenu({
   const openTextReferenceMenu = (
     selection: {
       content: string;
+      contentMarkdown?: string;
+      documentFingerprint?: string;
       endLine?: number;
+      location?: EditorWordTextReferenceLocation;
       startLine?: number;
       x: number;
       y: number;
@@ -47,7 +53,10 @@ export function useDocumentTextReferenceMenu({
     setTextReferenceMenu({
       reference: buildEditorTextReferenceDraft(activeTab, {
         content,
+        contentMarkdown: selection.contentMarkdown,
+        documentFingerprint: selection.documentFingerprint,
         endLine: selection.endLine,
+        location: selection.location,
         source,
         startLine: selection.startLine,
       }),
@@ -67,13 +76,20 @@ export function useDocumentTextReferenceMenu({
     event: MouseEvent<HTMLElement>,
     source: EditorTextReferenceSource,
   ) => {
-    const content = readSelectedTextInside(event.currentTarget);
-    if (!content) return;
+    const selected = readSelectedTextInside(event.currentTarget);
+    if (!selected) return;
     event.preventDefault();
     event.stopPropagation();
     openTextReferenceMenu(
       {
-        content,
+        content: selected.content,
+        contentMarkdown: renderedSelectionMarkdown(selected.range),
+        documentFingerprint: source === "office"
+          ? readDocumentFingerprint(event.currentTarget)
+          : undefined,
+        location: source === "office"
+          ? readWordTextReferenceLocation(event.currentTarget, selected.range)
+          : undefined,
         x: event.clientX,
         y: event.clientY,
       },
@@ -113,7 +129,10 @@ function buildEditorTextReferenceDraft(
   tab: DocumentTab,
   selection: {
     content: string;
+    contentMarkdown?: string;
+    documentFingerprint?: string;
     endLine?: number;
+    location?: EditorWordTextReferenceLocation;
     source: EditorTextReferenceSource;
     startLine?: number;
   },
@@ -121,10 +140,13 @@ function buildEditorTextReferenceDraft(
   const filePath = getEditorDocumentPath(tab);
   return {
     content: selection.content,
+    contentMarkdown: selection.contentMarkdown,
     displayPath: tab.displayPath,
+    documentFingerprint: selection.documentFingerprint,
     endLine: selection.endLine,
     fileName: tab.title,
     filePath,
+    location: selection.location,
     projectId: tab.projectId,
     source: selection.source,
     startLine: selection.startLine,
@@ -137,5 +159,10 @@ function readSelectedTextInside(surface: HTMLElement) {
   if (!selection.anchorNode || !selection.focusNode) return null;
   if (!surface.contains(selection.anchorNode) || !surface.contains(selection.focusNode)) return null;
   const content = selection.toString().trim();
-  return content || null;
+  return content ? { content, range: selection.getRangeAt(0).cloneRange() } : null;
+}
+
+function readDocumentFingerprint(surface: HTMLElement) {
+  return surface.querySelector<HTMLElement>("[data-document-fingerprint]")
+    ?.dataset.documentFingerprint;
 }

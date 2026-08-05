@@ -20,6 +20,10 @@
     "content": "输入参数：\n{\n  \"input_path\": \"docs/report.md\",\n  \"output_path\": \"docs/report.docx\",\n  \"chinese_font\": \"微软雅黑\",\n  \"english_font\": \"Times New Roman\",\n  \"math_font\": \"Cambria Math\"\n}\n\n字体参数可省略；省略时使用上述默认字体。"
   },
   {
+    "title": "在 Word 中插入复杂 Excel 表格",
+    "content": "完整调用过程：\n1. 先调用 Excel 工具，用 Markdown 双文件模式或传统结构化参数生成复杂 Excel，例如 tables/result.xlsx。复杂表格的合并、颜色、边框、尺寸和公式由 Excel 工具负责。\n2. 再写需要转换为 Word 的 Markdown 文件。在需要插入表格的位置单独写：\n\n{{table-ref\nsource=\"tables/result.xlsx\"\nsheet=\"汇总\"\nrange=\"A1:F12\"\n}}\n\nsource 相对于 Markdown 文件所在目录；sheet 和 range 可按实际 Excel 内容修改。不要把复杂表格的格式指令展开到 Markdown 正文。Excel 单元格中如果明确写成 $...$ 或 $$...$$，会转换为 Word 原生公式；普通 Excel 计算公式（例如 =SUM(A1:A3)）保留为文字，不会被误判为数学公式。\n3. 调用本工具：\n{\n  \"input_path\": \"docs/report.md\",\n  \"output_path\": \"docs/report.docx\"\n}\n\n工具会在转换前检测 table-ref 来源、工作表和区域，并把引用位置替换成 Word 表格。返回结果中的 table_references 会列出成功插入的来源；引用不存在或区域无效时会失败，不会生成缺少表格的 Word。普通 Markdown 表格仍直接写在 Markdown 中。"
+  },
+  {
     "title": "从 Word 样本提取模板",
     "content": "输入参数：\n{\n  \"action\": \"extract_template\",\n  \"template_source_path\": \"docs/客户排版样本.docx\",\n  \"template_name\": \"客户报告格式\"\n}\n\n模板名称可省略；省略时使用样本文件名。提取成功后保存 template_id。"
   },

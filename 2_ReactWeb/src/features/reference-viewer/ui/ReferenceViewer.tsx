@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import type { EditorReferenceViewerPayload } from "../../../entities/editor/model/editorReference";
+import { textReferenceLocationLabel } from "../../../entities/editor/model/editorTextReferenceLocation";
 import { createWorkspaceAssetUrl } from "../../document-editor-canvas/model/documentAssetUrls";
 import { ImagePreview } from "../../document-editor-canvas/ui/ImagePreview";
 import "./reference-viewer.css";
@@ -153,17 +154,16 @@ function referencePrimaryPath(payload: EditorReferenceViewerPayload) {
 
 function referenceRows(payload: EditorReferenceViewerPayload) {
   if (payload.kind === "text") {
-    const location = payload.reference.startLine && payload.reference.endLine
-      ? payload.reference.startLine === payload.reference.endLine
-        ? `L${payload.reference.startLine}`
-        : `L${payload.reference.startLine}-L${payload.reference.endLine}`
-      : "";
-    return [
+    const rows = [
       { label: "来源", value: payload.reference.fileName },
       { label: "路径", value: payload.reference.filePath },
-      { label: "位置", value: location },
+      { label: "位置", value: textReferenceLocationLabel(payload.reference) },
       { label: "类型", value: referenceKindLabel(payload) },
     ];
+    if (payload.reference.location?.nearestHeading) {
+      rows.push({ label: "章节", value: payload.reference.location.nearestHeading });
+    }
+    return rows;
   }
 
   if (payload.kind === "file") {

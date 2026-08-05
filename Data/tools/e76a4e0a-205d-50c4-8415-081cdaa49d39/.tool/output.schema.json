@@ -43,6 +43,21 @@
         "type": "string"
       }
     },
+    "table_references": {
+      "type": "array",
+      "description": "本次 Markdown 中识别并成功插入的外部复杂表格引用。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "sheet", "range", "table_id"],
+        "properties": {
+          "source": {"type": "string"},
+          "sheet": {"type": "string"},
+          "range": {"type": "string"},
+          "table_id": {"type": "string"}
+        }
+      }
+    },
     "template_id": {
       "type": "string",
       "description": "转换实际使用的模板标识。"
@@ -161,6 +176,7 @@
         "overwritten",
         "message",
         "warnings",
+        "table_references",
         "template_id",
         "template_name"
       ]

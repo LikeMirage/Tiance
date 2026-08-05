@@ -1,5 +1,5 @@
 {
-  "description": "创建、检查和安全编辑 .docx Word 文档。除专业报告、按内容分配列宽的表格、图片和经过结构校验的 Word 原生公式外，还支持用左右纯文字边界建立选区，对已有内容执行插入、替换、删除、增量格式修改和提取。写入可用带格式纯文字或 Markdown 片段，常用标题、列表、引用、表格、本地图片、代码和公式会转成 Word 原生结构。编辑默认输出新文件，支持 dry-run、备份和覆盖保护。不负责 Word 转 PDF、目录自动刷新、脚注/HTML 片段转换或跨不同表格单元格的复杂选区。",
+  "description": "创建、检查和安全编辑 .docx Word 文档。inspect 可返回公式清单、稳定 formula_ref、文档指纹，也可只查询一个预览 word_range 选区并返回 text/equation/mixed 类型和 Markdown 语义内容。选区支持纯文字、LaTeX、稳定公式引用或预览结构坐标；引用指纹不一致时明确拒绝。所有 edit 写入必须先 dry_run，再提交完全相同参数的 validation_token。写入支持带格式纯文字、原生公式和正文 Markdown；编辑默认输出新文件，原位覆盖备份到工作区工具备份目录。不负责 Word 转 PDF、目录自动刷新、脚注/HTML 转换或跨不同单元格选区。",
   "display_name": "Word 制作编辑",
   "execution": {
     "parallel": false

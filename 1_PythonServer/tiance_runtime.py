@@ -22,6 +22,7 @@ _HOST_CAPABILITY_PATHS = {
     "github_sync": "/github/sync/tool",
     "git_repository": "/git/repository/tool",
     "github_platform": "/github/platform/tool",
+    "memory_management": "/memory/management/tool",
 }
 
 

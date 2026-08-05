@@ -667,7 +667,7 @@ class ProjectConversationRepository:
                 name=name,
                 tool_call_id=tool_call_id,
                 tool_calls=tool_calls if role == "assistant" else (),
-                content_parts=content_parts if role in {"user", "assistant"} else (),
+                content_parts=content_parts if role in {"user", "assistant", "tool"} else (),
                 references=references if role == "user" and references is not None else [],
                 origin_message_id=origin_message_id,
                 variant_group_id=variant_group_id,

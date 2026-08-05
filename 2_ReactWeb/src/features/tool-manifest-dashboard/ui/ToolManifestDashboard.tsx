@@ -125,7 +125,6 @@ export function ToolManifestDashboard({
       <header className="tool-dashboard__header">
         <div>
           <h1>{displayName || "未命名工具"}</h1>
-          <p>{description || "暂无工具说明。"}</p>
         </div>
         <div className="tool-dashboard__header-actions">
           <button

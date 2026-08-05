@@ -328,12 +328,14 @@ function ThinkingBlock({
         }
         onTouchMove={() => interactions.onTouchMoveThinkingContent(message.id)}
       >
-        <LazyMarkdownPreview
-          content={message.thinkingContent}
-          isStreaming={isStreaming}
-          onPreviewHtmlCode={interactions.onPreviewHtmlCode}
-          onSaveCodeBlock={interactions.onSaveCodeBlock}
-        />
+        {message.isThinkingExpanded ? (
+          <LazyMarkdownPreview
+            content={message.thinkingContent}
+            isStreaming={isStreaming}
+            onPreviewHtmlCode={interactions.onPreviewHtmlCode}
+            onSaveCodeBlock={interactions.onSaveCodeBlock}
+          />
+        ) : null}
       </div>
     </section>
   );

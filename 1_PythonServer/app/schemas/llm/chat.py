@@ -68,6 +68,9 @@ class ChatImageRefRequest(BaseModel):
     detail: Literal["auto", "low", "high"] | None = None
     name: str | None = None
     size_bytes: int | None = Field(default=None, ge=0)
+    attachment_id: str | None = None
+    source_path: str | None = None
+    source_kind: str | None = None
 
     def to_domain(self) -> ChatImageRef:
         return ChatImageRef(
@@ -76,6 +79,9 @@ class ChatImageRefRequest(BaseModel):
             detail=self.detail,
             name=self.name,
             size_bytes=self.size_bytes,
+            attachment_id=self.attachment_id,
+            source_path=self.source_path,
+            source_kind=self.source_kind,
         )
 
 
@@ -283,6 +289,9 @@ class ChatImageRefResponse(BaseModel):
     detail: str | None = None
     name: str | None = None
     size_bytes: int | None = None
+    attachment_id: str | None = None
+    source_path: str | None = None
+    source_kind: str | None = None
 
 
 class ChatMessageContentPartResponse(BaseModel):
@@ -306,6 +315,9 @@ class ChatMessageContentPartResponse(BaseModel):
                 detail=part.image_ref.detail,
                 name=part.image_ref.name,
                 size_bytes=part.image_ref.size_bytes,
+                attachment_id=part.image_ref.attachment_id,
+                source_path=part.image_ref.source_path,
+                source_kind=part.image_ref.source_kind,
             ) if part.image_ref else None,
         )
 

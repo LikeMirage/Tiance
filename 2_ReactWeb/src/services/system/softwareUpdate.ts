@@ -17,6 +17,10 @@ export type SoftwareUpdateDownload = {
   packageSize: number;
 };
 
+export const OPEN_SOURCE_REPOSITORY_URL = "https://github.com/LikeMirage/Tiance";
+export const LATEST_SOFTWARE_DOWNLOAD_URL =
+  "https://github.com/LikeMirage/Tiance/releases/latest/download/Tiance.zip";
+
 export function checkSoftwareUpdate(signal?: AbortSignal) {
   return fetchJson<SoftwareUpdateCheck>("/api/software-update/check", { signal });
 }

@@ -57,6 +57,8 @@ export function WordPreview({
         }
         const arrayBuffer = await response.arrayBuffer();
         if (isCancelled) return;
+        const fingerprint = await sha256Fingerprint(arrayBuffer);
+        if (isCancelled) return;
         const { renderAsync } = await import("docx-preview");
         if (isCancelled) return;
         await renderAsync(arrayBuffer, container, undefined, {
@@ -74,6 +76,7 @@ export function WordPreview({
           useBase64URL: true,
         });
         if (isCancelled) return;
+        container.dataset.documentFingerprint = fingerprint;
         setState("ready");
       } catch (err) {
         if (isCancelled || controller.signal.aborted) return;
@@ -114,4 +117,10 @@ export function WordPreview({
       {!isLoadingVisible && state === "idle" ? <div className="office-preview__empty">Word 文件地址无效。</div> : null}
     </main>
   );
+}
+
+async function sha256Fingerprint(value: ArrayBuffer) {
+  const digest = await crypto.subtle.digest("SHA-256", value);
+  const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `sha256:${hex}`;
 }

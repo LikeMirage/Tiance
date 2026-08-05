@@ -1,4 +1,5 @@
 import type { EditorFileReference, EditorTextReference } from "../../../entities/editor/model/editorReference";
+import { textReferenceLocationLabel } from "../../../entities/editor/model/editorTextReferenceLocation";
 import type {
   ChatCompletionMessageContentPart,
   ConversationMessageReferences,
@@ -19,7 +20,7 @@ export function buildConversationImageContentParts(
     if (item.type === "file") {
       const reference = item.reference;
       const mimeType = supportedImageMimeType(reference.fileName, reference.filePath);
-      if (!mimeType || reference.kind !== "file" || reference.projectId !== projectId) continue;
+      if (!mimeType || reference.kind !== "file") continue;
       parts.push(imageRefPart({
         path: reference.filePath,
         mimeType,
@@ -47,16 +48,7 @@ export function buildConversationImageContentParts(
 }
 
 export function textReferencePosition(reference: EditorTextReference) {
-  if (reference.startLine && reference.endLine) {
-    return reference.startLine === reference.endLine
-      ? `L${reference.startLine}`
-      : `L${reference.startLine}-L${reference.endLine}`;
-  }
-  if (reference.source === "markdown_preview") return "Markdown 预览选区";
-  if (reference.source === "markdown_visual") return "Markdown 编辑选区";
-  if (reference.source === "pdf") return "PDF 选区";
-  if (reference.source === "office") return "Office 文档选区";
-  return "文本选区";
+  return textReferenceLocationLabel(reference);
 }
 
 export function isImageFileReference(reference: EditorFileReference) {

@@ -7,13 +7,36 @@ export type EditorTextReferenceSource =
 
 export type EditorTextReferenceDraft = {
   content: string;
+  contentMarkdown?: string;
   displayPath: string;
+  documentFingerprint?: string;
   endLine?: number;
   fileName: string;
   filePath: string;
+  location?: EditorWordTextReferenceLocation;
   projectId: string | null;
   source: EditorTextReferenceSource;
   startLine?: number;
+};
+
+export type EditorWordTextReferencePosition = {
+  cellParagraphIndex?: number;
+  characterOffset: number;
+  columnIndex?: number;
+  container: "body" | "table" | "header" | "footer" | "unknown";
+  pageNumber?: number;
+  paragraphIndex?: number;
+  rowIndex?: number;
+  tableIndex?: number;
+};
+
+export type EditorWordTextReferenceLocation = {
+  end: EditorWordTextReferencePosition;
+  kind: "word_range";
+  nearestHeading?: string;
+  prefix?: string;
+  start: EditorWordTextReferencePosition;
+  suffix?: string;
 };
 
 export type EditorTextReference = EditorTextReferenceDraft & {

@@ -122,7 +122,10 @@ def _take_image_part(
         if (
             part.type == ChatMessageContentPartType.IMAGE_REF
             and part.image_ref is not None
-            and part.image_ref.path == image_path
+            and (
+                part.image_ref.path == image_path
+                or part.image_ref.source_path == image_path
+            )
         ):
             return parts.pop(index)
     return None
@@ -147,16 +150,35 @@ def _file_reference_block(index: int, reference: dict[str, Any]) -> str:
 
 
 def _text_reference_block(index: int, reference: dict[str, Any]) -> str:
-    return "\n".join(
-        (
-            f"{index}. 【文本选区引用】",
-            f"- 来源：{_text(reference, 'fileName')}",
-            f"- 路径：{_text(reference, 'filePath')}",
-            f"- 位置：{_text_reference_position(reference)}",
-            "- 内容：",
-            _text(reference, "content"),
-        )
-    )
+    lines = [
+        f"{index}. 【文本选区引用】",
+        f"- 来源：{_text(reference, 'fileName')}",
+        f"- 路径：{_text(reference, 'filePath')}",
+        f"- 位置：{_text_reference_position(reference)}",
+    ]
+    location = reference.get("location")
+    if isinstance(location, dict) and location.get("kind") == "word_range":
+        heading = _text(location, "nearestHeading")
+        prefix = _text(location, "prefix")
+        suffix = _text(location, "suffix")
+        if heading:
+            lines.append(f"- 最近标题：{heading}")
+        if prefix:
+            lines.append(f"- 选区前文：{prefix}")
+        if suffix:
+            lines.append(f"- 选区后文：{suffix}")
+        lines.extend((
+            "- 结构化定位：",
+            dumps(location, ensure_ascii=False, separators=(",", ":")),
+        ))
+    fingerprint = _text(reference, "documentFingerprint")
+    if fingerprint:
+        lines.append(f"- 文档指纹：{fingerprint}")
+    content_markdown = _text(reference, "contentMarkdown")
+    if content_markdown:
+        lines.extend(("- Markdown 语义内容：", content_markdown))
+    lines.extend(("- 纯文本内容：", _text(reference, "content")))
+    return "\n".join(lines)
 
 
 def _image_reference_block(index: int, reference: dict[str, Any]) -> str:
@@ -210,12 +232,51 @@ def _text_reference_position(reference: dict[str, Any]) -> str:
     end_line = reference.get("endLine")
     if isinstance(start_line, int) and isinstance(end_line, int):
         return f"L{start_line}" if start_line == end_line else f"L{start_line}-L{end_line}"
+    location = reference.get("location")
+    if isinstance(location, dict) and location.get("kind") == "word_range":
+        return _word_text_reference_position(location)
     return {
         "markdown_preview": "Markdown 预览选区",
         "markdown_visual": "Markdown 编辑选区",
         "pdf": "PDF 选区",
         "office": "Office 文档选区",
     }.get(_text(reference, "source"), "文本选区")
+
+
+def _word_text_reference_position(location: dict[str, Any]) -> str:
+    start = location.get("start")
+    end = location.get("end")
+    if not isinstance(start, dict) or not isinstance(end, dict):
+        return "Office 文档选区"
+    start_text = _word_position_text(start)
+    end_text = _word_position_text(end)
+    if start_text == end_text:
+        return start_text
+    return f"起点：{start_text}；终点：{end_text}"
+
+
+def _word_position_text(position: dict[str, Any]) -> str:
+    parts: list[str] = []
+    page_number = position.get("pageNumber")
+    if isinstance(page_number, int):
+        parts.append(f"预览第 {page_number} 页")
+    if _text(position, "container") == "table":
+        table_index = position.get("tableIndex")
+        row_index = position.get("rowIndex")
+        column_index = position.get("columnIndex")
+        if all(isinstance(value, int) for value in (table_index, row_index, column_index)):
+            parts.append(f"表格 {table_index} 第 {row_index} 行第 {column_index} 列")
+        cell_paragraph = position.get("cellParagraphIndex")
+        if isinstance(cell_paragraph, int):
+            parts.append(f"单元格内第 {cell_paragraph} 段")
+    else:
+        paragraph_index = position.get("paragraphIndex")
+        if isinstance(paragraph_index, int):
+            parts.append(f"预览段落 {paragraph_index}")
+    character_offset = position.get("characterOffset")
+    if isinstance(character_offset, int):
+        parts.append(f"字符偏移 {character_offset}")
+    return "，".join(parts) or "Office 文档选区"
 
 
 def _is_image_file_reference(reference: dict[str, Any]) -> bool:

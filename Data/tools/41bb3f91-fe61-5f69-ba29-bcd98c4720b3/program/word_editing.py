@@ -4,7 +4,14 @@ from typing import Any
 
 from word_markdown import append_markdown_fragment
 from word_elements import add_elements, set_header_footer
-from word_selection import resolve_selection
+from word_formula_match import parse_formula_anchor
+from word_errors import WordOperationError
+from word_formula_editing import (
+    format_equation_targets,
+    insert_equation,
+    replace_selection_with_equation,
+)
+from word_selection import inspect_formula_catalog, resolve_selection
 from word_selection_editing import (
     body_nodes_snapshot,
     delete_selection,
@@ -20,7 +27,16 @@ OMML_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 OMATH_TAG = f"{{{OMML_NS}}}oMath"
 
 
-def inspect_document(doc: Any, *, include_paragraphs: bool, include_tables: bool, max_paragraphs: int, max_text_chars: int) -> dict[str, Any]:
+def inspect_document(
+    doc: Any,
+    *,
+    include_paragraphs: bool,
+    include_tables: bool,
+    max_paragraphs: int,
+    max_text_chars: int,
+    max_formulas: int,
+    include_formulas: bool,
+) -> dict[str, Any]:
     paragraphs = []
     headings = []
     total_text_parts = []
@@ -54,12 +70,16 @@ def inspect_document(doc: Any, *, include_paragraphs: bool, include_tables: bool
     if len(total_text) > max_text_chars:
         total_text = total_text[:max_text_chars] + f"\n...<truncated {len(total_text) - max_text_chars} chars>"
 
+    equation_count = count_equations(doc.element)
+    formulas = inspect_formula_catalog(doc, limit=max_formulas) if include_formulas else []
     return {
         "paragraph_count": len(doc.paragraphs),
         "heading_count": len(headings),
         "table_count": len(doc.tables),
         "inline_shape_count": len(doc.inline_shapes),
-        "equation_count": count_equations(doc.element),
+        "equation_count": equation_count,
+        "formulas": formulas,
+        "formula_list_truncated_count": max(0, equation_count - len(formulas)) if include_formulas else 0,
         "section_count": len(doc.sections),
         "headings": headings,
         "paragraphs": paragraphs if include_paragraphs else [],
@@ -72,35 +92,40 @@ def inspect_document(doc: Any, *, include_paragraphs: bool, include_tables: bool
 
 def apply_operations(doc: Any, operations: list[Any], theme: dict[str, Any], root: Any) -> list[dict[str, Any]]:
     summaries = []
-    for operation in operations:
+    for operation_index, operation in enumerate(operations):
         if not isinstance(operation, dict):
-            continue
-        operation_type = str(operation.get("type") or "").lower()
-        if operation_type == "replace_text":
-            summaries.append(replace_text(doc, operation))
-        elif operation_type == "append_content":
-            elements = operation.get("elements")
-            if not isinstance(elements, list):
-                raise ValueError("append_content.elements 必须是数组。")
-            warnings: list[str] = []
-            stats = add_elements(doc, elements, theme, root, warnings=warnings)
-            summaries.append({"type": "append_content", "stats": stats, "warnings": warnings})
-        elif operation_type == "set_header":
-            text = operation.get("text")
-            if not isinstance(text, str):
-                raise ValueError("set_header.text 必须是字符串。")
-            set_header_footer(doc, header=text, theme=theme)
-            summaries.append({"type": "set_header"})
-        elif operation_type == "set_footer":
-            text = operation.get("text")
-            if not isinstance(text, str):
-                raise ValueError("set_footer.text 必须是字符串。")
-            set_header_footer(doc, footer=text, theme=theme)
-            summaries.append({"type": "set_footer"})
-        elif operation_type == "selection":
-            summaries.append(apply_selection_operation(doc, operation, theme, root))
-        else:
-            raise ValueError(f"不支持的 Word 编辑操作：{operation_type}")
+            raise ValueError(f"operations[{operation_index}] 必须是对象。")
+        try:
+            operation_type = str(operation.get("type") or "").lower()
+            if operation_type == "replace_text":
+                summaries.append(replace_text(doc, operation))
+            elif operation_type == "append_content":
+                elements = operation.get("elements")
+                if not isinstance(elements, list):
+                    raise ValueError("append_content.elements 必须是数组。")
+                warnings: list[str] = []
+                stats = add_elements(doc, elements, theme, root, warnings=warnings)
+                summaries.append({"type": "append_content", "stats": stats, "warnings": warnings})
+            elif operation_type == "set_header":
+                text = operation.get("text")
+                if not isinstance(text, str):
+                    raise ValueError("set_header.text 必须是字符串。")
+                set_header_footer(doc, header=text, theme=theme)
+                summaries.append({"type": "set_header"})
+            elif operation_type == "set_footer":
+                text = operation.get("text")
+                if not isinstance(text, str):
+                    raise ValueError("set_footer.text 必须是字符串。")
+                set_header_footer(doc, footer=text, theme=theme)
+                summaries.append({"type": "set_footer"})
+            elif operation_type == "selection":
+                summaries.append(apply_selection_operation(doc, operation, theme, root))
+            else:
+                raise ValueError(f"不支持的 Word 编辑操作：{operation_type}")
+        except WordOperationError as exc:
+            raise exc.with_context(f"operations[{operation_index}]") from exc
+        except ValueError as exc:
+            raise ValueError(f"operations[{operation_index}]：{exc}") from exc
     return summaries
 
 
@@ -110,14 +135,21 @@ def apply_selection_operation(
     theme: dict[str, Any],
     root: Any,
 ) -> dict[str, Any]:
-    selection = resolve_selection(doc, operation.get("selection"))
     action = str(operation.get("action") or "").strip().lower()
+    selection = resolve_selection(doc, operation.get("selection"))
     summary: dict[str, Any] = {
         "type": "selection",
         "action": action,
         "selection": selection.summary(),
         "warnings": [],
     }
+    if any(
+        strategy not in {"exact", "formula_ref"}
+        for strategy in selection.formula_match_strategies
+    ):
+        summary["warnings"].append(
+            "公式通过兼容文本匹配定位；重要文档建议先 dry_run 核对 formula_ref 和位置。"
+        )
     if action == "extract":
         return summary
     if action == "delete":
@@ -127,9 +159,18 @@ def apply_selection_operation(
         style = operation.get("style")
         if not isinstance(style, dict) or not style:
             raise ValueError("selection format 操作必须提供非空 style。")
-        summary["formatted"] = format_selection(doc, selection, style, theme)
-        if selection.equation_count:
-            summary["warnings"].append("选区中的 Word 公式保持原样，格式操作仅应用于文字和段落。")
+        formatted = format_selection(doc, selection, style, theme)
+        formatted_equations = format_equation_targets(selection, style)
+        formatted["equations_formatted"] = formatted_equations
+        formatted["equations_skipped"] = max(
+            0,
+            selection.equation_count - formatted_equations,
+        )
+        summary["formatted"] = formatted
+        if formatted["equations_skipped"]:
+            summary["warnings"].append(
+                "选区中未被公式引用直接选中的 Word 公式保持原样。"
+            )
         return summary
     if action not in {"insert", "replace"}:
         raise ValueError("selection.action 必须是 insert、replace、delete、format 或 extract。")
@@ -147,8 +188,24 @@ def apply_selection_operation(
         summary["content_mode"] = "text"
         summary["inserted_char_count"] = len(content)
         return summary
+    if mode == "equation":
+        style = operation.get("style") if isinstance(operation.get("style"), dict) else {}
+        apply_equation_content(selection, action, content, style, summary)
+        return summary
     if mode != "markdown":
-        raise ValueError("selection.content_mode 必须是 text 或 markdown。")
+        raise ValueError("selection.content_mode 必须是 text、equation 或 markdown。")
+
+    if selection.start.kind.startswith("table:"):
+        latex = parse_formula_anchor(content)
+        if latex is None:
+            raise ValueError(
+                "表格单元格内的 Markdown 只支持单个 $...$ 或 $$...$$ 公式；"
+                "纯文字请用 text，公式也可用 equation 模式。"
+            )
+        style = operation.get("style") if isinstance(operation.get("style"), dict) else {}
+        apply_equation_content(selection, action, latex, style, summary)
+        summary["source_content_mode"] = "markdown"
+        return summary
 
     before = body_nodes_snapshot(doc)
     warnings: list[str] = []
@@ -160,6 +217,21 @@ def apply_selection_operation(
     summary["stats"] = stats
     summary["warnings"].extend(warnings)
     return summary
+
+
+def apply_equation_content(
+    selection: Any,
+    action: str,
+    latex: str,
+    style: dict[str, Any],
+    summary: dict[str, Any],
+) -> None:
+    if action == "insert":
+        insert_equation(selection, latex, style)
+    else:
+        summary["removed"] = replace_selection_with_equation(selection, latex, style)
+    summary["content_mode"] = "equation"
+    summary["inserted_equation_count"] = 1
 
 
 def replace_text(doc: Any, operation: dict[str, Any]) -> dict[str, Any]:

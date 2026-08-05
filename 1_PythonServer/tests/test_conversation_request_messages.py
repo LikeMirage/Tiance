@@ -14,6 +14,7 @@ from app.domain.project.project_conversation import (
 from app.domain.llm.message_timestamp import model_visible_message_content
 from app.services.project.conversation_request_messages import build_conversation_request_messages
 from app.services.project.conversation_request_provenance import conversation_message_id
+from app.services.project.conversation_references import build_referenced_user_content
 
 
 def test_build_conversation_request_messages_matches_session_rules():
@@ -314,6 +315,58 @@ def test_build_conversation_request_messages_formats_structured_references_for_m
     assert rendered.count("【用户消息】") == 3
 
 
+def test_word_reference_injects_structured_location_and_context():
+    references = [{
+        "type": "text",
+        "reference": {
+            "content": "1/R = 1/R1 + 1/R2",
+            "contentMarkdown": "$\\frac{1}{R}=\\frac{1}{R_1}+\\frac{1}{R_2}$",
+            "displayPath": "docs/formulas.docx",
+            "fileName": "formulas.docx",
+            "filePath": "docs/formulas.docx",
+            "id": "word-text-1",
+            "documentFingerprint": "sha256:" + "b" * 64,
+            "location": {
+                "kind": "word_range",
+                "nearestHeading": "2.4 公式与结果对照表",
+                "prefix": "电阻并联",
+                "start": {
+                    "cellParagraphIndex": 1,
+                    "characterOffset": 0,
+                    "columnIndex": 2,
+                    "container": "table",
+                    "pageNumber": 3,
+                    "rowIndex": 5,
+                    "tableIndex": 3,
+                },
+                "end": {
+                    "cellParagraphIndex": 1,
+                    "characterOffset": 18,
+                    "columnIndex": 2,
+                    "container": "table",
+                    "pageNumber": 3,
+                    "rowIndex": 5,
+                    "tableIndex": 3,
+                },
+                "suffix": "R1=6, R2=3",
+            },
+            "projectId": "project-a",
+            "source": "office",
+        },
+    }]
+
+    rendered = build_referenced_user_content("替换这个公式", references)
+
+    assert "预览第 3 页，表格 3 第 5 行第 2 列" in rendered
+    assert "最近标题：2.4 公式与结果对照表" in rendered
+    assert "选区前文：电阻并联" in rendered
+    assert "选区后文：R1=6, R2=3" in rendered
+    assert "文档指纹：sha256:" + "b" * 64 in rendered
+    assert "Markdown 语义内容：\n$\\frac{1}{R}=\\frac{1}{R_1}+\\frac{1}{R_2}$" in rendered
+    assert '"kind":"word_range"' in rendered
+    assert rendered.endswith("【用户消息】\n替换这个公式")
+
+
 def test_build_conversation_request_messages_restores_generic_tool_images_after_tool_run():
     resource_result = dumps(
         {
@@ -355,6 +408,18 @@ def test_build_conversation_request_messages_restores_generic_tool_images_after_
                 ),
                 name="capture_screen",
                 tool_call_id="call_1",
+                content_parts=(
+                    ChatMessageContentPart(
+                        type=ChatMessageContentPartType.IMAGE_REF,
+                        image_ref=ChatImageRef(
+                            path="tiance-attachment://att_11111111111111111111111111111111",
+                            mime_type="image/png",
+                            attachment_id="att_11111111111111111111111111111111",
+                            source_path="captures/dashboard.png",
+                            source_kind="tool_artifact",
+                        ),
+                    ),
+                ),
             ),
             _message("a2", "assistant", "图片分析完成"),
         ),
@@ -372,7 +437,9 @@ def test_build_conversation_request_messages_restores_generic_tool_images_after_
     assert resource_message.content == "工具返回了以下图片资源。"
     assert resource_message.internal_metadata["derived_tool_resource_message"] is True
     assert resource_message.content_parts[0].image_ref is not None
-    assert resource_message.content_parts[0].image_ref.path == "captures/dashboard.png"
+    assert resource_message.content_parts[0].image_ref.path == (
+        "tiance-attachment://att_11111111111111111111111111111111"
+    )
 
 
 def _message(

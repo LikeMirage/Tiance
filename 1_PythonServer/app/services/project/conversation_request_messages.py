@@ -86,6 +86,7 @@ def _to_request_message(
     content_parts: tuple[ChatMessageContentPart, ...] = ()
     if message.role == "tool":
         content = _tool_result_content(message.content)
+        content_parts = message.content_parts
     elif message.role == "user":
         content, content_parts = build_referenced_user_message_content(
             message.content.strip(),

@@ -175,6 +175,7 @@ def test_compressed_context_rebuilds_images_only_from_tool_results_outside_summa
                 old_resource,
                 name="capture_screen",
                 tool_call_id="call-old",
+                content_parts=(_attachment_part("old", "images/old.png"),),
             ),
             _message(
                 "assistant-recent",
@@ -194,6 +195,7 @@ def test_compressed_context_rebuilds_images_only_from_tool_results_outside_summa
                 recent_resource,
                 name="capture_screen",
                 tool_call_id="call-recent",
+                content_parts=(_attachment_part("recent", "images/recent.png"),),
             ),
         )
     )
@@ -228,7 +230,9 @@ def test_compressed_context_rebuilds_images_only_from_tool_results_outside_summa
     ]
     assert len(image_messages) == 1
     assert image_messages[0].content_parts[0].image_ref is not None
-    assert image_messages[0].content_parts[0].image_ref.path == "images/recent.png"
+    assert image_messages[0].content_parts[0].image_ref.path == (
+        "tiance-attachment://att_recentrecentrecentrecentrecentre"
+    )
 
 
 def test_compressed_context_keeps_legacy_partial_tool_group_intact():
@@ -341,4 +345,18 @@ def _resource_result(path: str) -> str:
             ],
         },
         ensure_ascii=False,
+    )
+
+
+def _attachment_part(seed: str, source_path: str) -> ChatMessageContentPart:
+    attachment_id = f"att_{(seed * 32)[:32]}"
+    return ChatMessageContentPart(
+        type=ChatMessageContentPartType.IMAGE_REF,
+        image_ref=ChatImageRef(
+            path=f"tiance-attachment://{attachment_id}",
+            mime_type="image/png",
+            attachment_id=attachment_id,
+            source_path=source_path,
+            source_kind="tool_artifact",
+        ),
     )

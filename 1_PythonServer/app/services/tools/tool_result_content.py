@@ -44,7 +44,9 @@ def image_parts_from_tool_messages(
         part
         for message in messages
         if message.role == ChatMessageRole.TOOL
-        for part in image_parts_from_tool_content(message.content)
+        for part in message.content_parts
+        if part.type == ChatMessageContentPartType.IMAGE_REF
+        and part.image_ref is not None
     )
 
 
@@ -108,8 +110,9 @@ def restore_tool_resource_messages(
             index < len(source_messages)
             and source_messages[index].role == ChatMessageRole.TOOL
         ):
-            tool_messages.append(source_messages[index])
-            restored.append(source_messages[index])
+            tool_message = source_messages[index]
+            tool_messages.append(tool_message)
+            restored.append(tool_message)
             index += 1
         resource_message = tool_resource_message(
             image_parts_from_tool_messages(tool_messages)

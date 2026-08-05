@@ -68,6 +68,7 @@ def run(payload: Payload) -> ToolResult:
                 output_path=str(request.output_path),
                 error="目标文件已存在；如需覆盖请设置 overwrite=true。",
             )
+        table_reference_report: list[dict[str, str]] = []
         warnings = convert_markdown_to_docx(
             request.markdown,
             request.output_path,
@@ -77,6 +78,7 @@ def run(payload: Payload) -> ToolResult:
             page_size=request.page_size,
             template=request.template,
             overwrite=request.overwrite,
+            table_reference_report=table_reference_report,
         )
         return {
             "ok": True,
@@ -86,6 +88,7 @@ def run(payload: Payload) -> ToolResult:
             "overwritten": output_exists,
             "message": "转换完成。",
             "warnings": warnings,
+            "table_references": table_reference_report,
             "template_id": (
                 request.template.template_id if request.template is not None else "builtin-default"
             ),
@@ -217,6 +220,7 @@ def _failure(
         "overwritten": False,
         "message": "",
         "warnings": [],
+        "table_references": [],
         "error": error,
     }
 

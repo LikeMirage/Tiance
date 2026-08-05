@@ -10,6 +10,7 @@ from app.api.routes.github_sync import router as github_sync_router
 from app.api.routes.github_platform import router as github_platform_router
 from app.api.routes.git_repository import router as git_repository_router
 from app.api.routes.locales import router as locales_router
+from app.api.routes.memory_management import router as memory_management_router
 from app.api.routes.llm.client_tools import router as llm_client_tools_router
 from app.api.routes.llm.chat import router as llm_chat_router
 from app.api.routes.llm.chat_socket import router as llm_chat_socket_router
@@ -52,6 +53,7 @@ api_router.include_router(workspace_router)
 api_router.include_router(tools_router)
 api_router.include_router(themes_router)
 api_router.include_router(locales_router)
+api_router.include_router(memory_management_router)
 api_router.include_router(llm_chat_router)
 api_router.include_router(llm_chat_socket_router)
 api_router.include_router(llm_client_tools_router)

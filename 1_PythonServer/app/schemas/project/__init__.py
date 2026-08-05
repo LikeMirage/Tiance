@@ -1,5 +1,10 @@
 # 项目 Pydantic 模型导出
 
+from .conversation_attachments import (
+    ConversationImageAttachmentCreateRequest,
+    ConversationImageAttachmentResponse,
+)
+
 from .project_files import (
     ProjectFileCopyRequest,
     ProjectFileContentResponse,
@@ -190,4 +195,6 @@ __all__ = [
     "RoleCatalogResponse",
     "SaveConversationAsRoleRequest",
     "SaveConversationAsRoleResponse",
+    "ConversationImageAttachmentCreateRequest",
+    "ConversationImageAttachmentResponse",
 ]

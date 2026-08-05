@@ -23,6 +23,7 @@ from word_selection import (
 )
 
 W_R = qn("w:r")
+OMATH_PARA_TAG = "{http://schemas.openxmlformats.org/officeDocument/2006/math}oMathPara"
 
 
 UNSAFE_PARTIAL_TAGS = {
@@ -36,21 +37,43 @@ UNSAFE_PARTIAL_TAGS = {
 
 def delete_selection(selection: SelectionRange) -> dict[str, int]:
     require_nonempty(selection, "delete")
+    removed = {"characters": 0, "equations": 0, "blocks": 0}
+    if selection.equation_targets and selection.start is selection.end and selection.start_offset == selection.end_offset:
+        removed["equations"] = delete_equation_targets(selection.equation_targets)
+        refresh_ref(selection.start)
+        return removed
+
     if selection.same_paragraph:
-        removed = rewrite_paragraph_range(
-            selection.start.paragraph,
-            selection.start_offset,
-            selection.end_offset,
-            [],
+        merge_counts(
+            removed,
+            rewrite_paragraph_range(
+                selection.start.paragraph,
+                selection.start_offset,
+                selection.end_offset,
+                [],
+            ),
+        )
+        # Explicit formula targets may sit at the caret and not be covered by text range.
+        removed["equations"] += delete_equation_targets(
+            [node for node in selection.equation_targets if node.getparent() is not None]
         )
         refresh_ref(selection.start)
         return removed
 
-    removed = rewrite_paragraph_range(
-        selection.start.paragraph,
-        selection.start_offset,
-        len(selection.start.text),
-        [],
+    if selection.same_container and selection.start.kind.startswith("table:"):
+        merge_counts(removed, delete_same_container_range(selection))
+        refresh_ref(selection.start)
+        refresh_ref(selection.end)
+        return removed
+
+    merge_counts(
+        removed,
+        rewrite_paragraph_range(
+            selection.start.paragraph,
+            selection.start_offset,
+            len(selection.start.text),
+            [],
+        ),
     )
     merge_counts(
         removed,
@@ -68,6 +91,50 @@ def delete_selection(selection: SelectionRange) -> dict[str, int]:
     return removed
 
 
+def delete_same_container_range(selection: SelectionRange) -> dict[str, int]:
+    removed = {"characters": 0, "equations": 0, "blocks": 0}
+    container = selection.start.container
+    paragraphs = [child for child in list(container) if child.tag == W_P]
+    start_p = selection.start.paragraph._p
+    end_p = selection.end.paragraph._p
+    start_index = paragraphs.index(start_p)
+    end_index = paragraphs.index(end_p)
+    merge_counts(
+        removed,
+        rewrite_paragraph_range(
+            selection.start.paragraph,
+            selection.start_offset,
+            len(selection.start.text),
+            [],
+        ),
+    )
+    for paragraph_element in paragraphs[start_index + 1 : end_index]:
+        removed["equations"] += count_equations(paragraph_element)
+        removed["blocks"] += 1
+        container.remove(paragraph_element)
+    merge_counts(
+        removed,
+        rewrite_paragraph_range(selection.end.paragraph, 0, selection.end_offset, []),
+    )
+    return removed
+
+
+def delete_equation_targets(targets: list[Any]) -> int:
+    removed = 0
+    for omath in targets:
+        parent = omath.getparent()
+        if parent is None:
+            continue
+        parent.remove(omath)
+        removed += 1
+        # Drop empty oMathPara wrappers left behind.
+        if parent.tag == OMATH_PARA_TAG and len(parent) == 0:
+            grand = parent.getparent()
+            if grand is not None:
+                grand.remove(parent)
+    return removed
+
+
 def replace_selection_with_text(
     selection: SelectionRange,
     text: str,
@@ -76,12 +143,25 @@ def replace_selection_with_text(
 ) -> dict[str, int]:
     require_nonempty(selection, "replace")
     new_run = make_text_run(selection.start.paragraph, text, style, theme)
+    if selection.equation_targets and selection.start is selection.end and selection.start_offset == selection.end_offset:
+        removed = {"characters": 0, "equations": delete_equation_targets(selection.equation_targets), "blocks": 0}
+        rewrite_paragraph_range(
+            selection.start.paragraph,
+            selection.start_offset,
+            selection.start_offset,
+            [new_run],
+        )
+        refresh_ref(selection.start)
+        return removed
     if selection.same_paragraph:
         removed = rewrite_paragraph_range(
             selection.start.paragraph,
             selection.start_offset,
             selection.end_offset,
             [new_run],
+        )
+        removed["equations"] += delete_equation_targets(
+            [node for node in selection.equation_targets if node.getparent() is not None]
         )
     else:
         removed = delete_selection(selection)
@@ -129,6 +209,9 @@ def format_selection(
         result["paragraphs"] = 1
         return result
 
+    if selection.same_container and selection.start.kind.startswith("table:"):
+        return format_same_container_range(selection, style, theme)
+
     result["runs"] += format_paragraph_range(
         selection.start.paragraph,
         selection.start_offset,
@@ -161,12 +244,55 @@ def format_selection(
     return result
 
 
+def format_same_container_range(
+    selection: SelectionRange,
+    style: dict[str, Any],
+    theme: dict[str, Any],
+) -> dict[str, int]:
+    result = {"paragraphs": 0, "runs": 0, "equations_skipped": selection.equation_count}
+    container = selection.start.container
+    paragraphs = [child for child in list(container) if child.tag == W_P]
+    start_index = paragraphs.index(selection.start.paragraph._p)
+    end_index = paragraphs.index(selection.end.paragraph._p)
+    result["runs"] += format_paragraph_range(
+        selection.start.paragraph,
+        selection.start_offset,
+        len(selection.start.text),
+        style,
+        theme,
+    )
+    result["paragraphs"] += 1
+    for paragraph_element in paragraphs[start_index + 1 : end_index]:
+        paragraph = Paragraph(paragraph_element, selection.start.paragraph._parent)
+        result["runs"] += format_paragraph_range(
+            paragraph,
+            0,
+            len(paragraph_plain_text(paragraph)),
+            style,
+            theme,
+        )
+        result["paragraphs"] += 1
+    result["runs"] += format_paragraph_range(
+        selection.end.paragraph,
+        0,
+        selection.end_offset,
+        style,
+        theme,
+    )
+    result["paragraphs"] += 1
+    return result
+
+
 def prepare_block_insertion(selection: SelectionRange, *, replace: bool) -> tuple[Any, int]:
     if selection.start.kind != "body":
         raise ValueError("Markdown 块只能插入正文；表格单元格内请使用 text 模式。")
     cross_paragraph = not selection.same_paragraph
     if replace:
         require_nonempty(selection, "replace")
+        if selection.equation_targets and selection.start is selection.end and selection.start_offset == selection.end_offset:
+            delete_equation_targets(selection.equation_targets)
+            parent = selection.start.paragraph._p.getparent()
+            return parent, parent.index(selection.start.paragraph._p) + 1
         delete_selection(selection)
         if cross_paragraph:
             parent = selection.start.paragraph._p.getparent()

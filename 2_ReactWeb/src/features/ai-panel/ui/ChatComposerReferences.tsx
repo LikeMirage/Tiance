@@ -7,6 +7,7 @@ import type {
   EditorReferenceViewerPayload,
   EditorTextReference,
 } from "../../../entities/editor/model/editorReference";
+import { textReferenceLocationLabel } from "../../../entities/editor/model/editorTextReferenceLocation";
 import type {
   ConversationMessageReference,
   ConversationMessageReferences,
@@ -171,16 +172,7 @@ function ReferenceRow({
 }
 
 function formatTextReferenceMeta(reference: EditorTextReference) {
-  if (reference.startLine && reference.endLine) {
-    return reference.startLine === reference.endLine
-      ? `L${reference.startLine}`
-      : `L${reference.startLine}-L${reference.endLine}`;
-  }
-  if (reference.source === "markdown_preview") return "Markdown 预览";
-  if (reference.source === "markdown_visual") return "Markdown 编辑";
-  if (reference.source === "pdf") return "PDF 选区";
-  if (reference.source === "office") return "文档选区";
-  return "文本选区";
+  return textReferenceLocationLabel(reference);
 }
 
 function formatImageReferenceMeta(reference: EditorImageReference) {

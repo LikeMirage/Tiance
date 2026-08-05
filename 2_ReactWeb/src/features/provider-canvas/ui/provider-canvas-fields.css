@@ -61,13 +61,6 @@
   width: 112px;
 }
 
-.provider-canvas__cache-policy-hint {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 0.72rem;
-  line-height: 1.45;
-}
-
 .provider-canvas__canvas-input--readonly,
 .provider-canvas__canvas-input--readonly:disabled {
   background: var(--color-surface-overlay);
@@ -95,6 +88,16 @@
 
 .provider-canvas__canvas-input-action:hover {
   color: var(--color-text-primary);
+}
+
+.provider-canvas__canvas-input-action:disabled {
+  color: var(--color-text-muted);
+  cursor: default;
+  opacity: 0.65;
+}
+
+.provider-canvas__canvas-input-action + .provider-canvas__canvas-input-action {
+  border-radius: 0 4px 4px 0;
 }
 
 .provider-canvas__canvas-input-action--clear {

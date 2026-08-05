@@ -78,6 +78,74 @@ def test_project_file_reference_still_requires_project_id():
         ])
 
 
+def test_word_text_reference_preserves_structured_location():
+    payload = {
+        "type": "text",
+        "reference": {
+            "content": "并联电阻公式",
+            "contentMarkdown": "$\\frac{1}{R}=\\frac{1}{R_1}+\\frac{1}{R_2}$",
+            "displayPath": "docs/formulas.docx",
+            "fileName": "formulas.docx",
+            "filePath": "docs/formulas.docx",
+            "id": "word-text-1",
+            "documentFingerprint": "sha256:" + "a" * 64,
+            "location": {
+                "kind": "word_range",
+                "nearestHeading": "2.4 公式与结果对照表",
+                "prefix": "电阻并联",
+                "start": {
+                    "cellParagraphIndex": 1,
+                    "characterOffset": 0,
+                    "columnIndex": 2,
+                    "container": "table",
+                    "pageNumber": 3,
+                    "paragraphIndex": 110,
+                    "rowIndex": 5,
+                    "tableIndex": 3,
+                },
+                "end": {
+                    "cellParagraphIndex": 1,
+                    "characterOffset": 8,
+                    "columnIndex": 2,
+                    "container": "table",
+                    "pageNumber": 3,
+                    "paragraphIndex": 110,
+                    "rowIndex": 5,
+                    "tableIndex": 3,
+                },
+                "suffix": "R1=6, R2=3",
+            },
+            "projectId": "project-a",
+            "source": "office",
+        },
+    }
+
+    references = ConversationReferences.model_validate([payload])
+
+    assert references.to_payload() == [payload]
+
+
+def test_word_text_reference_rejects_invalid_location_coordinates():
+    with pytest.raises(ValidationError):
+        ConversationReferences.model_validate([{
+            "type": "text",
+            "reference": {
+                "content": "内容",
+                "displayPath": "docs/a.docx",
+                "fileName": "a.docx",
+                "filePath": "docs/a.docx",
+                "id": "word-text-invalid",
+                "location": {
+                    "kind": "word_range",
+                    "start": {"characterOffset": -1, "container": "body"},
+                    "end": {"characterOffset": 1, "container": "body"},
+                },
+                "projectId": "project-a",
+                "source": "office",
+            },
+        }])
+
+
 def _file_reference() -> dict:
     return {
         "displayPath": "docs/a.md",

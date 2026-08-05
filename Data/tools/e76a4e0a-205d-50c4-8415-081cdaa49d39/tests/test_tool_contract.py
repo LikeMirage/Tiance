@@ -39,6 +39,7 @@ def test_tool_success_and_existing_file_contract(tmp_path: Path) -> None:
         "overwritten": False,
         "message": "转换完成。",
         "warnings": [],
+        "table_references": [],
         "template_id": "builtin-default",
         "template_name": "内置默认样式",
     }
@@ -53,6 +54,7 @@ def test_tool_success_and_existing_file_contract(tmp_path: Path) -> None:
         "overwritten": False,
         "message": "",
         "warnings": [],
+        "table_references": [],
         "error": "目标文件已存在；如需覆盖请设置 overwrite=true。",
     }
 

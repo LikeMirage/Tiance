@@ -14,6 +14,7 @@ class HostCapability(StrEnum):
     GITHUB_SYNC = "github_sync"
     GIT_REPOSITORY = "git_repository"
     GITHUB_PLATFORM = "github_platform"
+    MEMORY_MANAGEMENT = "memory_management"
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +40,7 @@ _TOOL_CAPABILITY_POLICY: dict[str, frozenset[HostCapability]] = {
     "github_issue": frozenset({HostCapability.GITHUB_PLATFORM}),
     "github_release": frozenset({HostCapability.GITHUB_PLATFORM}),
     "github_actions": frozenset({HostCapability.GITHUB_PLATFORM}),
+    "manage_memory": frozenset({HostCapability.MEMORY_MANAGEMENT}),
 }
 
 

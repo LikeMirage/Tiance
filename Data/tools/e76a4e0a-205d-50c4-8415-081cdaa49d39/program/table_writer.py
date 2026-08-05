@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
-from docx.shared import Pt
+from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_ROW_HEIGHT_RULE, WD_TABLE_ALIGNMENT
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Pt, RGBColor
 
 import markdown_tables
 import word_formatting as formatting
@@ -11,6 +13,7 @@ from table_layout import calculate_column_widths
 from text_measurement import FontTextMeasurer
 from word_formatting import FontSettings
 from word_template_model import ContentStyleProfile
+from table_references import ExternalTable
 
 
 TABLE_FONT_SIZE_POINTS = 10.5
@@ -106,6 +109,56 @@ class TableWriter:
             available_width_points,
         )
         return end_index
+
+    def add_external(self, external: ExternalTable) -> None:
+        """Insert a table loaded from an external workbook reference."""
+        rows = external.rows
+        if not rows or not rows[0]:
+            raise ValueError("table-ref 指向的 Excel 区域为空。")
+        column_count = len(rows[0])
+        table = self._document.add_table(rows=len(rows), cols=column_count)
+        self._apply_table_profile(table)
+        total_width = sum(external.column_widths) or float(column_count)
+        percentages = [width * 100.0 / total_width for width in external.column_widths]
+        table_formatting.apply_column_widths(table, percentages, self._document)
+        table_formatting.set_cell_margins(table)
+        table_formatting.set_repeat_header(table.rows[0])
+
+        available_width_points = table_formatting.document_available_width_points(self._document)
+        for row_index, row_data in enumerate(rows):
+            row = table.rows[row_index]
+            if row_index < len(external.row_heights) and external.row_heights[row_index]:
+                row.height = Pt(float(external.row_heights[row_index]))
+                row.height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
+            for column, cell_data in enumerate(row_data):
+                cell = row.cells[column]
+                cell.vertical_alignment = _vertical_alignment(cell_data.vertical)
+                paragraph = cell.paragraphs[0]
+                formatting.normalize_table_paragraph(paragraph, style=self._content_style)
+                self._inline.write(
+                    paragraph,
+                    cell_data.value,
+                    font_size=Pt(cell_data.font_size or self._font_size_points),
+                    max_image_width=Pt(max(18.0, available_width_points * percentages[column] / 100.0 - table_formatting.CELL_HORIZONTAL_PADDING_POINTS)),
+                )
+                _finish_cell(
+                    paragraph,
+                    self._fonts,
+                    self._content_style,
+                    cell_data.font_size or self._font_size_points,
+                )
+                for run in paragraph.runs:
+                    run.bold = cell_data.bold
+                    run.italic = cell_data.italic
+                    if cell_data.font_color:
+                        run.font.color.rgb = RGBColor.from_string(cell_data.font_color)
+                formatting.apply_alignment(paragraph, cell_data.horizontal or "left")
+                if cell_data.fill:
+                    table_formatting.set_cell_shading(cell, cell_data.fill)
+                _set_cell_borders(cell, cell_data.borders)
+
+        for top, left, bottom, right in external.merges:
+            table.cell(top, left).merge(table.cell(bottom, right))
 
     def _write_header(
         self,
@@ -252,3 +305,29 @@ def _cell_image_width(
     column_width = available_width_points * percentage / 100.0
     content_width = max(18.0, column_width - table_formatting.CELL_HORIZONTAL_PADDING_POINTS)
     return Pt(content_width)
+
+
+def _vertical_alignment(value: str | None):
+    return {
+        "top": WD_CELL_VERTICAL_ALIGNMENT.TOP,
+        "center": WD_CELL_VERTICAL_ALIGNMENT.CENTER,
+        "bottom": WD_CELL_VERTICAL_ALIGNMENT.BOTTOM,
+    }.get(value, WD_CELL_VERTICAL_ALIGNMENT.CENTER)
+
+
+def _set_cell_borders(cell, borders: dict[str, tuple[str, str, int]]) -> None:
+    if not borders:
+        return
+    properties = cell._tc.get_or_add_tcPr()
+    container = properties.find(qn("w:tcBorders"))
+    if container is None:
+        container = OxmlElement("w:tcBorders")
+        properties.append(container)
+    for side, (style, color, size) in borders.items():
+        border = container.find(qn(f"w:{side}"))
+        if border is None:
+            border = OxmlElement(f"w:{side}")
+            container.append(border)
+        border.set(qn("w:val"), style)
+        border.set(qn("w:sz"), str(size))
+        border.set(qn("w:color"), color)

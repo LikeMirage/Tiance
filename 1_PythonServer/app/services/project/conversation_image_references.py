@@ -16,15 +16,15 @@ from app.domain.llm.runtime_capabilities import LlmRuntimeCapabilities
 from app.infra.file_workspace import FileWorkspaceStorage, get_file_workspace_storage
 from app.services.llm.runtime import get_llm_runtime_capabilities_service
 from app.services.project.projects import ProjectService, get_project_service
+from app.services.project.conversation_attachments import (
+    ConversationAttachmentService,
+    get_conversation_attachment_service,
+    normalize_image_mime_type,
+    validate_image_signature,
+)
+from app.repositories.project.conversation_attachment_repository import is_attachment_uri
 from app.services.tools.tool_resource_uris import local_absolute_path
 
-_SUPPORTED_IMAGE_MIME_TYPES = {
-    "image/png",
-    "image/jpeg",
-    "image/webp",
-    "image/gif",
-    "image/bmp",
-}
 class _RuntimeCapabilitiesProvider(Protocol):
     def get_capabilities(
         self,
@@ -41,22 +41,40 @@ class ConversationImageReferenceResolver:
         project_service: ProjectService,
         file_storage: FileWorkspaceStorage,
         runtime_capabilities_service: _RuntimeCapabilitiesProvider | None = None,
+        attachment_service: ConversationAttachmentService | None = None,
     ) -> None:
         self._project_service = project_service
         self._file_storage = file_storage
         self._runtime_capabilities_service = runtime_capabilities_service
+        self._attachment_service = attachment_service
 
     def prepare(self, request: ChatCompletionRequest) -> ChatCompletionRequest:
         """Keep only explicit image refs supported by the selected model."""
         if not self._supports_image_input(request):
             return _drop_image_ref_parts(request)
-        return request
+        if not _request_has_image_ref(request) or self._attachment_service is None:
+            return request
+        if not request.project_id or not request.session_id:
+            raise BadRequestError("图片引用需要有效的项目和会话 ID。")
+        return replace(
+            request,
+            messages=tuple(
+                self._prepare_message(
+                    request.project_id,
+                    request.session_id,
+                    message,
+                )
+                for message in request.messages
+            ),
+        )
 
     def resolve(self, request: ChatCompletionRequest) -> ChatCompletionRequest:
         if not _request_has_image_ref(request):
             return request
-        if not request.project_id:
-            raise BadRequestError("图片引用需要有效的项目 ID。")
+        if not request.project_id or not request.session_id:
+            raise BadRequestError("图片引用需要有效的项目和会话 ID。")
+        if self._attachment_service is not None:
+            request = self.prepare(request)
         project = self._project_service.get_project(request.project_id)
         if project is None:
             raise NotFoundError(f"项目 '{request.project_id}' 不存在。")
@@ -64,47 +82,90 @@ class ConversationImageReferenceResolver:
         return replace(
             request,
             messages=tuple(
-                self._resolve_message(project.root_path, message)
+                self._resolve_message(
+                    request.project_id,
+                    request.session_id,
+                    project.root_path,
+                    message,
+                )
                 for message in request.messages
             ),
         )
 
-    def _resolve_message(self, project_root: str, message: ChatMessage) -> ChatMessage:
+    def _prepare_message(
+        self,
+        project_id: str,
+        session_id: str,
+        message: ChatMessage,
+    ) -> ChatMessage:
+        if not message.content_parts:
+            return message
+        assert self._attachment_service is not None
+        return replace(
+            message,
+            content_parts=tuple(
+                replace(
+                    part,
+                    image_ref=self._attachment_service.snapshot_image_ref(
+                        project_id,
+                        session_id,
+                        part.image_ref,
+                    ),
+                )
+                if part.type == ChatMessageContentPartType.IMAGE_REF
+                and part.image_ref is not None
+                else part
+                for part in message.content_parts
+            ),
+        )
+
+    def _resolve_message(
+        self,
+        project_id: str,
+        session_id: str,
+        project_root: str,
+        message: ChatMessage,
+    ) -> ChatMessage:
         if not message.content_parts:
             return message
         return replace(
             message,
             content_parts=tuple(
-                self._resolve_part(project_root, part)
+                self._resolve_part(project_id, session_id, project_root, part)
                 for part in message.content_parts
             ),
         )
 
     def _resolve_part(
         self,
+        project_id: str,
+        session_id: str,
         project_root: str,
         part: ChatMessageContentPart,
     ) -> ChatMessageContentPart:
         if part.type != ChatMessageContentPartType.IMAGE_REF or part.image_ref is None:
             return part
 
-        image_path = (
-            local_absolute_path(part.image_ref.path)
-            or self._file_storage.resolve_file_path(project_root, part.image_ref.path)
-        )
-        if not image_path.is_file():
-            raise NotFoundError("图片文件不存在。")
-        size = image_path.stat().st_size
-        if size <= 0:
-            raise BadRequestError("图片内容为空。")
-
-        content = image_path.read_bytes()
-        mime_type = _normalize_image_mime_type(
-            part.image_ref.mime_type
-            or guess_type(str(image_path))[0]
-            or ""
-        )
-        _validate_image_signature(content, mime_type)
+        if self._attachment_service is not None and is_attachment_uri(part.image_ref.path):
+            content, mime_type = self._attachment_service.read_image(
+                project_id,
+                session_id,
+                part.image_ref,
+            )
+        else:
+            image_path = (
+                local_absolute_path(part.image_ref.path)
+                or self._file_storage.resolve_file_path(project_root, part.image_ref.path)
+            )
+            if not image_path.is_file():
+                raise NotFoundError("图片文件不存在。")
+            content = image_path.read_bytes()
+            if not content:
+                raise BadRequestError("图片内容为空。")
+            mime_type = normalize_image_mime_type(
+                part.image_ref.mime_type or guess_type(str(image_path))[0] or ""
+            )
+            validate_image_signature(content, mime_type)
         data_url = f"data:{mime_type};base64,{b64encode(content).decode('ascii')}"
         return ChatMessageContentPart(
             type=ChatMessageContentPartType.IMAGE_URL,
@@ -151,34 +212,11 @@ def _drop_image_ref_parts(request: ChatCompletionRequest) -> ChatCompletionReque
     )
 
 
-def _normalize_image_mime_type(value: str) -> str:
-    mime_type = value.split(";", 1)[0].strip().lower()
-    if mime_type not in _SUPPORTED_IMAGE_MIME_TYPES:
-        raise BadRequestError("仅支持 PNG、JPEG、WebP、GIF 或 BMP 图片。")
-    return mime_type
-
-
-def _validate_image_signature(content: bytes, mime_type: str) -> None:
-    is_valid = (
-        (mime_type == "image/png" and content.startswith(b"\x89PNG\r\n\x1a\n"))
-        or (mime_type == "image/jpeg" and content.startswith(b"\xff\xd8\xff"))
-        or (mime_type == "image/gif" and content.startswith((b"GIF87a", b"GIF89a")))
-        or (
-            mime_type == "image/webp"
-            and len(content) >= 12
-            and content[:4] == b"RIFF"
-            and content[8:12] == b"WEBP"
-        )
-        or (mime_type == "image/bmp" and content.startswith(b"BM"))
-    )
-    if not is_valid:
-        raise BadRequestError("图片内容和图片类型不匹配。")
-
-
 @lru_cache
 def get_conversation_image_reference_resolver() -> ConversationImageReferenceResolver:
     return ConversationImageReferenceResolver(
         get_project_service(),
         get_file_workspace_storage(),
         get_llm_runtime_capabilities_service(),
+        get_conversation_attachment_service(),
     )

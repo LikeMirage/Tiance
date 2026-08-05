@@ -43,12 +43,39 @@ class ConversationImageReference(_ConversationReferenceBase):
     id: str
 
 
+class ConversationWordTextPosition(_ConversationReferenceBase):
+    cell_paragraph_index: int | None = Field(default=None, alias="cellParagraphIndex", ge=1)
+    character_offset: int = Field(alias="characterOffset", ge=0)
+    column_index: int | None = Field(default=None, alias="columnIndex", ge=1)
+    container: Literal["body", "table", "header", "footer", "unknown"]
+    page_number: int | None = Field(default=None, alias="pageNumber", ge=1)
+    paragraph_index: int | None = Field(default=None, alias="paragraphIndex", ge=1)
+    row_index: int | None = Field(default=None, alias="rowIndex", ge=1)
+    table_index: int | None = Field(default=None, alias="tableIndex", ge=1)
+
+
+class ConversationWordTextLocation(_ConversationReferenceBase):
+    end: ConversationWordTextPosition
+    kind: Literal["word_range"]
+    nearest_heading: str | None = Field(default=None, alias="nearestHeading", max_length=500)
+    prefix: str | None = Field(default=None, max_length=500)
+    start: ConversationWordTextPosition
+    suffix: str | None = Field(default=None, max_length=500)
+
+
 class ConversationTextReference(_ConversationReferenceBase):
     content: str
+    content_markdown: str | None = Field(default=None, alias="contentMarkdown")
     display_path: str = Field(alias="displayPath")
+    document_fingerprint: str | None = Field(
+        default=None,
+        alias="documentFingerprint",
+        pattern=r"^sha256:[0-9a-f]{64}$",
+    )
     end_line: int | None = Field(default=None, alias="endLine", ge=1)
     file_name: str = Field(alias="fileName")
     file_path: str = Field(alias="filePath")
+    location: ConversationWordTextLocation | None = None
     project_id: str | None = Field(default=None, alias="projectId")
     source: Literal[
         "source",

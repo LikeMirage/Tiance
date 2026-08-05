@@ -643,6 +643,9 @@
       "upToDateDescription": "No update is required.",
       "sourceTitle": "Source checkout detected",
       "sourceDescription": "Use Git to update source checkouts so uncommitted work is never overwritten.",
+      "linksAria": "Software update links",
+      "sourceLink": "Open-source project",
+      "downloadLink": "Download latest software",
       "notes": "Release notes",
       "install": "Download, restart, and install",
       "downloading": "Downloading and verifying…",
@@ -1393,9 +1396,11 @@
       "renameProvider": "Rename {provider}",
       "selectProviderProtocol": "Select provider protocol",
       "apiAddress": {
-        "placeholder": "Enter the full request URL; no path is appended",
+        "placeholder": "Enter a base URL; use Complete endpoint when needed",
         "title": "API URL",
         "generation": "Full generation API URL",
+        "completeEndpoint": "Complete endpoint",
+        "completeEndpointTitle": "Complete the generation API endpoint for the selected protocol",
         "generationProtocol": "Generation API protocol",
         "generationAuth": "Generation authentication",
         "generationTab": "Generation API",
@@ -1410,7 +1415,6 @@
         "title": "Cache settings",
         "retention": "Prefix cache lifetime threshold",
         "unitAria": "Select cache lifetime unit",
-        "hint": "Controls when long-term memory updates are folded into the leading prompt. It does not change the provider's actual cache lifetime.",
         "units": { "minutes": "Minutes", "hours": "Hours" }
       },
       "apiKey": {

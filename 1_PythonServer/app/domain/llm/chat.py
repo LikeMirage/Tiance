@@ -31,6 +31,9 @@ class ChatImageRef:
     detail: str | None = None
     name: str | None = None
     size_bytes: int | None = None
+    attachment_id: str | None = None
+    source_path: str | None = None
+    source_kind: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

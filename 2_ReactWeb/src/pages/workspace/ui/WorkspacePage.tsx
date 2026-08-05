@@ -82,7 +82,7 @@ export function WorkspacePage({
   );
   const functionalModelSectionSelection = useFunctionalModelSectionSelection(true);
   const [activeSettingsSectionId, setActiveSettingsSectionId] =
-    useState<WorkspaceSettingsSectionId>(functionalModelSectionSelection.activeSectionId);
+    useState<WorkspaceSettingsSectionId>("software-update");
   const [sidePanelTransitionDirection, setSidePanelTransitionDirection] =
     useState<HoverSidebarTransitionDirection>("down");
   const projectFileReferenceRequestIdRef = useRef(0);

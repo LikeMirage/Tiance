@@ -27,6 +27,7 @@ from markdown_inline import parse_image_token
 from media_writer import MediaWriter
 from note_registry import NoteRegistry
 from table_writer import TableWriter
+from table_references import ExternalTable, TableReference, extract_references, load_external_table
 from word_formatting import FontSettings
 from word_numbering import NativeListWriter
 from warning_collector import WarningCollector
@@ -43,6 +44,7 @@ def convert_markdown_to_docx(
     page_size: str = word_page_layout.DEFAULT_PAGE_SIZE,
     template: WordTemplateProfile | None = None,
     overwrite: bool = False,
+    table_reference_report: list[dict[str, str]] | None = None,
 ) -> list[str]:
     converter = Md2DocxConverter(
         base_path=base_path,
@@ -60,6 +62,8 @@ def convert_markdown_to_docx(
         update_fields=converter.has_toc,
         overwrite=overwrite,
     )
+    if table_reference_report is not None:
+        table_reference_report.extend(converter.table_references)
     return converter.warnings
 
 
@@ -76,12 +80,15 @@ class Md2DocxConverter:
         template: WordTemplateProfile | None = None,
     ) -> None:
         self.doc = Document()
+        self._base_path = base_path
         self.fonts = fonts
         self.template = template
         self._warnings = WarningCollector()
         self.has_toc = False
         self._bookmark_id = 0
         self._heading_anchor_counts: dict[str, int] = {}
+        self._table_references: dict[str, TableReference] = {}
+        self._resolved_table_references: list[dict[str, str]] = []
 
         self.notes = NoteRegistry(self._warnings)
         render_budget = browser_renderer.BrowserRenderBudget()
@@ -121,6 +128,10 @@ class Md2DocxConverter:
     def warnings(self) -> list[str]:
         return self._warnings.messages()
 
+    @property
+    def table_references(self) -> list[dict[str, str]]:
+        return list(self._resolved_table_references)
+
     def convert(self, content: str) -> Document:
         try:
             return self._convert_content(content)
@@ -135,6 +146,8 @@ class Md2DocxConverter:
             )
         content, footnotes, endnotes = markdown_preprocessor.prepare_markdown_content(content)
         self.notes.load_definitions(footnotes, endnotes)
+        content, references = extract_references(content, base_path=self._base_path)
+        self._table_references = {reference.marker: reference for reference in references}
         lines = content.split("\n")
         index = 0
         while index < len(lines):
@@ -142,6 +155,20 @@ class Md2DocxConverter:
             stripped = line.strip().lstrip("\ufeff")
             if not stripped:
                 self.lists.end_sequence()
+                index += 1
+                continue
+            reference = self._table_references.get(stripped)
+            if reference is not None:
+                external = load_external_table(reference)
+                self.tables.add_external(external)
+                self._resolved_table_references.append(
+                    {
+                        "source": str(reference.source),
+                        "sheet": reference.sheet or external.reference.sheet or "",
+                        "range": reference.cell_range or "used-range",
+                        "table_id": reference.table_id or "",
+                    }
+                )
                 index += 1
                 continue
             list_item = markdown_blocks.parse_list_item(line)
