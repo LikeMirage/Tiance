@@ -57,7 +57,7 @@ export function ProviderCatalogListItem({
   renameInputRef,
   setRenamingProviderId,
 }: ProviderCatalogListItemProps) {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
   const providerId = provider.provider_id;
   const isDragging = draggingProviderId === providerId;
   const isDropBefore =
@@ -141,6 +141,13 @@ export function ProviderCatalogListItem({
               <Check className="provider-catalog-panel__rename-save-glyph" weight="bold" />
             </button>
           </span>
+          <span className="provider-catalog-panel__item-meta">
+            {formatProviderCreatedAt(
+              provider.created_at,
+              language,
+              t("projectList.createdUnknown"),
+            )}
+          </span>
         </div>
       ) : (
         <>
@@ -151,6 +158,13 @@ export function ProviderCatalogListItem({
             onDoubleClick={() => onOpenProvider?.(providerId)}
           >
             <span className="provider-catalog-panel__item-name">{provider.display_name}</span>
+            <span className="provider-catalog-panel__item-meta">
+              {formatProviderCreatedAt(
+                provider.created_at,
+                language,
+                t("projectList.createdUnknown"),
+              )}
+            </span>
           </button>
           {onOpenProvider ? (
             <button
@@ -171,4 +185,21 @@ export function ProviderCatalogListItem({
       )}
     </div>
   );
+}
+
+function formatProviderCreatedAt(
+  createdAt: string | null,
+  language: string,
+  fallback: string,
+) {
+  if (!createdAt) return fallback;
+  const timestamp = Date.parse(createdAt);
+  if (Number.isNaN(timestamp)) return fallback;
+  return new Intl.DateTimeFormat(language, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
 }
