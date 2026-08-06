@@ -49,7 +49,7 @@ def main() -> None:
             target = resolve_launch_target(settings)
         mark(
             "launch target resolved",
-            kind="url" if target.url else "<inline-html>",
+            kind="url" if target.url else "html",
             shell_api_allowed=target.shell_api_allowed,
             url=target.url or "<inline-html>",
         )

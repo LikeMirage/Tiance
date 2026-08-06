@@ -31,7 +31,6 @@ def acquire_installation_lock(root: Path) -> Callable[[], None]:
 
     invalid_handle = wintypes.HANDLE(-1).value
     lock_path = root / ".tiance-running.lock"
-    lock_path.touch(exist_ok=True)
     handle = create_file(
         str(lock_path),
         0x80000000,  # GENERIC_READ
