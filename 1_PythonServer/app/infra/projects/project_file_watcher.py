@@ -28,6 +28,8 @@ _IGNORED_PROJECT_WATCH_DIR_NAMES = frozenset(
     )
 )
 
+_MAX_DETAILED_CHANGE_PATHS = 256
+
 
 async def watch_project_file_changes(
     project_root: str,
@@ -68,7 +70,14 @@ def project_file_change_paths(
         if _is_ignored_project_watch_path(relative):
             continue
         paths.add(relative)
-    return sorted(paths)
+    ordered_paths = sorted(paths)
+    if len(ordered_paths) <= _MAX_DETAILED_CHANGE_PATHS:
+        return ordered_paths
+
+    # Bulk operations such as cloning a repository can create tens of thousands
+    # of files at once. A directory-level notification is enough for consumers
+    # to refresh their visible tree and keeps the SSE payload bounded.
+    return sorted({path.split("/", 1)[0] for path in ordered_paths})
 
 
 def _is_ignored_project_watch_path(relative_path: str) -> bool:

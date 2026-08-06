@@ -179,11 +179,10 @@ export function useDocumentTabFileSync({
     const normalizedChangedPaths = changedPaths
       .map(normalizeWorkspacePath)
       .filter(Boolean);
-    if (normalizedChangedPaths.length === 0) return;
     const candidateTabs = tabsRef.current.filter((tab) => {
       const filePath = getTabFilePath(tab);
       if (getTabSourceKey(tab) !== sourceKey || !filePath) return false;
-      return isExactWorkspaceFileChange(filePath, normalizedChangedPaths);
+      return isWorkspacePathAffected(filePath, normalizedChangedPaths);
     });
 
     const assetRefreshCandidates: Array<{
@@ -401,9 +400,4 @@ function getWorkspaceParentPath(filePath: string): string | null {
   if (!normalizedPath) return null;
   const slashIndex = normalizedPath.lastIndexOf("/");
   return slashIndex > 0 ? normalizedPath.slice(0, slashIndex) : null;
-}
-
-function isExactWorkspaceFileChange(filePath: string, changedPaths: string[]): boolean {
-  const normalizedFilePath = normalizeWorkspacePath(filePath);
-  return changedPaths.some((changedPath) => normalizeWorkspacePath(changedPath) === normalizedFilePath);
 }

@@ -180,6 +180,16 @@ def test_project_file_change_paths_filters_high_noise_directories(tmp_path):
     assert project_file_change_paths(root, changes) == ["src/app.py"]
 
 
+def test_project_file_change_paths_compacts_bulk_changes_to_top_level_directories(tmp_path):
+    root = tmp_path
+    changes = {
+        (Change.added, str(root / "cloned-repository" / "src" / f"file-{index}.py"))
+        for index in range(300)
+    }
+
+    assert project_file_change_paths(root, changes) == ["cloned-repository"]
+
+
 def test_deepseek_new_session_defaults_to_tool_thinking_return():
     from app.api.routes.project.conversations import _settings_with_model_defaults
 
