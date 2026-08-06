@@ -12,12 +12,14 @@ type ConversationSessionLoadResult = {
 
 type UseConversationSessionLoaderOptions = {
   hasProjectSnapshot: (projectId: string) => boolean;
+  isActive?: boolean;
   loadSessions: (projectId: string) => Promise<ConversationSessionLoadResult>;
   projectId: string | null;
 };
 
 export function useConversationSessionLoader({
   hasProjectSnapshot,
+  isActive = true,
   loadSessions,
   projectId,
 }: UseConversationSessionLoaderOptions) {
@@ -29,7 +31,7 @@ export function useConversationSessionLoader({
   const requestIdRef = useRef(0);
 
   useEffect(() => {
-    if (!projectId) {
+    if (!isActive || !projectId) {
       dispatchLoad({ type: "clear" });
       return undefined;
     }
@@ -78,6 +80,7 @@ export function useConversationSessionLoader({
     };
   }, [
     hasProjectSnapshot,
+    isActive,
     loadSessions,
     projectId,
     retryKey,

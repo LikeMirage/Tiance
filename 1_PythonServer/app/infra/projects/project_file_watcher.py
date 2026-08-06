@@ -8,6 +8,7 @@ from app.infra.projects.project_file_names import is_internal_write_temp_path
 
 _IGNORED_PROJECT_WATCH_DIR_NAMES = frozenset(
     (
+        ".Tiance",
         ".git",
         ".hg",
         ".hypothesis",

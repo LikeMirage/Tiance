@@ -575,6 +575,7 @@ export function useConversationSessions({
     sessionLoadError,
   } = useConversationSessionLoader({
     hasProjectSnapshot,
+    isActive,
     loadSessions: reloadSessionsForSelection,
     projectId,
   });

@@ -40,6 +40,7 @@ export interface UseProviderConfigStateResult {
   savingProviderId: string | null;
   toggleSelectedEnabled: () => void;
   updateSelectedApiBaseUrl: (value: string) => void;
+  updateSelectedApiEndpoints: (apiBaseUrl: string, modelDiscoveryUrl: string) => void;
   updateSelectedAuthScheme: (value: ProviderAuthScheme) => void;
   updateSelectedModelDiscoveryUrl: (value: string) => void;
   updateSelectedModelDiscoveryStrategy: (
@@ -597,6 +598,21 @@ export function useProviderConfigState(
     void persistProviderDraft(selectedProviderId, nextDraft);
   };
 
+  const updateSelectedApiEndpoints = (
+    apiBaseUrl: string,
+    modelDiscoveryUrl: string,
+  ) => {
+    if (!selectedProviderId || !selectedDraft) {
+      return;
+    }
+    const nextDraft = { ...selectedDraft, apiBaseUrl, modelDiscoveryUrl };
+    setDrafts((current) => ({
+      ...current,
+      [selectedProviderId]: nextDraft,
+    }));
+    void persistProviderDraft(selectedProviderId, nextDraft);
+  };
+
   const updateSelectedAuthScheme = (value: ProviderAuthScheme) => {
     persistSelectedDraftUpdate({ authScheme: value });
   };
@@ -630,6 +646,7 @@ export function useProviderConfigState(
     savingProviderId,
     toggleSelectedEnabled,
     updateSelectedApiBaseUrl,
+    updateSelectedApiEndpoints,
     updateSelectedAuthScheme,
     updateSelectedModelDiscoveryUrl,
     updateSelectedModelDiscoveryStrategy,

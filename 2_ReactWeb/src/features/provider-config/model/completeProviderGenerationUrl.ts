@@ -28,6 +28,33 @@ export function completeProviderGenerationUrl(
   return parsed.toString();
 }
 
+export function completeProviderModelDiscoveryUrl(
+  generationUrl: string,
+  protocolFamily: ProviderProtocolFamily,
+  presetModelUrl: string,
+): string {
+  const generation = parseUrl(generationUrl);
+  if (!generation) return presetModelUrl.trim();
+
+  const generationSegments = pathSegments(generation.pathname);
+  const generationEndpointIndex = findEndpointIndex(generationSegments, protocolFamily);
+  if (generationEndpointIndex < 0) return presetModelUrl.trim();
+
+  const presetModel = parseUrl(presetModelUrl);
+  const presetModelSegments = presetModel ? pathSegments(presetModel.pathname) : [];
+  const modelEndpointIndex = presetModelSegments.lastIndexOf("models");
+  const modelEndpoint = modelEndpointIndex >= 0
+    ? presetModelSegments.slice(modelEndpointIndex)
+    : ["models"];
+  generation.pathname = `/${[
+    ...generationSegments.slice(0, generationEndpointIndex),
+    ...modelEndpoint,
+  ].join("/")}`;
+  generation.search = presetModel?.search ?? "";
+  generation.hash = "";
+  return generation.toString();
+}
+
 function parseUrl(value: string): URL | null {
   try {
     return new URL(value.includes("://") ? value : `https://${value}`);

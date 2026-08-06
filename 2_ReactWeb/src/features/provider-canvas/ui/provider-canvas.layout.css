@@ -156,28 +156,6 @@
   font-weight: 600;
 }
 
-.provider-canvas__endpoint-complete-button {
-  flex: 0 0 auto;
-  min-height: 26px;
-  padding: 0 9px;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 4px;
-  background: var(--color-surface-input);
-  color: var(--color-text-secondary);
-  font-size: 0.74rem;
-  cursor: pointer;
-}
-
-.provider-canvas__endpoint-complete-button:hover:not(:disabled) {
-  border-color: var(--color-selection-accent-border);
-  color: var(--color-text-primary);
-}
-
-.provider-canvas__endpoint-complete-button:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
 .provider-canvas__canvas-plus {
   padding: 0;
   border: 0;

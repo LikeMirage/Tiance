@@ -190,6 +190,16 @@ def test_project_file_change_paths_compacts_bulk_changes_to_top_level_directorie
     assert project_file_change_paths(root, changes) == ["cloned-repository"]
 
 
+def test_project_file_change_paths_ignores_internal_tiance_directory(tmp_path):
+    root = tmp_path / "project"
+    changes = {
+        (Change.modified, str(root / ".Tiance" / "conversations" / "messages.jsonl")),
+        (Change.modified, str(root / "notes.md")),
+    }
+
+    assert project_file_change_paths(root, changes) == ["notes.md"]
+
+
 def test_deepseek_new_session_defaults_to_tool_thinking_return():
     from app.api.routes.project.conversations import _settings_with_model_defaults
 
