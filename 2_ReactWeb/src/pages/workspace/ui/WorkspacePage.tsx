@@ -165,15 +165,12 @@ export function WorkspacePage({
 
   useEffect(() => {
     if (activeSection !== "models" || !selectedProviderProject) return;
-    if (projectCatalog.selectedCategoryId !== selectedProviderProject.category_id) {
-      projectCatalog.selectCategory(selectedProviderProject.category_id);
-    }
+    if (projectCatalog.selectedCategoryId !== selectedProviderProject.category_id) return;
     if (projectCatalog.selectedProjectId !== selectedProviderProject.project_id) {
       projectCatalog.selectProject(selectedProviderProject.project_id);
     }
   }, [
     activeSection,
-    projectCatalog.selectCategory,
     projectCatalog.selectProject,
     projectCatalog.selectedCategoryId,
     projectCatalog.selectedProjectId,

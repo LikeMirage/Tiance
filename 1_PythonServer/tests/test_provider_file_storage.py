@@ -164,6 +164,41 @@ def test_preset_provider_uses_same_update_delete_rules_and_stays_deleted(tmp_pat
     assert "deepseek" not in settings["providerOrder"]
 
 
+def test_startup_adds_newly_bundled_preset_without_overwriting_existing_settings(tmp_path):
+    providers_path = tmp_path / "providers"
+    database_path = tmp_path / "tiance.db"
+    ensure_provider_file_storage(providers_path, database_path)
+    store = ProviderFileStore(providers_path)
+    original = store.read_provider_file("deepseek", "provider.json")
+    assert original is not None
+    original["displayName"] = "自定义 DeepSeek"
+    store.write_provider_file("deepseek", "provider.json", original)
+    store.delete_provider("opencode")
+    settings = store.read_settings()
+    assert settings is not None
+    settings["providerPresetCatalogVersion"] = 1
+    settings["providerOrder"] = [
+        provider_id
+        for provider_id in settings["providerOrder"]
+        if provider_id != "opencode"
+    ]
+    store.write_settings(settings)
+
+    ensure_provider_file_storage(providers_path, database_path)
+
+    restored = store.read_provider_file("opencode", "provider.json")
+    assert restored is not None
+    assert restored["generationUrls"]["openai_compatible"] == (
+        "https://opencode.ai/zen/go/v1/chat/completions"
+    )
+    unchanged = store.read_provider_file("deepseek", "provider.json")
+    assert unchanged is not None
+    assert unchanged["displayName"] == "自定义 DeepSeek"
+    store.delete_provider("opencode")
+    ensure_provider_file_storage(providers_path, database_path)
+    assert store.has_provider("opencode") is False
+
+
 def test_startup_repairs_partial_provider_manifest_even_when_versions_are_current(
     tmp_path,
 ):

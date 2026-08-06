@@ -11,19 +11,18 @@ export function completeProviderGenerationUrl(
   const parsed = parseUrl(normalized);
   if (!parsed) return normalized;
   const currentSegments = pathSegments(parsed.pathname);
-  if (hasGenerationEndpoint(currentSegments, protocolFamily)) {
-    return normalized;
-  }
+  const baseSegments = stripGenerationEndpoint(currentSegments, protocolFamily);
+  if (baseSegments === null) return normalized;
 
   const preset = parseUrl(presetUrl);
   const presetSegments = preset ? pathSegments(preset.pathname) : [];
   const endpointIndex = findEndpointIndex(presetSegments, protocolFamily);
   const presetPrefix = endpointIndex >= 0 ? presetSegments.slice(0, endpointIndex) : [];
-  const baseSegments = currentSegments.length === 0
+  const selectedBaseSegments = baseSegments.length === 0
     ? presetPrefix
-    : currentSegments;
+    : baseSegments;
   const endpoint = endpointSegments(protocolFamily);
-  const nextPath = `/${[...baseSegments, ...endpoint].join("/")}`;
+  const nextPath = `/${[...selectedBaseSegments, ...endpoint].join("/")}`;
   parsed.pathname = nextPath;
   return parsed.toString();
 }
@@ -38,7 +37,9 @@ export function completeProviderModelDiscoveryUrl(
 
   const generationSegments = pathSegments(generation.pathname);
   const generationEndpointIndex = findEndpointIndex(generationSegments, protocolFamily);
-  if (generationEndpointIndex < 0) return presetModelUrl.trim();
+  const generationBaseSegments = generationEndpointIndex >= 0
+    ? generationSegments.slice(0, generationEndpointIndex)
+    : generationSegments;
 
   const presetModel = parseUrl(presetModelUrl);
   const presetModelSegments = presetModel ? pathSegments(presetModel.pathname) : [];
@@ -47,7 +48,7 @@ export function completeProviderModelDiscoveryUrl(
     ? presetModelSegments.slice(modelEndpointIndex)
     : ["models"];
   generation.pathname = `/${[
-    ...generationSegments.slice(0, generationEndpointIndex),
+    ...generationBaseSegments,
     ...modelEndpoint,
   ].join("/")}`;
   generation.search = presetModel?.search ?? "";
@@ -80,11 +81,29 @@ function endpointSegments(protocolFamily: ProviderProtocolFamily): string[] {
   }
 }
 
-function hasGenerationEndpoint(
+function stripGenerationEndpoint(
   segments: string[],
   protocolFamily: ProviderProtocolFamily,
-): boolean {
-  return findEndpointIndex(segments, protocolFamily) >= 0;
+): string[] | null {
+  let base = segments;
+  let endpointIndex = findEndpointIndex(base, protocolFamily);
+  while (endpointIndex >= 0) {
+    base = base.slice(0, endpointIndex);
+    endpointIndex = findEndpointIndex(base, protocolFamily);
+  }
+  if (protocolFamily === "openai_compatible") {
+    const suffixes = [
+      ["chat", "completions"],
+      ["chat", "completion"],
+      ["completions"],
+    ];
+    for (const suffix of suffixes) {
+      if (base.length >= suffix.length && base.slice(-suffix.length).join("/") === suffix.join("/")) {
+        base = base.slice(0, -suffix.length);
+      }
+    }
+  }
+  return base;
 }
 
 function findEndpointIndex(
@@ -92,9 +111,10 @@ function findEndpointIndex(
   protocolFamily: ProviderProtocolFamily,
 ): number {
   if (protocolFamily === "openai_compatible") {
-    return segments.length >= 2 && segments.slice(-2).join("/") === "chat/completions"
-      ? segments.length - 2
-      : -1;
+    if (segments.length >= 2 && segments.slice(-2).join("/") === "chat/completions") return segments.length - 2;
+    if (segments.length >= 2 && segments.slice(-2).join("/") === "chat/completion") return segments.length - 2;
+    if (segments.at(-1) === "completions") return segments.length - 1;
+    return -1;
   }
   if (protocolFamily === "gemini_generate_content") {
     return segments.length >= 2 && segments[segments.length - 2] === "models"

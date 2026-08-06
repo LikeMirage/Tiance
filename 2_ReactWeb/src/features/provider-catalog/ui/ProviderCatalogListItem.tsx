@@ -141,7 +141,6 @@ export function ProviderCatalogListItem({
               <Check className="provider-catalog-panel__rename-save-glyph" weight="bold" />
             </button>
           </span>
-          <span className="provider-catalog-panel__item-meta">{providerId}</span>
         </div>
       ) : (
         <>
@@ -152,7 +151,6 @@ export function ProviderCatalogListItem({
             onDoubleClick={() => onOpenProvider?.(providerId)}
           >
             <span className="provider-catalog-panel__item-name">{provider.display_name}</span>
-            <span className="provider-catalog-panel__item-meta">{providerId}</span>
           </button>
           {onOpenProvider ? (
             <button

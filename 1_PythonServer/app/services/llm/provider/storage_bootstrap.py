@@ -37,17 +37,21 @@ from app.services.llm.provider.endpoint_storage_migration import (
     provider_endpoint_storage_version_fields,
 )
 
+PROVIDER_PRESET_CATALOG_VERSION = 2
+
 
 def ensure_provider_file_storage(providers_path: Path, database_path: Path) -> None:
     settings_file = providers_path / PROVIDER_SETTINGS_FILE
     if settings_file.is_file():
         now = _utc_now()
         store = ProviderFileStore(providers_path)
+        preset_manifests = _load_preset_manifests(now)
         migrate_provider_endpoint_storage(
             store,
-            preset_manifests=_load_preset_manifests(now),
+            preset_manifests=preset_manifests,
             updated_at=now,
         )
+        _ensure_missing_preset_manifests(store, preset_manifests, now)
         _ensure_preset_rule_files(store)
         for provider_id in store.list_provider_ids():
             store.ensure_provider_sidecars(provider_id)
@@ -151,6 +155,7 @@ def ensure_provider_file_storage(providers_path: Path, database_path: Path) -> N
                 "schemaVersion": PROVIDER_SCHEMA_VERSION,
                 "initializedAt": now,
                 "legacyMigrationCompletedAt": now,
+                "providerPresetCatalogVersion": PROVIDER_PRESET_CATALOG_VERSION,
                 **provider_endpoint_storage_version_fields(),
                 "providerOrder": provider_order,
                 "updatedAt": now,
@@ -166,6 +171,39 @@ def ensure_provider_file_storage(providers_path: Path, database_path: Path) -> N
 
             shutil.rmtree(staging_path, ignore_errors=True)
         raise
+
+
+def _ensure_missing_preset_manifests(
+    store: ProviderFileStore,
+    preset_manifests: dict[str, dict[str, Any]],
+    now: str,
+) -> None:
+    """Add newly bundled presets without overwriting existing user configuration."""
+    settings = store.read_settings(required=True)
+    if settings is None:  # pragma: no cover - required read cannot return None
+        return
+    raw_order = settings.get("providerOrder")
+    provider_order = list(raw_order) if isinstance(raw_order, list) else []
+    raw_catalog_version = settings.get("providerPresetCatalogVersion", 1)
+    catalog_version = raw_catalog_version if isinstance(raw_catalog_version, int) else 1
+    if catalog_version >= PROVIDER_PRESET_CATALOG_VERSION:
+        return
+    changed = False
+    for provider_id in {"opencode"}:
+        manifest = preset_manifests.get(provider_id)
+        if manifest is None:
+            continue
+        if store.has_provider(provider_id):
+            continue
+        store.write_provider_file(provider_id, PROVIDER_MANIFEST_FILE, manifest)
+        store.ensure_provider_sidecars(provider_id)
+        provider_order.append(provider_id)
+        changed = True
+    settings["providerPresetCatalogVersion"] = PROVIDER_PRESET_CATALOG_VERSION
+    settings["updatedAt"] = now
+    if changed:
+        settings["providerOrder"] = provider_order
+    store.write_settings(settings)
 
 
 def _ensure_preset_rule_files(store: ProviderFileStore) -> None:
