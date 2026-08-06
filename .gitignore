@@ -85,3 +85,4 @@ Data/tools/**/dependencies/py313/site-packages/playwright/driver/node.exe
 # Generated exports and release packages
 /发布包/
 /测试包/
+/测试包-*/
