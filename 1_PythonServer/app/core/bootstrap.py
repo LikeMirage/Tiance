@@ -3,7 +3,6 @@
 
 import logging
 
-from app.core.errors import AppError
 from app.core.config import get_settings
 from app.infra.database import (
     ensure_database_schema,
@@ -40,10 +39,8 @@ from app.services.application.theme_workspace_reconciliation import (
 from app.services.application.tool_market import get_tool_market_application_service
 from app.repositories.themes import get_theme_market_settings_repository
 from app.services.application.usage_file_migration import ensure_usage_file_storage
-from app.services.project import get_project_conversation_service, get_project_service
 from app.services.themes import ensure_active_theme_selection
 from app.services.tools import get_toolset_service
-from app.services.workspace_activity import get_workspace_activity_service
 
 logger = logging.getLogger(__name__)
 
@@ -76,23 +73,5 @@ def bootstrap_application() -> None:
     ensure_active_theme_selection()
     get_toolset_service().ensure_default_toolsets()
     get_tool_market_application_service().prepare()
-    _reconcile_conversation_activity()
     ensure_locale_catalog()
     logger.info("Database schema initialized at %s", settings.app_database_file)
-
-
-def _reconcile_conversation_activity() -> None:
-    project_service = get_project_service()
-    conversation_service = get_project_conversation_service()
-    activity_service = get_workspace_activity_service()
-    for project in project_service.list_projects():
-        try:
-            sessions = conversation_service.list_sessions(project.project_id)
-        except (AppError, OSError):
-            logger.exception(
-                "Failed to reconcile conversation activity for project %s.",
-                project.project_id,
-            )
-            continue
-        for session in sessions:
-            activity_service.record_conversation_created(session)
