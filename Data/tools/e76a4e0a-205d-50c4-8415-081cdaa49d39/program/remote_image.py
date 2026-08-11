@@ -4,11 +4,10 @@ import ipaddress
 import socket
 import warnings
 from dataclasses import dataclass
+from functools import cache
 from io import BytesIO
+from typing import Any
 from urllib.parse import urldefrag, urljoin, urlsplit
-
-import httpx
-from PIL import Image, UnidentifiedImageError
 
 
 MAX_REMOTE_IMAGE_BYTES = 10 * 1024 * 1024
@@ -37,13 +36,14 @@ class DownloadedImage:
 
 
 class RemoteImageDownloader:
-    def __init__(self, *, transport: httpx.BaseTransport | None = None) -> None:
+    def __init__(self, *, transport: Any | None = None) -> None:
         self._cache: dict[str, DownloadedImage] = {}
         self._total_bytes = 0
         self._transport = transport
 
     def download(self, url: str) -> DownloadedImage:
         normalized_url = _validate_public_http_url(url)
+        httpx, image_module, unidentified_image_error = _load_remote_image_dependencies()
         cached = self._cache.get(normalized_url)
         if cached is not None:
             return cached
@@ -62,7 +62,11 @@ class RemoteImageDownloader:
         except httpx.HTTPError as exc:
             raise RemoteImageError(f"网络请求失败：{exc}") from exc
 
-        downloaded = _validate_and_normalize_image(content)
+        downloaded = _validate_and_normalize_image(
+            content,
+            image_module=image_module,
+            unidentified_image_error=unidentified_image_error,
+        )
         if self._total_bytes + len(downloaded.content) > MAX_REMOTE_IMAGE_TOTAL_BYTES:
             raise RemoteImageError("单份文档的网络图片总量超过 50 MB 限制。")
         self._cache[normalized_url] = downloaded
@@ -88,7 +92,7 @@ def remote_image_display_url(value: str) -> str:
     return f"{parsed.scheme.lower()}://{authority}{parsed.path or '/'}"
 
 
-def _download_with_redirects(client: httpx.Client, url: str) -> bytes:
+def _download_with_redirects(client: Any, url: str) -> bytes:
     current_url = url
     for redirect_index in range(MAX_REMOTE_IMAGE_REDIRECTS + 1):
         current_url = _validate_public_http_url(current_url)
@@ -156,20 +160,28 @@ def _validate_public_http_url(url: str) -> str:
     return normalized_url
 
 
-def _validate_and_normalize_image(content: bytes) -> DownloadedImage:
+def _validate_and_normalize_image(
+    content: bytes,
+    *,
+    image_module: Any,
+    unidentified_image_error: type[Exception],
+) -> DownloadedImage:
     try:
         with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(BytesIO(content)) as image:
+            warnings.simplefilter("error", image_module.DecompressionBombWarning)
+            with image_module.open(BytesIO(content)) as image:
                 image_format = (image.format or "").upper()
                 if image.width * image.height > MAX_REMOTE_IMAGE_PIXELS:
                     raise RemoteImageError("网络图片像素尺寸过大。")
                 image.verify()
     except RemoteImageError:
         raise
-    except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+    except (
+        image_module.DecompressionBombError,
+        image_module.DecompressionBombWarning,
+    ) as exc:
         raise RemoteImageError("网络图片像素尺寸过大。") from exc
-    except (UnidentifiedImageError, OSError, SyntaxError) as exc:
+    except (unidentified_image_error, OSError, SyntaxError) as exc:
         raise RemoteImageError("下载内容不是有效图片。") from exc
 
     native_suffix = _WORD_NATIVE_IMAGE_FORMATS.get(image_format)
@@ -177,18 +189,30 @@ def _validate_and_normalize_image(content: bytes) -> DownloadedImage:
         return DownloadedImage(content=content, suffix=native_suffix)
 
     try:
-        with Image.open(BytesIO(content)) as image:
+        with image_module.open(BytesIO(content)) as image:
             image.load()
             has_alpha = "A" in image.getbands() or "transparency" in image.info
             normalized = image.convert("RGBA" if has_alpha else "RGB")
             output = BytesIO()
             normalized.save(output, format="PNG")
             normalized_content = output.getvalue()
-    except (UnidentifiedImageError, OSError, SyntaxError) as exc:
+    except (unidentified_image_error, OSError, SyntaxError) as exc:
         raise RemoteImageError("该网络图片格式无法转换为 Word 支持的格式。") from exc
     if len(normalized_content) > _MAX_NORMALIZED_IMAGE_BYTES:
         raise RemoteImageError("网络图片转换后超过 20 MB 限制。")
     return DownloadedImage(content=normalized_content, suffix=".png")
+
+
+@cache
+def _load_remote_image_dependencies() -> tuple[Any, Any, type[Exception]]:
+    try:
+        import httpx
+        from PIL import Image, UnidentifiedImageError
+    except ModuleNotFoundError as exc:
+        raise RemoteImageError(
+            "远程图片功能缺少可选依赖 httpx 或 Pillow，请安装后重试。"
+        ) from exc
+    return httpx, Image, UnidentifiedImageError
 
 
 def _parse_content_length(value: str | None) -> int | None:

@@ -157,7 +157,13 @@ class BackendProcessManager:
         if process is not None:
             if process.poll() is None:
                 with timed_stage("backend process: stop", pid=process.pid):
-                    process.terminate()
+                    if os.name == "nt":
+                        # Kill the managed tree while its root still exists. If
+                        # the root exits first, Windows can no longer discover
+                        # its orphaned multiprocessing children.
+                        _kill_process_tree(process)
+                    else:
+                        process.terminate()
                     deadline = time.monotonic() + 5
                     while process.poll() is None and time.monotonic() < deadline:
                         time.sleep(0.1)
@@ -265,12 +271,13 @@ def _kill_process_tree(process: subprocess.Popen[bytes]) -> None:
 
     if os.name == "nt":
         try:
-            subprocess.run(
+            completed = subprocess.run(
                 ["taskkill", "/PID", str(process.pid), "/T", "/F"],
                 capture_output=True,
                 timeout=5,
             )
-            return
+            if completed.returncode == 0:
+                return
         except Exception:
             pass
 

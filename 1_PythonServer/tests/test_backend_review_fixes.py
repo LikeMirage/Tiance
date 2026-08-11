@@ -815,43 +815,36 @@ def test_provider_config_writer_never_derives_model_url_from_generation_url(
     assert preserved.model_discovery_url == "https://catalog.example/custom-models"
 
 
-def test_secret_codec_falls_back_to_local_file_key(monkeypatch, tmp_path):
-    key_path = tmp_path / "secrets" / "provider-api-key-local-v1.key"
+def test_secret_codec_uses_windows_dpapi(monkeypatch):
+    monkeypatch.setattr(secret_codec_module.os, "name", "nt")
     monkeypatch.setattr(
         secret_codec_module,
-        "_encrypt_with_system_protection",
-        lambda value: None,
+        "_windows_dpapi_protect",
+        lambda value: b"protected:" + value,
     )
-    monkeypatch.setattr(secret_codec_module, "_local_file_key_path", lambda: key_path)
+    monkeypatch.setattr(
+        secret_codec_module,
+        "_windows_dpapi_unprotect",
+        lambda value: value.removeprefix(b"protected:"),
+    )
 
-    ciphertext = secret_codec_module.encrypt_secret("sk-local")
+    ciphertext = secret_codec_module.encrypt_secret("sk-windows")
 
     assert ciphertext is not None
-    assert ciphertext.startswith("local-file-key-v1:")
-    assert key_path.exists()
-    assert "sk-local" not in ciphertext
-    assert secret_codec_module.decrypt_secret(ciphertext) == "sk-local"
+    assert ciphertext.startswith("win-dpapi-user-v1:")
+    assert "sk-windows" not in ciphertext
+    assert secret_codec_module.decrypt_secret(ciphertext) == "sk-windows"
 
 
-def test_secret_codec_rejects_unprotected_plaintext_fallback(monkeypatch):
-    monkeypatch.setattr(
-        secret_codec_module,
-        "_encrypt_with_system_protection",
-        lambda value: None,
-    )
+def test_secret_codec_returns_none_when_dpapi_fails(monkeypatch):
+    monkeypatch.setattr(secret_codec_module.os, "name", "nt")
 
-    def fail_local_file_key(value):
-        raise OSError("local key unavailable")
+    def fail_dpapi(value):
+        raise OSError("DPAPI unavailable")
 
-    monkeypatch.setattr(
-        secret_codec_module,
-        "_encrypt_with_local_file_key",
-        fail_local_file_key,
-    )
+    monkeypatch.setattr(secret_codec_module, "_windows_dpapi_protect", fail_dpapi)
 
-    ciphertext = secret_codec_module.encrypt_secret("sk-plain")
-
-    assert ciphertext is None
+    assert secret_codec_module.encrypt_secret("sk-plain") is None
 
 
 def test_usage_summary_includes_usage_only_cloud_models():

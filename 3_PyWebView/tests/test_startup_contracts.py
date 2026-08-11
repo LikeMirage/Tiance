@@ -172,6 +172,30 @@ class BackendProcessOwnershipTests(unittest.TestCase):
         self.assertIn("http://127.0.0.1:18100", origins)
         self.assertIn("http://localhost:18100", origins)
 
+    @unittest.skipUnless(os.name == "nt", "Windows process-tree behavior")
+    def test_stop_kills_managed_tree_before_root_can_exit(self) -> None:
+        manager = BackendProcessManager(_shell_settings(Path.cwd()))
+        process = _RunningProcess()
+        manager._process = process
+
+        def finish_tree(managed_process) -> None:
+            self.assertIs(managed_process, process)
+            self.assertIsNone(process.returncode)
+            process.returncode = -9
+
+        with (
+            patch.object(
+                shell_backend_process,
+                "_kill_process_tree",
+                side_effect=finish_tree,
+            ) as kill_tree,
+            patch.object(shell_backend_process, "clear_managed_backend_record") as clear,
+        ):
+            manager.stop()
+
+        kill_tree.assert_called_once_with(process)
+        clear.assert_called_once_with(shell_backend_process.PROJECT_ROOT, pid=process.pid)
+
 
 class ManagedBackendCleanupTests(unittest.TestCase):
     def test_verified_orphaned_backend_is_terminated(self) -> None:
@@ -454,6 +478,18 @@ class _ExitedProcess:
 
     def poll(self) -> int:
         return self.returncode
+
+
+class _RunningProcess:
+    def __init__(self) -> None:
+        self.returncode: int | None = None
+        self.pid = 4321
+
+    def poll(self) -> int | None:
+        return self.returncode
+
+    def kill(self) -> None:
+        self.returncode = -9
 
 
 def _managed_backend_record(project_root: Path) -> ManagedBackendRecord:
