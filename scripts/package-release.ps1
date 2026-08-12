@@ -40,9 +40,14 @@ foreach ($line in $changes) {
     if ([string]::IsNullOrWhiteSpace($line)) { continue }
     $parts = $line -split "`t"
     $status = $parts[0]
-    $paths = if ($status.StartsWith("R") -or $status.StartsWith("C")) { @($parts[1], $parts[2]) } else { @($parts[1]) }
-    if ($status.StartsWith("R")) { $delete.Add($paths[0]) }
-    $candidate = $paths[-1]
+    if ($status.StartsWith("R") -or $status.StartsWith("C")) {
+        if ($parts.Count -lt 3) { throw "无法解析 Git 重命名记录：$line" }
+        if ($status.StartsWith("R")) { $delete.Add($parts[1]) }
+        $candidate = $parts[2]
+    } else {
+        if ($parts.Count -lt 2) { throw "无法解析 Git 变更记录：$line" }
+        $candidate = $parts[1]
+    }
     if ($status.StartsWith("D")) { $delete.Add($candidate); continue }
     if (-not (Test-AllowedPath $candidate)) { continue }
     $source = Join-Path $tagRoot $candidate
@@ -60,7 +65,9 @@ if (-not $replace.Contains("system/version.json")) {
     Copy-Item -LiteralPath $versionSource -Destination $versionDestination -Force
     $replace.Add("system/version.json")
 }
-$manifest = [ordered]@{ schemaVersion = 2; version = $Version; replace = @($replace | Sort-Object -Unique); delete = @($delete | Where-Object { Test-AllowedPath $_ } | Sort-Object -Unique) }
+$replacePaths = @($replace | Sort-Object -Unique)
+$deletePaths = @($delete | Where-Object { Test-AllowedPath $_ } | Sort-Object -Unique)
+$manifest = [ordered]@{ schemaVersion = 2; version = $Version; replace = $replacePaths; delete = $deletePaths }
 $manifestPath = Join-Path $updateTree "Tiance/system/update-manifest.json"
 New-Item -ItemType Directory -Force -Path (Split-Path $manifestPath) | Out-Null
 $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifestPath -Encoding utf8
@@ -74,4 +81,4 @@ $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowe
 
 Write-Output "完整包：$full"
 Write-Output "差分包：$update"
-Write-Output "替换文件：$($replace.Count)，删除文件：$($delete.Count)"
+Write-Output "替换文件：$($replacePaths.Count)，删除文件：$($deletePaths.Count)"
