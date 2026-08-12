@@ -2,7 +2,7 @@
 
 > 本地优先、过程透明的多项目 Multi-Agent 工作台与 Agent Harness。
 
-让多个 AI 在真实项目中协作，同时把请求、思考、工具、分支、记忆、文件和最终产物留在用户眼前。天策不是藏在聊天框背后的自动化黑箱，而是一套可以查看、介入、追溯和继续工作的桌面环境。
+让多个 AI 在真实项目中协作，同时把请求、思考、工具、分支、记忆、文件和最终产物留在用户眼前。天策不是藏在聊天框背后的自动化黑箱，而是一套可以查看、介入、追溯和继续工作的桌面环境。不仅仅是前端透明，后端程序结构也一样统一清晰。
 
 [![Latest Release](https://img.shields.io/github/v/release/LikeMirage/Tiance?label=Windows%20版&color=2f81f7)](https://github.com/LikeMirage/Tiance/releases/latest)
 [![License](https://img.shields.io/github/license/LikeMirage/Tiance)](LICENSE)
