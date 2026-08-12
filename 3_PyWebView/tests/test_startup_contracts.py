@@ -196,6 +196,21 @@ class BackendProcessOwnershipTests(unittest.TestCase):
         kill_tree.assert_called_once_with(process)
         clear.assert_called_once_with(shell_backend_process.PROJECT_ROOT, pid=process.pid)
 
+    @unittest.skipUnless(os.name == "nt", "Windows process-tree behavior")
+    def test_process_tree_cleanup_never_opens_a_console_window(self) -> None:
+        process = _RunningProcess()
+
+        with patch.object(shell_backend_process.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            shell_backend_process._kill_process_tree(process)
+
+        run.assert_called_once_with(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            capture_output=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            timeout=5,
+        )
+
 
 class ManagedBackendCleanupTests(unittest.TestCase):
     def test_verified_orphaned_backend_is_terminated(self) -> None:
@@ -468,6 +483,7 @@ class StartupPageTests(unittest.TestCase):
             self.assertIn('"textMuted"', page)
             self.assertIn('class="wordmark__text" data-text="Tiance"', page)
             self.assertIn("@keyframes wordmark-sweep", page)
+            self.assertNotIn("filter: drop-shadow", page)
             self.assertNotIn('class="ring"', page)
 
 

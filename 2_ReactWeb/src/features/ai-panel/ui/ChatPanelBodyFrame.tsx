@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type
 import { buildUserMessageNavigationItems } from "../model/userMessageNavigation";
 import { useMessageNavigatorActiveTurn } from "../model/useMessageNavigatorActiveTurn";
 import type { ChatPanelView } from "./ChatHeader";
-import { ChatHistoryView } from "./ChatHistoryView";
 import {
   ChatMessageList,
   type ChatMessageNavigationRequest,
@@ -19,7 +18,6 @@ type ChatPanelBodyFrameProps = {
   externalNavigationRequest?: (ChatMessageNavigationRequest & { sessionKey: string }) | null;
   viewRestoreRequest?: (ChatMessageNavigationRequest & { sessionKey: string }) | null;
   chat: Parameters<typeof ChatMessageList>[0];
-  history: Parameters<typeof ChatHistoryView>[0];
   isMessageNavigationTrackingEnabled: boolean;
   onBodyScroll: UIEventHandler<HTMLDivElement>;
   onActiveUserMessageChange?: (messageId: string | null) => void;
@@ -40,7 +38,6 @@ export function ChatPanelBodyFrame({
   externalNavigationRequest = null,
   viewRestoreRequest = null,
   chat,
-  history,
   isMessageNavigationTrackingEnabled,
   onActiveUserMessageChange,
   onBodyScroll,
@@ -114,9 +111,7 @@ export function ChatPanelBodyFrame({
         ref={bodyRef}
         onScroll={handleBodyScroll}
       >
-        {activeView === "history" ? (
-          <ChatHistoryView {...history} />
-        ) : activeView === "settings" ? (
+        {activeView === "settings" ? (
           <ChatSettingsView {...settings} />
         ) : (
           <ChatMessageList

@@ -83,10 +83,10 @@ export function ProviderCatalogPanel({
       </header>
 
       <ProviderCatalogCreateForm
-        apiBaseUrlInputRef={providerCreateForm.apiBaseUrlInputRef}
+        displayNameInputRef={providerCreateForm.displayNameInputRef}
         draft={providerCreateForm.draft}
         error={providerCreateForm.error}
-        isApiBaseUrlInvalid={providerCreateForm.isApiBaseUrlInvalid}
+        isDisplayNameInvalid={providerCreateForm.isDisplayNameInvalid}
         isInteractive={providerCreateForm.isInteractive}
         isSubmitting={providerCatalog.isCreatingProvider}
         isVisible={providerCreateForm.isVisible}

@@ -26,7 +26,6 @@ import { useSessionSettingsEditor } from "../model/useSessionSettingsEditor";
 import { useChatGeneration } from "../model/useChatGeneration";
 import { useDetachedConversationStream } from "../model/useDetachedConversationStream";
 import { useConversationSessions } from "../model/useConversationSessions";
-import { useConversationSessionPinning } from "../model/useConversationSessionPinning";
 import { useConversationReasoning } from "../model/useConversationReasoning";
 import { useChatConversationCreator } from "../model/useChatConversationCreator";
 import { useChatExternalSessionSelection } from "../model/useChatExternalSessionSelection";
@@ -199,7 +198,6 @@ export function ChatPanelController({
   } = useChatStreamControllers();
   const {
     applyCachedSessionMessages,
-    deleteSessionMessages,
     isSessionMessagesPresented,
     markSessionMessagesAccessed,
     publishSessionMessages,
@@ -218,9 +216,6 @@ export function ChatPanelController({
     applyForkResult,
     activeSessionId,
     branchNodes,
-    confirmingDeleteSessionId,
-    deleteSession,
-    deletingSessionId,
     draft,
     isLoadingSessions,
     isSessionStreaming,
@@ -238,7 +233,6 @@ export function ChatPanelController({
     sessionLoadError,
     sessions,
     setActiveSessionId,
-    setConfirmingDeleteSessionId,
     setDraft,
     setSessionRuntimeStatus,
     setSessionStates,
@@ -248,10 +242,8 @@ export function ChatPanelController({
     unavailableProjectIdRef,
   } = useConversationSessions({
     abortProjectStreams,
-    abortSessionStream,
     activeProjectIdRef,
     activeSessionIdRef,
-    deleteSessionMessages,
     isActive,
     preferredSessionId,
     projectId,
@@ -569,17 +561,6 @@ export function ChatPanelController({
     isActive,
     projectId,
   });
-  const historySessions = sessions;
-  const {
-    pinErrorMessage,
-    pinningSessionId,
-    toggleSessionPinned,
-  } = useConversationSessionPinning({
-    activeProjectIdRef,
-    projectId,
-    setSessions,
-  });
-
   const {
     saveActiveSessionTitle,
     saveActiveSystemPrompt,
@@ -781,12 +762,6 @@ export function ChatPanelController({
         onOpenBranches={() => onOpenConversationBranches?.()}
         onOpenConversationOverview={() => onOpenConversationOverview?.()}
         onShowChat={() => setActiveView("chat")}
-        onToggleHistory={() => {
-          if (activeView === "chat") {
-            preserveCurrentView();
-          }
-          setActiveView((view) => view === "history" ? "chat" : "history");
-        }}
         onToggleSettings={() => {
           if (activeView === "settings") {
             setActiveView("chat");
@@ -859,29 +834,6 @@ export function ChatPanelController({
             ? "running"
             : activeSessionState?.runtime_status ?? null,
           scrollParentRef: bodyRef,
-        }}
-        history={{
-          activeSessionId,
-          confirmingDeleteSessionId,
-          deletingSessionId,
-          isSessionStreaming: (sessionId) =>
-            projectId ? streamingSessionKeys.has(buildSessionKey(projectId, sessionId)) : false,
-          onActivateSession: activateSession,
-          onConfirmDeleteSession: (sessionId) => {
-            void deleteSession(sessionId).catch(() => undefined);
-          },
-          onToggleDeleteConfirm: (sessionId) => {
-            setConfirmingDeleteSessionId((current) =>
-              current === sessionId ? null : sessionId,
-            );
-          },
-          onTogglePinned: (session) => {
-            void toggleSessionPinned(session);
-          },
-          pinErrorMessage,
-          pinningSessionId,
-          sessions: historySessions,
-          sessionStates,
         }}
         scrollBottom={{
           isVisible: showScrollToBottom && messages.length > 0,

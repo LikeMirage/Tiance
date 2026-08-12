@@ -580,6 +580,23 @@
   line-height: 1.45;
 }
 
+.conversation-injection-preview__directory-examples li > span {
+  overflow-wrap: anywhere;
+}
+
+.conversation-injection-preview__directory-examples li > pre {
+  margin: 5px 0 2px;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-surface-2) 84%, transparent);
+  color: var(--color-text-secondary);
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .conversation-injection-preview__empty-line {
   margin: 0;
   color: var(--color-text-muted);

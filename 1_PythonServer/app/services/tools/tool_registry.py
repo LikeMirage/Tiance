@@ -8,9 +8,21 @@ from pathlib import Path
 from threading import RLock
 
 from app.core.errors import ConflictError
-from app.domain.tools import ToolMetadataSnapshot, ToolRegistryEntry, ToolSummary
+from app.domain.tools import (
+    ToolExampleDetail,
+    ToolMetadataSnapshot,
+    ToolRegistryEntry,
+    ToolSummary,
+)
 from app.infra.tools.tool_project_config_constants import TOOL_FOLDER_MANIFEST_FILE
-from app.services.tools.tool_metadata import build_summary, is_enabled, load_tool
+from app.services.tools.tool_metadata import (
+    build_summary,
+    example_detail,
+    example_enabled,
+    is_enabled,
+    load_tool,
+    standard_tool_description,
+)
 from app.services.tools.tool_projects import ToolProjectService, get_tool_project_service
 
 
@@ -134,6 +146,11 @@ class ToolRegistryService:
                         full_injection_char_count=_full_injection_char_count(
                             summary,
                             loaded_tool.input_schema,
+                            tuple(
+                                example_detail(index, example)
+                                for index, example in loaded_tool.examples
+                                if example_enabled(example)
+                            ),
                         ),
                         dynamic_injection_char_count=_dynamic_injection_char_count(summary),
                     )
@@ -195,10 +212,14 @@ def _build_search_text(entry: ToolRegistryEntry) -> str:
     )
 
 
-def _full_injection_char_count(summary: ToolSummary, input_schema: dict[str, object]) -> int:
+def _full_injection_char_count(
+    summary: ToolSummary,
+    input_schema: dict[str, object],
+    examples: tuple[ToolExampleDetail, ...],
+) -> int:
     payload = {
         "name": summary.name,
-        "description": summary.description,
+        "description": standard_tool_description(summary.description, examples),
         "parameters": input_schema,
     }
     return len(dumps(payload, ensure_ascii=False, sort_keys=True))
@@ -210,7 +231,6 @@ def _dynamic_injection_char_count(summary: ToolSummary) -> int:
         f"工具：{summary.name}",
         f"显示名称：{summary.display_name}",
         f"说明：{summary.description}",
-        f"参数名：{', '.join(summary.parameter_names) if summary.parameter_names else '无'}",
     ]
     if summary.example_titles:
         lines.append("应用示例：")

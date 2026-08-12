@@ -1,0 +1,22 @@
+[
+  {
+    "title": "批量搜索并保存结果清单",
+    "content": "普通联网检索使用 search 模式。省略 engine 时使用百度。工具把每个查询完整原样提交给百度，并把标题、链接和摘要保存到当前工作区。\n\n输入：\n{\n  \"queries\": [\n    \"OpenAI 最新 API 官方更新\",\n    \"坪山区 最新新闻\"\n  ]\n}\n\n完成后先读取返回的 index_file；需要查看某条完整结构时读取 manifest_file。"
+  },
+  {
+    "title": "指定其他免费搜索引擎",
+    "content": "需要使用其他搜索引擎时传 engine。可选 baidu、bing、duckduckgo、sogou；工具严格使用指定引擎，不会自动切换。不要填写 Google、Brave、Startpage、Stract 或需要 API Key 的供应商。\n\n输入：\n{\n  \"queries\": [\"OpenAI API official updates\"],\n  \"engine\": \"duckduckgo\",\n  \"mode\": \"search\"\n}"
+  },
+  {
+    "title": "批量搜索并读取网页正文",
+    "content": "用户需要依据网页原文分析时使用 content 模式。工具先搜索，再访问搜索结果链接；每篇正文分别保存为 content.md，失败不会中止同批其他结果。\n\n输入：\n{\n  \"queries\": [\n    \"Python 3.14 release notes\",\n    \"FastAPI official deployment documentation\"\n  ],\n  \"mode\": \"content\",\n  \"max_results_per_query\": 5\n}"
+  },
+  {
+    "title": "批量保存明确网址",
+    "content": "已经知道网址时直接传 urls。明确网址始终会被访问、提取并保存，不需要再提供搜索词。\n\n输入：\n{\n  \"urls\": [\n    \"https://docs.python.org/3/\",\n    \"https://fastapi.tiangolo.com/\"\n  ]\n}\n\n工具拒绝 localhost、内网 IP、带用户名密码的网址和重定向到这些目标的请求。"
+  },
+  {
+    "title": "搜索与明确网址一起批量处理",
+    "content": "queries 和 urls 可以同批提交。mode 只决定是否继续读取搜索结果；urls 始终读取。\n\n输入：\n{\n  \"queries\": [\"WXT browser extension framework documentation\"],\n  \"urls\": [\"https://wxt.dev/\"],\n  \"mode\": \"search\"\n}"
+  }
+]

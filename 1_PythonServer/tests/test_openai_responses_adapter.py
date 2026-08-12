@@ -381,6 +381,52 @@ def test_responses_stream_emits_reasoning_summary_and_internal_reasoning_item():
     assert events[1].provider_output_item == reasoning_item
 
 
+def test_responses_stream_emits_reasoning_text_without_provider_special_case():
+    payloads = [
+        {
+            "type": "response.reasoning_text.delta",
+            "delta": "Checking the calculation.",
+        },
+        {
+            "type": "response.completed",
+            "response": {"status": "completed"},
+        },
+    ]
+
+    events = asyncio.run(_collect_events(payloads))
+
+    assert [event.kind for event in events] == [
+        ChatStreamEventKind.THINKING_DELTA,
+        ChatStreamEventKind.DONE,
+    ]
+    assert events[0].content == "Checking the calculation."
+
+
+def test_responses_stream_does_not_mix_two_reasoning_delta_formats():
+    payloads = [
+        {
+            "type": "response.reasoning_text.delta",
+            "delta": "Full reasoning.",
+        },
+        {
+            "type": "response.reasoning_summary_text.delta",
+            "delta": "Summary duplicate.",
+        },
+        {
+            "type": "response.completed",
+            "response": {"status": "completed"},
+        },
+    ]
+
+    events = asyncio.run(_collect_events(payloads))
+
+    assert [event.kind for event in events] == [
+        ChatStreamEventKind.THINKING_DELTA,
+        ChatStreamEventKind.DONE,
+    ]
+    assert events[0].content == "Full reasoning."
+
+
 def test_responses_stream_treats_incomplete_as_error_and_keeps_usage():
     payloads = [
         {
@@ -557,6 +603,37 @@ def test_responses_completed_backfills_text_and_reasoning_when_proxy_omits_delta
     ]
     assert events[0].content == "Final answer."
     assert events[1].content == "Checked the inputs."
+
+
+def test_responses_completed_prefers_reasoning_text_over_summary():
+    payloads = [
+        {
+            "type": "response.completed",
+            "response": {
+                "status": "completed",
+                "output": [
+                    {
+                        "id": "rs_1",
+                        "type": "reasoning",
+                        "content": [
+                            {"type": "reasoning_text", "text": "Full reasoning."},
+                        ],
+                        "summary": [
+                            {"type": "summary_text", "text": "Summary duplicate."},
+                        ],
+                    },
+                ],
+            },
+        },
+    ]
+
+    events = asyncio.run(_collect_events(payloads))
+
+    assert [event.kind for event in events] == [
+        ChatStreamEventKind.THINKING_DELTA,
+        ChatStreamEventKind.DONE,
+    ]
+    assert events[0].content == "Full reasoning."
 
 
 def test_responses_stream_does_not_duplicate_completed_text_after_deltas():

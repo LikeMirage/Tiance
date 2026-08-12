@@ -10,11 +10,7 @@ from app.domain.llm.provider_catalog import (
     ModelDiscoveryStrategy,
     ProviderProtocolFamily,
 )
-from app.domain.llm.provider_endpoint_templates import (
-    derive_model_discovery_url,
-    retarget_generation_url,
-    upgrade_unambiguous_legacy_generation_url,
-)
+from app.domain.llm.provider_endpoint_templates import derive_model_discovery_url
 from app.infra.database import (
     ensure_database_schema,
     prepare_database_for_provider_file_migration,
@@ -27,7 +23,10 @@ from app.repositories.llm.provider_cloud_model_repository import ProviderCloudMo
 from app.repositories.llm.provider_config_repository import ProviderConfigRepository
 from app.repositories.llm.provider_custom_model_repository import ProviderCustomModelRepository
 from app.repositories.llm.provider_file_store import ProviderFileStore
-from app.schemas.llm.provider_catalog import ProviderCatalogEntryResponse
+from app.schemas.llm.provider_catalog import (
+    ProviderCatalogCreateRequest,
+    ProviderCatalogEntryResponse,
+)
 from app.services.llm.provider.catalog_mutation import ProviderCatalogMutationService
 from app.services.llm.provider.preset_catalog import get_provider_endpoint_preset
 from app.services.llm.provider.storage_bootstrap import ensure_provider_file_storage
@@ -55,12 +54,12 @@ def test_legacy_provider_data_migrates_to_file_packages_and_drops_sqlite_tables(
     assert provider.display_name == "codex"
     assert provider.protocol_family == ProviderProtocolFamily.OPENAI_COMPATIBLE
     assert config is not None
-    assert config.api_base_url == "http://127.0.0.1:46973/v1/chat/completions"
+    assert config.api_base_url == "http://127.0.0.1:46973/v1"
     manifest = store.read_provider_file("custom-e0e1c9c5", "provider.json")
     assert manifest is not None
     assert "apiBaseUrl" not in manifest
     assert manifest["generationUrls"] == {
-        "openai_compatible": "http://127.0.0.1:46973/v1/chat/completions"
+        "openai_compatible": "http://127.0.0.1:46973/v1"
     }
     assert manifest["generationAuthSchemes"] == {
         "openai_compatible": "bearer_token"
@@ -299,71 +298,21 @@ def test_model_discovery_url_default_is_derived_from_generation_url(
     assert derive_model_discovery_url(generation_url, protocol_family) == expected
 
 
-@pytest.mark.parametrize(
-    ("legacy_url", "protocol_family", "expected"),
-    (
-        (
-            "http://127.0.0.1:46973/v1",
-            ProviderProtocolFamily.OPENAI_COMPATIBLE,
-            "http://127.0.0.1:46973/v1/chat/completions",
-        ),
-        (
-            "https://api.deepseek.com",
-            ProviderProtocolFamily.OPENAI_COMPATIBLE,
-            "https://api.deepseek.com/chat/completions",
-        ),
-        (
-            "http://127.0.0.1:46973/v1",
-            ProviderProtocolFamily.OPENAI_RESPONSES,
-            "http://127.0.0.1:46973/v1/responses",
-        ),
-        (
-            "https://api.anthropic.com",
-            ProviderProtocolFamily.ANTHROPIC_MESSAGES,
-            "https://api.anthropic.com/v1/messages",
-        ),
-        (
-            "https://generativelanguage.googleapis.com",
-            ProviderProtocolFamily.GEMINI_GENERATE_CONTENT,
-            "https://generativelanguage.googleapis.com/v1beta/models/{model}:{action}",
-        ),
-        (
-            "https://example.test/custom/inference",
-            ProviderProtocolFamily.OPENAI_COMPATIBLE,
-            "https://example.test/custom/inference",
-        ),
-        (
-            "https://example.test/v1/responses",
-            ProviderProtocolFamily.OPENAI_RESPONSES,
-            "https://example.test/v1/responses",
-        ),
-    ),
-)
-def test_unambiguous_legacy_generation_url_upgrade(
-    legacy_url,
-    protocol_family,
-    expected,
-):
-    assert (
-        upgrade_unambiguous_legacy_generation_url(legacy_url, protocol_family)
-        == expected
+def test_deepseek_preset_uses_official_model_list_endpoint(tmp_path):
+    providers_path = tmp_path / "providers"
+    ensure_provider_file_storage(providers_path, tmp_path / "tiance.db")
+    store = ProviderFileStore(providers_path)
+
+    manifest = store.read_provider_file("deepseek", "provider.json")
+
+    assert manifest is not None
+    assert manifest["generationUrls"]["openai_compatible"] == (
+        "https://api.deepseek.com/chat/completions"
     )
+    assert manifest["modelDiscoveryUrl"] == "https://api.deepseek.com/models"
 
 
-def test_protocol_switch_retargets_recognized_generation_endpoint_only():
-    assert retarget_generation_url(
-        "https://example.test/v1/chat/completions",
-        ProviderProtocolFamily.OPENAI_COMPATIBLE,
-        ProviderProtocolFamily.OPENAI_RESPONSES,
-    ) == "https://example.test/v1/responses"
-    assert retarget_generation_url(
-        "https://example.test/custom/inference",
-        ProviderProtocolFamily.OPENAI_COMPATIBLE,
-        ProviderProtocolFamily.OPENAI_RESPONSES,
-    ) == "https://example.test/custom/inference"
-
-
-def test_custom_provider_protocol_switch_retargets_recognized_generation_url(tmp_path):
+def test_custom_provider_protocol_switch_does_not_guess_generation_url(tmp_path):
     providers_path = tmp_path / "providers"
     ensure_provider_file_storage(providers_path, tmp_path / "tiance.db")
     store = ProviderFileStore(providers_path)
@@ -387,28 +336,12 @@ def test_custom_provider_protocol_switch_retargets_recognized_generation_url(tmp
         protocol_family=ProviderProtocolFamily.OPENAI_RESPONSES,
     )
 
-    assert updated.endpoints.api_base_url == "http://127.0.0.1:46973/v1/responses"
-
-
-def test_provider_startup_repairs_missing_active_protocol_url_when_unambiguous(tmp_path):
-    providers_path = tmp_path / "providers"
-    ensure_provider_file_storage(providers_path, tmp_path / "tiance.db")
-    store = ProviderFileStore(providers_path)
-    manifest = store.read_provider_file("openai", "provider.json")
-    assert manifest is not None
-    manifest["protocolFamily"] = "openai_responses"
-    manifest["generationUrls"] = {
-        "openai_compatible": "http://127.0.0.1:46973/v1/chat/completions",
+    assert updated.endpoints.api_base_url == ""
+    assert updated.endpoints.generation_urls == {
+        ProviderProtocolFamily.OPENAI_COMPATIBLE: (
+            "http://127.0.0.1:46973/v1/chat/completions"
+        )
     }
-    store.write_provider_file("openai", "provider.json", manifest)
-
-    ensure_provider_file_storage(providers_path, tmp_path / "tiance.db")
-
-    repaired = store.read_provider_file("openai", "provider.json")
-    assert repaired is not None
-    assert repaired["generationUrls"]["openai_responses"] == (
-        "http://127.0.0.1:46973/v1/responses"
-    )
 
 
 def test_provider_creation_keeps_model_discovery_url_empty_until_configured(tmp_path):
@@ -431,6 +364,36 @@ def test_provider_creation_keeps_model_discovery_url_empty_until_configured(tmp_
     )
 
     assert created.endpoints.model_discovery_url is None
+
+
+def test_provider_creation_accepts_name_only_and_starts_unconfigured(tmp_path):
+    payload = ProviderCatalogCreateRequest(display_name="Name Only")
+    assert payload.api_base_url == ""
+
+    providers_path = tmp_path / "providers"
+    ensure_provider_file_storage(providers_path, tmp_path / "tiance.db")
+    store = ProviderFileStore(providers_path)
+    catalog = ProviderCatalogRepository(store)
+    mutation = ProviderCatalogMutationService(
+        catalog,
+        ProviderCloudModelRepository(store),
+        ProviderCatalogDeletionRepository(catalog),
+    )
+
+    created = mutation.create_provider(
+        display_name=payload.display_name,
+        api_base_url=payload.api_base_url,
+        provider_id="name-only",
+        protocol_family=payload.protocol_family,
+        auth_scheme=payload.auth_scheme,
+    )
+
+    manifest = store.read_provider_file("name-only", "provider.json")
+    assert created.endpoints.api_base_url == ""
+    assert created.endpoints.generation_urls == {}
+    assert manifest is not None
+    assert manifest["generationUrls"] == {}
+    assert manifest["enabled"] is False
 
 
 def test_late_save_for_previous_protocol_keeps_new_protocol_url(tmp_path):
@@ -512,7 +475,7 @@ def test_existing_empty_model_discovery_url_is_migrated_without_overwriting_cust
     assert migrated_deepseek["modelDiscoveryUrl"] == "https://catalog.example/models"
 
 
-def test_existing_legacy_generation_urls_are_migrated_once(tmp_path):
+def test_legacy_generation_url_storage_migration_preserves_exact_addresses(tmp_path):
     providers_path = tmp_path / "providers"
     ensure_provider_file_storage(providers_path, tmp_path / "tiance.db")
     store = ProviderFileStore(providers_path)
@@ -535,7 +498,6 @@ def test_existing_legacy_generation_urls_are_migrated_once(tmp_path):
 
     settings = store.read_settings()
     assert settings is not None
-    settings.pop("generationUrlContractVersion", None)
     settings.pop("generationUrlStorageVersion", None)
     store.write_settings(settings)
 
@@ -553,19 +515,18 @@ def test_existing_legacy_generation_urls_are_migrated_once(tmp_path):
     assert "apiBaseUrl" not in migrated_deepseek
     assert "apiBaseUrl" not in migrated_dmxapi
     assert migrated_openai["generationUrls"]["openai_responses"] == (
-        "http://127.0.0.1:8317/v1/responses"
+        "http://127.0.0.1:8317/v1"
     )
     assert migrated_deepseek["generationUrls"]["openai_compatible"] == (
         "https://custom.example/inference"
     )
     assert migrated_dmxapi["generationUrls"]["openai_compatible"] == (
-        "https://www.dmxapi.cn/v1/chat/completions"
+        "https://www.dmxapi.cn"
     )
-    assert migrated_settings["generationUrlContractVersion"] == 1
     assert migrated_settings["generationUrlStorageVersion"] == 1
 
 
-def test_preset_generation_url_defaults_repair_auto_generated_legacy_url(tmp_path):
+def test_preset_generation_url_defaults_preserve_existing_address(tmp_path):
     providers_path = tmp_path / "providers"
     ensure_provider_file_storage(providers_path, tmp_path / "tiance.db")
     store = ProviderFileStore(providers_path)
@@ -589,12 +550,12 @@ def test_preset_generation_url_defaults_repair_auto_generated_legacy_url(tmp_pat
     assert migrated is not None
     assert migrated_settings is not None
     assert migrated["generationUrls"]["anthropic_messages"] == (
-        "https://api.deepseek.com/anthropic/v1/messages"
+        "https://api.deepseek.com/messages"
     )
     assert migrated_settings["presetGenerationUrlDefaultsVersion"] == 2
 
 
-def test_preset_generation_url_defaults_add_supported_protocols_and_replace_old_guess(
+def test_preset_generation_url_defaults_add_missing_but_preserve_existing_address(
     tmp_path,
 ):
     providers_path = tmp_path / "providers"
@@ -627,7 +588,7 @@ def test_preset_generation_url_defaults_add_supported_protocols_and_replace_old_
         "https://api.x.ai/v1/responses"
     )
     assert migrated_deepseek["generationUrls"]["openai_responses"] == (
-        "https://api.deepseek.com/v1/responses"
+        "https://api.deepseek.com/responses"
     )
 
 

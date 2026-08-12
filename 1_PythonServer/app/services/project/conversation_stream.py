@@ -57,6 +57,7 @@ from app.services.project.conversation_image_references import (
     get_conversation_image_reference_resolver,
 )
 from app.services.project.conversation_attachments import (
+    ConversationAttachmentService,
     get_conversation_attachment_service,
 )
 from app.services.project.conversation_stream_persistence import ConversationStreamPersistence
@@ -122,6 +123,7 @@ class ProjectConversationStreamService:
         client_tool_bridge_service: ClientToolBridgeService | None = None,
         background_task_registry: ConversationBackgroundTaskRegistry | None = None,
         runtime_capabilities_service: LlmRuntimeCapabilitiesService | None = None,
+        attachment_service: ConversationAttachmentService | None = None,
         run_manager: ConversationRunManager | None = None,
         token_estimation_settings_service: TokenEstimationSettingsService | None = None,
         long_term_memory_service: (
@@ -166,7 +168,7 @@ class ProjectConversationStreamService:
             tool_call_record_service=tool_call_record_service,
             client_tool_bridge_service=client_tool_bridge_service,
             runtime_capabilities_service=runtime_capabilities_service,
-            attachment_service=get_conversation_attachment_service(),
+            attachment_service=attachment_service or get_conversation_attachment_service(),
         )
         if hasattr(memory_service, "set_functional_conversation_runner"):
             memory_service.set_functional_conversation_runner(

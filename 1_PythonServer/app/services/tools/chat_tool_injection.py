@@ -9,13 +9,13 @@ from app.domain.llm.chat import (
     ChatMessageRole,
     ChatToolDefinition,
 )
-from app.domain.tools import ToolSummary
+from app.domain.tools import ToolExampleDetail, ToolSummary
 from app.services.tools.catalog import ToolCatalogService, get_tool_catalog_service
 from app.services.tools.dynamic_tool_contract import (
     DYNAMIC_TOOL_INFRASTRUCTURE_NAMES,
 )
 from app.services.tools.dynamic_tool_prompt import dynamic_tool_directory_intro_lines
-from app.services.tools.tool_metadata import normalize_tool_name
+from app.services.tools.tool_metadata import normalize_tool_name, standard_tool_description
 
 
 class ChatToolInjectionService:
@@ -32,7 +32,7 @@ class ChatToolInjectionService:
     ) -> ChatCompletionRequest:
         summaries = self._list_allowed_summaries(enabled_tool_names=enabled_tool_names)
         injected_tools = self._build_chat_tools_from_summaries(summaries)
-        dynamic_directory = _dynamic_tool_directory_prompt(summaries)
+        dynamic_directory = self._build_dynamic_tool_directory(summaries)
         if not injected_tools and not dynamic_directory:
             return request
         messages = request.messages
@@ -58,7 +58,21 @@ class ChatToolInjectionService:
         enabled_tool_names: tuple[str, ...] | None,
     ) -> str:
         summaries = self._list_allowed_summaries(enabled_tool_names=enabled_tool_names)
-        return _dynamic_tool_directory_prompt(summaries)
+        return self._build_dynamic_tool_directory(summaries)
+
+    def _build_dynamic_tool_directory(
+        self,
+        summaries: tuple[ToolSummary, ...],
+    ) -> str:
+        examples_by_tool = {
+            summary.name: self._catalog_service.get_tool_examples(
+                summary.name,
+                include_all=True,
+            )
+            for summary in summaries
+            if summary.dynamic
+        }
+        return _dynamic_tool_directory_prompt(summaries, examples_by_tool)
 
     def _list_allowed_summaries(
         self,
@@ -94,10 +108,17 @@ class ChatToolInjectionService:
             if summary.dynamic:
                 continue
             parameter_detail = self._catalog_service.get_tool_parameters(summary.name)
+            examples = self._catalog_service.get_tool_examples(
+                summary.name,
+                include_all=True,
+            )
             definitions.append(
                 ChatToolDefinition(
                     name=summary.name,
-                    description=summary.description,
+                    description=standard_tool_description(
+                        summary.description,
+                        examples,
+                    ),
                     parameters=parameter_detail.input_schema,
                 )
             )
@@ -116,7 +137,10 @@ def _normalize_allowed_tool_names(
     return allowed_tool_names
 
 
-def _dynamic_tool_directory_prompt(summaries: tuple[ToolSummary, ...]) -> str:
+def _dynamic_tool_directory_prompt(
+    summaries: tuple[ToolSummary, ...],
+    examples_by_tool: dict[str, tuple[ToolExampleDetail, ...]] | None = None,
+) -> str:
     available_names = {summary.name for summary in summaries}
     if not DYNAMIC_TOOL_INFRASTRUCTURE_NAMES.issubset(available_names):
         return ""
@@ -133,13 +157,17 @@ def _dynamic_tool_directory_prompt(summaries: tuple[ToolSummary, ...]) -> str:
                 f"工具：{summary.name}",
                 f"显示名称：{summary.display_name}",
                 f"说明：{summary.description}",
-                f"参数名：{', '.join(summary.parameter_names) if summary.parameter_names else '无'}",
             ]
         )
         if summary.example_titles:
             lines.append("应用示例：")
+            example_details = examples_by_tool.get(summary.name, ()) if examples_by_tool else ()
             for index, title in enumerate(summary.example_titles, start=1):
                 lines.append(f"{index}. {title}")
+                if index <= len(example_details):
+                    example = example_details[index - 1]
+                    if example.inject_content and example.content:
+                        lines.append(example.content)
     return "\n".join(lines)
 
 

@@ -100,20 +100,6 @@ export function useSessionMessages({
     }
   }, [isSessionMessagesPresented]);
 
-  const deleteSessionMessages = useCallback((pid: string, sessionId: string) => {
-    const key = buildSessionKey(pid, sessionId);
-    delete sessionMessageSnapshotsRef.current[key];
-    messageAccessedAtRef.current.delete(key);
-    reloadRequestIdsRef.current.delete(key);
-    reloadControllersRef.current.get(key)?.abort();
-    reloadControllersRef.current.delete(key);
-    setSessionMessages((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-  }, []);
-
   const applyCachedSessionMessages = useCallback((pid: string, sessionId: string) => {
     const cachedResponse = getCachedProjectEntryWarmup(pid)?.sessionMessages[sessionId];
     if (!cachedResponse) return false;
@@ -253,7 +239,6 @@ export function useSessionMessages({
 
   return {
     applyCachedSessionMessages,
-    deleteSessionMessages,
     markSessionMessagesAccessed,
     isSessionMessagesPresented,
     publishSessionMessages,

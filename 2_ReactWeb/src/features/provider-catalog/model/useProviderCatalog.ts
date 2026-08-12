@@ -22,11 +22,8 @@ type LoadState = "loading" | "ready" | "error";
 export type ProviderInsertPosition = "before" | "after";
 
 export type ProviderCreateInput = {
-  apiBaseUrl: string;
-  authScheme: ProviderAuthScheme;
   displayName: string;
   categoryId?: string | null;
-  protocolFamily: ProviderProtocolFamily;
 };
 
 function applyStoredProviderOrder(
@@ -279,11 +276,8 @@ export function useProviderCatalog(): UseProviderCatalogResult {
       setIsCreatingProvider(true);
       try {
         const createdProvider = await createProviderCatalogEntry({
-          api_base_url: input.apiBaseUrl,
-          auth_scheme: input.authScheme,
           display_name: input.displayName,
           category_id: input.categoryId,
-          protocol_family: input.protocolFamily,
         });
 
         const remainingItems = itemsRef.current.filter(

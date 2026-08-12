@@ -1,0 +1,25 @@
+{
+  "additionalProperties": true,
+  "description": "成功时返回 DeepSeek 生成的答案、实际搜索词、来源、服务端搜索动作和用量；失败时返回 ok=false、稳定错误码和配置指引。",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object"
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

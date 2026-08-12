@@ -100,14 +100,6 @@
   border-radius: 0;
 }
 
-.provider-canvas__canvas-input-action--leading {
-  border-radius: 0;
-}
-
-.provider-canvas__canvas-input-action--endpoint {
-  border-radius: 0 4px 4px 0;
-}
-
 .provider-canvas__canvas-input-action--clear {
   border-radius: 0 4px 4px 0;
 }

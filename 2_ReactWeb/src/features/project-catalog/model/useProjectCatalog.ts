@@ -120,6 +120,7 @@ export function useProjectCatalog(): UseProjectCatalogResult {
   const selectedProjectIdRef = useRef<string | null>(null);
   const workspaceStateRef = useRef<WorkspaceLastOpenedResponse | null>(null);
   const hasAppliedInitialWorkspaceStateRef = useRef(false);
+  const hasLoadedCatalogRef = useRef(false);
   const [items, setItems] = useState<Project[]>([]);
   const [categories, setCategories] = useState<ProjectCategory[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -179,7 +180,9 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     let cancelled = false;
 
     const load = async () => {
-      setState("loading");
+      if (!hasLoadedCatalogRef.current) {
+        setState("loading");
+      }
       setError(null);
 
       try {
@@ -241,11 +244,14 @@ export function useProjectCatalog(): UseProjectCatalogResult {
             ? current
             : null;
         });
+        hasLoadedCatalogRef.current = true;
         setState("ready");
       } catch (loadError) {
         if (cancelled) return;
         setError(loadError instanceof Error ? loadError.message : "项目列表载入失败。");
-        setState("error");
+        if (!hasLoadedCatalogRef.current) {
+          setState("error");
+        }
       }
     };
 

@@ -38,11 +38,21 @@ def _extract_responses_tool_calls(
     )
 
 
-def _extract_responses_reasoning_summary(payload: dict[str, object]) -> str:
-    chunks: list[str] = []
+def _extract_responses_reasoning_text(payload: dict[str, object]) -> str:
+    reasoning_chunks: list[str] = []
+    summary_chunks: list[str] = []
     for item in _responses_output_items(payload):
         if item.get("type") != "reasoning":
             continue
+        content = item.get("content")
+        if isinstance(content, list):
+            for part in content:
+                if (
+                    isinstance(part, dict)
+                    and part.get("type") == "reasoning_text"
+                    and part.get("text")
+                ):
+                    reasoning_chunks.append(str(part["text"]))
         summary = item.get("summary")
         if not isinstance(summary, list):
             continue
@@ -52,8 +62,8 @@ def _extract_responses_reasoning_summary(payload: dict[str, object]) -> str:
                 and part.get("type") == "summary_text"
                 and part.get("text")
             ):
-                chunks.append(str(part["text"]))
-    return "".join(chunks)
+                summary_chunks.append(str(part["text"]))
+    return "".join(reasoning_chunks or summary_chunks)
 
 
 def _extract_provider_output_items(

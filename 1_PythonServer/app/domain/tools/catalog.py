@@ -69,6 +69,7 @@ class ToolParameterDetail:
 class ToolExampleSummary:
     index: int
     title: str
+    inject_content: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +77,7 @@ class ToolExampleDetail:
     index: int
     title: str
     content: str
+    inject_content: bool = False
 
 
 @dataclass(frozen=True, slots=True)

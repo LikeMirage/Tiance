@@ -12,12 +12,12 @@ def _read_json(relative_path: str):
     return loads((TOOL_ROOT / relative_path).read_text(encoding="utf-8"))
 
 
-def test_network_search_remains_an_ordinary_eager_python_tool():
+def test_network_search_is_a_dynamic_python_tool():
     manifest = _read_json(".tool/tool.json")
 
     assert manifest["name"] == "network_search"
     assert manifest["runtime"]["type"] == "python"
-    assert manifest["loading"]["dynamic"] is False
+    assert manifest["loading"]["dynamic"] is True
 
 
 def test_network_search_accepts_only_query_and_has_no_hidden_collection_limits():

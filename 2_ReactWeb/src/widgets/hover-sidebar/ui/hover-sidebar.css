@@ -602,7 +602,6 @@ body.workspace-side-panel-resizing .hover-sidebar__inner {
 
 .hover-sidebar__theme-trigger:disabled {
   cursor: default;
-  opacity: 0.45;
 }
 
 .hover-sidebar__theme-icon {
@@ -684,7 +683,6 @@ body.workspace-side-panel-resizing .hover-sidebar__inner {
 
 .hover-sidebar__theme-option:disabled {
   cursor: default;
-  opacity: 0.55;
 }
 
 .hover-sidebar__theme-option-label {

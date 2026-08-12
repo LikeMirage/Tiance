@@ -1,5 +1,9 @@
 import type { ProviderCatalogEntry } from "../../../entities/llm-provider/model/providerCatalog";
 import type { ProviderConfig } from "../../../entities/llm-provider/model/providerConfig";
+import {
+  deriveProviderModelDiscoveryUrl,
+  isProviderModelDiscoveryUrlAuto,
+} from "./deriveProviderModelDiscoveryUrl";
 import type { ProviderApiKeyDraft, ProviderConfigDraft } from "./providerConfigDraftTypes";
 
 export function syncProviderDrafts(
@@ -45,8 +49,6 @@ export function syncProviderDrafts(
     }
 
     const wasUsingPreset = existingDraft.apiBaseUrl === existingDraft.presetApiBaseUrl;
-    const wasUsingPresetModelUrl =
-      existingDraft.modelDiscoveryUrl === existingDraft.presetModelDiscoveryUrl;
     const activeApiBaseUrl =
       persistedConfig?.generation_urls[provider.protocol_family]
       ?? (persistedConfig?.protocol_family === provider.protocol_family
@@ -57,19 +59,32 @@ export function syncProviderDrafts(
     const presetApiBaseUrl = resolvePresetApiBaseUrl(
       provider,
       provider.protocol_family,
-      activeApiBaseUrl,
     );
-    const activeModelDiscoveryUrl =
-      persistedConfig?.model_discovery_url ?? provider.model_discovery_url ?? "";
     const nextApiKeys = normalizeApiKeys(provider.provider_id, existingDraft);
     const hasManualEnabledOverride = existingDraft.hasManualEnabledOverride === true;
+    const presetModelDiscoveryUrl = resolvePresetModelDiscoveryUrl(provider);
+    const nextApiBaseUrl = wasUsingPreset ? activeApiBaseUrl : existingDraft.apiBaseUrl;
+    const wasUsingAutomaticModelUrl = existingDraft.modelDiscoveryUrlAuto ??
+      isProviderModelDiscoveryUrlAuto(
+        existingDraft.modelDiscoveryUrl,
+        existingDraft.apiBaseUrl,
+        existingDraft.protocolFamily,
+        existingDraft.presetApiBaseUrl,
+        existingDraft.presetModelDiscoveryUrl,
+      );
     next[provider.provider_id] = {
-      apiBaseUrl: wasUsingPreset ? activeApiBaseUrl : existingDraft.apiBaseUrl,
+      apiBaseUrl: nextApiBaseUrl,
       protocolFamily: provider.protocol_family,
       authScheme: existingDraft.authScheme,
-      modelDiscoveryUrl: wasUsingPresetModelUrl
-        ? activeModelDiscoveryUrl
+      modelDiscoveryUrl: wasUsingAutomaticModelUrl
+        ? deriveProviderModelDiscoveryUrl(
+            nextApiBaseUrl,
+            provider.protocol_family,
+            presetApiBaseUrl,
+            presetModelDiscoveryUrl,
+          )
         : existingDraft.modelDiscoveryUrl,
+      modelDiscoveryUrlAuto: wasUsingAutomaticModelUrl,
       modelDiscoveryStrategy: existingDraft.modelDiscoveryStrategy,
       modelDiscoveryAuthScheme: existingDraft.modelDiscoveryAuthScheme,
       apiKeys: nextApiKeys,
@@ -81,10 +96,7 @@ export function syncProviderDrafts(
       persistedPromptCacheRetentionSeconds:
         existingDraft.persistedPromptCacheRetentionSeconds,
       presetApiBaseUrl,
-      presetModelDiscoveryUrl: resolvePresetModelDiscoveryUrl(
-        provider,
-        activeModelDiscoveryUrl,
-      ),
+      presetModelDiscoveryUrl,
     };
   }
 
@@ -111,6 +123,27 @@ export function mergeProviderDraftAfterSave(
   );
   const activeApiBaseUrl =
     savedConfig.generation_urls[savedConfig.protocol_family] ?? savedConfig.api_base_url;
+  const presetApiBaseUrl = resolvePresetApiBaseUrl(
+    provider,
+    savedConfig.protocol_family,
+  );
+  const presetModelDiscoveryUrl = resolvePresetModelDiscoveryUrl(provider);
+  const savedModelDiscoveryUrl = savedConfig.model_discovery_url ?? "";
+  const modelDiscoveryUrlAuto = isProviderModelDiscoveryUrlAuto(
+    savedModelDiscoveryUrl,
+    activeApiBaseUrl,
+    savedConfig.protocol_family,
+    presetApiBaseUrl,
+    presetModelDiscoveryUrl,
+  );
+  const modelDiscoveryUrl = modelDiscoveryUrlAuto
+    ? deriveProviderModelDiscoveryUrl(
+        activeApiBaseUrl,
+        savedConfig.protocol_family,
+        presetApiBaseUrl,
+        presetModelDiscoveryUrl,
+      )
+    : savedModelDiscoveryUrl;
   const savedApiKeys =
     savedConfig.api_keys.length > 0
       ? savedConfig.api_keys.map((apiKey) => ({
@@ -127,7 +160,8 @@ export function mergeProviderDraftAfterSave(
     apiBaseUrl: activeApiBaseUrl,
     protocolFamily: savedConfig.protocol_family,
     authScheme: savedConfig.auth_scheme,
-    modelDiscoveryUrl: savedConfig.model_discovery_url ?? "",
+    modelDiscoveryUrl,
+    modelDiscoveryUrlAuto,
     modelDiscoveryStrategy: savedConfig.model_discovery_strategy,
     modelDiscoveryAuthScheme: savedConfig.model_discovery_auth_scheme,
     apiKeys: savedApiKeys,
@@ -137,15 +171,8 @@ export function mergeProviderDraftAfterSave(
     hasManualEnabledOverride: true,
     persistedUpdatedAt: savedConfig.updated_at,
     persistedPromptCacheRetentionSeconds: savedConfig.prompt_cache_retention_seconds,
-    presetApiBaseUrl: resolvePresetApiBaseUrl(
-      provider,
-      savedConfig.protocol_family,
-      activeApiBaseUrl,
-    ),
-    presetModelDiscoveryUrl: resolvePresetModelDiscoveryUrl(
-      provider,
-      savedConfig.model_discovery_url ?? "",
-    ),
+    presetApiBaseUrl,
+    presetModelDiscoveryUrl,
   };
 }
 
@@ -214,14 +241,26 @@ function createProviderDraft(
   const presetApiBaseUrl = resolvePresetApiBaseUrl(
     provider,
     provider.protocol_family,
-    activeApiBaseUrl,
   );
   const activeModelDiscoveryUrl =
     persistedConfig?.model_discovery_url ?? provider.model_discovery_url ?? "";
-  const presetModelDiscoveryUrl = resolvePresetModelDiscoveryUrl(
+  const presetModelDiscoveryUrl = resolvePresetModelDiscoveryUrl(provider);
+  const modelDiscoveryUrlAuto = resolveModelDiscoveryUrlAuto(
     provider,
+    persistedConfig,
     activeModelDiscoveryUrl,
+    activeApiBaseUrl,
+    presetApiBaseUrl,
+    presetModelDiscoveryUrl,
   );
+  const modelDiscoveryUrl = modelDiscoveryUrlAuto
+    ? deriveProviderModelDiscoveryUrl(
+        activeApiBaseUrl,
+        provider.protocol_family,
+        presetApiBaseUrl,
+        presetModelDiscoveryUrl,
+      )
+    : activeModelDiscoveryUrl;
   const cacheRetention = formatPromptCacheRetention(
     persistedConfig?.prompt_cache_retention_seconds ?? 5 * 60,
   );
@@ -234,7 +273,8 @@ function createProviderDraft(
         ?? provider.generation_auth_schemes[provider.protocol_family]
         ?? persistedConfig.auth_scheme
         ?? provider.auth_scheme,
-      modelDiscoveryUrl: activeModelDiscoveryUrl,
+      modelDiscoveryUrl,
+      modelDiscoveryUrlAuto,
       modelDiscoveryStrategy: persistedConfig.model_discovery_strategy,
       modelDiscoveryAuthScheme: persistedConfig.model_discovery_auth_scheme,
       apiKeys:
@@ -265,7 +305,8 @@ function createProviderDraft(
     authScheme:
       provider.generation_auth_schemes[provider.protocol_family]
       ?? provider.auth_scheme,
-    modelDiscoveryUrl: activeModelDiscoveryUrl,
+    modelDiscoveryUrl,
+    modelDiscoveryUrlAuto,
     modelDiscoveryStrategy: provider.model_discovery_strategy,
     modelDiscoveryAuthScheme: provider.model_discovery_auth_scheme,
     apiKeys: [createApiKeyDraft(provider.provider_id, 1)],
@@ -305,16 +346,49 @@ export function formatPromptCacheRetention(seconds: number): {
 function resolvePresetApiBaseUrl(
   provider: ProviderCatalogEntry,
   protocolFamily: ProviderConfig["protocol_family"],
-  fallback: string,
 ) {
-  return provider.preset_generation_urls[protocolFamily] ?? fallback;
+  return provider.preset_generation_urls[protocolFamily] ?? "";
 }
 
-function resolvePresetModelDiscoveryUrl(
+function resolvePresetModelDiscoveryUrl(provider: ProviderCatalogEntry) {
+  return provider.preset_model_discovery_url ?? "";
+}
+
+function resolveModelDiscoveryUrlAuto(
   provider: ProviderCatalogEntry,
-  fallback: string,
+  persistedConfig: ProviderConfig | undefined,
+  modelDiscoveryUrl: string,
+  activeApiBaseUrl: string,
+  presetApiBaseUrl: string,
+  presetModelDiscoveryUrl: string,
 ) {
-  return provider.preset_model_discovery_url ?? fallback;
+  if (
+    isProviderModelDiscoveryUrlAuto(
+      modelDiscoveryUrl,
+      activeApiBaseUrl,
+      provider.protocol_family,
+      presetApiBaseUrl,
+      presetModelDiscoveryUrl,
+    )
+  ) {
+    return true;
+  }
+
+  const generationUrls = {
+    ...provider.generation_urls,
+    ...(persistedConfig?.generation_urls ?? {}),
+  };
+  return Object.entries(generationUrls).some(([protocolFamily, generationUrl]) =>
+    isProviderModelDiscoveryUrlAuto(
+      modelDiscoveryUrl,
+      generationUrl,
+      protocolFamily as ProviderConfig["protocol_family"],
+      provider.preset_generation_urls[
+        protocolFamily as ProviderConfig["protocol_family"]
+      ] ?? "",
+      presetModelDiscoveryUrl,
+    ),
+  );
 }
 
 function normalizeApiKeys(providerId: string, draft: Record<string, unknown>) {

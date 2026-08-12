@@ -6,7 +6,7 @@ import pytest
 
 from app.core.errors import BadRequestError
 from app.domain.project import ProjectKind
-from role_market_test_support import build_role_market_service
+from tests.role_market_test_support import build_role_market_service
 
 
 def test_new_role_install_uses_role_project_lifecycle_and_selected_category(tmp_path) -> None:

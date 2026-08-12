@@ -63,7 +63,11 @@ def build_summary(loaded_tool: LoadedTool, *, category: str) -> ToolSummary:
         category=category,
         dynamic=_read_dynamic_flag(loading),
         parameter_names=tuple(_read_parameter_names(loaded_tool.input_schema)),
-        example_titles=tuple(example_title(example) for _, example in loaded_tool.examples),
+        example_titles=tuple(
+            example_title(example)
+            for _, example in loaded_tool.examples
+            if example_enabled(example)
+        ),
         parallel=_read_parallel_flag(execution),
     )
 
@@ -80,6 +84,7 @@ def example_summary(index: int, example: dict[str, Any]) -> ToolExampleSummary:
     return ToolExampleSummary(
         index=index,
         title=example_title(example),
+        inject_content=example_inject_content(example),
     )
 
 
@@ -88,6 +93,7 @@ def example_detail(index: int, example: dict[str, Any]) -> ToolExampleDetail:
         index=index,
         title=example_title(example),
         content=example_content(example),
+        inject_content=example_inject_content(example),
     )
 
 
@@ -97,6 +103,31 @@ def example_title(example: dict[str, Any]) -> str:
 
 def example_content(example: dict[str, Any]) -> str:
     return _read_string(example, "content")
+
+
+def example_enabled(example: dict[str, Any]) -> bool:
+    value = example.get("enabled")
+    return value if isinstance(value, bool) else True
+
+
+def example_inject_content(example: dict[str, Any]) -> bool:
+    value = example.get("inject_content")
+    return value if isinstance(value, bool) else False
+
+
+def standard_tool_description(
+    description: str,
+    examples: tuple[ToolExampleDetail, ...],
+) -> str:
+    if not examples:
+        return description
+    lines = [description, "", "应用示例："]
+    for index, example in enumerate(examples, start=1):
+        heading = f"{index}. {example.title}" if example.title else f"{index}."
+        lines.append(heading)
+        if example.inject_content and example.content:
+            lines.append(example.content)
+    return "\n".join(lines)
 
 
 def normalize_tool_name(tool_name: str) -> str:

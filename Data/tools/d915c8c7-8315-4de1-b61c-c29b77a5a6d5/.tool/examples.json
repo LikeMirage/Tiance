@@ -1,0 +1,10 @@
+[
+  {
+    "title": "首次使用前配置",
+    "content": "用户提供 DeepSeek 官方 API Key 后调用：\n{\n  \"action\": \"configure\",\n  \"api_key\": \"用户提供的密钥\"\n}\n\n工具只更新自身 config.json 中的 deepseek.api_key，返回结果不会回显密钥。也可调用 action=config_info 查看配置文件路径，或设置环境变量 DEEPSEEK_API_KEY。"
+  },
+  {
+    "title": "搜索最新公开信息",
+    "content": "输入：\n{\n  \"action\": \"search\",\n  \"query\": \"查询今天发布的 DeepSeek API 官方更新，概括主要变化并列出来源。\"\n}\n\n工具直接请求 config.json 中的 Responses 地址，并强制使用服务端 web_search；不会调用天策内置搜索、免费搜索或当前会话模型。"
+  }
+]

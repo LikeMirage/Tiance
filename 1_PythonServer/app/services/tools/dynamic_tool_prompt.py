@@ -10,6 +10,6 @@ def dynamic_tool_directory_intro_lines() -> list[str]:
         "执行动态工具时调用 execute_dynamic_tool：tool_name 填目标工具名，arguments 填目标工具的真实参数对象。",
         "如果本会话历史信息中已经读取过该工具的完整参数，可以直接调用 execute_dynamic_tool 执行。",
         "如需理解典型用法，可调用 load_tool_info，operation=get_examples，按需读取工具的应用示例。",
-        "参数名只用于判断工具是否可能相关，禁止凭参数名猜测参数结构、默认值、可选值或必填规则。",
+        "轻量目录不包含参数结构、默认值、可选值或必填规则，禁止凭工具摘要猜测参数。",
         "反例：凭借猜测直接执行未加载过完整参数的动态工具。",
     ]

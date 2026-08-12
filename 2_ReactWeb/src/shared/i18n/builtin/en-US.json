@@ -290,10 +290,7 @@
       "create": {
         "title": "Add Custom Provider",
         "providerName": "Provider name",
-        "providerNamePlaceholder": "e.g. My OpenAI Proxy",
-        "apiBaseUrl": "Full generation API URL",
-        "protocol": "Protocol",
-        "auth": "Auth"
+        "providerNamePlaceholder": "e.g. My OpenAI Proxy"
       },
       "protocol": {
         "openaiCompatible": "OpenAI Chat Completions",
@@ -305,13 +302,11 @@
     "aiPanel": {
       "header": {
         "noSession": "No session selected",
-        "openHistory": "Open conversation history",
         "backToChat": "Back to conversation",
         "actions": "AI conversation actions",
         "exportConversation": "Export conversation",
         "branches": "Branch dashboard",
         "conversationOverview": "Conversation overview",
-        "history": "History",
         "settings": "Settings",
         "newConversation": "New conversation"
       },
@@ -425,20 +420,6 @@
         "data": "Data Dashboards",
         "close": "Close session settings",
         "empty": "No configurable session."
-      },
-      "history": {
-        "title": "Project History",
-        "empty": "This project has no conversations.",
-        "messageCount": "{count} messages",
-        "noModel": "No model bound",
-        "deleting": "Deleting",
-        "pinFailed": "Failed to update the conversation pin.",
-        "runtime": {
-          "running": "Running",
-          "error": "Error",
-          "idle": "Idle"
-        },
-        "unknownTime": "Unknown time"
       },
       "messageList": {
         "loadingSession": "Loading session...",
@@ -1396,11 +1377,9 @@
       "renameProvider": "Rename {provider}",
       "selectProviderProtocol": "Select provider protocol",
       "apiAddress": {
-        "placeholder": "Enter a base URL; use Complete endpoint when needed",
+        "placeholder": "Enter the full generation API URL",
         "title": "API URL",
         "generation": "Full generation API URL",
-        "completeEndpoint": "Complete endpoint",
-        "completeEndpointTitle": "Complete the generation API endpoint for the selected protocol",
         "generationProtocol": "Generation API protocol",
         "generationAuth": "Generation authentication",
         "generationTab": "Generation API",

@@ -18,6 +18,7 @@ export type ProviderConfigDraft = {
   protocolFamily: ProviderProtocolFamily;
   authScheme: ProviderAuthScheme;
   modelDiscoveryUrl: string;
+  modelDiscoveryUrlAuto: boolean;
   modelDiscoveryStrategy: ProviderModelDiscoveryStrategy;
   modelDiscoveryAuthScheme: ProviderAuthScheme;
   apiKeys: ProviderApiKeyDraft[];

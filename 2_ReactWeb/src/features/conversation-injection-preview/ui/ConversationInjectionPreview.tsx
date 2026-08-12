@@ -14,9 +14,14 @@ type InjectionTool = {
 type DynamicToolSummary = {
   description: string;
   displayName: string;
-  examples: string[];
+  examples: ToolExamplePreview[];
   name: string;
   parameterNames: string[];
+};
+
+type ToolExamplePreview = {
+  content: string;
+  title: string;
 };
 
 type DynamicToolDirectory = {
@@ -334,6 +339,7 @@ function ToolSchemaItem({ index, tool }: { index: number; tool: InjectionTool })
   const properties = objectValue(tool.parameters.properties);
   const required = arrayValue(tool.parameters.required).map(String);
   const propertyNames = Object.keys(properties);
+  const description = parseToolDescription(tool.description);
 
   return (
     <article className="conversation-injection-preview__schema-tool">
@@ -344,7 +350,22 @@ function ToolSchemaItem({ index, tool }: { index: number; tool: InjectionTool })
         </h4>
         <span>{propertyNames.length} 个参数</span>
       </header>
-      <p className="conversation-injection-preview__tool-description">{tool.description || "暂无说明。"}</p>
+      <p className="conversation-injection-preview__tool-description">
+        {description.summary || "暂无说明。"}
+      </p>
+      {description.examples.length > 0 ? (
+        <div className="conversation-injection-preview__directory-examples">
+          <span>应用示例</span>
+          <ol>
+            {description.examples.map((example, exampleIndex) => (
+              <li key={`${exampleIndex}:${example.title}`}>
+                <span>{example.title}</span>
+                {example.content ? <pre>{example.content}</pre> : null}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
       {propertyNames.length > 0 ? (
         <div className="conversation-injection-preview__params">
           {propertyNames.map((name) => {
@@ -401,7 +422,12 @@ function DynamicToolDirectoryView({ content }: { content: string }) {
               <div className="conversation-injection-preview__directory-examples">
                 <span>应用示例</span>
                 <ol>
-                  {tool.examples.map((example) => <li key={example}>{example}</li>)}
+                  {tool.examples.map((example, exampleIndex) => (
+                    <li key={`${exampleIndex}:${example.title}`}>
+                      <span>{example.title}</span>
+                      {example.content ? <pre>{example.content}</pre> : null}
+                    </li>
+                  ))}
                 </ol>
               </div>
             ) : null}
@@ -686,7 +712,17 @@ function parseDynamicToolDirectory(content: string): DynamicToolDirectory {
     }
 
     if (inExamples) {
-      currentTool.examples.push(line.replace(/^\d+[.．、]\s*/, ""));
+      const titleMatch = line.match(/^\d+[.．、]\s*(.*)$/);
+      if (titleMatch) {
+        currentTool.examples.push({ content: "", title: titleMatch[1].trim() });
+      } else {
+        const currentExample = currentTool.examples.at(-1);
+        if (currentExample) {
+          currentExample.content = currentExample.content
+            ? `${currentExample.content}\n${line}`
+            : line;
+        }
+      }
     } else if (currentTool.description) {
       currentTool.description = `${currentTool.description} ${line}`;
     } else {
@@ -700,4 +736,33 @@ function parseDynamicToolDirectory(content: string): DynamicToolDirectory {
 
 function readPrefixedLine(line: string, prefix: string): string {
   return line.startsWith(prefix) ? line.slice(prefix.length).trim() : "";
+}
+
+function parseToolDescription(description: string) {
+  const marker = "\n\n应用示例：\n";
+  const markerIndex = description.indexOf(marker);
+  if (markerIndex < 0) {
+    return { examples: [] as ToolExamplePreview[], summary: description };
+  }
+  const examples: ToolExamplePreview[] = [];
+  description
+    .slice(markerIndex + marker.length)
+    .split(/\r?\n/)
+    .forEach((rawLine) => {
+      const line = rawLine.trim();
+      const titleMatch = line.match(/^\d+[.．、]\s*(.*)$/);
+      if (titleMatch) {
+        examples.push({ content: "", title: titleMatch[1].trim() });
+        return;
+      }
+      const currentExample = examples.at(-1);
+      if (!currentExample || !line) return;
+      currentExample.content = currentExample.content
+        ? `${currentExample.content}\n${line}`
+        : line;
+    });
+  return {
+    examples,
+    summary: description.slice(0, markerIndex).trim(),
+  };
 }

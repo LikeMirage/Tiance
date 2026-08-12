@@ -2,7 +2,6 @@ import { useRef, useState } from "react";
 
 import type { UseProviderCatalogResult } from "./useProviderCatalog";
 import {
-  deriveProviderDisplayName,
   EMPTY_PROVIDER_CREATE_FORM,
   type ProviderCreateFormDraft,
 } from "./providerCreateForm";
@@ -18,11 +17,11 @@ export function useProviderCreateForm({
   onCreated,
   providerCatalog,
 }: UseProviderCreateFormInput) {
-  const apiBaseUrlInputRef = useRef<HTMLInputElement | null>(null);
+  const displayNameInputRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] =
     useState<ProviderCreateFormDraft>(EMPTY_PROVIDER_CREATE_FORM);
   const [error, setError] = useState<string | null>(null);
-  const [isApiBaseUrlInvalid, setIsApiBaseUrlInvalid] = useState(false);
+  const [isDisplayNameInvalid, setIsDisplayNameInvalid] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
 
   const isInteractive = isVisible && !providerCatalog.isCreatingProvider;
@@ -30,7 +29,7 @@ export function useProviderCreateForm({
   const reset = () => {
     setDraft(EMPTY_PROVIDER_CREATE_FORM);
     setError(null);
-    setIsApiBaseUrlInvalid(false);
+    setIsDisplayNameInvalid(false);
   };
 
   const close = () => {
@@ -41,7 +40,7 @@ export function useProviderCreateForm({
   const toggle = () => {
     setIsVisible((current) => !current);
     setError(null);
-    setIsApiBaseUrlInvalid(false);
+    setIsDisplayNameInvalid(false);
   };
 
   const updateField = <Field extends keyof ProviderCreateFormDraft>(
@@ -53,37 +52,25 @@ export function useProviderCreateForm({
       [field]: value,
     }));
     setError(null);
-    if (field === "apiBaseUrl") {
-      setIsApiBaseUrlInvalid(false);
-    }
+    setIsDisplayNameInvalid(false);
   };
 
   const submit = async () => {
     const displayName = draft.displayName.trim();
-    const apiBaseUrl = draft.apiBaseUrl.trim();
-    const resolvedDisplayName = displayName || deriveProviderDisplayName(apiBaseUrl);
 
-    if (!displayName && !apiBaseUrl) {
-      close();
-      return;
-    }
-
-    if (!apiBaseUrl) {
+    if (!displayName) {
       setError(null);
-      setIsApiBaseUrlInvalid(true);
-      apiBaseUrlInputRef.current?.focus();
+      setIsDisplayNameInvalid(true);
+      displayNameInputRef.current?.focus();
       return;
     }
 
-    setIsApiBaseUrlInvalid(false);
+    setIsDisplayNameInvalid(false);
 
     try {
       await providerCatalog.createProvider({
-        apiBaseUrl,
-        authScheme: draft.authScheme,
-        displayName: resolvedDisplayName,
+        displayName,
         categoryId,
-        protocolFamily: draft.protocolFamily,
       });
       onCreated();
       close();
@@ -95,11 +82,11 @@ export function useProviderCreateForm({
   };
 
   return {
-    apiBaseUrlInputRef,
+    displayNameInputRef,
     close,
     draft,
     error,
-    isApiBaseUrlInvalid,
+    isDisplayNameInvalid,
     isInteractive,
     isVisible,
     submit,

@@ -22,6 +22,7 @@ import {
   resolveEnabledForApiKeys,
   syncProviderDrafts,
 } from "./providerConfigDraftRules";
+import { deriveProviderModelDiscoveryUrl } from "./deriveProviderModelDiscoveryUrl";
 import type { ProviderConfigDraft } from "./providerConfigDraftTypes";
 
 export interface UseProviderConfigStateResult {
@@ -40,7 +41,6 @@ export interface UseProviderConfigStateResult {
   savingProviderId: string | null;
   toggleSelectedEnabled: () => void;
   updateSelectedApiBaseUrl: (value: string) => void;
-  updateSelectedApiEndpoints: (apiBaseUrl: string, modelDiscoveryUrl: string) => void;
   updateSelectedAuthScheme: (value: ProviderAuthScheme) => void;
   updateSelectedModelDiscoveryUrl: (value: string) => void;
   updateSelectedModelDiscoveryStrategy: (
@@ -254,11 +254,20 @@ export function useProviderConfigState(
         return current;
       }
 
+      const modelDiscoveryUrl = draft.modelDiscoveryUrlAuto
+        ? deriveProviderModelDiscoveryUrl(
+            value,
+            draft.protocolFamily,
+            draft.presetApiBaseUrl,
+            draft.presetModelDiscoveryUrl,
+          )
+        : draft.modelDiscoveryUrl;
       return {
         ...current,
         [selectedProviderId]: {
           ...draft,
           apiBaseUrl: value,
+          modelDiscoveryUrl,
         },
       };
     });
@@ -271,7 +280,10 @@ export function useProviderConfigState(
 
     setDrafts((current) => {
       const draft = current[selectedProviderId];
-      if (!draft || draft.modelDiscoveryUrl === value) {
+      if (
+        !draft
+        || (draft.modelDiscoveryUrl === value && !draft.modelDiscoveryUrlAuto)
+      ) {
         return current;
       }
       return {
@@ -279,6 +291,7 @@ export function useProviderConfigState(
         [selectedProviderId]: {
           ...draft,
           modelDiscoveryUrl: value,
+          modelDiscoveryUrlAuto: false,
         },
       };
     });
@@ -315,6 +328,14 @@ export function useProviderConfigState(
     const nextDraftToSave: ProviderConfigDraft = {
       ...selectedDraft,
       apiBaseUrl: selectedDraft.presetApiBaseUrl,
+      modelDiscoveryUrl: selectedDraft.modelDiscoveryUrlAuto
+        ? deriveProviderModelDiscoveryUrl(
+            selectedDraft.presetApiBaseUrl,
+            selectedDraft.protocolFamily,
+            selectedDraft.presetApiBaseUrl,
+            selectedDraft.presetModelDiscoveryUrl,
+          )
+        : selectedDraft.modelDiscoveryUrl,
     };
     setDrafts((current) => {
       if (!current[selectedProviderId]) {
@@ -333,13 +354,19 @@ export function useProviderConfigState(
     if (!selectedProviderId || !selectedDraft) {
       return;
     }
-    if (selectedDraft.modelDiscoveryUrl === selectedDraft.presetModelDiscoveryUrl) {
+    if (selectedDraft.modelDiscoveryUrlAuto) {
       return;
     }
 
     const nextDraftToSave: ProviderConfigDraft = {
       ...selectedDraft,
-      modelDiscoveryUrl: selectedDraft.presetModelDiscoveryUrl,
+      modelDiscoveryUrl: deriveProviderModelDiscoveryUrl(
+        selectedDraft.apiBaseUrl,
+        selectedDraft.protocolFamily,
+        selectedDraft.presetApiBaseUrl,
+        selectedDraft.presetModelDiscoveryUrl,
+      ),
+      modelDiscoveryUrlAuto: true,
     };
     setDrafts((current) => ({
       ...current,
@@ -598,21 +625,6 @@ export function useProviderConfigState(
     void persistProviderDraft(selectedProviderId, nextDraft);
   };
 
-  const updateSelectedApiEndpoints = (
-    apiBaseUrl: string,
-    modelDiscoveryUrl: string,
-  ) => {
-    if (!selectedProviderId || !selectedDraft) {
-      return;
-    }
-    const nextDraft = { ...selectedDraft, apiBaseUrl, modelDiscoveryUrl };
-    setDrafts((current) => ({
-      ...current,
-      [selectedProviderId]: nextDraft,
-    }));
-    void persistProviderDraft(selectedProviderId, nextDraft);
-  };
-
   const updateSelectedAuthScheme = (value: ProviderAuthScheme) => {
     persistSelectedDraftUpdate({ authScheme: value });
   };
@@ -635,8 +647,7 @@ export function useProviderConfigState(
     isSelectedApiBaseUrlDirty:
       selectedDraft !== null && selectedDraft.apiBaseUrl !== selectedDraft.presetApiBaseUrl,
     isSelectedModelDiscoveryUrlDirty:
-      selectedDraft !== null &&
-      selectedDraft.modelDiscoveryUrl !== selectedDraft.presetModelDiscoveryUrl,
+      selectedDraft !== null && !selectedDraft.modelDiscoveryUrlAuto,
     removeSelectedApiKeyIfEmpty,
     resetSelectedApiBaseUrl,
     resetSelectedModelDiscoveryUrl,
@@ -646,7 +657,6 @@ export function useProviderConfigState(
     savingProviderId,
     toggleSelectedEnabled,
     updateSelectedApiBaseUrl,
-    updateSelectedApiEndpoints,
     updateSelectedAuthScheme,
     updateSelectedModelDiscoveryUrl,
     updateSelectedModelDiscoveryStrategy,

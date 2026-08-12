@@ -46,6 +46,7 @@ type Props = {
   persistentEmptyContent?: ReactNode;
   persistentEmptyContentVisible?: boolean;
   projectConversationOverviewContent?: ReactNode;
+  projectConversationOverviewNavigation?: ReactNode;
   roleConfigurationContent?: ReactNode;
   themeConfigurationContent?: ReactNode;
   projectRootPath?: string;
@@ -87,7 +88,7 @@ type MarkdownDocxGenerationResult = {
 };
 
 export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
-  activeConversationMessageId = null, activeConversationSessionId = null, activeTab, activeTabId, aiPanelInitialWidth, assistantPanel = null, emptyContent = null, emptyMessage = "点击左侧文件树中的文件以打开", persistentEmptyContent = null, persistentEmptyContentVisible = false, projectConversationOverviewContent = null, roleConfigurationContent = null, themeConfigurationContent = null, projectRootPath = "", onSaveCodeBlock, statusMessage = null, tabs, toolEntryCandidates = [],
+  activeConversationMessageId = null, activeConversationSessionId = null, activeTab, activeTabId, aiPanelInitialWidth, assistantPanel = null, emptyContent = null, emptyMessage = "点击左侧文件树中的文件以打开", persistentEmptyContent = null, persistentEmptyContentVisible = false, projectConversationOverviewContent = null, projectConversationOverviewNavigation = null, roleConfigurationContent = null, themeConfigurationContent = null, projectRootPath = "", onSaveCodeBlock, statusMessage = null, tabs, toolEntryCandidates = [],
   onCloseTab, onCloseOtherTabs, onCloseAllTabs,
   onAiPanelWidthCommit,
   onOverwriteExternalChange,
@@ -419,16 +420,20 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
       {/* 编辑区主体 */}
       <div className="workspace-page__canvas-chat-main">
         <div className="doc-editor">
-          <DocumentEditorTabBar
-            activeTabId={activeTabId}
-            onCancelAutoScroll={cancelDocumentTabScroll}
-            tabBarRef={tabBarRef}
-            tabIndicator={tabIndicator}
-            tabs={tabs}
-            onOpenContextMenu={(tabId, x, y) => setContextMenu({ tabId, x, y })}
-            onRequestClose={handleClose}
-            onSelectTab={onSelectTab}
-          />
+          {isProjectConversationOverview && projectConversationOverviewNavigation ? (
+            projectConversationOverviewNavigation
+          ) : (
+            <DocumentEditorTabBar
+              activeTabId={activeTabId}
+              onCancelAutoScroll={cancelDocumentTabScroll}
+              tabBarRef={tabBarRef}
+              tabIndicator={tabIndicator}
+              tabs={tabs}
+              onOpenContextMenu={(tabId, x, y) => setContextMenu({ tabId, x, y })}
+              onRequestClose={handleClose}
+              onSelectTab={onSelectTab}
+            />
+          )}
 
           {statusMessage ? (
             <div className="doc-editor__status-error" role="status">

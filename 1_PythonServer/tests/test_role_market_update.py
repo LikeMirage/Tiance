@@ -8,7 +8,7 @@ from app.core.errors import BadRequestError
 from app.domain.project import ProjectKind
 from app.services.application import role_market as role_market_module
 
-from role_market_test_support import build_role_market_service, role_files
+from tests.role_market_test_support import build_role_market_service, role_files
 
 
 def test_update_preserves_project_identity_category_name_sort_and_workspace(tmp_path) -> None:

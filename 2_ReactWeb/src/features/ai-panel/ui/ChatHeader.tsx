@@ -1,6 +1,5 @@
 import {
   ChatsCircle,
-  ClockCounterClockwise,
   DownloadSimple,
   GearSix,
   GitBranch,
@@ -11,7 +10,7 @@ import type { ConversationSession } from "../../../entities/llm-chat/model/conve
 import { useI18n } from "../../../shared/i18n";
 import { SessionDisplayTitle } from "./SessionDisplayTitle";
 
-export type ChatPanelView = "chat" | "history" | "settings";
+export type ChatPanelView = "chat" | "settings";
 
 type Props = {
   activeSession: ConversationSession | null;
@@ -26,7 +25,6 @@ type Props = {
   onOpenBranches: () => void;
   onOpenConversationOverview: () => void;
   onShowChat: () => void;
-  onToggleHistory: () => void;
   onToggleSettings: () => void;
 };
 
@@ -43,7 +41,6 @@ export function ChatHeader({
   onOpenBranches,
   onOpenConversationOverview,
   onShowChat,
-  onToggleHistory,
   onToggleSettings,
 }: Props) {
   const { t } = useI18n();
@@ -58,17 +55,7 @@ export function ChatHeader({
       <div className="ai-panel__title-group">
         <div className="ai-panel__title-copy">
           <h2 className="ai-panel__title">
-            {activeView === "chat" ? (
-              <button
-                className="ai-panel__title-button"
-                type="button"
-                aria-label={t("aiPanel.header.openHistory")}
-                title={t("aiPanel.header.openHistory")}
-                onClick={onToggleHistory}
-              >
-                {title}
-              </button>
-            ) : (
+            {activeView === "settings" ? (
               <button
                 className="ai-panel__title-button"
                 type="button"
@@ -78,6 +65,8 @@ export function ChatHeader({
               >
                 {title}
               </button>
+            ) : (
+              title
             )}
           </h2>
         </div>
@@ -112,15 +101,6 @@ export function ChatHeader({
           onClick={onOpenBranches}
         >
           <GitBranch size={15} weight="regular" aria-hidden="true" />
-        </button>
-        <button
-          className={activeView === "history" ? "ai-panel__action ai-panel__action--active" : "ai-panel__action"}
-          type="button"
-          aria-label={t("aiPanel.header.history")}
-          title={t("aiPanel.header.history")}
-          onClick={onToggleHistory}
-        >
-          <ClockCounterClockwise size={15} weight="regular" aria-hidden="true" />
         </button>
         <button
           className={activeView === "settings" ? "ai-panel__action ai-panel__action--active" : "ai-panel__action"}

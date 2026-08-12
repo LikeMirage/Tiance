@@ -271,10 +271,7 @@
       "create": {
         "title": "Add Custom Provider",
         "providerName": "Provider name",
-        "providerNamePlaceholder": "e.g. My OpenAI Proxy",
-        "apiBaseUrl": "Full generation API URL",
-        "protocol": "Protocol",
-        "auth": "Auth"
+        "providerNamePlaceholder": "e.g. My OpenAI Proxy"
       },
       "protocol": {
         "openaiCompatible": "OpenAI Chat Completions",

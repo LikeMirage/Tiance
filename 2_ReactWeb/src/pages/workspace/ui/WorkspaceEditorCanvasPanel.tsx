@@ -3,6 +3,7 @@ import { memo, useCallback, useMemo, useState, type ReactNode } from "react";
 import type { Project, ProjectCategory } from "../../../entities/project/model/project";
 import type { ProjectFileReferenceRequest } from "../../../entities/project/model/projectFileDragData";
 import type {
+  CollectionOverviewView,
   WorkspaceLayoutPreferences,
   WorkspaceLayoutPreferenceUpdate,
 } from "../../../entities/workspace/model/workspaceLayoutPreferences";
@@ -19,6 +20,7 @@ import { useWorkspaceDocumentActions } from "../model/useWorkspaceDocumentAction
 import { useWorkspaceEditorReferences } from "../model/useWorkspaceEditorReferences";
 import { ProjectCategoryOverviewKeepAlive } from "./ProjectCategoryOverviewKeepAlive";
 import { ProjectConversationOverviewDashboard } from "../../../features/project-category-overview/ui/ProjectConversationOverviewDashboard";
+import { ProjectOverviewViewTabs } from "../../../features/project-category-overview/ui/ProjectOverviewViewTabs";
 import { CollectionOverviewViewTabs } from "../../../features/project-category-overview/ui/CollectionOverviewViewTabs";
 import { useRoleConfigurationEditor } from "../../../features/role-configuration/model/useRoleConfigurationEditor";
 import { RoleCollectionOverview } from "../../../features/role-configuration/ui/RoleCollectionOverview";
@@ -153,7 +155,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     handleComposerHeightCommit,
     handleGenerateMarkdownDocx,
     handleOpenConversationBranches,
-    handleOpenConversationDataFile,
+    handleOpenConversationDataFile: openConversationDataFile,
     handleOpenReference,
     handlePreviewHtmlCode,
     handleSaveProjectCodeBlock,
@@ -165,6 +167,17 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     onLayoutPreferenceChange,
     projectId,
   });
+  const handleOpenConversationDataFile = useCallback(async (
+    sessionId: string,
+    fileName: Parameters<typeof openConversationDataFile>[1],
+  ) => {
+    if (!projectId) return;
+    if (expandedProjectId !== projectId) {
+      const entered = await onExpandProject(projectId, { sessionId });
+      if (entered === false) return;
+    }
+    openConversationDataFile(sessionId, fileName);
+  }, [expandedProjectId, onExpandProject, openConversationDataFile, projectId]);
 
   const handleRevealOverviewProject = useCallback(async (targetProjectId: string) => {
     await revealProjectFile(targetProjectId, { path: "" });
@@ -198,7 +211,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     );
   }, [handleEnterConversationBranches, projectId, selectedSessionId, visibleChatSession]);
   const handleOpenExternalProjectView = useCallback(async (
-    view: "conversation" | "branches",
+    view: "projects" | "online" | "conversation" | "branches",
   ) => {
     if (
       isRoleWorkspace
@@ -214,10 +227,14 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       if (collapsed === false) return;
     }
     onLayoutPreferenceChange({
-      projectOverviewMaximized: {
-        categoryId: selectedCategoryId,
-        projectId,
-      },
+      ...(view === "conversation" || view === "branches"
+        ? {
+            projectOverviewMaximized: {
+              categoryId: selectedCategoryId,
+              projectId,
+            },
+          }
+        : {}),
       projectOverviewView: {
         categoryId: selectedCategoryId,
         view,
@@ -466,13 +483,15 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       </div>
     </div>
   ) : categoryOverviewContent;
-  const handleOpenCollectionConversationOverview = useCallback(async () => {
+  const handleOpenCollectionOverviewView = useCallback(async (
+    view: CollectionOverviewView,
+  ) => {
     if (!collectionKind || !projectId) return;
     if (expandedProjectId) {
       const collapsed = await onCollapseProject();
       if (collapsed === false) return;
     }
-    handleCollectionOverviewViewChange("conversation", projectId);
+    handleCollectionOverviewViewChange(view, projectId);
   }, [
     collectionKind,
     expandedProjectId,
@@ -480,6 +499,26 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     onCollapseProject,
     projectId,
   ]);
+  const projectConversationOverviewNavigation = selectedCategoryId ? (
+    collectionKind ? (
+      <CollectionOverviewViewTabs
+        activeView="conversation"
+        disabled={false}
+        kind={collectionKind}
+        onChange={(view) => void handleOpenCollectionOverviewView(view)}
+      />
+    ) : (
+      <ProjectOverviewViewTabs
+        activeView="conversation"
+        disabled={false}
+        marketScope={projectMarketScope}
+        onChange={(view) => {
+          if (view === "conversation" || view === "branches") return;
+          void handleOpenExternalProjectView(view);
+        }}
+      />
+    )
+  ) : null;
   const assistantPanel = useMemo(() => (
     <ChatPanel
       activeConversationDataFile={activeConversationDataFile}
@@ -501,7 +540,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       }
       onOpenConversationOverview={
         collectionKind
-          ? () => void handleOpenCollectionConversationOverview()
+          ? () => void handleOpenCollectionOverviewView("conversation")
           : !isRoleWorkspace && !isThemeWorkspace
             && !isProviderWorkspace
           ? () => void handleOpenExternalProjectView("conversation")
@@ -536,7 +575,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     handleComposerHeightCommit,
     handleDraftReferencesChange,
     handleOpenCurrentConversationBranches,
-    handleOpenCollectionConversationOverview,
+    handleOpenCollectionOverviewView,
     handleOpenExternalProjectView,
     handleOpenConversationDataFile,
     handleOpenReference,
@@ -599,6 +638,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       persistentEmptyContent={overviewContent}
       persistentEmptyContentVisible={shouldShowCategoryOverview}
       projectConversationOverviewContent={projectConversationOverviewContent}
+      projectConversationOverviewNavigation={projectConversationOverviewNavigation}
       roleConfigurationContent={roleConfigurationContent}
       themeConfigurationContent={themeConfigurationContent}
       projectRootPath={selectedProject?.root_path ?? ""}

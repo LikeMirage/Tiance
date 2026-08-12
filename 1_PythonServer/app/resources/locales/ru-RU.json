@@ -271,10 +271,7 @@
       "create": {
         "title": "Добавить провайдера",
         "providerName": "Название провайдера",
-        "providerNamePlaceholder": "например, My OpenAI Proxy",
-        "apiBaseUrl": "Полный URL API генерации",
-        "protocol": "Протокол",
-        "auth": "Авторизация"
+        "providerNamePlaceholder": "например, My OpenAI Proxy"
       },
       "protocol": {
         "openaiCompatible": "OpenAI Chat Completions",

@@ -13,6 +13,7 @@ from app.domain.tools import (
 from app.services.tools.tool_registry import ToolRegistryService, get_tool_registry_service
 from app.services.tools.tool_metadata import (
     example_detail,
+    example_enabled,
     example_summary,
     example_title,
     normalize_tool_name,
@@ -54,7 +55,11 @@ class ToolCatalogService:
         tool_name: str,
     ) -> tuple[ToolExampleSummary, ...]:
         metadata = self._find_enabled_metadata(tool_name)
-        return tuple(example_summary(index, example) for index, example in metadata.examples)
+        return tuple(
+            example_summary(index, example)
+            for index, example in metadata.examples
+            if example_enabled(example)
+        )
 
     def get_tool_examples(
         self,
@@ -66,11 +71,19 @@ class ToolCatalogService:
     ) -> tuple[ToolExampleDetail, ...]:
         metadata = self._find_enabled_metadata(tool_name)
         if include_all:
-            return tuple(example_detail(index, example) for index, example in metadata.examples)
+            return tuple(
+                example_detail(index, example)
+                for index, example in metadata.examples
+                if example_enabled(example)
+            )
         if not titles and not indexes:
             raise BadRequestError("必须指定要读取的示例标题、序号，或读取全部示例。")
 
-        examples_by_index = dict(metadata.examples)
+        examples_by_index = {
+            index: example
+            for index, example in metadata.examples
+            if example_enabled(example)
+        }
         selected: list[ToolExampleDetail] = []
         seen_indexes: set[int] = set()
         for index in indexes:
@@ -85,6 +98,8 @@ class ToolCatalogService:
         for title in normalized_titles:
             matched = False
             for index, example in metadata.examples:
+                if not example_enabled(example):
+                    continue
                 if example_title(example) != title:
                     continue
                 matched = True

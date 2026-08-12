@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "opencode",
+  "displayName": "OpenCode Zen",
+  "profileId": "generic",
+  "protocolFamily": "openai_compatible",
+  "generationAuthSchemes": {
+    "openai_compatible": "bearer_token"
+  },
+  "modelDiscoveryStrategy": "openai_models",
+  "modelDiscoveryAuthScheme": "bearer_token",
+  "generationUrls": {
+    "openai_compatible": "https://opencode.ai/zen/go/v1/chat/completions"
+  },
+  "modelDiscoveryUrl": "https://opencode.ai/zen/go/v1/models",
+  "enabled": false,
+  "createdAt": "2026-08-12T01:39:44.798345+00:00",
+  "updatedAt": "2026-08-12T01:39:44.798345+00:00"
+}

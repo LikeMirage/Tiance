@@ -290,10 +290,7 @@
       "create": {
         "title": "Добавить провайдера",
         "providerName": "Название провайдера",
-        "providerNamePlaceholder": "например, My OpenAI Proxy",
-        "apiBaseUrl": "Полный URL API генерации",
-        "protocol": "Протокол",
-        "auth": "Авторизация"
+        "providerNamePlaceholder": "например, My OpenAI Proxy"
       },
       "protocol": {
         "openaiCompatible": "OpenAI Chat Completions",
@@ -305,13 +302,11 @@
     "aiPanel": {
       "header": {
         "noSession": "Сеанс не выбран",
-        "openHistory": "Открыть историю диалогов",
         "backToChat": "Назад к диалогу",
         "actions": "Действия AI-диалога",
         "exportConversation": "Экспорт диалога",
         "branches": "Панель ветвей",
         "conversationOverview": "Обзор диалогов",
-        "history": "История",
         "settings": "Настройки",
         "newConversation": "Новый диалог"
       },
@@ -425,20 +420,6 @@
         "data": "Панели данных",
         "close": "Закрыть настройки сеанса",
         "empty": "Нет настраиваемого сеанса."
-      },
-      "history": {
-        "title": "История проекта",
-        "empty": "В этом проекте нет диалогов.",
-        "messageCount": "{count} сообщений",
-        "noModel": "Модель не привязана",
-        "deleting": "Удаление",
-        "pinFailed": "Не удалось изменить закрепление диалога.",
-        "runtime": {
-          "running": "Выполняется",
-          "error": "Ошибка",
-          "idle": "Ожидание"
-        },
-        "unknownTime": "Время неизвестно"
       },
       "messageList": {
         "loadingSession": "Загрузка сеанса...",
@@ -1396,11 +1377,9 @@
       "renameProvider": "Переименовать {provider}",
       "selectProviderProtocol": "Выбрать протокол поставщика",
       "apiAddress": {
-        "placeholder": "Введите базовый URL; при необходимости дополните endpoint",
+        "placeholder": "Введите полный URL API генерации",
         "title": "API URL",
         "generation": "Полный URL API генерации",
-        "completeEndpoint": "Дополнить endpoint",
-        "completeEndpointTitle": "Дополнить endpoint API генерации для выбранного протокола",
         "generationProtocol": "Протокол API генерации",
         "generationAuth": "Аутентификация генерации",
         "generationTab": "API генерации",

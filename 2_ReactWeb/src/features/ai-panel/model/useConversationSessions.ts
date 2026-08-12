@@ -11,9 +11,7 @@ import type {
   ConversationSessionListResponse,
 } from "../../../entities/llm-chat/model/conversation";
 import { dispatchProjectConversationUpdated } from "../../../entities/llm-chat/model/projectConversationEvents";
-import { deleteProjectConversation } from "../../../services/project/deleteProjectConversation";
 import { getProjectConversations } from "../../../services/project/getProjectConversations";
-import { stopChatCompletionStream } from "../../../services/llm/stopChatCompletionStream";
 import { isNotFoundRequestError } from "./chatPanelRequestErrors";
 import { getCachedProjectEntryWarmup } from "../../project-entry/model/projectEntryWarmup";
 import { buildSessionKey } from "./sessionKey";
@@ -53,10 +51,8 @@ export type SettledConversationDraft = {
 
 type UseConversationSessionsInput = {
   abortProjectStreams: (projectId: string) => void;
-  abortSessionStream: (sessionKey: string) => void;
   activeProjectIdRef: MutableRefObject<string | null>;
   activeSessionIdRef: MutableRefObject<string | null>;
-  deleteSessionMessages: (projectId: string, sessionId: string) => void;
   isActive?: boolean;
   preferredSessionId?: string | null;
   projectId: string | null;
@@ -65,10 +61,8 @@ type UseConversationSessionsInput = {
 
 export function useConversationSessions({
   abortProjectStreams,
-  abortSessionStream,
   activeProjectIdRef,
   activeSessionIdRef,
-  deleteSessionMessages,
   isActive = true,
   preferredSessionId = null,
   projectId,
@@ -85,8 +79,6 @@ export function useConversationSessions({
   const [streamingSessionKeys, setStreamingSessionKeys] = useState<Set<string>>(() => new Set());
   const streamingSessionKeysRef = useRef(streamingSessionKeys);
   streamingSessionKeysRef.current = streamingSessionKeys;
-  const [confirmingDeleteSessionId, setConfirmingDeleteSessionId] = useState<string | null>(null);
-  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const latestDraftRef = useRef({ projectId, activeSessionId, draft });
   const projectSessionSnapshotsRef = useRef(new Map<string, ConversationProjectSessionSnapshot>());
   const reloadSessionsRequestIdsRef = useRef(new Map<string, number>());
@@ -97,7 +89,6 @@ export function useConversationSessions({
   const unavailableProjectIdRef = useRef<string | null>(null);
   const {
     clearProjectDrafts,
-    forgetDraft,
     mergeProtectedDrafts,
     persistSessionState,
     releaseDraftRequest,
@@ -189,7 +180,6 @@ export function useConversationSessions({
     setSessionStates({});
     setSettledDraft(null);
     setDraft("");
-    setConfirmingDeleteSessionId(null);
   }, []);
 
   const markConversationProjectUnavailable = useCallback((pid: string) => {
@@ -365,7 +355,6 @@ export function useConversationSessions({
     if (loadedProjectId === projectId) {
       return;
     }
-    setConfirmingDeleteSessionId(null);
 
     const localSnapshot = projectSessionSnapshotsRef.current.get(projectId);
     if (localSnapshot) {
@@ -633,63 +622,6 @@ export function useConversationSessions({
     return () => window.clearInterval(timer);
   }, [hasRunningSession, isActive, isCurrentProjectLoaded, projectId, reloadSessions]);
 
-  const deleteSession = useCallback(async (sessionId: string) => {
-    if (!projectId || deletingSessionId) return;
-    setDeletingSessionId(sessionId);
-    try {
-      await stopChatCompletionStream(projectId, sessionId);
-      abortSessionStream(buildSessionKey(projectId, sessionId));
-      await deleteProjectConversation(projectId, sessionId);
-      dispatchProjectConversationUpdated({
-        kind: "structure",
-        projectId,
-        sessionId,
-      });
-      reloadSessionsRequestIdsRef.current.set(
-        projectId,
-        (reloadSessionsRequestIdsRef.current.get(projectId) ?? 0) + 1,
-      );
-      const draftRequestSnapshot = snapshotDraftRequest(projectId);
-      try {
-        const response = await getProjectConversations(projectId);
-        if (activeProjectIdRef.current !== projectId) return;
-        forgetDraft(projectId, sessionId);
-        const sessionIds = new Set(response.items.map((session) => session.session_id));
-        const nextActiveSessionId = response.active_session_id && sessionIds.has(response.active_session_id)
-          ? response.active_session_id
-          : response.items[0]?.session_id ?? null;
-        const responseSessionStates = mergeProtectedDrafts(
-          projectId,
-          response.session_states,
-          draftRequestSnapshot,
-        );
-        setSessions(response.items);
-        setBranchNodes(response.branch_nodes ?? []);
-        setMessageVariants(response.message_variants ?? []);
-        setLoadedProjectId(response.project_id);
-        setSessionStates(responseSessionStates);
-        setActiveSessionId(nextActiveSessionId);
-        activeSessionIdRef.current = nextActiveSessionId;
-        setDraft(nextActiveSessionId ? responseSessionStates[nextActiveSessionId]?.draft ?? "" : "");
-      } finally {
-        releaseDraftRequest(projectId, draftRequestSnapshot);
-      }
-      setConfirmingDeleteSessionId(null);
-      deleteSessionMessages(projectId, sessionId);
-    } finally {
-      setDeletingSessionId(null);
-    }
-  }, [
-    abortSessionStream,
-    deleteSessionMessages,
-    deletingSessionId,
-    forgetDraft,
-    mergeProtectedDrafts,
-    projectId,
-    releaseDraftRequest,
-    snapshotDraftRequest,
-  ]);
-
   const applyForkResult = useCallback((response: ConversationForkResponse) => {
     if (!projectId) return;
     setSessions((previous) => [
@@ -720,9 +652,6 @@ export function useConversationSessions({
     activeSessionId: presentedActiveSessionId,
     activeSessionIdRef,
     branchNodes: presentedBranchNodes,
-    confirmingDeleteSessionId,
-    deleteSession,
-    deletingSessionId,
     draft: presentedDraft,
     isLoadingSessions,
     isSessionStreaming,
@@ -740,7 +669,6 @@ export function useConversationSessions({
     sessions: presentedSessions,
     messageVariants: presentedMessageVariants,
     setActiveSessionId,
-    setConfirmingDeleteSessionId,
     setDraft,
     setSessionStates,
     setSessions,

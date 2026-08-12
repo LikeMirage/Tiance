@@ -277,11 +277,17 @@ def _normalize_tool_examples_value(raw_examples: list[object]) -> list[dict[str,
 
         raw_title = item.get("title")
         raw_content = item.get("content")
+        raw_enabled = item.get("enabled")
+        raw_inject_content = item.get("inject_content")
 
         normalized_examples.append(
             {
                 "title": raw_title if isinstance(raw_title, str) else "",
                 "content": raw_content if isinstance(raw_content, str) else "",
+                "enabled": raw_enabled if isinstance(raw_enabled, bool) else True,
+                "inject_content": (
+                    raw_inject_content if isinstance(raw_inject_content, bool) else False
+                ),
             }
         )
     return normalized_examples

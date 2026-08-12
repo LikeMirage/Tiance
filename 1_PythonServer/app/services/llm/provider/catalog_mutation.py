@@ -17,7 +17,6 @@ from app.domain.llm.provider_catalog import (
 )
 from app.domain.llm.provider_endpoint_templates import (
     build_provider_endpoint_template,
-    retarget_generation_url,
 )
 from app.repositories.llm.provider_catalog_repository import (
     ProviderCatalogRepository,
@@ -65,7 +64,12 @@ class ProviderCatalogMutationService:
         model_discovery_url: str | None = None,
     ) -> ProviderCatalogEntry:
         normalized_display_name = display_name.strip()
-        normalized_api_base_url = normalize_provider_api_base_url(api_base_url)
+        raw_api_base_url = api_base_url.strip()
+        normalized_api_base_url = (
+            normalize_provider_api_base_url(raw_api_base_url)
+            if raw_api_base_url
+            else ""
+        )
         normalized_model_discovery_url = (
             normalize_provider_api_base_url(model_discovery_url)
             if model_discovery_url and model_discovery_url.strip()
@@ -141,17 +145,6 @@ class ProviderCatalogMutationService:
         ):
             next_generation_url = endpoint_preset.generation_urls[next_protocol_family]
             generation_urls[next_protocol_family] = next_generation_url
-        if next_generation_url is None and endpoint_preset is None:
-            source_generation_url = generation_urls.get(provider_template.protocol_family)
-            if source_generation_url is not None:
-                retargeted_generation_url = retarget_generation_url(
-                    source_generation_url,
-                    provider_template.protocol_family,
-                    next_protocol_family,
-                )
-                if retargeted_generation_url != source_generation_url:
-                    next_generation_url = retargeted_generation_url
-                    generation_urls[next_protocol_family] = next_generation_url
         if next_generation_url is None:
             next_generation_url = ""
         generation_auth_schemes = dict(provider_template.generation_auth_schemes)

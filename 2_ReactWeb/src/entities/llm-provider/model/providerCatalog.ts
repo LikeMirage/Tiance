@@ -46,12 +46,8 @@ export type ProviderModelDiscoveryStrategy =
   | "gemini_models";
 
 export interface ProviderCatalogCreateRequest {
-  api_base_url: string;
-  model_discovery_url?: string | null;
-  auth_scheme: ProviderAuthScheme;
   display_name: string;
   category_id?: string | null;
-  protocol_family: ProviderProtocolFamily;
 }
 
 export interface ProviderCatalogUpdateRequest {

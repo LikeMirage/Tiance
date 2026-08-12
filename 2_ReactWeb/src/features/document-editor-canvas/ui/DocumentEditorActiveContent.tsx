@@ -177,19 +177,17 @@ export function DocumentEditorActiveContent({
 
   if (isToolDashboard) {
     return (
-      <PreviewMountGate ariaLabel="正在加载看板" gateKey={`${activeTab.id}:tool-dashboard`}>
-        <EditorLazyBoundary resetKey={boundaryKey}>
-          <ToolDashboardContent
-            activeTab={activeTab}
-            toolCallRecordTarget={toolCallRecordTarget}
-            toolDashboardView={toolDashboardView}
-            toolDependencyTarget={toolDependencyTarget}
-            toolEntryCandidates={toolEntryCandidates}
-            onSaveTab={onSaveTab}
-            onUpdateContent={onUpdateContent}
-          />
-        </EditorLazyBoundary>
-      </PreviewMountGate>
+      <EditorLazyBoundary resetKey={boundaryKey}>
+        <ToolDashboardContent
+          activeTab={activeTab}
+          toolCallRecordTarget={toolCallRecordTarget}
+          toolDashboardView={toolDashboardView}
+          toolDependencyTarget={toolDependencyTarget}
+          toolEntryCandidates={toolEntryCandidates}
+          onSaveTab={onSaveTab}
+          onUpdateContent={onUpdateContent}
+        />
+      </EditorLazyBoundary>
     );
   }
 

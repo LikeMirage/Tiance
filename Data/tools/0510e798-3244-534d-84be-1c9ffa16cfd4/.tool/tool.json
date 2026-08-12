@@ -22,7 +22,7 @@
     "Anthropic Web Search"
   ],
   "loading": {
-    "dynamic": false
+    "dynamic": true
   },
   "name": "network_search",
   "runtime": {

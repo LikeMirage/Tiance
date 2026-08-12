@@ -96,7 +96,7 @@ class ProviderModelDiscoveryRequest(BaseModel):
 
 class ProviderCatalogCreateRequest(BaseModel):
     display_name: str
-    api_base_url: str
+    api_base_url: str = ""
     model_discovery_url: str | None = None
     provider_id: str | None = None
     category_id: str | None = None

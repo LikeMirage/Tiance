@@ -9,7 +9,7 @@ const vite = await createServer({
   root: fileURLToPath(new URL("../", import.meta.url)),
   server: { middlewareMode: true },
 });
-const { parseThemeWorkspaceEvent } = await vite.ssrLoadModule(
+const { parseThemeWorkspaceEvent, shouldRefreshThemeWorkspace } = await vite.ssrLoadModule(
   "/src/services/theme/watchThemeWorkspaceEvents.ts",
 );
 
@@ -29,4 +29,14 @@ test("主题工作区事件只接受稳定的 ready 和 changed 合同", () => {
   assert.equal(parseThemeWorkspaceEvent('{"kind":"changed","paths":[1]}'), null);
   assert.equal(parseThemeWorkspaceEvent('{"kind":"unknown"}'), null);
   assert.equal(parseThemeWorkspaceEvent("not-json"), null);
+});
+
+test("切换主题产生的设置文件事件不重复刷新主题", () => {
+  assert.equal(shouldRefreshThemeWorkspace(["theme-settings.json"]), false);
+  assert.equal(shouldRefreshThemeWorkspace(["catalog.json"]), true);
+  assert.equal(
+    shouldRefreshThemeWorkspace(["theme-settings.json", "winter-snow/theme.json"]),
+    true,
+  );
+  assert.equal(shouldRefreshThemeWorkspace([]), true);
 });

@@ -138,6 +138,7 @@ export const ToolsetOverview = memo(function ToolsetOverview({
             const isDynamic = effectiveDynamic === true;
             const canToggleDynamic = !readonly && stats?.dynamic != null;
             const isUpdatingDynamic = updatingDynamicFolderId === folder.project_id;
+            const injectionMetric = getInjectionMetric(displayStats);
             return (
               <article
                 className={
@@ -186,7 +187,11 @@ export const ToolsetOverview = memo(function ToolsetOverview({
                 </header>
 
                 <div className="toolset-overview__metrics" aria-label={`${folder.name} 调用统计`}>
-                  <Metric label="字符数" value={formatInjectionChars(displayStats)} />
+                  <Metric
+                    detail={injectionMetric.detail}
+                    label="注入字符"
+                    value={injectionMetric.value}
+                  />
                   <Metric label="成功率" value={formatSuccessRate(stats)} />
                   <Metric label="平均耗时" value={formatElapsed(stats?.average_elapsed_ms ?? null)} />
                 </div>
@@ -230,11 +235,22 @@ export const ToolsetOverview = memo(function ToolsetOverview({
   );
 });
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({
+  detail,
+  label,
+  value,
+}: {
+  detail?: string;
+  label: string;
+  value: string;
+}) {
   return (
     <span className="toolset-overview__metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
+      <span className="toolset-overview__metric-label">{label}</span>
+      <span className="toolset-overview__metric-value">
+        <strong>{value}</strong>
+        {detail ? <small>{detail}</small> : null}
+      </span>
     </span>
   );
 }
@@ -255,13 +271,11 @@ function formatSuccessRate(stats: ToolCallRecordSummaryItem | null) {
   return formatPercent((stats?.success_count ?? 0) / count);
 }
 
-function formatInjectionChars(stats: ToolCallRecordSummaryItem | null) {
-  if (!stats) return "-";
-  const fullCount = formatInteger(stats.full_injection_char_count);
-  const dynamicCount = formatInteger(stats.dynamic_injection_char_count);
+function getInjectionMetric(stats: ToolCallRecordSummaryItem | null) {
+  if (!stats) return { detail: undefined, value: "-" };
   return stats.dynamic === true
-    ? `动态 ${dynamicCount}`
-    : `全量 ${fullCount}`;
+    ? { detail: "动态", value: formatInteger(stats.dynamic_injection_char_count) }
+    : { detail: "全量", value: formatInteger(stats.full_injection_char_count) };
 }
 
 function formatElapsed(value: number | null) {

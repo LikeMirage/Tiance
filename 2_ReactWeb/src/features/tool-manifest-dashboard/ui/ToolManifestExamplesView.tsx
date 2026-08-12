@@ -7,6 +7,8 @@ import { ConfirmDialog, Field } from "./ToolManifestFields";
 
 type EditableToolExample = {
   content: string;
+  enabled: boolean;
+  injectContent: boolean;
   title: string;
 };
 
@@ -138,16 +140,49 @@ function EditableExampleItem({
             <span>场景 {index + 1}</span>
           </span>
         </button>
-        {onDelete ? (
+        <div className="tool-dashboard__example-actions">
           <button
-            aria-label={`删除 ${title}`}
-            className="tool-dashboard__example-delete-button"
+            className={[
+              "tool-dashboard__dynamic-toggle",
+              example.enabled ? "tool-dashboard__dynamic-toggle--on" : "",
+            ].filter(Boolean).join(" ")}
             type="button"
-            onClick={onDelete}
+            role="switch"
+            aria-checked={example.enabled}
+            onClick={() => onExampleChange((draft) => {
+              draft.enabled = !draft.enabled;
+            })}
           >
-            <Trash size={15} weight="bold" aria-hidden="true" />
+            <span>启用案例</span>
+            <i aria-hidden="true" />
           </button>
-        ) : null}
+          <button
+            className={[
+              "tool-dashboard__dynamic-toggle",
+              example.injectContent ? "tool-dashboard__dynamic-toggle--on" : "",
+            ].filter(Boolean).join(" ")}
+            disabled={!example.enabled}
+            type="button"
+            role="switch"
+            aria-checked={example.injectContent}
+            onClick={() => onExampleChange((draft) => {
+              draft.injectContent = !draft.injectContent;
+            })}
+          >
+            <span>正文注入</span>
+            <i aria-hidden="true" />
+          </button>
+          {onDelete ? (
+            <button
+              aria-label={`删除 ${title}`}
+              className="tool-dashboard__example-delete-button"
+              type="button"
+              onClick={onDelete}
+            >
+              <Trash size={15} weight="bold" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {isExpanded ? (
@@ -188,6 +223,8 @@ function normalizeToolExample(value: unknown): EditableToolExample | null {
   return {
     title: asString(payload.title),
     content: asString(payload.content),
+    enabled: typeof payload.enabled === "boolean" ? payload.enabled : true,
+    injectContent: typeof payload.inject_content === "boolean" ? payload.inject_content : false,
   };
 }
 
@@ -195,6 +232,8 @@ function buildEmptyExample(): EditableToolExample {
   return {
     title: "新应用场景",
     content: "",
+    enabled: true,
+    injectContent: false,
   };
 }
 
@@ -202,6 +241,8 @@ function serializeToolExamples(examples: EditableToolExample[]) {
   return examples.map((example) => ({
     title: example.title,
     content: example.content,
+    enabled: example.enabled,
+    inject_content: example.injectContent,
   }));
 }
 

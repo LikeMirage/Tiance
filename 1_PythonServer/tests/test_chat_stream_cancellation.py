@@ -840,9 +840,11 @@ def test_stream_feeds_generic_tool_image_after_all_tool_results():
         tool_execution_service=_RichToolExecutionService(),
         project_service=_FakeProjectService(),
         runtime_capabilities_service=_FakeRuntimeCapabilitiesService(),
+        attachment_service=_PassthroughAttachmentService(),
     )
     request = replace(
         _request(),
+        project_id="00000000-0000-0000-0000-000000000001",
         provider_id="provider-1",
         model_id="model-1",
         tools=(
@@ -2731,6 +2733,11 @@ class _FakeRuntimeCapabilitiesService:
         assert provider_id == "provider-1"
         assert model_id == "model-1"
         return SimpleNamespace(input_modalities=("text", "image"))
+
+
+class _PassthroughAttachmentService:
+    def snapshot_image_ref(self, _project_id, _session_id, image_ref, **_kwargs):
+        return image_ref
 
 
 class _BlockingToolExecutionService(_FakeToolExecutionService):

@@ -179,7 +179,7 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     handleComposerHeightCommit,
     handleGenerateMarkdownDocx,
     handleOpenConversationBranches,
-    handleOpenConversationDataFile,
+    handleOpenConversationDataFile: openConversationDataFile,
     handleOpenReference,
     handlePreviewHtmlCode,
     handleSaveProjectCodeBlock,
@@ -191,6 +191,17 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     onLayoutPreferenceChange,
     projectId,
   });
+  const handleOpenConversationDataFile = useCallback((
+    sessionId: string,
+    fileName: Parameters<typeof openConversationDataFile>[1],
+  ) => {
+    if (!projectId) return;
+    if (expandedToolFolder?.project_id !== projectId) {
+      const entered = handleExpandToolProject(projectId);
+      if (!entered) return;
+    }
+    openConversationDataFile(sessionId, fileName);
+  }, [expandedToolFolder?.project_id, handleExpandToolProject, openConversationDataFile, projectId]);
   const handleSaveTab = useCallback(async (id: string, contentSnapshot?: string) => {
     const tab = documentTabs.tabs.find((item) => item.id === id) ?? null;
     const didSave = await documentTabs.saveTab(id, contentSnapshot);

@@ -10,13 +10,6 @@ from app.domain.llm.provider_catalog import ProviderEndpointTemplate, ProviderPr
 
 _API_VERSION_SEGMENT = re.compile(r"^v\d+(?:beta|alpha)?$", re.IGNORECASE)
 
-_DEFAULT_API_VERSION_BY_PROTOCOL = {
-    ProviderProtocolFamily.OPENAI_RESPONSES.value: "v1",
-    ProviderProtocolFamily.ANTHROPIC_MESSAGES.value: "v1",
-    ProviderProtocolFamily.GEMINI_GENERATE_CONTENT.value: "v1beta",
-}
-
-
 def build_provider_endpoint_template(
     *,
     api_base_url: str,
@@ -86,102 +79,12 @@ def derive_model_discovery_url(
     return urlunsplit((parsed.scheme, parsed.netloc, model_path, "", ""))
 
 
-def upgrade_unambiguous_legacy_generation_url(
-    api_base_url: str,
-    protocol_family: ProviderProtocolFamily | str,
-) -> str:
-    """Upgrade old host/version base URLs without guessing custom endpoint paths."""
-
-    parsed = urlsplit(api_base_url.strip())
-    if not parsed.scheme or not parsed.netloc:
-        return api_base_url
-
-    segments = [segment for segment in parsed.path.split("/") if segment]
-    if _generation_protocol_for_segments(segments) is not None:
-        return api_base_url.strip()
-    if segments and not _API_VERSION_SEGMENT.fullmatch(segments[-1]):
-        return api_base_url.strip()
-
-    protocol_value = _protocol_value(protocol_family)
-    if protocol_value == ProviderProtocolFamily.OPENAI_COMPATIBLE.value:
-        return _generation_url(parsed, segments, protocol_value)
-    if protocol_value not in _DEFAULT_API_VERSION_BY_PROTOCOL:
-        return api_base_url.strip()
-    if not segments:
-        segments.append(_DEFAULT_API_VERSION_BY_PROTOCOL[protocol_value])
-    return _generation_url(parsed, segments, protocol_value)
-
-
-def retarget_generation_url(
-    generation_url: str,
-    source_protocol: ProviderProtocolFamily | str,
-    target_protocol: ProviderProtocolFamily | str,
-) -> str:
-    """Retarget recognized generation endpoints when the user changes protocol."""
-
-    source_value = _protocol_value(source_protocol)
-    target_value = _protocol_value(target_protocol)
-    normalized_url = generation_url.strip()
-    if source_value == target_value:
-        return normalized_url
-
-    parsed = urlsplit(normalized_url)
-    if not parsed.scheme or not parsed.netloc:
-        return normalized_url
-    segments = [segment for segment in parsed.path.split("/") if segment]
-    matched_protocol = _generation_protocol_for_segments(segments)
-    if matched_protocol is None:
-        return upgrade_unambiguous_legacy_generation_url(normalized_url, target_value)
-    if matched_protocol != source_value:
-        return normalized_url
-
-    base_segments = _remove_generation_suffix(segments, source_value)
-    return _generation_url(parsed, base_segments, target_value)
-
-
 def _is_gemini_generation_template(segments: list[str]) -> bool:
     return (
         len(segments) >= 2
         and segments[-2] == "models"
         and "{model}" in segments[-1]
     )
-
-
-def _generation_protocol_for_segments(segments: list[str]) -> str | None:
-    if len(segments) >= 2 and segments[-2:] == ["chat", "completions"]:
-        return ProviderProtocolFamily.OPENAI_COMPATIBLE.value
-    if segments and segments[-1] == "responses":
-        return ProviderProtocolFamily.OPENAI_RESPONSES.value
-    if segments and segments[-1] == "messages":
-        return ProviderProtocolFamily.ANTHROPIC_MESSAGES.value
-    if _is_gemini_generation_template(segments):
-        return ProviderProtocolFamily.GEMINI_GENERATE_CONTENT.value
-    return None
-
-
-def _remove_generation_suffix(segments: list[str], protocol_value: str) -> list[str]:
-    if protocol_value in {
-        ProviderProtocolFamily.OPENAI_COMPATIBLE.value,
-        ProviderProtocolFamily.GEMINI_GENERATE_CONTENT.value,
-    }:
-        return segments[:-2]
-    return segments[:-1]
-
-
-def _generation_url(parsed, base_segments: list[str], protocol_value: str) -> str:
-    if protocol_value == ProviderProtocolFamily.OPENAI_COMPATIBLE.value:
-        generation_segments = [*base_segments, "chat", "completions"]
-    elif protocol_value == ProviderProtocolFamily.OPENAI_RESPONSES.value:
-        generation_segments = [*base_segments, "responses"]
-    elif protocol_value == ProviderProtocolFamily.ANTHROPIC_MESSAGES.value:
-        generation_segments = [*base_segments, "messages"]
-    elif protocol_value == ProviderProtocolFamily.GEMINI_GENERATE_CONTENT.value:
-        generation_segments = [*base_segments, "models", "{model}:{action}"]
-    else:
-        return urlunsplit(parsed)
-
-    generation_path = f"/{'/'.join(generation_segments)}"
-    return urlunsplit((parsed.scheme, parsed.netloc, generation_path, "", ""))
 
 
 def _protocol_value(protocol_family: ProviderProtocolFamily | str) -> str:

@@ -274,6 +274,7 @@ def _kill_process_tree(process: subprocess.Popen[bytes]) -> None:
             completed = subprocess.run(
                 ["taskkill", "/PID", str(process.pid), "/T", "/F"],
                 capture_output=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 timeout=5,
             )
             if completed.returncode == 0:

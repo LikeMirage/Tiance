@@ -59,6 +59,7 @@ class ToolParameterDetailResponse(BaseModel):
 class ToolExampleSummaryResponse(BaseModel):
     index: int
     title: str
+    inject_content: bool = False
 
     @classmethod
     def from_domain(
@@ -68,6 +69,7 @@ class ToolExampleSummaryResponse(BaseModel):
         return cls(
             index=summary.index,
             title=summary.title,
+            inject_content=summary.inject_content,
         )
 
 
@@ -87,6 +89,7 @@ class ToolExampleDetailResponse(BaseModel):
     index: int
     title: str
     content: str
+    inject_content: bool = False
 
     @classmethod
     def from_domain(cls, detail: ToolExampleDetail) -> "ToolExampleDetailResponse":
@@ -94,6 +97,7 @@ class ToolExampleDetailResponse(BaseModel):
             index=detail.index,
             title=detail.title,
             content=detail.content,
+            inject_content=detail.inject_content,
         )
 
 

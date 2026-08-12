@@ -1,0 +1,39 @@
+{
+  "description": "无需 API Key，默认使用百度，也可指定 Bing、DuckDuckGo 或搜狗。工具把完整查询原样提交给所选引擎，不自行分词、改写、比较或切换。支持批量搜索与批量具体网址保存；search 模式只保存搜索标题、链接和摘要，content 模式还会访问搜索结果并提取正文。工具响应只返回引擎、统计、字符数、状态和文件路径，不返回网页正文。",
+  "display_name": "免费网络搜索",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "免费网络搜索",
+    "Bing",
+    "DuckDuckGo",
+    "百度",
+    "搜狗",
+    "批量搜索",
+    "网页读取",
+    "网址保存",
+    "实时信息"
+  ],
+  "loading": {
+    "dynamic": true
+  },
+  "name": "free_web_search",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 900,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

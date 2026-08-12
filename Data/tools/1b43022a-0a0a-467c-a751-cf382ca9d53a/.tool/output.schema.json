@@ -1,0 +1,31 @@
+{
+  "additionalProperties": true,
+  "description": "成功时返回实际使用的搜索引擎、批次目录、索引与清单路径、查询统计、网址统计及每篇正文字符数，不返回网页正文。完整搜索结果和正文保存在当前工作区 web_searches 目录。失败时返回 ok=false、稳定错误码和明确原因。",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

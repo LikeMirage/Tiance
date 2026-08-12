@@ -56,6 +56,8 @@ export type JsonSchemaProperty = {
 
 export type ToolManifestExample = {
   content?: unknown;
+  enabled?: unknown;
+  inject_content?: unknown;
   title?: unknown;
 };
 

@@ -5,10 +5,6 @@ import { useI18n } from "../../../shared/i18n";
 import { OptionSelect } from "../../../shared/ui/option-select/OptionSelect";
 import type { UseProviderConfigStateResult } from "../model/useProviderConfigState";
 import {
-  completeProviderGenerationUrl,
-  completeProviderModelDiscoveryUrl,
-} from "../model/completeProviderGenerationUrl";
-import {
   PROVIDER_AUTH_SCHEME_OPTIONS,
   PROVIDER_MODEL_DISCOVERY_STRATEGY_OPTIONS,
   PROVIDER_PROTOCOL_FAMILY_OPTIONS,
@@ -174,25 +170,6 @@ export function ProviderApiBaseUrlSection({
   selectedProviderDraft,
 }: ProviderApiBaseUrlSectionProps) {
   const { t } = useI18n();
-  const completedApiBaseUrl = completeProviderGenerationUrl(
-    selectedProviderDraft.apiBaseUrl,
-    protocolFamily,
-    selectedProviderDraft.presetApiBaseUrl,
-  );
-  const canCompleteApiBaseUrl =
-    completedApiBaseUrl.length > 0
-    && completedApiBaseUrl !== selectedProviderDraft.apiBaseUrl.trim();
-  const completedModelDiscoveryUrl = completeProviderModelDiscoveryUrl(
-    completedApiBaseUrl,
-    protocolFamily,
-    selectedProviderDraft.presetModelDiscoveryUrl,
-  );
-  const shouldCompleteModelDiscoveryUrl =
-    selectedProviderDraft.modelDiscoveryUrl.trim().length === 0
-    || selectedProviderDraft.modelDiscoveryUrl === selectedProviderDraft.presetModelDiscoveryUrl;
-  const canCompleteModelDiscoveryUrl =
-    completedModelDiscoveryUrl.length > 0
-    && completedModelDiscoveryUrl !== selectedProviderDraft.modelDiscoveryUrl.trim();
   const [activeConfigMode, setActiveConfigMode] =
     useState<ApiAddressConfigMode>("generation");
   const protocolFamilyOptions = PROVIDER_PROTOCOL_FAMILY_OPTIONS.map((option) => ({
@@ -275,22 +252,17 @@ export function ProviderApiBaseUrlSection({
           <div className="provider-canvas__canvas-input-shell">
             <input
               id="provider-generation-api-url"
-              className="provider-canvas__canvas-input provider-canvas__canvas-input--with-button"
+              className={
+                providerConfigState.isSelectedApiBaseUrlDirty
+                  ? "provider-canvas__canvas-input provider-canvas__canvas-input--with-button"
+                  : "provider-canvas__canvas-input"
+              }
               type="text"
               autoComplete="off"
               aria-label={`${providerDisplayName} API Base URL`}
               value={selectedProviderDraft.apiBaseUrl}
               placeholder={t("providerCanvas.apiAddress.placeholder")}
               onBlur={() => {
-                if (canCompleteApiBaseUrl || (shouldCompleteModelDiscoveryUrl && canCompleteModelDiscoveryUrl)) {
-                  providerConfigState.updateSelectedApiEndpoints(
-                    canCompleteApiBaseUrl ? completedApiBaseUrl : selectedProviderDraft.apiBaseUrl,
-                    shouldCompleteModelDiscoveryUrl && canCompleteModelDiscoveryUrl
-                      ? completedModelDiscoveryUrl
-                      : selectedProviderDraft.modelDiscoveryUrl,
-                  );
-                  return;
-                }
                 void providerConfigState.saveSelectedProviderConfig();
               }}
               onChange={(event) =>
@@ -299,11 +271,7 @@ export function ProviderApiBaseUrlSection({
             />
             {providerConfigState.isSelectedApiBaseUrlDirty ? (
               <button
-                className={
-                  providerConfigState.isSelectedApiBaseUrlDirty && canCompleteApiBaseUrl
-                    ? "provider-canvas__canvas-input-action provider-canvas__canvas-input-action--leading"
-                    : "provider-canvas__canvas-input-action"
-                }
+                className="provider-canvas__canvas-input-action"
                 type="button"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={providerConfigState.resetSelectedApiBaseUrl}
@@ -311,24 +279,6 @@ export function ProviderApiBaseUrlSection({
                 {t("common.actions.reset")}
               </button>
             ) : null}
-            <button
-              className="provider-canvas__canvas-input-action provider-canvas__canvas-input-action--endpoint"
-              type="button"
-              disabled={!canCompleteApiBaseUrl}
-              title={t("providerCanvas.apiAddress.completeEndpointTitle")}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                if (!canCompleteApiBaseUrl) return;
-                providerConfigState.updateSelectedApiEndpoints(
-                  completedApiBaseUrl,
-                  shouldCompleteModelDiscoveryUrl
-                    ? completedModelDiscoveryUrl
-                    : selectedProviderDraft.modelDiscoveryUrl,
-                );
-              }}
-            >
-              {t("providerCanvas.apiAddress.completeEndpoint")}
-            </button>
           </div>
 
           <label className="provider-canvas__canvas-field-label">
@@ -372,7 +322,7 @@ export function ProviderApiBaseUrlSection({
             <input
               id="provider-model-discovery-url"
               className={
-                providerConfigState.isSelectedModelDiscoveryUrlDirty || canCompleteModelDiscoveryUrl
+                providerConfigState.isSelectedModelDiscoveryUrlDirty
                   ? "provider-canvas__canvas-input provider-canvas__canvas-input--with-button"
                   : "provider-canvas__canvas-input"
               }
@@ -390,32 +340,12 @@ export function ProviderApiBaseUrlSection({
             />
             {providerConfigState.isSelectedModelDiscoveryUrlDirty ? (
               <button
-                className={
-                  canCompleteModelDiscoveryUrl
-                    ? "provider-canvas__canvas-input-action provider-canvas__canvas-input-action--leading"
-                    : "provider-canvas__canvas-input-action"
-                }
+                className="provider-canvas__canvas-input-action"
                 type="button"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={providerConfigState.resetSelectedModelDiscoveryUrl}
               >
                 {t("common.actions.reset")}
-              </button>
-            ) : null}
-            {canCompleteModelDiscoveryUrl ? (
-              <button
-                className="provider-canvas__canvas-input-action provider-canvas__canvas-input-action--endpoint"
-                type="button"
-                title={t("providerCanvas.apiAddress.completeEndpointTitle")}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  providerConfigState.updateSelectedApiEndpoints(
-                    selectedProviderDraft.apiBaseUrl,
-                    completedModelDiscoveryUrl,
-                  );
-                }}
-              >
-                {t("providerCanvas.apiAddress.completeEndpoint")}
               </button>
             ) : null}
           </div>

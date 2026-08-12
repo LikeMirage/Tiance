@@ -54,13 +54,25 @@
   background: transparent;
 }
 
+.tool-dashboard__example-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 10px;
+}
+
+.tool-dashboard__example-actions .tool-dashboard__dynamic-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .tool-dashboard__example-delete-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
-  margin-right: 10px;
+  margin-right: 0;
   border: 0;
   background: transparent;
   color: var(--color-danger);

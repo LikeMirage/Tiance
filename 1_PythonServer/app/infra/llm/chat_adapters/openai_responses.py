@@ -23,7 +23,7 @@ from app.infra.llm.chat_adapters.common import (
 )
 from app.infra.llm.chat_adapters.openai_responses_parsing import (
     _extract_provider_output_items,
-    _extract_responses_reasoning_summary,
+    _extract_responses_reasoning_text,
     _extract_responses_text,
     _extract_responses_tool_calls,
     _output_item_identity,
@@ -72,7 +72,7 @@ class OpenAIResponsesChatAdapter:
                 code="upstream_response_incomplete",
             )
         text = _extract_responses_text(payload)
-        reasoning_summary = _extract_responses_reasoning_summary(payload)
+        reasoning_text = _extract_responses_reasoning_text(payload)
         return ChatCompletionResult(
             provider_id=request.provider_id,
             model_id=request.model_id,
@@ -80,10 +80,10 @@ class OpenAIResponsesChatAdapter:
                 role=ChatMessageRole.ASSISTANT,
                 content=text,
                 tool_calls=_extract_responses_tool_calls(payload),
-                thinking_content=reasoning_summary,
+                thinking_content=reasoning_text,
                 provider_output_items=_extract_provider_output_items(payload),
             ),
-            thinking_content=reasoning_summary,
+            thinking_content=reasoning_text,
             finish_reason=_optional_str(payload.get("status")),
             usage=_parse_responses_usage(payload.get("usage")),
             raw_response=payload,
@@ -103,7 +103,8 @@ class OpenAIResponsesChatAdapter:
         emitted_tool_call_ids: set[str] = set()
         emitted_provider_output_item_ids: set[str] = set()
         did_emit_text_delta = False
-        did_emit_reasoning_summary_delta = False
+        did_emit_reasoning_delta = False
+        reasoning_delta_event_type: str | None = None
         did_emit_done = False
         async for payload in _iter_sse_payloads(
             stream_body(
@@ -136,11 +137,15 @@ class OpenAIResponsesChatAdapter:
                     kind=ChatStreamEventKind.DELTA,
                     content=str(payload["delta"]),
                 )
-            elif (
-                event_type == "response.reasoning_summary_text.delta"
-                and payload.get("delta")
-            ):
-                did_emit_reasoning_summary_delta = True
+            elif event_type in {
+                "response.reasoning_text.delta",
+                "response.reasoning_summary_text.delta",
+            } and payload.get("delta"):
+                if reasoning_delta_event_type is None:
+                    reasoning_delta_event_type = event_type
+                if reasoning_delta_event_type != event_type:
+                    continue
+                did_emit_reasoning_delta = True
                 yield ChatStreamEvent(
                     kind=ChatStreamEventKind.THINKING_DELTA,
                     content=str(payload["delta"]),
@@ -210,14 +215,14 @@ class OpenAIResponsesChatAdapter:
                                 content=completed_text,
                             )
                             did_emit_text_delta = True
-                    if not did_emit_reasoning_summary_delta:
-                        summary = _extract_responses_reasoning_summary(response)
-                        if summary:
+                    if not did_emit_reasoning_delta:
+                        reasoning_text = _extract_responses_reasoning_text(response)
+                        if reasoning_text:
                             yield ChatStreamEvent(
                                 kind=ChatStreamEventKind.THINKING_DELTA,
-                                content=summary,
+                                content=reasoning_text,
                             )
-                            did_emit_reasoning_summary_delta = True
+                            did_emit_reasoning_delta = True
                     if request.tools:
                         for provider_output_item in _extract_provider_output_items(response):
                             identity = _output_item_identity(provider_output_item)

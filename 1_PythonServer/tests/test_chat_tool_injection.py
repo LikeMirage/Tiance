@@ -6,8 +6,9 @@ from app.domain.llm.chat import (
     ChatMessageRole,
     ChatToolDefinition,
 )
-from app.domain.tools import ToolParameterDetail, ToolSummary
+from app.domain.tools import ToolExampleDetail, ToolParameterDetail, ToolSummary
 from app.services.tools.chat_tool_injection import ChatToolInjectionService
+from app.services.tools.tool_metadata import standard_tool_description
 
 
 def test_chat_tool_injection_builds_all_catalog_tools_without_session_allowlist():
@@ -23,6 +24,47 @@ def test_chat_tool_injection_builds_all_catalog_tools_without_session_allowlist(
     ]
     assert tools[0].parameters["required"] == ["file_path"]
     assert tools[1].parameters["properties"]["mode"]["enum"] == ["summary", "tree", "find"]
+
+
+def test_standard_tool_description_includes_example_titles_without_content_by_default():
+    service = ChatToolInjectionService(_FakeCatalog())
+
+    tools = service.build_chat_tools(enabled_tool_names=("read_text_file",))
+
+    assert len(tools) == 1
+    assert tools[0].description == (
+        "读取本地纯文本文件。\n\n"
+        "应用示例：\n"
+        "1. 读取全文"
+    )
+
+
+def test_standard_tool_description_includes_only_explicitly_enabled_content():
+    description = standard_tool_description(
+        "执行工具。",
+        (
+            ToolExampleDetail(
+                index=1,
+                title="只显示标题",
+                content="不应注入",
+                inject_content=False,
+            ),
+            ToolExampleDetail(
+                index=2,
+                title="注入正文",
+                content='{"mode":"full"}',
+                inject_content=True,
+            ),
+        ),
+    )
+
+    assert description == (
+        "执行工具。\n\n"
+        "应用示例：\n"
+        "1. 只显示标题\n"
+        "2. 注入正文\n"
+        '{"mode":"full"}'
+    )
 
 
 def test_chat_tool_injection_filters_by_session_enabled_names():
@@ -80,15 +122,24 @@ def test_chat_tool_injection_inserts_dynamic_tool_directory_for_dynamic_tools():
     ]
     assert injected.messages[0].role == ChatMessageRole.SYSTEM
     assert "【动态加载工具目录】" in injected.messages[0].content
-    assert "参数名只用于判断工具是否可能相关" in injected.messages[0].content
+    assert "轻量目录不包含参数结构" in injected.messages[0].content
     assert "load_tool_info，operation=get_parameters" in injected.messages[0].content
     assert "调用 execute_dynamic_tool" in injected.messages[0].content
     assert "arguments 填目标工具的真实参数对象" in injected.messages[0].content
     assert "直接调用目标工具名" not in injected.messages[0].content
     assert "operation=execute" not in injected.messages[0].content
     assert "工具：parse_document" in injected.messages[0].content
-    assert "参数名：file_path" in injected.messages[0].content
+    assert "参数名：" not in injected.messages[0].content
     assert "1. 解析 PDF" in injected.messages[0].content
+
+
+def test_dynamic_tool_directory_includes_only_explicitly_enabled_example_content():
+    service = ChatToolInjectionService(_FakeCatalog())
+
+    prompt = service.build_dynamic_tool_directory(enabled_tool_names=("parse_document",))
+
+    assert "1. 解析 PDF" in prompt
+    assert '{"file_path":"document.pdf"}' in prompt
 
 
 def test_chat_tool_injection_keeps_dynamic_directory_after_existing_system_messages():
@@ -252,3 +303,24 @@ class _FakeCatalog:
                 },
             },
         )
+
+    def get_tool_examples(self, tool_name: str, *, include_all: bool = False):
+        assert include_all is True
+        if tool_name == "read_text_file":
+            return (
+                ToolExampleDetail(
+                    index=1,
+                    title="读取全文",
+                    content='{"file_path":"notes.md"}',
+                ),
+            )
+        if tool_name == "parse_document":
+            return (
+                ToolExampleDetail(
+                    index=1,
+                    title="解析 PDF",
+                    content='{"file_path":"document.pdf"}',
+                    inject_content=True,
+                ),
+            )
+        return ()

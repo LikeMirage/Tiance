@@ -4,6 +4,7 @@ import {
   getActiveThemeWithTimeout,
   listThemes,
   setActiveTheme,
+  shouldRefreshThemeWorkspace,
   watchThemeWorkspaceEvents,
 } from "../../services/theme";
 import {
@@ -99,7 +100,8 @@ export function useAppTheme({
     if (detail.reason === "theme_workspace") loadThemeList();
   }), [loadThemeList, refreshActiveTheme]);
 
-  useEffect(() => watchThemeWorkspaceEvents(() => {
+  useEffect(() => watchThemeWorkspaceEvents((paths) => {
+    if (!shouldRefreshThemeWorkspace(paths)) return;
     requestAppThemeRefresh({ reason: "theme_workspace" });
   }), []);
 

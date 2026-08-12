@@ -12,8 +12,6 @@ from app.domain.llm.provider_catalog import (
 )
 from app.domain.llm.provider_endpoint_templates import (
     derive_model_discovery_url,
-    retarget_generation_url,
-    upgrade_unambiguous_legacy_generation_url,
 )
 from app.repositories.llm.provider_file_store import (
     PROVIDER_MANIFEST_FILE,
@@ -27,8 +25,6 @@ from app.services.llm.provider.preset_endpoint_defaults import (
 
 _MODEL_DISCOVERY_URL_AUTOFILL_VERSION = 1
 _MODEL_DISCOVERY_URL_AUTOFILL_VERSION_KEY = "modelDiscoveryUrlAutofillVersion"
-_GENERATION_URL_CONTRACT_VERSION = 1
-_GENERATION_URL_CONTRACT_VERSION_KEY = "generationUrlContractVersion"
 _GENERATION_URL_STORAGE_VERSION = 1
 _GENERATION_URL_STORAGE_VERSION_KEY = "generationUrlStorageVersion"
 _PRESET_GENERATION_URL_DEFAULTS_VERSION = 2
@@ -45,7 +41,6 @@ def provider_endpoint_storage_version_fields() -> dict[str, int]:
         _MODEL_DISCOVERY_URL_AUTOFILL_VERSION_KEY: (
             _MODEL_DISCOVERY_URL_AUTOFILL_VERSION
         ),
-        _GENERATION_URL_CONTRACT_VERSION_KEY: _GENERATION_URL_CONTRACT_VERSION,
         _GENERATION_URL_STORAGE_VERSION_KEY: _GENERATION_URL_STORAGE_VERSION,
         _PRESET_GENERATION_URL_DEFAULTS_VERSION_KEY: (
             _PRESET_GENERATION_URL_DEFAULTS_VERSION
@@ -61,13 +56,7 @@ def initialize_provider_manifest_endpoints(
     preset_manifest: dict[str, Any] | None,
     updated_at: str,
 ) -> None:
-    _upgrade_generation_url(
-        manifest,
-        preset_manifest=preset_manifest,
-        updated_at=updated_at,
-    )
     _migrate_generation_url_storage(manifest, updated_at=updated_at)
-    _repair_missing_active_protocol_generation_url(manifest, updated_at=updated_at)
     _fill_model_discovery_url(manifest, updated_at=updated_at)
     _fill_model_discovery_strategy(
         manifest,
@@ -93,11 +82,6 @@ def migrate_provider_endpoint_storage(
         _MODEL_DISCOVERY_URL_AUTOFILL_VERSION_KEY,
         _MODEL_DISCOVERY_URL_AUTOFILL_VERSION,
     )
-    generation_urls_current = _version_is_current(
-        settings,
-        _GENERATION_URL_CONTRACT_VERSION_KEY,
-        _GENERATION_URL_CONTRACT_VERSION,
-    )
     generation_url_storage_current = _version_is_current(
         settings,
         _GENERATION_URL_STORAGE_VERSION_KEY,
@@ -120,7 +104,6 @@ def migrate_provider_endpoint_storage(
     )
     all_versions_current = (
         model_urls_current
-        and generation_urls_current
         and generation_url_storage_current
         and preset_generation_url_defaults_current
         and model_discovery_strategy_current
@@ -132,21 +115,11 @@ def migrate_provider_endpoint_storage(
         if manifest is None:
             continue
         changed = False
-        if not generation_urls_current:
-            changed = _upgrade_generation_url(
-                manifest,
-                preset_manifest=preset_manifests.get(provider_id),
-                updated_at=updated_at,
-            )
         if not generation_url_storage_current:
             changed = _migrate_generation_url_storage(
                 manifest,
                 updated_at=updated_at,
             ) or changed
-        changed = _repair_missing_active_protocol_generation_url(
-            manifest,
-            updated_at=updated_at,
-        ) or changed
         if not preset_generation_url_defaults_current:
             changed = sync_preset_generation_url_defaults(
                 manifest,
@@ -182,94 +155,6 @@ def migrate_provider_endpoint_storage(
         }
     )
     store.write_settings(settings)
-
-
-def _repair_missing_active_protocol_generation_url(
-    manifest: dict[str, Any],
-    *,
-    updated_at: str,
-) -> bool:
-    """Repair a custom provider left without a URL after a safe protocol retarget."""
-
-    active_protocol_value = _optional_text(manifest, "protocolFamily")
-    raw_generation_urls = manifest.get("generationUrls")
-    if (
-        active_protocol_value not in _PROTOCOL_VALUES
-        or not isinstance(raw_generation_urls, dict)
-    ):
-        return False
-    active_url = _optional_text(raw_generation_urls, active_protocol_value)
-    if active_url is not None:
-        return False
-
-    target_protocol = ProviderProtocolFamily(active_protocol_value)
-    retargeted_urls: set[str] = set()
-    for source_protocol, generation_url in raw_generation_urls.items():
-        if (
-            source_protocol not in _PROTOCOL_VALUES
-            or not isinstance(generation_url, str)
-            or not generation_url.strip()
-        ):
-            continue
-        retargeted_url = retarget_generation_url(
-            generation_url,
-            source_protocol,
-            target_protocol,
-        )
-        if retargeted_url != generation_url.strip():
-            retargeted_urls.add(retargeted_url)
-    if len(retargeted_urls) != 1:
-        return False
-
-    next_generation_urls = dict(raw_generation_urls)
-    next_generation_urls[active_protocol_value] = retargeted_urls.pop()
-    manifest["generationUrls"] = next_generation_urls
-    manifest["updatedAt"] = updated_at
-    return True
-
-
-def _upgrade_generation_url(
-    manifest: dict[str, Any],
-    *,
-    preset_manifest: dict[str, Any] | None,
-    updated_at: str,
-) -> bool:
-    api_base_url = _optional_text(manifest, "apiBaseUrl")
-    protocol_family = _optional_text(manifest, "protocolFamily")
-    if api_base_url is None or protocol_family is None:
-        return False
-
-    generation_url = _matching_preset_generation_url(
-        api_base_url=api_base_url,
-        protocol_family=protocol_family,
-        preset_manifest=preset_manifest,
-    ) or upgrade_unambiguous_legacy_generation_url(api_base_url, protocol_family)
-    if generation_url == api_base_url:
-        return False
-
-    manifest["apiBaseUrl"] = generation_url
-    manifest["updatedAt"] = updated_at
-    return True
-
-
-def _matching_preset_generation_url(
-    *,
-    api_base_url: str,
-    protocol_family: str,
-    preset_manifest: dict[str, Any] | None,
-) -> str | None:
-    if preset_manifest is None:
-        return None
-    if _optional_text(preset_manifest, "protocolFamily") != protocol_family:
-        return None
-
-    preset_url = _active_generation_url(preset_manifest)
-    if preset_url is None:
-        return None
-    legacy_prefix = api_base_url.rstrip("/")
-    if preset_url == legacy_prefix or preset_url.startswith(f"{legacy_prefix}/"):
-        return preset_url
-    return None
 
 
 def _migrate_generation_url_storage(

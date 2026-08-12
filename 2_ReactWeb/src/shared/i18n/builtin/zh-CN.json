@@ -290,10 +290,7 @@
       "create": {
         "title": "新增供应商",
         "providerName": "供应商名称",
-        "providerNamePlaceholder": "例如 My OpenAI Proxy",
-        "apiBaseUrl": "完整生成 API 地址",
-        "protocol": "协议",
-        "auth": "鉴权"
+        "providerNamePlaceholder": "例如 My OpenAI Proxy"
       },
       "protocol": {
         "openaiCompatible": "OpenAI Chat Completions",
@@ -305,13 +302,11 @@
     "aiPanel": {
       "header": {
         "noSession": "未选择会话",
-        "openHistory": "打开对话历史",
         "backToChat": "返回会话",
         "actions": "AI 对话操作",
         "exportConversation": "导出会话",
         "branches": "分支看板",
         "conversationOverview": "会话总览",
-        "history": "历史",
         "settings": "设置",
         "newConversation": "新建对话"
       },
@@ -425,20 +420,6 @@
         "data": "数据看板",
         "close": "关闭会话设置",
         "empty": "当前没有可配置的会话。"
-      },
-      "history": {
-        "title": "项目历史",
-        "empty": "当前项目没有对话。",
-        "messageCount": "{count} 条消息",
-        "noModel": "未绑定模型",
-        "deleting": "删除中",
-        "pinFailed": "会话置顶状态修改失败。",
-        "runtime": {
-          "running": "运行",
-          "error": "异常",
-          "idle": "空闲"
-        },
-        "unknownTime": "未知时间"
       },
       "messageList": {
         "loadingSession": "正在载入会话…",
@@ -1396,11 +1377,9 @@
       "renameProvider": "重命名 {provider}",
       "selectProviderProtocol": "选择供应商协议",
       "apiAddress": {
-        "placeholder": "输入基础地址；需要时点击“补全端点”",
+        "placeholder": "输入完整生成 API 地址",
         "title": "API 地址",
         "generation": "完整生成 API 地址",
-        "completeEndpoint": "补全端点",
-        "completeEndpointTitle": "根据所选协议补全生成 API 端点",
         "generationProtocol": "生成接口协议",
         "generationAuth": "生成接口鉴权方式",
         "generationTab": "生成 API",

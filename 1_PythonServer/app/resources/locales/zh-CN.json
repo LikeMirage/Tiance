@@ -271,10 +271,7 @@
       "create": {
         "title": "新增供应商",
         "providerName": "供应商名称",
-        "providerNamePlaceholder": "例如 My OpenAI Proxy",
-        "apiBaseUrl": "完整生成 API 地址",
-        "protocol": "协议",
-        "auth": "鉴权"
+        "providerNamePlaceholder": "例如 My OpenAI Proxy"
       },
       "protocol": {
         "openaiCompatible": "OpenAI Chat Completions",

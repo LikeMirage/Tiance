@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "kind": "tiance-tool-package",
+  "id": "free_web_search",
+  "version": "1.0.0",
+  "author": {
+    "name": "LikeMirage"
+  },
+  "license": "CC0-1.0",
+  "compatibility": {
+    "minTianceVersion": "0.1.0",
+    "platforms": [
+      "windows-x64"
+    ]
+  }
+}
