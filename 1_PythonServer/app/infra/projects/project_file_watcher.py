@@ -1,34 +1,11 @@
 import asyncio
 from collections.abc import AsyncIterator
+from functools import partial
 from pathlib import Path
-import sys
 
-from watchfiles import Change, DefaultFilter, awatch
+from watchfiles import Change, awatch
 
 from app.infra.projects.project_file_names import is_internal_write_temp_path
-
-_IGNORED_PROJECT_WATCH_DIR_NAMES = frozenset(
-    (
-        ".Tiance",
-        ".git",
-        ".hg",
-        ".hypothesis",
-        ".idea",
-        ".mypy_cache",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".svn",
-        ".tox",
-        ".venv",
-        "__pycache__",
-        "build",
-        "coverage",
-        "dist",
-        "node_modules",
-        "target",
-        "venv",
-    )
-)
 
 _MAX_DETAILED_CHANGE_PATHS = 256
 
@@ -42,9 +19,8 @@ async def watch_project_file_changes(
     try:
         async for changes in awatch(
             root,
-            watch_filter=DefaultFilter(ignore_dirs=sorted(_IGNORED_PROJECT_WATCH_DIR_NAMES)),
+            watch_filter=partial(_is_external_project_change, root),
             debounce=500,
-            force_polling=sys.platform == "win32",
             step=100,
             ignore_permission_denied=True,
         ):
@@ -83,5 +59,14 @@ def project_file_change_paths(
     return sorted({path.split("/", 1)[0] for path in ordered_paths})
 
 
+def _is_external_project_change(root: Path, _change: Change, path: str) -> bool:
+    try:
+        relative = Path(path).resolve().relative_to(root).as_posix()
+    except ValueError:
+        return False
+    return bool(relative) and not _is_ignored_project_watch_path(relative)
+
+
 def _is_ignored_project_watch_path(relative_path: str) -> bool:
-    return any(part in _IGNORED_PROJECT_WATCH_DIR_NAMES for part in relative_path.split("/"))
+    parts = relative_path.split("/")
+    return parts[0] == ".Tiance" or is_internal_write_temp_path(relative_path)

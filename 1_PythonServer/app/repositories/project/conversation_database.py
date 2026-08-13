@@ -4,13 +4,15 @@ from contextlib import contextmanager
 from json import dumps, loads
 from pathlib import Path
 import sqlite3
-from threading import local
+from threading import Lock, local
 from typing import Any, Iterator
 
 
 DATABASE_FILE = "tiance.db"
 SCHEMA_VERSION = 1
 _thread_state = local()
+_database_initialization_lock = Lock()
+_initialized_database_paths: set[Path] = set()
 
 
 def database_path_from_workspace(workspace_dir: Path) -> Path:
@@ -31,13 +33,21 @@ def session_id_from_session_dir(session_dir: Path) -> str:
 
 def ensure_database(workspace_dir: Path) -> Path:
     workspace_dir.mkdir(parents=True, exist_ok=True)
-    path = database_path_from_workspace(workspace_dir)
-    connection = _open_connection(path)
-    try:
-        _ensure_schema(connection)
-        connection.commit()
-    finally:
-        connection.close()
+    path = database_path_from_workspace(workspace_dir).resolve()
+    with _database_initialization_lock:
+        if path in _initialized_database_paths and path.is_file():
+            return path
+        _initialized_database_paths.discard(path)
+        connection = _open_connection(path)
+        try:
+            current_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0]).lower()
+            if current_mode != "wal":
+                connection.execute("PRAGMA journal_mode=WAL")
+            _ensure_schema(connection)
+            connection.commit()
+        finally:
+            connection.close()
+        _initialized_database_paths.add(path)
     return path
 
 
@@ -57,8 +67,8 @@ def transaction_for_conversations(conversations_dir: Path) -> Iterator[sqlite3.C
             existing[1] -= 1
         return
 
+    ensure_database(path.parent)
     connection = _open_connection(path)
-    _ensure_schema(connection)
     connection.execute("BEGIN IMMEDIATE")
     active[path] = [connection, 1]
     try:
@@ -80,9 +90,9 @@ def connection_for_path(path: Path) -> Iterator[sqlite3.Connection]:
     if existing is not None:
         yield existing[0]
         return
+    ensure_database(resolved.parent)
     connection = _open_connection(resolved)
     try:
-        _ensure_schema(connection)
         yield connection
         connection.commit()
     finally:
@@ -406,10 +416,9 @@ def journal_mode(database_path: Path) -> str:
 def _open_connection(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(path, timeout=10.0)
-    connection.execute("PRAGMA journal_mode=WAL")
-    connection.execute("PRAGMA synchronous=NORMAL")
-    connection.execute("PRAGMA foreign_keys=ON")
     connection.execute("PRAGMA busy_timeout=10000")
+    connection.execute("PRAGMA foreign_keys=ON")
+    connection.execute("PRAGMA synchronous=NORMAL")
     return connection
 
 

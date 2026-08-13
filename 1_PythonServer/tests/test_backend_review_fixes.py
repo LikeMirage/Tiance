@@ -172,7 +172,7 @@ def test_cors_defaults_are_explicit_and_do_not_allow_null_or_any_localhost():
     assert "http://127.0.0.1:18100" in settings.cors_origins
 
 
-def test_project_file_change_paths_filters_high_noise_directories(tmp_path):
+def test_project_file_change_paths_keeps_user_directories_visible(tmp_path):
     root = tmp_path
     changes = {
         (Change.modified, str(root / "src" / "app.py")),
@@ -181,7 +181,12 @@ def test_project_file_change_paths_filters_high_noise_directories(tmp_path):
         (Change.deleted, str(root / "dist" / "bundle.js")),
     }
 
-    assert project_file_change_paths(root, changes) == ["src/app.py"]
+    assert project_file_change_paths(root, changes) == [
+        ".git/index",
+        "dist/bundle.js",
+        "node_modules/pkg/index.js",
+        "src/app.py",
+    ]
 
 
 def test_project_file_change_paths_compacts_bulk_changes_to_top_level_directories(tmp_path):
@@ -204,7 +209,10 @@ def test_project_file_change_paths_ignores_internal_tiance_directory(tmp_path):
     assert project_file_change_paths(root, changes) == ["notes.md"]
 
 
-def test_project_file_watcher_uses_polling_on_windows(monkeypatch, tmp_path):
+def test_project_file_watcher_uses_native_notifications_and_only_filters_internal_data(
+    monkeypatch,
+    tmp_path,
+):
     observed_options = {}
 
     async def fake_awatch(*_args, **options):
@@ -213,8 +221,6 @@ def test_project_file_watcher_uses_polling_on_windows(monkeypatch, tmp_path):
             yield set()
 
     monkeypatch.setattr(project_file_watcher_module, "awatch", fake_awatch)
-    monkeypatch.setattr(project_file_watcher_module.sys, "platform", "win32")
-
     async def consume():
         return [
             change
@@ -225,7 +231,10 @@ def test_project_file_watcher_uses_polling_on_windows(monkeypatch, tmp_path):
         ]
 
     assert asyncio.run(consume()) == []
-    assert observed_options["force_polling"] is True
+    assert "force_polling" not in observed_options
+    watch_filter = observed_options["watch_filter"]
+    assert watch_filter(Change.added, str(tmp_path / "node_modules" / "pkg" / "index.js"))
+    assert not watch_filter(Change.modified, str(tmp_path / ".Tiance" / "tiance.db-wal"))
 
 
 def test_deepseek_new_session_defaults_to_tool_thinking_return():

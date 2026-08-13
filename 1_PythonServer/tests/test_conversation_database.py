@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from app.repositories.project import conversation_database as conversation_database_module
@@ -50,7 +51,14 @@ def test_database_initialization_releases_project_directory(tmp_path: Path) -> N
 def test_database_initialization_explicitly_closes_connection(monkeypatch, tmp_path: Path) -> None:
     calls: list[str] = []
 
+    class FakeCursor:
+        def fetchone(self):
+            return ("wal",)
+
     class FakeConnection:
+        def execute(self, _statement: str) -> FakeCursor:
+            return FakeCursor()
+
         def commit(self) -> None:
             calls.append("commit")
 
@@ -71,6 +79,76 @@ def test_database_initialization_explicitly_closes_connection(monkeypatch, tmp_p
     ensure_database(tmp_path / ".Tiance")
 
     assert calls == ["schema", "commit", "close"]
+
+
+def test_database_initialization_runs_once_for_concurrent_access(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / ".Tiance"
+    calls = 0
+    real_ensure_schema = conversation_database_module._ensure_schema
+
+    def counted_ensure_schema(connection) -> None:
+        nonlocal calls
+        calls += 1
+        real_ensure_schema(connection)
+
+    monkeypatch.setattr(
+        conversation_database_module,
+        "_ensure_schema",
+        counted_ensure_schema,
+    )
+
+    with ThreadPoolExecutor(max_workers=12) as executor:
+        paths = list(executor.map(lambda _index: ensure_database(workspace), range(24)))
+
+    assert len(set(paths)) == 1
+    assert calls == 1
+
+
+def test_normal_connection_does_not_change_journal_mode_or_schema(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / ".Tiance"
+    database_path = ensure_database(workspace)
+    statements: list[str] = []
+    real_connect = conversation_database_module.sqlite3.connect
+
+    class RecordingConnection:
+        def __init__(self, connection) -> None:
+            self._connection = connection
+
+        def execute(self, statement: str, *args, **kwargs):
+            statements.append(statement)
+            return self._connection.execute(statement, *args, **kwargs)
+
+        def __getattr__(self, name: str):
+            return getattr(self._connection, name)
+
+    def recording_connect(*args, **kwargs):
+        return RecordingConnection(real_connect(*args, **kwargs))
+
+    def unexpected_schema_call(_connection) -> None:
+        raise AssertionError("normal connections must not initialize the database")
+
+    monkeypatch.setattr(
+        conversation_database_module,
+        "_ensure_schema",
+        unexpected_schema_call,
+    )
+    monkeypatch.setattr(
+        conversation_database_module.sqlite3,
+        "connect",
+        recording_connect,
+    )
+
+    with conversation_database_module.connection_for_path(database_path) as connection:
+        assert connection.execute("SELECT 1").fetchone()[0] == 1
+
+    assert not any("journal_mode" in statement.lower() for statement in statements)
+    assert not any("create table" in statement.lower() for statement in statements)
 
 
 def test_data_views_are_generated_from_database_without_json_mirrors(tmp_path: Path) -> None:
