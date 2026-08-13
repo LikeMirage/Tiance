@@ -16,12 +16,10 @@ import {
 import type { FileWorkspaceApi } from "../../../entities/file-workspace/model/fileWorkspaceApi";
 import { createProjectFileWorkspaceApi } from "../../../services/project/projectFileWorkspaceApi";
 import { watchProjectFileEvents } from "../../../services/project/watchProjectFileEvents";
+import type { ProjectFileWatchHandlers } from "../../../services/project/watchProjectFileEvents";
 import { createToolFolderFileWorkspaceApi } from "../../../services/tools/toolFolderFileWorkspaceApi";
 
-export type FileWorkspaceWatchHandlers = {
-  onChanged: (paths: string[]) => void;
-  onError?: () => void;
-};
+export type FileWorkspaceWatchHandlers = ProjectFileWatchHandlers;
 
 export type DocumentFileSourceRuntime = {
   source: DocumentFileSource;

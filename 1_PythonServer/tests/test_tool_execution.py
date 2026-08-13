@@ -28,6 +28,8 @@ from app.services.tools.tool_metadata import load_tool
 def test_tool_execution_runs_python_entry_with_json_stdin(tmp_path, monkeypatch):
     monkeypatch.setenv("TIANCE_API_HOST", "127.0.0.2")
     monkeypatch.setenv("TIANCE_API_PORT", "19000")
+    monkeypatch.setenv("APPDATA", "C:/Users/test/AppData/Roaming")
+    monkeypatch.setenv("LOCALAPPDATA", "C:/Users/test/AppData/Local")
     tool_root = _create_tool_root(tmp_path)
     completed_commands: list[tuple[list[str], str, Path, dict[str, str], int]] = []
 
@@ -74,6 +76,8 @@ def test_tool_execution_runs_python_entry_with_json_stdin(tmp_path, monkeypatch)
     assert completed_commands[0][3]["TIANCE_PROJECT_ID"] == "project-1"
     assert completed_commands[0][3]["TIANCE_SESSION_ID"] == "session-1"
     assert completed_commands[0][3]["TIANCE_API_BASE_URL"] == "http://127.0.0.2:19000/api"
+    assert completed_commands[0][3]["APPDATA"] == "C:/Users/test/AppData/Roaming"
+    assert completed_commands[0][3]["LOCALAPPDATA"] == "C:/Users/test/AppData/Local"
     assert loads(completed_commands[0][3]["TIANCE_MODEL_CONTEXT"]) == {
         "provider_id": "provider-1",
         "model_id": "model-1",

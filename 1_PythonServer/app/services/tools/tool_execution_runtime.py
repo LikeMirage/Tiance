@@ -26,7 +26,11 @@ runpy.run_path(entry_path, run_name="__main__")
 """.strip()
 
 _SAFE_INHERITED_ENV_KEYS = (
+    "APPDATA",
     "COMSPEC",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "LOCALAPPDATA",
     "PATH",
     "PATHEXT",
     "SystemRoot",

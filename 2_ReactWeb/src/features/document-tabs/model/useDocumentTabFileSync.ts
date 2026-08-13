@@ -340,6 +340,7 @@ export function useDocumentTabFileSync({
       const runtime = fileSourceRuntimesRef.current.get(sourceKey);
       return runtime?.watchFileEvents?.({
         onChanged: (changedPaths) => refreshChangedWorkspaceFiles(sourceKey, changedPaths),
+        onOverflow: () => refreshChangedWorkspaceFiles(sourceKey, []),
       }) ?? (() => undefined);
     });
     return () => {

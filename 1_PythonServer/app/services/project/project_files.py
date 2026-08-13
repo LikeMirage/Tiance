@@ -3,7 +3,6 @@
 
 import base64
 import binascii
-from collections.abc import AsyncIterator
 from datetime import datetime
 from functools import lru_cache
 from pathlib import PurePosixPath
@@ -86,8 +85,8 @@ class ProjectFileService:
         """返回项目根目录，用于文件监听等跨请求能力。"""
         return self._require_project_root(project_id)
 
-    def watch_file_changes(self, project_id: str) -> AsyncIterator[tuple[str, ...]]:
-        """监听项目文件变化，返回已转换成项目相对路径的变更批次。"""
+    def watch_file_changes(self, project_id: str):
+        """监听项目文件变化，返回隔离后的状态与项目相对路径事件。"""
         project_root = self._require_project_root(project_id)
         return watch_project_file_changes(project_root, project_id=project_id)
 

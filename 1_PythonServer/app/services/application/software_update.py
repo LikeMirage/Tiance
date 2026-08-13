@@ -25,6 +25,7 @@ from app.schemas.software_update import (
 RELEASE_API_URL = "https://api.github.com/repos/LikeMirage/Tiance/releases/latest"
 UPDATE_MANIFEST_ASSET = "update.json"
 UPDATE_PACKAGE_ASSET = "Tiance-update.zip"
+INCREMENTAL_UPDATE_PACKAGE_ASSET = "Tiance-update-incremental.zip"
 VERSION_PATTERN = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 MAX_MANIFEST_BYTES = 64 * 1024
 MAX_UPDATE_PACKAGE_BYTES = 1024 * 1024 * 1024
@@ -57,21 +58,35 @@ class ReleaseInfo:
     notes: str
     published_at: str | None
     manifest: ReleaseAsset | None
-    package: ReleaseAsset | None
+    assets: dict[str, ReleaseAsset]
+
+
+@dataclass(frozen=True, slots=True)
+class UpdatePackageManifest:
+    asset_name: str
+    sha256: str
+    size: int
+    from_version: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class UpdateManifest:
     version: str
-    asset_name: str
-    sha256: str
-    size: int
+    full: UpdatePackageManifest
+    incremental: UpdatePackageManifest | None
 
 
 class SoftwareUpdateService:
     async def check(self) -> SoftwareUpdateCheckResponse:
         settings = get_settings()
         release = await self._load_latest_release()
+        selected_package = None
+        if (
+            _version_tuple(release.version) > _version_tuple(settings.app_version)
+            and release.manifest is not None
+        ):
+            manifest = await self._load_manifest(release.manifest)
+            selected_package = _select_update_package(manifest, settings.app_version)
         return SoftwareUpdateCheckResponse(
             currentVersion=settings.app_version,
             latestVersion=release.version,
@@ -79,7 +94,7 @@ class SoftwareUpdateService:
             releaseName=release.name,
             releaseNotes=release.notes,
             publishedAt=release.published_at,
-            downloadSize=release.package.size if release.package else None,
+            downloadSize=selected_package.size if selected_package else None,
             sourceCheckout=(settings.project_root_path / ".git").exists(),
         )
 
@@ -91,23 +106,30 @@ class SoftwareUpdateService:
         release = await self._load_latest_release()
         if _version_tuple(release.version) <= _version_tuple(settings.app_version):
             raise ConflictError("当前已经是最新版本。")
-        if release.manifest is None or release.package is None:
+        if release.manifest is None:
             raise SoftwareUpdateError("最新版本缺少在线更新文件。", code="update_assets_missing")
 
         manifest = await self._load_manifest(release.manifest)
-        if manifest.version != release.version or manifest.asset_name != release.package.name:
+        selected_package = _select_update_package(manifest, settings.app_version)
+        release_package = release.assets.get(selected_package.asset_name)
+        if release_package is None:
+            raise SoftwareUpdateError("最新版本缺少所需的更新包。", code="update_assets_missing")
+        if manifest.version != release.version:
             raise SoftwareUpdateError("更新清单与 GitHub Release 不一致。", code="update_manifest_mismatch")
-        if manifest.size != release.package.size:
+        if selected_package.size != release_package.size:
             raise SoftwareUpdateError("更新文件大小与发布清单不一致。", code="update_size_mismatch")
 
         update_root = _update_cache_root() / release.version
         temporary_root = update_root.with_name(f".{release.version}-{uuid4().hex}.tmp")
         shutil.rmtree(temporary_root, ignore_errors=True)
         temporary_root.mkdir(parents=True, exist_ok=False)
-        archive_path = temporary_root / UPDATE_PACKAGE_ASSET
+        archive_path = temporary_root / selected_package.asset_name
         try:
-            package_size, package_hash = await self._download_package(release.package, archive_path)
-            if package_size != manifest.size or package_hash.lower() != manifest.sha256.lower():
+            package_size, package_hash = await self._download_package(release_package, archive_path)
+            if (
+                package_size != selected_package.size
+                or package_hash.lower() != selected_package.sha256.lower()
+            ):
                 raise SoftwareUpdateError("更新文件校验失败，已停止安装。", code="update_checksum_mismatch")
             payload_root = temporary_root / "payload"
             _extract_update_archive(archive_path, payload_root)
@@ -124,7 +146,7 @@ class SoftwareUpdateService:
         return SoftwareUpdateDownloadResponse(
             version=release.version,
             stagePath=str(final_stage_root),
-            packageSize=manifest.size,
+            packageSize=selected_package.size,
         )
 
     async def _load_latest_release(self) -> ReleaseInfo:
@@ -158,7 +180,7 @@ class SoftwareUpdateService:
             notes=str(payload.get("body") or ""),
             published_at=payload.get("published_at") if isinstance(payload.get("published_at"), str) else None,
             manifest=assets.get(UPDATE_MANIFEST_ASSET),
-            package=assets.get(UPDATE_PACKAGE_ASSET),
+            assets=assets,
         )
 
     async def _load_manifest(self, asset: ReleaseAsset) -> UpdateManifest:
@@ -173,24 +195,25 @@ class SoftwareUpdateService:
             payload = response.json()
             schema_version = payload["schemaVersion"]
             version = payload["version"]
-            asset_name = payload["assetName"]
-            sha256 = payload["sha256"]
-            size = payload["size"]
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             raise SoftwareUpdateError("无法读取在线更新清单。", code="update_manifest_invalid") from exc
         if (
             schema_version != 1
             or not isinstance(version, str)
             or VERSION_PATTERN.fullmatch(version) is None
-            or asset_name != UPDATE_PACKAGE_ASSET
-            or not isinstance(sha256, str)
-            or re.fullmatch(r"[0-9a-fA-F]{64}", sha256) is None
-            or not isinstance(size, int)
-            or size <= 0
-            or size > MAX_UPDATE_PACKAGE_BYTES
         ):
             raise SoftwareUpdateError("在线更新清单内容无效。", code="update_manifest_invalid")
-        return UpdateManifest(version=version, asset_name=asset_name, sha256=sha256, size=size)
+        try:
+            full = _parse_package_manifest(payload.get("full") or payload)
+            incremental_payload = payload.get("incremental")
+            incremental = (
+                _parse_package_manifest(incremental_payload, require_from_version=True)
+                if incremental_payload is not None
+                else None
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise SoftwareUpdateError("在线更新清单内容无效。", code="update_manifest_invalid") from exc
+        return UpdateManifest(version=version, full=full, incremental=incremental)
 
     async def _download_package(self, asset: ReleaseAsset, target: Path) -> tuple[int, str]:
         if asset.size <= 0 or asset.size > MAX_UPDATE_PACKAGE_BYTES:
@@ -223,6 +246,56 @@ def _version_tuple(value: str) -> tuple[int, int, int]:
     if match is None:
         raise RuntimeError(f"Invalid application version: {value}")
     return tuple(int(part) for part in match.groups())
+
+
+def _parse_package_manifest(
+    payload: object,
+    *,
+    require_from_version: bool = False,
+) -> UpdatePackageManifest:
+    if not isinstance(payload, dict):
+        raise TypeError("package manifest must be an object")
+    asset_name = payload["assetName"]
+    sha256 = payload["sha256"]
+    size = payload["size"]
+    from_version = payload.get("fromVersion")
+    allowed_asset = (
+        INCREMENTAL_UPDATE_PACKAGE_ASSET
+        if require_from_version
+        else UPDATE_PACKAGE_ASSET
+    )
+    if (
+        asset_name != allowed_asset
+        or not isinstance(sha256, str)
+        or re.fullmatch(r"[0-9a-fA-F]{64}", sha256) is None
+        or not isinstance(size, int)
+        or size <= 0
+        or size > MAX_UPDATE_PACKAGE_BYTES
+        or (
+            require_from_version
+            and (
+                not isinstance(from_version, str)
+                or VERSION_PATTERN.fullmatch(from_version) is None
+            )
+        )
+    ):
+        raise ValueError("invalid package manifest")
+    return UpdatePackageManifest(
+        asset_name=asset_name,
+        sha256=sha256,
+        size=size,
+        from_version=from_version if isinstance(from_version, str) else None,
+    )
+
+
+def _select_update_package(
+    manifest: UpdateManifest,
+    current_version: str,
+) -> UpdatePackageManifest:
+    incremental = manifest.incremental
+    if incremental is not None and incremental.from_version == current_version:
+        return incremental
+    return manifest.full
 
 
 def _update_cache_root() -> Path:

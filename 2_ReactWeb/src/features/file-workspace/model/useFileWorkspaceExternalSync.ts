@@ -1,4 +1,4 @@
-import { useCallback, useEffect, type RefObject } from "react";
+import { useCallback, useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import type { FileWorkspaceMutation } from "../../../entities/file-workspace/model/fileWorkspace";
 import {
@@ -14,6 +14,8 @@ import { sortExpandedFolderIds } from "./fileWorkspaceBrowserRequestUtils";
 
 type FileWorkspaceWatchHandlers = {
   onChanged: (paths: string[]) => void;
+  onOverflow?: () => void;
+  onStatusChanged?: (available: boolean) => void;
 };
 
 type UseFileWorkspaceExternalSyncInput = {
@@ -29,9 +31,11 @@ type UseFileWorkspaceExternalSyncInput = {
   loadRootRef: RefObject<(options?: LoadRootOptions) => Promise<void>>;
   mutationSourceIdRef: RefObject<string>;
   pendingWatchPathsRef: RefObject<Set<string>>;
+  pendingWatchOverflowRef: RefObject<boolean>;
   pendingWatchRefreshRef: RefObject<boolean>;
   searchKeywordRef: RefObject<string>;
   setErrorMessage: (message: string | null) => void;
+  setWatchErrorMessage: Dispatch<SetStateAction<string | null>>;
   subscribeMutations?: (handler: (mutation: FileWorkspaceMutation) => void) => () => void;
   treeDataRef: RefObject<FileWorkspaceBrowserNode[]>;
   updateTreeData: (
@@ -52,9 +56,11 @@ export function useFileWorkspaceExternalSync({
   loadRootRef,
   mutationSourceIdRef,
   pendingWatchPathsRef,
+  pendingWatchOverflowRef,
   pendingWatchRefreshRef,
   searchKeywordRef,
   setErrorMessage,
+  setWatchErrorMessage,
   subscribeMutations,
   treeDataRef,
   updateTreeData,
@@ -80,12 +86,17 @@ export function useFileWorkspaceExternalSync({
     for (const parentPath of parentPaths) {
       if (!parentPath) continue;
       const parentNode = findNode(treeDataRef.current, parentPath);
-      if (!parentNode || parentNode.kind !== "folder" || !parentNode.isChildrenLoaded) {
+      if (
+        !parentNode ||
+        parentNode.kind !== "folder" ||
+        !parentNode.isChildrenLoaded ||
+        !expandedNodeIdsRef.current.has(parentPath)
+      ) {
         continue;
       }
       await loadFolderChildrenNode(parentNode, { errorMessage: "文件夹刷新失败。" });
     }
-  }, [activeWorkspaceKeyRef, loadFolderChildrenNode, loadRootRef, treeDataRef, workspaceKey]);
+  }, [activeWorkspaceKeyRef, expandedNodeIdsRef, loadFolderChildrenNode, loadRootRef, treeDataRef, workspaceKey]);
 
   const refreshLoadedTree = useCallback(async () => {
     if (!workspaceKey) return;
@@ -119,6 +130,13 @@ export function useFileWorkspaceExternalSync({
       return;
     }
 
+    if (pendingWatchOverflowRef.current) {
+      pendingWatchOverflowRef.current = false;
+      pendingWatchPathsRef.current.clear();
+      void refreshLoadedTree();
+      return;
+    }
+
     const changedPaths = [...pendingWatchPathsRef.current];
     pendingWatchPathsRef.current.clear();
     if (changedPaths.length === 0 || searchKeywordRef.current.trim()) {
@@ -130,8 +148,10 @@ export function useFileWorkspaceExternalSync({
     editingNodeIdRef,
     loadRootRef,
     pendingWatchPathsRef,
+    pendingWatchOverflowRef,
     pendingWatchRefreshRef,
     refreshChangedPaths,
+    refreshLoadedTree,
     searchKeywordRef,
   ]);
 
@@ -152,12 +172,24 @@ export function useFileWorkspaceExternalSync({
     }, 250);
   }, [editingNodeIdRef, flushWatchRefresh, pendingWatchPathsRef, pendingWatchRefreshRef, watchRefreshTimerRef]);
 
+  const scheduleWatchOverflow = useCallback(() => {
+    pendingWatchOverflowRef.current = true;
+    pendingWatchPathsRef.current.clear();
+    scheduleWatchRefresh();
+  }, [pendingWatchOverflowRef, pendingWatchPathsRef, scheduleWatchRefresh]);
+
   useEffect(() => {
     if (!workspaceKey || !watchFileEvents) return undefined;
     return watchFileEvents({
       onChanged: scheduleWatchRefresh,
+      onOverflow: scheduleWatchOverflow,
+      onStatusChanged: (available) => {
+        setWatchErrorMessage(
+          available ? null : "文件自动刷新暂不可用，请使用刷新按钮。",
+        );
+      },
     });
-  }, [scheduleWatchRefresh, watchFileEvents, workspaceKey]);
+  }, [scheduleWatchOverflow, scheduleWatchRefresh, setWatchErrorMessage, watchFileEvents, workspaceKey]);
 
   useEffect(() => {
     if (!workspaceKey || !subscribeMutations) return undefined;

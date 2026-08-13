@@ -1,12 +1,14 @@
 import { env } from "../../shared/config/env";
 
 type ProjectFileWatchEvent = {
-  kind: "ready" | "changed";
+  kind: "ready" | "changed" | "overflow" | "unavailable";
   paths?: string[];
 };
 
-type ProjectFileWatchHandlers = {
+export type ProjectFileWatchHandlers = {
   onChanged: (paths: string[]) => void;
+  onOverflow?: () => void;
+  onStatusChanged?: (available: boolean) => void;
   onError?: () => void;
 };
 
@@ -31,14 +33,24 @@ export function watchProjectFileEvents(
 
     source.onmessage = (event) => {
       const payload = parseProjectFileWatchEvent(event.data);
-      if (!payload || payload.kind !== "changed") return;
-      const changedPaths = payload.paths ?? [];
+      if (!payload) return;
       for (const subscriber of channel?.handlers ?? []) {
-        subscriber.onChanged(changedPaths);
+        if (payload.kind === "changed") {
+          subscriber.onStatusChanged?.(true);
+          subscriber.onChanged(payload.paths ?? []);
+        } else if (payload.kind === "overflow") {
+          subscriber.onStatusChanged?.(true);
+          subscriber.onOverflow?.();
+        } else if (payload.kind === "ready") {
+          subscriber.onStatusChanged?.(true);
+        } else if (payload.kind === "unavailable") {
+          subscriber.onStatusChanged?.(false);
+        }
       }
     };
     source.onerror = () => {
       for (const subscriber of channel?.handlers ?? []) {
+        subscriber.onStatusChanged?.(false);
         subscriber.onError?.();
       }
     };

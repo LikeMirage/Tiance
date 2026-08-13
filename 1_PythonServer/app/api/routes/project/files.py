@@ -58,9 +58,11 @@ async def watch_project_files(project_id: str) -> StreamingResponse:
     file_changes = service.watch_file_changes(project_id)
 
     async def event_generator():
-        yield _sse_event({"kind": "ready"})
-        async for paths in file_changes:
-            yield _sse_event({"kind": "changed", "paths": paths})
+        async for event in file_changes:
+            payload = {"kind": event.kind}
+            if event.kind == "changed":
+                payload["paths"] = event.paths
+            yield _sse_event(payload)
 
     return StreamingResponse(
         event_generator(),

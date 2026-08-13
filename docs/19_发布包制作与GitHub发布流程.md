@@ -2,14 +2,15 @@
 
 这份文档记录天策当前真实使用的 Windows 发布流程。目标是让 GitHub 标签、源码、前端编译产物和 `Tiance.zip` 始终对应同一个提交，不从开发者工作目录随手复制文件，也不把本地项目、密钥或缓存带进发布包。
 
-这里只描述从源码确认到 GitHub Release 的完整链路。两个压缩包的文件白名单、差分清单和校验细节另见[《发布包与在线更新包制作流程》](18_发布包与在线更新包制作流程.md)；正式发布前的同结构试运行另见[《测试包制作与验证流程》](17_测试包制作与验证流程.md)。
+这里只描述从源码确认到 GitHub Release 的完整链路。三种发布压缩包的文件白名单、清单和校验细节另见[《发布包与在线更新包制作流程》](18_发布包与在线更新包制作流程.md)；正式发布前的同结构试运行另见[《测试包制作与验证流程》](17_测试包制作与验证流程.md)。
 
 ## 当前发布包是什么
 
-每个正式版本同时提供两个包：
+每个正式版本同时提供三个压缩包：
 
 - `Tiance.zip` 是完整安装包，解压后可以直接启动；
-- `Tiance-update.zip` 是软件内更新包，只包含程序拥有的文件。
+- `Tiance-update.zip` 是可跳版本的完整程序更新包，不包含用户 `Data/`；
+- `Tiance-update-incremental.zip` 是只供相邻版本使用的程序差分包。
 
 它包含仓库已经正式跟踪的内容：
 
@@ -124,7 +125,7 @@ git push origin vX.Y.Z
 
 更新器逐文件备份、替换和删除，失败时按同一清单回滚；禁止列入 `Data/`。
 
-脚本会同时生成 `Tiance.zip`、`Tiance-update.zip` 和 `update.json`。
+脚本会同时生成 `Tiance.zip`、`Tiance-update.zip`、`Tiance-update-incremental.zip` 和 `update.json`。
 
 `update.json` 是软件校验更新包的发布合同。版本、文件名、大小和 SHA-256 任一项不一致，后端都会拒绝进入安装阶段。
 
@@ -148,7 +149,7 @@ tar -tf "发布包/Tiance.zip" | Select-String -Pattern "Tiance.exe|2_ReactWeb/d
 - WebView2 固定运行环境；
 - 根目录 `docs/`、`assets/` 与 `README.md`。
 
-还必须单独确认 `Tiance-update.zip`：
+还必须分别确认两个在线更新包：
 
 - 包含 `system/update-manifest.json`、`system/version.json` 以及清单中列出的全部文件；
 - 不包含任何 `Data/`、数据库、密钥或本地设置；
@@ -169,6 +170,7 @@ gh auth status
 gh release create vX.Y.Z `
   发布包/Tiance.zip `
   发布包/Tiance-update.zip `
+  发布包/Tiance-update-incremental.zip `
   发布包/update.json `
   --repo LikeMirage/Tiance `
   --verify-tag `
@@ -184,7 +186,7 @@ gh release create vX.Y.Z `
 - GitHub 最新 Release 指向本次新标签；
 - Release 标签最终指向本次提交；
 - `Tiance.zip` 可以完整下载；
-- `Tiance-update.zip` 与 `update.json` 可以完整下载；
+- `Tiance-update.zip`、`Tiance-update-incremental.zip` 与 `update.json` 可以完整下载；
 - 下载文件大小与本地包一致；
 - GitHub 返回附件摘要时，其 SHA-256 与本地 `Get-FileHash` 结果一致；
 - 在一个新的短目录中解压后，能够从根目录启动 `Tiance.exe`；
@@ -217,7 +219,7 @@ Release 附件将失去可核对的源码基线。正确顺序是先提交、推
 
 ### 把完整安装包直接当更新包
 
-完整包包含公开预置集合，不能直接覆盖已有 `Data`。软件内更新必须使用受限的 `Tiance-update.zip`；工具、主题和供应商继续由各自市场更新。
+完整安装包包含公开预置集合，不能直接覆盖已有 `Data`。软件内更新只能使用不含 `Data` 的 `Tiance-update.zip` 或 `Tiance-update-incremental.zip`；工具、主题和供应商继续由各自市场更新。
 
 ### 误以为源码或差分包会更新在线市场
 

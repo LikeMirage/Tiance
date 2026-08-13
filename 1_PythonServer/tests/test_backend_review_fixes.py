@@ -34,6 +34,7 @@ from app.infra.llm.provider_model_probe_client import ProviderModelProbeClient
 from app.infra.llm.provider_remote_client import ProviderRemoteClient
 from app.infra.projects import project_file_watcher as project_file_watcher_module
 from app.infra.projects.project_file_watcher import (
+    _coalesce_changes,
     project_file_change_paths,
     watch_project_file_changes,
 )
@@ -189,14 +190,14 @@ def test_project_file_change_paths_keeps_user_directories_visible(tmp_path):
     ]
 
 
-def test_project_file_change_paths_compacts_bulk_changes_to_top_level_directories(tmp_path):
+def test_project_file_change_paths_marks_bulk_changes_as_overflow(tmp_path):
     root = tmp_path
     changes = {
         (Change.added, str(root / "cloned-repository" / "src" / f"file-{index}.py"))
         for index in range(300)
     }
 
-    assert project_file_change_paths(root, changes) == ["cloned-repository"]
+    assert project_file_change_paths(root, changes) is None
 
 
 def test_project_file_change_paths_ignores_internal_tiance_directory(tmp_path):
@@ -214,6 +215,7 @@ def test_project_file_watcher_uses_native_notifications_and_only_filters_interna
     tmp_path,
 ):
     observed_options = {}
+    monkeypatch.setattr(project_file_watcher_module.sys, "platform", "linux")
 
     async def fake_awatch(*_args, **options):
         observed_options.update(options)
@@ -230,11 +232,39 @@ def test_project_file_watcher_uses_native_notifications_and_only_filters_interna
             )
         ]
 
-    assert asyncio.run(consume()) == []
+    events = asyncio.run(consume())
+    assert [event.kind for event in events] == ["ready"]
     assert "force_polling" not in observed_options
     watch_filter = observed_options["watch_filter"]
     assert watch_filter(Change.added, str(tmp_path / "node_modules" / "pkg" / "index.js"))
     assert not watch_filter(Change.modified, str(tmp_path / ".Tiance" / "tiance.db-wal"))
+
+
+def test_project_file_change_paths_does_not_resolve_directory_links(tmp_path):
+    root = tmp_path / "project"
+    linked_path = root / "node_modules" / "linked-package" / "index.js"
+
+    assert project_file_change_paths(root, {(Change.modified, str(linked_path))}) == [
+        "node_modules/linked-package/index.js",
+    ]
+
+
+def test_project_file_watcher_coalesces_bursty_changes(monkeypatch, tmp_path):
+    monkeypatch.setattr(project_file_watcher_module, "_WATCH_QUIET_SECONDS", 0.01)
+    monkeypatch.setattr(project_file_watcher_module, "_WATCH_MAX_BATCH_SECONDS", 0.05)
+
+    async def source():
+        yield {(Change.added, str(tmp_path / "first.txt"))}
+        await asyncio.sleep(0.005)
+        yield {(Change.modified, str(tmp_path / "second.txt"))}
+
+    async def consume():
+        return [changes async for changes in _coalesce_changes(source())]
+
+    assert asyncio.run(consume()) == [{
+        (Change.added, str(tmp_path / "first.txt")),
+        (Change.modified, str(tmp_path / "second.txt")),
+    }]
 
 
 def test_deepseek_new_session_defaults_to_tool_thinking_return():

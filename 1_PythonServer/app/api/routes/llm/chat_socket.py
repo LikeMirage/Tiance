@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
-from app.core.errors import AppError, BadRequestError
+from app.core.errors import AppError, BadRequestError, NotFoundError
 from app.schemas.llm.chat_socket import (
     CHAT_SOCKET_COMMAND_ADAPTER,
     ChatSocketCommand,
@@ -22,6 +22,7 @@ from app.services.project.conversation_run_manager import (
 from app.services.project.conversation_stream import (
     get_project_conversation_stream_service,
 )
+from app.services.project import get_project_conversation_service
 
 
 router = APIRouter(prefix="/llm/chat", tags=["llm"])
@@ -138,11 +139,19 @@ class _ChatSocketSession:
         self,
         command: ChatSocketSubscribeCommand,
     ) -> None:
-        subscription = await get_conversation_run_manager().subscribe(
-            command.project_id,
-            command.session_id,
-            command.checkpoint_message_id,
-        )
+        try:
+            subscription = await get_conversation_run_manager().subscribe(
+                command.project_id,
+                command.session_id,
+                command.checkpoint_message_id,
+            )
+        except NotFoundError:
+            await asyncio.to_thread(
+                get_project_conversation_service().reconcile_missing_run_runtime_status,
+                command.project_id,
+                command.session_id,
+            )
+            raise
         await self._send_opened(command.channel_id)
         await self._forward_subscription(command.channel_id, subscription)
 

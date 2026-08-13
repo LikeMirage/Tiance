@@ -93,6 +93,7 @@ CLI 登录后，使用已推送的标签创建 Release：
 gh release create vX.Y.Z `
   发布包/Tiance.zip `
   发布包/Tiance-update.zip `
+  发布包/Tiance-update-incremental.zip `
   发布包/update.json `
   --repo LikeMirage/Tiance `
   --verify-tag `

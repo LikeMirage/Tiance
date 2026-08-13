@@ -9,6 +9,7 @@ import {
 import { useFileWorkspaceBrowserController } from "../../file-workspace/model/useFileWorkspaceBrowserController";
 import { createProjectFileWorkspaceApi } from "../../../services/project/projectFileWorkspaceApi";
 import { watchProjectFileEvents } from "../../../services/project/watchProjectFileEvents";
+import type { ProjectFileWatchHandlers } from "../../../services/project/watchProjectFileEvents";
 import type { UseProjectBrowserResult } from "./projectBrowserTypes";
 
 export function useProjectBrowserController(
@@ -24,7 +25,7 @@ export function useProjectBrowserController(
   );
   const workspaceKey = fileWorkspaceApi?.workspaceKey ?? null;
 
-  const watchFileEvents = useCallback((handlers: { onChanged: (paths: string[]) => void }) => {
+  const watchFileEvents = useCallback((handlers: ProjectFileWatchHandlers) => {
     if (!projectId) return () => undefined;
     return watchProjectFileEvents(projectId, handlers);
   }, [projectId]);

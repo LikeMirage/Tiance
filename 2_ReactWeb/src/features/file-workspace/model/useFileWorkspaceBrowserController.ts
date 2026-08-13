@@ -31,6 +31,8 @@ import { useFileWorkspaceBrowserFileActions } from "./useFileWorkspaceBrowserFil
 
 type FileWorkspaceWatchHandlers = {
   onChanged: (paths: string[]) => void;
+  onOverflow?: () => void;
+  onStatusChanged?: (available: boolean) => void;
 };
 
 type UseFileWorkspaceBrowserControllerOptions = {
@@ -55,6 +57,7 @@ export function useFileWorkspaceBrowserController({
   const [searchKeyword, setSearchKeyword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [watchErrorMessage, setWatchErrorMessage] = useState<string | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const {
     commitSelection,
@@ -90,6 +93,7 @@ export function useFileWorkspaceBrowserController({
   const pendingRootRefreshRef = useRef(false);
   const pendingWatchPathsRef = useRef<Set<string>>(new Set());
   const pendingWatchRefreshRef = useRef(false);
+  const pendingWatchOverflowRef = useRef(false);
   const watchRefreshTimerRef = useRef<number | null>(null);
 
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(expandedNodeIdsRef.current);
@@ -128,6 +132,7 @@ export function useFileWorkspaceBrowserController({
     pendingRootRefreshRef.current = false;
     pendingWatchPathsRef.current.clear();
     pendingWatchRefreshRef.current = false;
+    pendingWatchOverflowRef.current = false;
     if (watchRefreshTimerRef.current) {
       window.clearTimeout(watchRefreshTimerRef.current);
       watchRefreshTimerRef.current = null;
@@ -398,9 +403,11 @@ export function useFileWorkspaceBrowserController({
     loadRootRef,
     mutationSourceIdRef,
     pendingWatchPathsRef,
+    pendingWatchOverflowRef,
     pendingWatchRefreshRef,
     searchKeywordRef,
     setErrorMessage,
+    setWatchErrorMessage,
     subscribeMutations,
     treeDataRef,
     updateTreeData,
@@ -465,7 +472,7 @@ export function useFileWorkspaceBrowserController({
     createFolder: browserFileActions.createFolder,
     deleteNode: browserFileActions.deleteNode,
     editingNodeId,
-    errorMessage,
+    errorMessage: errorMessage ?? watchErrorMessage,
     expandedNodeIds,
     isLoading,
     isLoadingNodeIds,
@@ -500,6 +507,7 @@ export function useFileWorkspaceBrowserController({
     browserFileActions.toggleNode,
     editingNodeId,
     errorMessage,
+    watchErrorMessage,
     expandedNodeIds,
     isLoading,
     isLoadingNodeIds,

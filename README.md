@@ -6,7 +6,7 @@
 
 [![Latest Release](https://img.shields.io/github/v/release/LikeMirage/Tiance?label=Windows%20版&color=2f81f7)](https://github.com/LikeMirage/Tiance/releases/latest)
 [![License](https://img.shields.io/github/license/LikeMirage/Tiance)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-backend%20919%20%7C%20frontend%20152-success)](#当前阶段)
+[![Tests](https://img.shields.io/badge/tests-backend%20936%20%7C%20frontend%20158-success)](#当前阶段)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#立即开始)
 
 **[下载最新 Windows 版](https://github.com/LikeMirage/Tiance/releases/latest/download/Tiance.zip)** · [查看发布说明](https://github.com/LikeMirage/Tiance/releases/latest) · [阅读设计文档](#继续阅读)
@@ -155,7 +155,7 @@ cd Tiance
 
 项目从 2026 年 4 月底开始迭代，2026 年 8 月 2 日首次系统整理并开放源码。项目由业余产品经理主导，主要借助 AI 编程完成；现有自动化测试与 AI 审查不能替代专业人工安全审计。
 
-当前发布基线包含 919 项后端测试和 152 项前端状态测试，覆盖项目与会话、并发运行、工具调用、分支、引用、供应商协议、文档转换和更新流程等关键路径。测试数量不等于没有缺陷，但所有正式发布都应先通过对应验证。
+当前发布基线包含 936 项后端测试和 158 项前端状态测试，覆盖项目与会话、并发运行、工具调用、分支、引用、供应商协议、文档转换和更新流程等关键路径。测试数量不等于没有缺陷，但所有正式发布都应先通过对应验证。
 
 知识集和经验集目前沿用普通项目骨架，专用功能尚未开始；README 只描述当前已经存在的能力，不用未来规划填充功能清单。
 
