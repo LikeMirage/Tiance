@@ -67,6 +67,7 @@ Data/**/market-settings.json
 # Tool-local credentials are created at runtime and must never be published.
 /Data/tools/d915c8c7-8315-4de1-b61c-c29b77a5a6d5/program/config.json
 /Data/tools/d915c8c7-8315-4de1-b61c-c29b77a5a6d5/program/config.json.bak
+Data/tools/**/program/config.json.bak
 Data/locales/locale-settings.json
 Data/providers/catalog.json
 Data/providers/*/credentials.json
@@ -88,5 +89,7 @@ Data/tools/**/dependencies/py313/site-packages/playwright/driver/node.exe
 
 # Generated exports and release packages
 /发布包/
+/旧发布包/
 /测试包/
 /测试包-*/
+/.tiance-running.lock

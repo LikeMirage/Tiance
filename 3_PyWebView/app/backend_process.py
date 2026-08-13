@@ -71,6 +71,10 @@ class BackendProcessManager:
                     returncode=returncode,
                     log=backend_log_path(PROJECT_ROOT),
                 )
+                raise RuntimeError(
+                    "Backend process exited during startup "
+                    f"(code {returncode}). See {backend_log_path(PROJECT_ROOT)}."
+                )
 
             if not self._settings.manage_backend:
                 mark("backend process: management disabled")

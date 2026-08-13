@@ -4,10 +4,10 @@ import type { ToolFolder, Toolset } from "../../../entities/tool/model/toolset";
 import type {
   WorkspaceLayoutPreferences,
   WorkspaceLayoutPreferenceUpdate,
-  ToolOverviewView,
 } from "../../../entities/workspace/model/workspaceLayoutPreferences";
 import { ChatPanel } from "../../../features/ai-panel/ui/ChatPanel";
 import { DocumentEditorCanvas } from "../../../features/document-editor-canvas/ui/DocumentEditorCanvas";
+import { isProjectConversationOverviewTab } from "../../../features/document-editor-canvas/model/documentTabClassification";
 import { useDesktopShell } from "../../../features/desktop-shell/model/useDesktopShell";
 import type { useDocumentTabs } from "../../../features/document-tabs/model/useDocumentTabs";
 import { ToolsetOverview } from "../../../features/toolset-overview/ui/ToolsetOverview";
@@ -23,6 +23,7 @@ import { useWorkspaceDocumentActions } from "../model/useWorkspaceDocumentAction
 import { useWorkspaceEditorReferences } from "../model/useWorkspaceEditorReferences";
 import { useToolOverviewNavigation } from "../model/useToolOverviewNavigation";
 import { ProjectCategoryOverviewKeepAlive } from "./ProjectCategoryOverviewKeepAlive";
+import { ProjectConversationOverviewDashboard } from "../../../features/project-category-overview/ui/ProjectConversationOverviewDashboard";
 
 type WorkspaceToolCanvasPanelProps = {
   activeWorkspaceKey: string | null;
@@ -59,7 +60,6 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
   isActive = true,
   layoutPreferences,
   onOpenFolder,
-  onCollapseFolder,
   onSelectFolder,
   onLayoutPreferenceChange,
   onReloadFolders,
@@ -246,21 +246,14 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     selectedProjectId: projectId,
     selectedToolsetId: selectedToolset?.category_id ?? null,
   });
-  const handleOpenExternalToolView = useCallback(async (
-    view: Exclude<ToolOverviewView, "tools" | "projects">,
-  ) => {
+  const handleOpenCurrentConversationOverview = useCallback(() => {
     if (!projectId) return;
-    if (expandedToolFolder) {
-      const didCollapse = await onCollapseFolder();
-      if (!didCollapse) return;
-    }
-    handleToolOverviewViewChange(view, projectId);
-  }, [
-    expandedToolFolder,
-    handleToolOverviewViewChange,
-    onCollapseFolder,
-    projectId,
-  ]);
+    documentTabs.ensureProjectConversationOverview(projectId, { activate: true });
+  }, [documentTabs.ensureProjectConversationOverview, projectId]);
+  const handleOpenCurrentConversationBranches = useCallback(() => {
+    if (!projectId) return;
+    handleOpenConversationBranches(projectId);
+  }, [handleOpenConversationBranches, projectId]);
 
   const assistantPanel = useMemo(() => (
     <ChatPanel
@@ -275,8 +268,8 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
       onClearReferences={handleClearReferences}
       onComposerHeightCommit={handleComposerHeightCommit}
       onDraftReferencesChange={handleDraftReferencesChange}
-      onOpenConversationBranches={() => void handleOpenExternalToolView("branches")}
-      onOpenConversationOverview={() => void handleOpenExternalToolView("conversation")}
+      onOpenConversationBranches={handleOpenCurrentConversationBranches}
+      onOpenConversationOverview={handleOpenCurrentConversationOverview}
       onOpenConversationDataFile={handleOpenConversationDataFile}
       onOpenReference={handleOpenReference}
       onPreviewHtmlCode={handlePreviewHtmlCode}
@@ -307,7 +300,8 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     handleClearReferences,
     handleComposerHeightCommit,
     handleDraftReferencesChange,
-    handleOpenExternalToolView,
+    handleOpenCurrentConversationBranches,
+    handleOpenCurrentConversationOverview,
     handleOpenConversationDataFile,
     handleOpenReference,
     handlePreviewHtmlCode,
@@ -404,6 +398,21 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
       visibleSession={visibleChatSession}
     />
   );
+  const projectConversationOverviewContent = (
+    <ProjectConversationOverviewDashboard
+      isActive={
+        isActive
+        && Boolean(expandedToolFolder)
+        && isProjectConversationOverviewTab(visibleActiveTab)
+      }
+      onCreateSession={handleCreateOverviewSession}
+      onOpenConversationBranches={handleOpenConversationBranchesForProject}
+      onRevealProject={handleRevealProject}
+      onSelectSession={handleSelectOverviewSession}
+      projectId={projectId}
+      visibleSession={visibleChatSession}
+    />
+  );
   const overviewContent = (
     <div className="tool-dashboard-host">
       <ToolOverviewViewTabs
@@ -464,6 +473,7 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
       onSelectExportDirectory={desktopShell.selectProjectFolder}
       persistentEmptyContent={overviewContent}
       persistentEmptyContentVisible={!expandedToolFolder}
+      projectConversationOverviewContent={projectConversationOverviewContent}
       statusMessage={workspaceError}
       tabs={expandedToolFolder ? visibleProjectTabs : []}
       toolEntryCandidates={toolEntryFilePaths}

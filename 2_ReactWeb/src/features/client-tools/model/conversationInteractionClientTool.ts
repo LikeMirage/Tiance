@@ -19,7 +19,7 @@ import {
   readOptionalString,
   readRequiredString,
 } from "./conversationClientToolValues";
-import { getConversationMessagesFilePath } from "./conversationSessionView";
+import { getConversationHistoryLocator } from "./conversationSessionView";
 
 export const INTERACT_AI_CONVERSATION_TOOL_NAME = "interact_ai_conversation";
 
@@ -70,11 +70,11 @@ async function executeConversationInteractionClientTool(
     if (!sourceSession) throw new Error(`来源会话不存在：${sourceSessionId}`);
     const session = response.items.find((item) => item.session_id === sessionId);
     if (!session) throw new Error(`会话不存在：${sessionId}`);
-    const messagesFilePath = getConversationMessagesFilePath(sessionId);
+    const historyLocator = getConversationHistoryLocator(sessionId);
     failureContext = {
       project_id: projectId,
       session_id: sessionId,
-      messages_file_path: messagesFilePath,
+      history_locator: historyLocator,
     };
     const runtimeStatus = response.session_states[sessionId]?.runtime_status ?? "idle";
     const run = options.backgroundRuns.startOrResume({
@@ -123,7 +123,7 @@ async function executeConversationInteractionClientTool(
           action,
           projectId,
           sessionId,
-          messagesFilePath,
+          historyLocator,
           await run.completion,
           false,
         ));
@@ -137,7 +137,7 @@ async function executeConversationInteractionClientTool(
         runtime_status: "running",
         outcome: "still_running",
         user_message_id: started.userMessageId,
-        messages_file_path: messagesFilePath,
+        history_locator: historyLocator,
       });
     }
 
@@ -152,14 +152,14 @@ async function executeConversationInteractionClientTool(
         runtime_status: "running",
         outcome: "still_running",
         user_message_id: started.userMessageId,
-        messages_file_path: messagesFilePath,
+        history_locator: historyLocator,
       });
     }
     return clientToolSuccess(serializeCompletedSend(
       action,
       projectId,
       sessionId,
-      messagesFilePath,
+      historyLocator,
       waited,
       true,
     ));
@@ -185,7 +185,7 @@ function serializeCompletedSend(
   action: string,
   projectId: string,
   sessionId: string,
-  messagesFilePath: string,
+  historyLocator: ReturnType<typeof getConversationHistoryLocator>,
   result: ConversationBackgroundRunResult,
   waitForReply: boolean,
 ) {
@@ -216,7 +216,7 @@ function serializeCompletedSend(
         ...(reply.content_parts?.length ? { content_parts: reply.content_parts } : {}),
       },
     } : {}),
-    messages_file_path: messagesFilePath,
+    history_locator: historyLocator,
   };
 }
 

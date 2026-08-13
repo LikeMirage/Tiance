@@ -9,6 +9,7 @@ from app.core.errors import BadRequestError, NotFoundError, register_exception_h
 from app.domain.project import Project
 from app.domain.project.project_conversation import ProjectConversationMessage
 from app.repositories.project import conversation_stores
+from app.repositories.project.conversation_database import write_session
 from app.repositories.project.conversation_repository import ProjectConversationRepository
 from app.repositories.project.conversation_stores import ConversationMessageStore
 from app.services.project.project_conversations import ProjectConversationService
@@ -16,6 +17,16 @@ from app.services.project.project_conversations import ProjectConversationServic
 
 PROJECT_ID = "00000000-0000-0000-0000-000000000986"
 TIMESTAMP = "2026-07-17T00:00:00+00:00"
+
+
+def _session_dir(tmp_path, session_id: str):
+    session_dir = tmp_path / ".Tiance" / "conversations" / "sessions" / session_id
+    write_session(
+        session_dir.parent.parent,
+        session_id,
+        {"session_id": session_id},
+    )
+    return session_dir
 
 
 class FakeProjectRepository:
@@ -40,7 +51,7 @@ def test_store_reads_exact_turn_from_more_than_ten_thousand_messages_in_one_scan
     tmp_path,
 ):
     store = ConversationMessageStore()
-    session_dir = tmp_path / "session"
+    session_dir = _session_dir(tmp_path, "session")
     older_messages = tuple(
         _message(
             f"older-{index}",
@@ -73,7 +84,7 @@ def test_store_reads_exact_turn_from_more_than_ten_thousand_messages_in_one_scan
         "target-reply",
     ]
     assert turn.items[-1].status == "cancelled"
-    assert parsed_message_count() == len(older_messages) + len(target_messages) + 1
+    assert parsed_message_count() == len(target_messages)
 
 
 def test_store_stops_at_next_user_when_target_is_the_oldest_turn(
@@ -81,7 +92,7 @@ def test_store_stops_at_next_user_when_target_is_the_oldest_turn(
     tmp_path,
 ):
     store = ConversationMessageStore()
-    session_dir = tmp_path / "oldest-target-session"
+    session_dir = _session_dir(tmp_path, "oldest-target-session")
     target_messages = (
         _message("oldest-user", role="user"),
         _message("oldest-reply", role="assistant"),
@@ -104,7 +115,7 @@ def test_store_stops_at_next_user_when_target_is_the_oldest_turn(
         "oldest-user",
         "oldest-reply",
     ]
-    assert parsed_message_count() == len(target_messages) + 1
+    assert parsed_message_count() == len(target_messages)
 
 
 @pytest.mark.parametrize(
@@ -123,7 +134,7 @@ def test_store_preserves_all_supported_turn_outcomes(
     expected_count,
 ):
     store = ConversationMessageStore()
-    session_dir = tmp_path / f"session-{reply_status or 'missing'}"
+    session_dir = _session_dir(tmp_path, f"session-{reply_status or 'missing'}")
     messages = [_message("target-user", role="user")]
     if reply_role is not None and reply_status is not None:
         messages.append(_message("target-reply", role=reply_role, status=reply_status))
@@ -139,7 +150,7 @@ def test_store_preserves_all_supported_turn_outcomes(
 
 def test_store_distinguishes_missing_id_from_non_user_id(tmp_path):
     store = ConversationMessageStore()
-    session_dir = tmp_path / "session"
+    session_dir = _session_dir(tmp_path, "session")
     store.write_messages(
         session_dir,
         (

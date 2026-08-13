@@ -24,6 +24,8 @@ class CommandSpec:
     timeout_seconds: int
     max_output_chars: int
     expected_exit_codes: tuple[int, ...]
+    extra_env: dict[str, str]
+    extra_env_keys: tuple[str, ...]
 
 
 def workspace_root() -> Path:
@@ -42,6 +44,7 @@ def build_command_spec(payload: dict[str, Any], *, root: Path) -> CommandSpec:
     timeout_seconds = _read_int(payload.get("timeout_seconds"), 30, 1, 300)
     max_output_chars = _read_int(payload.get("max_output_chars"), 20_000, 1_000, 200_000)
     expected_exit_codes = _read_expected_exit_codes(payload.get("expected_exit_codes"))
+    extra_env = _read_extra_env(payload.get("extra_env"))
 
     if direct_argv is not None:
         validate_argv_shell(payload.get("shell"))
@@ -58,6 +61,8 @@ def build_command_spec(payload: dict[str, Any], *, root: Path) -> CommandSpec:
             timeout_seconds=timeout_seconds,
             max_output_chars=max_output_chars,
             expected_exit_codes=expected_exit_codes,
+            extra_env=extra_env,
+            extra_env_keys=tuple(sorted(extra_env)),
         )
 
     assert command is not None
@@ -85,6 +90,8 @@ def build_command_spec(payload: dict[str, Any], *, root: Path) -> CommandSpec:
         timeout_seconds=timeout_seconds,
         max_output_chars=max_output_chars,
         expected_exit_codes=expected_exit_codes,
+        extra_env=extra_env,
+        extra_env_keys=tuple(sorted(extra_env)),
     )
 
 
@@ -143,6 +150,37 @@ def _read_expected_exit_codes(value: Any) -> tuple[int, ...]:
         seen.add(item)
         codes.append(item)
     return tuple(codes)
+
+
+def _read_extra_env(value: Any) -> dict[str, str]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ToolError("INVALID_ARGUMENT", "extra_env 必须是字符串键值对象。")
+    result: dict[str, str] = {}
+    for key, item in value.items():
+        if not isinstance(key, str) or not key.strip():
+            raise ToolError("INVALID_ARGUMENT", "extra_env 的键必须是非空字符串。")
+        if "=" in key or "\x00" in key:
+            raise ToolError(
+                "INVALID_ARGUMENT",
+                "extra_env 的键包含无效字符。",
+                {"key": key},
+            )
+        if not isinstance(item, str):
+            raise ToolError(
+                "INVALID_ARGUMENT",
+                "extra_env 的值必须是字符串。",
+                {"key": key},
+            )
+        if "\x00" in item:
+            raise ToolError(
+                "INVALID_ARGUMENT",
+                "extra_env 的值包含无效字符。",
+                {"key": key},
+            )
+        result[key] = item
+    return result
 
 
 def _read_int(value: Any, default: int, minimum: int, maximum: int) -> int:

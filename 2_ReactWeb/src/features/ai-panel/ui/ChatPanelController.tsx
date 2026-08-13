@@ -593,6 +593,7 @@ export function ChatPanelController({
   useActiveSessionLiveReload({
     activeRuntimeStatus: activeSessionState?.runtime_status ?? null,
     activeSessionId,
+    branchNodes,
     isActive,
     isActiveSessionStreaming,
     isSessionStreaming,
@@ -601,6 +602,7 @@ export function ChatPanelController({
     projectId,
     reloadSessionMessages,
     reloadSessions,
+    sessionStates,
   });
 
   useDetachedConversationStream({

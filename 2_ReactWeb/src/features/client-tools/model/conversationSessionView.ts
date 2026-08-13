@@ -7,12 +7,11 @@ import { serializeConversationConfiguration } from "./conversationConfiguration"
 
 type ConversationRuntimeStatus = "idle" | "running" | "error";
 
-export function getConversationMessagesFilePath(sessionId: string): string {
-  return `.Tiance/conversations/sessions/${sessionId}/messages.jsonl`;
-}
-
-export function getConversationRelationshipFilePath(): string {
-  return ".Tiance/conversations/branch_graph.json";
+export function getConversationHistoryLocator(sessionId: string) {
+  return {
+    tool_name: "conversation_history_search",
+    session_id: sessionId,
+  };
 }
 
 export function serializeConversationSessionSummary(
@@ -49,7 +48,7 @@ export function serializeStandaloneConversationSession(
     created_at: session.created_at,
     updated_at: session.updated_at,
     configuration: serializeConversationConfiguration(session),
-    messages_file_path: getConversationMessagesFilePath(session.session_id),
+    history_locator: getConversationHistoryLocator(session.session_id),
   };
 }
 

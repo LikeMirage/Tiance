@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
-from json import loads
 from pathlib import Path
 from re import fullmatch
 from shutil import copy2
@@ -12,10 +11,8 @@ from app.core.atomic_replace import atomic_replace_path
 from app.core.errors import NotFoundError
 from app.domain.llm.chat import ChatMessageContentPartType
 from app.domain.project.project_conversation import ProjectConversationMessage
-from app.repositories.project.conversation_storage import (
-    append_jsonl,
-    conversation_write_lock,
-)
+from app.repositories.project.conversation_database import append_event, read_events
+from app.repositories.project.conversation_storage import conversation_write_lock
 from app.repositories.project.conversation_stores import (
     ConversationSessionStore,
     ConversationStateStore,
@@ -26,7 +23,6 @@ from app.repositories.project.project_repository import (
 )
 
 ATTACHMENTS_DIR = "attachments"
-ATTACHMENTS_MANIFEST_FILE = "manifest.jsonl"
 ATTACHMENT_URI_PREFIX = "tiance-attachment://"
 
 
@@ -85,7 +81,7 @@ class ConversationAttachmentRepository:
             )
             attachments_dir = session_dir / ATTACHMENTS_DIR
             existing = _find_matching_attachment(
-                attachments_dir / ATTACHMENTS_MANIFEST_FILE,
+                session_dir,
                 content_sha256=content_sha256,
                 source_kind=source_kind,
                 source_path=source_path,
@@ -119,8 +115,9 @@ class ConversationAttachmentRepository:
                 source_path=source_path,
                 created_at=created_at,
             )
-            append_jsonl(
-                attachments_dir / ATTACHMENTS_MANIFEST_FILE,
+            append_event(
+                session_dir,
+                "attachments",
                 _attachment_to_payload(attachment),
             )
             return attachment
@@ -135,7 +132,7 @@ class ConversationAttachmentRepository:
         session_dir = self._session_store.require_session_dir(project_id, session_id)
         attachments_dir = session_dir / ATTACHMENTS_DIR
         attachment = _find_attachment(
-            attachments_dir / ATTACHMENTS_MANIFEST_FILE,
+            session_dir,
             attachment_id,
         )
         if attachment is None:
@@ -190,7 +187,7 @@ def copy_referenced_attachments(
         attachment
         for attachment_id in sorted(attachment_ids)
         if (attachment := _find_attachment(
-            source_dir / ATTACHMENTS_MANIFEST_FILE,
+            source_session_dir,
             attachment_id,
         )) is not None
     ]
@@ -202,8 +199,9 @@ def copy_referenced_attachments(
         if not source_file.is_file():
             raise NotFoundError("分支所需的会话附件文件不存在。")
         copy2(source_file, target_dir / attachment.stored_name)
-        append_jsonl(
-            target_dir / ATTACHMENTS_MANIFEST_FILE,
+        append_event(
+            target_session_dir,
+            "attachments",
             _attachment_to_payload(attachment),
         )
 
@@ -226,39 +224,21 @@ def _safe_suffix(value: str) -> str:
     return suffix if fullmatch(r"\.[a-z0-9]{1,10}", suffix) else ""
 
 
-def _find_attachment(path: Path, attachment_id: str) -> ConversationAttachment | None:
-    if not path.is_file():
-        return None
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            payload = loads(line)
-        except ValueError:
-            continue
-        if isinstance(payload, dict) and payload.get("attachment_id") == attachment_id:
+def _find_attachment(session_dir: Path, attachment_id: str) -> ConversationAttachment | None:
+    for payload in read_events(session_dir, "attachments"):
+        if payload.get("attachment_id") == attachment_id:
             return _attachment_from_payload(payload)
     return None
 
 
 def _find_matching_attachment(
-    path: Path,
+    session_dir: Path,
     *,
     content_sha256: str,
     source_kind: str,
     source_path: str | None,
 ) -> ConversationAttachment | None:
-    if not path.is_file():
-        return None
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            payload = loads(line)
-        except ValueError:
-            continue
-        if not isinstance(payload, dict):
-            continue
+    for payload in read_events(session_dir, "attachments"):
         attachment = _attachment_from_payload(payload)
         if (
             attachment.sha256 == content_sha256

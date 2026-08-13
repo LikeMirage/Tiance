@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from json import dumps, loads
 from pathlib import Path
 from uuid import uuid4
 
@@ -10,10 +9,9 @@ from app.domain.project.conversation_branch import (
     ProjectConversationMessageVariant,
 )
 from app.domain.project.project_conversation import ProjectConversationSession
-from app.repositories.project.conversation_storage import BRANCH_GRAPH_FILE, atomic_write_text
+from app.repositories.project.conversation_database import read_meta, write_meta
 
 BRANCH_GRAPH_VERSION = 4
-LEGACY_BRANCH_GRAPH_VERSIONS = {1, 2, 3}
 
 CREATED_BY_USER = "user"
 CREATED_BY_AI = "ai"
@@ -39,24 +37,17 @@ FUNCTION_TYPES = {
 
 class ConversationBranchStore:
     def read_graph(self, conversations_dir: Path) -> dict:
-        path = conversations_dir / BRANCH_GRAPH_FILE
-        if not path.is_file():
+        payload = read_meta(conversations_dir, "branch_graph")
+        if payload is None:
             return _empty_graph()
-        try:
-            payload = loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            raise ConflictError("会话分支关系文件损坏，已停止写入以避免覆盖。") from exc
         if not isinstance(payload, dict):
-            raise ConflictError("会话分支关系文件格式无效，已停止写入以避免覆盖。")
-        version = payload.get("version")
-        if version in LEGACY_BRANCH_GRAPH_VERSIONS:
-            payload = _upgrade_legacy_graph(payload)
+            raise ConflictError("会话分支关系数据格式无效，已停止写入以避免覆盖。")
         if (
             payload.get("version") != BRANCH_GRAPH_VERSION
             or not _is_dict_list(payload.get("nodes"))
             or not _is_dict_list(payload.get("variants"))
         ):
-            raise ConflictError("会话分支关系文件格式无效，已停止写入以避免覆盖。")
+            raise ConflictError("会话分支关系数据格式无效，已停止写入以避免覆盖。")
         return {
             "version": BRANCH_GRAPH_VERSION,
             "nodes": _dict_items(payload.get("nodes")),
@@ -64,10 +55,7 @@ class ConversationBranchStore:
         }
 
     def write_graph(self, conversations_dir: Path, graph: dict) -> None:
-        atomic_write_text(
-            conversations_dir / BRANCH_GRAPH_FILE,
-            dumps(graph, ensure_ascii=False, indent=2),
-        )
+        write_meta(conversations_dir, "branch_graph", graph)
 
     def list_nodes(self, graph: dict) -> tuple[ProjectConversationBranchNode, ...]:
         return tuple(
@@ -434,54 +422,6 @@ def _child_relation_kind(value: object) -> str:
 
 
 def _function_type(value: object) -> str | None:
-    return value if isinstance(value, str) and value in FUNCTION_TYPES else None
-
-
-def _upgrade_legacy_graph(payload: dict) -> dict:
-    if (
-        not _is_dict_list(payload.get("nodes"))
-        or not _is_dict_list(payload.get("variants"))
-    ):
-        raise ConflictError("会话分支关系文件格式无效，已停止写入以避免覆盖。")
-    source_version = payload.get("version")
-    nodes = []
-    for item in _dict_items(payload.get("nodes")):
-        node = dict(item)
-        if source_version == 1:
-            node["created_by"] = CREATED_BY_USER
-            node["history_mode"] = (
-                HISTORY_MODE_FORK
-                if _optional_str(node.get("parent_branch_id"))
-                else HISTORY_MODE_EMPTY
-            )
-            node["source_message_id"] = None
-        nodes.append(node)
-    session_id_by_branch_id = {
-        branch_id: session_id
-        for node in nodes
-        if (branch_id := _required_str(node.get("branch_id")))
-        and (session_id := _required_str(node.get("session_id")))
-    }
-    for node in nodes:
-        parent_branch_id = _optional_str(node.get("parent_branch_id"))
-        node["parent_session_id"] = (
-            session_id_by_branch_id.get(parent_branch_id)
-            if parent_branch_id
-            else None
-        )
-        if source_version in {1, 2}:
-            node["relation_kind"] = (
-                RELATION_KIND_ROOT
-                if not parent_branch_id
-                else (
-                    RELATION_KIND_FORK
-                    if _history_mode(node.get("history_mode")) == HISTORY_MODE_FORK
-                    else RELATION_KIND_CHILD
-                )
-            )
-        node.setdefault("function_type", None)
-    return {
-        "version": BRANCH_GRAPH_VERSION,
-        "nodes": nodes,
-        "variants": [dict(item) for item in _dict_items(payload.get("variants"))],
-    }
+    if isinstance(value, str) and value in FUNCTION_TYPES:
+        return value
+    return None

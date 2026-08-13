@@ -1,12 +1,17 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ArrowClockwise, ArrowSquareOut, DownloadSimple, GitBranch, GithubLogo, Package } from "@phosphor-icons/react";
 
 import { useI18n } from "../../../shared/i18n";
+import { LazyMarkdownPreview } from "../../markdown-preview/ui/LazyMarkdownPreview";
 import {
   LATEST_SOFTWARE_DOWNLOAD_URL,
   OPEN_SOURCE_REPOSITORY_URL,
 } from "../../../services/system/softwareUpdate";
 import { useSoftwareUpdate } from "../model/useSoftwareUpdate";
+import {
+  isAutomaticSoftwareUpdateCheckEnabled,
+  setAutomaticSoftwareUpdateCheckEnabled,
+} from "../model/softwareUpdatePreferences";
 import "./software-update.css";
 
 type SoftwareUpdatePanelProps = { onReady?: () => void };
@@ -14,6 +19,9 @@ type SoftwareUpdatePanelProps = { onReady?: () => void };
 export function SoftwareUpdatePanel({ onReady }: SoftwareUpdatePanelProps) {
   const { t } = useI18n();
   const softwareUpdate = useSoftwareUpdate();
+  const [automaticCheckEnabled, setAutomaticCheckEnabled] = useState(
+    isAutomaticSoftwareUpdateCheckEnabled,
+  );
 
   useEffect(() => onReady?.(), [onReady]);
 
@@ -36,6 +44,31 @@ export function SoftwareUpdatePanel({ onReady }: SoftwareUpdatePanelProps) {
           {softwareUpdate.state === "checking" ? t("softwareUpdate.checking") : t("softwareUpdate.check")}
         </button>
       </header>
+
+      <section className="software-update__preference">
+        <div>
+          <strong>{t("softwareUpdate.autoCheck.title")}</strong>
+          <span>{t("softwareUpdate.autoCheck.description")}</span>
+        </div>
+        <button
+          aria-checked={automaticCheckEnabled}
+          aria-label={t("softwareUpdate.autoCheck.title")}
+          className={
+            automaticCheckEnabled
+              ? "software-update__toggle software-update__toggle--on"
+              : "software-update__toggle"
+          }
+          role="switch"
+          type="button"
+          onClick={() => {
+            const enabled = !automaticCheckEnabled;
+            setAutomaticCheckEnabled(enabled);
+            setAutomaticSoftwareUpdateCheckEnabled(enabled);
+          }}
+        >
+          <i aria-hidden="true" />
+        </button>
+      </section>
 
       {softwareUpdate.error ? <div className="software-update__error" role="alert">{softwareUpdate.error}</div> : null}
 
@@ -80,7 +113,9 @@ export function SoftwareUpdatePanel({ onReady }: SoftwareUpdatePanelProps) {
           {update.releaseNotes ? (
             <div className="software-update__notes">
               <h3>{t("softwareUpdate.notes")}</h3>
-              <div>{update.releaseNotes}</div>
+              <div className="software-update__notes-body">
+                <LazyMarkdownPreview content={update.releaseNotes} />
+              </div>
             </div>
           ) : null}
 

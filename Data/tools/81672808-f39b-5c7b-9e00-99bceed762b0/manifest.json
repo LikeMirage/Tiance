@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "run_python_script",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "author": {
     "name": "LikeMirage"
   },

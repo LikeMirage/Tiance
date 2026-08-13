@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from command_contract import CommandSpec, build_command_spec, workspace_root
@@ -53,13 +54,15 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
             cwd=spec.workdir,
             timeout_seconds=spec.timeout_seconds,
             max_output_chars=spec.max_output_chars,
+            extra_env=spec.extra_env,
         )
     except FileNotFoundError as exc:
+        message, details = _command_not_found(spec, exc)
         return fail(
             "COMMAND_NOT_FOUND",
-            "找不到要启动的命令。",
+            message,
             data=_execution_data(spec, status="start_failed"),
-            details={"filename": str(exc.filename or spec.argv[0])},
+            details=details,
         )
     except PermissionError as exc:
         return fail(
@@ -165,6 +168,7 @@ def _execution_data(
         "workdir": str(spec.workdir),
         "exit_code": exit_code,
         "expected_exit_codes": list(spec.expected_exit_codes),
+        "extra_env_keys": list(spec.extra_env_keys),
         "stdout": stdout,
         "stderr": stderr,
         "stdout_truncated": stdout_truncated,
@@ -174,6 +178,35 @@ def _execution_data(
         "timeout_seconds": spec.timeout_seconds,
         "elapsed_ms": elapsed_ms,
     }
+
+
+def _command_not_found(
+    spec: CommandSpec,
+    exc: FileNotFoundError,
+) -> tuple[str, dict[str, Any]]:
+    filename = str(exc.filename or spec.argv[0])
+    details: dict[str, Any] = {"filename": filename}
+    if spec.execution_mode != "argv":
+        return "找不到要启动的命令。", details
+
+    executable = spec.argv[0]
+    if Path(executable).name != executable:
+        return "找不到要启动的命令。", details
+    local_candidate = spec.workdir / executable
+    if not local_candidate.is_file():
+        return "找不到要启动的命令。", details
+
+    details.update(
+        {
+            "local_candidate": str(local_candidate),
+            "suggested_argv0": f".\\{executable}",
+        }
+    )
+    return (
+        "工作目录中存在该文件，但 argv 不会自动从工作目录查找可执行文件；"
+        "请把 argv[0] 写成 .\\程序名或绝对路径。",
+        details,
+    )
 
 
 if __name__ == "__main__":

@@ -3,7 +3,6 @@ import { memo, useCallback, useMemo, useState, type ReactNode } from "react";
 import type { Project, ProjectCategory } from "../../../entities/project/model/project";
 import type { ProjectFileReferenceRequest } from "../../../entities/project/model/projectFileDragData";
 import type {
-  CollectionOverviewView,
   WorkspaceLayoutPreferences,
   WorkspaceLayoutPreferenceUpdate,
 } from "../../../entities/workspace/model/workspaceLayoutPreferences";
@@ -20,7 +19,6 @@ import { useWorkspaceDocumentActions } from "../model/useWorkspaceDocumentAction
 import { useWorkspaceEditorReferences } from "../model/useWorkspaceEditorReferences";
 import { ProjectCategoryOverviewKeepAlive } from "./ProjectCategoryOverviewKeepAlive";
 import { ProjectConversationOverviewDashboard } from "../../../features/project-category-overview/ui/ProjectConversationOverviewDashboard";
-import { ProjectOverviewViewTabs } from "../../../features/project-category-overview/ui/ProjectOverviewViewTabs";
 import { CollectionOverviewViewTabs } from "../../../features/project-category-overview/ui/CollectionOverviewViewTabs";
 import { useRoleConfigurationEditor } from "../../../features/role-configuration/model/useRoleConfigurationEditor";
 import { RoleCollectionOverview } from "../../../features/role-configuration/ui/RoleCollectionOverview";
@@ -85,7 +83,6 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
   projectMarketScope = null,
   onExpandProject,
   onCreateProject,
-  onCollapseProject,
   onConfirmProjectSession,
   onImportProjectFolder,
   onApplyTheme,
@@ -210,46 +207,10 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
         : selectedSessionId,
     );
   }, [handleEnterConversationBranches, projectId, selectedSessionId, visibleChatSession]);
-  const handleOpenExternalProjectView = useCallback(async (
-    view: "projects" | "online" | "conversation" | "branches",
-  ) => {
-    if (
-      isRoleWorkspace
-      || isThemeWorkspace
-      || isProviderWorkspace
-      || !projectId
-      || !selectedCategoryId
-    ) {
-      return;
-    }
-    if (expandedProjectId) {
-      const collapsed = await onCollapseProject();
-      if (collapsed === false) return;
-    }
-    onLayoutPreferenceChange({
-      ...(view === "conversation" || view === "branches"
-        ? {
-            projectOverviewMaximized: {
-              categoryId: selectedCategoryId,
-              projectId,
-            },
-          }
-        : {}),
-      projectOverviewView: {
-        categoryId: selectedCategoryId,
-        view,
-      },
-    });
-  }, [
-    expandedProjectId,
-    isRoleWorkspace,
-    isThemeWorkspace,
-    isProviderWorkspace,
-    onCollapseProject,
-    onLayoutPreferenceChange,
-    projectId,
-    selectedCategoryId,
-  ]);
+  const handleOpenCurrentConversationOverview = useCallback(() => {
+    if (!projectId) return;
+    documentTabs.ensureProjectConversationOverview(projectId, { activate: true });
+  }, [documentTabs.ensureProjectConversationOverview, projectId]);
   const handleActiveUserMessageChange = useCallback((
     targetProjectId: string,
     sessionId: string,
@@ -483,42 +444,6 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       </div>
     </div>
   ) : categoryOverviewContent;
-  const handleOpenCollectionOverviewView = useCallback(async (
-    view: CollectionOverviewView,
-  ) => {
-    if (!collectionKind || !projectId) return;
-    if (expandedProjectId) {
-      const collapsed = await onCollapseProject();
-      if (collapsed === false) return;
-    }
-    handleCollectionOverviewViewChange(view, projectId);
-  }, [
-    collectionKind,
-    expandedProjectId,
-    handleCollectionOverviewViewChange,
-    onCollapseProject,
-    projectId,
-  ]);
-  const projectConversationOverviewNavigation = selectedCategoryId ? (
-    collectionKind ? (
-      <CollectionOverviewViewTabs
-        activeView="conversation"
-        disabled={false}
-        kind={collectionKind}
-        onChange={(view) => void handleOpenCollectionOverviewView(view)}
-      />
-    ) : (
-      <ProjectOverviewViewTabs
-        activeView="conversation"
-        disabled={false}
-        marketScope={projectMarketScope}
-        onChange={(view) => {
-          if (view === "conversation" || view === "branches") return;
-          void handleOpenExternalProjectView(view);
-        }}
-      />
-    )
-  ) : null;
   const assistantPanel = useMemo(() => (
     <ChatPanel
       activeConversationDataFile={activeConversationDataFile}
@@ -533,19 +458,8 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       onClearReferences={handleClearReferences}
       onComposerHeightCommit={handleComposerHeightCommit}
       onDraftReferencesChange={handleDraftReferencesChange}
-      onOpenConversationBranches={
-        !collectionKind
-          ? () => void handleOpenExternalProjectView("branches")
-          : handleOpenCurrentConversationBranches
-      }
-      onOpenConversationOverview={
-        collectionKind
-          ? () => void handleOpenCollectionOverviewView("conversation")
-          : !isRoleWorkspace && !isThemeWorkspace
-            && !isProviderWorkspace
-          ? () => void handleOpenExternalProjectView("conversation")
-          : undefined
-      }
+      onOpenConversationBranches={handleOpenCurrentConversationBranches}
+      onOpenConversationOverview={handleOpenCurrentConversationOverview}
       onOpenConversationDataFile={handleOpenConversationDataFile}
       onOpenReference={handleOpenReference}
       onPreviewHtmlCode={handlePreviewHtmlCode}
@@ -575,8 +489,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     handleComposerHeightCommit,
     handleDraftReferencesChange,
     handleOpenCurrentConversationBranches,
-    handleOpenCollectionOverviewView,
-    handleOpenExternalProjectView,
+    handleOpenCurrentConversationOverview,
     handleOpenConversationDataFile,
     handleOpenReference,
     handlePreviewHtmlCode,
@@ -588,10 +501,6 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     handleSaveProjectCodeBlock,
     isActive,
     isImageReferenceUploadPending,
-    isRoleWorkspace,
-    isThemeWorkspace,
-    isProviderWorkspace,
-    collectionKind,
     layoutPreferences.composerHeight,
     projectFileReferenceRequest,
     projectId,
@@ -638,7 +547,6 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       persistentEmptyContent={overviewContent}
       persistentEmptyContentVisible={shouldShowCategoryOverview}
       projectConversationOverviewContent={projectConversationOverviewContent}
-      projectConversationOverviewNavigation={projectConversationOverviewNavigation}
       roleConfigurationContent={roleConfigurationContent}
       themeConfigurationContent={themeConfigurationContent}
       projectRootPath={selectedProject?.root_path ?? ""}

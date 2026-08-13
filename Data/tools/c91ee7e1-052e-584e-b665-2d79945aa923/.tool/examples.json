@@ -1,6 +1,6 @@
 [
   {
-    "content": "适合把论文、报告或合同解析成 Markdown，并让豆包视觉模型把图片、表格截图、流程图等内容还原到对应图片下方。\n\n输入参数：\n{\n  \"file_path\": \"docs/example.pdf\"\n}\n\n预期返回：\n{\n  \"ok\": true,\n  \"summary\": \"文档解析完成：example\",\n  \"data\": {\n    \"output_dir\": \"C:/Users/WW/Desktop/Tiance/example\",\n    \"main_markdown\": \"C:/Users/WW/Desktop/Tiance/example/example.md\",\n    \"image_dir\": \"C:/Users/WW/Desktop/Tiance/example/images\"\n  },\n  \"warnings\": []\n}",
+    "content": "适合把论文、报告或合同解析成 Markdown，并让豆包视觉模型把图片、表格截图、流程图等内容还原到对应图片下方。结果还会保留 structure 目录；需要判断某段内容位于哪一页时，优先读取 content_list_v2.json，其次读取 content_list.json。page_idx 从 0 开始，例如 page_idx=0 表示第 1 页。\n\n输入参数：\n{\n  \"file_path\": \"docs/example.pdf\"\n}\n\n预期返回：\n{\n  \"ok\": true,\n  \"summary\": \"文档解析完成：example\",\n  \"data\": {\n    \"output_dir\": \"C:/Users/WW/Desktop/Tiance/example\",\n    \"main_markdown\": \"C:/Users/WW/Desktop/Tiance/example/example.md\",\n    \"image_dir\": \"C:/Users/WW/Desktop/Tiance/example/images\",\n    \"structure_dir\": \"C:/Users/WW/Desktop/Tiance/example/structure\"\n  },\n  \"warnings\": []\n}",
     "enabled": true,
     "inject_content": false,
     "title": "解析工作区内的 PDF 并生成同名文件夹"
@@ -12,7 +12,7 @@
     "title": "重新生成已有解析结果"
   },
   {
-    "content": "当只需要正文 Markdown，或者想先节省视觉模型调用时使用 analyze_images=false。\n\n输入参数：\n{\n  \"file_path\": \"docs/example.docx\",\n  \"analyze_images\": false\n}\n\n工具仍会生成 example.md 和 images 文件夹；只是不会在图片下方插入视觉解析。成功完成后会自动清理 MinerU 原始 zip、解压目录、日志和元数据等中间产物。",
+    "content": "当只需要正文 Markdown，或者想先节省视觉模型调用时使用 analyze_images=false。\n\n输入参数：\n{\n  \"file_path\": \"docs/example.docx\",\n  \"analyze_images\": false\n}\n\n工具仍会生成 example.md、images、metadata.json 和 structure 目录；只是不会在图片下方插入视觉解析。成功完成后会自动清理 MinerU 原始 zip、临时解压目录和日志，结构数据不会被清理。",
     "enabled": true,
     "inject_content": false,
     "title": "只做 MinerU 解析，不调用视觉模型"

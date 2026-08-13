@@ -9,7 +9,11 @@ const vite = await createServer({
   root: fileURLToPath(new URL("../", import.meta.url)),
   server: { middlewareMode: true },
 });
-const { resolveActiveSessionLiveReloadMode } = await vite.ssrLoadModule(
+const {
+  hasRecentCompactionStart,
+  hasRunningMemoryCompactionChild,
+  resolveActiveSessionLiveReloadMode,
+} = await vite.ssrLoadModule(
   "/src/features/ai-panel/model/useChatPanelLifecycleEffects.ts",
 );
 
@@ -37,6 +41,37 @@ test("后台压缩同样读取消息以同步压缩状态", () => {
     isActiveSessionStreaming: false,
     isCompactionRunning: true,
   }), "messages-and-session");
+});
+
+test("只把短时间内的压缩开始消息作为启动过渡信号", () => {
+  const message = {
+    role: "system",
+    name: "memory_compaction",
+    status: "running",
+    createdAt: 10_000,
+  };
+  assert.equal(hasRecentCompactionStart([message], 39_999), true);
+  assert.equal(hasRecentCompactionStart([message], 40_001), false);
+});
+
+test("运行中的压缩功能子会话是持续轮询的权威状态", () => {
+  const branchNodes = [{
+    session_id: "function-session",
+    parent_session_id: "source-session",
+    relation_kind: "functional",
+    function_type: "memory_compaction",
+    deleted_at: null,
+  }];
+  assert.equal(hasRunningMemoryCompactionChild(
+    "source-session",
+    branchNodes,
+    { "function-session": { runtime_status: "running" } },
+  ), true);
+  assert.equal(hasRunningMemoryCompactionChild(
+    "source-session",
+    branchNodes,
+    { "function-session": { runtime_status: "idle" } },
+  ), false);
 });
 
 test("空闲、隐藏或没有活动会话时停止轮询", () => {

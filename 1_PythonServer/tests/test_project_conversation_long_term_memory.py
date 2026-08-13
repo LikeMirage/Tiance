@@ -112,6 +112,14 @@ def test_long_term_memory_success_advances_boundary_and_does_not_repeat(
     assert state["last_completed_boundary_message_id"] == assistant.message_id
     assert len(runner_calls) == 1
     assert runner_calls[0].usage_feature_key == "project_memory_management"
+    function_session = conversation.get_session(
+        PROJECT_ID,
+        runner_calls[0].session_id,
+    )
+    assert function_session is not None
+    assert function_session.settings.memory_compression_enabled is False
+    assert function_session.settings.project_memory_extraction_enabled is False
+    assert function_session.settings.global_memory_extraction_enabled is False
 
 
 def test_long_term_memory_failure_does_not_advance_boundary(tmp_path):

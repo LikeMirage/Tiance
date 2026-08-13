@@ -13,7 +13,7 @@
   },
   {
     "title": "查看会话属性和来源关系",
-    "content": "查看目标会话的模型、推理模式、系统提示词、启用工具、消息数量、时间与文件路径，并取得 relation_kind、created_by、父会话实时标题和 ID、历史继承方式等关系属性。完整关系数据统一保存在项目内 .Tiance/conversations/branch_graph.json。\n\n输入参数：\n{\n  \"action\": \"get_session_info\",\n  \"session_id\": \"sess_xxx\"\n}"
+    "content": "查看目标会话的模型、推理模式、系统提示词、启用工具、消息数量和时间，并取得 relation_kind、created_by、父会话实时标题和 ID、历史继承方式等关系属性。需要检索完整原始历史时使用返回的 history_locator。\n\n输入参数：\n{\n  \"action\": \"get_session_info\",\n  \"session_id\": \"sess_xxx\"\n}"
   },
   {
     "title": "查看最近已完成回复",

@@ -8,8 +8,9 @@ import sys
 from zipfile import ZipFile
 
 from docx import Document
+from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml import OxmlElement
-from docx.shared import Pt, RGBColor
+from docx.shared import Inches, Pt, RGBColor
 from lxml import etree
 
 WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -108,6 +109,48 @@ def test_create_uses_content_aware_table_widths_and_native_formula(tmp_path: Pat
     assert widths[1] > widths[0]
     assert root.xpath("count(.//m:oMath)", namespaces=NS) >= 1
     assert not list(tmp_path.glob("*.docx.tmp"))
+
+
+def test_create_defaults_match_markdown_to_word_base_style(tmp_path: Path) -> None:
+    output = tmp_path / "styled.docx"
+    result = call(
+        tmp_path,
+        {
+            "action": "create",
+            "output_path": output.name,
+            "elements": [
+                {"type": "heading", "level": 1, "text": "标题"},
+                {"type": "paragraph", "text": "正文内容"},
+                {"type": "table", "rows": [["表头", "数值"], ["项目", "1"]]},
+            ],
+        },
+    )
+    assert result["ok"] is True, result
+
+    doc = Document(output)
+    section = doc.sections[0]
+    assert section.top_margin == Inches(0.75)
+    assert section.bottom_margin == Inches(0.75)
+    assert section.left_margin == Inches(0.75)
+    assert section.right_margin == Inches(0.75)
+
+    heading, body = doc.paragraphs[:2]
+    assert heading.runs[0].font.size == Pt(18)
+    assert heading.runs[0].font.color.rgb == RGBColor(0, 0, 0)
+    assert heading.paragraph_format.keep_with_next is True
+    assert body.runs[0].font.size == Pt(12)
+    assert body.runs[0].font.color.rgb == RGBColor(0, 0, 0)
+    assert body.paragraph_format.space_after == Pt(6)
+    assert body.paragraph_format.line_spacing == 1.15
+    assert abs(body.paragraph_format.first_line_indent - Inches(0.28)) <= Pt(0.01)
+
+    table = doc.tables[0]
+    assert table.alignment == WD_TABLE_ALIGNMENT.LEFT
+    header_run = table.cell(0, 0).paragraphs[0].runs[0]
+    assert header_run.font.size == Pt(10.5)
+    assert header_run.font.color.rgb == RGBColor(0, 0, 0)
+    root = document_xml(output)
+    assert root.xpath("string(.//w:tbl[1]/w:tr[1]/w:tc[1]/w:tcPr/w:shd/@w:fill)", namespaces=NS) == "F2F2F2"
 
 
 def test_invalid_formula_is_preserved_as_text_with_warning(tmp_path: Path) -> None:

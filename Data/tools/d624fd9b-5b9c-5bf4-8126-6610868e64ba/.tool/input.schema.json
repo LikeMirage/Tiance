@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "管理工具调用上下文所属项目的 AI 会话。list_sessions 默认只返回调用会话的父级链和自己的下级树，可选择查看项目全部会话，并只提供用于定位会话的实时标题、ID、状态和聊天面板当前显示的 active_session_id；get_session_info 查看配置及分支、子会话来源等属性；get_session 读取最近消息和用量。会话关系统一保存在项目内 .Tiance/conversations/branch_graph.json。create_session 的继承来源固定为工具调用上下文中的会话。取得会话 ID 后可交给 interact_ai_conversation 发送消息，并要求目标 AI 通过来源会话 ID 直接汇报。",
+  "description": "管理工具调用上下文所属项目的 AI 会话。list_sessions 默认只返回调用会话的父级链和自己的下级树，可选择查看项目全部会话，并只提供用于定位会话的实时标题、ID、状态和聊天面板当前显示的 active_session_id；get_session_info 查看配置及分支、子会话来源等属性；get_session 读取最近消息和用量。需要检索完整原始历史时使用结果中的 history_locator。create_session 的继承来源固定为工具调用上下文中的会话。取得会话 ID 后可交给 interact_ai_conversation 发送消息，并要求目标 AI 通过来源会话 ID 直接汇报。",
   "properties": {
     "action": {
       "description": "要执行的会话管理动作。",

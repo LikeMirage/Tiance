@@ -10,6 +10,7 @@ import { saveProjectCodeBlock } from "../../../features/document-editor-canvas/m
 import type { useDocumentTabs } from "../../../features/document-tabs/model/useDocumentTabs";
 import type { CodeBlockSavePayload } from "../../../features/markdown-preview/model/codeBlockFile";
 import { generateProjectMarkdownDocx } from "../../../services/project/generateProjectMarkdownDocx";
+import { getConversationDataView } from "../../../services/project/getConversationDataView";
 
 type UseWorkspaceDocumentActionsOptions = {
   documentTabs: ReturnType<typeof useDocumentTabs>;
@@ -78,36 +79,31 @@ export function useWorkspaceDocumentActions({
     documentTabs.openVirtualConversationBranches(resolvedProjectId);
   }, [documentTabs.openVirtualConversationBranches, projectId]);
 
-  const openProjectConversationFile = useCallback((filePath: string, fileName: string) => {
-    if (!projectId) return;
-    void documentTabs.openNode({
-      id: `project:${projectId}:${filePath}`,
-      kind: "file",
-      name: fileName,
-      path: filePath,
-    }, {
-      projectFilePath: filePath,
-      projectId,
-    });
-  }, [documentTabs.openNode, projectId]);
-
   const handleOpenConversationDataFile = useCallback((
     sessionId: string,
     fileName: ConversationDataFileName,
   ) => {
-    if (fileName === "project_memory.jsonl") {
-      openProjectConversationFile(".Tiance/memory/project_memory.jsonl", fileName);
-      return;
-    }
+    if (!projectId) return;
     if (fileName === "global_memory.jsonl") {
       documentTabs.openVirtualMemoryDashboard("global", { projectId });
       return;
     }
-    const filePath = fileName === "index.json"
-      ? ".Tiance/conversations/index.json"
-      : `.Tiance/conversations/sessions/${sessionId}/${fileName}`;
-    openProjectConversationFile(filePath, fileName);
-  }, [documentTabs.openVirtualMemoryDashboard, openProjectConversationFile, projectId]);
+    const viewSessionId = fileName === "index.json" || fileName === "project_memory.jsonl"
+      ? null
+      : sessionId;
+    void getConversationDataView(projectId, fileName, viewSessionId).then((result) => {
+      if (projectIdRef.current !== projectId) return;
+      documentTabsRef.current.openVirtualConversationData({
+        content: result.content,
+        fileName,
+        projectId,
+        revisionMs: result.revision_ms,
+        sessionId: viewSessionId,
+        totalCount: result.total_count,
+        truncated: result.truncated,
+      });
+    });
+  }, [documentTabs.openVirtualMemoryDashboard, projectId]);
 
   const handleAiPanelWidthCommit = useCallback((aiPanelWidth: number) => {
     onLayoutPreferenceChange({ aiPanelWidth });

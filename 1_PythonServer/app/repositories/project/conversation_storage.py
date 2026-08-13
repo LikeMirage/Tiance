@@ -15,12 +15,6 @@ from app.infra.projects.project_storage import require_existing_project_root
 WORKSPACE_DIR = ".Tiance"
 WORKSPACE_README_FILE = "README.md"
 CONVERSATIONS_DIR = "conversations"
-INDEX_FILE = "index.json"
-SESSION_FILE = "session.json"
-MESSAGES_FILE = "messages.jsonl"
-NAMING_CALLS_FILE = "naming_calls.jsonl"
-INJECTION_PREVIEW_FILE = "injection_preview.json"
-BRANCH_GRAPH_FILE = "branch_graph.json"
 _WRITE_LOCK_FILE = ".write.lock"
 _WRITE_LOCK_TIMEOUT_SECONDS = 10.0
 _WRITE_LOCK_STALE_AFTER_SECONDS = 60.0
@@ -60,14 +54,16 @@ class ProjectWorkspaceDirectoryResolver:
         if workspace_dir.exists():
             if for_write:
                 ensure_workspace_readme(workspace_dir)
+            from app.repositories.project.conversation_database import ensure_database
+
+            ensure_database(workspace_dir)
             return workspace_dir
         if for_write:
             ensure_workspace_readme(workspace_dir)
+        from app.repositories.project.conversation_database import ensure_database
+
+        ensure_database(workspace_dir)
         return workspace_dir
-
-
-class ConversationStorageMigration(ProjectWorkspaceDirectoryResolver):
-    pass
 
 
 def ensure_workspace_readme(workspace_dir: Path) -> None:
@@ -85,32 +81,18 @@ def _workspace_readme_content() -> str:
 ## 根目录文件
 
 - `README.md`：说明 `.Tiance` 内各文件和目录的用途。
-- `state.json`：项目工作区状态，例如会话入口、当前工作区视图等轻量状态。
+- `tiance.db`：项目会话、消息、分支、项目记忆、任务状态和工作区状态的唯一数据源。数据库使用 WAL 模式，允许界面读取与后台写入并行进行。
+- `tiance.db-wal`、`tiance.db-shm`：SQLite 运行期间自动维护的 WAL 文件，软件正常关闭或数据库检查点执行后可能消失，不应手工编辑或删除。
 
-## conversations/
+## conversations/sessions/
 
-项目会话数据目录。
+这里只保留必须作为实体文件存在的会话附件。会话元数据、消息、压缩记录、注入预览和附件索引都保存在 `tiance.db` 中。
 
-- `conversations/index.json`：会话列表、当前会话和会话运行状态索引。
-- `conversations/branch_graph.json`：会话分支关系、已删除分支墓碑和消息版本切换索引。
-- `conversations/sessions/{session_id}/session.json`：单个会话的基础信息、模型和会话设置。
-- `conversations/sessions/{session_id}/messages.jsonl`：单个会话的原始消息记录。
-- `conversations/sessions/{session_id}/attachments/`：该会话独立持有的模型附件副本和来源清单；会话分支会复制自己的副本，删除会话时一并清理。
-- `conversations/sessions/{session_id}/naming_calls.jsonl`：会话自动命名调用记录。
-- `conversations/sessions/{session_id}/injection_preview.json`：该会话下一次请求预览或最近一次真实请求快照。
-- `conversations/sessions/{session_id}/compressions.jsonl`：该会话的记忆压缩记录。成功和失败的压缩尝试都会按完成顺序保留；最新成功累计摘要替代前一摘要进入模型上下文，原始消息仍保留在 `messages.jsonl`。
-- `conversations/sessions/{session_id}/memory_compaction_request.json`：普通会话通过提交工具发起、尚待统一调度器处理的一次手动压缩请求；创建功能会话后删除。
-- `conversations/sessions/{session_id}/memory_delivery.json`：该会话首次使用的长期记忆快照、已消费事件位置，以及绑定到具体用户消息的全局/项目记忆变更。
-- `conversations/sessions/{session_id}/long_term_memory_state.json`：该会话最近一次成功完成长期记忆管理的消息边界；失败任务不会推进此边界。
-- `conversations/sessions/{session_id}/long_term_memory_task.json`：长期记忆管理功能会话的来源、固定处理边界、重试关系和执行状态。
+- `conversations/sessions/{session_id}/attachments/`：该会话独立持有的附件文件。分支会复制自己的附件副本，删除会话时一并清理。
 
-## memory/
+## 数据看板
 
-项目长期记忆目录。
-
-- `memory/project_memory.jsonl`：当前项目长期记忆的增删改事件记录。
-
-## 说明
+消息、压缩、注入预览、会话索引和项目记忆看板通过后端只读数据视图从 `tiance.db` 获取内容，不依赖磁盘上的 JSON/JSONL 镜像文件。
 
 全局长期记忆不放在项目目录内，而是保存在天策运行数据目录的 `memory/global_memory.jsonl`。
 """
@@ -118,10 +100,24 @@ def _workspace_readme_content() -> str:
 
 @contextmanager
 def conversation_write_lock(conversations_dir: Path):
-    conversations_dir.mkdir(parents=True, exist_ok=True)
-    write_queue = _write_queue_for(conversations_dir)
+    if conversations_dir.name != CONVERSATIONS_DIR:
+        with _file_write_lock(conversations_dir):
+            yield
+        return
+    from app.repositories.project.conversation_database import (
+        transaction_for_conversations,
+    )
+
+    with transaction_for_conversations(conversations_dir):
+        yield
+
+
+@contextmanager
+def _file_write_lock(target_dir: Path):
+    target_dir.mkdir(parents=True, exist_ok=True)
+    write_queue = _write_queue_for(target_dir)
     with write_queue.wait_for_turn():
-        lock_path = conversations_dir / _WRITE_LOCK_FILE
+        lock_path = target_dir / _WRITE_LOCK_FILE
         lock_token = f"{os.getpid()}:{uuid4().hex}"
         deadline = monotonic() + _WRITE_LOCK_TIMEOUT_SECONDS
         fd: int | None = None
@@ -132,7 +128,7 @@ def conversation_write_lock(conversations_dir: Path):
             except (FileExistsError, PermissionError) as exc:
                 _remove_stale_lock(lock_path)
                 if monotonic() >= deadline:
-                    raise ConflictError("对话正在写入，请稍后重试。") from exc
+                    raise ConflictError("数据正在写入，请稍后重试。") from exc
                 sleep(0.05)
         try:
             yield

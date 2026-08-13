@@ -12,11 +12,19 @@ from app.core.config import get_settings
 from app.core.errors import NotFoundError
 from app.repositories.project.conversation_storage import (
     CONVERSATIONS_DIR,
-    SESSION_FILE,
     ProjectWorkspaceDirectoryResolver,
     append_jsonl,
     atomic_write_text,
     conversation_write_lock,
+)
+from app.repositories.project.conversation_database import (
+    append_project_events,
+    read_document,
+    read_events,
+    read_project_events,
+    replace_events,
+    session_exists,
+    write_document,
 )
 from app.repositories.project.project_repository import ProjectRepository, get_project_repository
 
@@ -42,21 +50,26 @@ class ProjectConversationMemoryRepository:
         return _memory_context_from_events(_read_jsonl(self._global_memory_path()))
 
     def list_project_memory_context(self, project_id: str) -> list[dict[str, str]]:
-        return _memory_context_from_events(_read_jsonl(self._project_memory_path(project_id, for_write=False)))
+        return _memory_context_from_events(self.list_project_memory_events(project_id))
 
     def list_global_memory_events(self) -> list[dict[str, Any]]:
         return _read_jsonl(self._global_memory_path())
 
     def list_project_memory_events(self, project_id: str) -> list[dict[str, Any]]:
-        return _read_jsonl(self._project_memory_path(project_id, for_write=False))
+        return read_project_events(
+            self._workspace_dir(project_id, for_write=False),
+            "project_memory",
+        )
 
     def read_session_memory_delivery_state(
         self,
         project_id: str,
         session_id: str,
     ) -> dict[str, Any] | None:
-        path = self._session_dir(project_id, session_id) / MEMORY_DELIVERY_FILE
-        return _read_json_object(path)
+        return read_document(
+            self._session_dir(project_id, session_id),
+            "memory_delivery",
+        )
 
     def update_session_memory_delivery_state(
         self,
@@ -65,13 +78,9 @@ class ProjectConversationMemoryRepository:
         update: Callable[[dict[str, Any] | None], dict[str, Any]],
     ) -> dict[str, Any]:
         session_dir = self._session_dir(project_id, session_id, for_write=True)
-        path = session_dir / MEMORY_DELIVERY_FILE
         with conversation_write_lock(_conversations_dir_from_session_dir(session_dir)):
-            updated = update(_read_json_object(path))
-            atomic_write_text(
-                path,
-                f"{dumps(updated, ensure_ascii=False, separators=(',', ':'))}\n",
-            )
+            updated = update(read_document(session_dir, "memory_delivery"))
+            write_document(session_dir, "memory_delivery", updated)
         return updated
 
     def append_compression(
@@ -81,18 +90,20 @@ class ProjectConversationMemoryRepository:
         payload: dict[str, Any],
     ) -> None:
         session_dir = self._session_dir(project_id, session_id, for_write=True)
-        path = session_dir / COMPRESSIONS_FILE
         with conversation_write_lock(_conversations_dir_from_session_dir(session_dir)):
-            records = _read_jsonl(path)
+            records = read_events(session_dir, "compressions")
             records.append(payload)
-            _write_compression_records(path, records)
+            replace_events(session_dir, "compressions", records)
 
     def list_compressions(
         self,
         project_id: str,
         session_id: str,
     ) -> list[dict[str, Any]]:
-        return _read_jsonl(self._session_dir(project_id, session_id) / COMPRESSIONS_FILE)
+        return read_events(
+            self._session_dir(project_id, session_id),
+            "compressions",
+        )
 
     def apply_memory_operations(
         self,
@@ -116,13 +127,21 @@ class ProjectConversationMemoryRepository:
                 operations=global_operations,
             )
         if _has_effective_operations(project_operations):
-            applied["project_memory"] = self._append_memory_operations(
-                self._project_memory_path(project_id, for_write=True),
-                scope="project",
-                compression_id=compression_id,
-                created_at=created_at,
-                operations=project_operations,
-            )
+            workspace_dir = self._workspace_dir(project_id, for_write=True)
+            with conversation_write_lock(workspace_dir / CONVERSATIONS_DIR):
+                current_events = read_project_events(workspace_dir, "project_memory")
+                applied["project_memory"] = self._normalize_memory_operations(
+                    current_events,
+                    scope="project",
+                    compression_id=compression_id,
+                    created_at=created_at,
+                    operations=project_operations,
+                )
+                append_project_events(
+                    workspace_dir,
+                    "project_memory",
+                    applied["project_memory"],
+                )
         return applied
 
     def _append_memory_operations(
@@ -159,6 +178,37 @@ class ProjectConversationMemoryRepository:
                     current_ids.discard(str(event["target_memory_id"]))
         return applied
 
+    def _normalize_memory_operations(
+        self,
+        current_events: list[dict[str, Any]],
+        *,
+        scope: str,
+        compression_id: str,
+        created_at: str,
+        operations: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        current_ids = {
+            item["id"]
+            for item in _memory_context_from_events(current_events)
+        }
+        applied: list[dict[str, Any]] = []
+        for operation in operations:
+            event = _normalize_memory_operation_event(
+                operation,
+                scope=scope,
+                compression_id=compression_id,
+                current_ids=current_ids,
+                created_at=created_at,
+            )
+            if event is None:
+                continue
+            applied.append(event)
+            if event["operation"] == "add":
+                current_ids.add(str(event["memory_id"]))
+            elif event["operation"] == "delete":
+                current_ids.discard(str(event["target_memory_id"]))
+        return applied
+
     def _global_memory_path(self) -> Path:
         return self._global_memory_root / GLOBAL_MEMORY_FILE
 
@@ -169,7 +219,7 @@ class ProjectConversationMemoryRepository:
         if not fullmatch(r"[A-Za-z0-9_-]+", session_id):
             raise NotFoundError(f"Conversation session '{session_id}' was not found.")
         session_dir = self._workspace_dir(project_id, for_write=for_write) / CONVERSATIONS_DIR / "sessions" / session_id
-        if not (session_dir / SESSION_FILE).is_file():
+        if not session_exists(session_dir.parent.parent, session_id):
             raise NotFoundError(f"Conversation session '{session_id}' was not found.")
         return session_dir
 

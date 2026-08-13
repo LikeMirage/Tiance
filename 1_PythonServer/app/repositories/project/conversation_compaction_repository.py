@@ -20,12 +20,11 @@ from app.domain.project.project_conversation import (
     ProjectConversationMessage,
     ProjectConversationSession,
     ProjectConversationSessionSettings,
+    functional_session_recursion_guard_settings,
 )
 from app.repositories.project.conversation_branch_copy import (
     copy_message_prefix,
-    write_inherited_compressions,
-    write_inherited_long_term_memory_state,
-    write_inherited_memory_delivery_state,
+    write_derived_session_snapshot,
 )
 from app.repositories.project.conversation_branch_store import (
     CREATED_BY_SYSTEM,
@@ -51,6 +50,13 @@ from app.repositories.project.conversation_stores import (
 from app.repositories.project.project_repository import (
     ProjectRepository,
     get_project_repository,
+)
+from app.repositories.project.conversation_database import (
+    delete_document,
+    read_document,
+    read_events,
+    replace_events,
+    write_document,
 )
 
 
@@ -191,7 +197,7 @@ class ProjectConversationCompactionRepository:
             current = _read_json_object(request_path)
             if current is None or current.get("request_id") != request_id:
                 return
-            request_path.unlink(missing_ok=True)
+            delete_document(session_dir, request_path.stem)
 
     def create_task(
         self,
@@ -300,7 +306,9 @@ class ProjectConversationCompactionRepository:
                 updated_at=now,
                 message_count=len(copied_messages),
                 manual_title=True,
-                settings=target_settings,
+                settings=functional_session_recursion_guard_settings(
+                    target_settings
+                ),
             )
             task = {
                 "version": COMPACTION_TASK_VERSION,
@@ -369,21 +377,11 @@ class ProjectConversationCompactionRepository:
                     temporary_dir,
                     copied_messages,
                 )
-                write_inherited_compressions(
+                write_derived_session_snapshot(
                     source_session_dir,
                     temporary_dir,
+                    copied_messages=copied_messages,
                     target_session_id=function_session_id,
-                    message_id_map=message_id_map,
-                )
-                write_inherited_long_term_memory_state(
-                    source_session_dir,
-                    temporary_dir,
-                    target_session_id=function_session_id,
-                    message_id_map=message_id_map,
-                )
-                write_inherited_memory_delivery_state(
-                    source_session_dir,
-                    temporary_dir,
                     message_id_map=message_id_map,
                 )
                 _write_json_object(
@@ -870,43 +868,19 @@ def _compression_ratio(source_tokens: int, compressed_tokens: int) -> float | No
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    if not path.is_file():
-        return []
-    records: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        payload = loads(line)
-        if not isinstance(payload, dict):
-            raise ValueError(f"Invalid JSONL object in {path.name}.")
-        records.append(payload)
-    return records
+    return read_events(path.parent, path.stem)
 
 
 def _write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
-    atomic_write_text(
-        path,
-        "".join(
-            f"{dumps(record, ensure_ascii=False, separators=(',', ':'))}\n"
-            for record in records
-        ),
-    )
+    replace_events(path.parent, path.stem, records)
 
 
 def _read_json_object(path: Path) -> dict[str, Any] | None:
-    if not path.is_file():
-        return None
-    payload = loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"Invalid JSON object in {path.name}.")
-    return payload
+    return read_document(path.parent, path.stem)
 
 
 def _write_json_object(path: Path, payload: dict[str, Any]) -> None:
-    atomic_write_text(
-        path,
-        f"{dumps(payload, ensure_ascii=False, indent=2)}\n",
-    )
+    write_document(path.parent, path.stem, payload)
 
 
 def _required_text(value: object, label: str) -> str:

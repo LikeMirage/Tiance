@@ -9,6 +9,7 @@ import {
   type ToolDashboardView,
 } from "../../../features/document-tabs/model/documentToolDashboardTabs";
 import type { useDocumentTabs } from "../../../features/document-tabs/model/useDocumentTabs";
+import { isProjectConversationOverviewTab } from "../../../features/document-tabs/model/documentTabUtils";
 import {
   getProjectWorkspaceState,
   type WorkspaceStateResponse,
@@ -109,14 +110,20 @@ export function useToolWorkspacePersistence({
           state.active_file_path,
         );
         if (restoreRequestId !== restoreRequestIdRef.current) return;
+        const isConversationOverviewActive = state.active_dashboard === "conversation_overview";
         const activeView: ToolDashboardView | null = state.active_file_path
           ? null
+          : isConversationOverviewActive
+            ? null
           : isToolDashboardView(state.active_dashboard)
             ? state.active_dashboard
             : "basics";
         await documentTabs.openToolDashboard(sourceRuntime, {
           activeView,
           title: activeToolFolderName,
+        });
+        documentTabs.ensureProjectConversationOverview(activeProjectId, {
+          activate: isConversationOverviewActive,
         });
         if (restoreRequestId !== restoreRequestIdRef.current) return;
         hydratedWorkspaceKeyRef.current = activeWorkspaceKey;
@@ -137,6 +144,7 @@ export function useToolWorkspacePersistence({
     activeWorkspaceKey,
     browser.restoreExpandedPaths,
     documentTabs.closeAllTabs,
+    documentTabs.ensureProjectConversationOverview,
     documentTabs.openToolDashboard,
     documentTabs.restoreWorkspaceTabs,
     flushPendingSave,
@@ -161,10 +169,12 @@ export function useToolWorkspacePersistence({
     const activeFilePath = activeTabBelongsToWorkspace
       ? documentTabs.activeTab?.filePath ?? null
       : null;
-    const activeDashboard = activeTabBelongsToWorkspace &&
-      documentTabs.activeTab?.fileSource?.kind === "tool-dashboard"
-      ? getToolDashboardViewFromTab(documentTabs.activeTab)
-      : null;
+    const activeDashboard = isProjectConversationOverviewTab(documentTabs.activeTab)
+      && documentTabs.activeTab?.projectId === activeProjectId
+      ? "conversation_overview"
+      : activeTabBelongsToWorkspace && documentTabs.activeTab?.fileSource?.kind === "tool-dashboard"
+        ? getToolDashboardViewFromTab(documentTabs.activeTab)
+        : null;
 
     pendingSaveRef.current = {
       projectId: activeProjectId,

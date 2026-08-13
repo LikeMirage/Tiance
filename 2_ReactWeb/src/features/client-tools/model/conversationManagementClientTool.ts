@@ -34,8 +34,7 @@ import {
 } from "./conversationMessageTurns";
 import { queryConversationModels } from "./conversationModelQuery";
 import {
-  getConversationMessagesFilePath,
-  getConversationRelationshipFilePath,
+  getConversationHistoryLocator,
   serializeConversationRelationship,
   serializeConversationSession,
   serializeConversationSessionSummary,
@@ -143,7 +142,6 @@ async function executeConversationManagementClientTool(
         project_id: projectId,
         session: serializeConversationSession(response, session),
         relationship: serializeConversationRelationship(response, session.session_id),
-        relationship_file_path: getConversationRelationshipFilePath(),
       });
     }
     if (action === "get_session") {
@@ -167,7 +165,7 @@ async function executeConversationManagementClientTool(
         loaded_message_count: messagePage.loadedMessageCount,
         history_exhausted: messagePage.historyExhausted,
         usage,
-        messages_file_path: getConversationMessagesFilePath(session.session_id),
+        history_locator: getConversationHistoryLocator(session.session_id),
       });
     }
     if (action === "create_session") {
@@ -192,7 +190,7 @@ async function executeConversationManagementClientTool(
         project_id: projectId,
         session: serializeStandaloneConversationSession(created, "idle"),
         runtime_status: "idle",
-        messages_file_path: getConversationMessagesFilePath(created.session_id),
+        history_locator: getConversationHistoryLocator(created.session_id),
       });
     }
     const session = requireSession(response, readRequiredString(args, "session_id"));
@@ -212,7 +210,7 @@ async function executeConversationManagementClientTool(
           response.session_states[session.session_id]?.runtime_status ?? "idle",
         ),
         runtime_status: response.session_states[session.session_id]?.runtime_status ?? "idle",
-        messages_file_path: getConversationMessagesFilePath(session.session_id),
+        history_locator: getConversationHistoryLocator(session.session_id),
       });
     }
     if (action === "stop_session") {
@@ -224,7 +222,7 @@ async function executeConversationManagementClientTool(
         project_id: projectId,
         stopped_session_id: session.session_id,
         runtime_status: "idle",
-        messages_file_path: getConversationMessagesFilePath(session.session_id),
+        history_locator: getConversationHistoryLocator(session.session_id),
       });
     }
     if (action === "delete_session") {
@@ -238,7 +236,6 @@ async function executeConversationManagementClientTool(
         action,
         project_id: projectId,
         deleted_session_id: session.session_id,
-        messages_file_path: getConversationMessagesFilePath(session.session_id),
       });
     }
     if (action === "show_session") {
@@ -249,7 +246,7 @@ async function executeConversationManagementClientTool(
         session_id: session.session_id,
         shown: true,
         runtime_status: response.session_states[session.session_id]?.runtime_status ?? "idle",
-        messages_file_path: getConversationMessagesFilePath(session.session_id),
+        history_locator: getConversationHistoryLocator(session.session_id),
       });
     }
     throw new Error(`不支持的会话管理操作：${action}`);
@@ -262,7 +259,7 @@ function sessionFailureContext(projectId: string, sessionId: string) {
   return {
     project_id: projectId,
     session_id: sessionId,
-    messages_file_path: getConversationMessagesFilePath(sessionId),
+    history_locator: getConversationHistoryLocator(sessionId),
   };
 }
 

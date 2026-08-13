@@ -1,0 +1,43 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "query": {
+      "type": "string",
+      "minLength": 1,
+      "description": "要在原始消息记录中查找的文字。"
+    },
+    "session_id": {
+      "type": "string",
+      "description": "可选会话 ID；省略时检索当前会话。"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["contains", "all_terms", "exact_content"],
+      "default": "contains",
+      "description": "contains 查找完整连续文字；all_terms 要求空白分隔的每个词都出现；exact_content 要求消息正文完全相同。"
+    },
+    "roles": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["user", "assistant", "tool", "system"]},
+      "uniqueItems": true,
+      "maxItems": 4,
+      "description": "只检索指定消息角色；省略时检索全部角色。"
+    },
+    "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
+    "offset": {"type": "integer", "minimum": 0, "maximum": 1000000, "default": 0},
+    "include_raw": {
+      "type": "boolean",
+      "default": true,
+      "description": "是否在每条结果中返回数据库保存的完整原始消息对象。"
+    },
+    "context_chars": {
+      "type": "integer",
+      "minimum": 40,
+      "maximum": 1000,
+      "default": 180,
+      "description": "摘要中在匹配位置前后保留的字符数。"
+    }
+  },
+  "required": ["query"]
+}

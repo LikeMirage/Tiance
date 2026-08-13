@@ -16,6 +16,7 @@ from app.schemas.project import (
     ProjectConversationBranchGroupListResponse,
     ProjectConversationBranchGroupResponse,
     ProjectConversationCreateRequest,
+    ProjectConversationDataViewResponse,
     ProjectConversationForkRequest,
     ProjectConversationForkResponse,
     ProjectConversationListResponse,
@@ -52,8 +53,37 @@ from app.services.project.conversation_naming import (
 from app.services.project.conversation_attachments import (
     get_conversation_attachment_service,
 )
+from app.repositories.project.conversation_data_view_repository import (
+    ConversationDataViewName,
+    ConversationDataViewRepository,
+)
+from app.repositories.project.project_repository import get_project_repository
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+@router.get(
+    "/{project_id}/conversations/data-view",
+    response_model=ProjectConversationDataViewResponse,
+    summary="Read a conversation data dashboard view",
+)
+def read_conversation_data_view(
+    project_id: str,
+    name: ConversationDataViewName = Query(...),
+    session_id: str | None = Query(default=None),
+) -> ProjectConversationDataViewResponse:
+    content, revision_ms, total_count, truncated = ConversationDataViewRepository(
+        get_project_repository(),
+    ).read(project_id, name=name, session_id=session_id)
+    return ProjectConversationDataViewResponse(
+        project_id=project_id,
+        session_id=session_id,
+        name=name,
+        content=content,
+        revision_ms=revision_ms,
+        total_count=total_count,
+        truncated=truncated,
+    )
 
 
 @router.post(

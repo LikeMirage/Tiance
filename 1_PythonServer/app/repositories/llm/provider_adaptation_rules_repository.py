@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import re
 from typing import Any
 
 from app.domain.llm.generation_params import LlmOutputFormat, LlmReasoningMode
@@ -270,6 +271,10 @@ def _parse_request(value: object, location: str) -> LlmRequestRules:
             "maxOutputTokensParameter",
             "jsonObjectResponseFormat",
             "streamUsage",
+            "reasoningEffortParameter",
+            "reasoningToggleParameter",
+            "reasoningEnabledValue",
+            "reasoningDisabledValue",
         },
         f"{location}.request",
     )
@@ -277,6 +282,36 @@ def _parse_request(value: object, location: str) -> LlmRequestRules:
     if parameter is not None and parameter not in _MAX_OUTPUT_TOKEN_PARAMETERS:
         raise ProviderFileStoreError(
             f"{location} maxOutputTokensParameter is not supported: {parameter}"
+        )
+    reasoning_effort_parameter = _optional_parameter_name(
+        value,
+        "reasoningEffortParameter",
+        location,
+    )
+    reasoning_toggle_parameter = _optional_parameter_name(
+        value,
+        "reasoningToggleParameter",
+        location,
+    )
+    has_enabled_value = "reasoningEnabledValue" in value
+    has_disabled_value = "reasoningDisabledValue" in value
+    if reasoning_toggle_parameter is None and (has_enabled_value or has_disabled_value):
+        raise ProviderFileStoreError(
+            f"{location} reasoningToggleParameter is required when toggle values are declared."
+        )
+    if reasoning_toggle_parameter is not None and not (
+        has_enabled_value and has_disabled_value
+    ):
+        raise ProviderFileStoreError(
+            f"{location} reasoningEnabledValue and reasoningDisabledValue are both required."
+        )
+    if has_enabled_value and value["reasoningEnabledValue"] is None:
+        raise ProviderFileStoreError(
+            f"{location} reasoningEnabledValue cannot be null."
+        )
+    if has_disabled_value and value["reasoningDisabledValue"] is None:
+        raise ProviderFileStoreError(
+            f"{location} reasoningDisabledValue cannot be null."
         )
     return LlmRequestRules(
         omit_parameters=_optional_string_tuple(
@@ -288,6 +323,10 @@ def _parse_request(value: object, location: str) -> LlmRequestRules:
         max_output_tokens_parameter=parameter,
         json_object_response_format=_optional_bool(value, "jsonObjectResponseFormat", location),
         stream_usage=_optional_bool(value, "streamUsage", location),
+        reasoning_effort_parameter=reasoning_effort_parameter,
+        reasoning_toggle_parameter=reasoning_toggle_parameter,
+        reasoning_enabled_value=value.get("reasoningEnabledValue"),
+        reasoning_disabled_value=value.get("reasoningDisabledValue"),
     )
 
 
@@ -360,6 +399,21 @@ def _optional_text(payload: dict[str, Any], key: str, location: str) -> str | No
     if not isinstance(value, str) or not value.strip():
         raise ProviderFileStoreError(f"{location} {key} must be non-empty text.")
     return value.strip()
+
+
+def _optional_parameter_name(
+    payload: dict[str, Any],
+    key: str,
+    location: str,
+) -> str | None:
+    value = _optional_text(payload, key, location)
+    if value is None:
+        return None
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value) is None:
+        raise ProviderFileStoreError(
+            f"{location} {key} must be a valid JSON request parameter name."
+        )
+    return value
 
 
 def _optional_string_tuple(

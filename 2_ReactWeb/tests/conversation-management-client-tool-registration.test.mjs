@@ -6,7 +6,7 @@ import {
   clientToolRequest,
   conversationBranchNode,
   conversationMessage,
-  conversationPath,
+  conversationHistoryLocator,
   conversationSession,
   installClientToolTestGlobals,
   installFetchRouter,
@@ -126,7 +126,7 @@ test("会话列表关系深度分别限制父级链和自己的下级树", async
   );
 });
 
-test("会话属性返回详细配置、关系来源和关系文件路径", async () => {
+test("会话属性返回详细配置和关系来源", async () => {
   installFetchRouter(({ method, url }) => {
     if (method === "GET" && url.pathname.endsWith("/conversations")) {
       const response = sessionListResponse();
@@ -153,10 +153,6 @@ test("会话属性返回详细配置、关系来源和关系文件路径", async
     session_id: "session-a",
     title: "实时父会话",
   });
-  assert.equal(
-    result.content.relationship_file_path,
-    ".Tiance/conversations/branch_graph.json",
-  );
 });
 
 test("会话管理 registration 返回真实状态、消息与保底路径", async () => {
@@ -195,7 +191,7 @@ test("会话管理 registration 返回真实状态、消息与保底路径", asy
   assert.equal(result.content.runtime_status, "idle");
   assert.equal(result.content.message_depth, 1);
   assert.equal(result.content.message_format, "content_only");
-  assert.equal(result.content.messages_file_path, conversationPath("session-a"));
+  assert.deepEqual(result.content.history_locator, conversationHistoryLocator("session-a"));
   assert.deepEqual(result.content.messages, [{
     user: { message_id: "user-1", role: "user", content: "问题" },
     reply: { message_id: "assistant-1", role: "assistant", content: "回答" },
@@ -244,7 +240,7 @@ test("创建子会话只提交显式覆盖项并由后端继承父配置", async
   assert.equal(Object.hasOwn(createBody, "settings"), false);
   assert.deepEqual(changedProjects, ["project-a"]);
   assert.equal(result.content.session.session_id, "session-child");
-  assert.equal(result.content.messages_file_path, conversationPath("session-child"));
+  assert.deepEqual(result.content.history_locator, conversationHistoryLocator("session-child"));
 });
 
 test("自动命名功能会话不传目标 ID 并由后端确定父会话", async () => {
@@ -317,7 +313,7 @@ test("目标会话操作失败时仍保留会话身份与消息路径", async ()
   assert.equal(result.ok, false);
   assert.equal(result.content.project_id, "project-a");
   assert.equal(result.content.session_id, "session-a");
-  assert.equal(result.content.messages_file_path, conversationPath("session-a"));
+  assert.deepEqual(result.content.history_locator, conversationHistoryLocator("session-a"));
   assert.match(result.error, /配置写入失败/);
 });
 

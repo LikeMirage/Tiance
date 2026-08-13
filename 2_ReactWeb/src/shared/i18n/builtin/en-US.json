@@ -630,7 +630,16 @@
       "notes": "Release notes",
       "install": "Download, restart, and install",
       "downloading": "Downloading and verifying…",
-      "installing": "Closing and installing…"
+      "installing": "Closing and installing…",
+      "autoCheck": {
+        "title": "Check for updates at startup",
+        "description": "Enabled by default. A prompt appears when a new version is available; manual checks remain available when disabled."
+      },
+      "prompt": {
+        "title": "A new version is available",
+        "update": "Update",
+        "noNotes": "No release notes were provided for this version."
+      }
     },
     "onlineMarketSource": {
       "default": "Default source",

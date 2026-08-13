@@ -4,9 +4,9 @@
   "displayName": "DMXAPI",
   "profileId": "generic",
   "protocolFamily": "openai_compatible",
-  "enabled": true,
+  "enabled": false,
   "createdAt": "2026-07-19T12:22:43.557643+00:00",
-  "updatedAt": "2026-08-05T06:04:12.702414+00:00",
+  "updatedAt": "2026-08-06T09:10:57.809478+00:00",
   "modelDiscoveryUrl": "https://www.dmxapi.cn/v1/models",
   "generationUrls": {
     "openai_compatible": "https://www.dmxapi.cn/v1/chat/completions"

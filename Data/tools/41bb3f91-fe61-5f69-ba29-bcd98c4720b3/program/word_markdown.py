@@ -11,6 +11,12 @@ from docx.oxml.ns import qn
 from docx.shared import Pt, RGBColor
 
 from word_elements import (
+    BODY_FIRST_LINE_INDENT,
+    BODY_FONT_SIZE,
+    BODY_LINE_SPACING,
+    BODY_SPACE_AFTER,
+    HEADING_FONT_SIZES,
+    TABLE_FONT_SIZE,
     add_formula_to_paragraph,
     add_image,
     add_table,
@@ -64,10 +70,15 @@ def append_markdown_fragment(
             level = len(heading.group(1))
             paragraph = doc.add_heading(level=level)
             style = {
-                "font_size": 22 if level == 1 else 16,
+                "font_size": HEADING_FONT_SIZES.get(level, BODY_FONT_SIZE),
                 "bold": True,
                 "color": theme["heading_color"],
+                "space_before": 12 if level <= 2 else 8,
+                "space_after": 6 if level <= 3 else 4,
+                "line_spacing": BODY_LINE_SPACING,
+                "keep_with_next": True,
             }
+            apply_paragraph_format(paragraph, style)
             write_inline(paragraph, heading.group(2), style, theme, root, warnings, stats)
             stats["headings"] += 1
             index += 1
@@ -102,7 +113,14 @@ def append_markdown_fragment(
             paragraph_lines.append(lines[index].strip())
             index += 1
         paragraph = doc.add_paragraph()
-        style = {"font_size": 11, "color": theme["text_color"]}
+        style = {
+            "font_size": BODY_FONT_SIZE,
+            "color": theme["text_color"],
+            "space_before": 0,
+            "space_after": BODY_SPACE_AFTER,
+            "line_spacing": BODY_LINE_SPACING,
+            "first_line_indent": BODY_FIRST_LINE_INDENT,
+        }
         apply_paragraph_format(paragraph, style)
         write_inline(paragraph, " ".join(paragraph_lines), style, theme, root, warnings, stats)
         stats["paragraphs"] += 1
@@ -217,10 +235,14 @@ def add_markdown_table(
             paragraph = cell.paragraphs[0]
             paragraph.clear()
             style = {
-                "font_size": 11,
+                "font_size": TABLE_FONT_SIZE,
                 "bold": row_index == 0,
-                "color": "FFFFFF" if row_index == 0 else theme["text_color"],
+                "color": theme["table_header_text_color"] if row_index == 0 else theme["text_color"],
+                "space_before": 0,
+                "space_after": 0,
+                "line_spacing": 1.0,
             }
+            apply_paragraph_format(paragraph, style)
             write_inline(paragraph, value, style, theme, root, warnings, stats)
     stats["tables"] += 1
     return index
@@ -250,7 +272,13 @@ def add_markdown_list(
         write_inline(
             paragraph,
             match.group(3),
-            {"font_size": 11, "color": theme["text_color"]},
+            {
+                "font_size": BODY_FONT_SIZE,
+                "color": theme["text_color"],
+                "space_before": 0,
+                "space_after": BODY_SPACE_AFTER,
+                "line_spacing": BODY_LINE_SPACING,
+            },
             theme,
             root,
             warnings,
@@ -278,7 +306,7 @@ def add_blockquote(
         write_inline(
             paragraph,
             text,
-            {"font_size": 11, "italic": True, "color": theme["muted_color"]},
+            {"font_size": BODY_FONT_SIZE, "italic": True, "color": theme["muted_color"]},
             theme,
             root,
             warnings,

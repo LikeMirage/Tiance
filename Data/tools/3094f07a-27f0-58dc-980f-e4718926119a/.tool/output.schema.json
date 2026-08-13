@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "返回会话交互结果。同一会话不允许同时生成两轮回复；目标会话正在运行时 send 返回错误，新消息不会排队或写入。成功结果包含目标 session_id 和 messages_file_path；本次发送在返回前产生持久化回复时，reply 只属于本次发送。",
+  "description": "返回会话交互结果。同一会话不允许同时生成两轮回复；目标会话正在运行时 send 返回错误，新消息不会排队或写入。成功结果包含目标 session_id 和原始历史定位信息；本次发送在返回前产生持久化回复时，reply 只属于本次发送。",
   "oneOf": [
     {
       "properties": {
@@ -24,7 +24,7 @@
         "runtime_status",
         "outcome",
         "user_message_id",
-        "messages_file_path"
+        "history_locator"
       ]
     },
     {
@@ -45,7 +45,7 @@
         "user_message_id",
         "assistant_message_id",
         "reply",
-        "messages_file_path"
+        "history_locator"
       ]
     },
     {
@@ -66,7 +66,7 @@
         "user_message_id",
         "assistant_message_id",
         "reply",
-        "messages_file_path"
+        "history_locator"
       ]
     },
     {
@@ -85,7 +85,7 @@
         "runtime_status",
         "outcome",
         "user_message_id",
-        "messages_file_path"
+        "history_locator"
       ]
     }
   ],
@@ -161,9 +161,15 @@
       "required": ["message_id", "role", "content", "status"],
       "type": "object"
     },
-    "messages_file_path": {
-      "description": "目标会话 messages.jsonl 的项目内规范路径。send 成功时始终返回。",
-      "type": "string"
+    "history_locator": {
+      "additionalProperties": false,
+      "description": "原始历史的稳定定位信息。需要检索完整历史时，调用指定工具并传入该会话 ID。",
+      "properties": {
+        "tool_name": { "const": "conversation_history_search", "type": "string" },
+        "session_id": { "type": "string" }
+      },
+      "required": ["tool_name", "session_id"],
+      "type": "object"
     },
     "error": {
       "description": "动作失败时的稳定错误说明。目标会话正在运行时，应调用 wait，返回后用 list_sessions 重新检查，再决定是否重试发送。",

@@ -158,6 +158,10 @@ export function useSessionMessages({
         publishSessionMessages(pid, sessionId);
         return true;
       }
+      if (hasSameMessageRevisions(currentMessages, nextMessages)) {
+        publishSessionMessages(pid, sessionId);
+        return true;
+      }
       sessionMessageSnapshotsRef.current[key] = nextMessages;
       publishSessionMessages(pid, sessionId);
       return true;
@@ -276,4 +280,15 @@ function countMessagesChars(messages: ChatMessage[]) {
     }
   }
   return total;
+}
+
+function hasSameMessageRevisions(
+  currentMessages: ChatMessage[],
+  nextMessages: ChatMessage[],
+) {
+  if (currentMessages.length !== nextMessages.length) return false;
+  return currentMessages.every((message, index) => {
+    const nextMessage = nextMessages[index];
+    return message.id === nextMessage.id && message.updatedAt === nextMessage.updatedAt;
+  });
 }

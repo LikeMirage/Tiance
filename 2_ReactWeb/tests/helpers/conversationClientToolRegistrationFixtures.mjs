@@ -206,8 +206,11 @@ export function completedTurn({ outcome, reply, userMessageId }) {
   };
 }
 
-export function conversationPath(sessionId) {
-  return `.Tiance/conversations/sessions/${sessionId}/messages.jsonl`;
+export function conversationHistoryLocator(sessionId) {
+  return {
+    tool_name: "conversation_history_search",
+    session_id: sessionId,
+  };
 }
 
 function restoreGlobal(name, value) {

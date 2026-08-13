@@ -630,7 +630,16 @@
       "notes": "版本说明",
       "install": "下载并重启安装",
       "downloading": "正在下载并校验…",
-      "installing": "正在退出并安装…"
+      "installing": "正在退出并安装…",
+      "autoCheck": {
+        "title": "启动时自动检查更新",
+        "description": "默认开启。发现新版本时显示更新提醒；关闭后仍可在此手动检查。"
+      },
+      "prompt": {
+        "title": "发现新版本",
+        "update": "更新",
+        "noNotes": "此版本没有提供更新说明。"
+      }
     },
     "onlineMarketSource": {
       "default": "默认源",

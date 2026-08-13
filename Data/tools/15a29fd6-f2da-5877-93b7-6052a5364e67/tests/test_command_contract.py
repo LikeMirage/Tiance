@@ -84,6 +84,56 @@ class CommandContractTests(unittest.TestCase):
         self.assertIsNone(result["data"]["exit_code"])
         self.assertEqual(result["error_info"]["details"]["filename"], missing_name)
 
+    @unittest.skipUnless(os.name == "nt", "Windows executable lookup behavior")
+    def test_existing_workdir_executable_returns_explicit_path_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            executable = Path(workspace) / "local-tool.exe"
+            executable.write_bytes(b"not a real executable")
+            with patch.dict(os.environ, {"TIANCE_WORKSPACE_ROOT": workspace}, clear=False):
+                result = run_command.run(
+                    {"argv": [executable.name], "workdir": workspace}
+                )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error_info"]["code"], "COMMAND_NOT_FOUND")
+        self.assertEqual(
+            result["error_info"]["details"]["suggested_argv0"],
+            ".\\local-tool.exe",
+        )
+        self.assertIn("argv 不会自动从工作目录查找", result["summary"])
+
+    def test_extra_env_is_merged_and_metadata_only_contains_keys(self) -> None:
+        env_value = "merged-value"
+        result = self._run(
+            {
+                "argv": [
+                    sys.executable,
+                    "-c",
+                    "import os; print(os.environ['TIANCE_RUN_COMMAND_TEST'])",
+                ],
+                "extra_env": {"TIANCE_RUN_COMMAND_TEST": env_value},
+            }
+        )
+
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["data"]["stdout"].strip(), env_value)
+        self.assertEqual(
+            result["data"]["extra_env_keys"],
+            ["TIANCE_RUN_COMMAND_TEST"],
+        )
+        self.assertNotIn(env_value, repr(result["data"]["extra_env_keys"]))
+
+    def test_extra_env_rejects_non_string_values(self) -> None:
+        result = self._run(
+            {
+                "argv": [sys.executable, "-c", "print('ignored')"],
+                "extra_env": {"INVALID": 1},
+            }
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error_info"]["code"], "INVALID_ARGUMENT")
+
     def test_specific_shell_is_rejected_in_argv_mode(self) -> None:
         result = self._run(
             {

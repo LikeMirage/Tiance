@@ -24,15 +24,23 @@ from word_table_width import (
 
 
 DEFAULT_THEME = {
-    "font_family": "微软雅黑",
+    "font_family": "Times New Roman",
     "east_asia_font": "微软雅黑",
-    "complex_script_font": "微软雅黑",
-    "heading_color": "1F4E79",
-    "text_color": "1F2937",
+    "complex_script_font": "Times New Roman",
+    "heading_color": "000000",
+    "text_color": "000000",
     "muted_color": "64748B",
     "accent_color": "00A6A6",
-    "table_header_color": "1F4E79",
+    "table_header_color": "F2F2F2",
+    "table_header_text_color": "000000",
 }
+BODY_FONT_SIZE = 12.0
+TABLE_FONT_SIZE = 10.5
+BODY_SPACE_AFTER = 6.0
+BODY_LINE_SPACING = 1.15
+BODY_FIRST_LINE_INDENT = 0.28
+DEFAULT_PAGE_MARGIN = 0.75
+HEADING_FONT_SIZES = {1: 18.0, 2: 15.0, 3: 13.0}
 FORMULA_XSL_PATH = Path(__file__).resolve().parents[1] / "assets" / "MML2OMML.XSL"
 
 
@@ -82,6 +90,7 @@ def apply_document_defaults(doc: Document, theme: dict[str, Any]) -> None:
     ]
     for style_name in style_names:
         if style_name in doc.styles:
+            doc.styles[style_name].font.size = Pt(BODY_FONT_SIZE)
             set_font_family(
                 doc.styles[style_name].font,
                 font_family,
@@ -91,8 +100,7 @@ def apply_document_defaults(doc: Document, theme: dict[str, Any]) -> None:
 
 
 def apply_page_settings(doc: Document, page: Any) -> None:
-    if not isinstance(page, dict):
-        return
+    page = page if isinstance(page, dict) else {}
     for section in doc.sections:
         if str(page.get("orientation") or "").lower() == "landscape":
             section.orientation = WD_ORIENT.LANDSCAPE
@@ -103,7 +111,7 @@ def apply_page_settings(doc: Document, page: Any) -> None:
             ("left_margin", "margin_left"),
             ("right_margin", "margin_right"),
         ):
-            value = page.get(key)
+            value = page.get(key, DEFAULT_PAGE_MARGIN)
             if isinstance(value, (int, float)):
                 setattr(section, attr, Inches(value))
 
@@ -195,7 +203,15 @@ def add_heading(doc: Document, spec: dict[str, Any], theme: dict[str, Any]) -> A
         level = 1
     level = max(1, min(level, 9))
     paragraph = doc.add_heading(str(spec.get("text") or ""), level=level)
-    style = {"font_size": 22 if level == 1 else 16, "bold": True, "color": theme["heading_color"]}
+    style = {
+        "font_size": HEADING_FONT_SIZES.get(level, BODY_FONT_SIZE),
+        "bold": True,
+        "color": theme["heading_color"],
+        "space_before": 12 if level <= 2 else 8,
+        "space_after": 6 if level <= 3 else 4,
+        "line_spacing": BODY_LINE_SPACING,
+        "keep_with_next": True,
+    }
     if isinstance(spec.get("style"), dict):
         style.update(spec["style"])
     apply_paragraph_style(paragraph, style, theme)
@@ -205,7 +221,14 @@ def add_heading(doc: Document, spec: dict[str, Any], theme: dict[str, Any]) -> A
 def add_paragraph(doc: Document, spec: dict[str, Any], theme: dict[str, Any]) -> Any:
     paragraph = doc.add_paragraph()
     run = paragraph.add_run(str(spec.get("text") or ""))
-    style = {"font_size": 11, "color": theme["text_color"]}
+    style = {
+        "font_size": BODY_FONT_SIZE,
+        "color": theme["text_color"],
+        "space_before": 0,
+        "space_after": BODY_SPACE_AFTER,
+        "line_spacing": BODY_LINE_SPACING,
+        "first_line_indent": BODY_FIRST_LINE_INDENT,
+    }
     if isinstance(spec.get("style"), dict):
         style.update(spec["style"])
     apply_font(run.font, style, theme)
@@ -217,7 +240,15 @@ def add_list(doc: Document, spec: dict[str, Any], theme: dict[str, Any], *, numb
     items = spec.get("items") or []
     if not isinstance(items, list):
         raise ValueError("列表元素 items 必须是数组。")
-    base_style = spec.get("style") if isinstance(spec.get("style"), dict) else {}
+    base_style = {
+        "font_size": BODY_FONT_SIZE,
+        "color": theme["text_color"],
+        "space_before": 0,
+        "space_after": BODY_SPACE_AFTER,
+        "line_spacing": BODY_LINE_SPACING,
+    }
+    if isinstance(spec.get("style"), dict):
+        base_style.update(spec["style"])
     for item in items:
         if isinstance(item, dict):
             text = str(item.get("text") or "")
@@ -244,7 +275,7 @@ def add_table(doc: Document, spec: dict[str, Any], theme: dict[str, Any]) -> Any
     table = doc.add_table(rows=len(rows), cols=col_count)
     style = spec.get("style") if isinstance(spec.get("style"), dict) else {}
     table.style = str(style.get("table_style") or "Table Grid")
-    table.alignment = table_alignment(style.get("align") or "center")
+    table.alignment = table_alignment(style.get("align") or "left")
     normalized_rows = [
         ["" if index >= len(row) or row[index] is None else str(row[index]) for index in range(col_count)]
         if isinstance(row, list)
@@ -261,7 +292,7 @@ def add_table(doc: Document, spec: dict[str, Any], theme: dict[str, Any]) -> Any
         column_widths = []
     if not column_widths or sum(column_widths) <= 0:
         font_name = str(style.get("font_family") or theme["font_family"])
-        font_size = float(style.get("font_size") or 11)
+        font_size = float(style.get("font_size") or TABLE_FONT_SIZE)
         with FontTextMeasurer(font_name=font_name, size_points=font_size) as measurer:
             column_widths = calculate_column_widths(
                 normalized_rows[0],
@@ -280,11 +311,23 @@ def add_table(doc: Document, spec: dict[str, Any], theme: dict[str, Any]) -> Any
             cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
             set_cell_margins(cell)
             cell.text = normalized_rows[row_index][col_index]
+            cell_style = {
+                "font_size": TABLE_FONT_SIZE,
+                "color": theme["text_color"],
+                "space_before": 0,
+                "space_after": 0,
+                "line_spacing": 1.0,
+            }
+            cell_style.update(style)
             if row_index == 0:
                 shade_cell(cell, str(style.get("header_fill") or theme["table_header_color"]))
-                apply_cell_text_style(cell, {"bold": True, "color": style.get("header_color") or "FFFFFF"}, theme)
+                cell_style.update({
+                    "bold": True,
+                    "color": style.get("header_color") or theme["table_header_text_color"],
+                })
+                apply_cell_text_style(cell, cell_style, theme)
             else:
-                apply_cell_text_style(cell, style, theme)
+                apply_cell_text_style(cell, cell_style, theme)
     return table
 
 
@@ -322,6 +365,9 @@ def add_equation(doc: Document, spec: dict[str, Any], theme: dict[str, Any], war
     paragraph = doc.add_paragraph()
     paragraph_style = dict(style)
     paragraph_style.setdefault("align", "center" if display else "left")
+    paragraph_style.setdefault("space_before", 0)
+    paragraph_style.setdefault("space_after", BODY_SPACE_AFTER)
+    paragraph_style.setdefault("line_spacing", BODY_LINE_SPACING)
     apply_paragraph_format(paragraph, paragraph_style)
     return add_formula_to_paragraph(paragraph, latex, theme, warnings=warnings)
 
@@ -334,7 +380,7 @@ def add_formula_to_paragraph(paragraph: Any, latex: str, theme: dict[str, Any], 
         run = paragraph.add_run(normalized)
         run.italic = True
         set_font_family(run.font, "Times New Roman", east_asia_font=theme["east_asia_font"])
-        run.font.size = Pt(11)
+        run.font.size = Pt(BODY_FONT_SIZE)
         return False
 
     omml, error = latex_to_word_omml(latex, xsl_path=FORMULA_XSL_PATH)
@@ -385,7 +431,7 @@ def apply_font(font: Any, style: dict[str, Any], theme: dict[str, Any]) -> None:
         east_asia_font=east_asia_font,
         complex_script_font=complex_script_font,
     )
-    font.size = Pt(float(style.get("font_size") or 11))
+    font.size = Pt(float(style.get("font_size") or BODY_FONT_SIZE))
     if "bold" in style:
         font.bold = bool(style["bold"])
     if "italic" in style:
@@ -433,6 +479,10 @@ def apply_paragraph_format(paragraph: Any, style: dict[str, Any]) -> None:
         paragraph.paragraph_format.space_before = Pt(style["space_before"])
     if isinstance(style.get("line_spacing"), (int, float)):
         paragraph.paragraph_format.line_spacing = style["line_spacing"]
+    if isinstance(style.get("first_line_indent"), (int, float)):
+        paragraph.paragraph_format.first_line_indent = Inches(style["first_line_indent"])
+    if "keep_with_next" in style:
+        paragraph.paragraph_format.keep_with_next = bool(style["keep_with_next"])
 
 
 def paragraph_alignment(value: Any) -> Any:
@@ -451,7 +501,7 @@ def table_alignment(value: Any) -> Any:
         "center": WD_TABLE_ALIGNMENT.CENTER,
         "right": WD_TABLE_ALIGNMENT.RIGHT,
     }
-    return mapping.get(str(value or "center").lower(), WD_TABLE_ALIGNMENT.CENTER)
+    return mapping.get(str(value or "left").lower(), WD_TABLE_ALIGNMENT.LEFT)
 
 
 def shade_cell(cell: Any, color: str) -> None:

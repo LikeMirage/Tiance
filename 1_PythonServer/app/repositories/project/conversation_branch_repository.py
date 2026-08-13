@@ -11,12 +11,7 @@ from app.domain.project.conversation_branch import (
 )
 from app.repositories.project.conversation_branch_copy import (
     copy_message_prefix,
-    write_inherited_compressions,
-    write_inherited_long_term_memory_state,
-    write_inherited_memory_delivery_state,
-)
-from app.repositories.project.conversation_attachment_repository import (
-    copy_referenced_attachments,
+    write_derived_session_snapshot,
 )
 from app.repositories.project.conversation_branch_store import (
     CREATED_BY_USER,
@@ -167,28 +162,13 @@ class ProjectConversationBranchRepository:
                 temporary_dir.mkdir(parents=True, exist_ok=False)
                 self._session_store.write_session(temporary_dir, child_session)
                 self._message_store.write_messages(temporary_dir, copied_messages)
-                copy_referenced_attachments(
+                write_derived_session_snapshot(
                     source_session_dir,
                     temporary_dir,
-                    copied_messages,
-                    references,
-                )
-                write_inherited_compressions(
-                    source_session_dir,
-                    temporary_dir,
+                    copied_messages=copied_messages,
                     target_session_id=target_session_id,
                     message_id_map=message_id_map,
-                )
-                write_inherited_long_term_memory_state(
-                    source_session_dir,
-                    temporary_dir,
-                    target_session_id=target_session_id,
-                    message_id_map=message_id_map,
-                )
-                write_inherited_memory_delivery_state(
-                    source_session_dir,
-                    temporary_dir,
-                    message_id_map=message_id_map,
+                    references=references,
                 )
                 atomic_replace_path(temporary_dir, target_session_dir)
                 next_index = self._session_store.index_with_session(

@@ -8,7 +8,10 @@ import pytest
 from app.core.errors import ConflictError
 from app.domain.llm.chat import (
     ChatCompletionRequest,
+    ChatImageRef,
     ChatMessage,
+    ChatMessageContentPart,
+    ChatMessageContentPartType,
     ChatMessageRole,
     ChatToolCall,
 )
@@ -24,6 +27,11 @@ from app.domain.project.project_conversation import ProjectConversationSession
 from app.repositories.project.conversation_naming_repository import (
     ProjectConversationNamingRepository,
 )
+from app.repositories.project.conversation_attachment_repository import (
+    ATTACHMENTS_DIR,
+    ConversationAttachmentRepository,
+)
+from app.repositories.project.conversation_database import read_document, write_document
 from app.repositories.project.conversation_repository import (
     ProjectConversationRepository,
 )
@@ -318,11 +326,32 @@ def test_naming_repository_copies_prefix_and_atomically_applies_title(tmp_path):
         reasoning_mode="high",
         settings={"system_prompt": "稳定提示词"},
     )
+    attachment = ConversationAttachmentRepository(project_repository).save_bytes(
+        _PROJECT_ID,
+        source.session_id,
+        content=b"\x89PNG\r\n\x1a\nfunctional-session",
+        suffix=".png",
+        display_name="functional-session.png",
+        mime_type="image/png",
+        source_kind="external_file",
+        source_path="C:/functional-session.png",
+        created_at=datetime.now(UTC).isoformat(),
+    )
     user = conversations.append_message(
         _PROJECT_ID,
         source.session_id,
         role="user",
         content="设计 Token 统计。",
+        content_parts=(
+            ChatMessageContentPart(
+                type=ChatMessageContentPartType.IMAGE_REF,
+                image_ref=ChatImageRef(
+                    path=attachment.uri,
+                    mime_type="image/png",
+                    attachment_id=attachment.attachment_id,
+                ),
+            ),
+        ),
         status="done",
     )
     assistant = conversations.append_message(
@@ -365,6 +394,19 @@ def test_naming_repository_copies_prefix_and_atomically_applies_title(tmp_path):
     assert created.branch.relation_kind == "functional"
     assert created.branch.function_type == "automatic_naming"
     assert created.branch.created_by == "system"
+    copied_attachment = (
+        tmp_path
+        / ".Tiance"
+        / "conversations"
+        / "sessions"
+        / created.session.session_id
+        / ATTACHMENTS_DIR
+        / attachment.stored_name
+    )
+    assert copied_attachment.read_bytes() == b"\x89PNG\r\n\x1a\nfunctional-session"
+    assert created.session.settings.memory_compression_enabled is False
+    assert created.session.settings.project_memory_extraction_enabled is False
+    assert created.session.settings.global_memory_extraction_enabled is False
     duplicate = naming.create_task(
         _PROJECT_ID,
         source.session_id,
@@ -450,20 +492,17 @@ def test_naming_repository_rejects_task_and_branch_parent_mismatch(tmp_path):
         task_prompt="只执行自动命名。",
     )
     assert created is not None
-    task_path = (
+    task_dir = (
         tmp_path
         / ".Tiance"
         / "conversations"
         / "sessions"
         / created.session.session_id
-        / "automatic_naming_task.json"
     )
-    task = json.loads(task_path.read_text(encoding="utf-8"))
+    task = read_document(task_dir, "automatic_naming_task")
+    assert task is not None
     task["source_session_id"] = other.session_id
-    task_path.write_text(
-        json.dumps(task, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    write_document(task_dir, "automatic_naming_task", task)
 
     with pytest.raises(ConflictError, match="关系不一致"):
         naming.apply_title(

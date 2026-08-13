@@ -14,6 +14,7 @@ from app.domain.llm.runtime_capabilities import (
     LlmRuntimeCapabilities,
     LlmSamplingCapabilities,
 )
+from app.infra.llm.provider_profiles.declared_rules import apply_declared_request_rules
 
 SAMPLING_PARAMETER_NAMES = (
     "temperature",
@@ -92,7 +93,9 @@ class GenericOpenAICompatibleProfile:
         body: dict[str, object],
         request: ChatCompletionRequest,
     ) -> dict[str, object]:
-        return body
+        if self.adaptation_rules is None:
+            return body
+        return apply_declared_request_rules(body, request, self.adaptation_rules)
 
     def apply_openai_responses_body(
         self,

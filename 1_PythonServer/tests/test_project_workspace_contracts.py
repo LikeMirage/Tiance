@@ -13,6 +13,13 @@ from app.domain.project import Project
 from app.domain.project.project_conversation import ProjectConversationNamingCallRecord
 from app.infra.projects.project_files import ProjectFileStorage
 from app.repositories.project.conversation_repository import ProjectConversationRepository
+from app.repositories.project.conversation_database import (
+    list_message_payloads,
+    read_events,
+    read_meta,
+    replace_message_payloads,
+    write_meta,
+)
 from app.schemas.project.project_conversations import ProjectConversationSessionSettingsPatch
 from app.schemas.project.project_files import ProjectWorkspaceStatePatchRequest
 from app.services.document_conversion import MarkdownDocxService
@@ -181,7 +188,7 @@ def test_workspace_get_state_ignores_old_workspace_directory(tmp_path):
 
     assert state is None
     assert old_workspace.exists()
-    assert not (tmp_path / ".Tiance").exists()
+    assert (tmp_path / ".Tiance" / "tiance.db").is_file()
 
 
 def test_workspace_save_state_writes_tiance_without_migrating_old_workspace(tmp_path):
@@ -200,7 +207,10 @@ def test_workspace_save_state_writes_tiance_without_migrating_old_workspace(tmp_
     assert saved["expanded_paths"] == ["src"]
     assert saved["active_dashboard"] is None
     assert old_workspace.exists()
-    assert loads((tmp_path / ".Tiance" / "state.json").read_text(encoding="utf-8")) == saved
+    assert read_meta(
+        tmp_path / ".Tiance" / "conversations",
+        "workspace_state",
+    ) == saved
     assert not list((tmp_path / ".Tiance").glob(".*.tmp"))
 
 
@@ -346,7 +356,7 @@ def test_conversation_repository_empty_reads_do_not_create_default_session(tmp_p
     assert assistant_title == "AI 助手"
     assert active_session_id is None
     assert states == {}
-    assert not (tmp_path / ".Tiance").exists()
+    assert (tmp_path / ".Tiance" / "tiance.db").is_file()
 
 
 def test_conversation_repository_get_state_does_not_write_index(tmp_path):
@@ -358,8 +368,8 @@ def test_conversation_repository_get_state_does_not_write_index(tmp_path):
         model_id=None,
         reasoning_mode=None,
     )
-    index_path = tmp_path / ".Tiance" / "conversations" / "index.json"
-    stale_index = loads(index_path.read_text(encoding="utf-8"))
+    conversations_dir = tmp_path / ".Tiance" / "conversations"
+    stale_index = read_meta(conversations_dir, "conversation_index")
     stale_index["active_session_id"] = "missing-session"
     stale_index["session_states"] = {
         session.session_id: {
@@ -368,8 +378,8 @@ def test_conversation_repository_get_state_does_not_write_index(tmp_path):
             "updated_at": "2000-01-01T00:00:00+00:00",
         }
     }
-    index_path.write_text(dumps(stale_index, ensure_ascii=False, indent=2), encoding="utf-8")
-    before = index_path.read_text(encoding="utf-8")
+    write_meta(conversations_dir, "conversation_index", stale_index)
+    before = read_meta(conversations_dir, "conversation_index")
 
     _assistant_title, active_session_id, states = repository.get_state(PROJECT_ID)
 
@@ -377,7 +387,7 @@ def test_conversation_repository_get_state_does_not_write_index(tmp_path):
     assert states[session.session_id].runtime_status == "idle"
     assert states[session.session_id].draft == "keep"
     assert states[session.session_id].references == []
-    assert index_path.read_text(encoding="utf-8") == before
+    assert read_meta(conversations_dir, "conversation_index") == before
 
 
 def test_conversation_repository_persists_session_references(tmp_path):
@@ -405,8 +415,10 @@ def test_conversation_repository_persists_session_references(tmp_path):
     )
 
     assert states[session.session_id].references == references
-    index_path = tmp_path / ".Tiance" / "conversations" / "index.json"
-    saved_index = loads(index_path.read_text(encoding="utf-8"))
+    saved_index = read_meta(
+        tmp_path / ".Tiance" / "conversations",
+        "conversation_index",
+    )
     assert saved_index["session_states"][session.session_id]["references"] == references
 
 
@@ -428,8 +440,7 @@ def test_conversation_repository_recreates_default_session_after_deleting_last(t
     assert sessions[0].sequence_number == 1
     assert sessions[0].title == "新对话"
 
-    index_path = tmp_path / ".Tiance" / "conversations" / "index.json"
-    index = loads(index_path.read_text(encoding="utf-8"))
+    index = read_meta(tmp_path / ".Tiance" / "conversations", "conversation_index")
     assert "assistant_title" not in index
     assert index["active_session_id"] == sessions[0].session_id
     assert [item["session_id"] for item in index["sessions"]] == [sessions[0].session_id]
@@ -464,8 +475,7 @@ def test_conversation_repository_persists_pins_without_changing_updated_at(tmp_p
         older_session.session_id,
         newer_session.session_id,
     ]
-    index_path = tmp_path / ".Tiance" / "conversations" / "index.json"
-    index = loads(index_path.read_text(encoding="utf-8"))
+    index = read_meta(tmp_path / ".Tiance" / "conversations", "conversation_index")
     assert index["pinned_session_ids"] == [older_session.session_id]
 
     unpinned_session = repository.set_session_pinned(
@@ -506,8 +516,7 @@ def test_conversation_repository_removes_deleted_session_from_pins(tmp_path):
 
     repository.delete_session(PROJECT_ID, pinned_session.session_id)
 
-    index_path = tmp_path / ".Tiance" / "conversations" / "index.json"
-    index = loads(index_path.read_text(encoding="utf-8"))
+    index = read_meta(tmp_path / ".Tiance" / "conversations", "conversation_index")
     assert index["pinned_session_ids"] == []
     assert all(
         session.session_id != pinned_session.session_id
@@ -534,8 +543,7 @@ def test_conversation_repository_can_create_without_changing_active_session(tmp_
         set_active=False,
     )
 
-    index_path = tmp_path / ".Tiance" / "conversations" / "index.json"
-    index = loads(index_path.read_text(encoding="utf-8"))
+    index = read_meta(tmp_path / ".Tiance" / "conversations", "conversation_index")
     assert index["active_session_id"] == active_session.session_id
     assert [item["session_id"] for item in index["sessions"]] == [
         background_session.session_id,
@@ -838,19 +846,14 @@ def test_conversation_message_jsonl_uses_role_specific_fields(tmp_path):
     assert assistant_message.model_id == "deepseek-v4-flash"
     assert assistant_message.context_tokens == 3456
 
-    messages_path = (
+    messages_dir = (
         tmp_path
         / ".Tiance"
         / "conversations"
         / "sessions"
         / session.session_id
-        / "messages.jsonl"
     )
-    user_payload, assistant_payload = [
-        loads(line)
-        for line in messages_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    user_payload, assistant_payload = list_message_payloads(messages_dir)
 
     assert user_payload["role"] == "user"
     assert user_payload["target_provider_id"] == "deepseek"
@@ -886,17 +889,16 @@ def test_conversation_message_reader_ignores_user_provider_model_fields(tmp_path
         model_id="deepseek-v4-flash",
         reasoning_mode=None,
     )
-    messages_path = (
+    messages_dir = (
         tmp_path
         / ".Tiance"
         / "conversations"
         / "sessions"
         / session.session_id
-        / "messages.jsonl"
     )
-    messages_path.write_text(
-        dumps(
-            {
+    replace_message_payloads(
+        messages_dir,
+        [{
                 "message_id": "msg_user_current_contract",
                 "session_id": session.session_id,
                 "role": "user",
@@ -908,11 +910,7 @@ def test_conversation_message_reader_ignores_user_provider_model_fields(tmp_path
                 "status": "done",
                 "created_at": "now",
                 "updated_at": "now",
-            },
-            ensure_ascii=False,
-        )
-        + "\n",
-        encoding="utf-8",
+        }],
     )
 
     message = repository.list_messages(PROJECT_ID, session.session_id)[0]
@@ -1044,15 +1042,14 @@ def test_conversation_naming_call_record_writes_jsonl(tmp_path):
         ),
     )
 
-    log_path = (
+    session_dir = (
         tmp_path
         / ".Tiance"
         / "conversations"
         / "sessions"
         / session.session_id
-        / "naming_calls.jsonl"
     )
-    payload = loads(log_path.read_text(encoding="utf-8").strip())
+    payload = read_events(session_dir, "naming_calls")[0]
     assert payload["naming_call_id"] == "naming_call_1"
     assert payload["request"]["messages"][0]["role"] == "system"
     assert payload["response"]["selected_title"] == "用量统计设计"

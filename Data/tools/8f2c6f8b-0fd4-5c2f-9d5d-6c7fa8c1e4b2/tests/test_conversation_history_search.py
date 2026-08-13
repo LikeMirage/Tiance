@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import sqlite3
+import subprocess
+import sys
+
+
+TOOL_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+
+
+def call(root: Path, payload: dict[str, object], *, session_id: str = "session-a") -> dict:
+    env = os.environ.copy()
+    env["TIANCE_WORKSPACE_ROOT"] = str(root)
+    env["TIANCE_SESSION_ID"] = session_id
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(TOOL_ROOT / "program"), str(REPOSITORY_ROOT / "1_PythonServer")]
+    )
+    completed = subprocess.run(
+        [sys.executable, str(TOOL_ROOT / "program" / "main.py")],
+        input=json.dumps(payload, ensure_ascii=False),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=env,
+        check=False,
+    )
+    return json.loads(completed.stdout)
+
+
+def make_database(root: Path) -> None:
+    workspace = root / ".Tiance"
+    workspace.mkdir()
+    connection = sqlite3.connect(workspace / "tiance.db")
+    connection.executescript(
+        """
+        CREATE TABLE conversation_sessions (
+            session_id TEXT PRIMARY KEY,
+            payload_json TEXT NOT NULL
+        );
+        CREATE TABLE conversation_messages (
+            session_id TEXT NOT NULL,
+            ordinal INTEGER NOT NULL,
+            message_id TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            PRIMARY KEY(session_id, ordinal)
+        );
+        """
+    )
+    for session_id, title in (("session-a", "当前会话"), ("session-b", "其他会话")):
+        connection.execute(
+            "INSERT INTO conversation_sessions VALUES (?, ?)",
+            (session_id, json.dumps({"session_id": session_id, "title": title}, ensure_ascii=False)),
+        )
+    messages = [
+        ("session-a", 0, "m1", {"role": "user", "content": "Word 表格里的公式怎么修改", "created_at": "t1"}),
+        ("session-a", 1, "m2", {"role": "assistant", "content": "先定位 Word 原生公式", "created_at": "t2"}),
+        ("session-b", 0, "m3", {"role": "user", "content": "Excel 复杂格式", "created_at": "t3"}),
+    ]
+    connection.executemany(
+        "INSERT INTO conversation_messages VALUES (?, ?, ?, ?)",
+        [(sid, ordinal, mid, json.dumps(payload, ensure_ascii=False)) for sid, ordinal, mid, payload in messages],
+    )
+    connection.commit()
+    connection.close()
+
+
+def test_defaults_to_current_session_and_returns_raw_record(tmp_path: Path) -> None:
+    make_database(tmp_path)
+    result = call(tmp_path, {"query": "Word 表格", "mode": "contains"})
+    assert result["ok"] is True
+    assert result["session_id"] == "session-a"
+    assert result["total_count"] == 1
+    assert result["results"][0]["raw"]["content"] == "Word 表格里的公式怎么修改"
+
+
+def test_can_search_another_session_and_filter_role(tmp_path: Path) -> None:
+    make_database(tmp_path)
+    result = call(
+        tmp_path,
+        {
+            "query": "Excel 复杂",
+            "mode": "all_terms",
+            "session_id": "session-b",
+            "roles": ["user"],
+            "include_raw": False,
+        },
+    )
+    assert result["ok"] is True
+    assert result["session_title"] == "其他会话"
+    assert result["results"][0]["message_id"] == "m3"
+    assert "raw" not in result["results"][0]
+
+
+def test_reports_missing_project_database(tmp_path: Path) -> None:
+    result = call(tmp_path, {"query": "anything"})
+    assert result["ok"] is False
+    assert result["error"]["code"] == "DATABASE_NOT_FOUND"

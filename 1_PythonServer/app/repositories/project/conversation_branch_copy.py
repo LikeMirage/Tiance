@@ -2,13 +2,20 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import replace
-from json import dumps, loads
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from app.domain.project.project_conversation import ProjectConversationMessage
-from app.repositories.project.conversation_storage import atomic_write_text
+from app.repositories.project.conversation_attachment_repository import (
+    copy_referenced_attachments,
+)
+from app.repositories.project.conversation_database import (
+    read_document,
+    read_events,
+    replace_events,
+    write_document,
+)
 
 COMPRESSIONS_FILE = "compressions.jsonl"
 PROJECT_MEMORY_MANAGEMENT_STATE_FILE = "project_memory_management_state.json"
@@ -47,6 +54,40 @@ def copy_message_prefix(
     return copied, id_map
 
 
+def write_derived_session_snapshot(
+    source_session_dir: Path,
+    target_session_dir: Path,
+    *,
+    copied_messages: tuple[ProjectConversationMessage, ...],
+    target_session_id: str,
+    message_id_map: dict[str, str],
+    references: list[dict[str, Any]] | None = None,
+) -> None:
+    copy_referenced_attachments(
+        source_session_dir,
+        target_session_dir,
+        copied_messages,
+        references or [],
+    )
+    write_inherited_compressions(
+        source_session_dir,
+        target_session_dir,
+        target_session_id=target_session_id,
+        message_id_map=message_id_map,
+    )
+    write_inherited_long_term_memory_state(
+        source_session_dir,
+        target_session_dir,
+        target_session_id=target_session_id,
+        message_id_map=message_id_map,
+    )
+    write_inherited_memory_delivery_state(
+        source_session_dir,
+        target_session_dir,
+        message_id_map=message_id_map,
+    )
+
+
 def write_inherited_compressions(
     source_session_dir: Path,
     target_session_dir: Path,
@@ -70,10 +111,7 @@ def write_inherited_compressions(
         target_session_id=target_session_id,
         message_id_map=message_id_map,
     )
-    content = (
-        f"{dumps(inherited, ensure_ascii=False, separators=(',', ':'))}\n"
-    )
-    atomic_write_text(target_session_dir / COMPRESSIONS_FILE, content)
+    replace_events(target_session_dir, "compressions", [inherited])
 
 
 def write_inherited_long_term_memory_state(
@@ -102,10 +140,7 @@ def write_inherited_long_term_memory_state(
             "session_id": state.get("session_id"),
             "task_id": state.get("last_completed_task_id"),
         }
-        atomic_write_text(
-            target_session_dir / state_file,
-            f"{dumps(inherited, ensure_ascii=False, indent=2)}\n",
-        )
+        write_document(target_session_dir, Path(state_file).stem, inherited)
 
 
 def write_inherited_memory_delivery_state(
@@ -121,10 +156,7 @@ def write_inherited_memory_delivery_state(
         state,
         message_id_map=message_id_map,
     )
-    atomic_write_text(
-        target_session_dir / MEMORY_DELIVERY_FILE,
-        f"{dumps(inherited, ensure_ascii=False, indent=2)}\n",
-    )
+    write_document(target_session_dir, Path(MEMORY_DELIVERY_FILE).stem, inherited)
 
 
 def _inherited_memory_delivery_state(
@@ -255,26 +287,8 @@ def _inherited_compression_record(
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    if not path.is_file():
-        return []
-    records: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            payload = loads(line)
-        except ValueError:
-            continue
-        if isinstance(payload, dict):
-            records.append(payload)
-    return records
+    return read_events(path.parent, path.stem)
 
 
 def _read_json_object(path: Path) -> dict[str, Any] | None:
-    if not path.is_file():
-        return None
-    try:
-        payload = loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    return payload if isinstance(payload, dict) else None
+    return read_document(path.parent, path.stem)

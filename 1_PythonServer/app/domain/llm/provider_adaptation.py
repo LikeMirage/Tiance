@@ -37,6 +37,10 @@ class LlmRequestRules:
     max_output_tokens_parameter: str | None = None
     json_object_response_format: bool | None = None
     stream_usage: bool | None = None
+    reasoning_effort_parameter: str | None = None
+    reasoning_toggle_parameter: str | None = None
+    reasoning_enabled_value: object | None = None
+    reasoning_disabled_value: object | None = None
 
 
 @dataclass(frozen=True, slots=True)

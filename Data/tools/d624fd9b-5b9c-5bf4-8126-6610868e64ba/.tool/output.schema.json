@@ -38,8 +38,7 @@
       "required": [
         "project_id",
         "session",
-        "relationship",
-        "relationship_file_path"
+        "relationship"
       ]
     },
     {
@@ -58,7 +57,7 @@
         "loaded_message_count",
         "history_exhausted",
         "usage",
-        "messages_file_path"
+        "history_locator"
       ]
     },
     {
@@ -66,7 +65,7 @@
         "ok": { "const": true },
         "action": { "enum": ["create_session", "configure_session"] }
       },
-      "required": ["project_id", "session", "runtime_status", "messages_file_path"]
+      "required": ["project_id", "session", "runtime_status", "history_locator"]
     },
     {
       "properties": {
@@ -87,21 +86,21 @@
         "ok": { "const": true },
         "action": { "const": "stop_session" }
       },
-      "required": ["project_id", "stopped_session_id", "runtime_status", "messages_file_path"]
+      "required": ["project_id", "stopped_session_id", "runtime_status", "history_locator"]
     },
     {
       "properties": {
         "ok": { "const": true },
         "action": { "const": "delete_session" }
       },
-      "required": ["project_id", "deleted_session_id", "messages_file_path"]
+      "required": ["project_id", "deleted_session_id"]
     },
     {
       "properties": {
         "ok": { "const": true },
         "action": { "const": "show_session" }
       },
-      "required": ["project_id", "session_id", "shown", "runtime_status", "messages_file_path"]
+      "required": ["project_id", "session_id", "shown", "runtime_status", "history_locator"]
     }
   ],
   "properties": {
@@ -205,10 +204,6 @@
         "null"
       ]
     },
-    "relationship_file_path": {
-      "description": "项目内完整会话关系文件路径，固定为 .Tiance/conversations/branch_graph.json；需要查看全局关系图时可直接读取。",
-      "type": "string"
-    },
     "runtime_status": {
       "description": "目标会话当前运行状态。",
       "enum": [
@@ -280,9 +275,15 @@
       "description": "目标会话累计 token、缓存命中与未命中、推理 token、费用、记录数和分模型用量。",
       "type": "object"
     },
-    "messages_file_path": {
-      "description": "目标会话 messages.jsonl 的项目内规范路径，仅作为持久化记录的保底定位，不替代 get_session 的消息读取能力。",
-      "type": "string"
+    "history_locator": {
+      "additionalProperties": false,
+      "description": "原始历史的稳定定位信息。需要检索完整历史时，调用指定工具并传入该会话 ID。",
+      "properties": {
+        "tool_name": { "const": "conversation_history_search", "type": "string" },
+        "session_id": { "type": "string" }
+      },
+      "required": ["tool_name", "session_id"],
+      "type": "object"
     },
     "stopped_session_id": {
       "description": "stop_session 已请求停止的会话 ID。",

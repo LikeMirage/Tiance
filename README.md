@@ -205,7 +205,7 @@ pnpm build
 
 ## 继续阅读
 
-- [《天策设计思考》合集](docs/0_天策设计思考合集.md)
+- [《天策设计思考》合集](docs/00_天策设计思考合集.md)
 - [LLM 协议适配：协议、供应商与模型差异如何共存](docs/01_LLM协议适配结构.md)
 - [Markdown 转 Word：从 LaTeX 到原生可编辑公式](docs/02_Markdown转Word工具设计.md)
 - [一切都是项目和会话](docs/03_一切都是项目和会话.md)
@@ -218,7 +218,7 @@ pnpm build
 - [后端供应商能力桥与内置网络搜索](docs/10_后端供应商能力桥与内置网络搜索.md)
 - [在线市场：公开共享、私人仓库与本地所有权](docs/11_在线市场与仓库连接.md)
 - [Git 与 GitHub 工具：能力、授权和操作说明](docs/12_Git与GitHub工具及授权.md)
-- [发布包制作与 GitHub 发布流程](docs/发布包制作与GitHub发布流程.md)
+- [发布包制作与 GitHub 发布流程](docs/19_发布包制作与GitHub发布流程.md)
 
 ## 许可
 

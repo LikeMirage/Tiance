@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 from pathlib import Path
+import sys
 
 from watchfiles import Change, DefaultFilter, awatch
 
@@ -43,6 +44,7 @@ async def watch_project_file_changes(
             root,
             watch_filter=DefaultFilter(ignore_dirs=sorted(_IGNORED_PROJECT_WATCH_DIR_NAMES)),
             debounce=500,
+            force_polling=sys.platform == "win32",
             step=100,
             ignore_permission_denied=True,
         ):

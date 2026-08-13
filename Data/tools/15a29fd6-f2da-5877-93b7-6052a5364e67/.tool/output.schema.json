@@ -67,6 +67,12 @@
           },
           "type": "array"
         },
+        "extra_env_keys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "stdout": {
           "type": "string"
         },

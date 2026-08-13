@@ -30,7 +30,7 @@
     "Markdown"
   ],
   "loading": {
-    "dynamic": true
+    "dynamic": false
   },
   "name": "word_document_editor",
   "runtime": {

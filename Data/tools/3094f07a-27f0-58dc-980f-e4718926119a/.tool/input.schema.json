@@ -29,7 +29,7 @@
     },
     "wait_for_reply": {
       "default": true,
-      "description": "send 是否等待这次发送对应的回复完成。true 在工具超时安全边界内完成时返回本次回复，届时仍未完成则返回 outcome=still_running 且目标会话继续后台运行；false 在消息被接受后立即返回。所有结果都返回 messages_file_path。",
+      "description": "send 是否等待这次发送对应的回复完成。true 在工具超时安全边界内完成时返回本次回复，届时仍未完成则返回 outcome=still_running 且目标会话继续后台运行；false 在消息被接受后立即返回。所有结果都返回原始历史定位信息。",
       "title": "等待回复",
       "type": "boolean"
     }

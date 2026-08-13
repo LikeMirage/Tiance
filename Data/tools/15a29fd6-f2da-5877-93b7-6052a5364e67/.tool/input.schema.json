@@ -67,6 +67,14 @@
       "title": "预期退出码",
       "type": "array",
       "uniqueItems": true
+    },
+    "extra_env": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "合并到当前子进程环境的可选字符串键值。变量值会进入工具调用记录，敏感值优先通过项目配置或密钥配置提供；extra_env 元数据只返回变量名，但命令自身仍可能把变量值输出到 stdout 或 stderr。",
+      "title": "补充环境变量",
+      "type": "object"
     }
   },
   "required": [],

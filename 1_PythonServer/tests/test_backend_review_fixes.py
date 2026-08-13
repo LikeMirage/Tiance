@@ -32,7 +32,11 @@ from app.infra.llm.chat_remote_client import ChatRemoteClient
 from app.infra.llm.openai_client import OpenAIModelDiscoveryClient
 from app.infra.llm.provider_model_probe_client import ProviderModelProbeClient
 from app.infra.llm.provider_remote_client import ProviderRemoteClient
-from app.infra.projects.project_file_watcher import project_file_change_paths
+from app.infra.projects import project_file_watcher as project_file_watcher_module
+from app.infra.projects.project_file_watcher import (
+    project_file_change_paths,
+    watch_project_file_changes,
+)
 from app.repositories.llm.provider_cloud_model_repository import ProviderCloudModelRepository
 from app.repositories.llm.provider_config_repository import ProviderConfigRepository
 from app.repositories.llm.provider_file_store import ProviderFileStore
@@ -198,6 +202,30 @@ def test_project_file_change_paths_ignores_internal_tiance_directory(tmp_path):
     }
 
     assert project_file_change_paths(root, changes) == ["notes.md"]
+
+
+def test_project_file_watcher_uses_polling_on_windows(monkeypatch, tmp_path):
+    observed_options = {}
+
+    async def fake_awatch(*_args, **options):
+        observed_options.update(options)
+        if False:
+            yield set()
+
+    monkeypatch.setattr(project_file_watcher_module, "awatch", fake_awatch)
+    monkeypatch.setattr(project_file_watcher_module.sys, "platform", "win32")
+
+    async def consume():
+        return [
+            change
+            async for change in watch_project_file_changes(
+                tmp_path,
+                project_id="project-1",
+            )
+        ]
+
+    assert asyncio.run(consume()) == []
+    assert observed_options["force_polling"] is True
 
 
 def test_deepseek_new_session_defaults_to_tool_thinking_return():

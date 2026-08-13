@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -7,8 +8,11 @@ from app.domain.llm.generation_params import (
     LlmGenerationParams,
     LlmOutputFormat,
     LlmOutputOptions,
+    LlmReasoningOptions,
     LlmReasoningMode,
 )
+from app.domain.llm.provider_catalog import ProviderProtocolFamily
+from app.infra.llm.provider_profiles.base import GenericOpenAICompatibleProfile
 from app.infra.llm.provider_profiles.volcengine import VolcengineProfile
 from app.repositories.llm.provider_adaptation_rules_repository import (
     ProviderAdaptationRulesRepository,
@@ -157,6 +161,93 @@ def test_declared_request_rules_drive_provider_request_shape(tmp_path):
     assert body["stream_options"] == {"include_usage": True}
     assert "max_tokens" not in body
     assert "presence_penalty" not in body
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_thinking", "expected_effort"),
+    [
+        (LlmReasoningMode.OFF, {"type": "disabled"}, None),
+        (LlmReasoningMode.HIGH, {"type": "enabled"}, "high"),
+        (LlmReasoningMode.MAX, {"type": "enabled"}, "max"),
+    ],
+)
+def test_generic_profile_applies_declared_reasoning_request_shape(
+    tmp_path,
+    mode,
+    expected_thinking,
+    expected_effort,
+):
+    store = ProviderFileStore(tmp_path)
+    _write_manifest(store)
+    store.write_provider_file(
+        "provider-a",
+        PROVIDER_MODEL_RULES_FILE,
+        {
+            "schemaVersion": 1,
+            "families": {},
+            "models": {
+                "model-a": {
+                    "capabilities": {
+                        "reasoning": {
+                            "supported": True,
+                            "modes": ["off", "high", "max"],
+                        },
+                        "sampling": {
+                            "disabledWhenReasoning": True,
+                            "parameters": ["temperature", "top_p"],
+                        },
+                    },
+                    "request": {
+                        "reasoningEffortParameter": "reasoning_effort",
+                        "reasoningToggleParameter": "thinking",
+                        "reasoningEnabledValue": {"type": "enabled"},
+                        "reasoningDisabledValue": {"type": "disabled"},
+                    },
+                }
+            },
+        },
+    )
+    rules = ProviderAdaptationRulesRepository(store).resolve(
+        provider_id="provider-a",
+        model_id="model-a",
+        expected_profile_id="generic",
+    )
+    assert rules is not None
+    request = ChatCompletionRequest(
+        provider_id="provider-a",
+        model_id="model-a",
+        messages=(ChatMessage(role=ChatMessageRole.USER, content="test"),),
+        generation=LlmGenerationParams(
+            temperature=0.5,
+            top_p=0.9,
+            reasoning=LlmReasoningOptions(mode=mode),
+        ),
+    )
+    profile = GenericOpenAICompatibleProfile(adaptation_rules=rules)
+
+    capabilities = profile.resolve_capabilities(
+        SimpleNamespace(
+            provider_id="provider-a",
+            protocol_family=ProviderProtocolFamily.OPENAI_COMPATIBLE,
+        ),
+        "model-a",
+    )
+    body = profile.apply_openai_compatible_body(
+        {"temperature": 0.5, "top_p": 0.9},
+        request,
+    )
+
+    assert capabilities.reasoning.supported is True
+    assert capabilities.reasoning.modes == (
+        LlmReasoningMode.OFF,
+        LlmReasoningMode.HIGH,
+        LlmReasoningMode.MAX,
+    )
+    assert body["thinking"] == expected_thinking
+    assert body.get("reasoning_effort") == expected_effort
+    if mode != LlmReasoningMode.OFF:
+        assert "temperature" not in body
+        assert "top_p" not in body
 
 
 def test_sidecars_create_empty_rule_files(tmp_path):

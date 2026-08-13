@@ -57,6 +57,12 @@ DMXAPI_CONFIG_FIELDS = [
 ]
 ALL_CONFIG_FIELDS = [*MINERU_CONFIG_FIELDS, *DMXAPI_CONFIG_FIELDS]
 DMXAPI_THINKING_TYPES = {"disabled", "auto", "enabled"}
+STRUCTURED_ARTIFACTS = (
+    ("content_list_v2", "_content_list_v2.json", "content_list_v2.json"),
+    ("content_list", "_content_list.json", "content_list.json"),
+    ("middle", "_middle.json", "middle.json"),
+    ("model", "_model.json", "model.json"),
+)
 
 
 class ToolError(Exception):
@@ -711,6 +717,33 @@ def find_artifact(root: Path, filename_hint: str) -> Path | None:
     return None
 
 
+def find_artifact_by_suffix(root: Path, filename_suffix: str) -> Path | None:
+    lowered = filename_suffix.lower()
+    candidates = sorted(
+        (
+            path
+            for path in root.rglob("*")
+            if path.is_file() and path.name.lower().endswith(lowered)
+        ),
+        key=lambda path: path.relative_to(root).as_posix().lower(),
+    )
+    return candidates[0] if candidates else None
+
+
+def preserve_structured_artifacts(extracted_root: Path, output_dir: Path) -> dict[str, Path]:
+    preserved: dict[str, Path] = {}
+    structure_dir = output_dir / "structure"
+    for key, source_suffix, output_name in STRUCTURED_ARTIFACTS:
+        source_path = find_artifact_by_suffix(extracted_root, source_suffix)
+        if source_path is None:
+            continue
+        structure_dir.mkdir(parents=True, exist_ok=True)
+        destination = structure_dir / output_name
+        shutil.copy2(source_path, destination)
+        preserved[key] = destination
+    return preserved
+
+
 def read_json_file(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -1112,11 +1145,7 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
         raw_markdown_path = options.output_dir / "full.md"
         raw_markdown_path.write_text(markdown, encoding="utf-8")
 
-        content_list_path = find_artifact(extracted_root, "_content_list.json")
-        content_list_copy: Path | None = None
-        if content_list_path:
-            content_list_copy = options.output_dir / "content_list.json"
-            shutil.copy2(content_list_path, content_list_copy)
+        structured_artifacts = preserve_structured_artifacts(extracted_root, options.output_dir)
 
         update_status(options.output_dir, "vision_analysis", "分析解析结果中的图片")
         image_results = analyze_images(options, extracted_root, warnings, config, referenced_image_paths)
@@ -1166,14 +1195,20 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
             },
             "files": {
                 "main_markdown": str(document_markdown_path),
-                "raw_markdown": str(raw_markdown_path),
                 "vision_markdown": str(document_markdown_path),
-                "plain_text": str(plain_text_path),
-                "image_analysis": str(image_analysis_path),
                 "image_dir": str(image_dir),
-                "mineru_zip": str(zip_path),
-                "mineru_extracted": str(extracted_root),
-                "content_list": str(content_list_copy) if content_list_copy else None,
+                "structure_dir": str(options.output_dir / "structure") if structured_artifacts else None,
+                "structured_data": {key: str(path) for key, path in structured_artifacts.items()},
+            },
+            "page_location": {
+                "field": "page_idx",
+                "index_base": 0,
+                "display_page_formula": "page_idx + 1",
+                "preferred_file": str(
+                    structured_artifacts.get("content_list_v2")
+                    or structured_artifacts.get("content_list")
+                    or ""
+                ) or None,
             },
         }
         metadata_path = options.output_dir / "metadata.json"
@@ -1187,8 +1222,6 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
                 plain_text_path,
                 image_analysis_path,
                 zip_path,
-                metadata_path,
-                content_list_copy,
                 options.output_dir / "status.json",
                 options.output_dir / "run.log",
             ],
@@ -1203,6 +1236,14 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
             "main_markdown": str(document_markdown_path),
             "vision_markdown": str(document_markdown_path),
             "image_dir": str(image_dir),
+            "metadata_path": str(metadata_path),
+            "structure_dir": str(options.output_dir / "structure") if structured_artifacts else None,
+            "structured_data": {
+                **{key: str(path) for key, path in structured_artifacts.items()},
+                "page_index_field": "page_idx",
+                "page_index_base": 0,
+                "display_page_formula": "page_idx + 1",
+            },
             "relative_output_dir": relative_or_absolute(options.output_dir, options.workspace_root),
             "mineru": {
                 "task_ref": task_ref,

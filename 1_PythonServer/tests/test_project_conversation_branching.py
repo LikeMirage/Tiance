@@ -8,6 +8,14 @@ from app.domain.project.conversation_branch_overview import (
 )
 from app.core.errors import ConflictError
 from app.repositories.project.conversation_repository import ProjectConversationRepository
+from app.repositories.project.conversation_database import (
+    read_document,
+    read_events,
+    read_meta,
+    replace_events,
+    write_document,
+    write_meta,
+)
 from app.services.project.conversation_memory_delivery_state import (
     GLOBAL_MEMORY_SCOPE,
     prepare_memory_delivery_state,
@@ -188,10 +196,7 @@ def test_fork_inherits_memory_delivery_and_replays_changes_at_new_request(tmp_pa
         / "sessions"
         / source.session_id
     )
-    (source_dir / "memory_delivery.json").write_text(
-        dumps(state, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    write_document(source_dir, "memory_delivery", state)
 
     result = repository.fork_session(
         PROJECT_ID,
@@ -208,9 +213,8 @@ def test_fork_inherits_memory_delivery_and_replays_changes_at_new_request(tmp_pa
         / "sessions"
         / result.session.session_id
     )
-    inherited = loads(
-        (target_dir / "memory_delivery.json").read_text(encoding="utf-8")
-    )
+    inherited = read_document(target_dir, "memory_delivery")
+    assert inherited is not None
     assert inherited["cursors"][GLOBAL_MEMORY_SCOPE] == 1
     assert inherited["deliveries"] == []
 
@@ -344,13 +348,16 @@ def test_ai_created_child_keeps_lineage_without_joining_parent_history_tree(tmp_
     assert all(group.is_branched is False for group in groups)
 
 
-def test_legacy_branch_graph_is_upgraded_when_a_relation_is_written(tmp_path):
+def test_old_branch_graph_version_is_rejected_without_compatibility_upgrade(tmp_path):
+    import pytest
+
     repository = _repository(tmp_path)
     root = _create_session(repository, "旧版根会话")
-    graph_path = tmp_path / ".Tiance" / "conversations" / "branch_graph.json"
-    graph_path.write_text(
-        dumps(
-            {
+    conversations_dir = tmp_path / ".Tiance" / "conversations"
+    write_meta(
+        conversations_dir,
+        "branch_graph",
+        {
                 "version": 1,
                 "nodes": [
                     {
@@ -364,48 +371,32 @@ def test_legacy_branch_graph_is_upgraded_when_a_relation_is_written(tmp_path):
                     }
                 ],
                 "variants": [],
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
+        },
     )
 
-    child = repository.create_session(
-        PROJECT_ID,
-        title="AI 子会话",
-        provider_id="provider-a",
-        model_id="model-a",
-        reasoning_mode="high",
-        settings={},
-        parent_session_id=root.session_id,
-        created_by="ai",
-        set_active=False,
-    )
-
-    upgraded = loads(graph_path.read_text(encoding="utf-8"))
-    assert upgraded["version"] == 4
-    node_by_session = {
-        node["session_id"]: node
-        for node in upgraded["nodes"]
-    }
-    assert node_by_session[root.session_id]["created_by"] == "user"
-    assert node_by_session[root.session_id]["history_mode"] == "empty"
-    assert node_by_session[root.session_id]["relation_kind"] == "root"
-    assert node_by_session[root.session_id]["parent_session_id"] is None
-    assert node_by_session[root.session_id]["source_message_id"] is None
-    assert node_by_session[child.session_id]["created_by"] == "ai"
-    assert node_by_session[child.session_id]["relation_kind"] == "child"
-    assert node_by_session[child.session_id]["parent_session_id"] == root.session_id
+    with pytest.raises(ConflictError, match="格式无效"):
+        repository.create_session(
+            PROJECT_ID,
+            title="AI 子会话",
+            provider_id="provider-a",
+            model_id="model-a",
+            reasoning_mode="high",
+            settings={},
+            parent_session_id=root.session_id,
+            created_by="ai",
+            set_active=False,
+        )
 
 
-def test_version_two_relation_types_and_parent_sessions_are_upgraded(tmp_path):
+def test_old_relation_shape_is_rejected_without_compatibility_upgrade(tmp_path):
+    import pytest
+
     from app.repositories.project.conversation_branch_store import ConversationBranchStore
 
-    graph_path = tmp_path / "branch_graph.json"
-    graph_path.write_text(
-        dumps(
-            {
+    write_meta(
+        tmp_path,
+        "branch_graph",
+        {
                 "version": 2,
                 "nodes": [
                     {
@@ -432,20 +423,12 @@ def test_version_two_relation_types_and_parent_sessions_are_upgraded(tmp_path):
                     },
                 ],
                 "variants": [],
-            },
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
+        },
     )
 
     store = ConversationBranchStore()
-    graph = store.read_graph(tmp_path)
-    nodes = {node.session_id: node for node in store.list_nodes(graph)}
-
-    assert graph["version"] == 4
-    assert nodes["session_root"].relation_kind == "root"
-    assert nodes["session_child"].relation_kind == "child"
-    assert nodes["session_child"].parent_session_id == "session_root"
+    with pytest.raises(ConflictError, match="格式无效"):
+        store.read_graph(tmp_path)
 
 
 def test_child_and_fork_sibling_numbers_are_independent(tmp_path):
@@ -707,10 +690,7 @@ def test_fork_only_inherits_completed_compressions_fully_before_branch_point(tmp
             "source_message_ids": [first_user.message_id],
         },
     ]
-    (source_dir / "compressions.jsonl").write_text(
-        "".join(f"{dumps(record, ensure_ascii=False)}\n" for record in records),
-        encoding="utf-8",
-    )
+    replace_events(source_dir, "compressions", records)
 
     result = repository.fork_session(
         PROJECT_ID,
@@ -719,15 +699,14 @@ def test_fork_only_inherits_completed_compressions_fully_before_branch_point(tmp
         draft="branch here edited",
         references=[],
     )
-    target_path = (
+    target_dir = (
         tmp_path
         / ".Tiance"
         / "conversations"
         / "sessions"
         / result.session.session_id
-        / "compressions.jsonl"
     )
-    inherited = [loads(line) for line in target_path.read_text(encoding="utf-8").splitlines()]
+    inherited = read_events(target_dir, "compressions")
 
     assert len(inherited) == 1
     assert inherited[0]["result"]["items"][0]["content"] == "safe summary"
@@ -773,8 +752,11 @@ def test_invalid_branch_graph_is_not_silently_overwritten(tmp_path):
     session = _create_session(repository)
     user = _append(repository, session.session_id, "user", "question")
     _append(repository, session.session_id, "assistant", "answer")
-    graph_path = tmp_path / ".Tiance" / "conversations" / "branch_graph.json"
-    graph_path.write_text("{broken", encoding="utf-8")
+    write_meta(
+        tmp_path / ".Tiance" / "conversations",
+        "branch_graph",
+        "broken",
+    )
 
     with pytest.raises(ConflictError, match="避免覆盖"):
         repository.fork_session(
@@ -785,7 +767,10 @@ def test_invalid_branch_graph_is_not_silently_overwritten(tmp_path):
             references=[],
         )
 
-    assert graph_path.read_text(encoding="utf-8") == "{broken"
+    assert read_meta(
+        tmp_path / ".Tiance" / "conversations",
+        "branch_graph",
+    ) == "broken"
 
 
 def test_branch_overview_groups_standalone_sessions_and_deduplicates_shared_turns(tmp_path):

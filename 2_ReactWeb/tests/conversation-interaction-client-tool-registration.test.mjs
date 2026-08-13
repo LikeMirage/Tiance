@@ -6,7 +6,7 @@ import {
   clientToolRequest,
   completedTurn,
   conversationMessage,
-  conversationPath,
+  conversationHistoryLocator,
   installClientToolTestGlobals,
   installSessionListFetch,
 } from "./helpers/conversationClientToolRegistrationFixtures.mjs";
@@ -87,7 +87,7 @@ test("不等待模式只在消息持久化 started 后返回", async () => {
   assert.equal(result.content.runtime_status, "running");
   assert.equal(result.content.outcome, "still_running");
   assert.equal(result.content.user_message_id, "client_request-no-wait");
-  assert.equal(result.content.messages_file_path, conversationPath("session-a"));
+  assert.deepEqual(result.content.history_locator, conversationHistoryLocator("session-a"));
   assert.deepEqual(events.slice(0, 2), ["started", "status:running"]);
 });
 
@@ -117,7 +117,7 @@ test("等待模式返回本次精确完成回复", async () => {
   assert.equal(result.content.user_message_id, "client_request-wait");
   assert.equal(result.content.assistant_message_id, "assistant-result");
   assert.equal(result.content.reply.content, "精确回复");
-  assert.equal(result.content.messages_file_path, conversationPath("session-a"));
+  assert.deepEqual(result.content.history_locator, conversationHistoryLocator("session-a"));
 });
 
 test("前端刷新后等待模式按稳定消息身份续接自己的运行", async () => {
@@ -228,7 +228,7 @@ test("刷新续接到他人运行时明确拒绝且不执行他人事件", async
   assert.match(result.error, /另一轮会话运行/);
   assert.equal(clientToolCalls, 0);
   assert.equal(streamCalls, 0);
-  assert.equal(result.content.messages_file_path, conversationPath("session-a"));
+  assert.deepEqual(result.content.history_locator, conversationHistoryLocator("session-a"));
 });
 
 test("刷新时运行刚结束只在 resume 404 后用同一消息 ID 幂等重放", async () => {
@@ -357,7 +357,7 @@ test("等待模式区分模型错误与无正文取消终态", async () => {
     assert.equal(result.ok, true);
     assert.equal(result.content.outcome, scenario.result.outcome);
     assert.equal(result.content.runtime_status, scenario.expectedRuntimeStatus);
-    assert.equal(result.content.messages_file_path, conversationPath("session-a"));
+    assert.deepEqual(result.content.history_locator, conversationHistoryLocator("session-a"));
     if (scenario.expectedReplyRole) {
       assert.equal(result.content.reply.role, scenario.expectedReplyRole);
     } else {
@@ -394,7 +394,7 @@ test("等待安全截止不会中断目标会话，并返回 still_running 与�
   assert.equal(result.content.wait_for_reply, true);
   assert.equal(result.content.outcome, "still_running");
   assert.equal(result.content.runtime_status, "running");
-  assert.equal(result.content.messages_file_path, conversationPath("session-a"));
+  assert.deepEqual(result.content.history_locator, conversationHistoryLocator("session-a"));
 });
 
 test("发送启动竞争失败保留路径且不伪造运行终态", async () => {
@@ -423,7 +423,7 @@ test("发送启动竞争失败保留路径且不伪造运行终态", async () =>
 
   assert.equal(result.ok, false);
   assert.match(result.error, /另一请求占用/);
-  assert.equal(result.content.messages_file_path, conversationPath("session-a"));
+  assert.deepEqual(result.content.history_locator, conversationHistoryLocator("session-a"));
   assert.deepEqual(runtimeStatuses, []);
 });
 
@@ -458,7 +458,7 @@ test("started 后跟随失败只刷新真实状态，不伪造 error", async () 
 
   assert.equal(result.ok, false);
   assert.match(result.error, /运行跟随失败/);
-  assert.equal(result.content.messages_file_path, conversationPath("session-a"));
+  assert.deepEqual(result.content.history_locator, conversationHistoryLocator("session-a"));
   assert.deepEqual(runtimeStatuses, ["running"]);
   assert.equal(backgroundRuns.hasActiveRun("project-a", "session-a"), false);
 });

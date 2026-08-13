@@ -6,7 +6,11 @@ import {
   type RefObject,
   type SetStateAction,
 } from "react";
-import type { ConversationRuntimeStatus } from "../../../entities/llm-chat/model/conversation";
+import type {
+  ConversationBranchNode,
+  ConversationRuntimeStatus,
+  ConversationSessionState,
+} from "../../../entities/llm-chat/model/conversation";
 import type { ChatMessage } from "./chatMessage";
 import { buildSessionKey } from "./sessionKey";
 
@@ -32,8 +36,10 @@ type UseActiveSessionMessagesLoaderOptions = {
 
 type UseActiveSessionLiveReloadOptions = UseActiveSessionMessagesLoaderOptions & {
   activeRuntimeStatus: ConversationRuntimeStatus | null;
+  branchNodes: ConversationBranchNode[];
   messages: ChatMessage[];
   isActiveSessionStreaming: boolean;
+  sessionStates: Record<string, ConversationSessionState>;
 };
 
 type ActiveSessionLiveReloadMode = "off" | "session-only" | "messages-and-session";
@@ -123,6 +129,7 @@ export function useActiveSessionMessagesLoader({
 export function useActiveSessionLiveReload({
   activeRuntimeStatus,
   activeSessionId,
+  branchNodes,
   isActive = true,
   isActiveSessionStreaming,
   isSessionStreaming,
@@ -130,10 +137,41 @@ export function useActiveSessionLiveReload({
   projectId,
   reloadSessionMessages,
   reloadSessions,
+  sessionStates,
 }: UseActiveSessionLiveReloadOptions) {
-  const isCompactionRunning = useMemo(
-    () => findLatestCompactionRunningState(messages),
+  const latestCompactionStartAt = useMemo(
+    () => findLatestCompactionStartAt(messages),
     [messages],
+  );
+  const [compactionGraceClock, setCompactionGraceClock] = useState(
+    () => Date.now(),
+  );
+  useEffect(() => {
+    if (latestCompactionStartAt === null) return undefined;
+    const remainingMs = compactionStartGraceMs - (
+      Date.now() - latestCompactionStartAt
+    );
+    if (remainingMs <= 0) return undefined;
+    const timer = window.setTimeout(
+      () => setCompactionGraceClock(Date.now()),
+      remainingMs + 1,
+    );
+    return () => window.clearTimeout(timer);
+  }, [latestCompactionStartAt]);
+  const hasRunningCompactionChild = useMemo(
+    () => hasRunningMemoryCompactionChild(
+      activeSessionId,
+      branchNodes,
+      sessionStates,
+    ),
+    [activeSessionId, branchNodes, sessionStates],
+  );
+  const isCompactionRunning = useMemo(
+    () => hasRunningCompactionChild || hasRecentCompactionStart(
+      messages,
+      compactionGraceClock,
+    ),
+    [compactionGraceClock, hasRunningCompactionChild, messages],
   );
   const reloadMode = resolveActiveSessionLiveReloadMode({
     activeRuntimeStatus,
@@ -193,14 +231,48 @@ export function resolveActiveSessionLiveReloadMode({
   return isActiveSessionStreaming ? "session-only" : "messages-and-session";
 }
 
-function findLatestCompactionRunningState(messages: ChatMessage[]) {
+const compactionStartGraceMs = 30_000;
+
+export function hasRunningMemoryCompactionChild(
+  sourceSessionId: string | null,
+  branchNodes: ConversationBranchNode[],
+  sessionStates: Record<string, ConversationSessionState>,
+) {
+  if (!sourceSessionId) return false;
+  return branchNodes.some((node) => (
+    node.deleted_at === null &&
+    node.parent_session_id === sourceSessionId &&
+    node.relation_kind === "functional" &&
+    node.function_type === "memory_compaction" &&
+    sessionStates[node.session_id]?.runtime_status === "running"
+  ));
+}
+
+export function hasRecentCompactionStart(
+  messages: ChatMessage[],
+  now = Date.now(),
+) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (message.role === "system" && message.name === "memory_compaction") {
-      return message.status === "running";
+      return message.status === "running" &&
+        typeof message.createdAt === "number" &&
+        now - message.createdAt <= compactionStartGraceMs;
     }
   }
   return false;
+}
+
+function findLatestCompactionStartAt(messages: ChatMessage[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role === "system" && message.name === "memory_compaction") {
+      return message.status === "running" && typeof message.createdAt === "number"
+        ? message.createdAt
+        : null;
+    }
+  }
+  return null;
 }
 
 export function useChatPanelPopoverDismiss({

@@ -49,6 +49,9 @@ finally:
 
 _INHERITED_ENV_KEYS = {
     "COMSPEC",
+    "HOME",
+    "HOMEDRIVE",
+    "HOMEPATH",
     "PATH",
     "PATHEXT",
     "SystemRoot",
@@ -60,6 +63,7 @@ _INHERITED_ENV_KEYS = {
     "TIANCE_WORKSPACE_ROOT",
     "TIANCE_PROJECT_ID",
     "TIANCE_SESSION_ID",
+    "USERPROFILE",
 }
 
 

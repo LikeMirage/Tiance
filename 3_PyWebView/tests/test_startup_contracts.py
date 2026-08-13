@@ -144,15 +144,18 @@ class BackendProcessOwnershipTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "management is disabled"):
                 manager.ensure_running()
 
-    def test_exited_managed_backend_is_discarded_before_retry(self) -> None:
+    def test_exited_managed_backend_reports_startup_failure_without_retry_loop(self) -> None:
         manager = BackendProcessManager(_shell_settings(Path.cwd()))
         manager._process = _ExitedProcess(returncode=17)
 
-        with patch.object(shell_backend_process, "is_port_open", return_value=True):
-            with self.assertRaisesRegex(RuntimeError, "became occupied"):
-                manager.ensure_running()
+        with (
+            patch.object(shell_backend_process, "is_port_open") as port_check,
+            self.assertRaisesRegex(RuntimeError, "exited during startup.*code 17"),
+        ):
+            manager.ensure_running()
 
         self.assertIsNone(manager._process)
+        port_check.assert_not_called()
 
     def test_managed_backend_allows_configured_frontend_dev_origin(self) -> None:
         settings = replace(

@@ -18,14 +18,13 @@ from app.domain.project.conversation_branch import (
 from app.domain.project.project_conversation import (
     ProjectConversationSession,
     ProjectConversationSessionSettings,
+    functional_session_recursion_guard_settings,
 )
 from app.repositories.project.conversation_branch_copy import (
     GLOBAL_MEMORY_MANAGEMENT_STATE_FILE,
     PROJECT_MEMORY_MANAGEMENT_STATE_FILE,
     copy_message_prefix,
-    write_inherited_compressions,
-    write_inherited_long_term_memory_state,
-    write_inherited_memory_delivery_state,
+    write_derived_session_snapshot,
 )
 from app.repositories.project.conversation_branch_store import (
     CREATED_BY_SYSTEM,
@@ -52,6 +51,7 @@ from app.repositories.project.project_repository import (
     ProjectRepository,
     get_project_repository,
 )
+from app.repositories.project.conversation_database import read_document, write_document
 
 
 LONG_TERM_MEMORY_TASK_FILE = "long_term_memory_task.json"
@@ -249,7 +249,9 @@ class ProjectConversationLongTermMemoryRepository:
                 updated_at=now,
                 message_count=len(copied_messages),
                 manual_title=True,
-                settings=target_settings,
+                settings=functional_session_recursion_guard_settings(
+                    target_settings
+                ),
             )
             task = {
                 "version": LONG_TERM_MEMORY_TASK_VERSION,
@@ -293,21 +295,11 @@ class ProjectConversationLongTermMemoryRepository:
                     temporary_dir,
                     copied_messages,
                 )
-                write_inherited_compressions(
+                write_derived_session_snapshot(
                     source_session_dir,
                     temporary_dir,
+                    copied_messages=copied_messages,
                     target_session_id=function_session_id,
-                    message_id_map=message_id_map,
-                )
-                write_inherited_long_term_memory_state(
-                    source_session_dir,
-                    temporary_dir,
-                    target_session_id=function_session_id,
-                    message_id_map=message_id_map,
-                )
-                write_inherited_memory_delivery_state(
-                    source_session_dir,
-                    temporary_dir,
                     message_id_map=message_id_map,
                 )
                 _write_json_object(
@@ -537,19 +529,11 @@ def _require_task(path: Path, function_type: str) -> dict[str, Any]:
 
 
 def _read_json_object(path: Path) -> dict[str, Any] | None:
-    if not path.is_file():
-        return None
-    payload = loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"Invalid JSON object in {path.name}.")
-    return payload
+    return read_document(path.parent, path.stem)
 
 
 def _write_json_object(path: Path, payload: dict[str, Any]) -> None:
-    atomic_write_text(
-        path,
-        f"{dumps(payload, ensure_ascii=False, indent=2)}\n",
-    )
+    write_document(path.parent, path.stem, payload)
 
 
 @lru_cache

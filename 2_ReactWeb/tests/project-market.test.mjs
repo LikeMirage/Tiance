@@ -115,3 +115,20 @@ test("workspace exposes the matching online market for project collections", asy
   assert.match(tabsSource, /projectOverview\.views\.onlineKnowledge/);
   assert.match(tabsSource, /projectOverview\.views\.onlineExperience/);
 });
+
+test("project-internal conversation overview stays in the document tab workspace", async () => {
+  const editorSource = await readFile(
+    new URL("../src/pages/workspace/ui/WorkspaceEditorCanvasPanel.tsx", import.meta.url),
+    "utf8",
+  );
+  const toolSource = await readFile(
+    new URL("../src/pages/workspace/ui/WorkspaceToolCanvasPanel.tsx", import.meta.url),
+    "utf8",
+  );
+
+  for (const source of [editorSource, toolSource]) {
+    assert.match(source, /ensureProjectConversationOverview\(projectId, \{ activate: true \}\)/);
+    assert.doesNotMatch(source, /handleOpenExternal(?:Project|Tool)View/);
+  }
+  assert.match(toolSource, /projectConversationOverviewContent=/);
+});

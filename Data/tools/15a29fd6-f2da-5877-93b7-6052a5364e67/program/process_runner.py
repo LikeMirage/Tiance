@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import subprocess
 from threading import Thread
@@ -53,6 +54,7 @@ def run_process(
     cwd: Path,
     timeout_seconds: int,
     max_output_chars: int,
+    extra_env: dict[str, str],
 ) -> ProcessRunResult:
     capture_limit = max(
         _MIN_CAPTURE_BYTES,
@@ -61,12 +63,17 @@ def run_process(
     stdout_collector = _BoundedByteCollector(capture_limit)
     stderr_collector = _BoundedByteCollector(capture_limit)
     started_at = monotonic()
+    environment = None
+    if extra_env:
+        environment = os.environ.copy()
+        environment.update(extra_env)
     process = subprocess.Popen(
         process_args,
         stdin=subprocess.PIPE if stdin_bytes is not None else None,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=str(cwd),
+        env=environment,
     )
     assert process.stdout is not None
     assert process.stderr is not None

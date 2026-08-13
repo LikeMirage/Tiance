@@ -1,4 +1,3 @@
-from json import dumps, loads
 from pathlib import Path
 from re import fullmatch
 from shutil import rmtree
@@ -31,15 +30,25 @@ from app.repositories.project.conversation_serialization import (
 )
 from app.repositories.project.conversation_storage import (
     CONVERSATIONS_DIR,
-    INDEX_FILE,
-    MESSAGES_FILE,
-    NAMING_CALLS_FILE,
-    SESSION_FILE,
-    ConversationStorageMigration,
-    append_jsonl,
-    atomic_write_text,
+    ProjectWorkspaceDirectoryResolver,
 )
 from app.repositories.project.project_repository import ProjectRepository
+from app.repositories.project.conversation_database import (
+    append_event,
+    append_message_payload,
+    count_message_payloads,
+    delete_session,
+    find_message_ordinal,
+    list_message_payloads,
+    list_message_payloads_range,
+    read_message_turn_payloads,
+    read_meta,
+    read_session,
+    replace_message_payloads,
+    session_exists,
+    write_meta,
+    write_session,
+)
 
 
 class ConversationStateStore:
@@ -85,17 +94,17 @@ class ConversationSessionStore:
         project_repository: ProjectRepository,
         *,
         state_store: ConversationStateStore,
-        storage_migration: ConversationStorageMigration | None = None,
+        workspace_resolver: ProjectWorkspaceDirectoryResolver | None = None,
     ) -> None:
         self._project_repository = project_repository
         self._state_store = state_store
-        self._storage_migration = storage_migration or ConversationStorageMigration()
+        self._workspace_resolver = workspace_resolver or ProjectWorkspaceDirectoryResolver()
 
     def conversations_dir(self, project_id: str, *, for_write: bool = False) -> Path:
         project = self._project_repository.get_project(project_id)
         if project is None:
             raise NotFoundError(f"项目 '{project_id}' 不存在。")
-        return self._storage_migration.resolve_workspace_dir(
+        return self._workspace_resolver.resolve_workspace_dir(
             Path(project.root_path),
             for_write=for_write,
         ) / CONVERSATIONS_DIR
@@ -107,18 +116,12 @@ class ConversationSessionStore:
 
     def require_session_dir(self, project_id: str, session_id: str, *, for_write: bool = False) -> Path:
         session_dir = self.session_dir(project_id, session_id, for_write=for_write)
-        if not (session_dir / SESSION_FILE).is_file():
+        if not session_exists(session_dir.parent.parent, session_id):
             raise NotFoundError(f"Conversation session '{session_id}' was not found.")
         return session_dir
 
     def read_index(self, conversations_dir: Path) -> dict:
-        index_path = conversations_dir / INDEX_FILE
-        if not index_path.is_file():
-            return _empty_index()
-        try:
-            payload = loads(index_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return _empty_index()
+        payload = read_meta(conversations_dir, "conversation_index", _empty_index())
         if not isinstance(payload, dict):
             return _empty_index()
         payload.setdefault("active_session_id", None)
@@ -129,12 +132,8 @@ class ConversationSessionStore:
         return self._state_store.normalize_runtime_states(payload)
 
     def write_index(self, conversations_dir: Path, payload: dict) -> None:
-        conversations_dir.mkdir(parents=True, exist_ok=True)
         payload.pop("assistant_title", None)
-        atomic_write_text(
-            conversations_dir / INDEX_FILE,
-            dumps(payload, ensure_ascii=False, indent=2),
-        )
+        write_meta(conversations_dir, "conversation_index", payload)
 
     def index_with_session(
         self,
@@ -172,22 +171,16 @@ class ConversationSessionStore:
     ) -> ProjectConversationSession | None:
         if not fullmatch(r"[A-Za-z0-9_-]+", session_id):
             return None
-        session_path = conversations_dir / "sessions" / session_id / SESSION_FILE
-        if not session_path.is_file():
-            return None
-        try:
-            payload = loads(session_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return None
+        payload = read_session(conversations_dir, session_id)
         if not isinstance(payload, dict):
             return None
         return _session_from_payload(payload)
 
     def write_session(self, session_dir: Path, session: ProjectConversationSession) -> None:
-        session_dir.mkdir(parents=True, exist_ok=True)
-        atomic_write_text(
-            session_dir / SESSION_FILE,
-            dumps(_session_to_payload(session), ensure_ascii=False, indent=2),
+        write_session(
+            session_dir.parent.parent,
+            session.session_id,
+            _session_to_payload(session),
         )
 
     def delete_session_dir(self, session_dir: Path, session_id: str) -> None:
@@ -195,32 +188,20 @@ class ConversationSessionStore:
         resolved_session_dir = session_dir.resolve()
         if resolved_session_dir.parent != sessions_root:
             raise NotFoundError(f"Conversation session '{session_id}' was not found.")
-        rmtree(resolved_session_dir)
+        delete_session(session_dir.parent.parent, session_id)
+        if resolved_session_dir.exists():
+            rmtree(resolved_session_dir)
 
 
 class ConversationMessageStore:
     def ensure_messages_file(self, session_dir: Path) -> None:
-        messages_path = session_dir / MESSAGES_FILE
-        if messages_path.exists():
-            return
-        atomic_write_text(messages_path, "")
+        return None
 
     def list_messages(self, session_dir: Path) -> tuple[ProjectConversationMessage, ...]:
-        messages_path = session_dir / MESSAGES_FILE
-        if not messages_path.is_file():
-            return ()
-
-        messages: list[ProjectConversationMessage] = []
-        for line in messages_path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            try:
-                payload = loads(line)
-            except ValueError:
-                continue
-            if isinstance(payload, dict):
-                messages.append(_message_from_payload(payload))
-        return tuple(messages)
+        return tuple(
+            _message_from_payload(payload)
+            for payload in list_message_payloads(session_dir)
+        )
 
     def list_messages_page(
         self,
@@ -229,15 +210,10 @@ class ConversationMessageStore:
         limit: int | None = None,
         before_message_id: str | None = None,
     ) -> ProjectConversationMessagePage:
-        messages = self.list_messages(session_dir)
-        total_count = len(messages)
+        total_count = count_message_payloads(session_dir)
         end_index = total_count
         if before_message_id is not None:
-            cursor_index = None
-            for index, message in enumerate(messages):
-                if message.message_id == before_message_id:
-                    cursor_index = index
-                    break
+            cursor_index = find_message_ordinal(session_dir, before_message_id)
             if cursor_index is None:
                 raise BadRequestError(
                     "before_message_id does not reference a message in this conversation.",
@@ -246,18 +222,53 @@ class ConversationMessageStore:
             end_index = cursor_index
 
         if limit is None:
+            messages = tuple(
+                _message_from_payload(payload)
+                for payload in list_message_payloads_range(
+                    session_dir,
+                    start_ordinal=0,
+                    end_ordinal=end_index,
+                )
+            )
             return ProjectConversationMessagePage(
-                items=messages[:end_index],
+                items=messages,
                 total_count=total_count,
                 has_more=False,
                 next_before_message_id=None,
             )
 
-        start_index = _extend_start_index_for_tool_context(
-            messages,
-            max(0, end_index - limit),
+        start_index = max(0, end_index - limit)
+        messages = tuple(
+            _message_from_payload(payload)
+            for payload in list_message_payloads_range(
+                session_dir,
+                start_ordinal=start_index,
+                end_ordinal=end_index,
+            )
         )
-        items = messages[start_index:end_index]
+        if start_index > 0 and messages and messages[0].role == "tool":
+            context_start = start_index
+            context_messages = messages
+            while context_start > 0 and context_messages[0].role == "tool":
+                previous_start = max(0, context_start - 32)
+                previous = tuple(
+                    _message_from_payload(payload)
+                    for payload in list_message_payloads_range(
+                        session_dir,
+                        start_ordinal=previous_start,
+                        end_ordinal=context_start,
+                    )
+                )
+                context_messages = previous + context_messages
+                context_start = previous_start
+            local_start = _extend_start_index_for_tool_context(
+                context_messages,
+                start_index - context_start,
+            )
+            if local_start < start_index - context_start:
+                start_index = context_start + local_start
+                messages = context_messages[local_start:]
+        items = messages
         has_more = start_index > 0
         return ProjectConversationMessagePage(
             items=tuple(items),
@@ -271,42 +282,16 @@ class ConversationMessageStore:
         session_dir: Path,
         user_message_id: str,
     ) -> ProjectConversationMessageTurn:
-        messages_path = session_dir / MESSAGES_FILE
-        target_messages: list[ProjectConversationMessage] | None = None
-        matched_non_user_message = False
-
-        if messages_path.is_file():
-            with messages_path.open("r", encoding="utf-8") as source:
-                for line in source:
-                    if not line.strip():
-                        continue
-                    try:
-                        payload = loads(line)
-                    except ValueError:
-                        continue
-                    if not isinstance(payload, dict):
-                        continue
-
-                    message = _message_from_payload(payload)
-                    if target_messages is not None:
-                        if message.role == "user":
-                            break
-                        target_messages.append(message)
-                        continue
-
-                    if message.message_id != user_message_id:
-                        continue
-                    if message.role != "user":
-                        matched_non_user_message = True
-                        continue
-                    target_messages = [message]
-
-        if target_messages is not None:
+        target_role, payloads = read_message_turn_payloads(
+            session_dir,
+            user_message_id,
+        )
+        if target_role == "user":
             return ProjectConversationMessageTurn(
                 user_message_id=user_message_id,
-                items=tuple(target_messages),
+                items=tuple(_message_from_payload(payload) for payload in payloads),
             )
-        if matched_non_user_message:
+        if target_role is not None:
             raise BadRequestError(
                 "user_message_id does not reference a user message.",
                 details={"parameter": "user_message_id"},
@@ -317,25 +302,32 @@ class ConversationMessageStore:
         )
 
     def append_message(self, session_dir: Path, message: ProjectConversationMessage) -> None:
-        append_jsonl(session_dir / MESSAGES_FILE, _message_to_payload(message))
+        append_message_payload(
+            session_dir,
+            message.message_id,
+            _message_to_payload(message),
+        )
 
     def write_messages(
         self,
         session_dir: Path,
         messages: tuple[ProjectConversationMessage, ...],
     ) -> None:
-        content = "".join(
-            f"{dumps(_message_to_payload(message), ensure_ascii=False, separators=(',', ':'))}\n"
-            for message in messages
+        replace_message_payloads(
+            session_dir,
+            [_message_to_payload(message) for message in messages],
         )
-        atomic_write_text(session_dir / MESSAGES_FILE, content)
 
     def append_naming_call_record(
         self,
         session_dir: Path,
         record: ProjectConversationNamingCallRecord,
     ) -> None:
-        append_jsonl(session_dir / NAMING_CALLS_FILE, _naming_call_record_to_payload(record))
+        append_event(
+            session_dir,
+            "naming_calls",
+            _naming_call_record_to_payload(record),
+        )
 
 
 def _extend_start_index_for_tool_context(

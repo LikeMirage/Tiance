@@ -1,0 +1,10 @@
+[
+  {
+    "title": "在当前会话查找一段原话",
+    "input": {"query": "引用信息", "mode": "contains"}
+  },
+  {
+    "title": "检索指定会话中的全部关键词",
+    "input": {"query": "Word 公式 表格", "session_id": "20260804063112-aa7b1c35", "mode": "all_terms", "roles": ["user", "assistant"]}
+  }
+]

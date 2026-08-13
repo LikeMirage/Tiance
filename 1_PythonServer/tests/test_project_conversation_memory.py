@@ -675,7 +675,7 @@ def test_compaction_creates_named_function_session_and_replaces_source_history(
     compacted_function = memory.build_request_with_compressed_context(
         function_request
     )
-    assert compacted_function.messages[0].content.startswith("历史累计摘要：")
+    assert compacted_function.messages == function_request.messages
     compaction_task_message = next(
         message
         for message in compacted_function.messages
@@ -1037,7 +1037,7 @@ def test_failed_attempt_retries_in_a_new_function_session(tmp_path):
     ]
 
 
-def test_active_compaction_function_session_does_not_compact_itself(tmp_path):
+def test_compaction_function_session_defaults_disable_memory_automation(tmp_path):
     conversation, session, _, memory = _create_services(tmp_path)
     _append_turn(conversation, session.session_id, 1)
     _append_turn(conversation, session.session_id, 2)
@@ -1093,6 +1093,30 @@ def test_active_compaction_function_session_does_not_compact_itself(tmp_path):
     )
     assert observed is True
     assert len(conversation.list_sessions(PROJECT_ID)) == 2
+
+    function_session = next(
+        item
+        for item in conversation.list_sessions(PROJECT_ID)
+        if item.session_id != session.session_id
+    )
+    assert function_session.settings.memory_compression_enabled is False
+    assert function_session.settings.project_memory_extraction_enabled is False
+    assert function_session.settings.global_memory_extraction_enabled is False
+    assert function_session.settings.project_memory_enabled is True
+    assert function_session.settings.global_memory_enabled is True
+    reenabled = conversation.update_session(
+        PROJECT_ID,
+        function_session.session_id,
+        settings={
+            "memory_compression_enabled": True,
+            "project_memory_extraction_enabled": True,
+            "global_memory_extraction_enabled": True,
+        },
+        should_update_settings=True,
+    )
+    assert reenabled.settings.memory_compression_enabled is True
+    assert reenabled.settings.project_memory_extraction_enabled is True
+    assert reenabled.settings.global_memory_extraction_enabled is True
 
 
 def test_request_context_does_not_truncate_large_history(tmp_path):

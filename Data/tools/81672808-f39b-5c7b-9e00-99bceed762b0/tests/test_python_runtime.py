@@ -91,6 +91,27 @@ class PythonRuntimeTests(unittest.TestCase):
         )
         self.assertNotIn("PYTHONPATH", runtime.environment)
 
+    def test_inherits_home_directory_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            dependencies = root / "dependencies"
+            dependencies.mkdir()
+            home_values = {
+                "HOME": str(root / "home"),
+                "USERPROFILE": str(root / "profile"),
+                "HOMEDRIVE": "C:",
+                "HOMEPATH": "\\Users\\Tester",
+            }
+            with patch.dict(os.environ, home_values, clear=False), patch.object(
+                python_runtime,
+                "resolve_dependency_site_packages_path",
+                return_value=dependencies,
+            ):
+                runtime = python_runtime.build_runtime(root, {})
+
+        for key, value in home_values.items():
+            self.assertEqual(runtime.environment[key], value)
+
     def test_prepared_runtime_holds_and_releases_environment_lease(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -49,6 +49,7 @@ import {
 } from "./documentTextContentCache";
 import {
   buildVirtualConversationBranchesTab,
+  buildVirtualConversationDataTab,
   buildVirtualHtmlPreviewTab,
   buildVirtualMemoryDashboardTab,
   buildVirtualProjectConversationOverviewTab,
@@ -347,6 +348,28 @@ export function useDocumentTabs() {
       return;
     }
     setTabs((prev) => [...prev, newTab]);
+    setActiveTabId(newTab.id);
+  }, []);
+
+  const openVirtualConversationData = useCallback((options: {
+    content: string;
+    fileName: string;
+    projectId: string;
+    revisionMs: number;
+    sessionId: string | null;
+    totalCount?: number | null;
+    truncated?: boolean;
+  }) => {
+    const newTab = buildVirtualConversationDataTab(options);
+    const existing = tabsRef.current.find((tab) => tab.id === newTab.id);
+    if (existing) {
+      setTabs((current) => current.map((tab) => (
+        tab.id === newTab.id ? newTab : tab
+      )));
+      setActiveTabId(existing.id);
+      return;
+    }
+    setTabs((current) => [...current, newTab]);
     setActiveTabId(newTab.id);
   }, []);
 
@@ -821,6 +844,7 @@ export function useDocumentTabs() {
     openNode,
     openToolDashboard,
     openVirtualConversationBranches,
+    openVirtualConversationData,
     openVirtualHtmlPreview,
     openVirtualMemoryDashboard,
     openVirtualReferenceViewer,
@@ -851,6 +875,7 @@ export function useDocumentTabs() {
     openNode,
     openToolDashboard,
     openVirtualConversationBranches,
+    openVirtualConversationData,
     openVirtualHtmlPreview,
     openVirtualMemoryDashboard,
     openVirtualReferenceViewer,

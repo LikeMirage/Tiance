@@ -18,5 +18,13 @@
   {
     "title": "接受命令约定的非零退出码",
     "content": "{\"argv\":[\"git\",\"diff\",\"--quiet\"],\"expected_exit_codes\":[0,1],\"timeout_seconds\":20}"
+  },
+  {
+    "title": "运行 Windows 工作目录内的程序",
+    "content": "{\"argv\":[\".\\\\box_type_fix.exe\",\"--once\"],\"workdir\":\"dist\",\"timeout_seconds\":60}"
+  },
+  {
+    "title": "为命令补充非敏感环境变量",
+    "content": "{\"argv\":[\"python\",\"box_type_fix.py\",\"--once\"],\"extra_env\":{\"BOX_FIX_DRY_RUN\":\"1\"},\"timeout_seconds\":60}"
   }
 ]

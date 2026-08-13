@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
-from json import dumps
 from functools import lru_cache
 from pathlib import Path
 from uuid import uuid4
@@ -45,17 +44,14 @@ from app.repositories.project.conversation_serialization import (
     _session_state_to_payload,
     _utc_now,
 )
-from app.repositories.project.conversation_storage import (
-    INJECTION_PREVIEW_FILE,
-    atomic_write_text,
-    conversation_write_lock,
-)
+from app.repositories.project.conversation_storage import conversation_write_lock
 from app.repositories.project.conversation_stores import (
     ConversationMessageStore,
     ConversationSessionStore,
     ConversationStateStore,
 )
 from app.repositories.project.project_repository import ProjectRepository, get_project_repository
+from app.repositories.project.conversation_database import write_document
 
 
 class ProjectConversationRepository:
@@ -862,10 +858,7 @@ class ProjectConversationRepository:
         payload: dict,
     ) -> None:
         session_dir = self._session_store.require_session_dir(project_id, session_id, for_write=True)
-        atomic_write_text(
-            session_dir / INJECTION_PREVIEW_FILE,
-            dumps(payload, ensure_ascii=False, indent=2),
-        )
+        write_document(session_dir, "injection_preview", payload)
 
 
 def _message_creation_times() -> tuple[str, str]:

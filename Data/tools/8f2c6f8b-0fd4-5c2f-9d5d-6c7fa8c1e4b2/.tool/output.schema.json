@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "ok": {"type": "boolean"},
+    "summary": {"type": "string"},
+    "session_id": {"type": "string"},
+    "session_title": {"type": "string"},
+    "count": {"type": "integer"},
+    "total_count": {"type": "integer"},
+    "results": {"type": "array", "items": {"type": "object"}},
+    "error": {"type": "object"}
+  },
+  "required": ["ok"]
+}

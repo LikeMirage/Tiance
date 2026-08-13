@@ -492,6 +492,16 @@ class ProjectConversationMessageListResponse(BaseModel):
     items: list[ProjectConversationMessageResponse]
 
 
+class ProjectConversationDataViewResponse(BaseModel):
+    project_id: str
+    session_id: str | None = None
+    name: str
+    content: str
+    revision_ms: int
+    total_count: int | None = None
+    truncated: bool = False
+
+
 class ProjectConversationMessageTurnResponse(BaseModel):
     project_id: str
     session_id: str

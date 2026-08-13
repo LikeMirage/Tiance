@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from hashlib import sha256
 from json import dumps
 
@@ -27,6 +27,17 @@ class ProjectConversationSessionSettings:
     tools_enabled: bool = True
     enabled_tool_names: tuple[str, ...] | None = None
     max_tool_calls: int = 99999
+
+
+def functional_session_recursion_guard_settings(
+    settings: ProjectConversationSessionSettings,
+) -> ProjectConversationSessionSettings:
+    return replace(
+        settings,
+        global_memory_extraction_enabled=False,
+        memory_compression_enabled=False,
+        project_memory_extraction_enabled=False,
+    )
 
 
 @dataclass(frozen=True, slots=True)

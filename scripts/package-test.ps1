@@ -29,6 +29,8 @@ try {
             "3_PyWebView",
             "Data\experience",
             "Data\knowledge",
+            "Data\locales",
+            "Data\providers",
             "Data\roles",
             "Data\themes",
             "Data\tools",

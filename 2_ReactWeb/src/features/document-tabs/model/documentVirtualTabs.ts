@@ -21,6 +21,16 @@ type BuildVirtualConversationBranchesTabOptions = {
   projectId: string;
 };
 
+type BuildVirtualConversationDataTabOptions = {
+  content: string;
+  fileName: string;
+  projectId: string;
+  revisionMs: number;
+  sessionId: string | null;
+  totalCount?: number | null;
+  truncated?: boolean;
+};
+
 export const PROJECT_CONVERSATION_OVERVIEW_TAB_PREFIX =
   "project-conversation-overview:";
 export const PROJECT_ROLE_CONFIGURATION_TAB_PREFIX =
@@ -217,6 +227,47 @@ export function buildVirtualConversationBranchesTab({
     projectFilePath: null,
     assetVersion: null,
     mtimeMs: null,
+    externalChange: null,
+  };
+}
+
+export function buildVirtualConversationDataTab({
+  content,
+  fileName,
+  projectId,
+  revisionMs,
+  sessionId,
+  totalCount = null,
+  truncated = false,
+}: BuildVirtualConversationDataTabOptions): DocumentTab {
+  const logicalPath = sessionId
+    ? `.Tiance/conversations/sessions/${sessionId}/${fileName}`
+    : fileName === "project_memory.jsonl"
+      ? ".Tiance/memory/project_memory.jsonl"
+      : `.Tiance/conversations/${fileName}`;
+  const now = Date.now();
+  return {
+    id: `conversation-data:${projectId}:${sessionId ?? "project"}:${fileName}`,
+    title: truncated && totalCount !== null
+      ? `${fileName}（最近 1000 / ${totalCount}）`
+      : fileName,
+    displayPath: logicalPath,
+    kind: "text",
+    languageId: "json",
+    content,
+    savedContent: content,
+    textContentAccessedAt: now,
+    textContentLoaded: true,
+    isDirty: false,
+    isMissing: false,
+    saveState: "idle",
+    saveError: null,
+    fileSource: null,
+    filePath: null,
+    projectId,
+    projectFilePath: null,
+    assetVersion: revisionMs,
+    mtimeMs: revisionMs,
     externalChange: null,
   };
 }

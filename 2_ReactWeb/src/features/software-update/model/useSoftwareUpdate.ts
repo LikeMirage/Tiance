@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   checkSoftwareUpdate,
-  downloadSoftwareUpdate,
+  installSoftwareUpdate,
   type SoftwareUpdateCheck,
 } from "../../../services/system/softwareUpdate";
 
@@ -34,14 +34,7 @@ export function useSoftwareUpdate() {
     setState("downloading");
     setError(null);
     try {
-      const download = await downloadSoftwareUpdate();
-      const installApi = window.pywebview?.api?.install_software_update;
-      if (typeof installApi !== "function") {
-        throw new Error("在线安装仅在天策桌面软件中可用。");
-      }
-      setState("installing");
-      const result = await installApi(download.stagePath);
-      if (!result.ok) throw new Error(result.error || "无法启动更新程序。");
+      await installSoftwareUpdate((phase) => setState(phase));
     } catch (installError) {
       setError(toErrorMessage(installError));
       setState("idle");

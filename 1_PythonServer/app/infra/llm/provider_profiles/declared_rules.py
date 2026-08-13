@@ -46,4 +46,15 @@ def apply_declared_request_rules(
     ):
         for parameter in capability_rules.sampling_parameters or ():
             body.pop(parameter, None)
+
+    toggle_parameter = request_rules.reasoning_toggle_parameter
+    if reasoning.mode == LlmReasoningMode.OFF:
+        if toggle_parameter and request_rules.reasoning_disabled_value is not None:
+            body[toggle_parameter] = request_rules.reasoning_disabled_value
+        return body
+
+    if toggle_parameter and request_rules.reasoning_enabled_value is not None:
+        body[toggle_parameter] = request_rules.reasoning_enabled_value
+    if request_rules.reasoning_effort_parameter:
+        body[request_rules.reasoning_effort_parameter] = reasoning.mode.value
     return body

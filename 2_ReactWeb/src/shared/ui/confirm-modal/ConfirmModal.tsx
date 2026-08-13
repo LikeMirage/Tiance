@@ -9,6 +9,7 @@ export type ConfirmModalProps = {
   confirmLabel?: string;
   contained?: boolean;
   danger?: boolean;
+  dialogClassName?: string;
   message: string;
   onCancel: () => void;
   onConfirm: () => void;
@@ -28,6 +29,7 @@ export function ConfirmModal({
   confirmLabel = "确认",
   contained = false,
   danger = false,
+  dialogClassName,
   message,
   onCancel,
   onConfirm,
@@ -75,7 +77,7 @@ export function ConfirmModal({
       onClick={handleCancel}
     >
       <div
-        className="confirm-modal"
+        className={["confirm-modal", dialogClassName].filter(Boolean).join(" ")}
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}

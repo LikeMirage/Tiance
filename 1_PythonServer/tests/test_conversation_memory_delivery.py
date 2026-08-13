@@ -1,11 +1,13 @@
-from json import dumps, loads
-
 import pytest
 
 from app.domain.llm.chat import ChatCompletionRequest, ChatMessage, ChatMessageRole
 from app.repositories.project.conversation_branch_copy import (
-    MEMORY_DELIVERY_FILE,
     write_inherited_memory_delivery_state,
+)
+from app.repositories.project.conversation_database import (
+    read_document,
+    write_document,
+    write_session,
 )
 from app.services.project.conversation_memory_delivery_context import (
     GLOBAL_MEMORY_HEADER,
@@ -65,14 +67,8 @@ def test_branch_memory_delivery_keeps_prefix_and_replays_changes_after_branch_po
         project_enabled=True,
     )
 
-    source_dir = tmp_path / "source"
-    target_dir = tmp_path / "target"
-    source_dir.mkdir()
-    target_dir.mkdir()
-    (source_dir / MEMORY_DELIVERY_FILE).write_text(
-        dumps(state, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    source_dir, target_dir = _prepare_session_dirs(tmp_path)
+    write_document(source_dir, "memory_delivery", state)
 
     write_inherited_memory_delivery_state(
         source_dir,
@@ -83,9 +79,8 @@ def test_branch_memory_delivery_keeps_prefix_and_replays_changes_after_branch_po
         },
     )
 
-    inherited = loads(
-        (target_dir / MEMORY_DELIVERY_FILE).read_text(encoding="utf-8")
-    )
+    inherited = read_document(target_dir, "memory_delivery")
+    assert inherited is not None
     assert inherited["last_prepared_user_message_id"] == "child-user-1"
     assert inherited["cursors"][GLOBAL_MEMORY_SCOPE] == 2
     assert [
@@ -137,14 +132,8 @@ def test_branch_memory_delivery_at_latest_point_does_not_repeat_changes(tmp_path
         project_enabled=True,
     )
 
-    source_dir = tmp_path / "source"
-    target_dir = tmp_path / "target"
-    source_dir.mkdir()
-    target_dir.mkdir()
-    (source_dir / MEMORY_DELIVERY_FILE).write_text(
-        dumps(state, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    source_dir, target_dir = _prepare_session_dirs(tmp_path)
+    write_document(source_dir, "memory_delivery", state)
 
     write_inherited_memory_delivery_state(
         source_dir,
@@ -155,9 +144,8 @@ def test_branch_memory_delivery_at_latest_point_does_not_repeat_changes(tmp_path
         },
     )
 
-    inherited = loads(
-        (target_dir / MEMORY_DELIVERY_FILE).read_text(encoding="utf-8")
-    )
+    inherited = read_document(target_dir, "memory_delivery")
+    assert inherited is not None
     assert inherited["last_prepared_user_message_id"] == "child-user-1"
     assert inherited["cursors"][GLOBAL_MEMORY_SCOPE] == len(global_events)
     continued = prepare_memory_delivery_state(
@@ -198,14 +186,8 @@ def test_inherited_delivery_recreates_bounded_notification_for_functional_sessio
         project_enabled=True,
     )
 
-    source_dir = tmp_path / "source"
-    target_dir = tmp_path / "target"
-    source_dir.mkdir()
-    target_dir.mkdir()
-    (source_dir / MEMORY_DELIVERY_FILE).write_text(
-        dumps(state, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    source_dir, target_dir = _prepare_session_dirs(tmp_path)
+    write_document(source_dir, "memory_delivery", state)
     write_inherited_memory_delivery_state(
         source_dir,
         target_dir,
@@ -214,9 +196,8 @@ def test_inherited_delivery_recreates_bounded_notification_for_functional_sessio
             "user-1": "function-user-1",
         },
     )
-    inherited = loads(
-        (target_dir / MEMORY_DELIVERY_FILE).read_text(encoding="utf-8")
-    )
+    inherited = read_document(target_dir, "memory_delivery")
+    assert inherited is not None
 
     injected = inject_memory_delivery_context(
         _request(
@@ -624,6 +605,18 @@ def _initial_state(user_message_id, global_events, project_events):
         global_enabled=True,
         project_enabled=True,
     )
+
+
+def _prepare_session_dirs(tmp_path):
+    conversations_dir = tmp_path / "conversations"
+    sessions_dir = conversations_dir / "sessions"
+    source_dir = sessions_dir / "source"
+    target_dir = sessions_dir / "target"
+    source_dir.mkdir(parents=True)
+    target_dir.mkdir()
+    write_session(conversations_dir, "source", {})
+    write_session(conversations_dir, "target", {})
+    return source_dir, target_dir
 
 
 def _request(*messages):
