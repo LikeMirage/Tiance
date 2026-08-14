@@ -199,7 +199,14 @@ def edit_document(payload: dict[str, Any], root: Path) -> dict[str, Any]:
     operations = payload.get("operations")
     if not isinstance(operations, list) or not operations:
         raise ToolError("INVALID_ARGUMENT", "edit 操作必须提供非空 operations。")
-    if not dry_run:
+    if dry_run:
+        if output_path.exists() and not overwrite:
+            raise ToolError(
+                "OUTPUT_EXISTS",
+                "输出文件已存在；如需原位编辑或覆盖，请在 dry_run 和正式提交中都设置 overwrite: true。",
+                {"output_path": str(output_path), "required_parameter": "overwrite=true"},
+            )
+    else:
         validation_token = payload.get("validation_token")
         if not isinstance(validation_token, str) or not validation_token:
             raise ToolError("DRY_RUN_REQUIRED", "edit 写入前必须先用完全相同的参数执行 dry_run，并提交返回的 validation_token。")
@@ -207,7 +214,13 @@ def edit_document(payload: dict[str, Any], root: Path) -> dict[str, Any]:
 
     input_fingerprint = document_fingerprint(input_path)
     validate_reference_fingerprints(operations, input_fingerprint)
-    expected_token = edit_validation_token(input_fingerprint, output_path, operations)
+    expected_token = edit_validation_token(
+        input_fingerprint,
+        output_path,
+        operations,
+        overwrite=overwrite,
+        backup=backup,
+    )
     if not dry_run and payload.get("validation_token") != expected_token:
         raise ToolError("STALE_DRY_RUN", "dry_run 令牌已过期，文档或编辑参数发生变化；请重新 dry_run。")
     doc = Document(str(input_path))
@@ -238,6 +251,8 @@ def edit_document(payload: dict[str, Any], root: Path) -> dict[str, Any]:
                 "after": after_stats,
                 "operations": operation_summaries,
                 "document_fingerprint": input_fingerprint,
+                "overwrite": overwrite,
+                "backup": backup,
                 "validation_token": expected_token,
             },
         )
@@ -257,6 +272,7 @@ def edit_document(payload: dict[str, Any], root: Path) -> dict[str, Any]:
             "after": after_stats,
             "operations": operation_summaries,
             "overwrite": overwrite,
+            "backup": backup,
             "document_fingerprint": input_fingerprint,
         },
     )
@@ -286,9 +302,22 @@ def validate_reference_fingerprints(operations: list[Any], current: str) -> None
             )
 
 
-def edit_validation_token(input_fingerprint: str, output_path: Path, operations: list[Any]) -> str:
+def edit_validation_token(
+    input_fingerprint: str,
+    output_path: Path,
+    operations: list[Any],
+    *,
+    overwrite: bool,
+    backup: bool,
+) -> str:
     payload = json.dumps(
-        {"input": input_fingerprint, "output": str(output_path), "operations": operations},
+        {
+            "input": input_fingerprint,
+            "output": str(output_path),
+            "operations": operations,
+            "overwrite": overwrite,
+            "backup": backup,
+        },
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
@@ -341,7 +370,7 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
     except ToolError as exc:
         return fail(exc.code, exc.message, exc.details)
     except WordOperationError as exc:
-        return fail(exc.code, exc.message)
+        return fail(exc.code, exc.message, exc.details)
     except ValueError as exc:
         return fail("INVALID_ARGUMENT", str(exc) or type(exc).__name__)
     except Exception as exc:

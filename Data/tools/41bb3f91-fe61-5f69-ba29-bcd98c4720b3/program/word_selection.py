@@ -53,6 +53,10 @@ class SelectionRange:
     matched_formula_refs: list[str] = field(default_factory=list)
     formula_match_strategies: list[str] = field(default_factory=list)
     selection_source: str = "anchor"
+    selected_rendered_text: str = ""
+    content_markdown: str | None = None
+    segments: list[dict[str, Any]] = field(default_factory=list)
+    resolution: dict[str, Any] = field(default_factory=dict)
 
     @property
     def empty(self) -> bool:
@@ -75,6 +79,13 @@ class SelectionRange:
             content_kind = "equation"
         else:
             content_kind = "text"
+        rendered_content = self.selected_rendered_text or self.selected_text
+        content_markdown = self.content_markdown
+        if content_markdown is None:
+            if content_kind == "text":
+                content_markdown = self.selected_text
+            elif content_kind == "equation" and len(self.matched_formulas) == 1:
+                content_markdown = f"${self.matched_formulas[0]}$"
         return {
             "kind": "point" if self.empty else "range",
             "boundary_mode": self.boundary_mode,
@@ -84,19 +95,22 @@ class SelectionRange:
             "start_anchor": self.start_anchor,
             "end_anchor": self.end_anchor or "",
             "selected_text": self.selected_text,
+            "selected_rendered_text": rendered_content,
             "selected_char_count": len(self.selected_text),
             "equation_count": self.equation_count,
             "matched_formulas": list(self.matched_formulas),
             "matched_formula_refs": list(self.matched_formula_refs),
             "formula_match_strategies": list(self.formula_match_strategies),
             "content_kind": content_kind,
-            "content": self.selected_text,
-            "content_markdown": self.selected_text if content_kind == "text" else None,
+            "content": content_markdown or rendered_content,
+            "content_markdown": content_markdown,
+            "segments": list(self.segments),
             "formulas": [
                 {"formula_ref": ref, "formula_text": text}
                 for ref, text in zip(self.matched_formula_refs, self.matched_formulas)
             ],
             "selection_source": self.selection_source,
+            "resolution": dict(self.resolution),
         }
 
 
@@ -153,6 +167,10 @@ def resolve_selection(doc: Any, spec: Any) -> SelectionRange:
             matched_formula_refs=resolved.formula_refs,
             formula_match_strategies=["word_range"] * len(resolved.equation_targets),
             selection_source="word_range",
+            selected_rendered_text=resolved.selected_rendered_text,
+            content_markdown=resolved.content_markdown,
+            segments=resolved.segments,
+            resolution=resolved.resolution,
         )
 
     if has_formula_ref:
@@ -179,6 +197,15 @@ def resolve_selection(doc: Any, spec: Any) -> SelectionRange:
             matched_formula_refs=[formula_node.reference],
             formula_match_strategies=["formula_ref"],
             selection_source="formula_ref",
+            selected_rendered_text=formula_node.text,
+            content_markdown=f"${formula_node.text}$",
+            segments=[{
+                "kind": "equation",
+                "formula_ref": formula_node.reference,
+                "formula_text": formula_node.text,
+                "markdown": f"${formula_node.text}$",
+            }],
+            resolution={"strategy": "formula_ref", "adjusted": False},
         )
 
     start_formula = parse_formula_anchor(start_anchor)

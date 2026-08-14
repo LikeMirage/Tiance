@@ -15,12 +15,18 @@
     "content": "{\"action\":\"inspect\",\"input_path\":\"reports/project_report.docx\",\"inspect\":{\"document_fingerprint\":\"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\"selection\":{\"word_range\":{\"kind\":\"word_range\",\"start\":{\"container\":\"table\",\"tableIndex\":1,\"rowIndex\":2,\"columnIndex\":2,\"cellParagraphIndex\":1,\"characterOffset\":0},\"end\":{\"container\":\"table\",\"tableIndex\":1,\"rowIndex\":2,\"columnIndex\":2,\"cellParagraphIndex\":1,\"characterOffset\":4}},\"document_fingerprint\":\"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\"expected_text\":\"已完成\"}}}",
     "enabled": true,
     "inject_content": false,
-    "title": "使用预览引用坐标做局部查询"
+    "title": "用预览引用坐标检查文字公式混合选区"
   },
   {
-    "content": "{\"action\":\"edit\",\"input_path\":\"reports/project_report.docx\",\"output_path\":\"reports/project_report_v2.docx\",\"dry_run\":true,\"operations\":[{\"type\":\"selection\",\"selection\":{\"start_anchor\":\"已完成\"},\"action\":\"replace\",\"content_mode\":\"text\",\"content\":\"已复核\"}]}",
+    "content": "{\"action\":\"edit\",\"input_path\":\"reports/formulas.docx\",\"output_path\":\"reports/formulas.docx\",\"overwrite\":true,\"backup\":true,\"dry_run\":true,\"operations\":[{\"type\":\"selection\",\"selection\":{\"document_fingerprint\":\"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\"formula_ref\":\"formula:0000000000000000\"},\"action\":\"format\",\"style\":{\"color\":\"FF0000\"}}]}",
     "enabled": true,
     "inject_content": false,
-    "title": "先 dry_run，再提交完全相同参数写入"
+    "title": "原位修改表格内原生公式颜色并预演"
+  },
+  {
+    "content": "{\"action\":\"edit\",\"input_path\":\"reports/project_report.docx\",\"output_path\":\"reports/project_report_v2.docx\",\"dry_run\":true,\"overwrite\":false,\"backup\":true,\"operations\":[{\"type\":\"selection\",\"selection\":{\"start_anchor\":\"已完成\"},\"action\":\"replace\",\"content_mode\":\"text\",\"content\":\"已复核\"}]}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "先确认覆盖与备份策略再 dry_run 写入"
   }
 ]

@@ -1,17 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Word 文档编辑器",
-  "description": "创建、检查或编辑 DOCX。edit 必须先 dry_run，再使用返回的 validation_token 写入。",
+  "description": "创建、检查或编辑 DOCX。预览引用使用 selection.word_range；工具会解析文字与原生公式片段，小幅公式边界差异会在原容器内校准，无法唯一确认时返回局部候选。edit 必须先 dry_run，再使用返回的 validation_token 写入。",
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "action": { "type": "string", "enum": ["create", "inspect", "edit"] },
     "input_path": { "type": "string", "description": "工作区内的输入 DOCX 路径。" },
     "output_path": { "type": "string", "description": "工作区内的输出 DOCX 路径。" },
-    "overwrite": { "type": "boolean", "default": false },
-    "backup": { "type": "boolean", "default": true, "description": "原位覆盖时备份到 .Tiance/tool-backups/word_document_editor。" },
-    "dry_run": { "type": "boolean", "default": false, "description": "edit 预演，不写文件，并返回 validation_token。" },
-    "validation_token": { "type": "string", "pattern": "^dryrun:[0-9a-f]{64}$", "description": "同一输入文档、输出路径和 operations 的 dry_run 返回值。" },
+    "overwrite": { "type": "boolean", "default": false, "description": "输出文件已存在时必须为 true；原位编辑时 dry_run 和正式提交都要传 true。" },
+    "backup": { "type": "boolean", "default": true, "description": "原位覆盖时备份到 .Tiance/tool-backups/word_document_editor；该策略纳入 validation_token。" },
+    "dry_run": { "type": "boolean", "default": false, "description": "edit 预演，不写文件；同时检查输出路径与覆盖策略并返回 validation_token。" },
+    "validation_token": { "type": "string", "pattern": "^dryrun:[0-9a-f]{64}$", "description": "同一输入文档版本、输出路径、operations、overwrite 和 backup 的 dry_run 返回值。" },
     "properties": { "type": "object", "additionalProperties": true },
     "page": {
       "type": "object",
@@ -82,7 +82,7 @@
         "rowIndex": { "type": "integer", "minimum": 1 },
         "columnIndex": { "type": "integer", "minimum": 1 },
         "cellParagraphIndex": { "type": "integer", "minimum": 1 },
-        "characterOffset": { "type": "integer", "minimum": 0 }
+        "characterOffset": { "type": "integer", "minimum": 0, "description": "当前段落语义渲染文本中的零基位置；起点包含、终点不包含。公式字符计数不一致时工具会尝试局部校准或返回候选。" }
       },
       "required": ["container", "characterOffset"]
     },
@@ -106,9 +106,9 @@
         "start_anchor": { "type": "string", "minLength": 1 },
         "end_anchor": { "type": "string", "minLength": 1 },
         "formula_ref": { "type": "string", "pattern": "^formula:[0-9a-f]{16}$", "description": "inspect 返回的稳定公式引用。" },
-        "word_range": { "$ref": "#/$defs/wordRange", "description": "直接使用预览引用的结构坐标。" },
+        "word_range": { "$ref": "#/$defs/wordRange", "description": "直接使用预览引用的结构坐标。适合用户在 Word 预览中框选的文字、公式或混合范围。" },
         "document_fingerprint": { "$ref": "#/$defs/documentFingerprint" },
-        "expected_text": { "type": "string", "description": "引用的纯文本内容；与当前位置不一致时拒绝操作。" },
+        "expected_text": { "type": "string", "description": "引用中展示的语义文本。用于校验 word_range，并在偏移不一致时对同一段落或单元格内的候选范围排序；不进行全文模糊写入。" },
         "boundary_mode": { "type": "string", "enum": ["exclusive", "inclusive"], "default": "exclusive" },
         "expand": { "type": "string", "enum": ["none", "paragraph_end", "cell_end"], "default": "none" },
         "start_occurrence": { "type": "integer", "minimum": 1, "default": 1 },
@@ -133,7 +133,7 @@
         "italic": { "type": "boolean" },
         "underline": { "type": "boolean" },
         "strike": { "type": "boolean" },
-        "color": { "type": "string" },
+        "color": { "type": "string", "description": "六位十六进制 RGB，例如 FF0000。", "examples": ["FF0000"] },
         "align": { "type": "string" },
         "space_before": { "type": "number" },
         "space_after": { "type": "number" },
