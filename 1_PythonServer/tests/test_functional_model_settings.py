@@ -40,7 +40,7 @@ def test_empty_functional_model_response_keeps_backend_defaults():
 
 
 def test_memory_compression_uses_current_prompt_contract_version():
-    assert get_functional_model_profile_settings_version("memoryCompression") == 31
+    assert get_functional_model_profile_settings_version("memoryCompression") == 32
     assert get_functional_model_profile_settings_version("naming") == (
         NAMING_SETTINGS_VERSION
     )
@@ -153,6 +153,7 @@ def test_conversation_naming_defaults_to_cache_hit_optimization_mode():
     assert "action 必须使用 name_parent_session" in defaults["prompt"]
     assert "不得传入 session_id" in defaults["prompt"]
     assert "工具参数必须严格使用以下结构" not in defaults["prompt"]
+    assert "如果工具执行失败，立即停止" in defaults["prompt"]
 
 
 def test_memory_compression_defaults_use_single_prompt_and_high_reasoning():
@@ -162,7 +163,7 @@ def test_memory_compression_defaults_use_single_prompt_and_high_reasoning():
     assert defaults["generation"]["maxOutputTokens"] == DEFAULT_FUNCTIONAL_MAX_OUTPUT_TOKENS
     assert defaults["generation"]["reasoning"]["mode"] == "high"
     assert defaults["blockingEnabled"] is False
-    assert defaults["failureRetryCount"] == 3
+    assert defaults["failureRetryCount"] == 0
     assert set(defaults) == {
         "blockingEnabled",
         "failureRetryCount",
@@ -178,6 +179,7 @@ def test_memory_compression_defaults_use_single_prompt_and_high_reasoning():
     assert "只调用一次 submit_memory_compaction" in defaults["prompt"]
     assert '"result": {' in defaults["prompt"]
     assert "字段不得增加、删除或改名" in defaults["prompt"]
+    assert "如果工具执行失败，立即停止" in defaults["prompt"]
     assert "不提出历史中没有的建议" in defaults["prompt"]
     assert '"handoff"' in defaults["prompt"]
     assert "【长期记忆变更开始｜在本条用户消息前生效】" in defaults["prompt"]
@@ -208,7 +210,7 @@ def test_memory_management_defaults_are_scoped(
     assert defaults["modelSource"] == "session"
     assert defaults["triggerTokenThreshold"] == threshold
     assert defaults["blockingEnabled"] is False
-    assert defaults["failureRetryCount"] == 3
+    assert defaults["failureRetryCount"] == 0
     assert defaults["output"]["format"] == "text"
     assert "必须且只能调用 manage_memory 工具" in defaults["prompt"]
     assert "使用 operation=list 读取全部当前有效" in defaults["prompt"]
@@ -217,6 +219,7 @@ def test_memory_management_defaults_are_scoped(
     assert f"{memory_label}已核对，无需更新。" in defaults["prompt"]
     assert f"{memory_label}管理已完成。" in defaults["prompt"]
     assert "不得继续、补做、重试或验证历史任务" in defaults["prompt"]
+    assert "如果任意一次工具调用失败，立即停止" in defaults["prompt"]
 
 
 def test_default_conversation_role_settings_are_available(tmp_path):

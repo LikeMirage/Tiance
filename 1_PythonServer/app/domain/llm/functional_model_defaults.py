@@ -8,10 +8,10 @@ from app.domain.project.conversation_memory_markers import (
 
 FUNCTIONAL_MODEL_SETTINGS_VERSION = 25
 DEFAULT_CONVERSATION_ROLE_SETTINGS_VERSION = 26
-MEMORY_COMPRESSION_SETTINGS_VERSION = 31
-NAMING_SETTINGS_VERSION = 27
-PROJECT_MEMORY_MANAGEMENT_SETTINGS_VERSION = 1
-GLOBAL_MEMORY_MANAGEMENT_SETTINGS_VERSION = 1
+MEMORY_COMPRESSION_SETTINGS_VERSION = 32
+NAMING_SETTINGS_VERSION = 28
+PROJECT_MEMORY_MANAGEMENT_SETTINGS_VERSION = 2
+GLOBAL_MEMORY_MANAGEMENT_SETTINGS_VERSION = 2
 
 DEFAULT_FUNCTIONAL_MAX_OUTPUT_TOKENS = 32768
 DEFAULT_NAMING_MAX_OUTPUT_TOKENS = DEFAULT_FUNCTIONAL_MAX_OUTPUT_TOKENS
@@ -55,7 +55,8 @@ DEFAULT_NAMING_PROMPT = "\n".join(
         "title 填写最终标题，不得传入 session_id；系统会根据当前自动命名功能会话确定父会话。",
         "调用工具前不要输出标题或解释。",
         "工具调用返回后不得再次调用任何工具。",
-        "如果工具执行成功，只回复“自动命名已完成”；如果执行失败，只简短说明失败结果。",
+        "如果工具执行成功，只回复“自动命名已完成”。",
+        "如果工具执行失败，立即停止；不得重试、修改参数、排查原因或调用其他工具，只简短说明失败结果。",
     ]
 )
 
@@ -103,6 +104,7 @@ DEFAULT_MEMORY_COMPRESSION_PROMPT = "\n".join(
         "  }",
         "}",
         "字段不得增加、删除或改名。",
+        "如果工具执行失败，立即停止；不得重试、修改参数、排查原因或调用其他工具，只简短说明失败结果。",
     ]
 )
 
@@ -138,7 +140,7 @@ def _memory_management_prompt(
             "- 调用工具前不要输出说明；完成读取和必要修改后不得再次调用工具。",
             f"- 如果无需修改，只回复“{memory_label}已核对，无需更新。”",
             f"- 如果完成了修改，只回复“{memory_label}管理已完成。”",
-            "- 如果工具执行失败，只简短说明失败结果。",
+            "- 如果任意一次工具调用失败，立即停止；不得重试、修改参数、排查原因或调用其他工具，只简短说明失败结果。",
         ]
     )
 
@@ -175,7 +177,7 @@ def get_default_functional_model_profile_settings(
     defaults = {
         "memoryCompression": {
             "blockingEnabled": False,
-            "failureRetryCount": 3,
+            "failureRetryCount": 0,
             "generation": _default_memory_compression_generation(),
             "modelKey": "deepseek:deepseek-v4-flash",
             "modelSource": "session",
@@ -184,7 +186,7 @@ def get_default_functional_model_profile_settings(
         },
         "projectMemoryManagement": {
             "blockingEnabled": False,
-            "failureRetryCount": 3,
+            "failureRetryCount": 0,
             "generation": _default_generation(
                 DEFAULT_LONG_TERM_MEMORY_MAX_OUTPUT_TOKENS
             ),
@@ -196,7 +198,7 @@ def get_default_functional_model_profile_settings(
         },
         "globalMemoryManagement": {
             "blockingEnabled": False,
-            "failureRetryCount": 3,
+            "failureRetryCount": 0,
             "generation": _default_generation(
                 DEFAULT_LONG_TERM_MEMORY_MAX_OUTPUT_TOKENS
             ),

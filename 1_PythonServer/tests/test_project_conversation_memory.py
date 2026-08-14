@@ -962,6 +962,38 @@ def test_concurrent_checks_create_only_one_compaction_session(tmp_path):
     assert len(repository.list_compressions(PROJECT_ID, session.session_id)) == 1
 
 
+def test_queued_check_honors_current_disabled_setting(tmp_path):
+    conversation, stale_session_snapshot, repository, memory = _create_services(tmp_path)
+    _append_turn(conversation, stale_session_snapshot.session_id, 1)
+    _append_turn(conversation, stale_session_snapshot.session_id, 2)
+    conversation.update_session(
+        PROJECT_ID,
+        stale_session_snapshot.session_id,
+        settings={"memory_compression_enabled": False},
+        should_update_settings=True,
+    )
+    calls: list[ChatCompletionRequest] = []
+    _install_successful_runner(conversation, memory, calls=calls)
+
+    asyncio.run(
+        memory.compact_context_if_enabled(
+            PROJECT_ID,
+            stale_session_snapshot.session_id,
+            session_snapshot=stale_session_snapshot,
+            run_snapshot=_snapshot_for_latest_assistant(
+                conversation,
+                stale_session_snapshot.session_id,
+            ),
+        )
+    )
+
+    assert calls == []
+    assert repository.list_compressions(
+        PROJECT_ID,
+        stale_session_snapshot.session_id,
+    ) == []
+
+
 def test_failed_attempt_retries_in_a_new_function_session(tmp_path):
     conversation, session, repository, memory = _create_services(
         tmp_path,
@@ -1035,6 +1067,39 @@ def test_failed_attempt_retries_in_a_new_function_session(tmp_path):
         "主会话_1",
         "主会话_2",
     ]
+
+
+def test_zero_retry_setting_stops_after_first_failed_function_session(tmp_path):
+    conversation, session, repository, memory = _create_services(
+        tmp_path,
+        functional_overrides={"failureRetryCount": 0},
+    )
+    _append_turn(conversation, session.session_id, 1)
+    _append_turn(conversation, session.session_id, 2)
+    function_session_ids: list[str] = []
+
+    async def run(request: ChatCompletionRequest) -> None:
+        assert request.session_id is not None
+        function_session_ids.append(request.session_id)
+        raise TimeoutError("temporary timeout")
+
+    memory.set_functional_conversation_runner(run)
+    asyncio.run(
+        memory.compact_context_if_enabled(
+            PROJECT_ID,
+            session.session_id,
+            session_snapshot=session,
+            run_snapshot=_snapshot_for_latest_assistant(
+                conversation,
+                session.session_id,
+            ),
+        )
+    )
+
+    records = repository.list_compressions(PROJECT_ID, session.session_id)
+    assert len(function_session_ids) == 1
+    assert [record["status"] for record in records] == ["failed"]
+    assert len(conversation.list_sessions(PROJECT_ID)) == 2
 
 
 def test_compaction_function_session_defaults_disable_memory_automation(tmp_path):

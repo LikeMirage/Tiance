@@ -150,6 +150,16 @@ class Settings(BaseSettings):
     def embedded_pip_site_packages_path(self) -> Path:
         return self.runtime_env_path / "python-packages" / "pip" / "py313" / "site-packages"
 
+    @property
+    def backend_site_packages_path(self) -> Path:
+        return (
+            self.runtime_env_path
+            / "python-packages"
+            / "backend"
+            / "py313"
+            / "site-packages"
+        )
+
     def _resolve_project_path(self, raw_path: str) -> Path:
         path = Path(raw_path).expanduser()
         if path.is_absolute():

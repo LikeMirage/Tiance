@@ -341,6 +341,56 @@ def test_project_memory_extraction_can_be_disabled_per_session(tmp_path):
     assert runner_calls == []
 
 
+def test_queued_checks_honor_current_disabled_settings(tmp_path):
+    (
+        conversation,
+        stale_session_snapshot,
+        project_repository,
+        global_repository,
+        service,
+    ) = _create_services(
+        tmp_path,
+        global_settings_overrides={"triggerTokenThreshold": 1},
+    )
+    conversation.update_session(
+        PROJECT_ID,
+        stale_session_snapshot.session_id,
+        settings={
+            "project_memory_extraction_enabled": False,
+            "global_memory_extraction_enabled": False,
+        },
+        should_update_settings=True,
+    )
+    _append_turn(conversation, stale_session_snapshot.session_id, 1)
+    runner_calls: list[ChatCompletionRequest] = []
+    service.set_functional_conversation_runner(
+        _successful_runner(conversation, runner_calls)
+    )
+
+    asyncio.run(
+        service.manage_context_if_enabled(
+            PROJECT_ID,
+            stale_session_snapshot.session_id,
+            blocking=False,
+            session_snapshot=stale_session_snapshot,
+            run_snapshot=_snapshot(
+                conversation,
+                stale_session_snapshot.session_id,
+            ),
+        )
+    )
+
+    assert project_repository.read_state(
+        PROJECT_ID,
+        stale_session_snapshot.session_id,
+    ) is None
+    assert global_repository.read_state(
+        PROJECT_ID,
+        stale_session_snapshot.session_id,
+    ) is None
+    assert runner_calls == []
+
+
 def _create_services(
     tmp_path,
     *,

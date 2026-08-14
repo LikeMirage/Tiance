@@ -92,7 +92,7 @@ from app.services.project.project_conversations import (
 
 _MEMORY_PROFILE_KEY = "memoryCompression"
 _COMPACTION_STATUS_MESSAGE_NAME = "memory_compaction"
-DEFAULT_COMPACTION_FAILURE_RETRY_COUNT = 3
+DEFAULT_COMPACTION_FAILURE_RETRY_COUNT = 0
 MAX_COMPACTION_FAILURE_RETRY_COUNT = 10
 class MissingCompactionSubmissionError(RuntimeError):
     pass
@@ -378,7 +378,7 @@ class ProjectConversationMemoryService:
         session_snapshot: ProjectConversationSession | None,
         run_snapshot: ConversationRunSnapshot,
     ) -> None:
-        session = session_snapshot or await asyncio.to_thread(
+        session = await asyncio.to_thread(
             self._conversation_service.get_session,
             project_id,
             session_id,
@@ -546,6 +546,16 @@ class ProjectConversationMemoryService:
         }
         first_compression_id: str | None = None
         for attempt_index in range(retry_count + 1):
+            if not await self._memory_compression_is_enabled(
+                project_id,
+                session_id,
+            ):
+                await self._clear_manual_compaction_request(
+                    project_id,
+                    session_id,
+                    manual_request,
+                )
+                return
             compression_id = f"cmp_{uuid4().hex[:16]}"
             if first_compression_id is None:
                 first_compression_id = compression_id
@@ -753,6 +763,21 @@ class ProjectConversationMemoryService:
                     status="running",
                 )
                 await asyncio.sleep(min(2 ** attempt_index, 4))
+
+    async def _memory_compression_is_enabled(
+        self,
+        project_id: str,
+        session_id: str,
+    ) -> bool:
+        session = await asyncio.to_thread(
+            self._conversation_service.get_session,
+            project_id,
+            session_id,
+        )
+        return bool(
+            session is not None
+            and session.settings.memory_compression_enabled
+        )
 
     async def _insert_compaction_status(
         self,

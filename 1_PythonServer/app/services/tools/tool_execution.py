@@ -91,6 +91,9 @@ class ToolExecutionService:
         )
         self._api_base_url = resolve_backend_api_base_url(settings.api_prefix)
         self._tools_root = settings.tools_data_path.resolve(strict=False)
+        self._backend_site_packages_path = (
+            settings.backend_site_packages_path.resolve(strict=False)
+        )
 
     def is_parallel_tool(self, tool_name: str) -> bool:
         normalized_tool_name = _normalize_tool_name_or_empty(tool_name)
@@ -329,6 +332,7 @@ class ToolExecutionService:
         python_paths = build_tool_python_paths(
             entry_path=entry_path,
             tool_root=tool_root,
+            backend_site_packages_path=self._backend_site_packages_path,
         )
         capability_grant = self._host_capability_access.issue_grant(
             tool_name=resolved.metadata.name,

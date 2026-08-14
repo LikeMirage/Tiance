@@ -50,7 +50,7 @@ from app.services.project.project_conversations import (
 )
 
 
-DEFAULT_FAILURE_RETRY_COUNT = 3
+DEFAULT_FAILURE_RETRY_COUNT = 0
 MAX_FAILURE_RETRY_COUNT = 10
 
 
@@ -190,7 +190,7 @@ class ProjectConversationLongTermMemoryService:
             session_id,
         ):
             return
-        session = session_snapshot or await asyncio.to_thread(
+        session = await asyncio.to_thread(
             self._conversation_service.get_session,
             project_id,
             session_id,
@@ -283,6 +283,12 @@ class ProjectConversationLongTermMemoryService:
         }
         first_task_id: str | None = None
         for attempt_index in range(retry_count + 1):
+            if not await self._memory_extraction_is_enabled(
+                profile_definition,
+                project_id,
+                session_id,
+            ):
+                return
             task_id = (
                 f"{profile_definition.task_id_prefix}_"
                 f"{uuid4().hex[:16]}"
@@ -406,6 +412,25 @@ class ProjectConversationLongTermMemoryService:
                 if attempt_index >= allowed_retries:
                     return
                 await asyncio.sleep(min(2 ** attempt_index, 4))
+
+    async def _memory_extraction_is_enabled(
+        self,
+        profile_definition: MemoryManagementProfileDefinition,
+        project_id: str,
+        session_id: str,
+    ) -> bool:
+        session = await asyncio.to_thread(
+            self._conversation_service.get_session,
+            project_id,
+            session_id,
+        )
+        return bool(
+            session is not None
+            and getattr(
+                session.settings,
+                profile_definition.extraction_setting_name,
+            )
+        )
 
     def _validate_function_run(
         self,

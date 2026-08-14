@@ -187,11 +187,12 @@ def build_tool_python_paths(
     *,
     entry_path: Path,
     tool_root: Path,
+    backend_site_packages_path: Path,
 ) -> tuple[Path, ...]:
     return (
         entry_path.parent,
         resolve_tool_site_packages(tool_root),
-        _backend_site_packages_path(),
+        backend_site_packages_path,
         _backend_root(),
     )
 
@@ -367,15 +368,3 @@ def _connect_host(value: str | None) -> str:
 
 def _backend_root() -> Path:
     return Path(__file__).resolve().parents[3]
-
-
-def _backend_site_packages_path() -> Path:
-    return (
-        _backend_root().parent
-        / "Data"
-        / "runtime"
-        / "python-packages"
-        / "backend"
-        / "py313"
-        / "site-packages"
-    )

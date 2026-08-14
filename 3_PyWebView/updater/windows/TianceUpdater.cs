@@ -10,8 +10,8 @@ using System.Web.Script.Serialization;
 [assembly: AssemblyTitle("Tiance Updater")]
 [assembly: AssemblyProduct("Tiance")]
 [assembly: AssemblyCompany("Tiance")]
-[assembly: AssemblyVersion("0.3.15.0")]
-[assembly: AssemblyFileVersion("0.3.15.0")]
+[assembly: AssemblyVersion("0.3.16.0")]
+[assembly: AssemblyFileVersion("0.3.16.0")]
 
 internal static class TianceUpdater
 {

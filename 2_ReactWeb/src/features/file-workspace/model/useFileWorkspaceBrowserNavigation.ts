@@ -132,7 +132,7 @@ export function useFileWorkspaceBrowserNavigation({
     } else {
       next.add(nodeId);
       const node = findNode(treeDataRef.current, nodeId);
-      if (node && node.kind === "folder" && !node.isChildrenLoaded) {
+      if (node && node.kind === "folder") {
         void loadFolderChildren(nodeId);
       }
     }

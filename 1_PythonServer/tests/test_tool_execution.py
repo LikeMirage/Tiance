@@ -87,10 +87,20 @@ def test_tool_execution_runs_python_entry_with_json_stdin(tmp_path, monkeypatch)
     assert command[:2] == ["python", "-c"]
     assert str(tool_root / "program") in command
     assert str(tool_root / "dependencies" / "py313" / "site-packages") in command
-    assert any(
-        "runtime" in path and "python-packages" in path and "backend" in path
-        for path in command
+    backend_site_packages = get_settings().backend_site_packages_path.resolve(strict=False)
+    assert str(backend_site_packages) in command
+    assert backend_site_packages.is_dir()
+    assert (backend_site_packages / "httpx").is_dir()
+    legacy_backend_site_packages = (
+        get_settings().project_root_path
+        / "Data"
+        / "runtime"
+        / "python-packages"
+        / "backend"
+        / "py313"
+        / "site-packages"
     )
+    assert str(legacy_backend_site_packages) not in command
     assert str(tool_root / "program") in completed_commands[0][3]["PYTHONPATH"]
     assert "TIANCE_HOST_CAPABILITY_TOKEN" not in completed_commands[0][3]
 
