@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "md2docx",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": {
     "name": "LikeMirage"
   },
