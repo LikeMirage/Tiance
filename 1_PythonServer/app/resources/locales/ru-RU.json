@@ -500,6 +500,14 @@
       "loading": "Загрузка подключения GitHub…",
       "title": "Вход в GitHub",
       "description": "Подключите GitHub, чтобы онлайн-каталоги могли читать приватные репозитории, разрешённые для Tiance Desktop.",
+      "tabs": {
+        "aria": "Вход в GitHub и руководства",
+        "login": "Вход",
+        "quickStart": "Быстрый старт",
+        "capabilities": "Возможности",
+        "repositorySync": "Репозитории и синхронизация",
+        "faq": "Вопросы"
+      },
       "connected": "Подключено",
       "logout": "Выйти",
       "loggingOut": "Выход…",

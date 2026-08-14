@@ -69,3 +69,21 @@ test("更新面板和启动弹窗使用安全 Markdown 预览渲染版本说明"
   assert.match(panelSource, /LazyMarkdownPreview content=\{update\.releaseNotes\}/);
   assert.match(promptSource, /LazyMarkdownPreview/);
 });
+
+test("更新面板由整页滚动且不再渲染重复的新版本提示卡", async () => {
+  const panelSource = await readFile(
+    new URL("../src/features/software-update/ui/SoftwareUpdatePanel.tsx", import.meta.url),
+    "utf8",
+  );
+  const panelStyles = await readFile(
+    new URL("../src/features/software-update/ui/software-update.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(panelSource, /software-update__head-actions/);
+  assert.match(panelSource, /software-update__version--available/);
+  assert.doesNotMatch(panelSource, /software-update__notice--available/);
+  assert.doesNotMatch(panelSource, /softwareUpdate\.autoCheck\.description/);
+  assert.match(panelStyles, /\.software-update\s*\{[^}]*overflow-y:\s*auto/s);
+  assert.doesNotMatch(panelStyles, /software-update__notes-body\s*\{[^}]*max-height/s);
+});

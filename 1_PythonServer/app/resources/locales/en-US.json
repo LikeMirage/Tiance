@@ -500,6 +500,14 @@
       "loading": "Loading GitHub connection…",
       "title": "GitHub Sign-in",
       "description": "Connect GitHub to read private repositories authorized for Tiance Desktop from online markets.",
+      "tabs": {
+        "aria": "GitHub sign-in and guides",
+        "login": "Sign in",
+        "quickStart": "Quick start",
+        "capabilities": "Capabilities",
+        "repositorySync": "Repositories & sync",
+        "faq": "FAQ"
+      },
       "connected": "Connected",
       "logout": "Sign out",
       "loggingOut": "Signing out…",

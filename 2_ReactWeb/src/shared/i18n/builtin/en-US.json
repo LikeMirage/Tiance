@@ -577,6 +577,14 @@
       "loading": "Loading GitHub connection…",
       "title": "GitHub Sign-in",
       "description": "Connect GitHub to browse authorized private markets and synchronize local collections from each online board.",
+      "tabs": {
+        "aria": "GitHub sign-in and guides",
+        "login": "Sign in",
+        "quickStart": "Quick start",
+        "capabilities": "Capabilities",
+        "repositorySync": "Repositories & sync",
+        "faq": "FAQ"
+      },
       "connected": "Connected",
       "logout": "Sign out",
       "loggingOut": "Signing out…",
@@ -602,26 +610,21 @@
       },
       "login": {
         "title": "Connect GitHub",
-        "description": "Sign-in opens in your system browser. Tiance only accesses repositories you explicitly authorize, within the GitHub App permissions.",
-        "codeLabel": "Device code",
         "waiting": "Enter the code in GitHub and approve access. This page will update automatically.",
         "cancel": "Cancel",
-        "openAgain": "Open GitHub again",
+        "copyCode": "Copy",
         "starting": "Connecting…",
         "action": "Sign in to GitHub"
       }
     },
     "softwareUpdate": {
       "title": "Software Update",
-      "description": "Check and install official Tiance releases. Updates replace program files without overwriting local projects, conversations, secrets, tools, themes, or providers.",
       "check": "Check for updates",
       "checking": "Checking…",
       "current": "Current version",
       "latest": "Latest version",
       "size": "Download size",
       "available": "A new version is available",
-      "upToDate": "Tiance is up to date",
-      "upToDateDescription": "No update is required.",
       "sourceTitle": "Source checkout detected",
       "sourceDescription": "Use Git to update source checkouts so uncommitted work is never overwritten.",
       "linksAria": "Software update links",
@@ -632,8 +635,7 @@
       "downloading": "Downloading and verifying…",
       "installing": "Closing and installing…",
       "autoCheck": {
-        "title": "Check for updates at startup",
-        "description": "Enabled by default. A prompt appears when a new version is available; manual checks remain available when disabled."
+        "title": "Check for updates at startup"
       },
       "prompt": {
         "title": "A new version is available",

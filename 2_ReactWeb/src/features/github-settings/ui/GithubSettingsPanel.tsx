@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowClockwise,
   ArrowSquareOut,
@@ -8,7 +8,10 @@ import {
 } from "@phosphor-icons/react";
 
 import { useI18n } from "../../../shared/i18n";
+import type { TranslationKey } from "../../../shared/i18n/locales";
 import { useGithubConnection } from "../model/useGithubConnection";
+import type { GithubGuideTab, GithubSettingsTab } from "../model/githubGuideContent";
+import { GithubSettingsGuide } from "./GithubSettingsGuide";
 import "./github-settings.css";
 
 type GithubSettingsPanelProps = {
@@ -16,12 +19,39 @@ type GithubSettingsPanelProps = {
 };
 
 export function GithubSettingsPanel({ onReady }: GithubSettingsPanelProps) {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
   const github = useGithubConnection();
+  const [activeTab, setActiveTab] = useState<GithubSettingsTab>("login");
+  const [isCodeCopied, setIsCodeCopied] = useState(false);
+  const copyResetTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     onReady?.();
   }, [onReady]);
+
+  useEffect(() => {
+    setIsCodeCopied(false);
+  }, [github.flow?.userCode]);
+
+  useEffect(() => () => {
+    if (copyResetTimerRef.current !== null) {
+      window.clearTimeout(copyResetTimerRef.current);
+    }
+  }, []);
+
+  const copyDeviceCode = async () => {
+    const code = github.flow?.userCode;
+    if (!code) return;
+    await navigator.clipboard.writeText(code);
+    setIsCodeCopied(true);
+    if (copyResetTimerRef.current !== null) {
+      window.clearTimeout(copyResetTimerRef.current);
+    }
+    copyResetTimerRef.current = window.setTimeout(() => {
+      setIsCodeCopied(false);
+      copyResetTimerRef.current = null;
+    }, 300);
+  };
 
   if (github.isLoading && !github.connection) {
     return <div className="github-settings__loading" role="status">{t("githubSettings.loading")}</div>;
@@ -50,9 +80,30 @@ export function GithubSettingsPanel({ onReady }: GithubSettingsPanelProps) {
         ) : null}
       </header>
 
-      {github.error ? <div className="github-settings__error" role="alert">{github.error}</div> : null}
+      <div className="github-settings__tabs" role="tablist" aria-label={t("githubSettings.tabs.aria")}>
+        {githubSettingsTabs.map((tab) => (
+          <button
+            className={activeTab === tab.id
+              ? "github-settings__tab github-settings__tab--active"
+              : "github-settings__tab"}
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {t(tab.labelKey)}
+          </button>
+        ))}
+      </div>
 
-      {connection?.connected && account ? (
+      {activeTab === "login" && github.error ? (
+        <div className="github-settings__error" role="alert">{github.error}</div>
+      ) : null}
+
+      {activeTab !== "login" ? (
+        <GithubSettingsGuide language={language} tab={activeTab as GithubGuideTab} />
+      ) : connection?.connected && account ? (
         <>
           <section className="github-settings__account">
             <img src={account.avatarUrl} alt="" />
@@ -155,14 +206,12 @@ export function GithubSettingsPanel({ onReady }: GithubSettingsPanelProps) {
         </>
       ) : (
         <section className="github-settings__login">
-          <GithubLogo size={44} weight="duotone" aria-hidden="true" />
-          <div>
+          <GithubLogo className="github-settings__login-mark" size={96} weight="duotone" aria-hidden="true" />
+          <div className="github-settings__login-intro">
             <h3>{t("githubSettings.login.title")}</h3>
-            <p>{t("githubSettings.login.description")}</p>
           </div>
           {github.flow ? (
             <div className="github-settings__device-flow">
-              <span>{t("githubSettings.login.codeLabel")}</span>
               <strong>{github.flow.userCode}</strong>
               <p>{t("githubSettings.login.waiting")}</p>
               <div>
@@ -170,12 +219,11 @@ export function GithubSettingsPanel({ onReady }: GithubSettingsPanelProps) {
                   {t("githubSettings.login.cancel")}
                 </button>
                 <button
-                  className="github-settings__button github-settings__button--primary"
+                  className={`github-settings__button github-settings__button--primary github-settings__copy-button${isCodeCopied ? " github-settings__copy-button--copied" : ""}`}
                   type="button"
-                  onClick={() => void github.openExternalUrl(github.flow?.verificationUri ?? "")}
+                  onClick={() => void copyDeviceCode()}
                 >
-                  <ArrowSquareOut size={16} aria-hidden="true" />
-                  {t("githubSettings.login.openAgain")}
+                  {t("githubSettings.login.copyCode")}
                 </button>
               </div>
             </div>
@@ -195,3 +243,14 @@ export function GithubSettingsPanel({ onReady }: GithubSettingsPanelProps) {
     </div>
   );
 }
+
+const githubSettingsTabs: ReadonlyArray<{
+  id: GithubSettingsTab;
+  labelKey: TranslationKey;
+}> = [
+  { id: "login", labelKey: "githubSettings.tabs.login" },
+  { id: "quick-start", labelKey: "githubSettings.tabs.quickStart" },
+  { id: "capabilities", labelKey: "githubSettings.tabs.capabilities" },
+  { id: "repository-sync", labelKey: "githubSettings.tabs.repositorySync" },
+  { id: "faq", labelKey: "githubSettings.tabs.faq" },
+];

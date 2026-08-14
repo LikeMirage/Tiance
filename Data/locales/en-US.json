@@ -1070,6 +1070,14 @@
       "loading": "Loading GitHub connection…",
       "title": "GitHub Sign-in",
       "description": "Connect GitHub to browse authorized private markets and synchronize local collections from each online board.",
+      "tabs": {
+        "aria": "GitHub sign-in and guides",
+        "login": "Sign in",
+        "quickStart": "Quick start",
+        "capabilities": "Capabilities",
+        "repositorySync": "Repositories & sync",
+        "faq": "FAQ"
+      },
       "connected": "Connected",
       "logout": "Sign out",
       "loggingOut": "Signing out…",

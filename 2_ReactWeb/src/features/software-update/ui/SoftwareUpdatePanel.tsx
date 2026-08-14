@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowClockwise, ArrowSquareOut, DownloadSimple, GitBranch, GithubLogo, Package } from "@phosphor-icons/react";
+import { ArrowClockwise, DownloadSimple, GitBranch, GithubLogo, Package } from "@phosphor-icons/react";
 
 import { useI18n } from "../../../shared/i18n";
 import { LazyMarkdownPreview } from "../../markdown-preview/ui/LazyMarkdownPreview";
@@ -30,26 +30,32 @@ export function SoftwareUpdatePanel({ onReady }: SoftwareUpdatePanelProps) {
   return (
     <div className="software-update">
       <header className="software-update__head">
-        <div>
-          <h2>{t("softwareUpdate.title")}</h2>
-          <p>{t("softwareUpdate.description")}</p>
+        <h2>{t("softwareUpdate.title")}</h2>
+        <div className="software-update__head-actions">
+          <nav className="software-update__links" aria-label={t("softwareUpdate.linksAria")}>
+            <a href={OPEN_SOURCE_REPOSITORY_URL} target="_blank" rel="noreferrer">
+              <GithubLogo size={17} />
+              <span>{t("softwareUpdate.sourceLink")}</span>
+            </a>
+            <a href={LATEST_SOFTWARE_DOWNLOAD_URL} target="_blank" rel="noreferrer">
+              <DownloadSimple size={17} />
+              <span>{t("softwareUpdate.downloadLink")}</span>
+            </a>
+          </nav>
+          <button
+            className="software-update__button"
+            type="button"
+            disabled={busy}
+            onClick={() => void softwareUpdate.check()}
+          >
+            <ArrowClockwise size={16} />
+            {softwareUpdate.state === "checking" ? t("softwareUpdate.checking") : t("softwareUpdate.check")}
+          </button>
         </div>
-        <button
-          className="software-update__button"
-          type="button"
-          disabled={busy}
-          onClick={() => void softwareUpdate.check()}
-        >
-          <ArrowClockwise size={16} />
-          {softwareUpdate.state === "checking" ? t("softwareUpdate.checking") : t("softwareUpdate.check")}
-        </button>
       </header>
 
       <section className="software-update__preference">
-        <div>
-          <strong>{t("softwareUpdate.autoCheck.title")}</strong>
-          <span>{t("softwareUpdate.autoCheck.description")}</span>
-        </div>
+        <strong>{t("softwareUpdate.autoCheck.title")}</strong>
         <button
           aria-checked={automaticCheckEnabled}
           aria-label={t("softwareUpdate.autoCheck.title")}
@@ -72,25 +78,43 @@ export function SoftwareUpdatePanel({ onReady }: SoftwareUpdatePanelProps) {
 
       {softwareUpdate.error ? <div className="software-update__error" role="alert">{softwareUpdate.error}</div> : null}
 
-      <nav className="software-update__links" aria-label={t("softwareUpdate.linksAria")}>
-        <a href={OPEN_SOURCE_REPOSITORY_URL} target="_blank" rel="noreferrer">
-          <GithubLogo size={17} />
-          <span>{t("softwareUpdate.sourceLink")}</span>
-          <ArrowSquareOut size={14} />
-        </a>
-        <a href={LATEST_SOFTWARE_DOWNLOAD_URL} target="_blank" rel="noreferrer">
-          <DownloadSimple size={17} />
-          <span>{t("softwareUpdate.downloadLink")}</span>
-          <ArrowSquareOut size={14} />
-        </a>
-      </nav>
-
       {update ? (
         <section className="software-update__card">
           <div className="software-update__versions">
-            <div><span>{t("softwareUpdate.current")}</span><strong>v{update.currentVersion}</strong></div>
-            <div><span>{t("softwareUpdate.latest")}</span><strong>v{update.latestVersion}</strong></div>
-            {update.downloadSize ? <div><span>{t("softwareUpdate.size")}</span><strong>{formatBytes(update.downloadSize)}</strong></div> : null}
+            <div className="software-update__current-version">
+              <Package size={22} />
+              <div>
+                <strong>{t("softwareUpdate.current")}</strong>
+                <span>Tiance v{update.currentVersion}</span>
+              </div>
+            </div>
+            {update.updateAvailable ? (
+              <div className="software-update__version software-update__version--available">
+                <span>{t("softwareUpdate.available")}</span>
+                <strong>v{update.latestVersion}</strong>
+              </div>
+            ) : null}
+            {update.updateAvailable && update.downloadSize ? (
+              <div className="software-update__version">
+                <span>{t("softwareUpdate.size")}</span>
+                <strong>{formatBytes(update.downloadSize)}</strong>
+              </div>
+            ) : null}
+            {update.updateAvailable && !update.sourceCheckout ? (
+              <button
+                className="software-update__button software-update__button--primary"
+                type="button"
+                disabled={busy}
+                onClick={() => void softwareUpdate.install()}
+              >
+                <DownloadSimple size={17} />
+                {softwareUpdate.state === "downloading"
+                  ? t("softwareUpdate.downloading")
+                  : softwareUpdate.state === "installing"
+                    ? t("softwareUpdate.installing")
+                    : t("softwareUpdate.install")}
+              </button>
+            ) : null}
           </div>
 
           {update.sourceCheckout ? (
@@ -98,41 +122,18 @@ export function SoftwareUpdatePanel({ onReady }: SoftwareUpdatePanelProps) {
               <GitBranch size={20} />
               <div><strong>{t("softwareUpdate.sourceTitle")}</strong><span>{t("softwareUpdate.sourceDescription")}</span></div>
             </div>
-          ) : update.updateAvailable ? (
-            <div className="software-update__notice software-update__notice--available">
-              <Package size={20} />
-              <div><strong>{t("softwareUpdate.available")}</strong><span>{update.releaseName}</span></div>
-            </div>
-          ) : (
-            <div className="software-update__notice">
-              <Package size={20} />
-              <div><strong>{t("softwareUpdate.upToDate")}</strong><span>{t("softwareUpdate.upToDateDescription")}</span></div>
-            </div>
-          )}
+          ) : null}
 
           {update.releaseNotes ? (
             <div className="software-update__notes">
-              <h3>{t("softwareUpdate.notes")}</h3>
+              <h3>
+                {t("softwareUpdate.notes")}
+                <span>v{update.updateAvailable ? update.latestVersion : update.currentVersion}</span>
+              </h3>
               <div className="software-update__notes-body">
                 <LazyMarkdownPreview content={update.releaseNotes} />
               </div>
             </div>
-          ) : null}
-
-          {update.updateAvailable && !update.sourceCheckout ? (
-            <button
-              className="software-update__button software-update__button--primary"
-              type="button"
-              disabled={busy}
-              onClick={() => void softwareUpdate.install()}
-            >
-              <DownloadSimple size={17} />
-              {softwareUpdate.state === "downloading"
-                ? t("softwareUpdate.downloading")
-                : softwareUpdate.state === "installing"
-                  ? t("softwareUpdate.installing")
-                  : t("softwareUpdate.install")}
-            </button>
           ) : null}
         </section>
       ) : softwareUpdate.state === "checking" ? (

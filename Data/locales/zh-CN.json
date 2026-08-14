@@ -1070,6 +1070,14 @@
       "loading": "正在读取 GitHub 连接状态…",
       "title": "GitHub 登录",
       "description": "连接 GitHub 后，可浏览已授权的私人市场，并在各在线看板绑定仓库同步本地集合。",
+      "tabs": {
+        "aria": "GitHub 登录与使用指南",
+        "login": "登录",
+        "quickStart": "快速开始",
+        "capabilities": "能力与权限",
+        "repositorySync": "仓库与同步",
+        "faq": "常见问题"
+      },
       "connected": "已连接",
       "logout": "退出登录",
       "loggingOut": "正在退出…",

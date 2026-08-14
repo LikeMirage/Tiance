@@ -1,3 +1,13 @@
 {
-  "github_token": ""
+  "identity": {
+    "name": "",
+    "email": ""
+  },
+  "https_credentials": [
+    {
+      "host": "github.com",
+      "username": "x-access-token",
+      "token": ""
+    }
+  ]
 }

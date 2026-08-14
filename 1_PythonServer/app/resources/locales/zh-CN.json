@@ -500,6 +500,14 @@
       "loading": "正在读取 GitHub 连接状态…",
       "title": "GitHub 登录",
       "description": "连接 GitHub 后，可在各在线市场读取已授权给 Tiance Desktop 的私人仓库。",
+      "tabs": {
+        "aria": "GitHub 登录与使用指南",
+        "login": "登录",
+        "quickStart": "快速开始",
+        "capabilities": "能力与权限",
+        "repositorySync": "仓库与同步",
+        "faq": "常见问题"
+      },
       "connected": "已连接",
       "logout": "退出登录",
       "loggingOut": "正在退出…",

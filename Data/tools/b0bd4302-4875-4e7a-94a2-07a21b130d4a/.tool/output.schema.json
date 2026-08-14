@@ -1,23 +1,19 @@
 {
+  "type": "object",
   "additionalProperties": true,
+  "required": ["ok"],
   "properties": {
-    "ok": {
-      "type": "boolean"
-    },
-    "action": {
-      "type": "string"
-    },
-    "error": {
-      "type": "string"
-    },
+    "ok": {"type": "boolean"},
+    "action": {"type": "string"},
+    "engine": {"type": "string"},
+    "systemGitRequired": {"type": "boolean"},
     "dryRun": {"type": "boolean"},
     "preview": {"type": "object"},
-    "project": {
-      "type": "object"
-    }
-  },
-  "required": [
-    "ok"
-  ],
-  "type": "object"
+    "repository": {"type": "object"},
+    "identity": {"type": ["object", "null"]},
+    "identityCandidates": {"type": "array"},
+    "authentication": {"type": "object"},
+    "error": {"type": "string"},
+    "error_info": {"type": "object"}
+  }
 }

@@ -1,7 +1,39 @@
 [
-  {"title": "检查后提交", "input": {"action": "commit", "message": "说明本次修改", "dry_run": true}},
-  {"title": "执行提交", "input": {"action": "commit", "message": "说明本次修改"}},
-  {"title": "检查后推送", "input": {"action": "push", "remote": "origin", "branch": "main", "dry_run": true}},
-  {"title": "查看差异", "input": {"action": "diff", "paths": ["README.md"]}},
-  {"title": "强制推送", "input": {"action": "push", "remote": "origin", "branch": "main", "force": true, "dry_run": true}}
+  {
+    "title": "克隆公共仓库到工作区子目录",
+    "input": {
+      "action": "clone",
+      "repository": "https://github.com/example/project.git",
+      "target_path": "project",
+      "dry_run": true
+    }
+  },
+  {
+    "title": "检查仓库及实际提交身份",
+    "input": {"action": "overview"}
+  },
+  {
+    "title": "使用显式身份预演提交",
+    "input": {
+      "action": "commit",
+      "message": "说明本次修改",
+      "author_name": "Example User",
+      "author_email": "user@example.com",
+      "dry_run": true
+    }
+  },
+  {
+    "title": "保存当前仓库的提交身份",
+    "input": {
+      "action": "configure_identity",
+      "identity_scope": "repository",
+      "author_name": "Example User",
+      "author_email": "user@example.com",
+      "dry_run": true
+    }
+  },
+  {
+    "title": "使用已有远端凭据预演推送",
+    "input": {"action": "push", "remote": "origin", "branch": "main", "dry_run": true}
+  }
 ]
