@@ -1,8 +1,8 @@
 {
   "name": "conversation_history_search",
   "display_name": "会话原始历史检索",
-  "description": "直接只读检索当前项目 .Tiance/tiance.db 中保存的原始会话消息。默认检索当前会话，也可指定其他会话 ID；支持包含整句、全部词和内容精确匹配，可按消息角色过滤，并返回原始消息记录。工具仅使用 SQLite 文件和运行环境提供的工作区、会话信息，不依赖天策后端程序模块。",
-  "keywords": ["会话历史", "原始消息", "SQLite", "消息检索", "对话记录"],
+  "description": "直接只读检索当前项目中按会话保存的原始 messages.jsonl。默认检索当前会话，也可指定其他会话 ID；支持包含整句、全部词和内容精确匹配，可按消息角色过滤，并返回原始消息记录。工具读取权威文件，不依赖可删除的 SQLite 性能索引或天策后端程序模块。",
+  "keywords": ["会话历史", "原始消息", "JSONL", "消息检索", "对话记录"],
   "execution": {"parallel": true},
   "loading": {"dynamic": true},
   "state": {"enabled": true},

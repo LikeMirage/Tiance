@@ -9,7 +9,16 @@ from app.domain.project.conversation_branch import (
     ProjectConversationMessageVariant,
 )
 from app.domain.project.project_conversation import ProjectConversationSession
-from app.repositories.project.conversation_database import read_meta, write_meta
+from app.repositories.project.conversation_file_io import (
+    read_json_object,
+    write_json_object,
+)
+from app.repositories.project.conversation_records import (
+    delete_session_branch,
+    read_session_branch,
+    write_session_branch,
+)
+from app.repositories.project.conversation_storage import conversation_write_lock
 
 BRANCH_GRAPH_VERSION = 4
 
@@ -36,26 +45,213 @@ FUNCTION_TYPES = {
 
 
 class ConversationBranchStore:
-    def read_graph(self, conversations_dir: Path) -> dict:
-        payload = read_meta(conversations_dir, "branch_graph")
-        if payload is None:
-            return _empty_graph()
-        if not isinstance(payload, dict):
-            raise ConflictError("会话分支关系数据格式无效，已停止写入以避免覆盖。")
-        if (
-            payload.get("version") != BRANCH_GRAPH_VERSION
-            or not _is_dict_list(payload.get("nodes"))
-            or not _is_dict_list(payload.get("variants"))
-        ):
-            raise ConflictError("会话分支关系数据格式无效，已停止写入以避免覆盖。")
+    def pending_variant_for_session_file(
+        self,
+        session_dir: Path,
+    ) -> ProjectConversationMessageVariant | None:
+        record = read_session_branch(session_dir)
+        if record is None:
+            return None
+        graph = self._graph_from_record(record, expected_session_id=session_dir.name)
+        return self.pending_variant_for_session(graph, session_dir.name)
+
+    def complete_pending_variant_file(
+        self,
+        session_dir: Path,
+        *,
+        message_id: str,
+        origin_message_id: str,
+    ) -> ProjectConversationMessageVariant | None:
+        record = read_session_branch(session_dir)
+        if record is None:
+            return None
+        graph = self._graph_from_record(record, expected_session_id=session_dir.name)
+        completed = self.complete_pending_variant(
+            graph,
+            session_id=session_dir.name,
+            message_id=message_id,
+            origin_message_id=origin_message_id,
+        )
+        if completed is not None:
+            write_session_branch(
+                session_dir,
+                {
+                    "version": 1,
+                    "node": next(iter(_dict_items(graph.get("nodes"))), None),
+                    "variants": _dict_items(graph.get("variants")),
+                },
+            )
+        return completed
+
+    def _graph_from_record(
+        self,
+        record: dict,
+        *,
+        expected_session_id: str | None = None,
+    ) -> dict:
+        if record.get("version") != 1:
+            raise ConflictError("会话分支记录版本无效，已停止写入以避免覆盖。")
+        node = record.get("node")
+        variants = record.get("variants", [])
+        if node is not None and not isinstance(node, dict):
+            raise ConflictError("会话分支节点格式无效，已停止写入以避免覆盖。")
+        if not _is_dict_list(variants):
+            raise ConflictError("会话消息版本格式无效，已停止写入以避免覆盖。")
+        if isinstance(node, dict):
+            required_node_fields = {
+                "branch_id",
+                "tree_id",
+                "session_id",
+                "relation_kind",
+                "created_by",
+                "history_mode",
+                "sibling_index",
+                "created_at",
+            }
+            parsed_node = _node_from_payload(node)
+            if (
+                not required_node_fields.issubset(node)
+                or parsed_node is None
+                or (
+                    expected_session_id is not None
+                    and parsed_node.session_id != expected_session_id
+                )
+            ):
+                raise ConflictError("会话分支节点格式无效，已停止写入以避免覆盖。")
+        for variant in _dict_items(variants):
+            parsed_variant = _variant_from_payload(variant)
+            if (
+                parsed_variant is None
+                or (
+                    expected_session_id is not None
+                    and parsed_variant.session_id != expected_session_id
+                )
+            ):
+                raise ConflictError("会话消息版本格式无效，已停止写入以避免覆盖。")
         return {
             "version": BRANCH_GRAPH_VERSION,
-            "nodes": _dict_items(payload.get("nodes")),
-            "variants": _dict_items(payload.get("variants")),
+            "nodes": [node] if isinstance(node, dict) else [],
+            "variants": _dict_items(variants),
+        }
+
+    def read_graph(self, conversations_dir: Path) -> dict:
+        records: list[dict] = []
+        sessions_root = conversations_dir / "sessions"
+        if sessions_root.is_dir():
+            for session_dir in sessions_root.iterdir():
+                if not session_dir.is_dir() or ".tmp-" in session_dir.name:
+                    continue
+                record = read_session_branch(session_dir)
+                if record is not None:
+                    graph = self._graph_from_record(
+                        record,
+                        expected_session_id=session_dir.name,
+                    )
+                    records.append(
+                        {
+                            "version": 1,
+                            "node": next(iter(_dict_items(graph["nodes"])), None),
+                            "variants": _dict_items(graph["variants"]),
+                        }
+                    )
+        tombstones = conversations_dir / "tombstones"
+        if tombstones.is_dir():
+            for path in sorted(tombstones.glob("*.json")):
+                record = read_json_object(path)
+                if record is not None:
+                    graph = self._graph_from_record(
+                        record,
+                        expected_session_id=path.stem,
+                    )
+                    records.append(
+                        {
+                            "version": 1,
+                            "node": next(iter(_dict_items(graph["nodes"])), None),
+                            "variants": _dict_items(graph["variants"]),
+                        }
+                    )
+
+        nodes: list[dict] = []
+        variants: list[dict] = []
+        seen_sessions: set[str] = set()
+        for record in records:
+            if record.get("version") != 1:
+                raise ConflictError("会话分支记录版本无效，已停止写入以避免覆盖。")
+            node = record.get("node")
+            if node is not None and not isinstance(node, dict):
+                raise ConflictError("会话分支节点格式无效，已停止写入以避免覆盖。")
+            if isinstance(node, dict):
+                session_id = str(node.get("session_id") or "")
+                if not session_id or session_id in seen_sessions:
+                    raise ConflictError("会话分支节点身份重复，已停止写入以避免覆盖。")
+                seen_sessions.add(session_id)
+                nodes.append(node)
+            record_variants = record.get("variants", [])
+            if not _is_dict_list(record_variants):
+                raise ConflictError("会话消息版本格式无效，已停止写入以避免覆盖。")
+            variants.extend(_dict_items(record_variants))
+        return {
+            "version": BRANCH_GRAPH_VERSION,
+            "nodes": nodes,
+            "variants": variants,
         }
 
     def write_graph(self, conversations_dir: Path, graph: dict) -> None:
-        write_meta(conversations_dir, "branch_graph", graph)
+        if (
+            graph.get("version") != BRANCH_GRAPH_VERSION
+            or not _is_dict_list(graph.get("nodes"))
+            or not _is_dict_list(graph.get("variants"))
+        ):
+            raise ConflictError("会话分支关系数据格式无效，已停止写入以避免覆盖。")
+        nodes_by_session = {
+            str(node.get("session_id") or ""): node
+            for node in _dict_items(graph.get("nodes"))
+            if node.get("session_id")
+        }
+        variants_by_session: dict[str, list[dict]] = {}
+        for variant in _dict_items(graph.get("variants")):
+            session_id = str(variant.get("session_id") or "")
+            if session_id:
+                variants_by_session.setdefault(session_id, []).append(variant)
+
+        sessions_root = conversations_dir / "sessions"
+        live_session_ids = (
+            {
+                item.name
+                for item in sessions_root.iterdir()
+                if item.is_dir() and (item / "session.json").is_file()
+            }
+            if sessions_root.is_dir()
+            else set()
+        )
+        stored_session_ids = set(nodes_by_session) | set(variants_by_session)
+        tombstones = conversations_dir / "tombstones"
+
+        for session_id in stored_session_ids:
+            record = {
+                "version": 1,
+                "node": nodes_by_session.get(session_id),
+                "variants": variants_by_session.get(session_id, []),
+            }
+            if session_id in live_session_ids:
+                session_dir = sessions_root / session_id
+                with conversation_write_lock(session_dir):
+                    current = read_session_branch(session_dir)
+                    if current is not None:
+                        record = _preserve_completed_variants(current, record)
+                    write_session_branch(session_dir, record)
+                (tombstones / f"{session_id}.json").unlink(missing_ok=True)
+            else:
+                write_json_object(tombstones / f"{session_id}.json", record)
+
+        for session_id in live_session_ids - stored_session_ids:
+            session_dir = sessions_root / session_id
+            with conversation_write_lock(session_dir):
+                delete_session_branch(session_dir)
+        if tombstones.is_dir():
+            for path in tombstones.glob("*.json"):
+                if path.stem not in stored_session_ids:
+                    path.unlink(missing_ok=True)
 
     def list_nodes(self, graph: dict) -> tuple[ProjectConversationBranchNode, ...]:
         return tuple(
@@ -286,6 +482,36 @@ class ConversationBranchStore:
 
 def _empty_graph() -> dict:
     return {"version": BRANCH_GRAPH_VERSION, "nodes": [], "variants": []}
+
+
+def _preserve_completed_variants(current: dict, desired: dict) -> dict:
+    """Do not replace a concurrently completed pending variant with stale data."""
+    if current.get("version") != 1:
+        return desired
+    completed = {
+        _variant_identity(item): item
+        for item in _dict_items(current.get("variants"))
+        if item.get("message_id")
+    }
+    if not completed:
+        return desired
+    merged_variants: list[dict] = []
+    for item in _dict_items(desired.get("variants")):
+        replacement = completed.get(_variant_identity(item))
+        if replacement is not None and not item.get("message_id"):
+            merged_variants.append(replacement)
+        else:
+            merged_variants.append(item)
+    return {**desired, "variants": merged_variants}
+
+
+def _variant_identity(payload: dict) -> tuple[str, int, str, str]:
+    return (
+        str(payload.get("variant_group_id") or ""),
+        _non_negative_int(payload.get("variant_index")),
+        str(payload.get("branch_id") or ""),
+        str(payload.get("session_id") or ""),
+    )
 
 
 def _dict_items(value: object) -> list[dict]:

@@ -4,10 +4,9 @@ from app.domain.llm.chat import ChatCompletionRequest, ChatMessage, ChatMessageR
 from app.repositories.project.conversation_branch_copy import (
     write_inherited_memory_delivery_state,
 )
-from app.repositories.project.conversation_database import (
+from app.repositories.project.conversation_records import (
     read_document,
     write_document,
-    write_session,
 )
 from app.services.project.conversation_memory_delivery_context import (
     GLOBAL_MEMORY_HEADER,
@@ -614,8 +613,6 @@ def _prepare_session_dirs(tmp_path):
     target_dir = sessions_dir / "target"
     source_dir.mkdir(parents=True)
     target_dir.mkdir()
-    write_session(conversations_dir, "source", {})
-    write_session(conversations_dir, "target", {})
     return source_dir, target_dir
 
 

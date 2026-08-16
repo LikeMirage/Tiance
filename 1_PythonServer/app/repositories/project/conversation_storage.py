@@ -54,15 +54,15 @@ class ProjectWorkspaceDirectoryResolver:
         if workspace_dir.exists():
             if for_write:
                 ensure_workspace_readme(workspace_dir)
-            from app.repositories.project.conversation_database import ensure_database
+            from app.repositories.project.conversation_records import ensure_file_storage
 
-            ensure_database(workspace_dir)
+            ensure_file_storage(workspace_dir)
             return workspace_dir
         if for_write:
             ensure_workspace_readme(workspace_dir)
-        from app.repositories.project.conversation_database import ensure_database
+        from app.repositories.project.conversation_records import ensure_file_storage
 
-        ensure_database(workspace_dir)
+        ensure_file_storage(workspace_dir)
         return workspace_dir
 
 
@@ -81,18 +81,27 @@ def _workspace_readme_content() -> str:
 ## 根目录文件
 
 - `README.md`：说明 `.Tiance` 内各文件和目录的用途。
-- `tiance.db`：项目会话、消息、分支、项目记忆、任务状态和工作区状态的唯一数据源。数据库使用 WAL 模式，允许界面读取与后台写入并行进行。
-- `tiance.db-wal`、`tiance.db-shm`：SQLite 运行期间自动维护的 WAL 文件，软件正常关闭或数据库检查点执行后可能消失，不应手工编辑或删除。
+- `storage.json`：工作区数据结构版本与事实来源声明。
+- `state.json`：只保存当前项目的人机工作区状态，不承载会话历史。
+- `cache/conversation-index.db`：可删除、可重建的消息分页索引；不是事实来源。
+- `migrations/sqlite-v1/tiance.db`：从旧版 SQLite 自动迁移时保留的只读恢复备份。
 
 ## conversations/sessions/
 
-这里只保留必须作为实体文件存在的会话附件。会话元数据、消息、压缩记录、注入预览和附件索引都保存在 `tiance.db` 中。
+每个会话独立保存自己的事实，不再维护一份所有会话共同改写的权威总表。
 
-- `conversations/sessions/{session_id}/attachments/`：该会话独立持有的附件文件。分支会复制自己的附件副本，删除会话时一并清理。
+- `conversations/control.json`：当前选中会话；只属于工作区导航。
+- `conversations/sessions/{session_id}/session.json`：会话身份、配置与消息计数。
+- `conversations/sessions/{session_id}/state.json`：该会话的置顶与运行状态。
+- `conversations/sessions/{session_id}/branch.json`：该会话自己的来源关系和消息版本。
+- `conversations/sessions/{session_id}/messages.jsonl`：完整原始消息，不设置隐式条数上限。
+- `conversations/sessions/{session_id}/*.jsonl`：压缩、命名、附件等追加记录。
+- `conversations/sessions/{session_id}/*.json`：注入预览、记忆投递和功能任务状态。
+- `conversations/sessions/{session_id}/attachments/`：该会话独立持有的附件文件。
 
 ## 数据看板
 
-消息、压缩、注入预览、会话索引和项目记忆看板通过后端只读数据视图从 `tiance.db` 获取内容，不依赖磁盘上的 JSON/JSONL 镜像文件。
+消息、压缩、注入预览、会话状态和项目记忆看板直接读取上述事实文件。界面为了可读性可以分页或生成总览，但不会改变模型读取完整有效历史的合同。
 
 全局长期记忆不放在项目目录内，而是保存在天策运行数据目录的 `memory/global_memory.jsonl`。
 """
@@ -100,15 +109,7 @@ def _workspace_readme_content() -> str:
 
 @contextmanager
 def conversation_write_lock(conversations_dir: Path):
-    if conversations_dir.name != CONVERSATIONS_DIR:
-        with _file_write_lock(conversations_dir):
-            yield
-        return
-    from app.repositories.project.conversation_database import (
-        transaction_for_conversations,
-    )
-
-    with transaction_for_conversations(conversations_dir):
+    with _file_write_lock(conversations_dir):
         yield
 
 
@@ -117,7 +118,10 @@ def _file_write_lock(target_dir: Path):
     target_dir.mkdir(parents=True, exist_ok=True)
     write_queue = _write_queue_for(target_dir)
     with write_queue.wait_for_turn():
-        lock_path = target_dir / _WRITE_LOCK_FILE
+        # Session locks live beside their deletable directory so Windows can
+        # remove that directory while the lock remains held. Other scopes keep
+        # the established internal lock and do not create project-root noise.
+        lock_path = _write_lock_path(target_dir)
         lock_token = f"{os.getpid()}:{uuid4().hex}"
         deadline = monotonic() + _WRITE_LOCK_TIMEOUT_SECONDS
         fd: int | None = None
@@ -136,6 +140,15 @@ def _file_write_lock(target_dir: Path):
             if fd is not None:
                 os.close(fd)
             _remove_owned_lock(lock_path, lock_token)
+
+
+def _write_lock_path(target_dir: Path) -> Path:
+    if (
+        target_dir.parent.name == "sessions"
+        and target_dir.parent.parent.name == CONVERSATIONS_DIR
+    ):
+        return target_dir.parent / f".{target_dir.name}{_WRITE_LOCK_FILE}"
+    return target_dir / _WRITE_LOCK_FILE
 
 
 def _write_queue_for(conversations_dir: Path) -> _WriteQueue:

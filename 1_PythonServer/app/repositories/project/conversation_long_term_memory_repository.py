@@ -51,7 +51,7 @@ from app.repositories.project.project_repository import (
     ProjectRepository,
     get_project_repository,
 )
-from app.repositories.project.conversation_database import read_document, write_document
+from app.repositories.project.conversation_records import read_document, write_document
 
 
 LONG_TERM_MEMORY_TASK_FILE = "long_term_memory_task.json"

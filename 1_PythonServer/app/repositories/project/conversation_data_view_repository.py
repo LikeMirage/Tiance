@@ -5,17 +5,20 @@ from pathlib import Path
 from typing import Literal
 
 from app.core.errors import BadRequestError, NotFoundError
-from app.repositories.project.conversation_database import (
-    database_path_from_workspace,
+from app.repositories.project.conversation_records import (
     count_message_payloads,
     list_message_payloads_range,
     read_document,
     read_events,
-    read_meta,
     read_project_events,
     read_session,
+    storage_revision_ms,
 )
 from app.repositories.project.conversation_storage import ProjectWorkspaceDirectoryResolver
+from app.repositories.project.conversation_stores import (
+    ConversationSessionStore,
+    ConversationStateStore,
+)
 from app.repositories.project.project_repository import ProjectRepository
 
 
@@ -30,7 +33,7 @@ ConversationDataViewName = Literal[
 
 
 class ConversationDataViewRepository:
-    """Build read-only dashboard documents from the project conversation database."""
+    """Build dashboard documents from canonical project conversation files."""
 
     def __init__(self, project_repository: ProjectRepository) -> None:
         self._projects = project_repository
@@ -52,11 +55,21 @@ class ConversationDataViewRepository:
         )
         conversations_dir = workspace_dir / "conversations"
         if name == "index.json":
-            payload = read_meta(conversations_dir, "conversation_index", {})
-            return _json(payload), _database_mtime(workspace_dir), None, False
+            state_store = ConversationStateStore()
+            payload = ConversationSessionStore(
+                self._projects,
+                state_store=state_store,
+                workspace_resolver=self._workspace,
+            ).read_index(conversations_dir)
+            return _json(payload), storage_revision_ms(conversations_dir), None, False
         if name == "project_memory.jsonl":
             events = read_project_events(workspace_dir, "project_memory")
-            return _jsonl(events), _database_mtime(workspace_dir), len(events), False
+            return (
+                _jsonl(events),
+                storage_revision_ms(workspace_dir / "memory" / "project_memory"),
+                len(events),
+                False,
+            )
 
         resolved_session_id = _require_session_id(session_id)
         session = read_session(conversations_dir, resolved_session_id)
@@ -64,7 +77,7 @@ class ConversationDataViewRepository:
             raise NotFoundError("会话不存在。")
         session_dir = conversations_dir / "sessions" / resolved_session_id
         if name == "session.json":
-            return _json(session), _database_mtime(workspace_dir), None, False
+            return _json(session), storage_revision_ms(session_dir / "session.json"), None, False
         if name == "messages.jsonl":
             total_count = count_message_payloads(session_dir)
             start = max(0, total_count - 1_000)
@@ -75,15 +88,25 @@ class ConversationDataViewRepository:
             )
             return (
                 _jsonl(messages),
-                _database_mtime(workspace_dir),
+                storage_revision_ms(session_dir / "messages.jsonl"),
                 total_count,
                 start > 0,
             )
         if name == "compressions.jsonl":
             events = read_events(session_dir, "compressions")
-            return _jsonl(events), _database_mtime(workspace_dir), len(events), False
+            return (
+                _jsonl(events),
+                storage_revision_ms(session_dir / "compressions.jsonl"),
+                len(events),
+                False,
+            )
         if name == "injection_preview.json":
-            return _json(read_document(session_dir, "injection_preview") or {}), _database_mtime(workspace_dir), None, False
+            return (
+                _json(read_document(session_dir, "injection_preview") or {}),
+                storage_revision_ms(session_dir / "injection_preview.json"),
+                None,
+                False,
+            )
         raise BadRequestError("不支持的数据视图。")
 
 
@@ -100,11 +123,3 @@ def _json(value: object) -> str:
 
 def _jsonl(values: list[dict]) -> str:
     return "".join(f"{dumps(value, ensure_ascii=False)}\n" for value in values)
-
-
-def _database_mtime(workspace_dir: Path) -> int:
-    path = database_path_from_workspace(workspace_dir)
-    try:
-        return int(path.stat().st_mtime_ns // 1_000_000)
-    except OSError:
-        return 0

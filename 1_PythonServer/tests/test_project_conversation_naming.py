@@ -31,7 +31,7 @@ from app.repositories.project.conversation_attachment_repository import (
     ATTACHMENTS_DIR,
     ConversationAttachmentRepository,
 )
-from app.repositories.project.conversation_database import read_document, write_document
+from app.repositories.project.conversation_records import read_document, write_document
 from app.repositories.project.conversation_repository import (
     ProjectConversationRepository,
 )

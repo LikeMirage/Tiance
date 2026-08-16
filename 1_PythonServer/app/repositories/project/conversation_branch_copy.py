@@ -10,7 +10,7 @@ from app.domain.project.project_conversation import ProjectConversationMessage
 from app.repositories.project.conversation_attachment_repository import (
     copy_referenced_attachments,
 )
-from app.repositories.project.conversation_database import (
+from app.repositories.project.conversation_records import (
     read_document,
     read_events,
     replace_events,

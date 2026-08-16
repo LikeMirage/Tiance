@@ -17,7 +17,7 @@ from app.repositories.project.conversation_storage import (
     atomic_write_text,
     conversation_write_lock,
 )
-from app.repositories.project.conversation_database import (
+from app.repositories.project.conversation_records import (
     append_project_events,
     read_document,
     read_events,
@@ -78,7 +78,7 @@ class ProjectConversationMemoryRepository:
         update: Callable[[dict[str, Any] | None], dict[str, Any]],
     ) -> dict[str, Any]:
         session_dir = self._session_dir(project_id, session_id, for_write=True)
-        with conversation_write_lock(_conversations_dir_from_session_dir(session_dir)):
+        with conversation_write_lock(session_dir):
             updated = update(read_document(session_dir, "memory_delivery"))
             write_document(session_dir, "memory_delivery", updated)
         return updated
@@ -90,7 +90,7 @@ class ProjectConversationMemoryRepository:
         payload: dict[str, Any],
     ) -> None:
         session_dir = self._session_dir(project_id, session_id, for_write=True)
-        with conversation_write_lock(_conversations_dir_from_session_dir(session_dir)):
+        with conversation_write_lock(session_dir):
             records = read_events(session_dir, "compressions")
             records.append(payload)
             replace_events(session_dir, "compressions", records)
@@ -128,7 +128,9 @@ class ProjectConversationMemoryRepository:
             )
         if _has_effective_operations(project_operations):
             workspace_dir = self._workspace_dir(project_id, for_write=True)
-            with conversation_write_lock(workspace_dir / CONVERSATIONS_DIR):
+            with conversation_write_lock(
+                workspace_dir / "memory" / "project_memory"
+            ):
                 current_events = read_project_events(workspace_dir, "project_memory")
                 applied["project_memory"] = self._normalize_memory_operations(
                     current_events,
@@ -265,10 +267,6 @@ def _write_compression_records(path: Path, records: list[dict[str, Any]]) -> Non
         for record in records
     )
     atomic_write_text(path, content)
-
-
-def _conversations_dir_from_session_dir(session_dir: Path) -> Path:
-    return session_dir.parent.parent
 
 
 def _has_effective_operations(operations: list[dict[str, Any]]) -> bool:

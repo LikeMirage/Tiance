@@ -2,10 +2,11 @@ from pathlib import Path
 
 from app.repositories.project.conversation_storage import (
     ProjectWorkspaceDirectoryResolver,
+    conversation_write_lock,
 )
-from app.repositories.project.conversation_database import (
-    read_meta,
-    write_meta,
+from app.repositories.project.conversation_records import (
+    read_workspace_state,
+    write_workspace_state,
 )
 
 
@@ -15,12 +16,12 @@ class ProjectWorkspaceStateStore:
 
     def read_state(self, project_root: str) -> dict | None:
         workspace_dir = self._workspace_dir(project_root, for_write=False)
-        payload = read_meta(workspace_dir / "conversations", "workspace_state")
-        return payload if isinstance(payload, dict) else None
+        return read_workspace_state(workspace_dir)
 
     def write_state(self, project_root: str, payload: dict) -> dict:
         workspace_dir = self._workspace_dir(project_root, for_write=True)
-        write_meta(workspace_dir / "conversations", "workspace_state", payload)
+        with conversation_write_lock(workspace_dir):
+            write_workspace_state(workspace_dir, payload)
         return payload
 
     def _workspace_dir(self, project_root: str, *, for_write: bool) -> Path:

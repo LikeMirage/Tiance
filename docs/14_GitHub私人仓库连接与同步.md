@@ -172,11 +172,11 @@ providers/
 
 `.Tiance/` 不在排除列表中。它包含会话、分支、记忆和项目状态，正是项目跨设备恢复的重要组成部分。
 
-### 5.5 2026-08-13：SQLite 工作区的同步注意事项
+### 5.5 2026-08-17：文件事实源工作区的同步注意事项
 
-早期章节和下方目录示例展示的是多份 JSON/JSONL 状态文件。当前项目运行状态已经收口到 `.Tiance/tiance.db`；会话附件仍位于 `.Tiance/conversations/sessions/{session_id}/attachments/`。旧目录图用于说明项目与工作区的归属关系，不再代表当前逐文件存储格式。
+当前项目运行状态按归属拆分到 `.Tiance` 内的 JSON/JSONL 文件，会话附件仍位于 `.Tiance/conversations/sessions/{session_id}/attachments/`。同步完整 `.Tiance` 即可恢复项目工作状态，也可以清楚检查单个会话发生了什么变化。
 
-`tiance.db-wal` 和 `tiance.db-shm` 是 SQLite 运行时临时文件，不应被当作独立数据文件挑选、编辑或单独恢复。需要完整同步或备份项目时，应先结束该项目的后台会话写入，最好关闭天策后再生成一致快照；恢复时以 `tiance.db` 和附件目录作为一个整体。不要在软件运行过程中只复制数据库主文件，否则可能漏掉尚在 WAL 中的已提交变化。
+`.Tiance/cache/conversation-index.db` 及其 `-wal`、`-shm` 文件只是可删除缓存，不应作为同步冲突的裁决依据；缺失时程序会从 `messages.jsonl` 重建。`.Tiance/migrations/sqlite-v1/tiance.db` 是旧结构迁移后的恢复备份，不再参与运行时写入。同步冲突应按各会话事实文件解决，不应拿缓存覆盖文件。
 
 ## 6. 七类集合的同步结构
 

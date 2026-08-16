@@ -33,21 +33,24 @@ from app.repositories.project.conversation_storage import (
     ProjectWorkspaceDirectoryResolver,
 )
 from app.repositories.project.project_repository import ProjectRepository
-from app.repositories.project.conversation_database import (
+from app.repositories.project.conversation_records import (
     append_event,
     append_message_payload,
     count_message_payloads,
     delete_session,
     find_message_ordinal,
+    list_session_payloads,
     list_message_payloads,
     list_message_payloads_range,
     read_message_turn_payloads,
-    read_meta,
+    read_conversation_control,
     read_session,
+    read_session_state,
     replace_message_payloads,
     session_exists,
-    write_meta,
-    write_session,
+    write_conversation_control,
+    write_session_file,
+    write_session_state,
 )
 
 
@@ -121,19 +124,69 @@ class ConversationSessionStore:
         return session_dir
 
     def read_index(self, conversations_dir: Path) -> dict:
-        payload = read_meta(conversations_dir, "conversation_index", _empty_index())
-        if not isinstance(payload, dict):
-            return _empty_index()
-        payload.setdefault("active_session_id", None)
-        payload["pinned_session_ids"] = sorted(_index_pinned_session_ids(payload))
-        payload.setdefault("sessions", [])
-        payload.setdefault("session_states", {})
-        payload.pop("assistant_title", None)
+        sessions: list[ProjectConversationSession] = []
+        pinned_session_ids: list[str] = []
+        session_states: dict[str, dict] = {}
+        for raw_session in list_session_payloads(conversations_dir):
+            session = _session_from_payload(raw_session)
+            sessions.append(session)
+            state = read_session_state(
+                conversations_dir / "sessions" / session.session_id
+            )
+            if state.get("pinned") is True:
+                pinned_session_ids.append(session.session_id)
+            runtime = state.get("runtime")
+            session_states[session.session_id] = (
+                runtime if isinstance(runtime, dict) else {}
+            )
+        sessions.sort(
+            key=lambda session: (session.created_at, session.sequence_number),
+            reverse=True,
+        )
+        control = read_conversation_control(conversations_dir)
+        payload = {
+            "version": 1,
+            "active_session_id": control.get("active_session_id"),
+            "pinned_session_ids": sorted(pinned_session_ids),
+            "sessions": [_session_index_payload(session) for session in sessions],
+            "session_states": session_states,
+        }
         return self._state_store.normalize_runtime_states(payload)
 
     def write_index(self, conversations_dir: Path, payload: dict) -> None:
-        payload.pop("assistant_title", None)
-        write_meta(conversations_dir, "conversation_index", payload)
+        live_session_ids = {
+            str(item.get("session_id") or "")
+            for item in payload.get("sessions", [])
+            if isinstance(item, dict) and item.get("session_id")
+        }
+        active_session_id = _optional_str(payload.get("active_session_id"))
+        if active_session_id not in live_session_ids:
+            active_session_id = None
+        write_conversation_control(
+            conversations_dir,
+            {"active_session_id": active_session_id},
+        )
+
+        pinned = _index_pinned_session_ids(payload) & live_session_ids
+        raw_states = payload.get("session_states")
+        raw_states = raw_states if isinstance(raw_states, dict) else {}
+        for session_id in live_session_ids:
+            state_path = (
+                conversations_dir
+                / "sessions"
+                / session_id
+                / "state.json"
+            )
+            if state_path.is_file():
+                continue
+            runtime = raw_states.get(session_id)
+            write_session_state(
+                conversations_dir / "sessions" / session_id,
+                {
+                    "pinned": session_id in pinned,
+                    "runtime": runtime if isinstance(runtime, dict) else {},
+                },
+            )
 
     def index_with_session(
         self,
@@ -177,10 +230,57 @@ class ConversationSessionStore:
         return _session_from_payload(payload)
 
     def write_session(self, session_dir: Path, session: ProjectConversationSession) -> None:
-        write_session(
-            session_dir.parent.parent,
+        write_session_file(
+            session_dir,
             session.session_id,
             _session_to_payload(session),
+        )
+
+    def read_state(
+        self,
+        session_dir: Path,
+        session_id: str,
+    ) -> tuple[bool, ProjectConversationSessionState]:
+        payload = read_session_state(session_dir)
+        runtime = payload.get("runtime")
+        return (
+            payload.get("pinned") is True,
+            _session_state_from_payload(
+                session_id,
+                runtime if isinstance(runtime, dict) else {},
+            ),
+        )
+
+    def write_state(
+        self,
+        session_dir: Path,
+        *,
+        pinned: bool,
+        runtime: ProjectConversationSessionState,
+    ) -> None:
+        write_session_state(
+            session_dir,
+            {
+                "pinned": pinned,
+                "runtime": _session_state_to_payload(runtime),
+            },
+        )
+
+    def initialize_state(self, session_dir: Path, session_id: str) -> None:
+        self.write_state(
+            session_dir,
+            pinned=False,
+            runtime=_default_session_state(session_id),
+        )
+
+    def write_active_session(
+        self,
+        conversations_dir: Path,
+        session_id: str | None,
+    ) -> None:
+        write_conversation_control(
+            conversations_dir,
+            {"active_session_id": session_id},
         )
 
     def delete_session_dir(self, session_dir: Path, session_id: str) -> None:
@@ -195,7 +295,7 @@ class ConversationSessionStore:
 
 class ConversationMessageStore:
     def ensure_messages_file(self, session_dir: Path) -> None:
-        return None
+        replace_message_payloads(session_dir, [])
 
     def list_messages(self, session_dir: Path) -> tuple[ProjectConversationMessage, ...]:
         return tuple(

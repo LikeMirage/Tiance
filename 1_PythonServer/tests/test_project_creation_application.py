@@ -153,8 +153,9 @@ def test_project_creation_creates_initial_conversation_with_default_role(tmp_pat
     assert session.session_id in states
     workspace_readme = Path(project.root_path) / ".Tiance" / "README.md"
     assert workspace_readme.is_file()
-    assert "tiance.db" in workspace_readme.read_text(encoding="utf-8")
-    assert (Path(project.root_path) / ".Tiance" / "tiance.db").is_file()
+    assert "messages.jsonl" in workspace_readme.read_text(encoding="utf-8")
+    assert (Path(project.root_path) / ".Tiance" / "storage.json").is_file()
+    assert not (Path(project.root_path) / ".Tiance" / "tiance.db").exists()
 
 
 def test_project_creation_does_not_duplicate_initial_conversation(tmp_path):

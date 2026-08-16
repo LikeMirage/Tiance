@@ -8,14 +8,13 @@ from app.domain.project.conversation_branch_overview import (
 )
 from app.core.errors import ConflictError
 from app.repositories.project.conversation_repository import ProjectConversationRepository
-from app.repositories.project.conversation_database import (
+from app.repositories.project.conversation_records import (
     read_document,
     read_events,
-    read_meta,
     replace_events,
     write_document,
-    write_meta,
 )
+from app.repositories.project.conversation_file_io import write_json_object
 from app.services.project.conversation_memory_delivery_state import (
     GLOBAL_MEMORY_SCOPE,
     prepare_memory_delivery_state,
@@ -302,6 +301,49 @@ def test_nested_branch_names_and_message_variants_do_not_depend_on_titles(tmp_pa
     assert root_variants == [1, 2, 3, 4]
 
 
+def test_stale_branch_graph_cannot_revert_a_completed_pending_variant(tmp_path):
+    from app.repositories.project.conversation_branch_store import ConversationBranchStore
+
+    repository = _repository(tmp_path)
+    root = _create_session(repository)
+    root_user = _append(repository, root.session_id, "user", "root direction")
+    _append(repository, root.session_id, "assistant", "root answer")
+    branch = repository.fork_session(
+        PROJECT_ID,
+        root.session_id,
+        source_message_id=root_user.message_id,
+        draft="alternative",
+        references=[],
+    )
+
+    conversations_dir = tmp_path / ".Tiance" / "conversations"
+    branch_store = ConversationBranchStore()
+    stale_graph = branch_store.read_graph(conversations_dir)
+    stale_variant = next(
+        variant
+        for variant in branch_store.list_variants(stale_graph)
+        if variant.session_id == branch.session.session_id
+    )
+    assert stale_variant.message_id is None
+
+    completed_message = _append(
+        repository,
+        branch.session.session_id,
+        "user",
+        "alternative",
+    )
+    branch_store.write_graph(conversations_dir, stale_graph)
+
+    current_graph = branch_store.read_graph(conversations_dir)
+    current_variant = next(
+        variant
+        for variant in branch_store.list_variants(current_graph)
+        if variant.session_id == branch.session.session_id
+    )
+    assert current_variant.message_id == completed_message.message_id
+    assert current_variant.origin_message_id == completed_message.origin_message_id
+
+
 def test_ai_created_child_keeps_lineage_without_joining_parent_history_tree(tmp_path):
     repository = _repository(tmp_path)
     root = _create_session(repository, "主会话")
@@ -353,28 +395,24 @@ def test_old_branch_graph_version_is_rejected_without_compatibility_upgrade(tmp_
 
     repository = _repository(tmp_path)
     root = _create_session(repository, "旧版根会话")
-    conversations_dir = tmp_path / ".Tiance" / "conversations"
-    write_meta(
-        conversations_dir,
-        "branch_graph",
+    branch_path = (
+        tmp_path
+        / ".Tiance"
+        / "conversations"
+        / "sessions"
+        / root.session_id
+        / "branch.json"
+    )
+    write_json_object(
+        branch_path,
         {
-                "version": 1,
-                "nodes": [
-                    {
-                        "branch_id": "branch_legacy_root",
-                        "tree_id": "tree_legacy",
-                        "session_id": root.session_id,
-                        "parent_branch_id": None,
-                        "sibling_index": 0,
-                        "created_at": root.created_at,
-                        "deleted_at": None,
-                    }
-                ],
-                "variants": [],
+            "version": 0,
+            "node": None,
+            "variants": [],
         },
     )
 
-    with pytest.raises(ConflictError, match="格式无效"):
+    with pytest.raises(ConflictError, match="无效"):
         repository.create_session(
             PROJECT_ID,
             title="AI 子会话",
@@ -393,36 +431,24 @@ def test_old_relation_shape_is_rejected_without_compatibility_upgrade(tmp_path):
 
     from app.repositories.project.conversation_branch_store import ConversationBranchStore
 
-    write_meta(
-        tmp_path,
-        "branch_graph",
+    session_dir = tmp_path / "sessions" / "session_root"
+    session_dir.mkdir(parents=True)
+    write_json_object(
+        session_dir / "branch.json",
         {
-                "version": 2,
-                "nodes": [
-                    {
-                        "branch_id": "branch_root",
-                        "tree_id": "tree_root",
-                        "session_id": "session_root",
-                        "parent_branch_id": None,
-                        "created_by": "user",
-                        "history_mode": "empty",
-                        "source_message_id": None,
-                        "sibling_index": 0,
-                        "created_at": "2026-07-29T00:00:00+00:00",
-                    },
-                    {
-                        "branch_id": "branch_child",
-                        "tree_id": "tree_child",
-                        "session_id": "session_child",
-                        "parent_branch_id": "branch_root",
-                        "created_by": "ai",
-                        "history_mode": "empty",
-                        "source_message_id": None,
-                        "sibling_index": 1,
-                        "created_at": "2026-07-29T00:01:00+00:00",
-                    },
-                ],
-                "variants": [],
+            "version": 1,
+            "node": {
+                "branch_id": "branch_root",
+                "tree_id": "tree_root",
+                "session_id": "session_root",
+                "parent_branch_id": None,
+                "created_by": "user",
+                "history_mode": "empty",
+                "source_message_id": None,
+                "sibling_index": 0,
+                "created_at": "2026-07-29T00:00:00+00:00",
+            },
+            "variants": [],
         },
     )
 
@@ -752,11 +778,15 @@ def test_invalid_branch_graph_is_not_silently_overwritten(tmp_path):
     session = _create_session(repository)
     user = _append(repository, session.session_id, "user", "question")
     _append(repository, session.session_id, "assistant", "answer")
-    write_meta(
-        tmp_path / ".Tiance" / "conversations",
-        "branch_graph",
-        "broken",
+    branch_path = (
+        tmp_path
+        / ".Tiance"
+        / "conversations"
+        / "sessions"
+        / session.session_id
+        / "branch.json"
     )
+    branch_path.write_text('"broken"', encoding="utf-8")
 
     with pytest.raises(ConflictError, match="避免覆盖"):
         repository.fork_session(
@@ -767,10 +797,7 @@ def test_invalid_branch_graph_is_not_silently_overwritten(tmp_path):
             references=[],
         )
 
-    assert read_meta(
-        tmp_path / ".Tiance" / "conversations",
-        "branch_graph",
-    ) == "broken"
+    assert branch_path.read_text(encoding="utf-8") == '"broken"'
 
 
 def test_branch_overview_groups_standalone_sessions_and_deduplicates_shared_turns(tmp_path):

@@ -51,7 +51,7 @@ from app.repositories.project.project_repository import (
     ProjectRepository,
     get_project_repository,
 )
-from app.repositories.project.conversation_database import (
+from app.repositories.project.conversation_records import (
     delete_document,
     read_document,
     read_events,

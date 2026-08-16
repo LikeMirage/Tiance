@@ -9,7 +9,7 @@ from app.core.errors import BadRequestError, NotFoundError, register_exception_h
 from app.domain.project import Project
 from app.domain.project.project_conversation import ProjectConversationMessage
 from app.repositories.project import conversation_stores
-from app.repositories.project.conversation_database import write_session
+from app.repositories.project.conversation_records import write_session
 from app.repositories.project.conversation_repository import ProjectConversationRepository
 from app.repositories.project.conversation_stores import ConversationMessageStore
 from app.services.project.project_conversations import ProjectConversationService

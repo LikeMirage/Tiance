@@ -11,7 +11,7 @@ from app.core.atomic_replace import atomic_replace_path
 from app.core.errors import NotFoundError
 from app.domain.llm.chat import ChatMessageContentPartType
 from app.domain.project.project_conversation import ProjectConversationMessage
-from app.repositories.project.conversation_database import append_event, read_events
+from app.repositories.project.conversation_records import append_event, read_events
 from app.repositories.project.conversation_storage import conversation_write_lock
 from app.repositories.project.conversation_stores import (
     ConversationSessionStore,
@@ -69,11 +69,12 @@ class ConversationAttachmentRepository:
         created_at: str,
     ) -> ConversationAttachment:
         content_sha256 = sha256(content).hexdigest()
-        conversations_dir = self._session_store.conversations_dir(
+        session_dir = self._session_store.require_session_dir(
             project_id,
+            session_id,
             for_write=True,
         )
-        with conversation_write_lock(conversations_dir):
+        with conversation_write_lock(session_dir):
             session_dir = self._session_store.require_session_dir(
                 project_id,
                 session_id,

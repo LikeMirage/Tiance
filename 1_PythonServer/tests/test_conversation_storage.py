@@ -36,7 +36,7 @@ def test_conversation_write_lock_queues_local_writers_before_timeout(
 
     assert sorted(completed) == list(range(writer_count))
     assert max_active_writers == 1
-    assert not (tmp_path / ".write.lock").exists()
+    assert not conversation_storage._write_lock_path(tmp_path).exists()
 
 
 def test_conversation_write_lock_retries_windows_permission_race(
@@ -56,10 +56,10 @@ def test_conversation_write_lock_retries_windows_permission_race(
     monkeypatch.setattr(conversation_storage.os, "open", flaky_open)
 
     with conversation_storage.conversation_write_lock(tmp_path):
-        assert (tmp_path / ".write.lock").is_file()
+        assert conversation_storage._write_lock_path(tmp_path).is_file()
 
     assert attempts == 2
-    assert not (tmp_path / ".write.lock").exists()
+    assert not conversation_storage._write_lock_path(tmp_path).exists()
 
 
 def test_stale_lock_owned_by_live_process_is_not_removed(tmp_path, monkeypatch):

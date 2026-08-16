@@ -13,12 +13,16 @@ from app.domain.project import Project
 from app.domain.project.project_conversation import ProjectConversationNamingCallRecord
 from app.infra.projects.project_files import ProjectFileStorage
 from app.repositories.project.conversation_repository import ProjectConversationRepository
-from app.repositories.project.conversation_database import (
+from app.repositories.project.conversation_records import (
     list_message_payloads,
+    read_conversation_control,
     read_events,
-    read_meta,
+    read_session_state,
+    read_workspace_state,
     replace_message_payloads,
-    write_meta,
+    storage_marker,
+    write_conversation_control,
+    write_session_state,
 )
 from app.schemas.project.project_conversations import ProjectConversationSessionSettingsPatch
 from app.schemas.project.project_files import ProjectWorkspaceStatePatchRequest
@@ -188,7 +192,8 @@ def test_workspace_get_state_ignores_old_workspace_directory(tmp_path):
 
     assert state is None
     assert old_workspace.exists()
-    assert (tmp_path / ".Tiance" / "tiance.db").is_file()
+    assert storage_marker(tmp_path / ".Tiance")["version"] == 2
+    assert not (tmp_path / ".Tiance" / "tiance.db").exists()
 
 
 def test_workspace_save_state_writes_tiance_without_migrating_old_workspace(tmp_path):
@@ -207,10 +212,7 @@ def test_workspace_save_state_writes_tiance_without_migrating_old_workspace(tmp_
     assert saved["expanded_paths"] == ["src"]
     assert saved["active_dashboard"] is None
     assert old_workspace.exists()
-    assert read_meta(
-        tmp_path / ".Tiance" / "conversations",
-        "workspace_state",
-    ) == saved
+    assert read_workspace_state(tmp_path / ".Tiance") == saved
     assert not list((tmp_path / ".Tiance").glob(".*.tmp"))
 
 
@@ -356,7 +358,8 @@ def test_conversation_repository_empty_reads_do_not_create_default_session(tmp_p
     assert assistant_title == "AI 助手"
     assert active_session_id is None
     assert states == {}
-    assert (tmp_path / ".Tiance" / "tiance.db").is_file()
+    assert storage_marker(tmp_path / ".Tiance")["version"] == 2
+    assert not (tmp_path / ".Tiance" / "tiance.db").exists()
 
 
 def test_conversation_repository_get_state_does_not_write_index(tmp_path):
@@ -369,17 +372,24 @@ def test_conversation_repository_get_state_does_not_write_index(tmp_path):
         reasoning_mode=None,
     )
     conversations_dir = tmp_path / ".Tiance" / "conversations"
-    stale_index = read_meta(conversations_dir, "conversation_index")
-    stale_index["active_session_id"] = "missing-session"
-    stale_index["session_states"] = {
-        session.session_id: {
+    session_dir = conversations_dir / "sessions" / session.session_id
+    write_conversation_control(
+        conversations_dir,
+        {"active_session_id": "missing-session"},
+    )
+    write_session_state(
+        session_dir,
+        {
+            "pinned": False,
+            "runtime": {
             "runtime_status": "running",
             "draft": "keep",
             "updated_at": "2000-01-01T00:00:00+00:00",
-        }
-    }
-    write_meta(conversations_dir, "conversation_index", stale_index)
-    before = read_meta(conversations_dir, "conversation_index")
+            },
+        },
+    )
+    before_control = read_conversation_control(conversations_dir)
+    before_state = read_session_state(session_dir)
 
     _assistant_title, active_session_id, states = repository.get_state(PROJECT_ID)
 
@@ -387,7 +397,8 @@ def test_conversation_repository_get_state_does_not_write_index(tmp_path):
     assert states[session.session_id].runtime_status == "idle"
     assert states[session.session_id].draft == "keep"
     assert states[session.session_id].references == []
-    assert read_meta(conversations_dir, "conversation_index") == before
+    assert read_conversation_control(conversations_dir) == before_control
+    assert read_session_state(session_dir) == before_state
 
 
 def test_conversation_repository_persists_session_references(tmp_path):
@@ -415,11 +426,14 @@ def test_conversation_repository_persists_session_references(tmp_path):
     )
 
     assert states[session.session_id].references == references
-    saved_index = read_meta(
-        tmp_path / ".Tiance" / "conversations",
-        "conversation_index",
+    saved_state = read_session_state(
+        tmp_path
+        / ".Tiance"
+        / "conversations"
+        / "sessions"
+        / session.session_id
     )
-    assert saved_index["session_states"][session.session_id]["references"] == references
+    assert saved_state["runtime"]["references"] == references
 
 
 def test_conversation_repository_recreates_default_session_after_deleting_last(tmp_path):
@@ -440,10 +454,8 @@ def test_conversation_repository_recreates_default_session_after_deleting_last(t
     assert sessions[0].sequence_number == 1
     assert sessions[0].title == "新对话"
 
-    index = read_meta(tmp_path / ".Tiance" / "conversations", "conversation_index")
-    assert "assistant_title" not in index
-    assert index["active_session_id"] == sessions[0].session_id
-    assert [item["session_id"] for item in index["sessions"]] == [sessions[0].session_id]
+    control = read_conversation_control(tmp_path / ".Tiance" / "conversations")
+    assert control["active_session_id"] == sessions[0].session_id
 
 
 def test_conversation_repository_persists_pins_without_changing_updated_at(tmp_path):
@@ -475,8 +487,14 @@ def test_conversation_repository_persists_pins_without_changing_updated_at(tmp_p
         older_session.session_id,
         newer_session.session_id,
     ]
-    index = read_meta(tmp_path / ".Tiance" / "conversations", "conversation_index")
-    assert index["pinned_session_ids"] == [older_session.session_id]
+    pinned_state = read_session_state(
+        tmp_path
+        / ".Tiance"
+        / "conversations"
+        / "sessions"
+        / older_session.session_id
+    )
+    assert pinned_state["pinned"] is True
 
     unpinned_session = repository.set_session_pinned(
         PROJECT_ID,
@@ -516,8 +534,13 @@ def test_conversation_repository_removes_deleted_session_from_pins(tmp_path):
 
     repository.delete_session(PROJECT_ID, pinned_session.session_id)
 
-    index = read_meta(tmp_path / ".Tiance" / "conversations", "conversation_index")
-    assert index["pinned_session_ids"] == []
+    assert not (
+        tmp_path
+        / ".Tiance"
+        / "conversations"
+        / "sessions"
+        / pinned_session.session_id
+    ).exists()
     assert all(
         session.session_id != pinned_session.session_id
         for session in repository.list_sessions(PROJECT_ID)
@@ -543,13 +566,19 @@ def test_conversation_repository_can_create_without_changing_active_session(tmp_
         set_active=False,
     )
 
-    index = read_meta(tmp_path / ".Tiance" / "conversations", "conversation_index")
-    assert index["active_session_id"] == active_session.session_id
-    assert [item["session_id"] for item in index["sessions"]] == [
+    control = read_conversation_control(tmp_path / ".Tiance" / "conversations")
+    assert control["active_session_id"] == active_session.session_id
+    assert [item.session_id for item in repository.list_sessions(PROJECT_ID)] == [
         background_session.session_id,
         active_session.session_id,
     ]
-    assert background_session.session_id in index["session_states"]
+    assert read_session_state(
+        tmp_path
+        / ".Tiance"
+        / "conversations"
+        / "sessions"
+        / background_session.session_id
+    )["runtime"]["runtime_status"] == "idle"
 
 
 def test_conversation_session_uses_current_tool_call_default(tmp_path):
