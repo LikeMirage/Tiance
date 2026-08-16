@@ -97,3 +97,15 @@ def test_file_workspace_storage_search_returns_all_matches(tmp_path):
     tree = storage.list_tree_result(str(tmp_path), query="match")
 
     assert len(tree.items) == 350
+
+
+def test_file_workspace_storage_lists_file_mtime_for_external_change_detection(tmp_path):
+    storage = FileWorkspaceStorage()
+    target = tmp_path / "report.docx"
+    target.write_bytes(b"document")
+
+    [listed] = storage.list_tree(str(tmp_path))
+    searched = storage.list_tree_result(str(tmp_path), query="report").items[0]
+
+    assert isinstance(listed.mtime_ms, int)
+    assert searched.mtime_ms == listed.mtime_ms

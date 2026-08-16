@@ -21,7 +21,11 @@ from app.domain.project.conversation_branch_overview import (
     build_conversation_branch_group_detail,
     build_conversation_branch_groups,
 )
-from app.domain.llm.chat import ChatMessageContentPart, ChatToolCall
+from app.domain.llm.chat import (
+    ChatMessageContentPart,
+    ChatProtocolContinuation,
+    ChatToolCall,
+)
 from app.repositories.project.conversation_repository import (
     ProjectConversationRepository,
     get_project_conversation_repository,
@@ -342,6 +346,7 @@ class ProjectConversationService:
         name: str | None = None,
         tool_call_id: str | None = None,
         tool_calls: tuple[ChatToolCall, ...] = (),
+        protocol_continuation: ChatProtocolContinuation | None = None,
         content_parts: tuple[ChatMessageContentPart, ...] = (),
         references: list[dict] | None = None,
         status: str = "done",
@@ -362,6 +367,7 @@ class ProjectConversationService:
             name=name,
             tool_call_id=tool_call_id,
             tool_calls=tool_calls,
+            protocol_continuation=protocol_continuation,
             content_parts=content_parts,
             references=references,
             status=status,

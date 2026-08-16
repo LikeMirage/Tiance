@@ -29,6 +29,31 @@
   min-height: 0;
 }
 
+.markdown-preview__stream-pending-math {
+  box-sizing: border-box;
+  width: 100%;
+  height: 42px;
+  margin: 0.45em 0;
+  padding: 4px 8px 2px;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--editor-background);
+  color: var(--color-text-muted);
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 0.82em;
+  line-height: 22px;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+  white-space: nowrap;
+}
+
+.markdown-preview__stream-pending-math > span {
+  border-bottom: 0;
+}
+
 .markdown-preview__large-note {
   position: sticky;
   top: 0;
@@ -77,6 +102,38 @@
   display: inline-block;
   max-width: none;
   text-align: initial;
+}
+
+.markdown-preview .katex-display:has(.tag) > .katex {
+  box-sizing: border-box;
+  min-width: max-content;
+  padding-inline: 4.5em;
+}
+
+.markdown-preview .katex-error,
+.markdown-preview__math-error {
+  border-bottom: 1px dotted var(--color-danger);
+  color: var(--color-danger);
+  cursor: help;
+}
+
+.markdown-preview .katex-error::after {
+  margin-left: 0.25em;
+  color: var(--color-danger);
+  content: "⚠";
+  font-size: 0.78em;
+  vertical-align: super;
+}
+
+.markdown-preview--neutral-math-errors .katex-error,
+.markdown-preview--neutral-math-errors .markdown-preview__math-error {
+  border-bottom: 0;
+  color: inherit !important;
+  cursor: text;
+}
+
+.markdown-preview--neutral-math-errors .katex-error::after {
+  content: none;
 }
 
 .markdown-preview__latex-code-preview {
@@ -376,9 +433,13 @@
 }
 
 .markdown-preview__table-wrap {
+  box-sizing: border-box;
+  width: 100%;
   max-width: 100%;
   margin: 0.5em 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
 }
 
 .markdown-preview table {
@@ -386,6 +447,7 @@
   width: max-content;
   min-width: 100%;
   margin: 0;
+  table-layout: auto;
 }
 
 .markdown-preview th, .markdown-preview td {
@@ -401,14 +463,15 @@
 }
 
 .markdown-preview__table-cell-math {
-  display: inline-block;
-  max-width: 100%;
-  overflow-x: auto;
+  display: inline-flex;
+  width: max-content;
+  max-width: none;
+  white-space: nowrap;
   vertical-align: middle;
 }
 
 .markdown-preview__table-cell-math--display {
-  display: block;
+  display: flex;
   margin: 0.25em 0;
   padding: 0.1em 0;
   text-align: center;

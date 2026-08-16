@@ -10,7 +10,7 @@ import pytest
 from watchfiles import Change
 
 from app.infra.projects.windows_directory_watcher import WindowsDirectoryChangeReader
-from app.infra.projects.windows_directory_watch_process import _offer_event
+from app.infra.projects.windows_directory_watch_process import _external_change_paths, _offer_event
 
 
 def test_windows_directory_change_reader_parses_multiple_records(tmp_path):
@@ -57,6 +57,16 @@ def test_windows_watch_process_queue_degrades_to_one_overflow_event():
 
     assert event_queue.qsize() == 1
     assert event_queue.get_nowait() == ("overflow", ())
+
+
+def test_windows_watch_process_filters_internal_changes_before_queueing(tmp_path):
+    root = tmp_path / "project"
+    changes = {
+        (Change.modified, str(root / ".Tiance" / "tiance.db-wal")),
+        (Change.modified, str(root / "report.docx")),
+    }
+
+    assert set(_external_change_paths(root, changes)) == {str(root / "report.docx")}
 
 
 def _record(action: int, name: str) -> bytes:

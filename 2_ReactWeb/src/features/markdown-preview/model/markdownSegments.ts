@@ -1,3 +1,10 @@
+import {
+  findMarkdownMathRanges,
+  findPendingMarkdownMathRange,
+  isOffsetInsideMathRange,
+  type MarkdownMathRange,
+} from "./markdownMathScanner";
+
 export type MarkdownSegment = {
   content: string;
   id: string;
@@ -8,6 +15,11 @@ export type MarkdownSegment = {
 export type StreamingMarkdownSegments = {
   chunks: MarkdownSegment[];
   tail: string;
+};
+
+export type StreamingMarkdownTailParts = {
+  pendingDisplayMathBody: string | null;
+  richContent: string;
 };
 
 export const MAX_PROGRESSIVE_MARKDOWN_CHUNK_CHARS = 6_000;
@@ -49,6 +61,57 @@ export function buildStreamingMarkdownSegments(
     ),
     tail: content.slice(stableLength),
   };
+}
+
+/**
+ * Keeps an unfinished standalone display formula out of the rich Markdown
+ * parser. The source remains untouched in the conversation; only the growing
+ * tail receives a single-line pending presentation until its closer arrives.
+ */
+export function splitStreamingMarkdownTail(
+  content: string,
+): StreamingMarkdownTailParts {
+  const pendingRange = findPendingMarkdownMathRange(content);
+  if (!pendingRange) {
+    return { pendingDisplayMathBody: null, richContent: content };
+  }
+
+  if (
+    !pendingRange.displayMode
+    || !startsAtStandaloneLinePosition(content, pendingRange.start)
+  ) {
+    return {
+      pendingDisplayMathBody: null,
+      richContent: escapePendingMathOpener(content, pendingRange),
+    };
+  }
+
+  return {
+    pendingDisplayMathBody: content.slice(
+      pendingRange.bodyStart,
+      pendingRange.bodyEnd,
+    ),
+    richContent: content.slice(0, pendingRange.start),
+  };
+}
+
+function escapePendingMathOpener(content: string, range: MarkdownMathRange) {
+  const opener = content.slice(range.start, range.bodyStart);
+  const escapedOpener = opener === "$$"
+    ? "\\$\\$"
+    : opener === "$"
+      ? "\\$"
+      : opener === "\\("
+        ? "\\\\("
+        : opener === "\\["
+          ? "\\\\["
+          : opener;
+  return content.slice(0, range.start) + escapedOpener + content.slice(range.bodyStart);
+}
+
+function startsAtStandaloneLinePosition(content: string, start: number) {
+  const lineStart = content.lastIndexOf("\n", start - 1) + 1;
+  return content.slice(lineStart, start).trim() === "";
 }
 
 function buildMarkdownSegments(
@@ -178,6 +241,7 @@ function hasUnescapedPipe(line: string) {
 
 function findStableMarkdownBoundaries(content: string) {
   const boundaries: number[] = [];
+  const mathRanges = findMarkdownMathRanges(content);
   let inFence = false;
   let fenceMarker = "";
   const linePattern = /.*(?:\r?\n|$)/g;
@@ -202,7 +266,11 @@ function findStableMarkdownBoundaries(content: string) {
       }
     }
 
-    if (!inFence && lineText.trim() === "") {
+    if (
+      !inFence
+      && lineText.trim() === ""
+      && !isOffsetInsideMathRange(lineEnd, mathRanges)
+    ) {
       boundaries.push(lineEnd);
     }
   }

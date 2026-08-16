@@ -8,6 +8,7 @@ from app.domain.llm.chat import (
     ChatCompletionResult,
     ChatMessage,
     ChatMessageRole,
+    ChatProtocolContinuation,
     ChatStreamEvent,
     ChatStreamEventKind,
     ChatToolCall,
@@ -39,6 +40,9 @@ from app.services.llm.token_estimation_settings import (
     TokenEstimationSettingsService,
     get_token_estimation_settings_service,
 )
+from app.domain.llm.provider_catalog import ProviderCatalogEntry
+from app.infra.llm.provider_profiles import resolve_provider_profile
+from app.services.llm.chat.request_validation import validate_chat_request_capabilities
 
 
 logger = logging.getLogger(__name__)
@@ -73,6 +77,8 @@ class ChatCompletionService:
             raise NotFoundError(f"Provider config '{request.provider_id}' was not found.")
         if not provider_config.enabled:
             raise BadRequestError(f"Provider config '{request.provider_id}' is disabled.")
+
+        self._validate_request(provider_template, request)
 
         runtime_credentials = self._runtime_resolver.resolve_runtime_credentials(
             provider_template,
@@ -119,6 +125,8 @@ class ChatCompletionService:
         if not provider_config.enabled:
             raise BadRequestError(f"Provider config '{request.provider_id}' is disabled.")
 
+        self._validate_request(provider_template, request)
+
         runtime_credentials = self._runtime_resolver.resolve_runtime_credentials(
             provider_template, provider_config,
         )
@@ -131,7 +139,7 @@ class ChatCompletionService:
         content_parts: list[str] = []
         thinking_parts: list[str] = []
         tool_calls: list[ChatToolCall] = []
-        provider_output_items: list[dict] = []
+        protocol_continuation: ChatProtocolContinuation | None = None
         failed = False
         async for event in self._remote_client.stream(
             provider_template=provider_template,
@@ -152,10 +160,10 @@ class ChatCompletionService:
             elif event.kind == ChatStreamEventKind.TOOL_CALL and event.tool_call is not None:
                 tool_calls.append(event.tool_call)
             elif (
-                event.kind == ChatStreamEventKind.PROVIDER_OUTPUT_ITEM
-                and event.provider_output_item is not None
+                event.kind == ChatStreamEventKind.PROTOCOL_CONTINUATION
+                and event.protocol_continuation is not None
             ):
-                provider_output_items.append(event.provider_output_item)
+                protocol_continuation = event.protocol_continuation
             elif event.kind == ChatStreamEventKind.ERROR:
                 failed = True
                 if provider_usage is not None:
@@ -179,7 +187,7 @@ class ChatCompletionService:
                     content="".join(content_parts),
                     thinking_content="".join(thinking_parts),
                     tool_calls=tuple(tool_calls),
-                    provider_output_items=tuple(provider_output_items),
+                    protocol_continuation=protocol_continuation,
                 ),
                 settings=self._estimation_settings_for(provider_usage),
             )
@@ -212,6 +220,17 @@ class ChatCompletionService:
             )
         except Exception:
             logger.exception("Failed to record usage for a completed model request.")
+
+    @staticmethod
+    def _validate_request(
+        provider_template: ProviderCatalogEntry,
+        request: ChatCompletionRequest,
+    ) -> None:
+        profile = resolve_provider_profile(provider_template, request.model_id)
+        validate_chat_request_capabilities(
+            request,
+            profile.resolve_capabilities(provider_template, request.model_id),
+        )
 
     def _estimation_settings_for(
         self,

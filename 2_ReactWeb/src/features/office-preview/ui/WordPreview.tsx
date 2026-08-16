@@ -18,6 +18,7 @@ export function WordPreview({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onMissingRef = useRef(onMissing);
+  const renderedAssetIdentityRef = useRef<string | null>(null);
   const [state, setState] = useState<LoadState>(() => (src ? "loading" : "idle"));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const isLoadingVisible = useMinimumLoading(state === "loading", officePreviewMinimumLoadingMs);
@@ -33,6 +34,9 @@ export function WordPreview({
   useEffect(() => {
     const container = containerRef.current;
     if (!src || !container) {
+      container?.replaceChildren();
+      if (container) delete container.dataset.documentFingerprint;
+      renderedAssetIdentityRef.current = null;
       setState("idle");
       setErrorMessage(null);
       return undefined;
@@ -40,11 +44,18 @@ export function WordPreview({
 
     let isCancelled = false;
     const controller = new AbortController();
+    const assetIdentity = resolveAssetIdentity(src);
 
     const load = async () => {
-      setState("loading");
+      const hasRenderedDocument = container.childElementCount > 0
+        && renderedAssetIdentityRef.current === assetIdentity;
+      if (!hasRenderedDocument) {
+        container.replaceChildren();
+        delete container.dataset.documentFingerprint;
+        renderedAssetIdentityRef.current = null;
+      }
+      if (!hasRenderedDocument) setState("loading");
       setErrorMessage(null);
-      container.replaceChildren();
 
       try {
         const response = await fetch(src, { signal: controller.signal });
@@ -59,9 +70,15 @@ export function WordPreview({
         if (isCancelled) return;
         const fingerprint = await sha256Fingerprint(arrayBuffer);
         if (isCancelled) return;
+        if (container.dataset.documentFingerprint === fingerprint) {
+          renderedAssetIdentityRef.current = assetIdentity;
+          setState("ready");
+          return;
+        }
         const { renderAsync } = await import("docx-preview");
         if (isCancelled) return;
-        await renderAsync(arrayBuffer, container, undefined, {
+        const stagingContainer = document.createElement("div");
+        await renderAsync(arrayBuffer, stagingContainer, undefined, {
           breakPages: true,
           className: "office-docx",
           ignoreFonts: false,
@@ -76,7 +93,9 @@ export function WordPreview({
           useBase64URL: true,
         });
         if (isCancelled) return;
+        container.replaceChildren(...stagingContainer.childNodes);
         container.dataset.documentFingerprint = fingerprint;
+        renderedAssetIdentityRef.current = assetIdentity;
         setState("ready");
       } catch (err) {
         if (isCancelled || controller.signal.aborted) return;
@@ -90,7 +109,6 @@ export function WordPreview({
     return () => {
       isCancelled = true;
       controller.abort();
-      container.replaceChildren();
     };
   }, [src]);
 
@@ -123,4 +141,14 @@ async function sha256Fingerprint(value: ArrayBuffer) {
   const digest = await crypto.subtle.digest("SHA-256", value);
   const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
   return `sha256:${hex}`;
+}
+
+function resolveAssetIdentity(src: string) {
+  try {
+    const url = new URL(src, window.location.href);
+    url.searchParams.delete("v");
+    return url.toString();
+  } catch {
+    return src;
+  }
 }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -119,6 +120,87 @@ SYMBOL_FIX_RE = re.compile(
 LATEX_ENVIRONMENT_RE = re.compile(r"\\(begin|end)\{([A-Za-z*]+)\}")
 
 
+@dataclass(frozen=True, slots=True)
+class LatexPresentation:
+    body: str
+    labels: tuple[str, ...]
+    suppress_number: bool
+    tag: str | None
+
+
+def extract_latex_presentation(latex: str) -> tuple[LatexPresentation | None, str]:
+    output: list[str] = []
+    labels: list[str] = []
+    tags: list[str] = []
+    suppress_number = False
+    depth = 0
+    cursor = 0
+
+    while cursor < len(latex):
+        char = latex[cursor]
+        if char == "{" and not is_escaped(latex, cursor):
+            depth += 1
+            output.append(char)
+            cursor += 1
+            continue
+        if char == "}" and not is_escaped(latex, cursor):
+            depth = max(0, depth - 1)
+            output.append(char)
+            cursor += 1
+            continue
+        if char != "\\" or is_escaped(latex, cursor):
+            output.append(char)
+            cursor += 1
+            continue
+
+        command_end = cursor + 1
+        while command_end < len(latex) and latex[command_end].isalpha():
+            command_end += 1
+        command = latex[cursor + 1 : command_end]
+        if command == "displaystyle":
+            cursor = command_end
+            continue
+        if depth != 0 or command not in {"tag", "label", "nonumber"}:
+            output.append(latex[cursor:command_end])
+            cursor = command_end
+            continue
+        if command == "nonumber":
+            suppress_number = True
+            cursor = command_end
+            continue
+
+        argument_start = command_end
+        while argument_start < len(latex) and latex[argument_start].isspace():
+            argument_start += 1
+        argument = _read_braced_argument(latex, argument_start)
+        if argument is None:
+            return None, f"\\{command} 缺少完整的花括号参数"
+        value, cursor = argument
+        value = value.strip()
+        if not value:
+            return None, f"\\{command} 的参数不能为空"
+        if command == "tag":
+            if re.search(r"[\\{}]", value):
+                return None, "\\tag 当前只支持纯文本编号，复杂编号不会按源码文字伪装成转换成功"
+            tags.append(value)
+        else:
+            labels.append(value)
+
+    if len(tags) > 1:
+        return None, "同一公式包含多个 \\tag，无法确定 Word 公式编号"
+    if suppress_number and tags:
+        return None, "同一公式同时包含 \\tag 和 \\nonumber，编号语义冲突"
+    body = "".join(output).strip()
+    if not body:
+        return None, "移除公式展示命令后没有可转换的公式主体"
+    return LatexPresentation(
+        body=body,
+        labels=tuple(dict.fromkeys(labels)),
+        suppress_number=suppress_number,
+        tag=tags[0] if tags else None,
+    ), ""
+
+
 def validate_latex(latex: str) -> str:
     if not _has_balanced_unescaped_braces(latex):
         return "花括号未配对"
@@ -141,6 +223,22 @@ def validate_latex(latex: str) -> str:
     if re.search(r"\\nonumber(?![A-Za-z])", latex):
         return "暂不支持 \\nonumber，为避免丢失内容已保留原公式"
     return ""
+
+
+def _read_braced_argument(text: str, start: int) -> tuple[str, int] | None:
+    if start >= len(text) or text[start] != "{":
+        return None
+    depth = 0
+    cursor = start
+    while cursor < len(text):
+        if text[cursor] == "{" and not is_escaped(text, cursor):
+            depth += 1
+        elif text[cursor] == "}" and not is_escaped(text, cursor):
+            depth -= 1
+            if depth == 0:
+                return text[start + 1 : cursor], cursor + 1
+        cursor += 1
+    return None
 
 
 def preprocess_latex(latex: str) -> str:

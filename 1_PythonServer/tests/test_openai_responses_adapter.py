@@ -9,6 +9,8 @@ from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatMessage,
     ChatMessageRole,
+    ChatProtocolContinuation,
+    ChatProtocolContinuationKind,
     ChatStreamEventKind,
     ChatToolCall,
     ChatToolDefinition,
@@ -225,6 +227,7 @@ def test_responses_replays_reasoning_item_before_assistant_tool_call():
         "summary": [],
         "encrypted_content": "encrypted",
     }
+    request = _request_with_tool()
     payload = _message_to_responses_payload(
         ChatMessage(
             role=ChatMessageRole.ASSISTANT,
@@ -236,8 +239,16 @@ def test_responses_replays_reasoning_item_before_assistant_tool_call():
                     arguments='{"path":"test.md"}',
                 ),
             ),
-            provider_output_items=(reasoning_item,),
+            protocol_continuation=ChatProtocolContinuation(
+                schema_version=1,
+                protocol_family=ProviderProtocolFamily.OPENAI_RESPONSES.value,
+                provider_id=request.provider_id,
+                model_id=request.model_id,
+                kind=ChatProtocolContinuationKind.OPENAI_RESPONSES_OUTPUT,
+                items=(reasoning_item,),
+            ),
         ),
+        request,
         include_message_phase=True,
     )
 
@@ -252,9 +263,11 @@ def test_responses_message_phase_is_only_added_when_profile_enables_it():
         content="Final answer.",
     )
 
-    generic_payload = _message_to_responses_payload(message)
+    request = _request()
+    generic_payload = _message_to_responses_payload(message, request)
     openai_payload = _message_to_responses_payload(
         message,
+        request,
         include_message_phase=True,
     )
 
@@ -374,11 +387,11 @@ def test_responses_stream_emits_reasoning_summary_and_internal_reasoning_item():
 
     assert [event.kind for event in events] == [
         ChatStreamEventKind.THINKING_DELTA,
-        ChatStreamEventKind.PROVIDER_OUTPUT_ITEM,
+        ChatStreamEventKind.PROTOCOL_CONTINUATION,
         ChatStreamEventKind.DONE,
     ]
     assert events[0].content == "Inspecting"
-    assert events[1].provider_output_item == reasoning_item
+    assert events[1].protocol_continuation.items == (reasoning_item,)
 
 
 def test_responses_stream_emits_reasoning_text_without_provider_special_case():
@@ -561,12 +574,12 @@ def test_responses_completed_backfills_items_when_proxy_omits_item_done_events()
     events = asyncio.run(_collect_events(payloads, request=_request_with_tool()))
 
     assert [event.kind for event in events] == [
-        ChatStreamEventKind.PROVIDER_OUTPUT_ITEM,
         ChatStreamEventKind.TOOL_CALL,
+        ChatStreamEventKind.PROTOCOL_CONTINUATION,
         ChatStreamEventKind.DONE,
     ]
-    assert events[0].provider_output_item == reasoning_item
-    assert events[1].tool_call.name == "read_file"
+    assert events[0].tool_call.name == "read_file"
+    assert events[1].protocol_continuation.items == (reasoning_item,)
 
 
 def test_responses_completed_backfills_text_and_reasoning_when_proxy_omits_deltas():

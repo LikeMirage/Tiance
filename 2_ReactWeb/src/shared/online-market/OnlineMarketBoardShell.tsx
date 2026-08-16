@@ -14,6 +14,7 @@ import {
   type OnlineMarketSourceFormProps,
   type OnlineMarketToolbarProps,
 } from "./OnlineMarketBoardControls";
+import "./online-market-board-shell.css";
 
 type OnlineMarketBoardShellProps = {
   auxiliaryClassName: string;
@@ -39,20 +40,25 @@ export function OnlineMarketBoardShell({
   toolbar,
 }: OnlineMarketBoardShellProps) {
   return (
-    <>
+    <div className="online-market-board-shell">
       <OnlineMarketSourceForm
         actions={<GithubSyncControl collection={syncCollection} disabled={source.isLoading} />}
         classes={classes}
         {...source}
       />
-      <OnlineMarketToolbar classes={classes} {...toolbar} />
-      <div className={auxiliaryClassName}>
-        {auxiliary}
+      <OnlineMarketToolbar
+        classes={classes}
+        {...toolbar}
+        filterPanel={auxiliary ? (
+          <div className={auxiliaryClassName}>{auxiliary}</div>
+        ) : undefined}
+      />
+      <div className="online-market-board-shell__error-slot">
         <OnlineMarketError classes={classes} {...error} />
       </div>
       <OnlineMarketContent classes={classes} {...content}>
         {children}
       </OnlineMarketContent>
-    </>
+    </div>
   );
 }

@@ -2,493 +2,178 @@ import type { Pluggable } from "unified";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 
-const DISPLAY_MATH_DELIMITER = "$$";
-const BRACKET_OPEN_DELIMITER = "\\[";
-const BRACKET_CLOSE_DELIMITER = "\\]";
+import {
+  escapeAmbiguousMarkdownDollars,
+  findMarkdownMathRanges,
+  type MarkdownMathRange,
+} from "./markdownMathScanner";
 
-const DISPLAY_ENVIRONMENTS = [
-  "align",
-  "align\\*",
-  "aligned",
-  "alignedat",
-  "alignat",
-  "array",
-  "bmatrix",
-  "cases",
-  "eqnarray",
-  "eqnarray\\*",
-  "gathered",
-  "matrix",
-  "pmatrix",
-  "smallmatrix",
-  "split",
-  "vmatrix",
-  "Vmatrix",
-] as const;
+export {
+  escapeAmbiguousMarkdownDollars,
+  findMarkdownMathRanges,
+  isOffsetInsideMathRange,
+} from "./markdownMathScanner";
+export type { MarkdownMathRange } from "./markdownMathScanner";
 
-const DISPLAY_ENVIRONMENT_PATTERN = new RegExp(
-  `\\\\begin\\{(${DISPLAY_ENVIRONMENTS.join("|")})\\}`,
-);
+export const markdownKatexOptions = {
+  errorColor: "#d88f86",
+  maxExpand: 1_000,
+  maxSize: 20,
+  output: "htmlAndMathml" as const,
+  strict: "warn" as const,
+  trust: false,
+};
 
-export const markdownMathRemarkPlugins: Pluggable[] = [remarkMath];
+export const markdownMathRemarkPlugins: Pluggable[] = [
+  [remarkMath, { singleDollarTextMath: true }],
+];
 export const markdownMathRehypePlugins: Pluggable[] = [
-  [rehypeKatex, { errorColor: "#d88f86" }],
+  [rehypeKatex, markdownKatexOptions],
 ];
 
+/**
+ * Builds a render-only Markdown copy. It never removes LaTeX commands and must
+ * never be persisted as the user's source without the visual-editor restore step.
+ */
 export function normalizeMarkdownMath(content: string) {
-  return protectTableMathPipes(
-    normalizeLatexMathSyntax(
-      wrapStandaloneMathEnvironments(
-        normalizeInlineMathDelimiters(
-          normalizeEscapedTableMathDelimiters(
-            normalizeDisplayMathDelimiters(content),
-          ),
-        ),
-      ),
-    ),
-  );
+  const guardedContent = escapeAmbiguousMarkdownDollars(content);
+  const ranges = findMarkdownMathRanges(guardedContent);
+  const normalizedDelimiters = replaceMathRanges(guardedContent, ranges);
+  return protectGfmTableMathPipes(normalizedDelimiters);
 }
 
 export function normalizeLatexForKatex(latex: string) {
   return latex
-    .split("\n")
-    .map(normalizeLatexLine)
-    .join("\n")
-    .trim();
-}
-
-function normalizeDisplayMathDelimiters(content: string) {
-  const lines = content.split("\n");
-  const output: string[] = [];
-  let isInFence = false;
-  let isInDisplayMath = false;
-
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
-    const line = lines[lineIndex];
-    const trimmed = line.trim();
-    if (isFenceLine(trimmed)) {
-      isInFence = !isInFence;
-      output.push(line);
-      continue;
-    }
-
-    if (isInFence) {
-      output.push(line);
-      continue;
-    }
-
-    const indent = line.match(/^\s*/)?.[0] ?? "";
-    const contentPart = line.slice(indent.length);
-    const contentTrimmed = contentPart.trim();
-
-    if (contentTrimmed === DISPLAY_MATH_DELIMITER) {
-      output.push(`${indent}${DISPLAY_MATH_DELIMITER}`);
-      isInDisplayMath = true;
-      continue;
-    }
-
-    if (contentTrimmed === BRACKET_OPEN_DELIMITER) {
-      if (!hasFutureBracketMathClose(lines, lineIndex + 1)) {
-        output.push(line);
-        continue;
-      }
-      output.push(`${indent}${DISPLAY_MATH_DELIMITER}`);
-      isInDisplayMath = true;
-      continue;
-    }
-
-    if (contentTrimmed === BRACKET_CLOSE_DELIMITER) {
-      output.push(isInDisplayMath ? `${indent}${DISPLAY_MATH_DELIMITER}` : line);
-      if (isInDisplayMath) isInDisplayMath = false;
-      continue;
-    }
-
-    if (!isInDisplayMath && contentTrimmed.startsWith(DISPLAY_MATH_DELIMITER)) {
-      pushOpeningDisplayMathLine(output, indent, contentTrimmed.slice(DISPLAY_MATH_DELIMITER.length));
-      isInDisplayMath = !contentTrimmed.endsWith(DISPLAY_MATH_DELIMITER) || contentTrimmed === DISPLAY_MATH_DELIMITER;
-      if (contentTrimmed.endsWith(DISPLAY_MATH_DELIMITER) && contentTrimmed.length > DISPLAY_MATH_DELIMITER.length * 2) {
-        isInDisplayMath = false;
-      }
-      continue;
-    }
-
-    if (!isInDisplayMath && contentTrimmed.startsWith(BRACKET_OPEN_DELIMITER)) {
-      const closesOnCurrentLine = contentTrimmed.endsWith(BRACKET_CLOSE_DELIMITER);
-      if (!closesOnCurrentLine && !hasFutureBracketMathClose(lines, lineIndex + 1)) {
-        output.push(line);
-        continue;
-      }
-      pushOpeningBracketMathLine(output, indent, contentTrimmed.slice(BRACKET_OPEN_DELIMITER.length));
-      isInDisplayMath = !closesOnCurrentLine;
-      continue;
-    }
-
-    if (isInDisplayMath && contentTrimmed.endsWith(DISPLAY_MATH_DELIMITER)) {
-      pushClosingDisplayMathLine(output, indent, line, DISPLAY_MATH_DELIMITER);
-      isInDisplayMath = false;
-      continue;
-    }
-
-    if (isInDisplayMath && contentTrimmed.endsWith(BRACKET_CLOSE_DELIMITER)) {
-      pushClosingDisplayMathLine(output, indent, line, BRACKET_CLOSE_DELIMITER);
-      isInDisplayMath = false;
-      continue;
-    }
-
-    output.push(line);
-  }
-
-  return output.join("\n");
-}
-
-function hasFutureBracketMathClose(lines: string[], startIndex: number) {
-  for (let lineIndex = startIndex; lineIndex < lines.length; lineIndex += 1) {
-    const trimmed = lines[lineIndex].trim();
-    if (isFenceLine(trimmed)) return false;
-    if (trimmed.endsWith(BRACKET_CLOSE_DELIMITER)) return true;
-  }
-  return false;
-}
-
-function normalizeInlineMathDelimiters(content: string) {
-  const lines = content.split("\n");
-  const output: string[] = [];
-  let isInFence = false;
-  let isInDisplayMath = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (isFenceLine(trimmed)) {
-      isInFence = !isInFence;
-      output.push(line);
-      continue;
-    }
-
-    if (!isInFence && trimmed === DISPLAY_MATH_DELIMITER) {
-      isInDisplayMath = !isInDisplayMath;
-      output.push(line);
-      continue;
-    }
-
-    if (isInFence || isInDisplayMath) {
-      output.push(line);
-      continue;
-    }
-
-    output.push(
-      normalizeInlineDoubleDollarMath(
-        line.replace(/\\\((.+?)\\\)/g, (_match, formula: string) => {
-          const trimmedFormula = formula.trim();
-          if (!trimmedFormula || trimmedFormula.includes("$")) {
-            return _match;
-          }
-          return `$${trimmedFormula}$`;
-        }),
-      ),
-    );
-  }
-
-  return output.join("\n");
-}
-
-function normalizeEscapedTableMathDelimiters(content: string) {
-  const lines = content.split("\n");
-  const output: string[] = [];
-  let isInFence = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (isFenceLine(trimmed)) {
-      isInFence = !isInFence;
-      output.push(line);
-      continue;
-    }
-
-    if (!isInFence && isLikelyTableLine(line) && line.includes("\\$")) {
-      output.push(
-        line
-          .replace(/\\\$\\\$/g, DISPLAY_MATH_DELIMITER)
-          .replace(/\\\$/g, "$"),
-      );
-      continue;
-    }
-
-    output.push(line);
-  }
-
-  return output.join("\n");
-}
-
-function normalizeInlineDoubleDollarMath(line: string) {
-  let output = "";
-  let cursor = 0;
-
-  while (cursor < line.length) {
-    const start = line.indexOf(DISPLAY_MATH_DELIMITER, cursor);
-    if (start < 0) {
-      output += line.slice(cursor);
-      break;
-    }
-    const end = line.indexOf(DISPLAY_MATH_DELIMITER, start + DISPLAY_MATH_DELIMITER.length);
-    if (end < 0) {
-      output += line.slice(cursor);
-      break;
-    }
-
-    const body = line.slice(start + DISPLAY_MATH_DELIMITER.length, end).trim();
-    output += line.slice(cursor, start);
-    output += body ? `$${body}$` : line.slice(start, end + DISPLAY_MATH_DELIMITER.length);
-    cursor = end + DISPLAY_MATH_DELIMITER.length;
-  }
-
-  return output;
-}
-
-function pushOpeningDisplayMathLine(output: string[], indent: string, rest: string) {
-  const body = rest.trim();
-  output.push(`${indent}${DISPLAY_MATH_DELIMITER}`);
-  if (!body) return;
-
-  if (body.endsWith(DISPLAY_MATH_DELIMITER)) {
-    const formula = body.slice(0, -DISPLAY_MATH_DELIMITER.length).trim();
-    if (formula) {
-      output.push(`${indent}${formula}`);
-    }
-    output.push(`${indent}${DISPLAY_MATH_DELIMITER}`);
-    return;
-  }
-
-  output.push(`${indent}${body}`);
-}
-
-function pushOpeningBracketMathLine(output: string[], indent: string, rest: string) {
-  const body = rest.trim();
-  output.push(`${indent}${DISPLAY_MATH_DELIMITER}`);
-  if (!body) return;
-
-  if (body.endsWith(BRACKET_CLOSE_DELIMITER)) {
-    const formula = body.slice(0, -BRACKET_CLOSE_DELIMITER.length).trim();
-    if (formula) {
-      output.push(`${indent}${formula}`);
-    }
-    output.push(`${indent}${DISPLAY_MATH_DELIMITER}`);
-    return;
-  }
-
-  output.push(`${indent}${body}`);
-}
-
-function pushClosingDisplayMathLine(
-  output: string[],
-  indent: string,
-  line: string,
-  delimiter: string,
-) {
-  const delimiterIndex = line.lastIndexOf(delimiter);
-  const formula = line.slice(0, delimiterIndex).trimEnd();
-  if (formula.trim()) {
-    output.push(formula);
-  }
-  output.push(`${indent}${DISPLAY_MATH_DELIMITER}`);
-}
-
-function wrapStandaloneMathEnvironments(content: string) {
-  const lines = content.split("\n");
-  const output: string[] = [];
-  let paragraph: string[] = [];
-  let isInFence = false;
-  let isInDisplayMath = false;
-
-  const flushParagraph = () => {
-    if (paragraph.length === 0) return;
-    if (shouldWrapMathEnvironment(paragraph)) {
-      output.push(DISPLAY_MATH_DELIMITER, ...paragraph, DISPLAY_MATH_DELIMITER);
-    } else {
-      output.push(...paragraph);
-    }
-    paragraph = [];
-  };
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (isFenceLine(trimmed)) {
-      flushParagraph();
-      isInFence = !isInFence;
-      output.push(line);
-      continue;
-    }
-
-    if (!isInFence && trimmed === DISPLAY_MATH_DELIMITER) {
-      flushParagraph();
-      isInDisplayMath = !isInDisplayMath;
-      output.push(line);
-      continue;
-    }
-
-    if (isInFence || isInDisplayMath) {
-      flushParagraph();
-      output.push(line);
-      continue;
-    }
-
-    if (!trimmed) {
-      flushParagraph();
-      output.push(line);
-      continue;
-    }
-
-    paragraph.push(line);
-  }
-
-  flushParagraph();
-  return output.join("\n");
-}
-
-function shouldWrapMathEnvironment(lines: string[]) {
-  const text = lines.join("\n").trim();
-  const match = DISPLAY_ENVIRONMENT_PATTERN.exec(text);
-  if (!match) return false;
-  if (!startsLikeMathExpression(text, match.index)) return false;
-  return text.includes(`\\end{${match[1]}}`);
-}
-
-function startsLikeMathExpression(text: string, environmentIndex: number) {
-  const prefix = text.slice(0, environmentIndex).trim();
-  if (!prefix) return true;
-  if (/[*#>`]/.test(prefix)) return false;
-  return /^[A-Za-z0-9_{}()[\]^+\-=\\.,\s]+$/.test(prefix);
-}
-
-function normalizeLatexMathSyntax(content: string) {
-  const lines = content.split("\n");
-  const output: string[] = [];
-  let isInFence = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (isFenceLine(trimmed)) {
-      isInFence = !isInFence;
-      output.push(line);
-      continue;
-    }
-    output.push(isInFence ? line : normalizeLatexLine(line));
-  }
-
-  return output.join("\n");
-}
-
-function normalizeLatexLine(line: string) {
-  return line
-    .replace(/\\tag\{[^}]*\}/g, "")
-    .replace(/\\label\{[^}]*\}/g, "")
-    .replace(/\\nonumber\b/g, "")
-    .replace(/\\displaystyle\b/g, "")
+    .replace(/\r\n?/g, "\n")
     .replace(/\\begin\{eqnarray\*?\}/g, "\\begin{aligned}")
     .replace(/\\end\{eqnarray\*?\}/g, "\\end{aligned}")
     .replace(/\\begin\{align\*?\}/g, "\\begin{aligned}")
     .replace(/\\end\{align\*?\}/g, "\\end{aligned}")
-    .replace(/\\begin\{alignat\}\{\d+\}/g, "\\begin{aligned}")
-    .replace(/\\end\{alignat\}/g, "\\end{aligned}")
+    .replace(/\\begin\{alignat\*?\}\{(\d+)\}/g, "\\begin{alignedat}{$1}")
+    .replace(/\\end\{alignat\*?\}/g, "\\end{alignedat}")
+    .replace(/\\begin\{gather\*?\}/g, "\\begin{gathered}")
+    .replace(/\\end\{gather\*?\}/g, "\\end{gathered}")
     .replace(/\\begin\{tabular\}/g, "\\begin{array}")
-    .replace(/\\end\{tabular\}/g, "\\end{array}");
+    .replace(/\\end\{tabular\}/g, "\\end{array}")
+    .trim();
 }
 
-function protectTableMathPipes(content: string) {
-  const lines = content.split("\n");
-  const output: string[] = [];
-  let isInFence = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (isFenceLine(trimmed)) {
-      isInFence = !isInFence;
-      output.push(line);
-      continue;
-    }
-    output.push(
-      !isInFence && isLikelyTableLine(line) ? escapePipesInsideMath(line) : line,
-    );
-  }
-
-  return output.join("\n");
-}
-
-function isLikelyTableLine(line: string) {
-  return line.includes("|");
-}
-
-function escapePipesInsideMath(line: string) {
+function replaceMathRanges(content: string, ranges: MarkdownMathRange[]) {
   let output = "";
   let cursor = 0;
-  let mathDelimiter = "";
-  let isInInlineCode = false;
-
-  while (cursor < line.length) {
-    const char = line[cursor];
-    const nextTwo = line.slice(cursor, cursor + 2);
-
-    if (!mathDelimiter && char === "`") {
-      isInInlineCode = !isInInlineCode;
-      output += char;
-      cursor += 1;
-      continue;
-    }
-
-    if (!isInInlineCode && !mathDelimiter && (nextTwo === "$$" || nextTwo === "\\[" || nextTwo === "\\(")) {
-      mathDelimiter = nextTwo;
-      output += nextTwo;
-      cursor += 2;
-      continue;
-    }
-
-    if (!isInInlineCode && !mathDelimiter && char === "$") {
-      mathDelimiter = "$";
-      output += char;
-      cursor += 1;
-      continue;
-    }
-
-    if (mathDelimiter && isMathDelimiterClose(line, cursor, mathDelimiter)) {
-      const closeDelimiter = mathCloseDelimiter(mathDelimiter);
-      mathDelimiter = "";
-      output += closeDelimiter;
-      cursor += closeDelimiter.length;
-      continue;
-    }
-
-    if (mathDelimiter && char === "\\" && shouldUnescapeInMath(line[cursor + 1])) {
-      output += line[cursor + 1];
-      cursor += 2;
-      continue;
-    }
-
-    if (mathDelimiter && char === "\\" && line[cursor + 1] === "|") {
-      output += "\\|";
-      cursor += 2;
-      continue;
-    }
-
-    output += mathDelimiter && char === "|" ? "\\vert " : char;
-    cursor += 1;
+  for (const range of ranges) {
+    if (range.start < cursor) continue;
+    output += content.slice(cursor, range.start);
+    output += normalizeMathRange(content, range);
+    cursor = range.end;
   }
-
+  output += content.slice(cursor);
   return output;
 }
 
-function shouldUnescapeInMath(char: string | undefined) {
-  return char === "_" || char === "[" || char === "]";
+function normalizeMathRange(content: string, range: MarkdownMathRange) {
+  const raw = content.slice(range.start, range.end);
+  if (!range.closed || range.delimiter === "$") return raw;
+  const body = content.slice(range.bodyStart, range.bodyEnd);
+  if (range.delimiter === "\\(") return `$${body}$`;
+
+  if (!isWholeLineRange(content, range)) {
+    return raw;
+  }
+
+  const indent = readLineIndent(content, range.start);
+  const bodyLines = body
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.trim() ? `${indent}${line.trimEnd()}` : "")
+    .join("\n")
+    .trim();
+  return bodyLines
+    ? `${indent}$$\n${bodyLines}\n${indent}$$`
+    : raw;
 }
 
-function isMathDelimiterClose(line: string, cursor: number, delimiter: string) {
-  return line.startsWith(mathCloseDelimiter(delimiter), cursor);
+function isWholeLineRange(content: string, range: MarkdownMathRange) {
+  const lineStart = content.lastIndexOf("\n", range.start - 1) + 1;
+  const nextLine = content.indexOf("\n", range.end);
+  const lineEnd = nextLine < 0 ? content.length : nextLine;
+  return content.slice(lineStart, lineEnd).trim() === content.slice(range.start, range.end).trim();
 }
 
-function mathCloseDelimiter(delimiter: string) {
-  if (delimiter === "\\[") return "\\]";
-  if (delimiter === "\\(") return "\\)";
-  return delimiter;
+function readLineIndent(content: string, index: number) {
+  const lineStart = content.lastIndexOf("\n", index - 1) + 1;
+  return /^\s*/.exec(content.slice(lineStart, index))?.[0] ?? "";
 }
 
-function isFenceLine(trimmedLine: string) {
-  return /^(```|~~~)/.test(trimmedLine);
+function protectGfmTableMathPipes(content: string) {
+  const lines = content.split("\n");
+  const tableLines = findGfmTableLineIndexes(lines);
+  return lines
+    .map((line, index) => tableLines.has(index) ? escapeMathPipesInTableLine(line) : line)
+    .join("\n");
+}
+
+function findGfmTableLineIndexes(lines: string[]) {
+  const indexes = new Set<number>();
+  for (let index = 0; index + 1 < lines.length; index += 1) {
+    if (!isGfmTableHeader(lines[index], lines[index + 1])) continue;
+    indexes.add(index);
+    indexes.add(index + 1);
+    let row = index + 2;
+    while (row < lines.length && lines[row].trim() && hasUnescapedPipe(lines[row])) {
+      indexes.add(row);
+      row += 1;
+    }
+    index = row - 1;
+  }
+  return indexes;
+}
+
+function isGfmTableHeader(header: string, delimiter: string) {
+  if (!hasUnescapedPipe(header)) return false;
+  const cells = delimiter.trim().replace(/^\||\|$/g, "").split("|");
+  return cells.length > 1 && cells.every((cell) => /^\s*:?-{3,}:?\s*$/.test(cell));
+}
+
+function hasUnescapedPipe(line: string) {
+  for (let index = 0; index < line.length; index += 1) {
+    if (line[index] === "|" && !isEscaped(line, index)) return true;
+  }
+  return false;
+}
+
+function escapeMathPipesInTableLine(line: string) {
+  const ranges = findMarkdownMathRanges(line).filter((range) => range.closed);
+  if (ranges.length === 0) return line;
+  let output = "";
+  let cursor = 0;
+  for (const range of ranges) {
+    output += line.slice(cursor, range.bodyStart);
+    output += escapeLatexPipes(line.slice(range.bodyStart, range.bodyEnd));
+    output += line.slice(range.bodyEnd, range.end);
+    cursor = range.end;
+  }
+  output += line.slice(cursor);
+  return output;
+}
+
+function escapeLatexPipes(latex: string) {
+  let output = "";
+  for (let index = 0; index < latex.length; index += 1) {
+    const char = latex[index];
+    if (char === "|" && !isEscaped(latex, index)) {
+      output += "\\vert ";
+    } else {
+      output += char;
+    }
+  }
+  return output;
+}
+
+function isEscaped(content: string, index: number) {
+  let slashCount = 0;
+  for (let cursor = index - 1; cursor >= 0 && content[cursor] === "\\"; cursor -= 1) {
+    slashCount += 1;
+  }
+  return slashCount % 2 === 1;
 }

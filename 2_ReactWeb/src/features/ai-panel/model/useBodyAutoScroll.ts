@@ -5,6 +5,10 @@ import {
   type ChatScrollPosition,
   type ChatScrollRestoreRequest,
 } from "./chatScrollPosition";
+import {
+  createChatBottomFollower,
+  type ChatBottomFollower,
+} from "./chatBottomFollower";
 import type { ChatMessage } from "./chatMessage";
 
 type UseBodyAutoScrollOptions = {
@@ -31,12 +35,12 @@ export function useBodyAutoScroll({
   const scrollPositionsRef = useRef(new Map<string, ChatScrollPosition>());
   const restoreRequestIdRef = useRef(0);
   const autoScrollEnabledRef = useRef(true);
+  const bottomFollowerRef = useRef<ChatBottomFollower | null>(null);
   const isSessionSettlingRef = useRef(false);
   const isNavigationGuardedRef = useRef(false);
   const navigationGuardTimerRef = useRef<number | null>(null);
   const settleTimerRef = useRef<number | null>(null);
   const maxSettleTimerRef = useRef<number | null>(null);
-  const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
   const [isSessionSettling, setIsSessionSettlingState] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [viewRestoreRequest, setViewRestoreRequest] =
@@ -44,7 +48,7 @@ export function useBodyAutoScroll({
 
   const setAutoScrollEnabled = useCallback((enabled: boolean) => {
     autoScrollEnabledRef.current = enabled;
-    setIsAutoScrollEnabled(enabled);
+    if (!enabled) bottomFollowerRef.current?.cancel();
   }, []);
 
   const setIsSessionSettling = useCallback((settling: boolean) => {
@@ -131,9 +135,14 @@ export function useBodyAutoScroll({
     const el = bodyRef.current;
     if (!el) return;
     clearNavigationGuard();
-    el.scrollTo({ top: el.scrollHeight, behavior });
     setAutoScrollEnabled(true);
     setShowScrollToBottom(false);
+    if (behavior === "smooth" && bottomFollowerRef.current) {
+      bottomFollowerRef.current.request();
+    } else {
+      bottomFollowerRef.current?.cancel();
+      scrollElementToBottom(el);
+    }
     if (activeSessionKey) {
       scrollPositionsRef.current.set(activeSessionKey, {
         anchorMessageId: null,
@@ -152,10 +161,11 @@ export function useBodyAutoScroll({
       setShowScrollToBottom(false);
       return;
     }
+    if (bottomFollowerRef.current?.isActive()) return;
     const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     const isNearBottom = distanceToBottom < NEAR_BOTTOM_PX;
-    cacheCurrentView();
     if (isNavigationGuardedRef.current) {
+      cacheCurrentView();
       setAutoScrollEnabled(false);
       setShowScrollToBottom(true);
       if (!isNearBottom) {
@@ -163,6 +173,20 @@ export function useBodyAutoScroll({
       }
       return;
     }
+
+    // A late formula, table, image or font layout can move the scroll position
+    // before ResizeObserver asks the follower to catch up. Only explicit user
+    // intent handlers may cancel an active bottom-follow session; a layout-
+    // generated scroll event must not turn following off by itself.
+    if (autoScrollEnabledRef.current) {
+      if (isNearBottom) cacheCurrentView();
+      setShowScrollToBottom(false);
+      if (!isNearBottom) {
+        bottomFollowerRef.current?.request();
+      }
+      return;
+    }
+    cacheCurrentView();
     setAutoScrollEnabled(isNearBottom);
     setShowScrollToBottom(!isNearBottom);
   }, [
@@ -277,25 +301,59 @@ export function useBodyAutoScroll({
     const scrollEl = bodyRef.current;
     if (!scrollEl) return undefined;
 
-    let frameId: number | null = null;
     const scheduleStickToBottom = () => {
       if (!autoScrollEnabledRef.current && !isSessionSettlingRef.current) return;
       if (isSessionSettlingRef.current) {
+        bottomFollowerRef.current?.cancel();
         scrollElementToBottom(scrollEl);
         scheduleSessionSettleFinish();
         return;
       }
-      if (frameId !== null) return;
-      frameId = window.requestAnimationFrame(() => {
-        frameId = null;
-        if (autoScrollEnabledRef.current || isSessionSettlingRef.current) {
-          scrollToBottom("auto");
-          scheduleSessionSettleFinish();
-        }
-      });
+      bottomFollowerRef.current?.request();
+    };
+
+    const bottomFollower = createChatBottomFollower({
+      canFollow: () => autoScrollEnabledRef.current && !isSessionSettlingRef.current,
+      getScrollElement: () => bodyRef.current,
+    });
+    bottomFollowerRef.current = bottomFollower;
+
+    const pauseForUpwardWheel = (event: WheelEvent) => {
+      if (event.deltaY >= 0) return;
+      setAutoScrollEnabled(false);
+      setShowScrollToBottom(true);
+    };
+    const pauseForScrollKey = (event: KeyboardEvent) => {
+      if (!["ArrowUp", "Home", "PageUp"].includes(event.key)) return;
+      setAutoScrollEnabled(false);
+      setShowScrollToBottom(true);
+    };
+    const pauseForScrollbarPointer = (event: PointerEvent) => {
+      const rect = scrollEl.getBoundingClientRect();
+      if (event.clientX < rect.right - scrollEl.offsetWidth + scrollEl.clientWidth) return;
+      setAutoScrollEnabled(false);
+      setShowScrollToBottom(true);
+    };
+
+    const pauseForTouchScroll = () => {
+      setAutoScrollEnabled(false);
+      setShowScrollToBottom(true);
     };
 
     const resizeObserver = new ResizeObserver(scheduleStickToBottom);
+    const observedMessageElements = new Set<HTMLElement>();
+    const observeRenderedMessages = () => {
+      observedMessageElements.forEach((element) => {
+        if (scrollEl.contains(element)) return;
+        resizeObserver.unobserve(element);
+        observedMessageElements.delete(element);
+      });
+      scrollEl.querySelectorAll<HTMLElement>("[data-chat-message-id]").forEach((element) => {
+        if (observedMessageElements.has(element)) return;
+        observedMessageElements.add(element);
+        resizeObserver.observe(element);
+      });
+    };
     resizeObserver.observe(scrollEl);
     const messagesEl = scrollEl.querySelector(".ai-panel__messages");
     if (messagesEl instanceof HTMLElement) {
@@ -305,12 +363,30 @@ export function useBodyAutoScroll({
     if (virtualListEl instanceof HTMLElement) {
       resizeObserver.observe(virtualListEl);
     }
+    observeRenderedMessages();
+    const mutationObserver = new MutationObserver(() => {
+      observeRenderedMessages();
+      scheduleStickToBottom();
+    });
+    mutationObserver.observe(scrollEl, { childList: true, subtree: true });
+    scrollEl.addEventListener("wheel", pauseForUpwardWheel, { passive: true });
+    scrollEl.addEventListener("keydown", pauseForScrollKey);
+    scrollEl.addEventListener("pointerdown", pauseForScrollbarPointer);
+    scrollEl.addEventListener("touchmove", pauseForTouchScroll, { passive: true });
+    scrollEl.addEventListener("load", scheduleStickToBottom, true);
     scheduleStickToBottom();
 
     return () => {
+      mutationObserver.disconnect();
       resizeObserver.disconnect();
-      if (frameId !== null) {
-        window.cancelAnimationFrame(frameId);
+      scrollEl.removeEventListener("wheel", pauseForUpwardWheel);
+      scrollEl.removeEventListener("keydown", pauseForScrollKey);
+      scrollEl.removeEventListener("pointerdown", pauseForScrollbarPointer);
+      scrollEl.removeEventListener("touchmove", pauseForTouchScroll);
+      scrollEl.removeEventListener("load", scheduleStickToBottom, true);
+      bottomFollower.cancel();
+      if (bottomFollowerRef.current === bottomFollower) {
+        bottomFollowerRef.current = null;
       }
     };
   }, [
@@ -318,19 +394,14 @@ export function useBodyAutoScroll({
     isChatViewActive,
     messages.length,
     scheduleSessionSettleFinish,
-    scrollToBottom,
+    setAutoScrollEnabled,
   ]);
-
-  useEffect(() => {
-    if (isChatViewActive && isAutoScrollEnabled) {
-      scrollToBottom("auto");
-    }
-  }, [isAutoScrollEnabled, isChatViewActive, messages, scrollToBottom]);
 
   useEffect(() => {
     return () => {
       clearNavigationGuard();
       clearSettleTimers();
+      bottomFollowerRef.current?.cancel();
     };
   }, [clearNavigationGuard, clearSettleTimers]);
 

@@ -1,24 +1,25 @@
-import { memo, useMemo } from "react";
+import { memo, useLayoutEffect, useMemo, useRef } from "react";
 import type { ReactNode, TdHTMLAttributes, ThHTMLAttributes } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-import katex from "katex";
 import "katex/dist/katex.min.css";
 
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import type { CodeBlockSavePayload } from "../model/codeBlockFile";
 import {
   buildStreamingMarkdownSegments,
+  splitStreamingMarkdownTail,
   type MarkdownSegment,
 } from "../model/markdownSegments";
 import {
+  findMarkdownMathRanges,
   markdownMathRehypePlugins,
   markdownMathRemarkPlugins,
   normalizeMarkdownMath,
-  normalizeLatexForKatex,
 } from "../model/markdownMath";
+import { renderMarkdownKatex } from "../model/markdownKatex";
 import { useProgressiveMarkdownSegments } from "../model/useProgressiveMarkdownSegments";
 import { MarkdownCodeBlock } from "./MarkdownCodeBlock";
 import "./markdown-preview.css";
@@ -26,6 +27,7 @@ import "./markdown-preview.css";
 export type MarkdownPreviewProps = {
   content: string;
   isStreaming?: boolean;
+  mathErrorMode?: "diagnostic" | "neutral";
   onPreviewHtmlCode?: (html: string) => void;
   onSaveCodeBlock?: (payload: CodeBlockSavePayload) => Promise<string>;
   renderStrategy?: "complete" | "progressive";
@@ -74,6 +76,7 @@ const markdownHtmlSanitizeSchema = {
 export const MarkdownPreview = memo(function MarkdownPreview({
   content,
   isStreaming = false,
+  mathErrorMode = "diagnostic",
   onPreviewHtmlCode,
   onSaveCodeBlock,
   renderStrategy = "complete",
@@ -97,6 +100,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
     return (
       <StreamingMarkdownPreview
         content={content}
+        mathErrorMode={mathErrorMode}
         onPreviewHtmlCode={onPreviewHtmlCode}
         onSaveCodeBlock={onSaveCodeBlock}
         resolveAssetUrl={resolveAssetUrl}
@@ -108,6 +112,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
     return (
       <ProgressiveMarkdownPreview
         content={content}
+        mathErrorMode={mathErrorMode}
         onPreviewHtmlCode={onPreviewHtmlCode}
         onSaveCodeBlock={onSaveCodeBlock}
         resolveAssetUrl={resolveAssetUrl}
@@ -116,7 +121,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
   }
 
   return (
-    <div className="markdown-preview">
+    <div className={markdownPreviewClassName(undefined, mathErrorMode)}>
       <MarkdownRichContent
         codeBlocksAreStreaming={false}
         content={content}
@@ -224,6 +229,7 @@ const MarkdownRichContent = memo(function MarkdownRichContent({
 
 function StreamingMarkdownPreview({
   content,
+  mathErrorMode,
   onPreviewHtmlCode,
   onSaveCodeBlock,
   resolveAssetUrl,
@@ -232,9 +238,13 @@ function StreamingMarkdownPreview({
     () => buildStreamingMarkdownSegments(content),
     [content],
   );
+  const { pendingDisplayMathBody, richContent } = useMemo(
+    () => splitStreamingMarkdownTail(tail),
+    [tail],
+  );
 
   return (
-    <div className="markdown-preview markdown-preview--streaming">
+    <div className={markdownPreviewClassName("markdown-preview--streaming", mathErrorMode)}>
       {chunks.map((chunk) => (
         <MarkdownRichContent
           key={chunk.id}
@@ -245,21 +255,45 @@ function StreamingMarkdownPreview({
           resolveAssetUrl={resolveAssetUrl}
         />
       ))}
-      {tail ? (
+      {richContent ? (
         <MarkdownRichContent
           codeBlocksAreStreaming
-          content={tail}
+          content={richContent}
           onPreviewHtmlCode={onPreviewHtmlCode}
           onSaveCodeBlock={onSaveCodeBlock}
           resolveAssetUrl={resolveAssetUrl}
         />
       ) : null}
+      {pendingDisplayMathBody !== null ? (
+        <StreamingPendingDisplayMath body={pendingDisplayMathBody} />
+      ) : null}
+    </div>
+  );
+}
+
+function StreamingPendingDisplayMath({ body }: { body: string }) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    viewport.scrollLeft = viewport.scrollWidth;
+  }, [body]);
+
+  return (
+    <div
+      className="markdown-preview__stream-pending-math"
+      data-stream-pending-math="true"
+      ref={viewportRef}
+    >
+      <span>{body || "\u00a0"}</span>
     </div>
   );
 }
 
 function ProgressiveMarkdownPreview({
   content,
+  mathErrorMode,
   onPreviewHtmlCode,
   onSaveCodeBlock,
   resolveAssetUrl,
@@ -273,7 +307,7 @@ function ProgressiveMarkdownPreview({
   return (
     <div
       aria-busy={!isComplete}
-      className="markdown-preview markdown-preview--progressive"
+      className={markdownPreviewClassName("markdown-preview--progressive", mathErrorMode)}
     >
       {renderItems.map((item) => item.kind === "table" ? (
         <ProgressiveMarkdownTable
@@ -384,99 +418,53 @@ function renderTableCellMath(children: ReactNode) {
 function renderMathText(text: string, keyPrefix: string): ReactNode[] {
   const nodes: ReactNode[] = [];
   let cursor = 0;
-  let segmentIndex = 0;
-
-  while (cursor < text.length) {
-    const nextDisplay = findNextUnescaped(text, "$$", cursor);
-    const nextInline = findNextUnescaped(text, "$", cursor);
-    const next =
-      nextDisplay >= 0 && (nextInline < 0 || nextDisplay <= nextInline)
-        ? { index: nextDisplay, delimiter: "$$" }
-        : nextInline >= 0
-          ? { index: nextInline, delimiter: "$" }
-          : null;
-
-    if (!next) {
-      nodes.push(text.slice(cursor));
-      break;
-    }
-
-    const close = findNextUnescaped(
-      text,
-      next.delimiter,
-      next.index + next.delimiter.length,
-    );
-    if (close < 0) {
-      nodes.push(text.slice(cursor));
-      break;
-    }
-
-    if (next.index > cursor) {
-      nodes.push(text.slice(cursor, next.index));
-    }
-
-    const latex = text.slice(next.index + next.delimiter.length, close).trim();
+  const ranges = findMarkdownMathRanges(text).filter((range) => range.closed);
+  ranges.forEach((range, segmentIndex) => {
+    if (range.start > cursor) nodes.push(text.slice(cursor, range.start));
+    const latex = text.slice(range.bodyStart, range.bodyEnd).trim();
     const mathNode = renderKatexMathNode(
       latex,
-      shouldRenderTableMathAsDisplay(next.delimiter, latex),
+      shouldRenderTableMathAsDisplay(range.displayMode, latex),
       `${keyPrefix}-${segmentIndex}`,
     );
-    nodes.push(mathNode ?? text.slice(next.index, close + next.delimiter.length));
-    cursor = close + next.delimiter.length;
-    segmentIndex += 1;
-  }
+    nodes.push(mathNode ?? text.slice(range.start, range.end));
+    cursor = range.end;
+  });
+  if (cursor < text.length) nodes.push(text.slice(cursor));
 
   return nodes;
 }
 
 function renderKatexMathNode(latex: string, displayMode: boolean, key: string) {
   if (!latex) return null;
-  const normalized = normalizeLatexForKatex(latex);
-  try {
-    return (
-      <span
-        className={
-          displayMode
-            ? "markdown-preview__table-cell-math markdown-preview__table-cell-math--display"
-            : "markdown-preview__table-cell-math"
-        }
-        dangerouslySetInnerHTML={{
-          __html: katex.renderToString(normalized, {
-            displayMode,
-            errorColor: "#d88f86",
-            throwOnError: false,
-          }),
-        }}
-        key={key}
-      />
-    );
-  } catch {
-    return null;
-  }
+  const rendered = renderMarkdownKatex(latex, displayMode);
+  return (
+    <span
+      className={[
+        "markdown-preview__table-cell-math",
+        displayMode ? "markdown-preview__table-cell-math--display" : "",
+        rendered.error ? "markdown-preview__math-error" : "",
+      ].filter(Boolean).join(" ")}
+      dangerouslySetInnerHTML={{ __html: rendered.html }}
+      data-math-render-error={rendered.error ? "true" : undefined}
+      key={key}
+      title={rendered.error ?? undefined}
+    />
+  );
 }
 
-function shouldRenderTableMathAsDisplay(delimiter: string, latex: string) {
-  if (delimiter === "$$") return true;
+function shouldRenderTableMathAsDisplay(displayMode: boolean, latex: string) {
+  if (displayMode) return true;
   return /\\begin\{(?:aligned|alignedat|align|align\*|eqnarray|eqnarray\*|cases|matrix|pmatrix|bmatrix)\}/.test(latex);
 }
 
-function findNextUnescaped(text: string, needle: string, from: number) {
-  let cursor = from;
-  while (cursor < text.length) {
-    const index = text.indexOf(needle, cursor);
-    if (index < 0) return -1;
-    if (!isEscaped(text, index)) return index;
-    cursor = index + needle.length;
-  }
-  return -1;
-}
-
-function isEscaped(text: string, index: number) {
-  let slashCount = 0;
-  let cursor = index - 1;
-  while (cursor >= 0 && text[cursor] === "\\") {
-    slashCount += 1;
-    cursor -= 1;
-  }
-  return slashCount % 2 === 1;
+function markdownPreviewClassName(
+  variant: string | undefined,
+  mathErrorMode: MarkdownPreviewProps["mathErrorMode"],
+) {
+  return [
+    "markdown-preview",
+    variant,
+    mathErrorMode === "neutral" ? "markdown-preview--neutral-math-errors" : "",
+  ].filter(Boolean).join(" ");
 }

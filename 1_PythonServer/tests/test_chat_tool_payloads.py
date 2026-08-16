@@ -497,6 +497,7 @@ def test_gemini_body_formats_tool_call_history():
             "parts": [
                 {
                     "functionResponse": {
+                        "id": "call-1",
                         "name": "read_text_file",
                         "response": {"result": '{"ok":true}'},
                     },

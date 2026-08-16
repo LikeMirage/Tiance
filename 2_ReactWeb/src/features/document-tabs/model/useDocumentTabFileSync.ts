@@ -30,6 +30,7 @@ import {
   normalizeWorkspacePath,
   resolveRenamedTabId,
 } from "./documentTabUtils";
+import { decideAssetRefresh } from "./assetRefreshPolicy";
 
 type UseDocumentTabFileSyncOptions = {
   activeTabIdRef: MutableRefObject<EditorTabId | null>;
@@ -179,6 +180,7 @@ export function useDocumentTabFileSync({
     const normalizedChangedPaths = changedPaths
       .map(normalizeWorkspacePath)
       .filter(Boolean);
+    const hasDetailedChange = normalizedChangedPaths.length > 0;
     const candidateTabs = tabsRef.current.filter((tab) => {
       const filePath = getTabFilePath(tab);
       if (getTabSourceKey(tab) !== sourceKey || !filePath) return false;
@@ -209,23 +211,19 @@ export function useDocumentTabFileSync({
         const metadataOnlyTabMtimes = new Map<EditorTabId, number>();
         for (const candidate of assetRefreshCandidates) {
           const metadata = await workspaceFileMetadata(runtime, candidate.filePath);
-          if (metadata.exists === false) {
+          const decision = decideAssetRefresh({
+            currentMtimeMs: candidate.mtimeMs,
+            hasDetailedChange,
+            metadata,
+          });
+          if (decision.kind === "mark-missing") {
             markDeletedWorkspacePath(runtime.source.key, candidate.filePath);
-          } else if (
-            typeof metadata.mtimeMs === "number" &&
-            typeof candidate.mtimeMs === "number" &&
-            metadata.mtimeMs === candidate.mtimeMs
-          ) {
-            continue;
-          } else if (
-            typeof metadata.mtimeMs === "number" &&
-            candidate.mtimeMs === null
-          ) {
-            metadataOnlyTabMtimes.set(candidate.tabId, metadata.mtimeMs);
-          } else {
+          } else if (decision.kind === "record-mtime") {
+            metadataOnlyTabMtimes.set(candidate.tabId, decision.mtimeMs);
+          } else if (decision.kind === "refresh") {
             existingTabIds.add(candidate.tabId);
-            if (typeof metadata.mtimeMs === "number") {
-              refreshedTabMtimes.set(candidate.tabId, metadata.mtimeMs);
+            if (typeof decision.mtimeMs === "number") {
+              refreshedTabMtimes.set(candidate.tabId, decision.mtimeMs);
             }
           }
         }

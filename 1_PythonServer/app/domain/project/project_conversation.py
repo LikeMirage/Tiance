@@ -2,7 +2,11 @@ from dataclasses import asdict, dataclass, field, replace
 from hashlib import sha256
 from json import dumps
 
-from app.domain.llm.chat import ChatMessageContentPart, ChatToolCall
+from app.domain.llm.chat import (
+    ChatMessageContentPart,
+    ChatProtocolContinuation,
+    ChatToolCall,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +107,7 @@ class ProjectConversationMessage:
     name: str | None = None
     tool_call_id: str | None = None
     tool_calls: tuple[ChatToolCall, ...] = ()
+    protocol_continuation: ChatProtocolContinuation | None = None
     content_parts: tuple[ChatMessageContentPart, ...] = ()
     origin_message_id: str | None = None
     variant_group_id: str | None = None

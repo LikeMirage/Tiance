@@ -1,6 +1,6 @@
 # LLM 协议适配：协议、供应商与模型差异如何共存
 
-> 实现基线：2026-08-02。
+> 实现基线：2026-08-15。
 
 “兼容 OpenAI”经常只意味着接口长得相似。真实接入时，URL、认证、消息结构、思考参数、最大输出字段、工具调用、流式事件和用量统计都可能不同；同一供应商的不同模型还会继续分化。如果把这些判断散落在聊天业务中，增加一个小供应商就会修改整条调用链。
 
@@ -18,6 +18,10 @@
 适配器把天策内部统一的消息、工具、思考、输出格式和生成参数转换为上游请求，再把普通响应或流式事件还原成统一的文本增量、思考增量、工具调用、用量和错误。
 
 聊天、记忆、工具循环不应该知道 Anthropic 的 `tool_use`、Gemini 的 `functionCall` 或 Responses 的 output item。它们只消费统一领域对象。
+
+工具调用续传有一个明确例外：Responses 的加密 reasoning item、Anthropic 的 thinking signature / redacted block、Gemini 的 thought signature 都是继续同一工具轮所必需的协议状态。天策用内部 `protocol_continuation` 保存这些不透明内容，并随助手工具调用消息一起持久化。它不会进入前端消息合同、导出正文或普通预览；只有协议族、供应商 ID、模型 ID 和版本全部匹配时，适配器才会回放。切换供应商或模型后只重组公共消息和工具历史，不会转发旧上游的私有状态。
+
+流式完成也由协议证据决定，而不是由“连接已经结束”决定：OpenAI Compatible 需要 `[DONE]` 或明确的 `finish_reason`，Responses 需要 completed 事件，Anthropic 需要 `message_stop`，Gemini 需要候选结果的 `finishReason`。提前 EOF 会返回稳定错误码 `upstream_stream_incomplete`，不会把部分回答保存成正常完成。
 
 ## 第二层：供应商 Profile
 
@@ -61,6 +65,8 @@ model-rules.json
 
 未知字段会被拒绝，避免拼写错误被静默忽略。供应商项目声明的 `profileId` 也必须与正在使用的 Profile 匹配，防止一份规则误套到另一种转换器上。
 
+聊天请求在真正调用上游前还会用合并后的能力做后端校验。输出格式、思考档位、采样参数、最大输出范围和工具调用若超出能力合同，请求会在边界处失败；前端禁用控件只是交互提示，不再承担最终约束。生成参数只有 `generation` 一个事实源，旧的顶层 `temperature` / `max_tokens` 已退出请求合同，避免同一设置出现两种值时被静默择一。
+
 ## 一次请求如何经过三层
 
 ```mermaid
@@ -86,11 +92,11 @@ flowchart LR
 
 因此社区可以共同补齐小供应商和特殊模型，而不必每次修改聊天核心代码。市场包不包含 `credentials.json`；更新时保留本地加密密钥、本地启用状态和不受市场管理的本地模型。
 
-## 当前尚未完全统一的边界
+## 当前边界
 
-“规则有统一住所”不等于“所有操作都已经应用规则”。当前 OpenAI Compatible、OpenAI Responses 的主要聊天路径和能力查询接入较完整；Anthropic、Gemini 的协议适配器仍有直接构造请求的部分，模型发现、探测和部分内置联网行为也没有全部经过同一个规则执行入口。
+四种聊天协议现在共享统一生成参数、能力校验、终态错误合同和工具续传状态合同。声明式能力规则会进入聊天前的最终校验；OpenAI Compatible 与 Responses 的请求规则继续在各自出站阶段执行。
 
-因此准确结论是：**差异参数已经项目化，复杂转换有明确 Profile；所有供应商操作的统一执行关口仍在收口。**
+Anthropic 与 Gemini 仍由各自适配器构造原生字段，不能把当前 OpenAI 形状的请求规则（例如 `max_tokens` 字段改名或 `stream_options`）机械套入。模型发现、探测和部分内置联网行为也是独立操作，尚未共享全部聊天请求规则。因此准确结论是：**聊天合同已经收口；规则按协议执行，不存在一个把所有操作和协议强塞进去的总网关，非聊天操作的规则覆盖仍需按真实需求继续补齐。**
 
 ## 实现索引
 
@@ -99,4 +105,7 @@ flowchart LR
 - Profile 注册：`1_PythonServer/app/infra/llm/provider_profiles/registry.py`
 - 声明规则执行：`1_PythonServer/app/infra/llm/provider_profiles/declared_rules.py`
 - 协议适配器：`1_PythonServer/app/infra/llm/chat_adapters/`
+- 续传状态匹配：`1_PythonServer/app/infra/llm/chat_adapters/continuation.py`
+- 聊天能力强校验：`1_PythonServer/app/services/llm/chat/request_validation.py`
+- 会话续传状态持久化：`1_PythonServer/app/repositories/project/conversation_serialization.py`
 - 供应商项目：`Data/providers/<provider_id>/`

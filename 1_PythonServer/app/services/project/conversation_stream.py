@@ -464,6 +464,9 @@ class ProjectConversationStreamService:
                     await asyncio.to_thread(self._persistence.save_runtime_status, request, "running")
                     last_heartbeat = now
 
+                if event.kind == ChatStreamEventKind.PROTOCOL_CONTINUATION:
+                    continue
+
                 if event.kind == ChatStreamEventKind.ERROR:
                     error = event.error or "上游供应商返回错误。"
                     _, settled_payload = await self._settlement.settle_failed(
@@ -478,7 +481,11 @@ class ProjectConversationStreamService:
                     )
                     if settled_payload is not None:
                         yield settled_payload
-                    yield {"kind": "error", "error": error}
+                    yield {
+                        "kind": "error",
+                        "error": error,
+                        "error_code": event.error_code or "upstream_response_failed",
+                    }
                     return
                 if event.kind == ChatStreamEventKind.DELTA and event.content:
                     answer_parts.append(event.content)

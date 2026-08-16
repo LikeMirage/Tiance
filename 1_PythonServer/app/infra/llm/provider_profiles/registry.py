@@ -1,5 +1,6 @@
 from dataclasses import replace
 
+from app.core.errors import AppError
 from app.domain.llm.provider_adaptation import ProviderAdaptationRules
 from app.domain.llm.provider_catalog import ProviderCatalogEntry, ProviderProtocolFamily
 from app.infra.llm.provider_profiles.base import (
@@ -20,15 +21,24 @@ _GENERIC_OPENAI_COMPATIBLE_PROFILE = GenericOpenAICompatibleProfile()
 _OPENAI_RESPONSES_PROFILE = OpenAIResponsesProfile()
 
 _OPENAI_COMPATIBLE_PROFILES_BY_ID: dict[str, ProviderProfile] = {
+    "generic": _GENERIC_OPENAI_COMPATIBLE_PROFILE,
+    "custom": _GENERIC_OPENAI_COMPATIBLE_PROFILE,
+    "openai": _GENERIC_OPENAI_COMPATIBLE_PROFILE,
     "deepseek": DeepSeekProfile(),
     "volcengine": VolcengineProfile(),
 }
 
 _OPENAI_RESPONSES_PROFILES_BY_ID: dict[str, ProviderProfile] = {
+    "generic": _OPENAI_RESPONSES_PROFILE,
+    "custom": _OPENAI_RESPONSES_PROFILE,
     "deepseek": DeepSeekProfile(),
     "openai": OpenAIProfile(),
     "volcengine": VolcengineProfile(),
 }
+
+_KNOWN_PROFILE_IDS = frozenset(
+    {"generic", "custom", "openai", "deepseek", "volcengine"}
+)
 
 
 def resolve_provider_profile(
@@ -38,16 +48,15 @@ def resolve_provider_profile(
     adaptation_rules: ProviderAdaptationRules | None = None,
     load_declared_rules: bool = True,
 ) -> ProviderProfile:
+    if provider_template.profile_id not in _KNOWN_PROFILE_IDS:
+        raise AppError(
+            f"Provider profile '{provider_template.profile_id}' is not registered.",
+            code="provider_profile_not_registered",
+        )
     if provider_template.protocol_family == ProviderProtocolFamily.OPENAI_RESPONSES:
-        profile = _OPENAI_RESPONSES_PROFILES_BY_ID.get(
-            provider_template.profile_id,
-            _OPENAI_RESPONSES_PROFILE,
-        )
+        profile = _OPENAI_RESPONSES_PROFILES_BY_ID[provider_template.profile_id]
     elif provider_template.protocol_family == ProviderProtocolFamily.OPENAI_COMPATIBLE:
-        profile = _OPENAI_COMPATIBLE_PROFILES_BY_ID.get(
-            provider_template.profile_id,
-            _GENERIC_OPENAI_COMPATIBLE_PROFILE,
-        )
+        profile = _OPENAI_COMPATIBLE_PROFILES_BY_ID[provider_template.profile_id]
     else:
         profile = _GENERIC_OPENAI_COMPATIBLE_PROFILE
 

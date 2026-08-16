@@ -1,26 +1,35 @@
 from collections.abc import AsyncGenerator
+from json import loads as json_loads
+
+from app.core.errors import UpstreamProviderError
 
 from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatCompletionResult,
     ChatMessage,
     ChatMessageRole,
+    ChatProtocolContinuationKind,
     ChatStreamEvent,
     ChatStreamEventKind,
     ChatToolCall,
     ChatUsage,
 )
-from app.domain.llm.provider_catalog import ProviderCatalogEntry
+from app.domain.llm.provider_catalog import ProviderCatalogEntry, ProviderProtocolFamily
 from app.domain.llm.provider_runtime import ProviderRuntimeConfig
 from app.infra.llm.anthropic_auth import build_anthropic_request_headers
 from app.infra.llm.request_auth import apply_auth_to_url
 from app.infra.llm.chat_adapters.base import PostJson, StreamBody
 from app.infra.llm.chat_adapters.common import (
+    SSE_DONE,
     _extract_error_message,
     _iter_sse_payloads,
     _optional_int,
     _optional_str,
     _protocol_error_event,
+)
+from app.infra.llm.chat_adapters.continuation import (
+    build_protocol_continuation,
+    matching_continuation_items,
 )
 from app.infra.llm.chat_adapters.payloads import (
     _extract_thinking_delta,
@@ -56,17 +65,37 @@ class AnthropicMessagesChatAdapter:
             ),
             _build_anthropic_body(request, stream=False),
         )
-        text, thinking = _extract_anthropic_content(payload.get("content"))
+        content = payload.get("content")
+        if payload.get("type") != "message" or not isinstance(content, list):
+            raise UpstreamProviderError(
+                "上游 Anthropic 返回缺少完整消息结构。",
+                code="upstream_response_malformed",
+            )
+        text, thinking = _extract_anthropic_content(content)
+        stop_reason = _optional_str(payload.get("stop_reason"))
+        if stop_reason == "max_tokens":
+            raise UpstreamProviderError(
+                "上游 Anthropic 达到最大输出 Token，回复不完整。",
+                code="upstream_response_incomplete",
+            )
+        continuation = build_protocol_continuation(
+            request,
+            provider_template.protocol_family,
+            ChatProtocolContinuationKind.ANTHROPIC_CONTENT,
+            tuple(dict(item) for item in content if isinstance(item, dict)),
+        )
         return ChatCompletionResult(
             provider_id=request.provider_id,
             model_id=request.model_id,
             message=ChatMessage(
                 role=ChatMessageRole.ASSISTANT,
                 content=text,
-                tool_calls=_extract_anthropic_tool_calls(payload.get("content")),
+                tool_calls=_extract_anthropic_tool_calls(content),
+                thinking_content=thinking,
+                protocol_continuation=continuation,
             ),
             thinking_content=thinking,
-            finish_reason=_optional_str(payload.get("stop_reason")),
+            finish_reason=stop_reason,
             usage=_parse_anthropic_usage(payload.get("usage")),
             raw_response=payload,
         )
@@ -80,7 +109,8 @@ class AnthropicMessagesChatAdapter:
         request: ChatCompletionRequest,
         stream_body: StreamBody,
     ) -> AsyncGenerator[ChatStreamEvent, None]:
-        tool_blocks: dict[int, dict[str, str]] = {}
+        content_blocks: dict[int, dict[str, object]] = {}
+        finish_reason: str | None = None
         async for payload in _iter_sse_payloads(
             stream_body(
                 apply_auth_to_url(
@@ -96,12 +126,14 @@ class AnthropicMessagesChatAdapter:
                 _build_anthropic_body(request, stream=True),
             )
         ):
+            if payload is SSE_DONE:
+                continue
             if payload is None:
                 yield _protocol_error_event()
                 return
             event_type = str(payload.get("type") or "")
             if event_type == "content_block_start":
-                _start_anthropic_tool_block(payload, tool_blocks)
+                _start_anthropic_content_block(payload, content_blocks)
             elif event_type == "content_block_delta":
                 delta = payload.get("delta")
                 if isinstance(delta, dict):
@@ -110,9 +142,15 @@ class AnthropicMessagesChatAdapter:
                     thinking_delta = _extract_thinking_delta(delta)
                     if thinking_delta:
                         yield ChatStreamEvent(kind=ChatStreamEventKind.THINKING_DELTA, content=thinking_delta)
-                    _append_anthropic_tool_delta(payload, delta, tool_blocks)
+                    _append_anthropic_content_delta(payload, delta, content_blocks)
             elif event_type == "content_block_stop":
-                tool_call = _finish_anthropic_tool_block(payload, tool_blocks)
+                try:
+                    tool_call = _anthropic_tool_call_from_block(payload, content_blocks)
+                except ValueError:
+                    yield _protocol_error_event(
+                        "上游 Anthropic 返回了不完整的工具参数。"
+                    )
+                    return
                 if tool_call is not None:
                     yield ChatStreamEvent(
                         kind=ChatStreamEventKind.TOOL_CALL,
@@ -123,22 +161,66 @@ class AnthropicMessagesChatAdapter:
                 if usage is not None:
                     yield ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=usage)
                 delta = payload.get("delta")
-                finish_reason = _optional_str(delta.get("stop_reason")) if isinstance(delta, dict) else None
-                if finish_reason:
-                    yield ChatStreamEvent(kind=ChatStreamEventKind.DONE, finish_reason=finish_reason)
-                    return
+                finish_reason = (
+                    _optional_str(delta.get("stop_reason"))
+                    if isinstance(delta, dict)
+                    else finish_reason
+                ) or finish_reason
             elif event_type == "error":
-                yield ChatStreamEvent(kind=ChatStreamEventKind.ERROR, error=_extract_error_message(payload))
+                yield ChatStreamEvent(
+                    kind=ChatStreamEventKind.ERROR,
+                    error=_extract_error_message(payload),
+                    error_code="upstream_response_failed",
+                )
                 return
             elif event_type == "message_stop":
-                yield ChatStreamEvent(kind=ChatStreamEventKind.DONE)
+                if finish_reason == "max_tokens":
+                    yield ChatStreamEvent(
+                        kind=ChatStreamEventKind.ERROR,
+                        error="上游 Anthropic 达到最大输出 Token，回复不完整。",
+                        error_code="upstream_response_incomplete",
+                    )
+                    return
+                try:
+                    continuation_items = tuple(
+                        _clean_anthropic_content_block(content_blocks[index])
+                        for index in sorted(content_blocks)
+                    )
+                except ValueError:
+                    yield _protocol_error_event(
+                        "上游 Anthropic 返回了不完整的工具参数。"
+                    )
+                    return
+                continuation = build_protocol_continuation(
+                    request,
+                    provider_template.protocol_family,
+                    ChatProtocolContinuationKind.ANTHROPIC_CONTENT,
+                    continuation_items,
+                )
+                if continuation is not None:
+                    yield ChatStreamEvent(
+                        kind=ChatStreamEventKind.PROTOCOL_CONTINUATION,
+                        protocol_continuation=continuation,
+                    )
+                yield ChatStreamEvent(
+                    kind=ChatStreamEventKind.DONE,
+                    finish_reason=finish_reason,
+                )
                 return
-        yield ChatStreamEvent(kind=ChatStreamEventKind.DONE)
+        yield ChatStreamEvent(
+            kind=ChatStreamEventKind.ERROR,
+            error="上游 Anthropic 流在 message_stop 前意外结束，当前回答可能不完整。",
+            error_code="upstream_stream_incomplete",
+        )
 
 def _build_anthropic_body(request: ChatCompletionRequest, *, stream: bool) -> dict[str, object]:
     body: dict[str, object] = {
         "model": request.model_id,
-        "messages": [_message_to_anthropic_payload(message) for message in request.messages if message.role != ChatMessageRole.SYSTEM],
+        "messages": [
+            _message_to_anthropic_payload_for_request(message, request)
+            for message in request.messages
+            if message.role != ChatMessageRole.SYSTEM
+        ],
         "max_tokens": _max_output_tokens(request, default=1024),
         "stream": stream,
     }
@@ -149,7 +231,7 @@ def _build_anthropic_body(request: ChatCompletionRequest, *, stream: bool) -> di
     ).strip()
     if system_prompt:
         body["system"] = system_prompt
-    temperature = request.generation.temperature if request.generation.temperature is not None else request.temperature
+    temperature = request.generation.temperature
     if temperature is not None:
         body["temperature"] = temperature
     if request.generation.top_p is not None:
@@ -192,6 +274,22 @@ def _message_to_anthropic_payload(message: ChatMessage) -> dict[str, object]:
         "content": _message_content_to_anthropic_payload(message),
     }
 
+
+def _message_to_anthropic_payload_for_request(
+    message: ChatMessage,
+    request: ChatCompletionRequest,
+) -> dict[str, object]:
+    if message.role == ChatMessageRole.ASSISTANT:
+        items = matching_continuation_items(
+            message,
+            request,
+            ProviderProtocolFamily.ANTHROPIC_MESSAGES,
+            ChatProtocolContinuationKind.ANTHROPIC_CONTENT,
+        )
+        if items:
+            return {"role": "assistant", "content": list(items)}
+    return _message_to_anthropic_payload(message)
+
 def _extract_anthropic_content(value: object) -> tuple[str, str]:
     if not isinstance(value, list):
         return "", ""
@@ -229,52 +327,82 @@ def _extract_anthropic_tool_calls(value: object) -> tuple[ChatToolCall, ...]:
         )
     return tuple(tool_calls)
 
-def _start_anthropic_tool_block(
+def _start_anthropic_content_block(
     payload: dict[str, object],
-    tool_blocks: dict[int, dict[str, str]],
+    content_blocks: dict[int, dict[str, object]],
 ) -> None:
     index = payload.get("index")
     content_block = payload.get("content_block")
     if not isinstance(index, int) or not isinstance(content_block, dict):
         return
-    if content_block.get("type") != "tool_use":
-        return
-    tool_blocks[index] = {
-        "id": str(content_block.get("id") or ""),
-        "name": str(content_block.get("name") or ""),
-        "arguments": "",
-    }
+    content_blocks[index] = dict(content_block)
+    if content_block.get("type") == "tool_use":
+        content_blocks[index]["_partial_json"] = ""
 
-def _append_anthropic_tool_delta(
+def _append_anthropic_content_delta(
     payload: dict[str, object],
     delta: dict[str, object],
-    tool_blocks: dict[int, dict[str, str]],
+    content_blocks: dict[int, dict[str, object]],
 ) -> None:
-    if delta.get("type") != "input_json_delta":
-        return
     index = payload.get("index")
-    if not isinstance(index, int) or index not in tool_blocks:
+    if not isinstance(index, int) or index not in content_blocks:
         return
-    tool_blocks[index]["arguments"] += str(delta.get("partial_json") or "")
+    block = content_blocks[index]
+    delta_type = delta.get("type")
+    if delta_type == "text_delta":
+        block["text"] = str(block.get("text") or "") + str(delta.get("text") or "")
+    elif delta_type == "thinking_delta":
+        block["thinking"] = str(block.get("thinking") or "") + str(delta.get("thinking") or "")
+    elif delta_type == "signature_delta":
+        block["signature"] = str(block.get("signature") or "") + str(delta.get("signature") or "")
+    elif delta_type == "input_json_delta":
+        block["_partial_json"] = str(block.get("_partial_json") or "") + str(
+            delta.get("partial_json") or ""
+        )
 
-def _finish_anthropic_tool_block(
+def _anthropic_tool_call_from_block(
     payload: dict[str, object],
-    tool_blocks: dict[int, dict[str, str]],
+    content_blocks: dict[int, dict[str, object]],
 ) -> ChatToolCall | None:
     index = payload.get("index")
     if not isinstance(index, int):
         return None
-    item = tool_blocks.pop(index, None)
-    if item is None:
+    item = content_blocks.get(index)
+    if item is None or item.get("type") != "tool_use":
         return None
-    name = item.get("name", "").strip()
+    partial_json = str(item.pop("_partial_json", "") or "")
+    if partial_json:
+        try:
+            parsed_input = json_loads(partial_json)
+        except ValueError as exc:
+            raise ValueError("invalid Anthropic tool input") from exc
+        if not isinstance(parsed_input, dict):
+            raise ValueError("invalid Anthropic tool input")
+        item["input"] = parsed_input
+    name = str(item.get("name") or "").strip()
     if not name:
         return None
     return ChatToolCall(
-        call_id=item.get("id", ""),
+        call_id=str(item.get("id") or ""),
         name=name,
-        arguments=item.get("arguments", "") or "{}",
+        arguments=_json_arguments(item.get("input")),
     )
+
+
+def _clean_anthropic_content_block(
+    block: dict[str, object],
+) -> dict[str, object]:
+    cleaned = dict(block)
+    partial_json = str(cleaned.pop("_partial_json", "") or "")
+    if cleaned.get("type") == "tool_use" and partial_json:
+        try:
+            parsed_input = json_loads(partial_json)
+        except ValueError as exc:
+            raise ValueError("invalid Anthropic tool input") from exc
+        if not isinstance(parsed_input, dict):
+            raise ValueError("invalid Anthropic tool input")
+        cleaned["input"] = parsed_input
+    return cleaned
 
 def _parse_anthropic_usage(value: object) -> ChatUsage | None:
     if not isinstance(value, dict):

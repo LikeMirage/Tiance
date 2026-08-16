@@ -13,6 +13,7 @@ from app.domain.llm.runtime_capabilities import (
     LlmReasoningCapabilities,
     LlmRuntimeCapabilities,
     LlmSamplingCapabilities,
+    LlmToolCallingCapabilities,
 )
 from app.infra.llm.provider_profiles.declared_rules import apply_declared_request_rules
 
@@ -80,6 +81,7 @@ class GenericOpenAICompatibleProfile:
                 min=1,
                 max=None,
             ),
+            tool_calling=LlmToolCallingCapabilities(supported=True),
         )
         if self.adaptation_rules is None:
             return capabilities

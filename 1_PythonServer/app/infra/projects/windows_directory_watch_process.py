@@ -4,25 +4,36 @@ from pathlib import Path
 import queue
 
 from app.infra.projects.windows_directory_watcher import WindowsDirectoryChangeReader
+from app.infra.projects.project_file_watcher import is_external_project_watch_path
 
 
 def run_windows_directory_watch_worker(root: str, event_queue) -> None:
     reader: WindowsDirectoryChangeReader | None = None
+    root_path = Path(root)
     try:
-        reader = WindowsDirectoryChangeReader(Path(root))
+        reader = WindowsDirectoryChangeReader(root_path)
         _offer_event(event_queue, ("ready", ()))
         while True:
             changes = reader.read()
-            if changes:
+            external_paths = _external_change_paths(root_path, changes)
+            if external_paths:
                 _offer_event(
                     event_queue,
-                    ("changed", tuple(path for _change, path in changes)),
+                    ("changed", external_paths),
                 )
     except BaseException as error:
         _replace_queue(event_queue, ("failed", (f"{type(error).__name__}: {error}",)))
     finally:
         if reader is not None:
             reader.close()
+
+
+def _external_change_paths(root: Path, changes) -> tuple[str, ...]:
+    return tuple(
+        path
+        for _change, path in changes
+        if is_external_project_watch_path(root, path)
+    )
 
 
 def _offer_event(event_queue, event: tuple[str, tuple[str, ...]]) -> None:

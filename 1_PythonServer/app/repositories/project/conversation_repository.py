@@ -7,7 +7,11 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.core.errors import ConflictError, NotFoundError
-from app.domain.llm.chat import ChatMessageContentPart, ChatToolCall
+from app.domain.llm.chat import (
+    ChatMessageContentPart,
+    ChatProtocolContinuation,
+    ChatToolCall,
+)
 from app.domain.project.project_conversation import (
     conversation_session_configuration_hash,
     ProjectConversationMessage,
@@ -600,6 +604,7 @@ class ProjectConversationRepository:
         name: str | None = None,
         tool_call_id: str | None = None,
         tool_calls: tuple[ChatToolCall, ...] = (),
+        protocol_continuation: ChatProtocolContinuation | None = None,
         content_parts: tuple[ChatMessageContentPart, ...] = (),
         references: list[dict] | None = None,
         status: str = "done",
@@ -663,6 +668,9 @@ class ProjectConversationRepository:
                 name=name,
                 tool_call_id=tool_call_id,
                 tool_calls=tool_calls if role == "assistant" else (),
+                protocol_continuation=(
+                    protocol_continuation if role == "assistant" else None
+                ),
                 content_parts=content_parts if role in {"user", "assistant", "tool"} else (),
                 references=references if role == "user" and references is not None else [],
                 origin_message_id=origin_message_id,

@@ -17,8 +17,8 @@ _DATA_URL_PATTERN = r"data:([^;,]+);base64,(.+)"
 def _apply_generation_params(body: dict[str, object], request: ChatCompletionRequest) -> None:
     generation = request.generation
 
-    temperature = generation.temperature if generation.temperature is not None else request.temperature
-    max_output_tokens = generation.max_output_tokens if generation.max_output_tokens is not None else request.max_tokens
+    temperature = generation.temperature
+    max_output_tokens = generation.max_output_tokens
 
     if temperature is not None:
         body["temperature"] = temperature
@@ -257,7 +257,7 @@ def _tool_call_to_openai_payload(tool_call: ChatToolCall) -> dict[str, object]:
     }
 
 def _max_output_tokens(request: ChatCompletionRequest, *, default: int) -> int:
-    configured = request.generation.max_output_tokens if request.generation.max_output_tokens is not None else request.max_tokens
+    configured = request.generation.max_output_tokens
     return configured if configured is not None else default
 
 def _parse_role(value: object) -> ChatMessageRole:

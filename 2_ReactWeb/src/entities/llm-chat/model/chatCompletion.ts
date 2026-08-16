@@ -64,6 +64,9 @@ export type ChatCompletionRequest = {
     } | null;
     temperature?: number | null;
     top_p?: number | null;
+    presence_penalty?: number | null;
+    frequency_penalty?: number | null;
+    max_output_tokens?: number | null;
   } | null;
 };
 

@@ -6,6 +6,7 @@ from app.domain.llm.chat import (
     ChatCompletionResult,
     ChatMessage,
     ChatMessageRole,
+    ChatProtocolContinuationKind,
     ChatStreamEvent,
     ChatStreamEventKind,
     ChatToolCall,
@@ -14,6 +15,7 @@ from app.domain.llm.provider_catalog import ProviderCatalogEntry
 from app.domain.llm.provider_runtime import ProviderRuntimeConfig
 from app.infra.llm.chat_adapters.base import PostJson, StreamBody
 from app.infra.llm.chat_adapters.common import (
+    SSE_DONE,
     _build_headers,
     _build_stream_headers,
     _iter_sse_payloads,
@@ -21,14 +23,15 @@ from app.infra.llm.chat_adapters.common import (
     _optional_str,
     _protocol_error_event,
 )
+from app.infra.llm.chat_adapters.continuation import build_protocol_continuation
 from app.infra.llm.chat_adapters.openai_responses_parsing import (
-    _extract_provider_output_items,
+    _extract_responses_continuation_items,
     _extract_responses_reasoning_text,
     _extract_responses_text,
     _extract_responses_tool_calls,
     _output_item_identity,
     _parse_responses_usage,
-    _provider_output_item,
+    _responses_continuation_item,
     _responses_error_message,
     _responses_incomplete_message,
     _responses_stream_tool_call,
@@ -66,13 +69,30 @@ class OpenAIResponsesChatAdapter:
                 stream=False,
             ),
         )
-        if str(payload.get("status") or "") == "incomplete":
+        status = str(payload.get("status") or "")
+        if status == "incomplete":
             raise UpstreamProviderError(
                 _responses_incomplete_message(payload),
                 code="upstream_response_incomplete",
             )
+        if status == "failed":
+            raise UpstreamProviderError(
+                _responses_error_message(payload),
+                code="upstream_response_failed",
+            )
+        if status != "completed" or not isinstance(payload.get("output"), list):
+            raise UpstreamProviderError(
+                "上游 Responses 返回缺少完整结果结构。",
+                code="upstream_response_malformed",
+            )
         text = _extract_responses_text(payload)
         reasoning_text = _extract_responses_reasoning_text(payload)
+        continuation = build_protocol_continuation(
+            request,
+            provider_template.protocol_family,
+            ChatProtocolContinuationKind.OPENAI_RESPONSES_OUTPUT,
+            _extract_responses_continuation_items(payload),
+        )
         return ChatCompletionResult(
             provider_id=request.provider_id,
             model_id=request.model_id,
@@ -81,7 +101,7 @@ class OpenAIResponsesChatAdapter:
                 content=text,
                 tool_calls=_extract_responses_tool_calls(payload),
                 thinking_content=reasoning_text,
-                provider_output_items=_extract_provider_output_items(payload),
+                protocol_continuation=continuation,
             ),
             thinking_content=reasoning_text,
             finish_reason=_optional_str(payload.get("status")),
@@ -101,11 +121,11 @@ class OpenAIResponsesChatAdapter:
         provider_profile = resolve_provider_profile(provider_template, request.model_id)
         tool_call_parts: dict[int, ChatToolCall] = {}
         emitted_tool_call_ids: set[str] = set()
-        emitted_provider_output_item_ids: set[str] = set()
+        emitted_continuation_item_ids: set[str] = set()
+        continuation_items: list[dict[str, object]] = []
         did_emit_text_delta = False
         did_emit_reasoning_delta = False
         reasoning_delta_event_type: str | None = None
-        did_emit_done = False
         async for payload in _iter_sse_payloads(
             stream_body(
                 apply_auth_to_url(
@@ -121,6 +141,8 @@ class OpenAIResponsesChatAdapter:
                 ),
             )
         ):
+            if payload is SSE_DONE:
+                continue
             if payload is None:
                 yield _protocol_error_event()
                 return
@@ -185,15 +207,12 @@ class OpenAIResponsesChatAdapter:
                 )
             elif event_type == "response.output_item.done":
                 item = payload.get("item")
-                provider_output_item = _provider_output_item(item)
-                if request.tools and provider_output_item is not None:
-                    emitted_provider_output_item_ids.add(
-                        _output_item_identity(provider_output_item)
+                continuation_item = _responses_continuation_item(item)
+                if request.tools and continuation_item is not None:
+                    emitted_continuation_item_ids.add(
+                        _output_item_identity(continuation_item)
                     )
-                    yield ChatStreamEvent(
-                        kind=ChatStreamEventKind.PROVIDER_OUTPUT_ITEM,
-                        provider_output_item=provider_output_item,
-                    )
+                    continuation_items.append(continuation_item)
                 tool_call = _responses_stream_tool_call(item)
                 if tool_call is not None:
                     emitted_tool_call_ids.add(tool_call.call_id)
@@ -224,15 +243,12 @@ class OpenAIResponsesChatAdapter:
                             )
                             did_emit_reasoning_delta = True
                     if request.tools:
-                        for provider_output_item in _extract_provider_output_items(response):
-                            identity = _output_item_identity(provider_output_item)
-                            if identity in emitted_provider_output_item_ids:
+                        for continuation_item in _extract_responses_continuation_items(response):
+                            identity = _output_item_identity(continuation_item)
+                            if identity in emitted_continuation_item_ids:
                                 continue
-                            emitted_provider_output_item_ids.add(identity)
-                            yield ChatStreamEvent(
-                                kind=ChatStreamEventKind.PROVIDER_OUTPUT_ITEM,
-                                provider_output_item=provider_output_item,
-                            )
+                            emitted_continuation_item_ids.add(identity)
+                            continuation_items.append(continuation_item)
                     for tool_call in _extract_responses_tool_calls(response):
                         if tool_call.call_id in emitted_tool_call_ids:
                             continue
@@ -252,20 +268,39 @@ class OpenAIResponsesChatAdapter:
                         yield ChatStreamEvent(
                             kind=ChatStreamEventKind.ERROR,
                             error=_responses_incomplete_message(response),
+                            error_code="upstream_response_incomplete",
                         )
                         return
                     if status == "failed":
                         yield ChatStreamEvent(
                             kind=ChatStreamEventKind.ERROR,
                             error=_responses_error_message(response),
+                            error_code="upstream_response_failed",
                         )
                         return
-                    if not did_emit_done:
+                    if status != "completed":
                         yield ChatStreamEvent(
-                            kind=ChatStreamEventKind.DONE,
-                            finish_reason=_optional_str(response.get("status")),
+                            kind=ChatStreamEventKind.ERROR,
+                            error="上游 Responses 完成事件缺少 completed 状态。",
+                            error_code="upstream_response_malformed",
                         )
-                    did_emit_done = True
+                        return
+                    continuation = build_protocol_continuation(
+                        request,
+                        provider_template.protocol_family,
+                        ChatProtocolContinuationKind.OPENAI_RESPONSES_OUTPUT,
+                        tuple(continuation_items),
+                    )
+                    if continuation is not None:
+                        yield ChatStreamEvent(
+                            kind=ChatStreamEventKind.PROTOCOL_CONTINUATION,
+                            protocol_continuation=continuation,
+                        )
+                    yield ChatStreamEvent(
+                        kind=ChatStreamEventKind.DONE,
+                        finish_reason=_optional_str(response.get("status")),
+                    )
+                    return
             elif event_type == "response.incomplete":
                 response = payload.get("response")
                 if isinstance(response, dict):
@@ -278,19 +313,21 @@ class OpenAIResponsesChatAdapter:
                 yield ChatStreamEvent(
                     kind=ChatStreamEventKind.ERROR,
                     error=_responses_incomplete_message(response),
+                    error_code="upstream_response_incomplete",
                 )
                 return
             elif event_type == "response.failed":
                 yield ChatStreamEvent(
                     kind=ChatStreamEventKind.ERROR,
                     error=_responses_error_message(payload),
+                    error_code="upstream_response_failed",
                 )
                 return
-        if not did_emit_done:
-            yield ChatStreamEvent(
-                kind=ChatStreamEventKind.ERROR,
-                error="上游 Responses 流在完成事件前意外结束，当前回答可能不完整。",
-            )
+        yield ChatStreamEvent(
+            kind=ChatStreamEventKind.ERROR,
+            error="上游 Responses 流在完成事件前意外结束，当前回答可能不完整。",
+            error_code="upstream_stream_incomplete",
+        )
 
 
 def _build_profiled_responses_body(

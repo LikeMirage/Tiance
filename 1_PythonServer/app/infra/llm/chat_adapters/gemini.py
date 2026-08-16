@@ -1,23 +1,30 @@
 from collections.abc import AsyncGenerator
 
+from app.core.errors import UpstreamProviderError
 from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatCompletionResult,
     ChatMessage,
     ChatMessageRole,
+    ChatProtocolContinuationKind,
     ChatStreamEvent,
     ChatStreamEventKind,
     ChatToolCall,
     ChatUsage,
 )
-from app.domain.llm.provider_catalog import ProviderCatalogEntry
+from app.domain.llm.provider_catalog import ProviderCatalogEntry, ProviderProtocolFamily
 from app.domain.llm.provider_runtime import ProviderRuntimeConfig
 from app.infra.llm.chat_adapters.base import PostJson, StreamBody
 from app.infra.llm.chat_adapters.common import (
+    SSE_DONE,
     _iter_sse_payloads,
     _optional_int,
     _optional_str,
     _protocol_error_event,
+)
+from app.infra.llm.chat_adapters.continuation import (
+    build_protocol_continuation,
+    matching_continuation_items,
 )
 from app.infra.llm.chat_adapters.payloads import (
     _json_arguments,
@@ -46,17 +53,40 @@ class GeminiGenerateContentChatAdapter:
             _build_gemini_headers(provider_template, api_key, stream=False),
             _build_gemini_body(request),
         )
+        parts = _extract_gemini_parts(payload)
+        finish_reason = _extract_gemini_finish_reason(payload)
+        if not parts or finish_reason is None:
+            raise UpstreamProviderError(
+                "上游 Gemini 返回缺少完整候选结果结构。",
+                code="upstream_response_malformed",
+            )
+        _raise_for_gemini_finish_reason(finish_reason)
         text, thinking = _extract_gemini_content(payload)
+        try:
+            tool_calls = _extract_gemini_tool_calls(payload)
+        except ValueError as exc:
+            raise UpstreamProviderError(
+                "上游 Gemini 返回了无效的工具参数。",
+                code="upstream_response_malformed",
+            ) from exc
+        continuation = build_protocol_continuation(
+            request,
+            provider_template.protocol_family,
+            ChatProtocolContinuationKind.GEMINI_PARTS,
+            tuple(dict(item) for item in parts if isinstance(item, dict)),
+        )
         return ChatCompletionResult(
             provider_id=request.provider_id,
             model_id=request.model_id,
             message=ChatMessage(
                 role=ChatMessageRole.ASSISTANT,
                 content=text,
-                tool_calls=_extract_gemini_tool_calls(payload),
+                tool_calls=tool_calls,
+                thinking_content=thinking,
+                protocol_continuation=continuation,
             ),
             thinking_content=thinking,
-            finish_reason=_extract_gemini_finish_reason(payload),
+            finish_reason=finish_reason,
             usage=_parse_gemini_usage(payload.get("usageMetadata")),
             raw_response=payload,
         )
@@ -72,6 +102,7 @@ class GeminiGenerateContentChatAdapter:
     ) -> AsyncGenerator[ChatStreamEvent, None]:
         last_finish_reason: str | None = None
         emitted_tool_call_keys: set[tuple[str, str]] = set()
+        continuation_parts: list[dict[str, object]] = []
         async for payload in _iter_sse_payloads(
             stream_body(
                 _build_gemini_generate_content_url(
@@ -81,15 +112,29 @@ class GeminiGenerateContentChatAdapter:
                 _build_gemini_body(request),
             )
         ):
+            if payload is SSE_DONE:
+                break
             if payload is None:
                 yield _protocol_error_event()
                 return
             text, thinking = _extract_gemini_content(payload)
+            continuation_parts.extend(
+                dict(part)
+                for part in _extract_gemini_parts(payload)
+                if isinstance(part, dict)
+            )
             if text:
                 yield ChatStreamEvent(kind=ChatStreamEventKind.DELTA, content=text)
             if thinking:
                 yield ChatStreamEvent(kind=ChatStreamEventKind.THINKING_DELTA, content=thinking)
-            for tool_call in _extract_gemini_tool_calls(payload):
+            try:
+                tool_calls = _extract_gemini_tool_calls(payload)
+            except ValueError:
+                yield _protocol_error_event(
+                    "上游 Gemini 返回了无效的工具参数。"
+                )
+                return
+            for tool_call in tool_calls:
                 tool_call_key = (tool_call.name, tool_call.arguments)
                 if tool_call_key in emitted_tool_call_keys:
                     continue
@@ -102,6 +147,33 @@ class GeminiGenerateContentChatAdapter:
             if usage is not None:
                 yield ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=usage)
             last_finish_reason = _extract_gemini_finish_reason(payload) or last_finish_reason
+        if last_finish_reason is None:
+            yield ChatStreamEvent(
+                kind=ChatStreamEventKind.ERROR,
+                error="上游 Gemini 流在完成标记前意外结束，当前回答可能不完整。",
+                error_code="upstream_stream_incomplete",
+            )
+            return
+        finish_error = _gemini_finish_error(last_finish_reason)
+        if finish_error is not None:
+            message, code = finish_error
+            yield ChatStreamEvent(
+                kind=ChatStreamEventKind.ERROR,
+                error=message,
+                error_code=code,
+            )
+            return
+        continuation = build_protocol_continuation(
+            request,
+            provider_template.protocol_family,
+            ChatProtocolContinuationKind.GEMINI_PARTS,
+            tuple(continuation_parts),
+        )
+        if continuation is not None:
+            yield ChatStreamEvent(
+                kind=ChatStreamEventKind.PROTOCOL_CONTINUATION,
+                protocol_continuation=continuation,
+            )
         yield ChatStreamEvent(kind=ChatStreamEventKind.DONE, finish_reason=last_finish_reason)
 
 def _build_gemini_generate_content_url(
@@ -134,7 +206,7 @@ def _build_gemini_headers(
 def _build_gemini_body(request: ChatCompletionRequest) -> dict[str, object]:
     body: dict[str, object] = {
         "contents": [
-            _message_to_gemini_payload(message)
+            _message_to_gemini_payload(message, request)
             for message in request.messages
             if message.role != ChatMessageRole.SYSTEM
         ],
@@ -152,13 +224,17 @@ def _build_gemini_body(request: ChatCompletionRequest) -> dict[str, object]:
         body["tools"] = tools
     return body
 
-def _message_to_gemini_payload(message: ChatMessage) -> dict[str, object]:
+def _message_to_gemini_payload(
+    message: ChatMessage,
+    request: ChatCompletionRequest,
+) -> dict[str, object]:
     if message.role == ChatMessageRole.TOOL:
         return {
             "role": "user",
             "parts": [
                 {
                     "functionResponse": {
+                        **({"id": message.tool_call_id} if message.tool_call_id else {}),
                         "name": message.name or "",
                         "response": {
                             "result": _message_content_to_text(message),
@@ -169,6 +245,15 @@ def _message_to_gemini_payload(message: ChatMessage) -> dict[str, object]:
         }
 
     role = "model" if message.role == ChatMessageRole.ASSISTANT else "user"
+    if message.role == ChatMessageRole.ASSISTANT:
+        items = matching_continuation_items(
+            message,
+            request,
+            ProviderProtocolFamily.GEMINI_GENERATE_CONTENT,
+            ChatProtocolContinuationKind.GEMINI_PARTS,
+        )
+        if items:
+            return {"role": role, "parts": list(items)}
     if message.tool_calls:
         parts = (
             _message_content_to_gemini_parts(message)
@@ -195,12 +280,12 @@ def _message_to_gemini_payload(message: ChatMessage) -> dict[str, object]:
 
 def _gemini_generation_config(request: ChatCompletionRequest) -> dict[str, object]:
     config: dict[str, object] = {}
-    temperature = request.generation.temperature if request.generation.temperature is not None else request.temperature
+    temperature = request.generation.temperature
     if temperature is not None:
         config["temperature"] = temperature
     if request.generation.top_p is not None:
         config["topP"] = request.generation.top_p
-    max_output_tokens = request.generation.max_output_tokens if request.generation.max_output_tokens is not None else request.max_tokens
+    max_output_tokens = request.generation.max_output_tokens
     if max_output_tokens is not None:
         config["maxOutputTokens"] = max_output_tokens
     return config
@@ -242,11 +327,14 @@ def _extract_gemini_tool_calls(payload: dict[str, object]) -> tuple[ChatToolCall
         name = str(function_call.get("name") or "").strip()
         if not name:
             continue
+        arguments = function_call.get("args")
+        if arguments is not None and not isinstance(arguments, (dict, str)):
+            raise ValueError("invalid Gemini functionCall args")
         tool_calls.append(
             ChatToolCall(
-                call_id=f"gemini_tool_call_{index}",
+                call_id=str(function_call.get("id") or f"gemini_tool_call_{index}"),
                 name=name,
-                arguments=_json_arguments(function_call.get("args")),
+                arguments=_json_arguments(arguments),
             )
         )
     return tuple(tool_calls)
@@ -268,6 +356,28 @@ def _extract_gemini_finish_reason(payload: dict[str, object]) -> str | None:
     if not isinstance(first_candidate, dict):
         return None
     return _optional_str(first_candidate.get("finishReason"))
+
+
+def _raise_for_gemini_finish_reason(finish_reason: str) -> None:
+    finish_error = _gemini_finish_error(finish_reason)
+    if finish_error is None:
+        return
+    message, code = finish_error
+    raise UpstreamProviderError(message, code=code)
+
+
+def _gemini_finish_error(finish_reason: str) -> tuple[str, str] | None:
+    if finish_reason == "STOP":
+        return None
+    if finish_reason == "MAX_TOKENS":
+        return (
+            "上游 Gemini 达到最大输出 Token，回复不完整。",
+            "upstream_response_incomplete",
+        )
+    return (
+        f"上游 Gemini 未正常完成生成：{finish_reason}。",
+        "upstream_response_failed",
+    )
 
 def _parse_gemini_usage(value: object) -> ChatUsage | None:
     if not isinstance(value, dict):

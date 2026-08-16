@@ -76,8 +76,6 @@ def naming_request_payload(request: ChatCompletionRequest) -> dict[str, Any]:
         "project_id": request.project_id,
         "session_id": request.session_id,
         "messages": [_chat_message_payload(message) for message in request.messages],
-        "temperature": request.temperature,
-        "max_tokens": request.max_tokens,
         "tools": [
             {
                 "name": tool.name,

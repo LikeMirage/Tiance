@@ -7,8 +7,11 @@ from app.domain.llm.chat import (
     ChatMessageContentPart,
     ChatMessageContentPartType,
     ChatMessageRole,
+    ChatProtocolContinuation,
+    ChatProtocolContinuationKind,
     ChatToolCall,
 )
+from app.domain.llm.provider_catalog import ProviderProtocolFamily
 from app.infra.llm.chat_adapters.openai_responses_payloads import (
     _build_responses_body,
 )
@@ -95,7 +98,14 @@ def test_compressed_context_updates_existing_summary_without_losing_live_request
     recent_assistant = ChatMessage(
         role=recent_assistant.role,
         content=recent_assistant.content,
-        provider_output_items=({"type": "reasoning", "id": "reasoning-1"},),
+        protocol_continuation=ChatProtocolContinuation(
+            schema_version=1,
+            protocol_family=ProviderProtocolFamily.OPENAI_RESPONSES.value,
+            provider_id="openai",
+            model_id="gpt-test",
+            kind=ChatProtocolContinuationKind.OPENAI_RESPONSES_OUTPUT,
+            items=({"type": "reasoning", "id": "reasoning-1"},),
+        ),
         internal_metadata=recent_assistant.internal_metadata,
     )
     live_resource = ChatMessage(
@@ -146,7 +156,7 @@ def test_compressed_context_updates_existing_summary_without_losing_live_request
         "近期回复",
         "",
     ]
-    assert result.messages[1].provider_output_items == (
+    assert result.messages[1].protocol_continuation.items == (
         {"type": "reasoning", "id": "reasoning-1"},
     )
     assert result.messages[2].content_parts == live_resource.content_parts

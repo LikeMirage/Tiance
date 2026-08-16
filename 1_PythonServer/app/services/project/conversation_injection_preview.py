@@ -29,7 +29,7 @@ def build_conversation_injection_preview(
     )
     ends_with_tool_result = bool(request.messages and request.messages[-1].role == ChatMessageRole.TOOL)
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "generated_at": datetime.now(UTC).isoformat(),
         "description": _description(preview_source),
         "request": {
@@ -38,8 +38,6 @@ def build_conversation_injection_preview(
             "provider_id": request.provider_id,
             "model_id": request.model_id,
             "preview_source": preview_source,
-            "temperature": request.temperature,
-            "max_tokens": request.max_tokens,
             "return_thinking_content": request.return_thinking_content,
             "inject_message_timestamps": request.inject_message_timestamps,
             "max_tool_calls": request.max_tool_calls,

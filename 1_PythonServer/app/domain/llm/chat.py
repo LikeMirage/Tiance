@@ -18,6 +18,24 @@ class ChatMessageContentPartType(StrEnum):
     IMAGE_REF = "image_ref"
 
 
+class ChatProtocolContinuationKind(StrEnum):
+    OPENAI_RESPONSES_OUTPUT = "openai_responses_output"
+    ANTHROPIC_CONTENT = "anthropic_content"
+    GEMINI_PARTS = "gemini_parts"
+
+
+@dataclass(frozen=True, slots=True)
+class ChatProtocolContinuation:
+    """Opaque provider state required to continue a tool-use turn faithfully."""
+
+    schema_version: int
+    protocol_family: str
+    provider_id: str
+    model_id: str
+    kind: ChatProtocolContinuationKind
+    items: tuple[dict[str, Any], ...]
+
+
 @dataclass(frozen=True, slots=True)
 class ChatImageUrl:
     url: str
@@ -93,7 +111,7 @@ class ChatMessage:
     content_parts: tuple[ChatMessageContentPart, ...] = ()
     thinking_content: str = ""
     preview_metadata: dict[str, Any] = field(default_factory=dict)
-    provider_output_items: tuple[dict[str, Any], ...] = ()
+    protocol_continuation: ChatProtocolContinuation | None = None
     internal_metadata: dict[str, Any] = field(default_factory=dict)
     message_id: str | None = None
     created_at: str | None = None
@@ -107,8 +125,6 @@ class ChatCompletionRequest:
     project_id: str | None = None
     session_id: str | None = None
     cache_affinity_id: str | None = None
-    temperature: float | None = None
-    max_tokens: int | None = None
     tools: tuple[ChatToolDefinition, ...] = ()
     generation: LlmGenerationParams = field(default_factory=LlmGenerationParams)
     output: LlmOutputOptions = field(default_factory=LlmOutputOptions)
@@ -152,7 +168,7 @@ class ChatStreamEventKind(StrEnum):
     TOOL_CALL = "tool_call"
     CLIENT_TOOL_REQUEST = "client_tool_request"
     TOOL_RESULT = "tool_result"
-    PROVIDER_OUTPUT_ITEM = "provider_output_item"
+    PROTOCOL_CONTINUATION = "protocol_continuation"
     DONE = "done"
     ERROR = "error"
 
@@ -163,8 +179,9 @@ class ChatStreamEvent:
     content: str | None = None
     finish_reason: str | None = None
     error: str | None = None
+    error_code: str | None = None
     usage: ChatUsage | None = None
     tool_call: ChatToolCall | None = None
     client_tool_request: ChatClientToolRequest | None = None
     tool_result: ChatToolResult | None = None
-    provider_output_item: dict[str, Any] | None = None
+    protocol_continuation: ChatProtocolContinuation | None = None

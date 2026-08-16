@@ -21,6 +21,7 @@ def stream_event_to_payload(
         "content": event.content,
         "finish_reason": event.finish_reason,
         "error": event.error,
+        "error_code": event.error_code,
         "usage": usage_payload if event.kind == ChatStreamEventKind.USAGE else None,
         "context_tokens": context_tokens if event.kind == ChatStreamEventKind.USAGE else None,
         "context_tokens_estimated": (

@@ -116,6 +116,11 @@ def _to_request_message(
             name=message.name if role == ChatMessageRole.TOOL else None,
             tool_call_id=message.tool_call_id if role == ChatMessageRole.TOOL else None,
             tool_calls=message.tool_calls if role == ChatMessageRole.ASSISTANT else (),
+            protocol_continuation=(
+                message.protocol_continuation
+                if role == ChatMessageRole.ASSISTANT
+                else None
+            ),
             thinking_content=thinking_content,
             created_at=(
                 message.created_at_local or message.created_at

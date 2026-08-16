@@ -261,7 +261,12 @@ def project_file_change_paths(
 
 
 def _is_external_project_change(root: Path, _change: Change, path: str) -> bool:
-    relative = _relative_project_path(root, path)
+    return is_external_project_watch_path(root, path)
+
+
+def is_external_project_watch_path(project_root: str | Path, path: str) -> bool:
+    """Return whether a native file notification belongs to user project content."""
+    relative = _relative_project_path(Path(project_root).resolve(), path)
     return bool(relative) and not _is_ignored_project_watch_path(relative)
 
 

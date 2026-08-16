@@ -332,6 +332,7 @@ function ThinkingBlock({
           <LazyMarkdownPreview
             content={message.thinkingContent}
             isStreaming={isStreaming}
+            mathErrorMode="neutral"
             onPreviewHtmlCode={interactions.onPreviewHtmlCode}
             onSaveCodeBlock={interactions.onSaveCodeBlock}
           />
@@ -377,6 +378,7 @@ function MessageBody({
             <LazyMarkdownPreview
               content={bodyContent}
               isStreaming={isBodyStreaming}
+              mathErrorMode="neutral"
               onPreviewHtmlCode={interactions.onPreviewHtmlCode}
               onSaveCodeBlock={interactions.onSaveCodeBlock}
             />

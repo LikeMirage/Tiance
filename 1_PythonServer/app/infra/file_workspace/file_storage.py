@@ -335,7 +335,7 @@ class FileWorkspaceStorage:
         for entry in entries:
             if is_internal_write_temp_path(entry):
                 continue
-            nodes.append(_build_file_node(entry, root))
+            nodes.append(_build_file_node(entry, root, include_mtime=True))
         return tuple(nodes)
 
     def _search_tree(
@@ -371,7 +371,7 @@ class FileWorkspaceStorage:
                 elif query in entry.name.lower():
                     results.append(_build_file_node(entry, root))
             elif query in entry.name.lower():
-                results.append(_build_file_node(entry, root))
+                results.append(_build_file_node(entry, root, include_mtime=True))
         return tuple(results)
 
 

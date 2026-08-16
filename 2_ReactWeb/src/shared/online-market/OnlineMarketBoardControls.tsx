@@ -4,6 +4,7 @@ import {
   LinkSimple,
   MagnifyingGlass,
 } from "@phosphor-icons/react";
+import { useEffect, useId, useRef } from "react";
 import type { FormEvent, ReactNode } from "react";
 import "./online-market-board-controls.css";
 
@@ -156,6 +157,7 @@ export type OnlineMarketToolbarProps = {
   classes: OnlineMarketBoardClasses;
   filterOpen: boolean;
   filterText: string;
+  filterPanel?: ReactNode;
   isLoading: boolean;
   onFilterToggle: () => void;
   onQueryChange: (query: string) => void;
@@ -171,6 +173,7 @@ export function OnlineMarketToolbar({
   classes,
   filterOpen,
   filterText,
+  filterPanel,
   isLoading,
   onFilterToggle,
   onQueryChange,
@@ -180,8 +183,33 @@ export function OnlineMarketToolbar({
   searchPlaceholder,
   status,
 }: OnlineMarketToolbarProps) {
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
+  const filterPanelId = useId();
+
+  useEffect(() => {
+    if (!filterOpen || !filterPanel) return undefined;
+
+    const handleOutsidePointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && toolbarRef.current?.contains(event.target)) return;
+      onFilterToggle();
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onFilterToggle();
+      filterButtonRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", handleOutsidePointer);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsidePointer);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [filterOpen, filterPanel, onFilterToggle]);
+
   return (
-    <div className={classes.toolbar}>
+    <div className={`${classes.toolbar} online-market-toolbar`} ref={toolbarRef}>
       <div className={classes.status} aria-live="polite">{status}</div>
       <div className={classes.tools}>
         <label className={classes.search}>
@@ -194,9 +222,11 @@ export function OnlineMarketToolbar({
           />
         </label>
         <button
+          aria-controls={filterOpen && filterPanel ? filterPanelId : undefined}
           aria-expanded={filterOpen}
           className={`${classes.filter}${filterOpen ? " is-active" : ""}`}
           onClick={onFilterToggle}
+          ref={filterButtonRef}
           type="button"
         >
           <Funnel size={14} aria-hidden="true" />
@@ -214,6 +244,16 @@ export function OnlineMarketToolbar({
           <ArrowClockwise size={16} aria-hidden="true" />
         </button>
       </div>
+      {filterOpen && filterPanel ? (
+        <div
+          aria-label={filterText}
+          className="online-market-filter-popover"
+          id={filterPanelId}
+          role="region"
+        >
+          {filterPanel}
+        </div>
+      ) : null}
     </div>
   );
 }

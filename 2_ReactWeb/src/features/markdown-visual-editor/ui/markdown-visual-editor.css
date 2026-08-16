@@ -100,6 +100,12 @@
   font-size: 13px;
 }
 
+.markdown-visual-editor .milkdown .katex-error {
+  border-bottom: 1px dotted var(--color-danger);
+  color: var(--color-danger);
+  cursor: help;
+}
+
 .markdown-visual-editor .milkdown .ProseMirror h1 {
   font-size: 1.38rem;
   line-height: 1.35;
@@ -183,10 +189,14 @@
 }
 
 .markdown-visual-editor .milkdown .milkdown-table-block {
+  box-sizing: border-box;
+  width: 100%;
   display: block;
   max-width: 100%;
   margin: 12px 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
   border: 1px solid var(--color-border-soft);
   border-radius: 4px;
 }
@@ -201,7 +211,7 @@
 .markdown-visual-editor .milkdown .milkdown-table-block th,
 .markdown-visual-editor .milkdown .milkdown-table-block td {
   min-width: 120px;
-  max-width: 560px;
+  max-width: none;
   padding: 7px 10px;
   vertical-align: top;
   border-color: var(--color-border-soft);
@@ -254,11 +264,25 @@
 .markdown-visual-editor .milkdown .milkdown-table-block span[data-type="math_inline"] {
   position: relative;
   z-index: 1;
+  display: inline-flex;
+  width: max-content;
   min-width: 1em;
-  max-width: 100%;
-  overflow-x: auto;
+  max-width: none;
+  white-space: nowrap;
   color: var(--color-accent);
   vertical-align: middle;
+}
+
+.markdown-visual-editor .milkdown .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.markdown-visual-editor .milkdown .katex-display:has(.tag) > .katex {
+  box-sizing: border-box;
+  min-width: max-content;
+  padding-inline: 4.5em;
 }
 
 .markdown-visual-editor
@@ -364,4 +388,17 @@
 .markdown-visual-editor__latex-preview-body .katex-display > .katex {
   display: inline-block;
   max-width: none;
+}
+
+.markdown-visual-editor__latex-preview[data-math-render-error="true"] {
+  border-bottom: 1px dotted var(--color-danger);
+  cursor: help;
+}
+
+.markdown-visual-editor__latex-preview[data-math-render-error="true"]
+  .markdown-visual-editor__latex-preview-label::after {
+  margin-left: 6px;
+  color: var(--color-danger);
+  content: "公式未完整渲染";
+  font-weight: 500;
 }

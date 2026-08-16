@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Crepe } from "@milkdown/crepe";
-import katex from "katex";
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame-dark.css";
 import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
+import { markdownKatexOptions } from "../../markdown-preview/model/markdownMath";
+import { renderMarkdownKatex } from "../../markdown-preview/model/markdownKatex";
 import {
-  normalizeLatexForKatex,
-} from "../../markdown-preview/model/markdownMath";
-import {
+  createMarkdownVisualEditorSession,
   prepareMarkdownForVisualEditor,
   restoreMarkdownFromVisualEditor,
+  type MarkdownVisualEditorSession,
 } from "../model/markdownVisualEditorContent";
 import "./markdown-visual-editor.css";
 
@@ -36,6 +36,8 @@ export function MarkdownVisualEditor({
   const pendingChangeTimerRef = useRef<number | null>(null);
   const pendingValueRef = useRef<string | null>(null);
   const lastCommittedValueRef = useRef(value);
+  const hasUserEditIntentRef = useRef(false);
+  const editorSessionRef = useRef<MarkdownVisualEditorSession | null>(null);
   const onChangeRef = useRef(onChange);
   const onDirtyRef = useRef(onDirty);
   const onSaveRef = useRef(onSave);
@@ -52,6 +54,11 @@ export function MarkdownVisualEditor({
   onSaveRef.current = onSave;
   latestValueRef.current = value;
 
+  const restoreEditorContent = (content: string) => (
+    editorSessionRef.current?.restore(content)
+    ?? restoreMarkdownFromVisualEditor(content)
+  );
+
   const flushPendingChange = () => {
     const pendingValue = pendingValueRef.current;
     if (pendingChangeTimerRef.current !== null) {
@@ -59,15 +66,15 @@ export function MarkdownVisualEditor({
       pendingChangeTimerRef.current = null;
     }
     if (pendingValue === null) {
-      return restoreMarkdownFromVisualEditor(lastCommittedValueRef.current);
+      return restoreEditorContent(lastCommittedValueRef.current);
     }
 
     pendingValueRef.current = null;
     if (pendingValue !== lastCommittedValueRef.current) {
       lastCommittedValueRef.current = pendingValue;
-      onChangeRef.current(restoreMarkdownFromVisualEditor(pendingValue));
+      onChangeRef.current(restoreEditorContent(pendingValue));
     }
-    return restoreMarkdownFromVisualEditor(pendingValue);
+    return restoreEditorContent(pendingValue);
   };
 
   const scheduleChangeCommit = (nextValue: string) => {
@@ -81,11 +88,21 @@ export function MarkdownVisualEditor({
   };
 
   const saveCurrentDocument = () => {
+    if (!hasUserEditIntentRef.current) {
+      pendingValueRef.current = null;
+      if (pendingChangeTimerRef.current !== null) {
+        window.clearTimeout(pendingChangeTimerRef.current);
+        pendingChangeTimerRef.current = null;
+      }
+      onSaveRef.current?.(latestValueRef.current);
+      return;
+    }
+
     const crepe = crepeRef.current;
     const nextEditorValue = crepe?.getMarkdown();
     const nextValue = nextEditorValue === undefined
       ? flushPendingChange()
-      : restoreMarkdownFromVisualEditor(nextEditorValue);
+      : restoreEditorContent(nextEditorValue);
     pendingValueRef.current = null;
     if (pendingChangeTimerRef.current !== null) {
       window.clearTimeout(pendingChangeTimerRef.current);
@@ -110,14 +127,22 @@ export function MarkdownVisualEditor({
     scheduleChangeCommit(nextValue);
   };
 
+  const markUserEditIntent = () => {
+    hasUserEditIntentRef.current = true;
+  };
+
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
 
     let disposed = false;
-    const seedValue = prepareMarkdownForVisualEditor(latestValueRef.current);
+    const editorSession = createMarkdownVisualEditorSession(latestValueRef.current);
+    const seedValue = editorSession.editorContent;
+    editorSessionRef.current = editorSession;
     root.innerHTML = "";
     createdRef.current = false;
+    hasUserEditIntentRef.current = false;
+    lastCommittedValueRef.current = seedValue;
     setIsEditorReady(false);
 
     const crepe = new Crepe({
@@ -127,12 +152,22 @@ export function MarkdownVisualEditor({
         [Crepe.Feature.TopBar]: true,
         [Crepe.Feature.AI]: false,
       },
+      featureConfigs: {
+        [Crepe.Feature.Latex]: {
+          katexOptions: markdownKatexOptions,
+        },
+      },
     });
 
     crepe.on((listener) => {
       listener.markdownUpdated((_ctx, markdown) => {
         if (disposed) return;
         if (markdown === lastCommittedValueRef.current) return;
+        if (!hasUserEditIntentRef.current) {
+          pendingValueRef.current = null;
+          lastCommittedValueRef.current = markdown;
+          return;
+        }
         commitEditorChange(markdown);
       });
       listener.blur(() => {
@@ -158,15 +193,34 @@ export function MarkdownVisualEditor({
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
         saveCurrentDocument();
+        return;
+      }
+      if (isMarkdownEditingKey(event)) markUserEditIntent();
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("button, input, select, textarea, [role='button'], [role='checkbox']")) {
+        markUserEditIntent();
       }
     };
     root.addEventListener("keydown", handleKeyDown);
+    root.addEventListener("beforeinput", markUserEditIntent, true);
+    root.addEventListener("cut", markUserEditIntent, true);
+    root.addEventListener("drop", markUserEditIntent, true);
+    root.addEventListener("paste", markUserEditIntent, true);
+    root.addEventListener("pointerdown", handlePointerDown, true);
 
     return () => {
       disposed = true;
       root.removeEventListener("keydown", handleKeyDown);
+      root.removeEventListener("beforeinput", markUserEditIntent, true);
+      root.removeEventListener("cut", markUserEditIntent, true);
+      root.removeEventListener("drop", markUserEditIntent, true);
+      root.removeEventListener("paste", markUserEditIntent, true);
+      root.removeEventListener("pointerdown", handlePointerDown, true);
       flushPendingChange();
       crepeRef.current = null;
+      editorSessionRef.current = null;
       createdRef.current = false;
       void crepe.destroy();
     };
@@ -228,6 +282,18 @@ export function MarkdownVisualEditor({
   );
 }
 
+function isMarkdownEditingKey(event: KeyboardEvent) {
+  if (event.altKey) return false;
+  if (event.ctrlKey || event.metaKey) {
+    return ["b", "i", "k", "u", "y", "z"].includes(event.key.toLowerCase());
+  }
+  return event.key.length === 1
+    || event.key === "Backspace"
+    || event.key === "Delete"
+    || event.key === "Enter"
+    || event.key === "Tab";
+}
+
 function renderLatexCodeBlockPreviews(root: HTMLElement) {
   const codeBlocks = root.querySelectorAll<HTMLElement>(".milkdown-code-block");
   for (const block of codeBlocks) {
@@ -243,7 +309,7 @@ function renderLatexCodeBlockPreviews(root: HTMLElement) {
       continue;
     }
 
-    const previewHtml = renderLatexToHtml(code);
+    const rendered = renderMarkdownKatex(code, true);
     block.dataset.tianceLatexPreview = "true";
     hideNativeLatexPreview(block);
     let preview = block.querySelector<HTMLElement>(":scope > .markdown-visual-editor__latex-preview");
@@ -254,7 +320,9 @@ function renderLatexCodeBlockPreviews(root: HTMLElement) {
     }
     if (preview.dataset.source !== code) {
       preview.dataset.source = code;
-      preview.innerHTML = `<div class="markdown-visual-editor__latex-preview-label">PREVIEW</div><div class="markdown-visual-editor__latex-preview-body">${previewHtml}</div>`;
+      preview.dataset.mathRenderError = rendered.error ? "true" : "false";
+      preview.title = rendered.error ?? "";
+      preview.innerHTML = `<div class="markdown-visual-editor__latex-preview-label">PREVIEW</div><div class="markdown-visual-editor__latex-preview-body">${rendered.html}</div>`;
     }
   }
 }
@@ -295,26 +363,4 @@ function hideNativeLatexPreview(block: HTMLElement) {
 function isLatexLanguage(language: string) {
   const normalized = language.trim().toLowerCase();
   return normalized === "latex" || normalized === "tex" || normalized === "math";
-}
-
-function renderLatexToHtml(code: string) {
-  const normalized = normalizeLatexForKatex(code);
-  if (!normalized) return "";
-  try {
-    return katex.renderToString(normalized, {
-      displayMode: true,
-      errorColor: "#d88f86",
-      throwOnError: false,
-    });
-  } catch {
-    return `<pre>${escapeHtml(normalized)}</pre>`;
-  }
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }

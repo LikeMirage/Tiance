@@ -7,6 +7,8 @@ from app.domain.llm.chat import (
     ChatImageUrl,
     ChatMessageContentPart,
     ChatMessageContentPartType,
+    ChatProtocolContinuation,
+    ChatProtocolContinuationKind,
     ChatToolCall,
 )
 from app.domain.llm.generation_params import LlmReasoningMode
@@ -90,6 +92,11 @@ def _message_from_payload(payload: dict) -> ProjectConversationMessage:
         name=_optional_str(payload.get("name")),
         tool_call_id=_optional_str(payload.get("tool_call_id")),
         tool_calls=_tool_calls_from_payload(payload.get("tool_calls")),
+        protocol_continuation=(
+            _protocol_continuation_from_payload(payload.get("protocol_continuation"))
+            if role == "assistant"
+            else None
+        ),
         content_parts=_content_parts_from_payload(payload.get("content_parts")),
         origin_message_id=origin_message_id,
         variant_group_id=variant_group_id,
@@ -176,6 +183,10 @@ def _message_to_payload(message: ProjectConversationMessage) -> dict:
                 }
                 for tool_call in message.tool_calls
             ]
+        if message.protocol_continuation is not None:
+            payload["protocol_continuation"] = _protocol_continuation_to_payload(
+                message.protocol_continuation
+            )
     if message.content_parts:
         payload["content_parts"] = [
             _content_part_to_payload(part)
@@ -335,6 +346,46 @@ def _tool_calls_from_payload(value: object) -> tuple[ChatToolCall, ...]:
             )
         )
     return tuple(tool_calls)
+
+
+def _protocol_continuation_from_payload(
+    value: object,
+) -> ChatProtocolContinuation | None:
+    if not isinstance(value, dict) or value.get("schema_version") != 1:
+        return None
+    items = value.get("items")
+    if not isinstance(items, list) or not all(isinstance(item, dict) for item in items):
+        return None
+    try:
+        kind = ChatProtocolContinuationKind(str(value.get("kind") or ""))
+    except ValueError:
+        return None
+    protocol_family = _optional_str(value.get("protocol_family"))
+    provider_id = _optional_str(value.get("provider_id"))
+    model_id = _optional_str(value.get("model_id"))
+    if not protocol_family or not provider_id or not model_id:
+        return None
+    return ChatProtocolContinuation(
+        schema_version=1,
+        protocol_family=protocol_family,
+        provider_id=provider_id,
+        model_id=model_id,
+        kind=kind,
+        items=tuple(dict(item) for item in items),
+    )
+
+
+def _protocol_continuation_to_payload(
+    continuation: ChatProtocolContinuation,
+) -> dict[str, object]:
+    return {
+        "schema_version": continuation.schema_version,
+        "protocol_family": continuation.protocol_family,
+        "provider_id": continuation.provider_id,
+        "model_id": continuation.model_id,
+        "kind": continuation.kind.value,
+        "items": [dict(item) for item in continuation.items],
+    }
 
 
 def _content_parts_from_payload(value: object) -> tuple[ChatMessageContentPart, ...]:

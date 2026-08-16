@@ -159,6 +159,7 @@
   height: 100%;
   min-height: 0;
   min-width: 0;
+  overflow-anchor: none;
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);

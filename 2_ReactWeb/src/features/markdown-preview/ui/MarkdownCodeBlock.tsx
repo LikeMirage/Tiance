@@ -1,9 +1,8 @@
 import { Children, isValidElement, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import katex from "katex";
 
 import type { CodeBlockSavePayload } from "../model/codeBlockFile";
-import { normalizeLatexForKatex } from "../model/markdownMath";
+import { renderMarkdownKatex } from "../model/markdownKatex";
 import {
   formatSaveStateLabel,
   runCodeBlockSaveQueue,
@@ -184,30 +183,21 @@ export function MarkdownCodeBlock({
 }
 
 function LatexCodePreview({ code }: { code: string }) {
-  const html = renderLatexToHtml(code);
+  const rendered = renderMarkdownKatex(code, true);
   return (
     <div className="markdown-preview__latex-code-preview">
       <div className="markdown-preview__latex-code-preview-label">PREVIEW</div>
       <div
-        className="markdown-preview__latex-code-preview-body"
-        dangerouslySetInnerHTML={{ __html: html }}
+        className={[
+          "markdown-preview__latex-code-preview-body",
+          rendered.error ? "markdown-preview__math-error" : "",
+        ].filter(Boolean).join(" ")}
+        dangerouslySetInnerHTML={{ __html: rendered.html }}
+        data-math-render-error={rendered.error ? "true" : undefined}
+        title={rendered.error ?? undefined}
       />
     </div>
   );
-}
-
-function renderLatexToHtml(code: string) {
-  const normalized = normalizeLatexForKatex(code);
-  if (!normalized) return "";
-  try {
-    return katex.renderToString(normalized, {
-      displayMode: true,
-      errorColor: "#d88f86",
-      throwOnError: false,
-    });
-  } catch {
-    return `<pre>${escapeHtml(normalized)}</pre>`;
-  }
 }
 
 function useHighlightedCode(
@@ -334,12 +324,4 @@ function reactNodeToText(node: ReactNode): string {
     return reactNodeToText((node as ReactElement<{ children?: ReactNode }>).props.children);
   }
   return "";
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }

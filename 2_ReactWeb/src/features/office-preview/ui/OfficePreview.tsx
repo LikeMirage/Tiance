@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useEffect,
   useMemo,
   useState,
   type WheelEvent,
@@ -67,10 +66,6 @@ export function OfficePreview({
     event.preventDefault();
     zoomByWheel(event.deltaY);
   }, [officeKind, zoomByWheel]);
-
-  useEffect(() => {
-    setIsContentLoadingVisible(isLoadableOfficeKind(officeKind) && Boolean(src));
-  }, [officeKind, src]);
 
   return (
     <div

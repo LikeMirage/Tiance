@@ -360,6 +360,7 @@ function AssistantContentProcessBlock({
       <LazyMarkdownPreview
         content={content}
         isStreaming={isStreaming}
+        mathErrorMode="neutral"
         onPreviewHtmlCode={interactions.onPreviewHtmlCode}
         onSaveCodeBlock={interactions.onSaveCodeBlock}
       />
@@ -420,6 +421,7 @@ function ThinkingProcessBlock({
           <LazyMarkdownPreview
             content={item.content}
             isStreaming={isStreaming}
+            mathErrorMode="neutral"
             onPreviewHtmlCode={interactions.onPreviewHtmlCode}
             onSaveCodeBlock={interactions.onSaveCodeBlock}
           />

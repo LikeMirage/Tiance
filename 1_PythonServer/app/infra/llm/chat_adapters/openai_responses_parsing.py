@@ -66,17 +66,17 @@ def _extract_responses_reasoning_text(payload: dict[str, object]) -> str:
     return "".join(reasoning_chunks or summary_chunks)
 
 
-def _extract_provider_output_items(
+def _extract_responses_continuation_items(
     payload: dict[str, object],
 ) -> tuple[dict[str, object], ...]:
     return tuple(
-        provider_output_item
+        continuation_item
         for item in _responses_output_items(payload)
-        if (provider_output_item := _provider_output_item(item)) is not None
+        if (continuation_item := _responses_continuation_item(item)) is not None
     )
 
 
-def _provider_output_item(item: object) -> dict[str, object] | None:
+def _responses_continuation_item(item: object) -> dict[str, object] | None:
     if not isinstance(item, dict):
         return None
     if item.get("type") != "reasoning":

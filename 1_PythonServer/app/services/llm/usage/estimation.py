@@ -9,6 +9,7 @@ from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatMessage,
     ChatMessageContentPartType,
+    ChatProtocolContinuationKind,
     ChatUsage,
 )
 from app.domain.llm.token_estimation_settings import (
@@ -98,11 +99,17 @@ def estimate_completion_tokens(
     thinking_content: str = "",
     settings: TokenEstimationSettings = DEFAULT_TOKEN_ESTIMATION_SETTINGS,
 ) -> int:
+    if _uses_full_protocol_continuation(message):
+        return max(
+            estimate_json_token_count(message.protocol_continuation.items, settings),
+            1,
+        )
     total = estimate_token_count(message.content, settings)
-    total += estimate_token_count(
-        thinking_content or message.thinking_content,
-        settings,
-    )
+    if not _has_responses_continuation(message):
+        total += estimate_token_count(
+            thinking_content or message.thinking_content,
+            settings,
+        )
     for tool_call in message.tool_calls:
         total += estimate_token_count(tool_call.call_id, settings)
         total += estimate_token_count(tool_call.name, settings)
@@ -112,8 +119,8 @@ def estimate_completion_tokens(
             total += estimate_token_count(part.text or "", settings)
         else:
             total += settings.image_placeholder_tokens
-    if message.provider_output_items:
-        total += estimate_json_token_count(message.provider_output_items, settings)
+    if message.protocol_continuation is not None:
+        total += estimate_json_token_count(message.protocol_continuation.items, settings)
     return max(total, 1)
 
 
@@ -164,8 +171,14 @@ def _estimate_message_tokens(
 ) -> int:
     total = settings.message_overhead_tokens
     total += estimate_token_count(message.role.value, settings)
+    if _uses_full_protocol_continuation(message):
+        return total + estimate_json_token_count(
+            message.protocol_continuation.items,
+            settings,
+        )
     total += estimate_token_count(model_visible_message_content(message), settings)
-    total += estimate_token_count(message.thinking_content, settings)
+    if not _has_responses_continuation(message):
+        total += estimate_token_count(message.thinking_content, settings)
     total += estimate_token_count(message.name or "", settings)
     total += estimate_token_count(message.tool_call_id or "", settings)
     for tool_call in message.tool_calls:
@@ -177,9 +190,30 @@ def _estimate_message_tokens(
             total += estimate_token_count(part.text or "", settings)
         else:
             total += settings.image_placeholder_tokens
-    if message.provider_output_items:
-        total += estimate_json_token_count(message.provider_output_items, settings)
+    if message.protocol_continuation is not None:
+        total += estimate_json_token_count(message.protocol_continuation.items, settings)
     return total
+
+
+def _uses_full_protocol_continuation(message: ChatMessage) -> bool:
+    continuation = message.protocol_continuation
+    return bool(
+        continuation is not None
+        and continuation.kind
+        in {
+            ChatProtocolContinuationKind.ANTHROPIC_CONTENT,
+            ChatProtocolContinuationKind.GEMINI_PARTS,
+        }
+    )
+
+
+def _has_responses_continuation(message: ChatMessage) -> bool:
+    continuation = message.protocol_continuation
+    return bool(
+        continuation is not None
+        and continuation.kind
+        == ChatProtocolContinuationKind.OPENAI_RESPONSES_OUTPUT
+    )
 
 
 def _run_tokens(length: int, chars_per_token: float) -> int:

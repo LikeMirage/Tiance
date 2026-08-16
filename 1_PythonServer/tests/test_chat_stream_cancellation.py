@@ -14,6 +14,8 @@ from app.domain.llm.chat import (
     ChatClientToolRequest,
     ChatMessage,
     ChatMessageRole,
+    ChatProtocolContinuation,
+    ChatProtocolContinuationKind,
     ChatStreamEvent,
     ChatStreamEventKind,
     ChatToolCall,
@@ -21,6 +23,7 @@ from app.domain.llm.chat import (
     ChatToolResult,
     ChatUsage,
 )
+from app.domain.llm.provider_catalog import ProviderProtocolFamily
 from app.domain.project.project_conversation import (
     ProjectConversationMessage,
     ProjectConversationSession,
@@ -760,7 +763,7 @@ def test_stream_executes_tool_call_and_feeds_result_back_to_model():
     assert second_messages[-2].created_at is None
     assert second_messages[-2].tool_calls[0].name == "read_text_file"
     assert second_messages[-2].thinking_content == "需要读取文件。"
-    assert second_messages[-2].provider_output_items == (
+    assert second_messages[-2].protocol_continuation.items == (
         {
             "id": "rs-1",
             "type": "reasoning",
@@ -1387,7 +1390,11 @@ def test_stream_preserves_usage_when_provider_emits_error_event():
     payloads = asyncio.run(_collect_payloads(service))
 
     error_message = conversation_service.appended[-1]
-    assert payloads[-1] == {"kind": "error", "error": "provider failed"}
+    assert payloads[-1] == {
+        "kind": "error",
+        "error": "provider failed",
+        "error_code": "upstream_response_failed",
+    }
     assert error_message["role"] == "error"
     assert error_message["usage"]["total_tokens"] == 18
     assert usage_service.records[0]["usage"].total_tokens == 18
@@ -1417,7 +1424,11 @@ def test_provider_error_usage_record_failure_keeps_original_terminal_events_and_
         "assistant_message_id": "msg-2",
         "status": "error",
     }
-    assert payloads[-1] == {"kind": "error", "error": "provider failed"}
+    assert payloads[-1] == {
+        "kind": "error",
+        "error": "provider failed",
+        "error_code": "upstream_response_failed",
+    }
     assert [item["role"] for item in conversation_service.appended] == [
         "user",
         "error",
@@ -1915,13 +1926,20 @@ class _ToolCallingChatService:
         self.requests.append(request)
         if len(self.requests) == 1:
             yield ChatStreamEvent(
-                kind=ChatStreamEventKind.PROVIDER_OUTPUT_ITEM,
-                provider_output_item={
-                    "id": "rs-1",
-                    "type": "reasoning",
-                    "encrypted_content": "encrypted",
-                    "summary": [],
-                },
+                kind=ChatStreamEventKind.PROTOCOL_CONTINUATION,
+                protocol_continuation=ChatProtocolContinuation(
+                    schema_version=1,
+                    protocol_family=ProviderProtocolFamily.OPENAI_RESPONSES.value,
+                    provider_id="deepseek",
+                    model_id="deepseek-v4",
+                    kind=ChatProtocolContinuationKind.OPENAI_RESPONSES_OUTPUT,
+                    items=({
+                        "id": "rs-1",
+                        "type": "reasoning",
+                        "encrypted_content": "encrypted",
+                        "summary": [],
+                    },),
+                ),
             )
             yield ChatStreamEvent(kind=ChatStreamEventKind.THINKING_DELTA, content="需要读取文件。")
             yield ChatStreamEvent(

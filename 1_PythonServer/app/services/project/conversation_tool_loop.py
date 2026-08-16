@@ -9,6 +9,7 @@ from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatMessage,
     ChatMessageRole,
+    ChatProtocolContinuation,
     ChatStreamEvent,
     ChatStreamEventKind,
     ChatToolCall,
@@ -136,7 +137,7 @@ class ConversationToolLoop:
             round_answer_parts: list[str] = []
             round_thinking_parts: list[str] = []
             round_tool_calls: list[ChatToolCall] = []
-            round_provider_output_items: list[dict[str, object]] = []
+            round_protocol_continuation: ChatProtocolContinuation | None = None
             round_usage: ChatUsage | None = None
             round_context_tokens: int | None = None
             round_context_tokens_estimated = False
@@ -168,10 +169,10 @@ class ConversationToolLoop:
                     round_tool_calls.append(event.tool_call)
                     continue
                 if (
-                    event.kind == ChatStreamEventKind.PROVIDER_OUTPUT_ITEM
-                    and event.provider_output_item is not None
+                    event.kind == ChatStreamEventKind.PROTOCOL_CONTINUATION
+                    and event.protocol_continuation is not None
                 ):
-                    round_provider_output_items.append(event.provider_output_item)
+                    round_protocol_continuation = event.protocol_continuation
                     continue
                 if event.kind == ChatStreamEventKind.USAGE and event.usage is not None:
                     round_usage = merge_usage(round_usage, event.usage)
@@ -192,6 +193,7 @@ class ConversationToolLoop:
                 yield ChatStreamEvent(
                     kind=ChatStreamEventKind.ERROR,
                     error=f"工具调用次数过多，已停止本轮生成。（上限 {max_tool_calls} 次）",
+                    error_code="tool_call_limit_exceeded",
                 )
                 return
 
@@ -208,6 +210,7 @@ class ConversationToolLoop:
                 content=round_answer,
                 thinking_content=round_thinking,
                 tool_calls=tuple(round_tool_calls),
+                protocol_continuation=round_protocol_continuation,
                 usage=usage_to_payload(round_usage) if round_usage is not None else None,
                 context_tokens=round_context_tokens,
                 context_tokens_estimated=round_context_tokens_estimated,
@@ -228,7 +231,7 @@ class ConversationToolLoop:
                         content=round_answer,
                         tool_calls=tuple(round_tool_calls),
                         thinking_content=returned_round_thinking,
-                        provider_output_items=tuple(round_provider_output_items),
+                        protocol_continuation=round_protocol_continuation,
                     ),
                     assistant_message.message_id if assistant_message is not None else None,
                 ),
@@ -832,6 +835,7 @@ class ConversationToolLoop:
         content: str,
         thinking_content: str,
         tool_calls: tuple[ChatToolCall, ...],
+        protocol_continuation: ChatProtocolContinuation | None,
         usage: dict[str, object] | None,
         context_tokens: int | None,
         context_tokens_estimated: bool,
@@ -845,6 +849,7 @@ class ConversationToolLoop:
             content=content,
             thinking_content=thinking_content,
             tool_calls=tool_calls,
+            protocol_continuation=protocol_continuation,
             usage=usage,
             context_tokens=context_tokens,
             context_tokens_estimated=context_tokens_estimated,

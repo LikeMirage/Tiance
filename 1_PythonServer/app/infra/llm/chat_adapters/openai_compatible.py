@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator
 
+from app.core.errors import UpstreamProviderError
 from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatCompletionResult,
@@ -13,11 +14,13 @@ from app.domain.llm.provider_catalog import ProviderCatalogEntry
 from app.domain.llm.provider_runtime import ProviderRuntimeConfig
 from app.infra.llm.chat_adapters.base import PostJson, StreamBody
 from app.infra.llm.chat_adapters.common import (
+    SSE_DONE,
     _build_headers,
     _build_stream_headers,
     _iter_sse_payloads,
     _optional_str,
     _protocol_error_event,
+    _extract_error_message,
 )
 from app.infra.llm.chat_adapters.payloads import (
     _apply_generation_params,
@@ -74,9 +77,20 @@ class OpenAICompatibleChatAdapter:
         tool_call_parts: dict[int, dict[str, str]] = {}
         did_emit_tool_call_delta = False
         did_emit_tool_calls = False
+        saw_done_marker = False
         async for payload in _iter_sse_payloads(stream_body(url, headers, body)):
+            if payload is SSE_DONE:
+                saw_done_marker = True
+                break
             if payload is None:
                 yield _protocol_error_event()
+                return
+            if isinstance(payload.get("error"), dict):
+                yield ChatStreamEvent(
+                    kind=ChatStreamEventKind.ERROR,
+                    error=_extract_error_message(payload),
+                    error_code="upstream_response_failed",
+                )
                 return
             usage = provider_profile.parse_usage(payload.get("usage"))
             if usage is not None:
@@ -126,6 +140,20 @@ class OpenAICompatibleChatAdapter:
                         tool_call=tool_call,
                     )
                 did_emit_tool_calls = True
+        if not saw_done_marker and finish_reason is None:
+            yield ChatStreamEvent(
+                kind=ChatStreamEventKind.ERROR,
+                error="上游 OpenAI 兼容流在完成标记前意外结束，当前回答可能不完整。",
+                error_code="upstream_stream_incomplete",
+            )
+            return
+        if finish_reason in {"length", "content_filter"}:
+            yield ChatStreamEvent(
+                kind=ChatStreamEventKind.ERROR,
+                error=f"上游生成未完整结束：{finish_reason}。",
+                error_code="upstream_response_incomplete",
+            )
+            return
         yield ChatStreamEvent(kind=ChatStreamEventKind.DONE, finish_reason=finish_reason)
 
 def _build_chat_completions_url(
@@ -182,13 +210,26 @@ def _parse_response(
     provider_profile: ProviderProfile,
 ) -> ChatCompletionResult:
     choices = payload.get("choices")
-    first_choice = choices[0] if isinstance(choices, list) and choices else {}
+    first_choice = choices[0] if isinstance(choices, list) and choices else None
     if not isinstance(first_choice, dict):
-        first_choice = {}
+        raise UpstreamProviderError(
+            "上游 OpenAI 兼容接口返回缺少 choices。",
+            code="upstream_response_malformed",
+        )
 
     upstream_message = first_choice.get("message")
     if not isinstance(upstream_message, dict):
-        upstream_message = {}
+        raise UpstreamProviderError(
+            "上游 OpenAI 兼容接口返回缺少消息结构。",
+            code="upstream_response_malformed",
+        )
+
+    finish_reason = _optional_str(first_choice.get("finish_reason"))
+    if finish_reason in {"length", "content_filter"}:
+        raise UpstreamProviderError(
+            f"上游生成未完整结束：{finish_reason}。",
+            code="upstream_response_incomplete",
+        )
 
     role = _parse_role(upstream_message.get("role"))
     message = ChatMessage(
@@ -203,7 +244,7 @@ def _parse_response(
         model_id=request.model_id,
         message=message,
         thinking_content=_extract_thinking_content(upstream_message),
-        finish_reason=_optional_str(first_choice.get("finish_reason")),
+        finish_reason=finish_reason,
         usage=provider_profile.parse_usage(payload.get("usage")),
         raw_response=payload,
     )

@@ -74,7 +74,7 @@ def test_conversation_injection_preview_records_complete_request_snapshot():
 
     preview = build_conversation_injection_preview(request)
 
-    assert preview["schema_version"] == 3
+    assert preview["schema_version"] == 4
     assert "memory" not in preview
     assert "hidden_head" not in preview
     assert preview["request"]["preview_source"] == "real_request"
@@ -142,7 +142,7 @@ def test_conversation_injection_preview_marks_draft_source():
         preview_source="draft_request",
     )
 
-    assert preview["schema_version"] == 3
+    assert preview["schema_version"] == 4
     assert preview["request"]["preview_source"] == "draft_request"
     assert "下一次 AI 请求预览" in preview["description"]
     assert preview["request_snapshot"]["messages"][-1]["content"] == "输入框草稿"

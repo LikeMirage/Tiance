@@ -1,8 +1,17 @@
 from hashlib import sha256
 
-from app.domain.llm.chat import ChatCompletionRequest, ChatMessage, ChatMessageRole
+from app.domain.llm.chat import (
+    ChatCompletionRequest,
+    ChatMessage,
+    ChatMessageRole,
+    ChatProtocolContinuationKind,
+)
+from app.domain.llm.provider_catalog import ProviderProtocolFamily
+from app.infra.llm.chat_adapters.continuation import matching_continuation_items
 from app.domain.llm.generation_params import LlmReasoningMode
-from app.infra.llm.chat_adapters.openai_responses_parsing import _provider_output_item
+from app.infra.llm.chat_adapters.openai_responses_parsing import (
+    _responses_continuation_item,
+)
 from app.infra.llm.chat_adapters.payloads import (
     _message_content_to_openai_responses_payload,
     _message_content_to_text,
@@ -19,6 +28,7 @@ def _build_responses_body(
     body: dict[str, object] = {
         "model": request.model_id,
         "input": _messages_to_responses_payload(
+            request,
             request.messages,
             include_message_phase=include_message_phase,
         ),
@@ -29,17 +39,11 @@ def _build_responses_body(
     if prompt_cache_key is not None:
         body["prompt_cache_key"] = prompt_cache_key
     generation = request.generation
-    max_output_tokens = (
-        generation.max_output_tokens
-        if generation.max_output_tokens is not None
-        else request.max_tokens
-    )
+    max_output_tokens = generation.max_output_tokens
     if max_output_tokens is not None:
         body["max_output_tokens"] = max_output_tokens
     if generation.temperature is not None:
         body["temperature"] = generation.temperature
-    elif request.temperature is not None:
-        body["temperature"] = request.temperature
     if generation.top_p is not None:
         body["top_p"] = generation.top_p
     reasoning_payload = _responses_reasoning_payload(request)
@@ -67,6 +71,7 @@ def _responses_prompt_cache_key(request: ChatCompletionRequest) -> str | None:
 
 
 def _messages_to_responses_payload(
+    request: ChatCompletionRequest,
     messages: tuple[ChatMessage, ...],
     *,
     include_message_phase: bool = False,
@@ -76,6 +81,7 @@ def _messages_to_responses_payload(
         payload.extend(
             _message_to_responses_payload(
                 message,
+                request,
                 include_message_phase=include_message_phase,
             )
         )
@@ -84,6 +90,7 @@ def _messages_to_responses_payload(
 
 def _message_to_responses_payload(
     message: ChatMessage,
+    request: ChatCompletionRequest,
     *,
     include_message_phase: bool = False,
 ) -> list[dict[str, object]]:
@@ -97,9 +104,14 @@ def _message_to_responses_payload(
         ]
 
     items = [
-        provider_output_item
-        for item in message.provider_output_items
-        if (provider_output_item := _provider_output_item(item)) is not None
+        continuation_item
+        for item in matching_continuation_items(
+            message,
+            request,
+            ProviderProtocolFamily.OPENAI_RESPONSES,
+            ChatProtocolContinuationKind.OPENAI_RESPONSES_OUTPUT,
+        )
+        if (continuation_item := _responses_continuation_item(item)) is not None
     ]
     content = _message_content_to_openai_responses_payload(message)
     if content or not message.tool_calls:

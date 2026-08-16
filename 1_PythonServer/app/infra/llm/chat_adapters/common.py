@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 from json import loads as json_loads
 
 from app.domain.llm.chat import ChatStreamEvent, ChatStreamEventKind
@@ -6,6 +7,14 @@ from app.domain.llm.provider_catalog import AuthScheme
 from app.infra.llm.request_auth import build_auth_headers
 
 _NO_SSE_EVENT = object()
+
+
+@dataclass(frozen=True, slots=True)
+class SseDone:
+    pass
+
+
+SSE_DONE = SseDone()
 
 
 def _build_headers(auth_scheme: AuthScheme, api_key: str) -> dict[str, str]:
@@ -20,7 +29,7 @@ def _build_stream_headers(auth_scheme: AuthScheme, api_key: str) -> dict[str, st
 
 async def _iter_sse_payloads(
     chunks: AsyncGenerator[bytes, None],
-) -> AsyncGenerator[dict[str, object] | None, None]:
+) -> AsyncGenerator[dict[str, object] | None | SseDone, None]:
     buffer = b""
     data_lines: list[bytes] = []
     async for chunk in chunks:
@@ -31,17 +40,20 @@ async def _iter_sse_payloads(
             if data is _NO_SSE_EVENT:
                 continue
             if data.strip() == b"[DONE]":
+                yield SSE_DONE
                 return
             yield _load_stream_payload(data)
     if buffer:
         data = _consume_sse_line(data_lines, buffer)
         if data is not _NO_SSE_EVENT:
             if data.strip() == b"[DONE]":
+                yield SSE_DONE
                 return
             yield _load_stream_payload(data)
     data = _flush_sse_data_lines(data_lines)
     if data is not _NO_SSE_EVENT:
         if data.strip() == b"[DONE]":
+            yield SSE_DONE
             return
         yield _load_stream_payload(data)
 
@@ -79,10 +91,15 @@ def _load_stream_payload(data: bytes) -> dict[str, object] | None:
         return None
     return payload if isinstance(payload, dict) else None
 
-def _protocol_error_event() -> ChatStreamEvent:
+def _protocol_error_event(
+    message: str = "上游供应商返回了无法解析的流式响应。",
+    *,
+    code: str = "upstream_stream_protocol_error",
+) -> ChatStreamEvent:
     return ChatStreamEvent(
         kind=ChatStreamEventKind.ERROR,
-        error="上游供应商返回了无法解析的流式响应。",
+        error=message,
+        error_code=code,
     )
 
 def _extract_error_message(payload: dict[str, object]) -> str:

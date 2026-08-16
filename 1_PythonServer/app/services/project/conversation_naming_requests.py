@@ -78,8 +78,6 @@ def build_session_naming_request(
             *request_messages[:cutoff],
             ChatMessage(role=ChatMessageRole.USER, content=prompt),
         ),
-        temperature=None,
-        max_tokens=None,
         generation=generation,
         output=output_from_settings(settings.get("output")),
         record_usage=True,
