@@ -183,13 +183,6 @@ export function ChatBasicSettingsPanel({
       />
 
       <SettingsToggle
-        checked={activeSessionSettings.return_thinking_content}
-        label={t("aiPanel.basicSettings.returnThinkingContent")}
-        onChange={(checked) => onUpdateSessionSettings({
-          return_thinking_content: checked,
-        })}
-      />
-      <SettingsToggle
         checked={activeSessionSettings.return_cancelled_messages}
         label={t("aiPanel.basicSettings.returnCancelledMessages")}
         onChange={(checked) => onUpdateSessionSettings({

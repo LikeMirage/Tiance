@@ -14,6 +14,7 @@ from app.domain.llm.provider_catalog import (
     ProviderProtocolFamily,
 )
 from app.domain.llm.provider_config import ProviderApiKeyConfig, ProviderConfig
+from app.domain.llm.reasoning_replay import ReasoningReplayMode
 from app.infra.secrets.secret_codec import encrypt_secret
 from app.repositories.llm.provider_cloud_model_repository import ProviderCloudModelRepository
 from app.repositories.llm.provider_config_repository import ProviderConfigRepository
@@ -49,6 +50,7 @@ class ProviderConfigWriter:
         model_discovery_url: str | None = None,
         model_discovery_strategy: ModelDiscoveryStrategy | None = None,
         model_discovery_auth_scheme: AuthScheme | None = None,
+        reasoning_replay_mode: ReasoningReplayMode | None = None,
     ) -> ProviderConfig:
         """保存供应商配置：API Key 以带模式前缀的安全载荷写入文件。"""
         target_protocol = protocol_family or provider_template.protocol_family
@@ -164,6 +166,14 @@ class ProviderConfigWriter:
                 or provider_template.model_discovery_auth_scheme
             ).value,
             updated_generation_protocol=target_protocol.value,
+            reasoning_replay_mode=(
+                reasoning_replay_mode
+                or (
+                    existing_config.reasoning_replay_mode
+                    if existing_config is not None
+                    else ReasoningReplayMode.TOOL_CALL_ROUNDS
+                )
+            ),
         )
         saved_config = self._config_repository.save_config(config)
 

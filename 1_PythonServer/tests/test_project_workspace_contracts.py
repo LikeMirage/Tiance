@@ -619,7 +619,6 @@ def test_conversation_session_persists_settings_and_manual_title(tmp_path):
         reasoning_mode=None,
         manual_title=True,
         settings={
-            "return_thinking_content": True,
             "return_cancelled_messages": True,
             "return_user_before_cancelled": True,
             "streaming_enabled": False,
@@ -640,7 +639,6 @@ def test_conversation_session_persists_settings_and_manual_title(tmp_path):
 
     loaded = repository.get_session(PROJECT_ID, session.session_id)
     assert loaded.manual_title is True
-    assert loaded.settings.return_thinking_content is True
     assert loaded.settings.return_cancelled_messages is True
     assert loaded.settings.return_user_before_cancelled is True
     assert loaded.settings.streaming_enabled is False
@@ -678,7 +676,6 @@ def test_conversation_session_persists_settings_and_manual_title(tmp_path):
         should_update_settings=True,
     )
 
-    assert updated.settings.return_thinking_content is True
     assert updated.settings.return_cancelled_messages is False
     assert updated.settings.return_user_before_cancelled is True
     assert updated.settings.inject_message_timestamps is False

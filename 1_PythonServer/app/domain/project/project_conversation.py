@@ -18,7 +18,6 @@ class ProjectConversationSessionSettings:
     memory_raw_context_token_reserve: int = 30000
     project_memory_enabled: bool = True
     project_memory_extraction_enabled: bool = True
-    return_thinking_content: bool = False
     return_cancelled_messages: bool = True
     return_user_before_cancelled: bool = True
     streaming_enabled: bool = True

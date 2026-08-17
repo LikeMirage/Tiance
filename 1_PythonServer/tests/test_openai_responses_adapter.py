@@ -160,7 +160,6 @@ def test_responses_body_disables_storage_and_sends_reasoning_configuration():
             frequency_penalty=0.3,
             reasoning=LlmReasoningOptions(mode=LlmReasoningMode.HIGH),
         ),
-        return_thinking_content=False,
     )
 
     body = _build_responses_body(request, stream=True)
@@ -337,7 +336,6 @@ def test_responses_adapter_applies_volcengine_reasoning_parameters():
                 generation=LlmGenerationParams(
                     reasoning=LlmReasoningOptions(mode=mode),
                 ),
-                return_thinking_content=True,
             ),
             post_json=post_json,
         )

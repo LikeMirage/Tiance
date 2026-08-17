@@ -27,7 +27,6 @@ SAMPLING_PARAMETER_NAMES = (
 
 class ProviderProfile(Protocol):
     profile_id: str
-    include_reasoning_content_in_messages: bool
     include_responses_message_phase: bool
     include_responses_web_search_sources: bool
 
@@ -55,7 +54,6 @@ class ProviderProfile(Protocol):
 @dataclass(frozen=True, slots=True)
 class GenericOpenAICompatibleProfile:
     profile_id: str = "openai_compatible"
-    include_reasoning_content_in_messages: bool = False
     include_responses_message_phase: bool = False
     include_responses_web_search_sources: bool = False
     adaptation_rules: ProviderAdaptationRules | None = None

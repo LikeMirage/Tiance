@@ -729,7 +729,6 @@ def test_stream_executes_tool_call_and_feeds_result_back_to_model():
     request = _request()
     request = replace(
         request,
-        return_thinking_content=True,
         tools=(
             ChatToolDefinition(
                 name="read_text_file",
@@ -884,7 +883,6 @@ def test_stream_emits_internal_checkpoints_for_persisted_tool_turns():
     )
     request = replace(
         _request(),
-        return_thinking_content=True,
         tools=(_tool_definition("read_text_file"),),
     )
 
@@ -1478,7 +1476,7 @@ def test_task_cancellation_usage_failures_preserve_cancelled_terminal_event():
     )
 
 
-def test_stream_keeps_tool_thinking_for_display_but_omits_it_from_model_history():
+def test_stream_keeps_tool_thinking_in_persistence_and_model_history():
     conversation_service = _FakeConversationService()
     chat_service = _ToolCallingChatService()
     service = ProjectConversationStreamService(
@@ -1492,7 +1490,6 @@ def test_stream_keeps_tool_thinking_for_display_but_omits_it_from_model_history(
     )
     request = replace(
         _request(),
-        return_thinking_content=False,
         tools=(
             ChatToolDefinition(
                 name="read_text_file",
@@ -1504,7 +1501,7 @@ def test_stream_keeps_tool_thinking_for_display_but_omits_it_from_model_history(
 
     asyncio.run(_collect_payloads(service, request=request))
 
-    assert chat_service.requests[1].messages[-2].thinking_content == ""
+    assert chat_service.requests[1].messages[-2].thinking_content == "需要读取文件。"
     assert conversation_service.appended[1]["thinking_content"] == "需要读取文件。"
 
 
@@ -1570,7 +1567,6 @@ def test_stream_persists_tool_round_thinking_separately_from_final_answer():
     )
     request = replace(
         _request(),
-        return_thinking_content=True,
         tools=(
             ChatToolDefinition(
                 name="read_text_file",

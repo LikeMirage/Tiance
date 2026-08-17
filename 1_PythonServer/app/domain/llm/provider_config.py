@@ -4,6 +4,8 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from app.domain.llm.reasoning_replay import ReasoningReplayMode
+
 
 @dataclass(frozen=True, slots=True)
 class ProviderApiKeyConfig:
@@ -36,3 +38,4 @@ class ProviderConfig:
     model_discovery_strategy: str | None = None
     model_discovery_auth_scheme: str | None = None
     updated_generation_protocol: str | None = None
+    reasoning_replay_mode: ReasoningReplayMode = ReasoningReplayMode.TOOL_CALL_ROUNDS

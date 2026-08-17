@@ -68,7 +68,6 @@ def test_conversation_injection_preview_records_complete_request_snapshot():
                 },
             ),
         ),
-        return_thinking_content=True,
         max_tool_calls=30,
     )
 

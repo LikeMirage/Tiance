@@ -38,7 +38,6 @@ def build_conversation_injection_preview(
             "provider_id": request.provider_id,
             "model_id": request.model_id,
             "preview_source": preview_source,
-            "return_thinking_content": request.return_thinking_content,
             "inject_message_timestamps": request.inject_message_timestamps,
             "max_tool_calls": request.max_tool_calls,
             "message_count": len(request.messages),

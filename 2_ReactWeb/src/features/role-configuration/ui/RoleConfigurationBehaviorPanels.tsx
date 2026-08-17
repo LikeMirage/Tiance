@@ -36,14 +36,6 @@ export function RoleResponseContextPanel({
       <RoleSection title="回复行为">
         <div className="role-dashboard__toggle-grid">
           <RoleToggle
-            checked={response.return_thinking_content}
-            label="工具调用时返回思考内容"
-            onChange={(value) => editor.updateSection("response", {
-              ...response,
-              return_thinking_content: value,
-            })}
-          />
-          <RoleToggle
             checked={response.return_cancelled_messages}
             label="返回被取消消息"
             onChange={(value) => editor.updateSection("response", {

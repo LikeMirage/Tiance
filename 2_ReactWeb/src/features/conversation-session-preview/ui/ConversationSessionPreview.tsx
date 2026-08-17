@@ -184,7 +184,6 @@ function buildSessionSections(session: JsonObject, settings: JsonObject): Sessio
         { label: "最大输出", value: stringValue(settings.max_output_tokens) },
         { label: "温度", value: nullableValue(settings.temperature) },
         { label: "Top P", value: nullableValue(settings.top_p) },
-        { label: "返回思考", value: flagValue(settings.return_thinking_content) },
         { label: "流式输出", value: flagValue(settings.streaming_enabled) },
       ],
     },

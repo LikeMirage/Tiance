@@ -28,7 +28,6 @@ def _session_settings_from_payload(payload: object) -> ProjectConversationSessio
             payload.get("project_memory_extraction_enabled"),
             default_value=True,
         ),
-        return_thinking_content=bool(payload.get("return_thinking_content") or False),
         return_cancelled_messages=_optional_bool(
             payload.get("return_cancelled_messages"),
             default_value=True,
@@ -115,10 +114,6 @@ def _merge_session_settings(
             payload.get("project_memory_extraction_enabled"),
             default_value=current.project_memory_extraction_enabled,
         ),
-        return_thinking_content=_optional_bool(
-            payload.get("return_thinking_content"),
-            default_value=current.return_thinking_content,
-        ),
         return_cancelled_messages=_optional_bool(
             payload.get("return_cancelled_messages"),
             default_value=current.return_cancelled_messages,
@@ -197,7 +192,6 @@ def _session_settings_to_payload(settings: ProjectConversationSessionSettings) -
         "memory_raw_context_token_reserve": settings.memory_raw_context_token_reserve,
         "project_memory_enabled": settings.project_memory_enabled,
         "project_memory_extraction_enabled": settings.project_memory_extraction_enabled,
-        "return_thinking_content": settings.return_thinking_content,
         "return_cancelled_messages": settings.return_cancelled_messages,
         "return_user_before_cancelled": settings.return_user_before_cancelled,
         "streaming_enabled": settings.streaming_enabled,

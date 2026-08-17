@@ -9,7 +9,6 @@ import { getRuntimeCapabilities } from "../../../services/llm/getRuntimeCapabili
 import type { CreateProjectConversationInput } from "../../../services/project/createProjectConversation";
 import type { UpdateProjectConversationInput } from "../../../services/project/updateProjectConversation";
 import { toChatModelOption } from "../../ai-panel/model/chatModelOption";
-import { shouldAutoEnableToolThinkingReturn } from "../../ai-panel/model/toolThinkingReturn";
 import { isJsonRecord, type JsonRecord } from "./conversationClientToolValues";
 
 type ConfigurableConversationSettings = ConversationSessionSettings;
@@ -30,7 +29,6 @@ const CONFIGURABLE_SETTING_KEYS = [
   "memory_raw_context_token_reserve",
   "project_memory_enabled",
   "project_memory_extraction_enabled",
-  "return_thinking_content",
   "return_cancelled_messages",
   "return_user_before_cancelled",
   "streaming_enabled",
@@ -98,12 +96,6 @@ export async function buildChildConversationCreateInput(
     reasoningModeWasExplicit: hasOwn(configuration, "reasoning_mode"),
     settings: effectiveSettings,
   });
-  if (
-    (providerId !== source.provider_id || modelId !== source.model_id) &&
-    !hasOwn(configuration.settings ?? {}, "return_thinking_content")
-  ) {
-    settings.return_thinking_content = shouldAutoEnableToolThinkingReturn(validated.model);
-  }
   return {
     ...(hasOwn(configuration, "title") ? { title: configuration.title ?? null } : {}),
     ...(hasOwn(configuration, "provider_id") ? { provider_id: providerId } : {}),
@@ -146,12 +138,6 @@ export async function buildConversationUpdateInput(
     reasoningModeWasExplicit: hasOwn(configuration, "reasoning_mode"),
     settings: effectiveSettings,
   });
-  if (
-    (providerId !== session.provider_id || modelId !== session.model_id) &&
-    !hasOwn(settings, "return_thinking_content")
-  ) {
-    settings.return_thinking_content = shouldAutoEnableToolThinkingReturn(validated.model);
-  }
   return {
     ...(hasOwn(configuration, "title") ? { title: configuration.title ?? null } : {}),
     ...(providerId !== session.provider_id ? { provider_id: providerId } : {}),

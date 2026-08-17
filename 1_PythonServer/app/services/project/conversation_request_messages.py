@@ -98,11 +98,7 @@ def _to_request_message(
     has_tool_calls = bool(message.tool_calls)
     thinking_content = (
         message.thinking_content.strip()
-        if (
-            settings.return_thinking_content
-            and message.role == "assistant"
-            and has_tool_calls
-        )
+        if message.role == "assistant"
         else ""
     )
     if not content.strip() and not content_parts and not has_tool_calls and not thinking_content:

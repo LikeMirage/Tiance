@@ -170,9 +170,3 @@
 .provider-canvas__canvas-plus:hover {
   opacity: 0.78;
 }
-
-.provider-canvas__model-management-actions {
-  display: flex;
-  align-items: flex-start;
-  padding-top: 4px;
-}

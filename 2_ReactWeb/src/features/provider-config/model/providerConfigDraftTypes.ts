@@ -3,6 +3,7 @@ import type {
   ProviderModelDiscoveryStrategy,
   ProviderProtocolFamily,
 } from "../../../entities/llm-provider/model/providerCatalog";
+import type { ProviderReasoningReplayMode } from "../../../entities/llm-provider/model/providerConfig";
 
 export type ProviderApiKeyDraft = {
   apiKeyHint: string | null;
@@ -25,6 +26,7 @@ export type ProviderConfigDraft = {
   enabled: boolean;
   promptCacheRetentionUnit: "hours" | "minutes";
   promptCacheRetentionValue: string;
+  reasoningReplayMode: ProviderReasoningReplayMode;
   hasManualEnabledOverride: boolean;
   persistedUpdatedAt: string | null;
   persistedPromptCacheRetentionSeconds: number;

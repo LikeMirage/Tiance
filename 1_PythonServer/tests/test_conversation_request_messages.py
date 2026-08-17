@@ -44,7 +44,6 @@ def test_build_conversation_request_messages_matches_session_rules():
         "继续",
         ProjectConversationSessionSettings(
             system_prompt="系统提示词",
-            return_thinking_content=True,
             return_cancelled_messages=False,
             return_user_before_cancelled=False,
         ),

@@ -309,6 +309,7 @@ def _load_preset_manifests(now: str) -> dict[str, dict[str, Any]]:
             "generationUrls": generation_urls,
             "modelDiscoveryUrl": _optional_text(item, "modelDiscoveryUrl"),
             "enabled": False,
+            "reasoningReplayMode": "tool_call_rounds",
             "createdAt": now,
             "updatedAt": now,
         }
@@ -356,6 +357,7 @@ def _load_legacy_provider_data(database_path: Path) -> dict[str, Any]:
                     "apiBaseUrl": str(row["api_base_url"]),
                     "modelDiscoveryUrl": None,
                     "enabled": False,
+                    "reasoningReplayMode": "tool_call_rounds",
                     "createdAt": str(row["created_at"]),
                     "updatedAt": str(row["updated_at"]),
                 }
@@ -430,6 +432,7 @@ def _generic_manifest(provider_id: str, now: str) -> dict[str, Any]:
         },
         "modelDiscoveryUrl": None,
         "enabled": False,
+        "reasoningReplayMode": "tool_call_rounds",
         "createdAt": now,
         "updatedAt": now,
     }

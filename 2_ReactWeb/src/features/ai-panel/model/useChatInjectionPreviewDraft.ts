@@ -78,7 +78,6 @@ export function useChatInjectionPreviewDraft({
       project_id: projectId,
       session_id: activeSessionId,
       messages: requestMessages,
-      return_thinking_content: activeSessionSettings.return_thinking_content,
       max_tool_calls: activeSessionSettings.max_tool_calls,
       generation: buildGenerationParams(activeSessionSettings, activeReasoningMode),
     }, { signal: controller.signal }).then(() => {

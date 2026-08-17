@@ -30,7 +30,6 @@ class RolePromptConfiguration(RoleConfigurationContract):
 
 
 class RoleResponseConfiguration(RoleConfigurationContract):
-    return_thinking_content: bool
     return_cancelled_messages: bool
     return_user_before_cancelled: bool
     streaming_enabled: bool

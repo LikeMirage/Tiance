@@ -69,6 +69,11 @@ class ProviderCatalogRepository:
                 if existing
                 else False
             ),
+            "reasoningReplayMode": (
+                _read_text(existing, "reasoningReplayMode")
+                if existing
+                else "tool_call_rounds"
+            ),
             "createdAt": created_at,
             "updatedAt": updated_at,
         }

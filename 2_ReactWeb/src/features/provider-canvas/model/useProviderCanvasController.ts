@@ -49,7 +49,6 @@ export function useProviderCanvasController({
   const modelManagementPanel = useProviderModelManagement(selectedProvider.provider_id, { isActive });
   const previousModelModeRef = useRef<ModelManagementMode>(modelManagementPanel.activeMode);
   const modelModeTransitionTimerRef = useRef<number | null>(null);
-  const modelModeTabRefs = useRef(new Map<ModelManagementMode, HTMLButtonElement>());
   const apiKeyInputRefs = useRef(new Map<string, HTMLInputElement>());
   const apiKeyFocusSnapshotRef = useRef<{
     ids: string[];
@@ -60,10 +59,6 @@ export function useProviderCanvasController({
   });
   const [modelModeTransitionState, setModelModeTransitionState] =
     useState<ModelModeTransitionState | null>(null);
-  const [modelModeIndicator, setModelModeIndicator] = useState<{
-    offset: number;
-    width: number;
-  } | null>(null);
   const [testingModelIds, setTestingModelIds] = useState<string[]>([]);
   const [modelCheckStates, setModelCheckStates] = useState<Record<string, ModelCheckState>>({});
   const [providerProtocolError, setProviderProtocolError] = useState<string | null>(null);
@@ -143,29 +138,6 @@ export function useProviderCanvasController({
 
     return () => window.cancelAnimationFrame(animationFrameId);
   }, [selectedProvider.provider_id, selectedProviderDraft?.apiKeys]);
-
-  useLayoutEffect(() => {
-    if (!isActive) {
-      return undefined;
-    }
-    const syncModelModeIndicator = () => {
-      const activeTab = modelModeTabRefs.current.get(modelManagementPanel.activeMode);
-
-      if (!activeTab) {
-        setModelModeIndicator(null);
-        return;
-      }
-
-      setModelModeIndicator({
-        offset: activeTab.offsetLeft,
-        width: activeTab.offsetWidth,
-      });
-    };
-
-    syncModelModeIndicator();
-    window.addEventListener("resize", syncModelModeIndicator);
-    return () => window.removeEventListener("resize", syncModelModeIndicator);
-  }, [isActive, modelManagementPanel.activeMode, selectedProvider.provider_id]);
 
   useLayoutEffect(() => {
     const activeMode = modelManagementPanel.activeMode;
@@ -325,8 +297,6 @@ export function useProviderCanvasController({
     hasAnyProviderApiKey,
     modelCheckStates,
     modelManagementPanel,
-    modelModeIndicator,
-    modelModeTabRefs,
     modelModeTabs,
     modelModeTransitionState,
     providerProtocolError,

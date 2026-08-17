@@ -447,7 +447,6 @@
         "temperature": "Температура",
         "defaultValue": "По умолчанию",
         "maxOutputTokens": "Максимальная длина вывода, включая рассуждение",
-        "returnThinkingContent": "Возвращать содержимое рассуждений из вызовов инструментов",
         "returnCancelledMessages": "Возвращать отмененные сообщения",
         "returnUserBeforeCancelled": "Возвращать сообщение пользователя перед отменой",
         "streamingOutput": "Потоковый вывод",
@@ -1387,6 +1386,12 @@
       "enable": "Включить",
       "renameProvider": "Переименовать {provider}",
       "selectProviderProtocol": "Выбрать протокол поставщика",
+      "settingsTabs": {
+        "aria": "Разделы настроек поставщика",
+        "api": "Настройки API",
+        "models": "Управление моделями",
+        "other": "Другие настройки"
+      },
       "apiAddress": {
         "placeholder": "Введите полный URL API генерации",
         "title": "API URL",
@@ -1406,6 +1411,18 @@
         "retention": "Порог срока жизни кэша префикса",
         "unitAria": "Выберите единицу срока жизни кэша",
         "units": { "minutes": "Минуты", "hours": "Часы" }
+      },
+      "reasoningReplay": {
+        "title": "Возврат рассуждений",
+        "label": "Возврат истории рассуждений",
+        "options": {
+          "never": "Не возвращать",
+          "tool_call_rounds": "Только раунды с инструментами",
+          "always": "Всегда"
+        }
+      },
+      "otherSettings": {
+        "tabsAria": "Категории других настроек"
       },
       "apiKey": {
         "add": "Добавить API KEY",

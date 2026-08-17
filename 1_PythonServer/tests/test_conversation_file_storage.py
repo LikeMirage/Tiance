@@ -3,7 +3,6 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from json import dumps
 from pathlib import Path
-import sqlite3
 from threading import Event
 
 import pytest
@@ -20,11 +19,6 @@ from app.repositories.project.conversation_file_io import (
 from app.repositories.project.conversation_records import (
     ensure_file_storage,
     list_message_payloads,
-    read_document,
-    read_events,
-    read_project_events,
-    read_session_branch,
-    read_workspace_state,
     storage_marker,
 )
 from app.repositories.project.conversation_repository import (
@@ -61,6 +55,20 @@ def test_new_workspace_declares_files_as_truth_and_sqlite_as_cache(tmp_path: Pat
     }
     assert not (workspace / "tiance.db").exists()
     assert (workspace / "conversations" / "sessions").is_dir()
+
+
+def test_existing_legacy_sqlite_file_is_left_untouched(tmp_path: Path) -> None:
+    workspace = tmp_path / ".Tiance"
+    workspace.mkdir()
+    legacy_database = workspace / "tiance.db"
+    legacy_content = b"legacy-database-placeholder"
+    legacy_database.write_bytes(legacy_content)
+
+    ensure_file_storage(workspace)
+
+    assert legacy_database.read_bytes() == legacy_content
+    assert storage_marker(workspace)["authoritative_storage"] == "files"
+    assert not (workspace / "migrations").exists()
 
 
 def test_file_storage_initialization_is_safe_under_concurrent_access(tmp_path: Path) -> None:
@@ -293,144 +301,3 @@ def test_data_views_are_generated_from_canonical_files(tmp_path: Path) -> None:
         / session.session_id
         / "messages.jsonl"
     ).is_file()
-
-
-def test_legacy_sqlite_workspace_migrates_every_storage_family(tmp_path: Path) -> None:
-    workspace = tmp_path / ".Tiance"
-    database = workspace / "tiance.db"
-    _create_legacy_database(database, message_count=135)
-
-    ensure_file_storage(workspace)
-
-    marker = storage_marker(workspace)
-    assert marker["migrated_from"] == "sqlite-v1"
-    assert marker["legacy_backup"] == "migrations/sqlite-v1/tiance.db"
-    assert not database.exists()
-    assert (workspace / marker["legacy_backup"]).is_file()
-    session_dir = workspace / "conversations" / "sessions" / "session-a"
-    messages = list_message_payloads(session_dir)
-    assert len(messages) == 135
-    assert messages[0]["content"] == "legacy-0"
-    assert messages[-1]["content"] == "legacy-134"
-    assert read_events(session_dir, "compressions") == [{"compression_id": "c1"}]
-    assert read_document(session_dir, "memory_delivery") == {"version": 1}
-    assert read_project_events(workspace, "project_memory") == [
-        {"operation": "add", "memory_id": "pm1"}
-    ]
-    assert read_session_branch(session_dir)["node"]["session_id"] == "session-a"
-    assert read_workspace_state(workspace) == {"expanded_paths": ["src"]}
-
-
-def _create_legacy_database(path: Path, *, message_count: int) -> None:
-    path.parent.mkdir(parents=True)
-    connection = sqlite3.connect(path)
-    connection.executescript(
-        """
-        CREATE TABLE conversation_schema(version INTEGER NOT NULL);
-        CREATE TABLE conversation_meta(key TEXT PRIMARY KEY, value_json TEXT NOT NULL);
-        CREATE TABLE conversation_sessions(session_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
-        CREATE TABLE conversation_messages(
-            session_id TEXT NOT NULL, ordinal INTEGER NOT NULL,
-            message_id TEXT NOT NULL, payload_json TEXT NOT NULL,
-            PRIMARY KEY(session_id, ordinal), UNIQUE(session_id, message_id)
-        );
-        CREATE TABLE conversation_session_documents(
-            session_id TEXT NOT NULL, kind TEXT NOT NULL, payload_json TEXT NOT NULL,
-            PRIMARY KEY(session_id, kind)
-        );
-        CREATE TABLE conversation_session_events(
-            session_id TEXT NOT NULL, kind TEXT NOT NULL, ordinal INTEGER NOT NULL,
-            payload_json TEXT NOT NULL, PRIMARY KEY(session_id, kind, ordinal)
-        );
-        CREATE TABLE conversation_project_events(
-            kind TEXT NOT NULL, ordinal INTEGER NOT NULL, payload_json TEXT NOT NULL,
-            PRIMARY KEY(kind, ordinal)
-        );
-        INSERT INTO conversation_schema(version) VALUES (1);
-        """
-    )
-    session = {
-        "session_id": "session-a",
-        "sequence_number": 1,
-        "title": "旧会话",
-        "provider_id": None,
-        "model_id": None,
-        "reasoning_mode": None,
-        "created_at": "2026-08-01T00:00:00+00:00",
-        "updated_at": "2026-08-01T00:00:00+00:00",
-        "message_count": message_count,
-        "manual_title": False,
-        "settings": {},
-    }
-    connection.execute(
-        "INSERT INTO conversation_sessions VALUES (?, ?)",
-        ("session-a", _json(session)),
-    )
-    for index in range(message_count):
-        message = {
-            "message_id": f"legacy-{index}",
-            "session_id": "session-a",
-            "role": "user",
-            "content": f"legacy-{index}",
-        }
-        connection.execute(
-            "INSERT INTO conversation_messages VALUES (?, ?, ?, ?)",
-            ("session-a", index, message["message_id"], _json(message)),
-        )
-    connection.execute(
-        "INSERT INTO conversation_session_events VALUES (?, ?, ?, ?)",
-        ("session-a", "compressions", 0, _json({"compression_id": "c1"})),
-    )
-    connection.execute(
-        "INSERT INTO conversation_session_documents VALUES (?, ?, ?)",
-        ("session-a", "memory_delivery", _json({"version": 1})),
-    )
-    connection.execute(
-        "INSERT INTO conversation_project_events VALUES (?, ?, ?)",
-        (
-            "project_memory",
-            0,
-            _json({"operation": "add", "memory_id": "pm1"}),
-        ),
-    )
-    branch_graph = {
-        "version": 4,
-        "nodes": [
-            {
-                "branch_id": "branch-a",
-                "tree_id": "tree-a",
-                "session_id": "session-a",
-                "parent_branch_id": None,
-                "parent_session_id": None,
-                "relation_kind": "root",
-                "function_type": None,
-                "created_by": "user",
-                "history_mode": "empty",
-                "source_message_id": None,
-                "sibling_index": 0,
-                "created_at": "2026-08-01T00:00:00+00:00",
-                "deleted_at": None,
-            }
-        ],
-        "variants": [],
-    }
-    index = {
-        "active_session_id": "session-a",
-        "pinned_session_ids": ["session-a"],
-        "session_states": {"session-a": {"runtime_status": "idle"}},
-    }
-    for key, value in (
-        ("branch_graph", branch_graph),
-        ("conversation_index", index),
-        ("workspace_state", {"expanded_paths": ["src"]}),
-    ):
-        connection.execute(
-            "INSERT INTO conversation_meta VALUES (?, ?)",
-            (key, _json(value)),
-        )
-    connection.commit()
-    connection.close()
-
-
-def _json(value: object) -> str:
-    return dumps(value, ensure_ascii=False, separators=(",", ":"))

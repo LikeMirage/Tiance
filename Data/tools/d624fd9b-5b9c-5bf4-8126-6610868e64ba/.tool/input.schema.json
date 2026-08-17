@@ -176,10 +176,6 @@
               "minimum": 1,
               "type": "integer"
             },
-            "return_thinking_content": {
-              "description": "是否在供应商支持时返回思考内容。",
-              "type": "boolean"
-            },
             "streaming_enabled": {
               "description": "是否启用流式回复。",
               "type": "boolean"

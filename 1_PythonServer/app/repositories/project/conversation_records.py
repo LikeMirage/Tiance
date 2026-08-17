@@ -21,7 +21,6 @@ from app.repositories.project import conversation_message_index
 
 STORAGE_FORMAT_FILE = "storage.json"
 STORAGE_FORMAT_VERSION = 2
-LEGACY_DATABASE_FILE = "tiance.db"
 CONVERSATIONS_DIRECTORY = "conversations"
 SESSIONS_DIRECTORY = "sessions"
 SESSION_FILE = "session.json"
@@ -44,15 +43,7 @@ def ensure_file_storage(workspace_dir: Path) -> Path:
         workspace.mkdir(parents=True, exist_ok=True)
         marker = read_json_object(workspace / STORAGE_FORMAT_FILE)
         if marker is None:
-            legacy_database = workspace / LEGACY_DATABASE_FILE
-            if legacy_database.is_file():
-                from app.repositories.project.conversation_sqlite_migration import (
-                    migrate_sqlite_workspace,
-                )
-
-                migrate_sqlite_workspace(workspace, legacy_database)
-            else:
-                _write_storage_marker(workspace, migrated_from=None, legacy_backup=None)
+            _write_storage_marker(workspace)
         elif marker.get("version") != STORAGE_FORMAT_VERSION:
             raise ConflictError(
                 f"不支持的会话文件结构版本：{marker.get('version')}"
@@ -67,18 +58,6 @@ def ensure_file_storage(workspace_dir: Path) -> Path:
 
 def storage_marker(workspace_dir: Path) -> dict[str, Any] | None:
     return read_json_object(workspace_dir / STORAGE_FORMAT_FILE)
-
-
-def write_migrated_storage_marker(
-    workspace_dir: Path,
-    *,
-    legacy_backup: str,
-) -> None:
-    _write_storage_marker(
-        workspace_dir,
-        migrated_from="sqlite-v1",
-        legacy_backup=legacy_backup,
-    )
 
 
 def list_session_payloads(conversations_dir: Path) -> list[dict[str, Any]]:
@@ -343,19 +322,12 @@ def _valid_storage_marker(workspace_dir: Path) -> bool:
 
 def _write_storage_marker(
     workspace_dir: Path,
-    *,
-    migrated_from: str | None,
-    legacy_backup: str | None,
 ) -> None:
     payload: dict[str, Any] = {
         "version": STORAGE_FORMAT_VERSION,
         "authoritative_storage": "files",
         "sqlite_role": "disposable_message_index",
     }
-    if migrated_from is not None:
-        payload["migrated_from"] = migrated_from
-    if legacy_backup is not None:
-        payload["legacy_backup"] = legacy_backup
     write_json_object(workspace_dir / STORAGE_FORMAT_FILE, payload)
 
 

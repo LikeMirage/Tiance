@@ -13,7 +13,8 @@
     "openai_compatible": "https://opencode.ai/zen/go/v1/chat/completions"
   },
   "modelDiscoveryUrl": "https://opencode.ai/zen/go/v1/models",
-  "enabled": false,
+  "enabled": true,
+  "reasoningReplayMode": "tool_call_rounds",
   "createdAt": "2026-08-12T01:39:44.798345+00:00",
-  "updatedAt": "2026-08-12T01:39:44.798345+00:00"
+  "updatedAt": "2026-08-17T03:06:32.296281+00:00"
 }

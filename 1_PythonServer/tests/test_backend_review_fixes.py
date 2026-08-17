@@ -267,25 +267,6 @@ def test_project_file_watcher_coalesces_bursty_changes(monkeypatch, tmp_path):
     }]
 
 
-def test_deepseek_new_session_defaults_to_tool_thinking_return():
-    from app.api.routes.project.conversations import _settings_with_model_defaults
-
-    assert _settings_with_model_defaults("deepseek", "deepseek-v4-flash", None) == {
-        "return_thinking_content": True,
-    }
-    assert _settings_with_model_defaults("custom", "my-deepseek-model", None) == {
-        "return_thinking_content": True,
-    }
-    assert _settings_with_model_defaults(
-        "deepseek",
-        "deepseek-v4-flash",
-        {"return_thinking_content": False},
-    ) == {
-        "return_thinking_content": False,
-    }
-    assert _settings_with_model_defaults("volcengine", "doubao", None) is None
-
-
 def test_provider_config_response_reports_real_secret_presence():
     config = _provider_config()
 

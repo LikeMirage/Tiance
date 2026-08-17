@@ -3,6 +3,7 @@ from enum import StrEnum
 from typing import Any
 
 from app.domain.llm.generation_params import LlmGenerationParams, LlmOutputOptions
+from app.domain.llm.reasoning_replay import ReasoningReplayMode
 
 
 class ChatMessageRole(StrEnum):
@@ -131,7 +132,7 @@ class ChatCompletionRequest:
     record_usage: bool = True
     usage_message_id: str | None = None
     usage_feature_key: str = "main_chat"
-    return_thinking_content: bool = False
+    reasoning_replay_mode: ReasoningReplayMode = ReasoningReplayMode.TOOL_CALL_ROUNDS
     inject_message_timestamps: bool = False
     max_tool_calls: int = 99999
 

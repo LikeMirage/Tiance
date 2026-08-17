@@ -84,7 +84,6 @@ def _workspace_readme_content() -> str:
 - `storage.json`：工作区数据结构版本与事实来源声明。
 - `state.json`：只保存当前项目的人机工作区状态，不承载会话历史。
 - `cache/conversation-index.db`：可删除、可重建的消息分页索引；不是事实来源。
-- `migrations/sqlite-v1/tiance.db`：从旧版 SQLite 自动迁移时保留的只读恢复备份。
 
 ## conversations/sessions/
 

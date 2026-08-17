@@ -1,4 +1,18 @@
 {
   "schemaVersion": 1,
-  "items": []
+  "items": [
+    {
+      "modelId": "deepseek-v4-flash",
+      "displayName": "deepseek-v4-flash",
+      "familyGroup": "deepseek-v4",
+      "capabilityTags": [],
+      "note": "",
+      "priceCurrency": "CNY",
+      "inputPricePerMillion": null,
+      "cacheHitPricePerMillion": null,
+      "outputPricePerMillion": null,
+      "createdAt": "2026-08-17T00:54:06.713203+00:00",
+      "updatedAt": "2026-08-17T00:54:06.713203+00:00"
+    }
+  ]
 }

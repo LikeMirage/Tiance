@@ -4,6 +4,8 @@ import type {
   ProviderProtocolFamily,
 } from "./providerCatalog";
 
+export type ProviderReasoningReplayMode = "never" | "tool_call_rounds" | "always";
+
 export interface ProviderApiKeyConfig {
   key_id: string;
   has_api_key: boolean;
@@ -24,6 +26,7 @@ export interface ProviderConfig {
   model_discovery_auth_scheme: ProviderAuthScheme;
   enabled: boolean;
   prompt_cache_retention_seconds: number;
+  reasoning_replay_mode: ProviderReasoningReplayMode;
   api_keys: ProviderApiKeyConfig[];
   created_at: string;
   updated_at: string;
@@ -58,6 +61,7 @@ export interface ProviderConfigSaveRequest {
   model_discovery_auth_scheme: ProviderAuthScheme;
   enabled: boolean;
   api_keys: ProviderApiKeyConfigSaveInput[];
+  reasoning_replay_mode: ProviderReasoningReplayMode;
 }
 
 export interface ProviderPromptCachePolicyResponse {

@@ -45,7 +45,6 @@ class LlmRequestRules:
 
 @dataclass(frozen=True, slots=True)
 class LlmProtocolBehaviorRules:
-    include_reasoning_content_in_messages: bool | None = None
     include_responses_message_phase: bool | None = None
     include_responses_web_search_sources: bool | None = None
     prompt_cache_retention_seconds: int | None = None

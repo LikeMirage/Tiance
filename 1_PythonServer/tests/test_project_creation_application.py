@@ -123,7 +123,6 @@ def test_project_creation_creates_initial_conversation_with_default_role(tmp_pat
             "max_output_tokens": 45678,
             "temperature": 1.3,
             "top_p": 0.8,
-            "return_thinking_content": True,
             "streaming_enabled": False,
             "system_prompt": "默认主会话提示词",
         },
@@ -146,7 +145,6 @@ def test_project_creation_creates_initial_conversation_with_default_role(tmp_pat
     assert session.settings.max_output_tokens == 45678
     assert session.settings.temperature == 1.3
     assert session.settings.top_p == 0.8
-    assert session.settings.return_thinking_content is True
     assert session.settings.streaming_enabled is False
     assert session.settings.system_prompt == "默认主会话提示词"
     assert active_session_id == session.session_id

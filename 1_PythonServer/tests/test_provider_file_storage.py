@@ -11,6 +11,7 @@ from app.domain.llm.provider_catalog import (
     ProviderProtocolFamily,
 )
 from app.domain.llm.provider_endpoint_templates import derive_model_discovery_url
+from app.domain.llm.reasoning_replay import ReasoningReplayMode
 from app.infra.database import (
     ensure_database_schema,
     prepare_database_for_provider_file_migration,
@@ -438,6 +439,26 @@ def test_late_save_for_previous_protocol_keeps_new_protocol_url(tmp_path):
         "openai_compatible": "https://proxy.example/chat/completions",
         "openai_responses": "https://api.x.ai/v1/responses",
     }
+
+
+def test_provider_reasoning_replay_mode_is_persisted(tmp_path):
+    providers_path = tmp_path / "providers"
+    ensure_provider_file_storage(providers_path, tmp_path / "tiance.db")
+    store = ProviderFileStore(providers_path)
+    configs = ProviderConfigRepository(store)
+    current = configs.get_config("grok")
+    assert current is not None
+
+    configs.save_config(
+        replace(current, reasoning_replay_mode=ReasoningReplayMode.ALWAYS)
+    )
+
+    saved = configs.get_config("grok")
+    manifest = store.read_provider_file("grok", "provider.json")
+    assert saved is not None
+    assert saved.reasoning_replay_mode == ReasoningReplayMode.ALWAYS
+    assert manifest is not None
+    assert manifest["reasoningReplayMode"] == ReasoningReplayMode.ALWAYS.value
 
 
 def test_existing_empty_model_discovery_url_is_migrated_without_overwriting_custom_url(

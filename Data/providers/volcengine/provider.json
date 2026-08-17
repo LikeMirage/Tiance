@@ -10,6 +10,7 @@
   },
   "modelDiscoveryUrl": "https://ark.cn-beijing.volces.com/api/v3/models",
   "enabled": false,
+  "reasoningReplayMode": "tool_call_rounds",
   "createdAt": "2026-07-12T11:09:17.369475+00:00",
   "updatedAt": "2026-08-02T00:00:00+00:00",
   "modelDiscoveryStrategy": "openai_models",

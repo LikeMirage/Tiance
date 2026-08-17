@@ -21,7 +21,6 @@ export function buildConversationRunRequest(input: {
     project_id: input.projectId,
     session_id: input.sessionId,
     messages: input.messages,
-    return_thinking_content: input.settings.return_thinking_content,
     max_tool_calls: input.settings.max_tool_calls,
     generation: buildGenerationParams(input.settings, input.reasoningMode),
   };

@@ -71,10 +71,6 @@ def resolve_provider_profile(
         return profile
     behavior = rules.behavior
     updates: dict[str, object] = {"adaptation_rules": rules}
-    if behavior.include_reasoning_content_in_messages is not None:
-        updates["include_reasoning_content_in_messages"] = (
-            behavior.include_reasoning_content_in_messages
-        )
     if behavior.include_responses_message_phase is not None:
         updates["include_responses_message_phase"] = (
             behavior.include_responses_message_phase

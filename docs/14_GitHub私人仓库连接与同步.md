@@ -176,7 +176,7 @@ providers/
 
 当前项目运行状态按归属拆分到 `.Tiance` 内的 JSON/JSONL 文件，会话附件仍位于 `.Tiance/conversations/sessions/{session_id}/attachments/`。同步完整 `.Tiance` 即可恢复项目工作状态，也可以清楚检查单个会话发生了什么变化。
 
-`.Tiance/cache/conversation-index.db` 及其 `-wal`、`-shm` 文件只是可删除缓存，不应作为同步冲突的裁决依据；缺失时程序会从 `messages.jsonl` 重建。`.Tiance/migrations/sqlite-v1/tiance.db` 是旧结构迁移后的恢复备份，不再参与运行时写入。同步冲突应按各会话事实文件解决，不应拿缓存覆盖文件。
+`.Tiance/cache/conversation-index.db` 及其 `-wal`、`-shm` 文件只是可删除缓存，不应作为同步冲突的裁决依据；缺失时程序会从 `messages.jsonl` 重建。同步冲突应按各会话事实文件解决，不应拿缓存覆盖文件。当前早期阶段不提供旧 SQLite 会话数据自动迁移。
 
 ## 6. 七类集合的同步结构
 

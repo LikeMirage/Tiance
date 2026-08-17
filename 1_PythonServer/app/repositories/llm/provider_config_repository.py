@@ -2,6 +2,7 @@ from functools import lru_cache
 from typing import Any
 
 from app.domain.llm.provider_config import ProviderApiKeyConfig, ProviderConfig
+from app.domain.llm.reasoning_replay import ReasoningReplayMode
 from app.domain.llm.provider_catalog import (
     AuthScheme,
     ModelDiscoveryStrategy,
@@ -86,6 +87,9 @@ class ProviderConfigRepository:
                 manifest,
                 "modelDiscoveryAuthScheme",
             ),
+            reasoning_replay_mode=ReasoningReplayMode(
+                _required_text(manifest, "reasoningReplayMode")
+            ),
         )
 
     def list_api_keys(self, provider_id: str) -> tuple[ProviderApiKeyConfig, ...]:
@@ -157,6 +161,7 @@ class ProviderConfigRepository:
                     "enabled": config.enabled and bool(config.api_base_url.strip()),
                     "createdAt": config.created_at,
                     "updatedAt": config.updated_at,
+                    "reasoningReplayMode": config.reasoning_replay_mode.value,
                 }
             )
             return manifest
@@ -191,6 +196,7 @@ class ProviderConfigRepository:
                 model_discovery_strategy=config.model_discovery_strategy,
                 model_discovery_auth_scheme=config.model_discovery_auth_scheme,
                 updated_generation_protocol=config.updated_generation_protocol,
+                reasoning_replay_mode=config.reasoning_replay_mode,
             )
         )
         return existing_keys
