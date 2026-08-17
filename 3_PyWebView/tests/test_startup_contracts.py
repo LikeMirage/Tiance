@@ -175,18 +175,39 @@ class BackendProcessOwnershipTests(unittest.TestCase):
         self.assertIn("http://127.0.0.1:18100", origins)
         self.assertIn("http://localhost:18100", origins)
 
-    @unittest.skipUnless(os.name == "nt", "Windows process-tree behavior")
-    def test_stop_kills_managed_tree_before_root_can_exit(self) -> None:
+    def test_stop_requests_graceful_shutdown_before_killing_process_tree(self) -> None:
+        manager = BackendProcessManager(_shell_settings(Path.cwd()))
+        process = _RunningProcess()
+        manager._process = process
+
+        def finish_gracefully() -> None:
+            process.returncode = 0
+
+        with (
+            patch.object(manager._lease_server, "revoke", side_effect=finish_gracefully) as revoke,
+            patch.object(
+                shell_backend_process,
+                "_kill_process_tree",
+            ) as kill_tree,
+            patch.object(shell_backend_process, "clear_managed_backend_record") as clear,
+        ):
+            manager.stop()
+
+        revoke.assert_called_once_with()
+        kill_tree.assert_not_called()
+        clear.assert_called_once_with(shell_backend_process.PROJECT_ROOT, pid=process.pid)
+
+    def test_stop_force_kills_managed_tree_after_graceful_timeout(self) -> None:
         manager = BackendProcessManager(_shell_settings(Path.cwd()))
         process = _RunningProcess()
         manager._process = process
 
         def finish_tree(managed_process) -> None:
             self.assertIs(managed_process, process)
-            self.assertIsNone(process.returncode)
             process.returncode = -9
 
         with (
+            patch.object(shell_backend_process, "_wait_for_process_exit", return_value=False),
             patch.object(
                 shell_backend_process,
                 "_kill_process_tree",

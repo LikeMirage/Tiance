@@ -237,6 +237,7 @@ def _create_tool(
                     "entry": "program/main.py",
                     "timeout_seconds": 30,
                 },
+                "execution": {"parallel": True},
                 "state": {"enabled": True},
             }
         ),

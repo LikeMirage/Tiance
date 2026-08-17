@@ -56,7 +56,11 @@ export function prepareConversationStreamFullReplay(
   const preservedMessages = lastUserIndex >= 0
     ? messages.slice(0, lastUserIndex + 1)
     : messages;
-  const assistantMessage = createEmptyRunningAssistantMessage(
+  const runningTurnMessages = lastUserIndex >= 0
+    ? messages.slice(lastUserIndex + 1)
+    : [];
+  const assistantMessage = buildResumedAssistantMessage(
+    runningTurnMessages,
     fallbackAssistantId,
     now,
   );
@@ -121,29 +125,6 @@ function buildResumedAssistantMessage(
     processItems,
     toolCalls,
     createdAt: findEarliestTimestamp(assistantMessages) ?? now,
-    updatedAt: now,
-  };
-}
-
-function createEmptyRunningAssistantMessage(
-  id: string,
-  now: number,
-): ChatMessage {
-  return {
-    id,
-    role: "assistant",
-    content: "",
-    thinkingContent: "",
-    status: "running",
-    usage: null,
-    contextTokens: null,
-    contextTokensEstimated: false,
-    isThinkingExpanded: true,
-    thinkingStartedAt: now,
-    thinkingFinishedAt: null,
-    processItems: [],
-    toolCalls: [],
-    createdAt: now,
     updatedAt: now,
   };
 }

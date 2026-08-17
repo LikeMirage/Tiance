@@ -29,6 +29,7 @@ const SESSION_LIST_LOAD_TIMEOUT_MS = 12_000;
 type ConversationProjectSessionSnapshot = {
   activeSessionId: string | null;
   draft: string;
+  revision: number;
   sessionStates: Record<string, ConversationSessionState>;
   sessions: ConversationSession[];
   branchNodes: ConversationBranchNode[];
@@ -81,10 +82,12 @@ export function useConversationSessions({
   streamingSessionKeysRef.current = streamingSessionKeys;
   const latestDraftRef = useRef({ projectId, activeSessionId, draft });
   const projectSessionSnapshotsRef = useRef(new Map<string, ConversationProjectSessionSnapshot>());
+  const latestAppliedRevisionsRef = useRef(new Map<string, number>());
   const reloadSessionsRequestIdsRef = useRef(new Map<string, number>());
   const reloadSessionsInFlightRef = useRef(
     new Map<string, Promise<ConversationSessionsReloadResult>>(),
   );
+  const reloadSessionsDirtyRef = useRef(new Set<string>());
   const settledDraftVersionRef = useRef(0);
   const unavailableProjectIdRef = useRef<string | null>(null);
   const {
@@ -104,6 +107,7 @@ export function useConversationSessions({
     projectSessionSnapshotsRef.current.set(loadedProjectId, {
       activeSessionId,
       draft,
+      revision: latestAppliedRevisionsRef.current.get(loadedProjectId) ?? 0,
       sessionStates,
       sessions,
       branchNodes,
@@ -311,6 +315,7 @@ export function useConversationSessions({
     setActiveSessionId(restoredSessionId);
     activeSessionIdRef.current = restoredSessionId;
     setDraft(restoredSessionId ? snapshot.sessionStates[restoredSessionId]?.draft ?? "" : "");
+    latestAppliedRevisionsRef.current.set(pid, snapshot.revision);
   }, [activeSessionIdRef, preferredSessionId]);
 
   const applySessionsResponse = useCallback((
@@ -332,6 +337,7 @@ export function useConversationSessions({
     projectSessionSnapshotsRef.current.set(response.project_id, {
       activeSessionId: restoredSessionId,
       draft: restoredSessionId ? responseSessionStates[restoredSessionId]?.draft ?? "" : "",
+      revision: response.revision,
       sessionStates: responseSessionStates,
       sessions: response.items,
       branchNodes: response.branch_nodes ?? [],
@@ -345,6 +351,7 @@ export function useConversationSessions({
     setActiveSessionId(restoredSessionId);
     activeSessionIdRef.current = restoredSessionId;
     setDraft(restoredSessionId ? responseSessionStates[restoredSessionId]?.draft ?? "" : "");
+    latestAppliedRevisionsRef.current.set(response.project_id, response.revision);
   }, [activeSessionIdRef, mergeProtectedDrafts, preferredSessionId]);
 
   useLayoutEffect(() => {
@@ -404,6 +411,15 @@ export function useConversationSessions({
           status: "ignored",
         };
       }
+      const latestAppliedRevision = latestAppliedRevisionsRef.current.get(pid);
+      if (latestAppliedRevision !== undefined && response.revision < latestAppliedRevision) {
+        return {
+          activeSessionId: activeSessionIdRef.current,
+          sessionIds: new Set<string>(),
+          status: "ignored",
+        };
+      }
+      latestAppliedRevisionsRef.current.set(pid, response.revision);
       if (unavailableProjectIdRef.current === pid) {
         unavailableProjectIdRef.current = null;
       }
@@ -434,6 +450,7 @@ export function useConversationSessions({
           draft: snapshotActiveSessionId
             ? snapshotSessionStates[snapshotActiveSessionId]?.draft ?? ""
             : "",
+          revision: response.revision,
           sessionStates: snapshotSessionStates,
           sessions: response.items,
           branchNodes: response.branch_nodes ?? [],
@@ -539,12 +556,19 @@ export function useConversationSessions({
 
   const reloadSessionsForSelection = useCallback((pid: string) => {
     const existing = reloadSessionsInFlightRef.current.get(pid);
-    if (existing) return existing;
+    if (existing) {
+      reloadSessionsDirtyRef.current.add(pid);
+      return existing;
+    }
+    reloadSessionsDirtyRef.current.delete(pid);
     const request = performReloadSessions(pid);
     reloadSessionsInFlightRef.current.set(pid, request);
     void request.finally(() => {
       if (reloadSessionsInFlightRef.current.get(pid) === request) {
         reloadSessionsInFlightRef.current.delete(pid);
+        if (reloadSessionsDirtyRef.current.delete(pid)) {
+          void reloadSessionsForSelection(pid);
+        }
       }
     });
     return request;
@@ -579,6 +603,8 @@ export function useConversationSessions({
         draft,
         references: prev[activeSessionId]?.references ?? emptyConversationDraftReferences(),
         updated_at: new Date().toISOString(),
+        runtime_updated_at:
+          prev[activeSessionId]?.runtime_updated_at ?? new Date().toISOString(),
       },
     }));
     const timer = window.setTimeout(() => {
@@ -683,11 +709,16 @@ function mergeSessionStatePatch(
   previous: ConversationSessionState | undefined,
   patch: SessionStatePatch,
 ): ConversationSessionState {
+  const now = new Date().toISOString();
   return {
     runtime_status: patch.runtime_status ?? previous?.runtime_status ?? "idle",
     draft: patch.draft ?? previous?.draft ?? "",
     references: patch.references ?? previous?.references ?? emptyConversationDraftReferences(),
-    updated_at: new Date().toISOString(),
+    updated_at: now,
+    runtime_updated_at:
+      patch.runtime_status !== undefined
+        ? now
+        : previous?.runtime_updated_at ?? now,
   };
 }
 

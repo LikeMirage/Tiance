@@ -130,10 +130,34 @@ test("accepted=false 表示服务端请求已关闭且不会继续提交", async
   assert.equal(submitCount, 1);
 });
 
+test("调用会话取消后立即停止等待且不伪装已开始动作被回滚", async () => {
+  let receivedSignal;
+  let submittedResult;
+  const coordinator = createCoordinator(async (_requestId, result) => {
+    submittedResult = result;
+    return { accepted: false };
+  });
+  const pending = coordinator.run(request("cancelled-wait"), async (_request, context) => {
+    receivedSignal = context.signal;
+    await new Promise(() => undefined);
+    return { ok: true };
+  });
+
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(coordinator.cancel("cancelled-wait"), true);
+  await pending;
+
+  assert.equal(receivedSignal.aborted, true);
+  assert.equal(submittedResult.ok, false);
+  assert.match(submittedResult.error, /停止等待/);
+});
+
 test("已执行结果长期保留并按有界 LRU 淘汰", async () => {
   const executionCounts = new Map();
   const coordinator = new ClientToolRequestSingleFlight({
     maxCompletedResults: 2,
+    claimRequest: async () => true,
     submitResult: async () => ({ accepted: true }),
   });
   const executor = async (pendingRequest) => {
@@ -157,6 +181,7 @@ test("已执行结果长期保留并按有界 LRU 淘汰", async () => {
 
 function createCoordinator(submitResult) {
   return new ClientToolRequestSingleFlight({
+    claimRequest: async () => true,
     submitResult,
   });
 }

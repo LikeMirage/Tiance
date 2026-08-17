@@ -1,7 +1,11 @@
 from json import dumps
 from inspect import signature
 
-from app.api.routes.project.conversations import list_project_conversation_messages
+from app.api.routes.project.conversations import (
+    list_project_conversation_messages,
+    read_conversation_data_view,
+)
+from app.api.routes.project.memory import list_project_memory
 from app.domain.project import Project
 from app.domain.project.project_conversation import ProjectConversationSessionSettings
 from app.infra.llm.chat_adapters.common import _optional_int
@@ -142,6 +146,60 @@ def test_conversation_message_list_limit_has_no_hidden_ceiling():
 
     assert "Ge(ge=1)" in repr(parameter.default.metadata)
     assert "Le(" not in repr(parameter.default.metadata)
+
+
+def test_dashboard_page_sizes_have_no_hidden_ceiling():
+    conversation_page_size = signature(read_conversation_data_view).parameters["page_size"]
+    memory_page_size = signature(list_project_memory).parameters["page_size"]
+
+    assert "Ge(ge=1)" in repr(conversation_page_size.default.metadata)
+    assert "Le(" not in repr(conversation_page_size.default.metadata)
+    assert "Ge(ge=1)" in repr(memory_page_size.default.metadata)
+    assert "Le(" not in repr(memory_page_size.default.metadata)
+
+
+def test_memory_dashboard_pages_keep_every_record_reachable(tmp_path):
+    (tmp_path / "project").mkdir()
+    repository = ProjectConversationMemoryRepository(
+        FakeProjectRepository(str(tmp_path / "project")),
+        global_memory_root=tmp_path / "runtime" / "memory",
+    )
+    repository.apply_memory_operations(
+        compression_id="compression-many",
+        project_id=PROJECT_ID,
+        created_at="2026-01-01T00:00:00+00:00",
+        global_operations=[],
+        project_operations=[
+            {
+                "operation": "add",
+                "content": f"记忆 {index}",
+                "reason": "分页测试",
+                "keywords": [],
+            }
+            for index in range(55)
+        ],
+    )
+    service = ProjectMemoryManagementService(repository)
+
+    first = service.list_memory_records(
+        scope="project",
+        project_id=PROJECT_ID,
+        page=1,
+        page_size=20,
+    )
+    last = service.list_memory_records(
+        scope="project",
+        project_id=PROJECT_ID,
+        page=3,
+        page_size=20,
+    )
+
+    assert first["total_count"] == 55
+    assert first["total_pages"] == 3
+    assert len(first["items"]) == 20
+    assert len(last["items"]) == 15
+    assert first["has_next"] is True
+    assert last["has_previous"] is True
 
 
 def test_negative_integer_metadata_is_not_silently_clamped_to_zero():

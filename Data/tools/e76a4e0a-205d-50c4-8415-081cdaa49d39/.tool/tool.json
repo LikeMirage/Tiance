@@ -2,7 +2,7 @@
   "description": "将 Markdown 文件转换为 Word .docx，也可从现有 .docx 样本提取排版模板并列出模板。convert 支持可选 template_id；省略模板时保持内置默认排版。模板会提取精确纸张与页边距、分节信息、正文和标题样式、字体、字号、段落间距、行距、缩进、分页控制、页眉页脚文字、文档设置、表格样本及源样式摘要。转换支持标题、目录、段落、原生列表、任务列表、引用、普通 Markdown 表格、本地图片、网络图片、链接、脚注、尾注、Mermaid 图、块级 HTML 截图和可编辑的 Word 原生数学公式。复杂 Excel 表格不写入 Markdown 正文，先由 Excel 工具生成 .xlsx，再在 Markdown 中使用 {{table-ref source=\"...\" sheet=\"...\" range=\"A1:F12\"}} 占位指令；工具会检测引用并把表格插入 Word。目录使用单独一行 [TOC]；脚注使用 [^id] / [^id]: 内容；尾注使用 [^end:id] / [^end:id]: 内容。无法可靠转换的内容会保留源码或占位并返回 warning。",
   "display_name": "Markdown 转 DOCX",
   "execution": {
-    "parallel": false
+    "parallel": true
   },
   "files": {
     "examples": ".tool/examples.json",

@@ -22,17 +22,27 @@ def list_project_memory(
     project_id: str,
     scope: str = Query(default="project", pattern="^(project|global)$"),
     query: str = Query(default=""),
+    page: int | None = Query(default=None, ge=1),
+    page_size: int = Query(default=50, ge=1),
 ) -> ProjectMemoryListResponse:
     service = get_project_memory_management_service()
     report = service.list_memory_records(
         scope=scope,
         project_id=project_id,
         query=query,
+        page=page,
+        page_size=page_size,
     )
     return ProjectMemoryListResponse(
         project_id=project_id,
         scope=report["scope"],
         count=report["count"],
+        total_count=report["total_count"],
+        page=report["page"],
+        page_size=report["page_size"],
+        total_pages=report["total_pages"],
+        has_previous=report["has_previous"],
+        has_next=report["has_next"],
         items=[ProjectMemoryItemResponse(**item) for item in report["items"]],
     )
 

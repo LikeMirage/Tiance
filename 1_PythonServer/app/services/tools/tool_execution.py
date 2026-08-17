@@ -8,7 +8,7 @@ from typing import Any
 
 from app.core.errors import BadRequestError
 from app.core.config import get_settings
-from app.domain.llm.chat import ChatToolCall, ChatToolResult
+from app.domain.llm.chat import ChatClientCapability, ChatToolCall, ChatToolResult
 from app.domain.tools import ToolMetadataSnapshot, ToolRegistryEntry
 from app.services.tools.tool_execution_arguments import (
     parse_tool_arguments,
@@ -58,6 +58,7 @@ class PreparedClientToolExecution:
     tool_project_id: str
     dynamic: bool
     timeout_seconds: int
+    capability: ChatClientCapability
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,10 +160,22 @@ class ToolExecutionService:
             return None
         if str(runtime.get("type") or "").strip().lower() != "client":
             return None
+        capability = runtime.get("client_capability")
+        if not isinstance(capability, dict):
+            return failure_result(
+                tool_call,
+                "客户端工具缺少前端能力合同。",
+                tool_project_id=resolved.entry.project_id,
+                dynamic=resolved.entry.dynamic,
+            )
         return PreparedClientToolExecution(
             tool_project_id=resolved.entry.project_id,
             dynamic=resolved.entry.dynamic,
             timeout_seconds=runtime_timeout_seconds(runtime.get("timeout_seconds")),
+            capability=ChatClientCapability(
+                name=str(capability.get("name") or "").strip(),
+                version=int(capability.get("min_version") or 0),
+            ),
         )
 
     def execute(

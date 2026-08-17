@@ -26,16 +26,8 @@ export function useProjectConversationOverview(
   const abortControllerRef = useRef<AbortController | null>(null);
   const loadRunIdRef = useRef(0);
   const overviewRef = useRef<ProjectOverviewItem | null>(null);
-  const scheduledRefreshRef = useRef<number | null>(null);
-
-  const clearScheduledRefresh = useCallback(() => {
-    if (scheduledRefreshRef.current === null) return;
-    window.clearTimeout(scheduledRefreshRef.current);
-    scheduledRefreshRef.current = null;
-  }, []);
 
   const loadOverview = useCallback(async () => {
-    clearScheduledRefresh();
     abortControllerRef.current?.abort();
     if (!projectId || !isActive) return;
 
@@ -75,16 +67,7 @@ export function useProjectConversationOverview(
         abortControllerRef.current = null;
       }
     }
-  }, [clearScheduledRefresh, isActive, projectId]);
-
-  const scheduleRefresh = useCallback(() => {
-    if (!projectId || !isActive) return;
-    clearScheduledRefresh();
-    scheduledRefreshRef.current = window.setTimeout(() => {
-      scheduledRefreshRef.current = null;
-      void loadOverview();
-    }, EVENT_REFRESH_DELAY_MS);
-  }, [clearScheduledRefresh, isActive, loadOverview, projectId]);
+  }, [isActive, projectId]);
 
   useEffect(() => {
     if (!projectId) {
@@ -103,8 +86,37 @@ export function useProjectConversationOverview(
 
   useEffect(() => {
     if (!projectId || !isActive) return undefined;
-    return listenProjectConversationUpdated((detail) => {
+    let disposed = false;
+    let dirty = false;
+    let running = false;
+    let timer: number | null = null;
+    const runRefresh = async () => {
+      timer = null;
+      if (disposed) return;
+      if (abortControllerRef.current || running) {
+        dirty = true;
+        timer = window.setTimeout(runRefresh, EVENT_REFRESH_DELAY_MS);
+        return;
+      }
+      dirty = false;
+      running = true;
+      try {
+        await loadOverview();
+      } finally {
+        running = false;
+        if (dirty && !disposed && timer === null) {
+          timer = window.setTimeout(runRefresh, EVENT_REFRESH_DELAY_MS);
+        }
+      }
+    };
+    const scheduleRefresh = () => {
+      dirty = true;
+      if (timer !== null || running) return;
+      timer = window.setTimeout(runRefresh, EVENT_REFRESH_DELAY_MS);
+    };
+    const stopListening = listenProjectConversationUpdated((detail) => {
       if (detail.projectId !== projectId) return;
+      const hasLiveUsage = Boolean(detail.usage && detail.sessionId);
       if (detail.usage && detail.sessionId) {
         const key = buildOverviewSessionKey(projectId, detail.sessionId);
         setLiveUsageBySessionKey((current) => ({
@@ -125,9 +137,16 @@ export function useProjectConversationOverview(
           return next;
         });
       }
-      scheduleRefresh();
+      if (!hasLiveUsage || detail.runtimeStatus) {
+        scheduleRefresh();
+      }
     });
-  }, [isActive, projectId, scheduleRefresh]);
+    return () => {
+      disposed = true;
+      stopListening();
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [isActive, loadOverview, projectId]);
 
   useEffect(() => {
     if (!isActive || !overview || overview.active_count === 0) return undefined;
@@ -138,9 +157,8 @@ export function useProjectConversationOverview(
   }, [isActive, loadOverview, overview]);
 
   useEffect(() => () => {
-    clearScheduledRefresh();
     abortControllerRef.current?.abort();
-  }, [clearScheduledRefresh]);
+  }, []);
 
   const updateActiveSession = useCallback((sessionId: string) => {
     setOverview((current) => {

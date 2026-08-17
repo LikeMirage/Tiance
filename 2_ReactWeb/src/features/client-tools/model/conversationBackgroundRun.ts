@@ -1,6 +1,7 @@
 import type { ConversationSession } from "../../../entities/llm-chat/model/conversation";
-import { buildConversationRunRequest } from "../../ai-panel/model/conversationRunRequest";
-import { processChatStreamEventSideEffects } from "../../ai-panel/model/chatStreamEventSideEffects";
+import type { ChatClientCapability } from "../../../entities/llm-chat/model/chatCompletion";
+import { buildConversationRunRequest } from "../../conversation-runtime/model/conversationRunRequest";
+import { processChatStreamEventSideEffects } from "../../conversation-runtime/model/chatStreamEventSideEffects";
 import type { ClientToolExecutor } from "./clientToolBridge";
 import {
   loadConversationTurnByUserMessageId,
@@ -37,8 +38,15 @@ type ConversationBackgroundRunDependencies = {
 
 type ConversationBackgroundRunInput = {
   clientToolExecutor: () => ClientToolExecutor | null;
+  clientCapabilities: () => readonly ChatClientCapability[];
   initialStrategy?: ConversationRunInitialStrategy;
   message: string;
+  sourceContext?: {
+    project_id: string;
+    session_id: string;
+    session_title: string;
+    tool_request_id: string;
+  };
   onSettled?: (outcome: ConversationRunOutcome | null) => void | Promise<void>;
   onStarted?: () => void | Promise<void>;
   projectId: string;
@@ -81,6 +89,7 @@ export class ConversationBackgroundRunRegistry {
         role: "user",
         content: input.message,
         message_id: userMessageId,
+        source_context: input.sourceContext,
       }],
       modelId: input.session.model_id,
       projectId: input.projectId,
@@ -88,6 +97,7 @@ export class ConversationBackgroundRunRegistry {
       reasoningMode: input.session.reasoning_mode,
       sessionId: input.session.session_id,
       settings: input.session.settings,
+      clientCapabilities: input.clientCapabilities(),
     });
     let resolveStarted!: (value: ConversationBackgroundRunStarted) => void;
     let rejectStarted!: (error: unknown) => void;

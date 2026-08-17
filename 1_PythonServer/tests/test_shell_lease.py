@@ -7,7 +7,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 
 from app.api.routes.health import get_health
-from app.core.shell_lease import ShellLeaseConfiguration, ShellLeaseMonitor
+from app.core.shell_lease import (
+    ShellLeaseConfiguration,
+    ShellLeaseMonitor,
+    ShellLeaseRevokedError,
+)
 
 
 class _HeartbeatCaptureHandler(BaseHTTPRequestHandler):
@@ -20,6 +24,15 @@ class _HeartbeatCaptureHandler(BaseHTTPRequestHandler):
             "token": self.headers.get("X-Tiance-Lease-Token", ""),
         }
         self.send_response(204)
+        self.end_headers()
+
+    def log_message(self, _format: str, *_args: object) -> None:
+        return
+
+
+class _RevokedHeartbeatHandler(BaseHTTPRequestHandler):
+    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler contract
+        self.send_response(410)
         self.end_headers()
 
     def log_message(self, _format: str, *_args: object) -> None:
@@ -84,6 +97,28 @@ def test_monitor_requires_consecutive_failures_and_resets_after_success() -> Non
     assert shutdown_requests == [True]
 
 
+def test_revoked_lease_requests_shutdown_without_failure_threshold() -> None:
+    shutdown_requests: list[bool] = []
+    configuration = ShellLeaseConfiguration(
+        instance_id="shell-instance",
+        token="secret-token",
+        heartbeat_url="http://127.0.0.1:19000/heartbeat",
+    )
+
+    def revoked_heartbeat(_configuration: ShellLeaseConfiguration) -> bool:
+        raise ShellLeaseRevokedError
+
+    monitor = ShellLeaseMonitor(
+        configuration,
+        request_shutdown=lambda: shutdown_requests.append(True),
+        heartbeat_sender=revoked_heartbeat,
+        failure_threshold=99,
+    )
+
+    assert monitor.heartbeat_once() is False
+    assert shutdown_requests == [True]
+
+
 def test_default_heartbeat_sender_uses_the_lease_contract() -> None:
     server = ThreadingHTTPServer(("127.0.0.1", 0), _HeartbeatCaptureHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -102,6 +137,31 @@ def test_default_heartbeat_sender_uses_the_lease_contract() -> None:
             "instance_id": "shell-instance",
             "token": "secret-token",
         }
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_default_heartbeat_sender_requests_shutdown_for_revoked_lease() -> None:
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _RevokedHeartbeatHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    port = int(server.server_address[1])
+    shutdown_requests: list[bool] = []
+    configuration = ShellLeaseConfiguration(
+        instance_id="shell-instance",
+        token="secret-token",
+        heartbeat_url=f"http://127.0.0.1:{port}/heartbeat",
+    )
+    monitor = ShellLeaseMonitor(
+        configuration,
+        request_shutdown=lambda: shutdown_requests.append(True),
+        failure_threshold=99,
+    )
+    try:
+        assert monitor.heartbeat_once() is False
+        assert shutdown_requests == [True]
     finally:
         server.shutdown()
         server.server_close()

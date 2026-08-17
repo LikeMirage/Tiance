@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "tavily_web_search",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "LikeMirage"
   },

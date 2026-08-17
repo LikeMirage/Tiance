@@ -28,7 +28,11 @@ type BuildVirtualConversationDataTabOptions = {
   revisionMs: number;
   sessionId: string | null;
   totalCount?: number | null;
-  truncated?: boolean;
+  page?: number | null;
+  pageSize?: number | null;
+  totalPages?: number | null;
+  hasPrevious?: boolean;
+  hasNext?: boolean;
 };
 
 export const PROJECT_CONVERSATION_OVERVIEW_TAB_PREFIX =
@@ -238,7 +242,11 @@ export function buildVirtualConversationDataTab({
   revisionMs,
   sessionId,
   totalCount = null,
-  truncated = false,
+  page = null,
+  pageSize = null,
+  totalPages = null,
+  hasPrevious = false,
+  hasNext = false,
 }: BuildVirtualConversationDataTabOptions): DocumentTab {
   const logicalPath = sessionId
     ? `.Tiance/conversations/sessions/${sessionId}/${fileName}`
@@ -248,9 +256,7 @@ export function buildVirtualConversationDataTab({
   const now = Date.now();
   return {
     id: `conversation-data:${projectId}:${sessionId ?? "project"}:${fileName}`,
-    title: truncated && totalCount !== null
-      ? `${fileName}（最近 1000 / ${totalCount}）`
-      : fileName,
+    title: fileName,
     displayPath: logicalPath,
     kind: "text",
     languageId: "json",
@@ -269,6 +275,21 @@ export function buildVirtualConversationDataTab({
     assetVersion: revisionMs,
     mtimeMs: revisionMs,
     externalChange: null,
+    conversationDataView: page !== null
+      && pageSize !== null
+      && totalCount !== null
+      && totalPages !== null
+      ? {
+        fileName,
+        sessionId,
+        page,
+        pageSize,
+        totalCount,
+        totalPages,
+        hasPrevious,
+        hasNext,
+      }
+      : null,
   };
 }
 

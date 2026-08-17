@@ -4,6 +4,8 @@ export type ConversationDataFileName =
   | "compressions.jsonl"
   | "injection_preview.json"
   | "messages.jsonl"
+  | "conversation_journal.jsonl"
+  | "model_exchanges.jsonl"
   | "session.json"
   | "index.json"
   | "project_memory.jsonl"
@@ -30,6 +32,16 @@ const CONVERSATION_DATA_DASHBOARDS: ConversationDataDashboardItem[] = [
     descriptionKey: "aiPanel.dataDashboard.items.messages.description",
     fileName: "messages.jsonl",
     titleKey: "aiPanel.dataDashboard.items.messages.title",
+  },
+  {
+    descriptionKey: "aiPanel.dataDashboard.items.conversationJournal.description",
+    fileName: "conversation_journal.jsonl",
+    titleKey: "aiPanel.dataDashboard.items.conversationJournal.title",
+  },
+  {
+    descriptionKey: "aiPanel.dataDashboard.items.modelExchanges.description",
+    fileName: "model_exchanges.jsonl",
+    titleKey: "aiPanel.dataDashboard.items.modelExchanges.title",
   },
   {
     descriptionKey: "aiPanel.dataDashboard.items.session.description",

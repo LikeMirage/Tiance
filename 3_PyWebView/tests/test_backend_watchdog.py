@@ -7,6 +7,7 @@ from urllib.request import ProxyHandler, Request, build_opener
 
 from app.backend_watchdog import (
     LEASE_INSTANCE_HEADER,
+    LEASE_REVOKED_STATUS,
     LEASE_TOKEN_HEADER,
     BackendHealthMonitor,
     BackendHealthState,
@@ -51,6 +52,27 @@ class ShellLeaseServerTests(unittest.TestCase):
             with self.assertRaises(HTTPError) as error:
                 opener.open(invalid_request, timeout=1)
             self.assertEqual(error.exception.code, 403)
+        finally:
+            server.stop()
+
+    def test_authenticated_heartbeat_reports_revoked_lease(self) -> None:
+        server = ShellLeaseServer()
+        lease = server.start()
+        opener = build_opener(ProxyHandler({}))
+        try:
+            server.revoke()
+            request = Request(
+                lease.heartbeat_url,
+                data=b"",
+                method="POST",
+                headers={
+                    LEASE_INSTANCE_HEADER: lease.instance_id,
+                    LEASE_TOKEN_HEADER: lease.token,
+                },
+            )
+            with self.assertRaises(HTTPError) as error:
+                opener.open(request, timeout=1)
+            self.assertEqual(error.exception.code, LEASE_REVOKED_STATUS)
         finally:
             server.stop()
 

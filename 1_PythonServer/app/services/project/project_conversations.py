@@ -102,6 +102,9 @@ class ProjectConversationService:
     ]:
         return self._repository.get_overview_data(project_id)
 
+    def get_list_data(self, project_id: str):
+        return self._repository.get_list_data(project_id)
+
     def get_cache_affinity_id(self, project_id: str, session_id: str) -> str:
         return self._repository.get_cache_affinity_id(project_id, session_id)
 
@@ -349,6 +352,7 @@ class ProjectConversationService:
         protocol_continuation: ChatProtocolContinuation | None = None,
         content_parts: tuple[ChatMessageContentPart, ...] = (),
         references: list[dict] | None = None,
+        source_context: dict[str, str] | None = None,
         status: str = "done",
         sync_session_model: bool = True,
         message_id: str | None = None,
@@ -370,6 +374,7 @@ class ProjectConversationService:
             protocol_continuation=protocol_continuation,
             content_parts=content_parts,
             references=references,
+            source_context=source_context,
             status=status,
             sync_session_model=sync_session_model,
             message_id=message_id,
@@ -420,6 +425,14 @@ class ProjectConversationService:
         record: ProjectConversationNamingCallRecord,
     ) -> None:
         self._repository.append_naming_call_record(project_id, session_id, record)
+
+    def append_model_exchange(
+        self,
+        project_id: str,
+        session_id: str,
+        payload: dict,
+    ) -> None:
+        self._repository.append_model_exchange(project_id, session_id, payload)
 
     def write_injection_preview(
         self,

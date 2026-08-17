@@ -39,15 +39,42 @@ class ProjectMemoryManagementService:
         scope: str,
         project_id: str | None = None,
         query: str = "",
+        page: int | None = None,
+        page_size: int | None = None,
     ) -> dict[str, Any]:
         safe_scope = _normalize_scope(scope)
         events = self._list_scope_events(safe_scope, project_id=project_id)
         records = _memory_records_from_events(events, scope=safe_scope)
         filtered = _filter_memories(records, query)
+        if page_size is None:
+            return {
+                "scope": safe_scope,
+                "count": len(filtered),
+                "total_count": len(filtered),
+                "page": None,
+                "page_size": None,
+                "total_pages": None,
+                "has_previous": False,
+                "has_next": False,
+                "items": filtered,
+            }
+        if page_size < 1 or (page is not None and page < 1):
+            raise BadRequestError("页码和每页条数必须大于 0。")
+        total_count = len(filtered)
+        total_pages = max(1, (total_count + page_size - 1) // page_size)
+        resolved_page = min(page or total_pages, total_pages)
+        start = (resolved_page - 1) * page_size
+        items = filtered[start:start + page_size]
         return {
             "scope": safe_scope,
-            "count": len(filtered),
-            "items": filtered,
+            "count": len(items),
+            "total_count": total_count,
+            "page": resolved_page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "has_previous": resolved_page > 1,
+            "has_next": resolved_page < total_pages,
+            "items": items,
         }
 
     def apply_operation(
@@ -194,7 +221,7 @@ def _memory_records_from_events(events: list[dict[str, Any]], *, scope: str) -> 
         records.append({
             **record,
             "event_count": len(record_events),
-            "events": record_events[-10:],
+            "events": record_events,
         })
     return records
 

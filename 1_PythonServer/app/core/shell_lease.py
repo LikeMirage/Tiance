@@ -15,9 +15,14 @@ SHELL_HEARTBEAT_URL_ENV = "TIANCE_SHELL_HEARTBEAT_URL"
 LEASE_INSTANCE_HEADER = "X-Tiance-Instance-Id"
 LEASE_TOKEN_HEADER = "X-Tiance-Lease-Token"
 LEASE_HEARTBEAT_PATH = "/heartbeat"
+LEASE_REVOKED_STATUS = 410
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 2.0
 DEFAULT_HEARTBEAT_TIMEOUT_SECONDS = 1.0
 DEFAULT_HEARTBEAT_FAILURE_THRESHOLD = 3
+
+
+class ShellLeaseRevokedError(RuntimeError):
+    pass
 
 
 @dataclass(frozen=True)
@@ -95,6 +100,9 @@ class ShellLeaseMonitor:
     def heartbeat_once(self) -> bool:
         try:
             succeeded = bool(self._heartbeat_sender(self._configuration))
+        except ShellLeaseRevokedError:
+            self._request_shutdown_once()
+            return False
         except Exception:
             succeeded = False
 
@@ -107,10 +115,15 @@ class ShellLeaseMonitor:
             self._consecutive_failures >= self._failure_threshold
             and not self._shutdown_requested
         ):
-            self._shutdown_requested = True
-            self._request_shutdown()
+            self._request_shutdown_once()
             return False
         return True
+
+    def _request_shutdown_once(self) -> None:
+        if self._shutdown_requested:
+            return
+        self._shutdown_requested = True
+        self._request_shutdown()
 
     def _run(self) -> None:
         while not self._stop_event.is_set():
@@ -158,7 +171,11 @@ def _send_heartbeat(configuration: ShellLeaseConfiguration) -> bool:
     try:
         with opener.open(request, timeout=DEFAULT_HEARTBEAT_TIMEOUT_SECONDS) as response:
             return getattr(response, "status", None) == 204
-    except (HTTPError, URLError, TimeoutError, OSError, ValueError):
+    except HTTPError as exc:
+        if exc.code == LEASE_REVOKED_STATUS:
+            raise ShellLeaseRevokedError from exc
+        return False
+    except (URLError, TimeoutError, OSError, ValueError):
         return False
 
 

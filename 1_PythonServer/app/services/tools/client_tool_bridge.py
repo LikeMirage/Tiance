@@ -23,6 +23,7 @@ class _PendingClientToolRequest:
     future: asyncio.Future[ClientToolResultPayload]
     loop: asyncio.AbstractEventLoop
     submitted: bool = False
+    claimed: bool = False
 
 
 class ClientToolBridgeService:
@@ -38,6 +39,7 @@ class ClientToolBridgeService:
         session_id: str | None,
         timeout_seconds: int,
         model_context: dict[str, Any] | None = None,
+        capability=None,
     ) -> ChatClientToolRequest:
         request = ChatClientToolRequest(
             request_id=uuid4().hex,
@@ -48,6 +50,7 @@ class ClientToolBridgeService:
             session_id=session_id,
             timeout_seconds=timeout_seconds,
             model_context=dict(model_context or {}),
+            capability=capability,
         )
         loop = asyncio.get_running_loop()
         pending = _PendingClientToolRequest(
@@ -95,6 +98,22 @@ class ClientToolBridgeService:
         )
         return True
 
+    async def claim_request(self, request_id: str) -> bool:
+        normalized_request_id = request_id.strip()
+        if not normalized_request_id:
+            return False
+        async with self._lock:
+            pending = self._pending.get(normalized_request_id)
+            if (
+                pending is None
+                or pending.claimed
+                or pending.submitted
+                or pending.future.done()
+            ):
+                return False
+            pending.claimed = True
+            return True
+
     async def should_replay_request(self, request_id: str) -> bool:
         normalized_request_id = request_id.strip()
         if not normalized_request_id:
@@ -103,6 +122,29 @@ class ClientToolBridgeService:
             pending = self._pending.get(normalized_request_id)
             return bool(
                 pending is not None
+                and not pending.submitted
+                and not pending.future.done()
+            )
+
+    async def pending_request_ids(
+        self,
+        *,
+        project_id: str,
+        session_id: str,
+    ) -> tuple[str, ...]:
+        """Return active requests owned by one conversation run.
+
+        The bridge does not cancel the frontend action itself.  The run manager
+        publishes these identities before it stops waiting, allowing the
+        frontend execution coordinator to release its wait without pretending
+        that an already-started side effect was rolled back.
+        """
+        async with self._lock:
+            return tuple(
+                request_id
+                for request_id, pending in self._pending.items()
+                if pending.request.project_id == project_id
+                and pending.request.session_id == session_id
                 and not pending.submitted
                 and not pending.future.done()
             )

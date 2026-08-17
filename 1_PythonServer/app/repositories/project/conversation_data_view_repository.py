@@ -1,18 +1,24 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from json import dumps
+from math import ceil
 from pathlib import Path
 from typing import Literal
 
 from app.core.errors import BadRequestError, NotFoundError
 from app.repositories.project.conversation_database import (
-    database_path_from_workspace,
+    count_events,
+    count_journal_events,
     count_message_payloads,
+    count_project_events,
+    database_path_from_workspace,
+    list_events_range,
+    list_journal_events_range,
     list_message_payloads_range,
+    list_project_events_range,
     read_document,
-    read_events,
     read_meta,
-    read_project_events,
     read_session,
 )
 from app.repositories.project.conversation_storage import ProjectWorkspaceDirectoryResolver
@@ -23,14 +29,46 @@ ConversationDataViewName = Literal[
     "index.json",
     "session.json",
     "messages.jsonl",
+    "conversation_journal.jsonl",
+    "model_exchanges.jsonl",
     "compressions.jsonl",
     "injection_preview.json",
     "project_memory.jsonl",
 ]
 
 
+@dataclass(frozen=True)
+class ConversationDataView:
+    content: str
+    revision_ms: int
+    total_count: int | None = None
+    page: int | None = None
+    page_size: int | None = None
+    total_pages: int | None = None
+    has_previous: bool = False
+    has_next: bool = False
+
+
+@dataclass(frozen=True)
+class _PageWindow:
+    page: int
+    page_size: int
+    total_count: int
+    total_pages: int
+    start: int
+    end: int
+
+    @property
+    def has_previous(self) -> bool:
+        return self.page > 1
+
+    @property
+    def has_next(self) -> bool:
+        return self.page < self.total_pages
+
+
 class ConversationDataViewRepository:
-    """Build read-only dashboard documents from the project conversation database."""
+    """Build read-only, pageable dashboard documents from conversation storage."""
 
     def __init__(self, project_repository: ProjectRepository) -> None:
         self._projects = project_repository
@@ -42,7 +80,9 @@ class ConversationDataViewRepository:
         *,
         name: ConversationDataViewName,
         session_id: str | None,
-    ) -> tuple[str, int, int | None, bool]:
+        page: int | None,
+        page_size: int,
+    ) -> ConversationDataView:
         project = self._projects.get_project(project_id)
         if project is None:
             raise NotFoundError("项目不存在。")
@@ -51,12 +91,49 @@ class ConversationDataViewRepository:
             for_write=False,
         )
         conversations_dir = workspace_dir / "conversations"
+        revision_ms = _database_mtime(workspace_dir)
+
         if name == "index.json":
             payload = read_meta(conversations_dir, "conversation_index", {})
-            return _json(payload), _database_mtime(workspace_dir), None, False
+            sessions = payload.get("sessions", []) if isinstance(payload, dict) else []
+            session_items = [item for item in sessions if isinstance(item, dict)]
+            window = _page_window(
+                total_count=len(session_items),
+                page=page,
+                page_size=page_size,
+                default_to_last=False,
+            )
+            return _paged_view(
+                _json(_slice_index_payload(payload, session_items, window)),
+                revision_ms,
+                window,
+            )
+
         if name == "project_memory.jsonl":
-            events = read_project_events(workspace_dir, "project_memory")
-            return _jsonl(events), _database_mtime(workspace_dir), len(events), False
+            total_count = count_project_events(workspace_dir, "project_memory")
+            window = _page_window(total_count, page, page_size)
+            events = list_project_events_range(
+                workspace_dir,
+                "project_memory",
+                start_ordinal=window.start,
+                end_ordinal=window.end,
+            )
+            return _paged_view(_jsonl(events), revision_ms, window)
+
+        if name == "conversation_journal.jsonl":
+            normalized_session_id = (session_id or "").strip() or None
+            total_count = count_journal_events(
+                workspace_dir,
+                session_id=normalized_session_id,
+            )
+            window = _page_window(total_count, page, page_size)
+            events = list_journal_events_range(
+                workspace_dir,
+                session_id=normalized_session_id,
+                offset=window.start,
+                limit=window.end - window.start,
+            )
+            return _paged_view(_jsonl(events), revision_ms, window)
 
         resolved_session_id = _require_session_id(session_id)
         session = read_session(conversations_dir, resolved_session_id)
@@ -64,27 +141,103 @@ class ConversationDataViewRepository:
             raise NotFoundError("会话不存在。")
         session_dir = conversations_dir / "sessions" / resolved_session_id
         if name == "session.json":
-            return _json(session), _database_mtime(workspace_dir), None, False
+            return ConversationDataView(_json(session), revision_ms)
         if name == "messages.jsonl":
             total_count = count_message_payloads(session_dir)
-            start = max(0, total_count - 1_000)
+            window = _page_window(total_count, page, page_size)
             messages = list_message_payloads_range(
                 session_dir,
-                start_ordinal=start,
-                end_ordinal=total_count,
+                start_ordinal=window.start,
+                end_ordinal=window.end,
             )
-            return (
-                _jsonl(messages),
-                _database_mtime(workspace_dir),
-                total_count,
-                start > 0,
+            return _paged_view(_jsonl(messages), revision_ms, window)
+        if name in {"compressions.jsonl", "model_exchanges.jsonl"}:
+            event_kind = name.removesuffix(".jsonl")
+            total_count = count_events(session_dir, event_kind)
+            window = _page_window(total_count, page, page_size)
+            events = list_events_range(
+                session_dir,
+                event_kind,
+                start_ordinal=window.start,
+                end_ordinal=window.end,
             )
-        if name == "compressions.jsonl":
-            events = read_events(session_dir, "compressions")
-            return _jsonl(events), _database_mtime(workspace_dir), len(events), False
+            return _paged_view(_jsonl(events), revision_ms, window)
         if name == "injection_preview.json":
-            return _json(read_document(session_dir, "injection_preview") or {}), _database_mtime(workspace_dir), None, False
+            return ConversationDataView(
+                _json(read_document(session_dir, "injection_preview") or {}),
+                revision_ms,
+            )
         raise BadRequestError("不支持的数据视图。")
+
+
+def _page_window(
+    total_count: int,
+    page: int | None,
+    page_size: int,
+    *,
+    default_to_last: bool = True,
+) -> _PageWindow:
+    if page_size < 1 or (page is not None and page < 1):
+        raise BadRequestError("页码和每页条数必须大于 0。")
+    total_pages = max(1, ceil(total_count / page_size))
+    requested_page = total_pages if page is None and default_to_last else page or 1
+    resolved_page = min(requested_page, total_pages)
+    start = (resolved_page - 1) * page_size
+    return _PageWindow(
+        page=resolved_page,
+        page_size=page_size,
+        total_count=total_count,
+        total_pages=total_pages,
+        start=start,
+        end=min(start + page_size, total_count),
+    )
+
+
+def _paged_view(
+    content: str,
+    revision_ms: int,
+    window: _PageWindow,
+) -> ConversationDataView:
+    return ConversationDataView(
+        content=content,
+        revision_ms=revision_ms,
+        total_count=window.total_count,
+        page=window.page,
+        page_size=window.page_size,
+        total_pages=window.total_pages,
+        has_previous=window.has_previous,
+        has_next=window.has_next,
+    )
+
+
+def _slice_index_payload(
+    payload: object,
+    sessions: list[dict],
+    window: _PageWindow,
+) -> object:
+    if not isinstance(payload, dict):
+        return payload
+    visible_sessions = sessions[window.start:window.end]
+    visible_ids = {
+        str(item.get("session_id"))
+        for item in visible_sessions
+        if item.get("session_id") is not None
+    }
+    result = dict(payload)
+    result["sessions"] = visible_sessions
+    states = payload.get("session_states")
+    if isinstance(states, dict):
+        result["session_states"] = {
+            session_id: value
+            for session_id, value in states.items()
+            if session_id in visible_ids
+        }
+    pinned = payload.get("pinned_session_ids")
+    if isinstance(pinned, list):
+        result["pinned_session_ids"] = [
+            session_id for session_id in pinned if str(session_id) in visible_ids
+        ]
+    return result
 
 
 def _require_session_id(value: str | None) -> str:

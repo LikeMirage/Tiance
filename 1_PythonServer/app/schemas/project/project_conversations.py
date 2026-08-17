@@ -213,6 +213,7 @@ class ProjectConversationSessionStateResponse(BaseModel):
     draft: str
     references: ConversationReferences = Field(default_factory=ConversationReferences)
     updated_at: str
+    runtime_updated_at: str
 
     @classmethod
     def from_domain(
@@ -224,6 +225,7 @@ class ProjectConversationSessionStateResponse(BaseModel):
             draft=state.draft,
             references=state.references,
             updated_at=state.updated_at,
+            runtime_updated_at=state.runtime_updated_at or state.updated_at,
         )
 
 
@@ -236,6 +238,7 @@ class ProjectConversationStateResponse(BaseModel):
 
 class ProjectConversationListResponse(BaseModel):
     project_id: str
+    revision: int = Field(ge=0)
     count: int
     assistant_title: str
     active_session_id: str | None = None
@@ -496,7 +499,11 @@ class ProjectConversationDataViewResponse(BaseModel):
     content: str
     revision_ms: int
     total_count: int | None = None
-    truncated: bool = False
+    page: int | None = None
+    page_size: int | None = None
+    total_pages: int | None = None
+    has_previous: bool = False
+    has_next: bool = False
 
 
 class ProjectConversationMessageTurnResponse(BaseModel):

@@ -43,20 +43,12 @@ export function useProjectCategoryOverview({
   const loadRunIdRef = useRef(0);
   const overviewRef = useRef<ProjectCategoryOverviewResponse | null>(null);
   const previousCategoryIdRef = useRef<string | null>(null);
-  const scheduledRefreshRef = useRef<number | null>(null);
 
   useEffect(() => {
     overviewRef.current = overview;
   }, [overview]);
 
-  const clearScheduledRefresh = useCallback(() => {
-    if (scheduledRefreshRef.current === null) return;
-    window.clearTimeout(scheduledRefreshRef.current);
-    scheduledRefreshRef.current = null;
-  }, []);
-
   const loadOverview = useCallback(async (mode: LoadMode = "refresh") => {
-    clearScheduledRefresh();
     abortControllerRef.current?.abort();
 
     if (!isActive) {
@@ -106,16 +98,7 @@ export function useProjectCategoryOverview({
         abortControllerRef.current = null;
       }
     }
-  }, [categoryId, clearScheduledRefresh, isActive, t]);
-
-  const scheduleRefresh = useCallback(() => {
-    if (!categoryId || !isActive) return;
-    clearScheduledRefresh();
-    scheduledRefreshRef.current = window.setTimeout(() => {
-      scheduledRefreshRef.current = null;
-      void loadOverview("refresh");
-    }, EVENT_REFRESH_DELAY_MS);
-  }, [categoryId, clearScheduledRefresh, isActive, loadOverview]);
+  }, [categoryId, isActive, t]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -138,6 +121,8 @@ export function useProjectCategoryOverview({
     () => new Set((overview?.projects ?? []).map((project) => project.project.project_id)),
     [overview?.projects],
   );
+  const projectIdsRef = useRef(projectIds);
+  projectIdsRef.current = projectIds;
   const hasRunningSession = useMemo(
     () => projects.some((project) => project.active_count > 0),
     [projects],
@@ -145,9 +130,40 @@ export function useProjectCategoryOverview({
 
   useEffect(() => {
     if (!isActive) return undefined;
-    return listenProjectConversationUpdated((detail) => {
+    let disposed = false;
+    let dirty = false;
+    let running = false;
+    let timer: number | null = null;
+    const runRefresh = async () => {
+      timer = null;
+      if (disposed) return;
+      if (abortControllerRef.current || running) {
+        dirty = true;
+        timer = window.setTimeout(runRefresh, EVENT_REFRESH_DELAY_MS);
+        return;
+      }
+      dirty = false;
+      running = true;
+      try {
+        await loadOverview("refresh");
+      } finally {
+        running = false;
+        if (dirty && !disposed && timer === null) {
+          timer = window.setTimeout(runRefresh, EVENT_REFRESH_DELAY_MS);
+        }
+      }
+    };
+    const scheduleRefresh = () => {
+      dirty = true;
+      if (timer !== null || running) return;
+      timer = window.setTimeout(runRefresh, EVENT_REFRESH_DELAY_MS);
+    };
+    const stopListening = listenProjectConversationUpdated((detail) => {
       if (!categoryId) return;
-      if (projectIds.size > 0 && !projectIds.has(detail.projectId)) return;
+      if (
+        projectIdsRef.current.size > 0
+        && !projectIdsRef.current.has(detail.projectId)
+      ) return;
       const sessionId = detail.sessionId;
       const usage = detail.usage;
       const hasLiveUsage = Boolean(usage && sessionId);
@@ -172,7 +188,12 @@ export function useProjectCategoryOverview({
         scheduleRefresh();
       }
     });
-  }, [categoryId, isActive, projectIds, scheduleRefresh]);
+    return () => {
+      disposed = true;
+      stopListening();
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [categoryId, isActive, loadOverview]);
 
   useEffect(() => {
     if (!isActive || !categoryId || !hasRunningSession) return undefined;
@@ -185,18 +206,17 @@ export function useProjectCategoryOverview({
   useEffect(() => {
     if (!isActive) return undefined;
     const handleFocus = () => {
-      scheduleRefresh();
+      void loadOverview("refresh");
     };
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
-  }, [isActive, scheduleRefresh]);
+  }, [isActive, loadOverview]);
 
   useEffect(() => {
     return () => {
-      clearScheduledRefresh();
       abortControllerRef.current?.abort();
     };
-  }, [clearScheduledRefresh]);
+  }, []);
 
   const updateActiveSession = useCallback((projectId: string, sessionId: string) => {
     setOverview((current) => {

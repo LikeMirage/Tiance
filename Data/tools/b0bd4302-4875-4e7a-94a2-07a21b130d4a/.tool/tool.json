@@ -1,7 +1,7 @@
 {
   "description": "管理当前工作区的标准 Git 仓库。工具内嵌 Git 引擎，不要求电脑安装 Git，也不把 GitHub 登录作为本地操作或公共仓库读取的前提。支持克隆、状态、差异、历史、远端、分支、标签、子模块、提交、推送、拉取、恢复、撤销和重置。overview 与提交预演会返回最终作者身份及来源，身份不正确时可显式覆盖或调用 configure_identity 保存。HTTPS 私有仓库和推送可使用工具 config.json 中按主机配置的凭据；若系统已有 Git Credential Manager 会尝试复用，SSH 地址会复用系统 SSH。认证结果只返回来源，不返回密钥。所有写操作都可先传 dry_run=true 预演。",
   "display_name": "Git 仓库",
-  "execution": {"parallel": false},
+  "execution": {"parallel": true},
   "files": {
     "examples": ".tool/examples.json",
     "input_schema": ".tool/input.schema.json",

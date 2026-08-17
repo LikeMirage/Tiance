@@ -8,7 +8,6 @@ import {
   formatProviderModel,
   formatSource,
   formatTime,
-  MAX_PREVIEW_LINES,
   parseCompressionLog,
   type CompressionItem,
   type CompressionRecord,
@@ -61,7 +60,7 @@ export function CompressionLogPreview({
     saving: false,
   });
   const [expandedRecordKeys, setExpandedRecordKeys] = useState<Set<string>>(() => new Set());
-  const { parsedLines, totalLineCount, truncatedLineCount } = parseResult;
+  const { parsedLines, totalLineCount } = parseResult;
   const records = parsedLines
     .filter((line): line is Extract<ParsedCompressionLine, { kind: "record" }> =>
       line.kind === "record",
@@ -172,12 +171,6 @@ export function CompressionLogPreview({
           {errors.length > 0 ? <Metric label="解析失败" tone="danger" value={errors.length} /> : null}
         </div>
       </header>
-
-      {truncatedLineCount > 0 ? (
-        <div className="compression-log-preview__truncated">
-          日志较大，当前显示最近 {MAX_PREVIEW_LINES} 条记录，已省略更早的 {truncatedLineCount} 条记录。
-        </div>
-      ) : null}
 
       {errors.length > 0 ? (
         <section className="compression-log-preview__errors" aria-label="解析失败行">

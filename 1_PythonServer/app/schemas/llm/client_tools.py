@@ -20,3 +20,7 @@ class ClientToolResultRequestBody(BaseModel):
 
 class ClientToolResultAck(BaseModel):
     accepted: bool
+
+
+class ClientToolClaimAck(BaseModel):
+    acquired: bool

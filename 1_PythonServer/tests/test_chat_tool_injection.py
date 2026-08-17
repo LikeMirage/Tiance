@@ -1,6 +1,7 @@
 import pytest
 
 from app.domain.llm.chat import (
+    ChatClientCapability,
     ChatCompletionRequest,
     ChatMessage,
     ChatMessageRole,
@@ -85,6 +86,24 @@ def test_chat_tool_injection_empty_session_enabled_names_disables_all_tools():
     tools = service.build_chat_tools(enabled_tool_names=())
 
     assert tools == ()
+
+
+def test_client_tools_are_injected_only_for_compatible_frontend_capabilities():
+    service = ChatToolInjectionService(_FakeCatalog())
+
+    without_capability = service.build_chat_tools(enabled_tool_names=None)
+    with_old_capability = service.build_chat_tools(
+        enabled_tool_names=None,
+        client_capabilities=(ChatClientCapability(name="editor.tabs", version=1),),
+    )
+    with_supported_capability = service.build_chat_tools(
+        enabled_tool_names=None,
+        client_capabilities=(ChatClientCapability(name="editor.tabs", version=2),),
+    )
+
+    assert "editor_tabs_manager" not in [tool.name for tool in without_capability]
+    assert "editor_tabs_manager" not in [tool.name for tool in with_old_capability]
+    assert "editor_tabs_manager" in [tool.name for tool in with_supported_capability]
 
 
 def test_chat_tool_injection_keeps_existing_request_tool_when_names_overlap():
@@ -247,6 +266,18 @@ class _FakeCatalog:
                 parameter_names=("file_path",),
                 example_titles=("解析 PDF",),
             ),
+            ToolSummary(
+                name="editor_tabs_manager",
+                display_name="编辑器标签",
+                description="管理编辑器标签。",
+                keywords=("编辑器",),
+                category="基础工具",
+                dynamic=False,
+                parameter_names=("action",),
+                example_titles=(),
+                client_capability_name="editor.tabs",
+                client_capability_min_version=2,
+            ),
         )
 
     def get_tool_parameters(self, tool_name: str):
@@ -288,6 +319,15 @@ class _FakeCatalog:
                         "operation": {"type": "string"},
                         "tool_name": {"type": "string"},
                     },
+                },
+            )
+        if tool_name == "editor_tabs_manager":
+            return ToolParameterDetail(
+                name=tool_name,
+                input_schema={
+                    "type": "object",
+                    "required": ["action"],
+                    "properties": {"action": {"type": "string"}},
                 },
             )
         return ToolParameterDetail(

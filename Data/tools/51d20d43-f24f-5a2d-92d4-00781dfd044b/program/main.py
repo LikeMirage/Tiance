@@ -153,6 +153,7 @@ def validate_tool_folder(
         issue(issues, "error", "MISSING_DISPLAY_NAME", "display_name 不能为空。", path=tool_json_path, tool_name=tool_name)
     if not string_value(manifest.get("description")):
         issue(issues, "warning", "MISSING_DESCRIPTION", "description 为空会降低工具可理解性。", path=tool_json_path, tool_name=tool_name)
+    validate_execution(manifest, tool_json_path, tool_name, issues)
     validate_manifest_files(manifest, tool_json_path, tool_name, issues)
     validate_runtime(manifest, folder, tool_json_path, tool_name, issues)
     validate_registry(registry_path, folder.name, expected_toolset_id, tool_name, issues)
@@ -185,6 +186,24 @@ def read_manifest_enabled(manifest: dict[str, Any]) -> bool:
 
 def string_value(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
+
+
+def validate_execution(
+    manifest: dict[str, Any],
+    path: Path,
+    tool_name: str,
+    issues: list[dict[str, Any]],
+) -> None:
+    execution = manifest.get("execution")
+    if not isinstance(execution, dict) or not isinstance(execution.get("parallel"), bool):
+        issue(
+            issues,
+            "error",
+            "INVALID_EXECUTION_PARALLEL",
+            "tool.json 必须明确声明布尔值 execution.parallel。",
+            path=path,
+            tool_name=tool_name,
+        )
 
 
 def validate_manifest_files(manifest: dict[str, Any], path: Path, tool_name: str, issues: list[dict[str, Any]]) -> None:

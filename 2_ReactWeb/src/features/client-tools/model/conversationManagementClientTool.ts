@@ -46,10 +46,12 @@ import {
 } from "./conversationSessionScope";
 
 export const MANAGE_AI_CONVERSATIONS_TOOL_NAME = "manage_ai_conversations";
+export const CONVERSATION_MANAGEMENT_CAPABILITY = Object.freeze({
+  name: "conversation.management",
+  version: 1,
+});
 
 type ConversationManagementClientToolOptions = {
-  getCurrentProjectId: () => string | null;
-  onSessionsChanged: (projectId: string) => void | Promise<void>;
   showSession: (projectId: string, sessionId: string) => void | Promise<void>;
 };
 
@@ -57,7 +59,7 @@ export function createConversationManagementClientToolRegistration(
   options: ConversationManagementClientToolOptions,
 ): ClientToolRegistration {
   return {
-    name: MANAGE_AI_CONVERSATIONS_TOOL_NAME,
+    capability: CONVERSATION_MANAGEMENT_CAPABILITY,
     execute: (request) => executeConversationManagementClientTool(request, options),
   };
 }
@@ -82,7 +84,7 @@ async function executeConversationManagementClientTool(
       });
     }
 
-    const projectId = readOptionalString(request.project_id) ?? options.getCurrentProjectId();
+    const projectId = readOptionalString(request.project_id);
     if (!projectId) throw new Error("工具请求没有指定项目。");
     failureContext = { project_id: projectId };
 
@@ -97,7 +99,7 @@ async function executeConversationManagementClientTool(
         functionSessionId,
         { title: readRequiredString(args, "title") },
       );
-      await notifySessionsChanged(options, projectId, result.source_session_id, "structure");
+      notifySessionsChanged(projectId, result.source_session_id, "structure");
       return clientToolSuccess({
         action,
         project_id: projectId,
@@ -184,7 +186,7 @@ async function executeConversationManagementClientTool(
         created_by: "ai",
         parent_session_id: callerSessionId,
       });
-      await notifySessionsChanged(options, projectId, created.session_id, "structure");
+      notifySessionsChanged(projectId, created.session_id, "structure");
       return clientToolSuccess({
         action,
         project_id: projectId,
@@ -201,7 +203,7 @@ async function executeConversationManagementClientTool(
         readConversationConfiguration(args.configuration),
       );
       const updated = await updateProjectConversation(projectId, session.session_id, input);
-      await notifySessionsChanged(options, projectId, session.session_id, "structure");
+      notifySessionsChanged(projectId, session.session_id, "structure");
       return clientToolSuccess({
         action,
         project_id: projectId,
@@ -216,7 +218,7 @@ async function executeConversationManagementClientTool(
     if (action === "stop_session") {
       preventSelfTermination(request.session_id, session.session_id, "停止");
       await stopChatCompletionStream(projectId, session.session_id);
-      await notifySessionsChanged(options, projectId, session.session_id, "content");
+      notifySessionsChanged(projectId, session.session_id, "content");
       return clientToolSuccess({
         action,
         project_id: projectId,
@@ -231,7 +233,7 @@ async function executeConversationManagementClientTool(
       }
       preventSelfTermination(request.session_id, session.session_id, "删除");
       await deleteProjectConversation(projectId, session.session_id);
-      await notifySessionsChanged(options, projectId, session.session_id, "structure");
+      notifySessionsChanged(projectId, session.session_id, "structure");
       return clientToolSuccess({
         action,
         project_id: projectId,
@@ -302,12 +304,10 @@ function preventSelfTermination(
   }
 }
 
-async function notifySessionsChanged(
-  options: ConversationManagementClientToolOptions,
+function notifySessionsChanged(
   projectId: string,
   sessionId: string,
   kind: "content" | "structure",
 ) {
   dispatchProjectConversationUpdated({ kind, projectId, sessionId });
-  await options.onSessionsChanged(projectId);
 }

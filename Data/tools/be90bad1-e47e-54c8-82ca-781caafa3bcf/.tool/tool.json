@@ -2,7 +2,7 @@
   "description": "查看工作区根路径、目录树、文件名搜索和基础统计，帮助定位后续要读取的文件。",
   "display_name": "工作区信息查看",
   "execution": {
-    "parallel": false
+    "parallel": true
   },
   "files": {
     "examples": ".tool/examples.json",

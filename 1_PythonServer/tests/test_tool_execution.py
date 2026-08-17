@@ -241,19 +241,21 @@ def test_tool_runtime_cancellation_stops_owned_foreground_process(tmp_path):
     assert completed[0].stderr == "工具执行已取消。"
 
 
-def test_tool_runtime_stops_process_when_output_exceeds_capture_limit(tmp_path):
+def test_tool_runtime_keeps_output_larger_than_previous_hidden_limit(tmp_path):
+    output_size = 8 * 1024 * 1024 + 1024
     completed = run_command(
-        [sys.executable, "-c", "print('x' * 100000)"],
+        [sys.executable, "-c", f"print('x' * {output_size})"],
         "",
         tmp_path,
         os.environ.copy(),
         30,
-        max_capture_bytes=1024,
     )
 
-    assert completed.returncode != 0
-    assert completed.stdout == ""
-    assert completed.stderr == "工具输出超过安全上限，执行已终止。"
+    assert completed.returncode == 0
+    assert len(completed.stdout) == output_size + len(os.linesep)
+    assert completed.stdout.startswith("x" * 32)
+    assert completed.stdout.endswith(f"x{os.linesep}")
+    assert completed.stderr == ""
 
 
 def test_tool_runtime_keeps_explicitly_detached_work_after_tool_returns(tmp_path):
@@ -595,6 +597,7 @@ def _create_tool_root(
                     "entry": "program/main.py",
                     "timeout_seconds": 12,
                 },
+                "execution": {"parallel": True},
                 "state": {
                     "enabled": enabled,
                 },

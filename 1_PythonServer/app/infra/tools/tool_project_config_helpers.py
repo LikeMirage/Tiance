@@ -5,7 +5,6 @@ from json import dumps, loads
 
 from app.core.errors import BadRequestError
 from app.infra.tools.tool_project_config_constants import (
-    TOOL_DEFAULT_ENTRY_FILE,
     TOOL_EXAMPLES_FILE,
     TOOL_INPUT_SCHEMA_FILE,
     TOOL_OUTPUT_SCHEMA_FILE,
@@ -52,32 +51,48 @@ def _normalize_tool_manifest_files(manifest: dict[str, object]) -> bool:
 def _normalize_tool_runtime(manifest: dict[str, object]) -> bool:
     runtime = manifest.get("runtime")
     if not isinstance(runtime, dict):
-        manifest["runtime"] = {
-            "type": "python",
-            "entry": TOOL_DEFAULT_ENTRY_FILE,
-            "timeout_seconds": 60,
-        }
-        return True
+        raise BadRequestError("tool.json 缺少 runtime。")
 
     changed = False
     if not isinstance(runtime.get("type"), str) or not str(runtime.get("type") or "").strip():
-        runtime["type"] = "python"
-        changed = True
+        raise BadRequestError("tool.json 的 runtime.type 不能为空。")
+    runtime_type = str(runtime.get("type") or "").strip().lower()
 
     raw_entry = runtime.get("entry")
     entry = raw_entry if isinstance(raw_entry, str) else ""
     normalized_entry = entry.strip().replace("\\", "/").strip("/")
-    if not normalized_entry:
-        normalized_entry = TOOL_DEFAULT_ENTRY_FILE
-
-    if runtime.get("entry") != normalized_entry:
-        runtime["entry"] = normalized_entry
+    if runtime_type == "python":
+        if not normalized_entry:
+            raise BadRequestError("Python 工具必须声明 runtime.entry。")
+        if runtime.get("entry") != normalized_entry:
+            runtime["entry"] = normalized_entry
+            changed = True
+    elif "entry" in runtime:
+        runtime.pop("entry", None)
         changed = True
 
     timeout_seconds = runtime.get("timeout_seconds")
-    if not isinstance(timeout_seconds, (int, float)) or timeout_seconds <= 0:
-        runtime["timeout_seconds"] = 60
-        changed = True
+    if (
+        not isinstance(timeout_seconds, int)
+        or isinstance(timeout_seconds, bool)
+        or timeout_seconds <= 0
+    ):
+        raise BadRequestError("tool.json 的 runtime.timeout_seconds 必须是正整数。")
+
+    if runtime_type == "client":
+        capability = runtime.get("client_capability")
+        if not isinstance(capability, dict):
+            raise BadRequestError("客户端工具必须声明 runtime.client_capability。")
+        name = capability.get("name")
+        min_version = capability.get("min_version")
+        if not isinstance(name, str) or not name.strip():
+            raise BadRequestError("runtime.client_capability.name 不能为空。")
+        if (
+            not isinstance(min_version, int)
+            or isinstance(min_version, bool)
+            or min_version <= 0
+        ):
+            raise BadRequestError("runtime.client_capability.min_version 必须是正整数。")
 
     return changed
 
@@ -235,16 +250,11 @@ def _normalize_tool_loading(manifest: dict[str, object]) -> bool:
 def _normalize_tool_execution(manifest: dict[str, object]) -> bool:
     execution = manifest.get("execution")
     if not isinstance(execution, dict):
-        manifest["execution"] = {
-            "parallel": False,
-        }
-        return True
+        raise BadRequestError("tool.json 缺少 execution.parallel。")
 
     raw_parallel = execution.get("parallel")
-    parallel = raw_parallel if isinstance(raw_parallel, bool) else False
-    if raw_parallel is not parallel:
-        execution["parallel"] = parallel
-        return True
+    if not isinstance(raw_parallel, bool):
+        raise BadRequestError("tool.json 的 execution.parallel 必须是布尔值。")
     return False
 
 

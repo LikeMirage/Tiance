@@ -40,7 +40,7 @@ def client_tool_request_to_payload(
 ) -> dict[str, object] | None:
     if request is None:
         return None
-    return {
+    payload = {
         "request_id": request.request_id,
         "call_id": request.call_id,
         "name": request.name,
@@ -50,6 +50,12 @@ def client_tool_request_to_payload(
         "timeout_seconds": request.timeout_seconds,
         "model_context": request.model_context,
     }
+    if request.capability is not None:
+        payload["client_capability"] = {
+            "name": request.capability.name,
+            "min_version": request.capability.version,
+        }
+    return payload
 
 
 def tool_call_to_payload(tool_call: ChatToolCall | None) -> dict[str, object] | None:

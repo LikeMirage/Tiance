@@ -1,7 +1,7 @@
 {
   "dmxapi": {
     "base_url": "https://www.dmxapi.cn",
-    "api_key": "sk-XNPojcluSLqNdxOzHQmSMk8WKhbDGuDwytsZuTYieiOth8h5",
+    "api_key": "",
     "model": "gpt-image-2-03"
   }
 }

@@ -5,6 +5,7 @@ from pathlib import Path
 import os
 import subprocess
 import sys
+from tempfile import TemporaryFile
 import threading
 from time import monotonic, sleep
 from typing import Callable
@@ -44,7 +45,6 @@ CommandRunner = Callable[
     subprocess.CompletedProcess[str],
 ]
 
-_MAX_CAPTURE_BYTES = 8 * 1024 * 1024
 _PROCESS_POLL_SECONDS = 0.05
 
 
@@ -74,37 +74,6 @@ class ToolExecutionCancellation:
         with self._lock:
             if self._process is process:
                 self._process = None
-
-
-class _BoundedOutput:
-    def __init__(self, max_bytes: int) -> None:
-        self._max_bytes = max(1, max_bytes)
-        self._total_bytes = 0
-        self._stdout = bytearray()
-        self._stderr = bytearray()
-        self._lock = threading.Lock()
-        self.limit_exceeded = threading.Event()
-
-    def append(self, target: str, chunk: bytes) -> None:
-        with self._lock:
-            remaining = self._max_bytes - self._total_bytes
-            accepted = chunk[: max(0, remaining)]
-            if target == "stdout":
-                self._stdout.extend(accepted)
-            else:
-                self._stderr.extend(accepted)
-            self._total_bytes += len(accepted)
-            if len(accepted) < len(chunk):
-                self.limit_exceeded.set()
-
-    def decode(self) -> tuple[str, str]:
-        with self._lock:
-            stdout = bytes(self._stdout)
-            stderr = bytes(self._stderr)
-        return (
-            stdout.decode("utf-8", errors="replace"),
-            stderr.decode("utf-8", errors="replace"),
-        )
 
 
 def resolve_entry_path(tool_root: Path, entry: object) -> Path | None:
@@ -233,71 +202,63 @@ def run_command(
     timeout_seconds: int,
     *,
     cancellation: ToolExecutionCancellation | None = None,
-    max_capture_bytes: int = _MAX_CAPTURE_BYTES,
 ) -> subprocess.CompletedProcess[str]:
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
-    process = subprocess.Popen(
-        command,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=str(cwd),
-        env=env,
-        creationflags=creationflags,
-        start_new_session=os.name != "nt",
-    )
-    if cancellation is not None:
-        cancellation.register(process)
-    output = _BoundedOutput(max_capture_bytes)
-    readers = (
-        _start_pipe_reader(process.stdout, output, "stdout"),
-        _start_pipe_reader(process.stderr, output, "stderr"),
-    )
-    failure_reason: str | None = None
-    try:
-        if process.stdin is not None:
-            try:
-                process.stdin.write(input_text.encode("utf-8"))
-            except (BrokenPipeError, OSError):
-                pass
-            finally:
-                process.stdin.close()
-
-        deadline = monotonic() + timeout_seconds
-        while process.poll() is None:
-            if cancellation is not None and cancellation.is_cancelled:
-                failure_reason = "工具执行已取消。"
-                terminate_process_tree(process)
-                break
-            if output.limit_exceeded.is_set():
-                failure_reason = "工具输出超过安全上限，执行已终止。"
-                terminate_process_tree(process)
-                break
-            if monotonic() >= deadline:
-                failure_reason = "工具执行超时。"
-                terminate_process_tree(process)
-                break
-            sleep(_PROCESS_POLL_SECONDS)
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            terminate_process_tree(process)
-            process.wait(timeout=5)
-    finally:
+    with TemporaryFile(mode="w+b") as stdout_file, TemporaryFile(mode="w+b") as stderr_file:
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=stdout_file,
+            stderr=stderr_file,
+            cwd=str(cwd),
+            env=env,
+            creationflags=creationflags,
+            start_new_session=os.name != "nt",
+        )
         if cancellation is not None:
-            cancellation.unregister(process)
-        for reader in readers:
-            reader.join(timeout=1)
+            cancellation.register(process)
+        failure_reason: str | None = None
+        try:
+            if process.stdin is not None:
+                try:
+                    process.stdin.write(input_text.encode("utf-8"))
+                except (BrokenPipeError, OSError):
+                    pass
+                finally:
+                    process.stdin.close()
 
-    stdout, stderr = output.decode()
-    if failure_reason is None and output.limit_exceeded.is_set():
-        failure_reason = "工具输出超过安全上限，执行已终止。"
+            deadline = monotonic() + timeout_seconds
+            while process.poll() is None:
+                if cancellation is not None and cancellation.is_cancelled:
+                    failure_reason = "工具执行已取消。"
+                    terminate_process_tree(process)
+                    break
+                if monotonic() >= deadline:
+                    failure_reason = "工具执行超时。"
+                    terminate_process_tree(process)
+                    break
+                sleep(_PROCESS_POLL_SECONDS)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                terminate_process_tree(process)
+                process.wait(timeout=5)
+        finally:
+            if cancellation is not None:
+                cancellation.unregister(process)
+
+        stdout_file.seek(0)
+        stderr_file.seek(0)
+        stdout = stdout_file.read().decode("utf-8", errors="replace")
+        stderr = stderr_file.read().decode("utf-8", errors="replace")
+
     if failure_reason is not None:
+        failure_stderr = f"{stderr.rstrip()}\n{failure_reason}" if stderr.strip() else failure_reason
         return subprocess.CompletedProcess(
             command,
             returncode=process.returncode if process.returncode not in {None, 0} else 1,
-            stdout="",
-            stderr=failure_reason,
+            stdout=stdout,
+            stderr=failure_stderr,
         )
     return subprocess.CompletedProcess(
         command,
@@ -332,27 +293,6 @@ def terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
             process.kill()
         except OSError:
             pass
-
-
-def _start_pipe_reader(
-    pipe,
-    output: _BoundedOutput,
-    target: str,
-) -> threading.Thread:
-    def read_pipe() -> None:
-        if pipe is None:
-            return
-        try:
-            while chunk := pipe.read(64 * 1024):
-                output.append(target, chunk)
-        except (OSError, ValueError):
-            return
-        finally:
-            pipe.close()
-
-    thread = threading.Thread(target=read_pipe, name=f"tool-{target}-reader", daemon=True)
-    thread.start()
-    return thread
 
 
 def _base_tool_env() -> dict[str, str]:

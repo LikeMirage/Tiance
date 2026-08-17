@@ -150,6 +150,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     clientToolRegistrations,
     handleAiPanelWidthCommit,
     handleComposerHeightCommit,
+    handleConversationDataPageChange,
     handleGenerateMarkdownDocx,
     handleOpenConversationBranches,
     handleOpenConversationDataFile: openConversationDataFile,
@@ -525,6 +526,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       assistantPanel={assistantPanel}
       emptyMessage={null}
       onAiPanelWidthCommit={handleAiPanelWidthCommit}
+      onConversationDataPageChange={handleConversationDataPageChange}
       onCloseAllTabs={() => documentTabs.closeAllTabs({ preservePinned: true })}
       onCloseOtherTabs={documentTabs.closeOtherTabs}
       onCloseTab={documentTabs.closeTab}

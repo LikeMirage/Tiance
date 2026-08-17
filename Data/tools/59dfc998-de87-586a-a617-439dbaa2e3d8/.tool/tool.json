@@ -2,7 +2,7 @@
   "description": "已知多个目标文本文件并需要一次读取时使用；单个文件使用 read_file，尚不确定相关文件时使用 find_project_files。按单文件和总字符预算自动截断，并返回明确的截断原因与预算跳过记录。",
   "display_name": "批量读取文件",
   "execution": {
-    "parallel": false
+    "parallel": true
   },
   "files": {
     "examples": ".tool/examples.json",

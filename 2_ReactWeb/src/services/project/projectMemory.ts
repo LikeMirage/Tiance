@@ -9,22 +9,25 @@ import { fetchJson } from "../http/httpClient";
 export function getProjectMemory(
   projectId: string,
   {
-    limit = 100,
+    page,
+    pageSize = 50,
     query = "",
     scope,
     signal,
   }: {
-    limit?: number;
+    page?: number;
+    pageSize?: number;
     query?: string;
     scope: ProjectMemoryScope;
     signal?: AbortSignal;
   },
 ) {
   const params = new URLSearchParams({
-    limit: String(limit),
+    page_size: String(pageSize),
     query,
     scope,
   });
+  if (page !== undefined) params.set("page", String(page));
   return fetchJson<ProjectMemoryListResponse>(
     `/api/projects/${encodeURIComponent(projectId)}/memory?${params.toString()}`,
     { signal },

@@ -1,6 +1,7 @@
 import { emitLlmUsageChanged } from "../../../entities/llm-usage/model/usageRefreshEvents";
 import { dispatchProjectConversationUpdated } from "../../../entities/llm-chat/model/projectConversationEvents";
 import { getProjectConversations } from "../../../services/project/getProjectConversations";
+import type { ChatClientCapability } from "../../../entities/llm-chat/model/chatCompletion";
 import type {
   ClientToolExecutionResult,
   ClientToolExecutor,
@@ -8,7 +9,6 @@ import type {
 } from "./clientToolBridge";
 import { ConversationBackgroundRunRegistry } from "./conversationBackgroundRun";
 import type {
-  ConversationBackgroundRunHandle,
   ConversationBackgroundRunResult,
 } from "./conversationBackgroundRun";
 import {
@@ -22,12 +22,15 @@ import {
 import { getConversationHistoryLocator } from "./conversationSessionView";
 
 export const INTERACT_AI_CONVERSATION_TOOL_NAME = "interact_ai_conversation";
+export const CONVERSATION_INTERACTION_CAPABILITY = Object.freeze({
+  name: "conversation.interaction",
+  version: 1,
+});
 
 type ConversationInteractionClientToolOptions = {
   backgroundRuns: ConversationBackgroundRunRegistry;
   getClientToolExecutor: () => ClientToolExecutor | null;
-  getCurrentProjectId: () => string | null;
-  onSessionsChanged: (projectId: string) => void | Promise<void>;
+  getClientCapabilities: () => readonly ChatClientCapability[];
   onSessionRuntimeStatusChanged: (
     projectId: string,
     sessionId: string,
@@ -39,11 +42,10 @@ export function createConversationInteractionClientToolRegistration(
   options: ConversationInteractionClientToolOptions,
 ): ClientToolRegistration {
   return {
-    name: INTERACT_AI_CONVERSATION_TOOL_NAME,
+    capability: CONVERSATION_INTERACTION_CAPABILITY,
     execute: (request) => executeConversationInteractionClientTool(request, options),
   };
 }
-
 async function executeConversationInteractionClientTool(
   request: Parameters<ClientToolRegistration["execute"]>[0],
   options: ConversationInteractionClientToolOptions,
@@ -53,7 +55,7 @@ async function executeConversationInteractionClientTool(
   try {
     const args = parseClientToolArguments(request.arguments);
     action = readRequiredString(args, "action");
-    const projectId = readOptionalString(request.project_id) ?? options.getCurrentProjectId();
+    const projectId = readOptionalString(request.project_id);
     if (!projectId) throw new Error("工具请求没有指定项目。");
     const response = await getProjectConversations(projectId);
 
@@ -79,24 +81,27 @@ async function executeConversationInteractionClientTool(
     const runtimeStatus = response.session_states[sessionId]?.runtime_status ?? "idle";
     const run = options.backgroundRuns.startOrResume({
       clientToolExecutor: options.getClientToolExecutor,
+      clientCapabilities: options.getClientCapabilities,
       initialStrategy: runtimeStatus === "running" ? "resume_then_start" : "start",
-      message: appendSourceSessionAttribution(message, {
-        sessionId: sourceSession.session_id,
-        title: sourceSession.title,
-      }),
+      message,
+      sourceContext: {
+        project_id: projectId,
+        session_id: sourceSession.session_id,
+        session_title: sourceSession.title,
+        tool_request_id: request.request_id,
+      },
       projectId,
       session,
       userMessageId: `client_${request.request_id}`,
-      onStarted: async () => {
+      onStarted: () => {
         options.onSessionRuntimeStatusChanged(projectId, sessionId, "running");
         dispatchProjectConversationUpdated({
           kind: "content",
           projectId,
           sessionId,
         });
-        await Promise.resolve(options.onSessionsChanged(projectId)).catch(() => undefined);
       },
-      onSettled: async (outcome) => {
+      onSettled: (outcome) => {
         if (outcome) {
           options.onSessionRuntimeStatusChanged(
             projectId,
@@ -113,7 +118,6 @@ async function executeConversationInteractionClientTool(
           providerId: session.provider_id,
           modelId: session.model_id,
         });
-        await Promise.resolve(options.onSessionsChanged(projectId)).catch(() => undefined);
       },
     });
     const started = await run.started;
@@ -141,20 +145,7 @@ async function executeConversationInteractionClientTool(
       });
     }
 
-    const waited = await waitForCompletion(run, request.timeout_seconds ?? 3_600);
-    if (!waited) {
-      return clientToolSuccess({
-        action,
-        project_id: projectId,
-        session_id: sessionId,
-        accepted: true,
-        wait_for_reply: true,
-        runtime_status: "running",
-        outcome: "still_running",
-        user_message_id: started.userMessageId,
-        history_locator: historyLocator,
-      });
-    }
+    const waited = await run.completion;
     return clientToolSuccess(serializeCompletedSend(
       action,
       projectId,
@@ -166,19 +157,6 @@ async function executeConversationInteractionClientTool(
   } catch (error) {
     return clientToolFailure(error, { action, ...failureContext });
   }
-}
-
-function appendSourceSessionAttribution(
-  message: string,
-  source: { sessionId: string; title: string },
-): string {
-  const sourceTitle = source.title.replace(/[\r\n]+/g, " ").trim();
-  return [
-    message,
-    "",
-    `本条消息来源会话名称：${sourceTitle}`,
-    `本条消息来源会话 ID：${source.sessionId}`,
-  ].join("\n");
 }
 
 function serializeCompletedSend(
@@ -218,23 +196,4 @@ function serializeCompletedSend(
     } : {}),
     history_locator: historyLocator,
   };
-}
-
-async function waitForCompletion(
-  run: ConversationBackgroundRunHandle,
-  timeoutSeconds: number,
-): Promise<ConversationBackgroundRunResult | null> {
-  const safeWaitMs = Math.max(0, (timeoutSeconds - 5) * 1_000);
-  if (safeWaitMs === 0) return null;
-  let timer: number | undefined;
-  try {
-    return await Promise.race([
-      run.completion,
-      new Promise<null>((resolve) => {
-        timer = window.setTimeout(() => resolve(null), safeWaitMs);
-      }),
-    ]);
-  } finally {
-    if (timer !== undefined) window.clearTimeout(timer);
-  }
 }

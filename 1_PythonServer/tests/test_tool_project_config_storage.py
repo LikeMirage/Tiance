@@ -67,6 +67,24 @@ def test_tool_project_manifest_rejects_placeholder_call_name(tmp_path):
         )
 
 
+def test_tool_project_manifest_rejects_missing_parallel_declaration(tmp_path):
+    storage = ToolProjectFixture(tmp_path / "tools")
+    toolset = storage.create_toolset(name="基础工具")
+    folder = storage.create_tool_folder(toolset.category_id, name="脚本工具")
+    service = _service(storage)
+    manifest_path = Path(folder.root_path) / TOOL_FOLDER_MANIFEST_FILE
+    payload = loads(manifest_path.read_text(encoding="utf-8"))
+    payload.pop("execution")
+
+    with pytest.raises(BadRequestError, match="execution.parallel"):
+        service.write_text_file(
+            toolset.category_id,
+            folder.project_id,
+            TOOL_FOLDER_MANIFEST_FILE,
+            dumps(payload, ensure_ascii=False),
+        )
+
+
 def test_tool_project_manifest_rejects_duplicate_identity(tmp_path):
     storage = ToolProjectFixture(tmp_path / "tools")
     toolset = storage.create_toolset(name="基础工具")

@@ -543,6 +543,14 @@
             "title": "Conversation messages dashboard",
             "description": "View raw messages, tool calls, tool results, and token usage for the current conversation."
           },
+          "conversationJournal": {
+            "title": "Conversation event journal",
+            "description": "Inspect key message, model request, and tool execution events in their actual order."
+          },
+          "modelExchanges": {
+            "title": "Model request records",
+            "description": "Inspect each logical model request, response, tool call, and token usage record."
+          },
           "session": {
             "title": "Conversation settings dashboard",
             "description": "View the current conversation title, model, generation parameters, memory parameters, and tool settings."

@@ -10,6 +10,7 @@ import pytest
 
 from app.core.errors import BadRequestError, NotFoundError
 from app.domain.llm.chat import (
+    ChatClientCapability,
     ChatCompletionRequest,
     ChatClientToolRequest,
     ChatMessage,
@@ -34,6 +35,7 @@ from app.services.project.conversation_background_tasks import (
     ConversationBackgroundTaskRegistry,
 )
 from app.services.project.conversation_tool_loop import _normalize_tool_call_limit
+from app.services.tools.client_tool_bridge import ClientToolResultPayload
 from app.services.tools.tool_execution import PreparedClientToolExecution
 
 
@@ -1257,6 +1259,45 @@ def test_stream_batches_parallel_tool_calls_without_reordering():
     assert event_time[("start", "sequential_e")] >= event_time[("finish", "parallel_d")]
 
 
+def test_parallel_client_tool_calls_are_dispatched_before_waiting_for_results():
+    conversation_service = _FakeConversationService()
+    client_tool_bridge = _ParallelClientToolBridge()
+    service = ProjectConversationStreamService(
+        _ParallelClientToolCallingChatService(),
+        conversation_service,
+        _FakeUsageService(),
+        _FakeNamingService(),
+        _FakeMemoryService(),
+        tool_execution_service=_ParallelClientToolExecutionService(),
+        project_service=_FakeProjectService(),
+        client_tool_bridge_service=client_tool_bridge,
+    )
+    request = replace(
+        _request(),
+        tools=(_tool_definition("interact_ai_conversation"),),
+    )
+
+    async def run_calls():
+        task = asyncio.create_task(_collect_payloads(service, request=request))
+        await asyncio.wait_for(client_tool_bridge.all_created.wait(), timeout=1)
+        client_tool_bridge.release.set()
+        return await task
+
+    payloads = asyncio.run(run_calls())
+
+    assert sorted(item["call_id"] for item in client_tool_bridge.created) == ["call-1", "call-2"]
+    assert sorted(
+        payload["client_tool_request"]["call_id"]
+        for payload in payloads
+        if payload["kind"] == "client_tool_request"
+    ) == ["call-1", "call-2"]
+    assert [
+        payload["tool_result"]["call_id"]
+        for payload in payloads
+        if payload["kind"] == "tool_result"
+    ] == ["call-1", "call-2"]
+
+
 def test_stream_message_persistence_does_not_block_event_loop():
     asyncio.run(_assert_message_persistence_does_not_block_event_loop())
 
@@ -1978,6 +2019,27 @@ class _ParallelToolCallingChatService:
         yield ChatStreamEvent(kind=ChatStreamEventKind.DONE, finish_reason="tool_calls")
 
 
+class _ParallelClientToolCallingChatService:
+    def __init__(self) -> None:
+        self.round = 0
+
+    async def stream(self, _request):
+        self.round += 1
+        if self.round == 1:
+            for call_id in ("call-1", "call-2"):
+                yield ChatStreamEvent(
+                    kind=ChatStreamEventKind.TOOL_CALL,
+                    tool_call=ChatToolCall(
+                        call_id=call_id,
+                        name="interact_ai_conversation",
+                        arguments='{"action":"send","wait_for_reply":true}',
+                    ),
+                )
+            yield ChatStreamEvent(kind=ChatStreamEventKind.DONE, finish_reason="tool_calls")
+            return
+        yield ChatStreamEvent(kind=ChatStreamEventKind.DELTA, content="done")
+
+
 class _ToolCallingThenCancellableChatService:
     def __init__(self) -> None:
         self.requests: list[ChatCompletionRequest] = []
@@ -2690,7 +2752,53 @@ class _ClientToolExecutionService(_FakeToolExecutionService):
             tool_project_id="client-tool",
             dynamic=False,
             timeout_seconds=3600,
+            capability=ChatClientCapability(
+                name="conversation.interaction",
+                version=1,
+            ),
         )
+
+
+class _ParallelClientToolExecutionService(_ClientToolExecutionService):
+    def is_parallel_tool(self, tool_name: str) -> bool:
+        return tool_name == "interact_ai_conversation"
+
+
+class _ParallelClientToolBridge:
+    def __init__(self) -> None:
+        self.created: list[dict[str, str]] = []
+        self.all_created = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def create_request(
+        self,
+        tool_call,
+        *,
+        project_id,
+        session_id,
+        timeout_seconds,
+        model_context,
+        capability,
+    ):
+        self.created.append({"call_id": tool_call.call_id})
+        if len(self.created) == 2:
+            self.all_created.set()
+        return ChatClientToolRequest(
+            request_id=f"client-request-{tool_call.call_id}",
+            call_id=tool_call.call_id,
+            name=tool_call.name,
+            arguments=tool_call.arguments,
+            project_id=project_id,
+            session_id=session_id,
+            timeout_seconds=timeout_seconds,
+            model_context=model_context,
+            capability=capability,
+        )
+
+    async def wait_for_result(self, _request_id, *, timeout_seconds):
+        del timeout_seconds
+        await self.release.wait()
+        return ClientToolResultPayload(ok=True, content={"status": "done"})
 
 
 class _WaitingClientToolBridge:
@@ -2705,6 +2813,7 @@ class _WaitingClientToolBridge:
         session_id,
         timeout_seconds,
         model_context,
+        capability,
     ):
         return ChatClientToolRequest(
             request_id="client-request-1",
@@ -2715,6 +2824,7 @@ class _WaitingClientToolBridge:
             session_id=session_id,
             timeout_seconds=timeout_seconds,
             model_context=model_context,
+            capability=capability,
         )
 
     async def wait_for_result(self, _request_id, *, timeout_seconds):

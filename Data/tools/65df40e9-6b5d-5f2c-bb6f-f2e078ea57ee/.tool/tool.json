@@ -3,7 +3,7 @@
   "display_name": "工作区全文检索",
   "description": "把当前项目中的文本文件分块写入工作区自己的 SQLite FTS5 索引，并提供中文、英文、代码和路径全文检索。支持首次索引、增量更新、重建、状态、过期差异检查和高级查询；索引默认保存到 .Tiance/cache/text-search/index.sqlite3。",
   "keywords": ["全文检索", "FTS5", "SQLite", "文本索引", "过期检查", "增量索引"],
-  "execution": {"parallel": false},
+  "execution": {"parallel": true},
   "loading": {"dynamic": true},
   "state": {"enabled": true},
   "runtime": {"type": "python", "entry": "program/main.py", "timeout_seconds": 1200},

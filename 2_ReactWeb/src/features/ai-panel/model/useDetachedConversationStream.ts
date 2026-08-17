@@ -12,7 +12,7 @@ import {
   prepareConversationStreamFullReplay,
   prepareConversationStreamResume,
 } from "./conversationStreamResume";
-import { processChatStreamEventSideEffects } from "./chatStreamEventSideEffects";
+import { processChatStreamEventSideEffects } from "../../conversation-runtime/model/chatStreamEventSideEffects";
 import {
   clearChatStreamEventSequence,
   processSequencedChatStreamEvent,

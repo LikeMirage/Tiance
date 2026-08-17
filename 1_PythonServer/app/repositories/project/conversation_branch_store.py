@@ -38,6 +38,9 @@ FUNCTION_TYPES = {
 class ConversationBranchStore:
     def read_graph(self, conversations_dir: Path) -> dict:
         payload = read_meta(conversations_dir, "branch_graph")
+        return self.normalize_graph_payload(payload)
+
+    def normalize_graph_payload(self, payload: object) -> dict:
         if payload is None:
             return _empty_graph()
         if not isinstance(payload, dict):

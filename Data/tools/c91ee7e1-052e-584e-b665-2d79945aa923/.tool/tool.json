@@ -2,7 +2,7 @@
   "description": "调用 MinerU 解析 PDF、Word、PPT、HTML 和图片等文档，再通过 DMXAPI 调用豆包视觉模型还原图片承载的信息，并在工作区生成同名结果文件夹。保留原文件名.md、images、metadata.json 以及 MinerU 提供的 structure 结构数据；定位内容页码时读取 content_list_v2.json 或 content_list.json 的 page_idx（从 0 开始，实际页码为 page_idx + 1）。",
   "display_name": "MinerU 文档解析 + DMX 豆包视觉",
   "execution": {
-    "parallel": false
+    "parallel": true
   },
   "files": {
     "examples": ".tool/examples.json",

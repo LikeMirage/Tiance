@@ -3,6 +3,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.llm.chat import (
+    ChatClientCapability,
     ChatCompletionRequest,
     ChatCompletionResult,
     ChatImageRef,
@@ -23,6 +24,16 @@ from app.domain.llm.generation_params import (
     LlmReasoningOptions,
 )
 from app.schemas.conversation_references import ConversationReferences
+
+
+class ChatClientCapabilityRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1)
+    version: int = Field(ge=1)
+
+    def to_domain(self) -> ChatClientCapability:
+        return ChatClientCapability(name=self.name.strip(), version=self.version)
 
 
 class ChatToolCallRequest(BaseModel):
@@ -110,6 +121,23 @@ class ChatMessageContentPartRequest(BaseModel):
         )
 
 
+class ChatMessageSourceContextRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    session_title: str = Field(min_length=1)
+    tool_request_id: str = Field(min_length=1)
+
+    def to_payload(self) -> dict[str, str]:
+        return {
+            "project_id": self.project_id.strip(),
+            "session_id": self.session_id.strip(),
+            "session_title": self.session_title.strip(),
+            "tool_request_id": self.tool_request_id.strip(),
+        }
+
+
 class ChatMessageRequest(BaseModel):
     role: ChatMessageRole
     content: str = ""
@@ -125,11 +153,14 @@ class ChatMessageRequest(BaseModel):
     tool_calls: list[ChatToolCallRequest] = Field(default_factory=list)
     thinking_content: str = ""
     references: ConversationReferences = Field(default_factory=ConversationReferences)
+    source_context: ChatMessageSourceContextRequest | None = None
 
     def to_domain(self) -> ChatMessage:
         internal_metadata = {}
         if self.role == ChatMessageRole.USER:
             internal_metadata["conversation_references"] = self.references.to_payload()
+            if self.source_context is not None:
+                internal_metadata["source_context"] = self.source_context.to_payload()
         return ChatMessage(
             role=self.role,
             content=self.content,
@@ -192,6 +223,7 @@ class ChatCompletionRequestBody(BaseModel):
     tools: list[ChatToolDefinitionRequest] = Field(default_factory=list)
     generation: ChatGenerationParamsRequest | None = None
     output: ChatOutputOptionsRequest | None = None
+    client_capabilities: list[ChatClientCapabilityRequest] = Field(default_factory=list)
 
     def to_domain(self) -> ChatCompletionRequest:
         return ChatCompletionRequest(
@@ -204,6 +236,9 @@ class ChatCompletionRequestBody(BaseModel):
             generation=self.generation.to_domain() if self.generation else LlmGenerationParams(),
             output=self.output.to_domain() if self.output else LlmOutputOptions(),
             max_tool_calls=self.max_tool_calls,
+            client_capabilities=tuple(
+                capability.to_domain() for capability in self.client_capabilities
+            ),
         )
 
 

@@ -1,8 +1,6 @@
 import type { ChatClientToolRequestEvent } from "../../../entities/llm-chat/model/chatCompletion";
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
-import type { useDocumentTabs } from "../../document-tabs/model/useDocumentTabs";
 import {
-  getPathName,
   isPinnedDocumentTab,
   isProjectConversationOverviewTab,
   normalizeWorkspacePath,
@@ -14,17 +12,29 @@ import type {
 import { executeBackgroundEditorTabsClientTool } from "./backgroundEditorTabsClientTool";
 
 export const EDITOR_TABS_TOOL_NAME = "editor_tabs_manager";
+export const EDITOR_TABS_CAPABILITY = Object.freeze({
+  name: "editor.tabs",
+  version: 1,
+});
 
 type EditorTabsClientToolOptions = {
-  getDocumentTabs: () => ReturnType<typeof useDocumentTabs>;
+  getEditorTabs: () => EditorTabsCapability;
   getProjectId: () => string | null;
+};
+
+export type EditorTabsCapability = {
+  activeTabId: string | null;
+  tabs: DocumentTab[];
+  closeTab: (tabId: string) => void;
+  openProjectFile: (projectId: string, path: string) => Promise<void>;
+  selectTab: (tabId: string) => void;
 };
 
 export function createEditorTabsClientToolRegistration(
   options: EditorTabsClientToolOptions,
 ): ClientToolRegistration {
   return {
-    name: EDITOR_TABS_TOOL_NAME,
+    capability: EDITOR_TABS_CAPABILITY,
     execute: (request) => executeEditorTabsClientTool(request, options),
   };
 }
@@ -34,7 +44,7 @@ async function executeEditorTabsClientTool(
   options: EditorTabsClientToolOptions,
 ): Promise<ClientToolExecutionResult> {
   const currentProjectId = options.getProjectId();
-  const projectId = readString(request.project_id) || currentProjectId;
+  const projectId = readString(request.project_id);
   if (!projectId) {
     return fail("工具请求没有指定项目，无法管理编辑器标签页。");
   }
@@ -56,7 +66,7 @@ async function executeEditorTabsClientTool(
     });
   }
 
-  const documentTabs = options.getDocumentTabs();
+  const documentTabs = options.getEditorTabs();
   const projectTabs = getProjectTabs(options, projectId);
   if (action === "list_tabs") {
     return ok({
@@ -69,17 +79,8 @@ async function executeEditorTabsClientTool(
   if (action === "open_file") {
     const filePath = requestedPath;
     if (!filePath) return fail("open_file 需要 path 参数。");
-    await documentTabs.openNode({
-      id: `project:${projectId}:${filePath}`,
-      kind: "file",
-      name: getPathName(filePath),
-      path: filePath,
-    }, {
-      projectFilePath: filePath,
-      projectId,
-    });
-    await waitForUiUpdate();
-    const latestDocumentTabs = options.getDocumentTabs();
+    await documentTabs.openProjectFile(projectId, filePath);
+    const latestDocumentTabs = options.getEditorTabs();
     const openedTab = findProjectTabByPath(
       latestDocumentTabs.tabs.filter((tab) => tab.projectId === projectId),
       filePath,
@@ -109,8 +110,7 @@ async function executeEditorTabsClientTool(
       });
     }
     documentTabs.selectTab(tab.id);
-    await waitForUiUpdate();
-    const latestDocumentTabs = options.getDocumentTabs();
+    const latestDocumentTabs = options.getEditorTabs();
     const focusedTab = findProjectTabByPath(
       getProjectTabs(options, projectId),
       filePath,
@@ -132,7 +132,6 @@ async function executeEditorTabsClientTool(
       ? projectTabs.filter((tab) => requestedPaths.includes(tabPath(tab) ?? ""))
       : projectTabs;
     const closeResult = closeCleanTabs(documentTabs, targetTabs);
-    await waitForUiUpdate();
     const stillOpen = findStillOpenTabs(options, projectId, closeResult.closed);
     if (stillOpen.length > 0) {
       return fail("前端未能关闭部分标签页。", {
@@ -163,8 +162,7 @@ async function executeEditorTabsClientTool(
       documentTabs,
       projectTabs.filter((tab) => tab.id !== keepTab.id),
     );
-    await waitForUiUpdate();
-    const latestDocumentTabs = options.getDocumentTabs();
+    const latestDocumentTabs = options.getEditorTabs();
     const latestProjectTabs = getProjectTabs(options, projectId);
     const latestKeepTab = keepPath
       ? findProjectTabByPath(latestProjectTabs, keepPath)
@@ -200,13 +198,13 @@ function getProjectTabs(
   options: EditorTabsClientToolOptions,
   projectId: string,
 ) {
-  return options.getDocumentTabs().tabs.filter(
+  return options.getEditorTabs().tabs.filter(
     (tab) => tab.projectId === projectId && !isProjectConversationOverviewTab(tab),
   );
 }
 
 function closeCleanTabs(
-  documentTabs: ReturnType<typeof useDocumentTabs>,
+  documentTabs: EditorTabsCapability,
   tabs: DocumentTab[],
 ) {
   const closed: ReturnType<typeof serializeTab>[] = [];
@@ -306,9 +304,4 @@ function ok(content: Record<string, unknown>): ClientToolExecutionResult {
 
 function fail(error: string, content: Record<string, unknown> = {}): ClientToolExecutionResult {
   return { ok: false, content, error };
-}
-
-async function waitForUiUpdate() {
-  await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-  await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
 }

@@ -543,6 +543,14 @@
             "title": "会话消息看板",
             "description": "查看当前会话原始消息、工具调用、工具返回和 token 用量。"
           },
+          "conversationJournal": {
+            "title": "会话事件总账",
+            "description": "按真实发生顺序查看消息、模型请求和工具执行等关键事件。"
+          },
+          "modelExchanges": {
+            "title": "模型请求记录",
+            "description": "逐轮查看实际提交给模型的逻辑请求、回复、工具调用和 token 用量。"
+          },
           "session": {
             "title": "会话配置看板",
             "description": "查看当前会话标题、模型、生成参数、记忆参数和工具设置。"

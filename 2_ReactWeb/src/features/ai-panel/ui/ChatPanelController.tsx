@@ -251,12 +251,12 @@ export function ChatPanelController({
   });
   const {
     backgroundConversationRuns,
+    clientToolCapabilities,
     clientToolExecutor: combinedClientToolExecutor,
   } = useChatPanelClientToolRegistry({
     activateSession,
     activeProjectIdRef,
     clientToolRegistrations,
-    reloadSessions,
     reloadSessionsForSelection,
     setSessionRuntimeStatus,
   });
@@ -264,6 +264,7 @@ export function ChatPanelController({
     backgroundRuns: backgroundConversationRuns,
     branchNodes,
     clientToolExecutor: combinedClientToolExecutor,
+    clientToolCapabilities,
     markSessionStreaming,
     projectId,
     reloadSessions,
@@ -641,6 +642,7 @@ export function ChatPanelController({
     activeSessionIdRef,
     canStartConversation,
     clientToolExecutor: combinedClientToolExecutor,
+    clientToolCapabilities,
     clearReferences: onClearReferences ?? (() => undefined),
     createSessionStreamController,
     draft,

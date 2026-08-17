@@ -50,12 +50,9 @@ export type ParsedCompressionLine =
     message: string;
   };
 
-export const MAX_PREVIEW_LINES = 300;
-
 export function parseCompressionLog(content: string): {
   parsedLines: ParsedCompressionLine[];
   totalLineCount: number;
-  truncatedLineCount: number;
 } {
   const parsedLines: ParsedCompressionLine[] = [];
   let totalLineCount = 0;
@@ -75,15 +72,11 @@ export function parseCompressionLog(content: string): {
 
     totalLineCount += 1;
     parsedLines.push(parseCompressionLine(rawLine, lineNumber));
-    if (parsedLines.length > MAX_PREVIEW_LINES) {
-      parsedLines.shift();
-    }
   }
 
   return {
     parsedLines,
     totalLineCount,
-    truncatedLineCount: Math.max(0, totalLineCount - parsedLines.length),
   };
 }
 

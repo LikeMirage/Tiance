@@ -2,7 +2,7 @@
   "description": "执行完整、多行、复杂引号或需要额外依赖的 Python 脚本时使用；额外依赖由 pip_package_manager 安装到本工具自己的 dependencies 目录。测试、构建和环境检查等普通短命令使用 run_command。支持等待、后台运行、预期退出码和持久日志。",
   "display_name": "Python 脚本执行",
   "execution": {
-    "parallel": false
+    "parallel": true
   },
   "files": {
     "examples": ".tool/examples.json",

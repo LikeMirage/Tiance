@@ -33,6 +33,12 @@ class ProjectMemoryListResponse(BaseModel):
     project_id: str
     scope: str
     count: int
+    total_count: int
+    page: int
+    page_size: int
+    total_pages: int
+    has_previous: bool = False
+    has_next: bool = False
     items: list[ProjectMemoryItemResponse] = Field(default_factory=list)
 
 

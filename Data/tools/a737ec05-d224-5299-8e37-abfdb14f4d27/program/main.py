@@ -138,24 +138,30 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         action = read_action(payload.get("action"))
         if action == "list":
-            return list_themes_action()
-        if action == "get_current":
-            return get_current_theme_action()
-        if action == "create":
-            return create_theme(payload)
-        if action == "clone":
-            return clone_theme(payload)
-        if action == "derive_palette":
-            return derive_palette_action(payload)
-        if action == "edit":
-            return edit_theme(payload)
-        if action == "switch":
-            return switch_theme(payload)
-        if action == "restore":
-            return restore_themes(payload)
-        if action == "delete":
-            return delete_theme(payload)
-        raise ToolError("INVALID_ARGUMENT", "action 参数无效。")
+            result = list_themes_action()
+        elif action == "get_current":
+            result = get_current_theme_action()
+        elif action == "create":
+            result = create_theme(payload)
+        elif action == "clone":
+            result = clone_theme(payload)
+        elif action == "derive_palette":
+            result = derive_palette_action(payload)
+        elif action == "edit":
+            result = edit_theme(payload)
+        elif action == "switch":
+            result = switch_theme(payload)
+        elif action == "restore":
+            result = restore_themes(payload)
+        elif action == "delete":
+            result = delete_theme(payload)
+        else:
+            raise ToolError("INVALID_ARGUMENT", "action 参数无效。")
+        if action in {"create", "clone", "derive_palette", "edit", "switch", "restore", "delete"}:
+            result["resource_invalidations"] = [
+                {"resource": "themes", "scope": "global"}
+            ]
+        return result
     except ToolError as exc:
         return failure(exc.code, exc.message, exc.details)
     except Exception as exc:

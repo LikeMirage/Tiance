@@ -5,11 +5,11 @@
   },
   {
     "title": "发送后让目标会话后台运行",
-    "content": "先用 manage_ai_conversations 的 list_sessions 确认目标 runtime_status 不为 running，再发送消息并立即返回；目标会话继续在前端后台运行。工具会把本条消息实时取得的来源会话名称和 ID 追加到消息末尾，因此可以要求目标 AI 完成后直接汇报。汇报时如果来源会话为 running，目标 AI 应本轮只调用 wait，等待返回后重新执行 list_sessions，直到来源会话不再运行再发送汇报。\n\n输入参数：\n{\n  \"action\": \"send\",\n  \"session_id\": \"sess_xxx\",\n  \"message\": \"执行完整专项检查。完成后请通过消息末尾标注的来源会话 ID 汇报结论；若来源会话正在运行，先使用 wait 等待并重新检查状态。\",\n  \"wait_for_reply\": false\n}\n\n成功结果包含 accepted=true、runtime_status 和 history_locator。目标会话正在运行时 send 返回错误，不会排队或写入第二轮消息。"
+    "content": "发送消息并在消息持久化、目标运行启动后立即返回；目标会话独立继续运行。来源项目、来源会话和工具请求会作为结构化元数据保存，不会拼进 message 正文。\n\n输入参数：\n{\n  \"action\": \"send\",\n  \"session_id\": \"sess_xxx\",\n  \"message\": \"执行完整专项检查并把结论写入项目报告。\",\n  \"wait_for_reply\": false\n}\n\n成功结果包含 accepted=true、runtime_status 和 history_locator。目标会话正在运行时 send 返回错误，不会排队或写入第二轮消息。"
   },
   {
-    "title": "目标会话运行中时等待后再发送",
-    "content": "list_sessions 返回目标 runtime_status=running 时，不要调用 send。本轮只调用 wait；wait 返回后重新执行 list_sessions。若仍为 running，继续重复等待和检查；变为 idle 或 error 后再调用 send。wait 只负责定时等待，不会自动监听会话状态。"
+    "title": "目标会话运行中时返回明确冲突",
+    "content": "send 会自行读取目标会话的实时状态。目标正在运行时会返回稳定错误，不会把消息排入隐藏队列，也不要求预先调用另一个工具才能发现状态。"
   },
   {
     "title": "让目标会话读取文件或图片",

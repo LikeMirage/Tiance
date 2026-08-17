@@ -112,12 +112,13 @@ export function useDocumentTabs() {
     const tabId = makeTabId(runtime.source.key, filePath);
     const existing = tabsRef.current.find((tab) => tab.id === tabId);
     if (existing) {
+      activeTabIdRef.current = tabId;
       setActiveTabId(tabId);
-      setTabs((prev) =>
-        prev.map((tab) =>
-          tab.id === tabId ? markDocumentTextContentAccessed(tab) : tab,
-        ),
+      const nextTabs = tabsRef.current.map((tab) =>
+        tab.id === tabId ? markDocumentTextContentAccessed(tab) : tab,
       );
+      tabsRef.current = nextTabs;
+      setTabs(nextTabs);
       if (existing.kind === "text" && existing.saveState !== "saving") {
         void refreshTabContent(tabId, runtime, filePath);
       }
@@ -125,7 +126,10 @@ export function useDocumentTabs() {
     }
 
     const newTab = buildWorkspaceFileTab(node, runtime.source, filePath, preview);
-    setTabs((prev) => [...prev, newTab]);
+    const nextTabs = [...tabsRef.current, newTab];
+    tabsRef.current = nextTabs;
+    activeTabIdRef.current = tabId;
+    setTabs(nextTabs);
     setActiveTabId(tabId);
 
     if (preview.kind === "text") {
@@ -164,32 +168,36 @@ export function useDocumentTabs() {
     const tabId = makeStandaloneTabId(filePath);
     const existing = tabsRef.current.find((tab) => tab.id === tabId);
     if (existing) {
+      activeTabIdRef.current = tabId;
       setActiveTabId(tabId);
-      setTabs((prev) =>
-        prev.map((tab) =>
-          tab.id === tabId ? markDocumentTextContentAccessed(tab) : tab,
-        ),
+      const nextTabs = tabsRef.current.map((tab) =>
+        tab.id === tabId ? markDocumentTextContentAccessed(tab) : tab,
       );
+      tabsRef.current = nextTabs;
+      setTabs(nextTabs);
       return;
     }
     const newTab = buildStandaloneFileTab(node, filePath, preview);
-    setTabs((prev) => [...prev, newTab]);
+    const nextTabs = [...tabsRef.current, newTab];
+    tabsRef.current = nextTabs;
+    activeTabIdRef.current = tabId;
+    setTabs(nextTabs);
     setActiveTabId(tabId);
   }, [openWorkspaceFile]);
 
   const closeTab = useCallback((tabId: EditorTabId) => {
-    setTabs((prev) => {
-      const idx = prev.findIndex((tab) => tab.id === tabId);
-      if (idx < 0) return prev;
-      if (isPinnedDocumentTab(prev[idx])) return prev;
-      const next = prev.filter((tab) => tab.id !== tabId);
-      fileLoadRequestIdsRef.current.delete(tabId);
-      if (activeTabIdRef.current === tabId) {
-        const newActive = next[Math.min(idx, next.length - 1)]?.id ?? null;
-        setActiveTabId(newActive);
-      }
-      return next;
-    });
+    const currentTabs = tabsRef.current;
+    const idx = currentTabs.findIndex((tab) => tab.id === tabId);
+    if (idx < 0 || isPinnedDocumentTab(currentTabs[idx])) return;
+    const nextTabs = currentTabs.filter((tab) => tab.id !== tabId);
+    fileLoadRequestIdsRef.current.delete(tabId);
+    tabsRef.current = nextTabs;
+    setTabs(nextTabs);
+    if (activeTabIdRef.current === tabId) {
+      const nextActive = nextTabs[Math.min(idx, nextTabs.length - 1)]?.id ?? null;
+      activeTabIdRef.current = nextActive;
+      setActiveTabId(nextActive);
+    }
   }, []);
 
   const closeOtherTabs = useCallback((tabId: EditorTabId) => {
@@ -295,12 +303,13 @@ export function useDocumentTabs() {
   const selectTab = useCallback((tabId: EditorTabId) => {
     const tab = tabsRef.current.find((item) => item.id === tabId);
     if (!tab) return;
+    activeTabIdRef.current = tabId;
     setActiveTabId(tabId);
-    setTabs((prev) =>
-      prev.map((item) =>
-        item.id === tabId ? markDocumentTextContentAccessed(item) : item,
-      ),
+    const nextTabs = tabsRef.current.map((item) =>
+      item.id === tabId ? markDocumentTextContentAccessed(item) : item,
     );
+    tabsRef.current = nextTabs;
+    setTabs(nextTabs);
     if (!isPinnedDocumentTab(tab)) return;
     const runtime = resolveFileSourceRuntime(tab.fileSource);
     if (!runtime) return;
@@ -358,7 +367,11 @@ export function useDocumentTabs() {
     revisionMs: number;
     sessionId: string | null;
     totalCount?: number | null;
-    truncated?: boolean;
+    page?: number | null;
+    pageSize?: number | null;
+    totalPages?: number | null;
+    hasPrevious?: boolean;
+    hasNext?: boolean;
   }) => {
     const newTab = buildVirtualConversationDataTab(options);
     const existing = tabsRef.current.find((tab) => tab.id === newTab.id);

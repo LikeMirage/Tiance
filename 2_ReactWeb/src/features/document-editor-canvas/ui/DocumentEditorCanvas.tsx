@@ -67,6 +67,7 @@ type Props = {
   onReferenceWorkspaceFile?: (file: EditorWorkspaceFileReference) => void;
   onSelectConversationMessage?: (sessionId: string, messageId: string) => void;
   onSelectExportDirectory?: () => Promise<string | null>;
+  onConversationDataPageChange?: (tab: DocumentTab, page: number) => Promise<void>;
   onMarkDirty: (id: string) => void;
   onMarkMissing: (id: string) => void;
   onSaveTab: (id: string, contentSnapshot?: string) => Promise<boolean>;
@@ -100,6 +101,7 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
   onReferenceWorkspaceFile,
   onSelectConversationMessage,
   onSelectExportDirectory,
+  onConversationDataPageChange,
   onMarkDirty, onMarkMissing, onSaveTab, onSelectTab, onUpdateContent,
 }: Props) {
   const aiPanel = useAiPanelLayout({
@@ -490,6 +492,7 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
                 onReferenceWorkspaceFile={onReferenceWorkspaceFile}
                 onSelectConversationMessage={onSelectConversationMessage}
                 onSelectExportDirectory={onSelectExportDirectory}
+                onConversationDataPageChange={onConversationDataPageChange}
                 onEditorScroll={handleEditorScroll}
                 onEditorScrollerReady={(scroller) => { editorScrollerRef.current = scroller; }}
                 onMarkDirty={onMarkDirty}

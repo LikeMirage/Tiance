@@ -71,18 +71,30 @@ def read_conversation_data_view(
     project_id: str,
     name: ConversationDataViewName = Query(...),
     session_id: str | None = Query(default=None),
+    page: int | None = Query(default=None, ge=1),
+    page_size: int = Query(default=50, ge=1),
 ) -> ProjectConversationDataViewResponse:
-    content, revision_ms, total_count, truncated = ConversationDataViewRepository(
+    view = ConversationDataViewRepository(
         get_project_repository(),
-    ).read(project_id, name=name, session_id=session_id)
+    ).read(
+        project_id,
+        name=name,
+        session_id=session_id,
+        page=page,
+        page_size=page_size,
+    )
     return ProjectConversationDataViewResponse(
         project_id=project_id,
         session_id=session_id,
         name=name,
-        content=content,
-        revision_ms=revision_ms,
-        total_count=total_count,
-        truncated=truncated,
+        content=view.content,
+        revision_ms=view.revision_ms,
+        total_count=view.total_count,
+        page=view.page,
+        page_size=view.page_size,
+        total_pages=view.total_pages,
+        has_previous=view.has_previous,
+        has_next=view.has_next,
     )
 @router.post(
     "/{project_id}/conversations/{session_id}/attachments/images",
@@ -158,12 +170,19 @@ async def get_project_conversation_branch_group(
 )
 def list_project_conversations(project_id: str) -> ProjectConversationListResponse:
     service = get_project_conversation_service()
-    sessions = service.list_sessions(project_id)
-    branch_nodes, message_variants = service.list_branch_graph(project_id)
-    assistant_title, active_session_id, session_states = service.get_state(project_id)
+    (
+        revision,
+        sessions,
+        branch_nodes,
+        message_variants,
+        assistant_title,
+        active_session_id,
+        session_states,
+    ) = service.get_list_data(project_id)
     items = [ProjectConversationSessionResponse.from_domain(session) for session in sessions]
     return ProjectConversationListResponse(
         project_id=project_id,
+        revision=revision,
         count=len(items),
         assistant_title=assistant_title,
         active_session_id=active_session_id,

@@ -51,10 +51,12 @@ export type ConversationSessionState = {
   draft: string;
   references?: ConversationDraftReferences;
   updated_at: string;
+  runtime_updated_at?: string;
 };
 
 export type ConversationSessionListResponse = {
   project_id: string;
+  revision: number;
   count: number;
   assistant_title: string;
   active_session_id: string | null;

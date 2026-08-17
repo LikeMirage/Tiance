@@ -9,10 +9,7 @@ const vite = await createServer({
   root: fileURLToPath(new URL("../", import.meta.url)),
   server: { middlewareMode: true },
 });
-const {
-  MAX_PREVIEW_LINES,
-  parseCompressionLog,
-} = await vite.ssrLoadModule(
+const { parseCompressionLog } = await vite.ssrLoadModule(
   "/src/features/compression-log-preview/model/compressionLogParser.ts",
 );
 
@@ -20,8 +17,8 @@ after(async () => {
   await vite.close();
 });
 
-test("压缩记录超过预览上限时保留最新结果", () => {
-  const recordCount = MAX_PREVIEW_LINES + 5;
+test("压缩记录解析器不在前端静默截断记录", () => {
+  const recordCount = 305;
   const content = Array.from({ length: recordCount }, (_, index) => JSON.stringify({
     compression_id: `compression-${index + 1}`,
     status: "completed",
@@ -36,9 +33,8 @@ test("压缩记录超过预览上限时保留最新结果", () => {
   const retainedRecords = result.parsedLines.filter((line) => line.kind === "record");
 
   assert.equal(result.totalLineCount, recordCount);
-  assert.equal(result.truncatedLineCount, 5);
-  assert.equal(retainedRecords.length, MAX_PREVIEW_LINES);
-  assert.equal(retainedRecords[0].record.lineNumber, 6);
+  assert.equal(retainedRecords.length, recordCount);
+  assert.equal(retainedRecords[0].record.lineNumber, 1);
   assert.equal(
     retainedRecords.at(-1).record.compressionId,
     `compression-${recordCount}`,

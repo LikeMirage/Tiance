@@ -6,6 +6,7 @@ import type {
   ProjectMemoryScope,
 } from "../../../entities/project-memory/model/projectMemory";
 import { getProjectMemory } from "../../../services/project/projectMemory";
+import { PaginationControls } from "../../../shared/ui/pagination-controls/PaginationControls";
 
 import "./project-memory-preview.css";
 
@@ -21,10 +22,16 @@ export function ProjectMemoryPreview({ projectId, scope }: ProjectMemoryPreviewP
   const [state, setState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pageSize: 50,
+    totalCount: 0,
+    totalPages: 1,
+  });
   const requestIdRef = useRef(0);
   const isGlobal = scope === "global";
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (page?: number, signal?: AbortSignal) => {
     if (!projectId) {
       setItems([]);
       setState("idle");
@@ -37,12 +44,19 @@ export function ProjectMemoryPreview({ projectId, scope }: ProjectMemoryPreviewP
     setError(null);
     try {
       const response = await getProjectMemory(projectId, {
-        limit: 200,
+        page,
+        pageSize: 50,
         scope,
         signal,
       });
       if (requestIdRef.current !== requestId) return;
       setItems(response.items);
+      setPagination({
+        page: response.page,
+        pageSize: response.page_size,
+        totalCount: response.total_count,
+        totalPages: response.total_pages,
+      });
       setState("ready");
     } catch (err) {
       if (signal?.aborted || requestIdRef.current !== requestId) return;
@@ -53,7 +67,7 @@ export function ProjectMemoryPreview({ projectId, scope }: ProjectMemoryPreviewP
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(controller.signal);
+    void load(undefined, controller.signal);
     return () => {
       controller.abort();
       requestIdRef.current += 1;
@@ -95,15 +109,16 @@ export function ProjectMemoryPreview({ projectId, scope }: ProjectMemoryPreviewP
           aria-label="刷新长期记忆"
           title="刷新"
           disabled={state === "loading" || !projectId}
-          onClick={() => { void load(); }}
+          onClick={() => { void load(pagination.page); }}
         >
           <ArrowClockwise size={14} weight="bold" aria-hidden="true" />
         </button>
       </header>
 
       <section className="project-memory-preview__metrics" aria-label="长期记忆统计">
-        <Metric label="记忆" value={items.length} />
-        <Metric label="事件" value={stats.eventCount} />
+        <Metric label="记忆" value={pagination.totalCount} />
+        <Metric label="本页" value={items.length} />
+        <Metric label="本页事件" value={stats.eventCount} />
         <Metric label="新增" value={stats.addCount} />
         <Metric label="更新" value={stats.updateCount} />
         <Metric label="删除" value={stats.deleteCount} />
@@ -125,20 +140,30 @@ export function ProjectMemoryPreview({ projectId, scope }: ProjectMemoryPreviewP
       ) : null}
 
       {items.length > 0 ? (
-        <section className="project-memory-preview__list" aria-label="长期记忆列表">
-          {items.map((item, index) => {
-            const isExpanded = expandedIds.has(item.id);
-            return (
-              <MemoryRecord
-                index={index + 1}
-                isExpanded={isExpanded}
-                item={item}
-                key={item.id}
-                onToggle={() => toggleExpanded(item.id)}
-              />
-            );
-          })}
-        </section>
+        <>
+          <PaginationControls
+            isLoading={state === "loading"}
+            onPageChange={(page) => load(page)}
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            totalCount={pagination.totalCount}
+            totalPages={pagination.totalPages}
+          />
+          <section className="project-memory-preview__list" aria-label="长期记忆列表">
+            {items.map((item, index) => {
+              const isExpanded = expandedIds.has(item.id);
+              return (
+                <MemoryRecord
+                  index={(pagination.page - 1) * pagination.pageSize + index + 1}
+                  isExpanded={isExpanded}
+                  item={item}
+                  key={item.id}
+                  onToggle={() => toggleExpanded(item.id)}
+                />
+              );
+            })}
+          </section>
+        </>
       ) : null}
     </div>
   );

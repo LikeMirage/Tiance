@@ -112,6 +112,7 @@ class ProjectConversationMessage:
     variant_group_id: str | None = None
     variant_index: int = 1
     references: list[dict] = field(default_factory=list)
+    source_context: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,3 +150,4 @@ class ProjectConversationSessionState:
     draft: str
     references: list[dict]
     updated_at: str
+    runtime_updated_at: str = ""

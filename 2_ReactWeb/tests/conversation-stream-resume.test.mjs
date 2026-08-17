@@ -97,7 +97,7 @@ test("只有用户消息尚未产生持久化轮次时从流开头恢复", () =>
   assert.equal(snapshot.assistantMessage.id, "assistant-new");
 });
 
-test("保存点失效改为完整重放时会丢弃本轮已保存助手片段但保留历史与用户消息", () => {
+test("保存点失效改为完整重放时以本轮已保存进度为基线", () => {
   const snapshot = prepareConversationStreamFullReplay([
     message({ id: "user-old", role: "user", content: "旧问题" }),
     message({ id: "assistant-old", role: "assistant", content: "旧回答" }),
@@ -107,9 +107,15 @@ test("保存点失效改为完整重放时会丢弃本轮已保存助手片段�
 
   assert.deepEqual(
     snapshot.messages.map((item) => item.id),
-    ["user-old", "assistant-old", "user-current", "assistant-replay"],
+    ["user-old", "assistant-old", "user-current", "assistant-partial"],
   );
   assert.equal(snapshot.assistantMessage.content, "");
+  assert.deepEqual(
+    snapshot.assistantMessage.processItems
+      .filter((item) => item.type === "content")
+      .map((item) => item.content),
+    ["当前部分回答"],
+  );
   assert.equal(snapshot.checkpointMessageId, null);
 });
 

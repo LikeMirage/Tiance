@@ -329,6 +329,53 @@ def test_concurrent_client_tool_result_submissions_accept_exactly_once():
     asyncio.run(run_test())
 
 
+def test_explicit_stop_notifies_frontend_to_release_pending_client_tool_wait():
+    async def run_test():
+        bridge = ClientToolBridgeService()
+        client_request = await bridge.create_request(
+            ChatToolCall(call_id="call-1", name="open_editor", arguments="{}"),
+            project_id="project-1",
+            session_id="session-1",
+            timeout_seconds=30,
+        )
+        manager = ConversationRunManager(bridge)
+        stream_service = _ClientToolRunStreamService(client_request.request_id)
+        subscription = await manager.start(_request(), stream_service)
+        listener = manager.stream(subscription)
+
+        assert (await listener.__anext__())["kind"] == "client_tool_request"
+        assert await manager.stop("project-1", "session-1") is True
+        assert await listener.__anext__() == {
+            "kind": "client_tool_request_cancelled",
+            "request_id": client_request.request_id,
+            "run_sequence": 2,
+        }
+        with pytest.raises(StopAsyncIteration):
+            await listener.__anext__()
+
+    asyncio.run(run_test())
+
+
+def test_concurrent_client_tool_claims_acquire_exactly_once():
+    async def run_test():
+        bridge = ClientToolBridgeService()
+        client_request = await bridge.create_request(
+            ChatToolCall(call_id="call-1", name="open_editor", arguments="{}"),
+            project_id="project-1",
+            session_id="session-1",
+            timeout_seconds=30,
+        )
+
+        acquired = await asyncio.gather(
+            *(bridge.claim_request(client_request.request_id) for _ in range(20))
+        )
+
+        assert acquired.count(True) == 1
+        assert acquired.count(False) == 19
+
+    asyncio.run(run_test())
+
+
 def test_reconnect_replays_only_events_after_persisted_message_checkpoint():
     async def run_test():
         manager = ConversationRunManager()

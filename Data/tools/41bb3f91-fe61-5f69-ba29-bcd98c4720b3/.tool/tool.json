@@ -2,7 +2,7 @@
   "description": "创建、检查和安全编辑 .docx Word 文档。inspect 可返回公式清单、稳定 formula_ref、文档指纹，也可解析预览 word_range 中的文字、原生公式和混合片段，返回 content_kind、Markdown 语义、公式引用及实际定位结果。预览与 Word 对公式字符计数有少量差异时会在原段落或单元格内校准；无法唯一确认时只返回局部候选，不进行全文模糊写入。所有 edit 写入必须先 dry_run；原位编辑的 overwrite、backup 与操作内容一起纳入 validation_token。写入支持带格式纯文字、原生公式和正文 Markdown，原位覆盖备份到工作区工具备份目录。不负责 Word 转 PDF、目录自动刷新、脚注/HTML 转换或跨不同单元格选区。",
   "display_name": "Word 制作编辑",
   "execution": {
-    "parallel": false
+    "parallel": true
   },
   "files": {
     "examples": ".tool/examples.json",

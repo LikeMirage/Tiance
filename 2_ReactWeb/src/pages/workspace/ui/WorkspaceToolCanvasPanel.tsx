@@ -177,6 +177,7 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     clientToolRegistrations,
     handleAiPanelWidthCommit,
     handleComposerHeightCommit,
+    handleConversationDataPageChange,
     handleGenerateMarkdownDocx,
     handleOpenConversationBranches,
     handleOpenConversationDataFile: openConversationDataFile,
@@ -463,6 +464,7 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
       assistantPanel={assistantPanel}
       emptyMessage={null}
       onAiPanelWidthCommit={handleAiPanelWidthCommit}
+      onConversationDataPageChange={handleConversationDataPageChange}
       onCreatePdfPageImageReference={handleCreatePdfPageImageReference}
       onCreatePresentationSlideImageReference={handleCreatePresentationSlideImageReference}
       onCreateSpreadsheetRangeImageReference={handleCreateSpreadsheetRangeImageReference}

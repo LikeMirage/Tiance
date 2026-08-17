@@ -2,7 +2,7 @@
   "description": "读取会话已启用工具的参数详情和应用示例，辅助动态加载工具按需补充上下文。",
   "display_name": "工具信息加载",
   "execution": {
-    "parallel": false
+    "parallel": true
   },
   "files": {
     "examples": ".tool/examples.json",

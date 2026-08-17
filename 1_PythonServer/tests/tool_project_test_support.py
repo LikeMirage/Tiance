@@ -130,7 +130,7 @@ def _write_tool_files(
         "description": "",
         "keywords": [],
         "loading": {"dynamic": True},
-        "execution": {"parallel": False},
+        "execution": {"parallel": True},
         "files": {
             "input_schema": TOOL_INPUT_SCHEMA_FILE,
             "output_schema": TOOL_OUTPUT_SCHEMA_FILE,

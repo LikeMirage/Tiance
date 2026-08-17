@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from watchfiles import Change
 
+from app.core.errors import BadRequestError
 from app.infra.tools.tool_project_config_constants import (
     TOOL_EXAMPLES_FILE,
     TOOL_FOLDER_MANIFEST_FILE,
@@ -114,7 +115,20 @@ def test_tool_catalog_can_read_summaries_from_registry(tmp_path):
 
     assert [summary.name for summary in summaries] == ["read_text_file"]
     assert summaries[0].display_name == "文本读取"
-    assert summaries[0].parallel is False
+    assert summaries[0].parallel is True
+
+
+def test_tool_registry_rejects_manifest_without_parallel_declaration(tmp_path):
+    storage = ToolProjectFixture(tmp_path / "tools")
+    toolset = storage.create_toolset(name="基础工具")
+    folder = storage.create_tool_folder(toolset.category_id, name="文本读取")
+    manifest_path = Path(folder.root_path) / TOOL_FOLDER_MANIFEST_FILE
+    manifest = loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.pop("execution")
+    manifest_path.write_text(dumps(manifest, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(BadRequestError, match="execution.parallel"):
+        ToolRegistryService(storage).rebuild_registry()
 
 
 def test_tool_registry_rebuild_raises_when_tool_files_are_incomplete(tmp_path):

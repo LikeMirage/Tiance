@@ -130,6 +130,11 @@ def test_stream_body_reads_error_response_before_raising(monkeypatch):
         "get_shared_http_client",
         lambda: _FakeStreamingHttpClient(fake_response),
     )
+    monkeypatch.setattr(
+        chat_remote_client_module,
+        "get_http_timeout",
+        lambda *, stream: httpx.Timeout(1.0),
+    )
 
     async def collect():
         return [

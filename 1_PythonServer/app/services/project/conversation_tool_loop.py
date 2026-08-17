@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import replace
 from time import monotonic
@@ -31,6 +32,7 @@ from app.services.project.conversation_stream_usage import merge_usage, usage_to
 from app.services.project.project_conversations import ProjectConversationService
 from app.services.project.projects import ProjectService
 from app.services.project.conversation_attachments import ConversationAttachmentService
+from app.services.project.conversation_audit import ConversationAuditService
 from app.services.tools.client_tool_bridge import (
     ClientToolBridgeService,
     ClientToolResultPayload,
@@ -56,6 +58,7 @@ from app.services.tools.tool_result_content import (
 )
 
 _DEFAULT_MAX_TOOL_CALLS = 99999
+logger = logging.getLogger(__name__)
 
 
 def _deduplicate_image_parts(parts):
@@ -92,6 +95,7 @@ class ConversationToolLoop:
         client_tool_bridge_service: ClientToolBridgeService | None,
         runtime_capabilities_service: _RuntimeCapabilitiesProvider | None = None,
         attachment_service: ConversationAttachmentService | None = None,
+        audit_service: ConversationAuditService | None = None,
     ) -> None:
         self._chat_service = chat_service
         self._conversation_service = conversation_service
@@ -102,6 +106,7 @@ class ConversationToolLoop:
         self._client_tool_bridge_service = client_tool_bridge_service
         self._runtime_capabilities_service = runtime_capabilities_service
         self._attachment_service = attachment_service
+        self._audit_service = audit_service
 
     def should_run(self, request: ChatCompletionRequest) -> bool:
         return bool(request.tools and self._tool_execution_service is not None)
@@ -243,48 +248,47 @@ class ConversationToolLoop:
                         tool_call=tool_call,
                     )
                 if await self._batch_has_client_tool(tool_call_batch):
-                    for tool_call in tool_call_batch:
-                        async for event in self._execute_tool_call_events(
-                            original_request,
-                            tool_call,
-                            on_tool_call_cancelled=on_tool_call_cancelled,
-                        ):
-                            checkpoint = None
-                            if event.kind == ChatStreamEventKind.TOOL_RESULT and event.tool_result is not None:
-                                tool_message = await self._persist_tool_result(
-                                    original_request,
-                                    event.tool_result,
+                    async for event in self._execute_streamed_tool_call_batch_events(
+                        original_request,
+                        tool_call_batch,
+                        on_tool_call_cancelled=on_tool_call_cancelled,
+                    ):
+                        checkpoint = None
+                        if event.kind == ChatStreamEventKind.TOOL_RESULT and event.tool_result is not None:
+                            tool_message = await self._persist_tool_result(
+                                original_request,
+                                event.tool_result,
+                            )
+                            if tool_message is not None:
+                                checkpoint = ConversationPersistenceCheckpoint(
+                                    tool_message.message_id,
                                 )
-                                if tool_message is not None:
-                                    checkpoint = ConversationPersistenceCheckpoint(
-                                        tool_message.message_id,
-                                    )
-                                next_messages.append(
-                                    tag_conversation_message(
-                                        ChatMessage(
-                                            role=ChatMessageRole.TOOL,
-                                            content=event.tool_result.content,
-                                            name=event.tool_result.name,
-                                            tool_call_id=event.tool_result.call_id,
-                                            content_parts=(
-                                                tool_message.content_parts
-                                                if tool_message is not None
-                                                else ()
-                                            ),
+                            next_messages.append(
+                                tag_conversation_message(
+                                    ChatMessage(
+                                        role=ChatMessageRole.TOOL,
+                                        content=event.tool_result.content,
+                                        name=event.tool_result.name,
+                                        tool_call_id=event.tool_result.call_id,
+                                        content_parts=(
+                                            tool_message.content_parts
+                                            if tool_message is not None
+                                            else ()
                                         ),
-                                        tool_message.message_id if tool_message is not None else None,
-                                    )
+                                    ),
+                                    tool_message.message_id if tool_message is not None else None,
                                 )
-                                if tool_message is not None:
-                                    round_resource_parts.extend(tool_message.content_parts)
-                            yield event
-                            if checkpoint is not None:
-                                yield checkpoint
+                            )
+                            if tool_message is not None:
+                                round_resource_parts.extend(tool_message.content_parts)
+                        yield event
+                        if checkpoint is not None:
+                            yield checkpoint
                     continue
 
                 tasks = [
                     asyncio.create_task(
-                        self._execute_tool_call(
+                        self._execute_tool_call_with_audit(
                             original_request,
                             tool_call,
                             cancellation_call=tool_call,
@@ -377,7 +381,115 @@ class ConversationToolLoop:
 
         return await asyncio.to_thread(check_batch)
 
+    async def _execute_streamed_tool_call_batch_events(
+        self,
+        request: ChatCompletionRequest,
+        tool_calls: tuple[ChatToolCall, ...],
+        *,
+        on_tool_call_cancelled: Callable[
+            [ChatToolCall, ToolCancellationScope],
+            None,
+        ]
+        | None = None,
+    ) -> AsyncGenerator[ChatStreamEvent, None]:
+        queue: asyncio.Queue[
+            tuple[int, ChatStreamEvent | None, Exception | None]
+        ] = asyncio.Queue()
+
+        async def execute(index: int, tool_call: ChatToolCall) -> None:
+            error: Exception | None = None
+            try:
+                async for event in self._execute_tool_call_events(
+                    request,
+                    tool_call,
+                    on_tool_call_cancelled=on_tool_call_cancelled,
+                ):
+                    await queue.put((index, event, None))
+            except Exception as exc:
+                error = exc
+            finally:
+                await queue.put((index, None, error))
+
+        tasks = [
+            asyncio.create_task(execute(index, tool_call))
+            for index, tool_call in enumerate(tool_calls)
+        ]
+        completed = 0
+        first_error: Exception | None = None
+        results: dict[int, ChatStreamEvent] = {}
+        try:
+            while completed < len(tasks):
+                index, event, error = await queue.get()
+                if event is None:
+                    completed += 1
+                    if first_error is None and error is not None:
+                        first_error = error
+                    continue
+                if event.kind == ChatStreamEventKind.TOOL_RESULT:
+                    results[index] = event
+                    continue
+                yield event
+            await asyncio.gather(*tasks)
+        except asyncio.CancelledError:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise
+
+        if first_error is not None:
+            raise first_error
+        for index in range(len(tool_calls)):
+            result_event = results.get(index)
+            if result_event is None:
+                raise RuntimeError("工具调用未返回结果。")
+            yield result_event
+
     async def _execute_tool_call_events(
+        self,
+        request: ChatCompletionRequest,
+        tool_call: ChatToolCall,
+        *,
+        on_tool_call_cancelled: Callable[
+            [ChatToolCall, ToolCancellationScope],
+            None,
+        ]
+        | None = None,
+    ) -> AsyncGenerator[ChatStreamEvent, None]:
+        await self._record_tool_event(
+            request,
+            tool_call,
+            event_type="tool.started",
+            payload={"tool_name": tool_call.name},
+        )
+        try:
+            async for event in self._execute_tool_call_events_impl(
+                request,
+                tool_call,
+                on_tool_call_cancelled=on_tool_call_cancelled,
+            ):
+                if event.kind == ChatStreamEventKind.TOOL_RESULT and event.tool_result is not None:
+                    result = event.tool_result
+                    await self._record_tool_event(
+                        request,
+                        tool_call,
+                        event_type="tool.completed" if result.ok else "tool.failed",
+                        payload={
+                            "tool_name": tool_call.name,
+                            "ok": result.ok,
+                            "elapsed_ms": result.elapsed_ms,
+                        },
+                    )
+                yield event
+        except asyncio.CancelledError:
+            await self._record_tool_event(
+                request,
+                tool_call,
+                event_type="tool.cancelled",
+                payload={"tool_name": tool_call.name},
+            )
+            raise
+
+    async def _execute_tool_call_events_impl(
         self,
         request: ChatCompletionRequest,
         tool_call: ChatToolCall,
@@ -426,6 +538,27 @@ class ConversationToolLoop:
             kind=ChatStreamEventKind.TOOL_RESULT,
             tool_result=result,
         )
+
+    async def _record_tool_event(
+        self,
+        request: ChatCompletionRequest,
+        tool_call: ChatToolCall,
+        *,
+        event_type: str,
+        payload: dict[str, object],
+    ) -> None:
+        if self._audit_service is None:
+            return
+        try:
+            await asyncio.to_thread(
+                self._audit_service.record_event,
+                request,
+                event_type=event_type,
+                payload=payload,
+                tool_call_id=tool_call.call_id,
+            )
+        except Exception:
+            logger.exception("Failed to persist a tool audit event.")
 
     async def _execute_dynamic_tool_call_events(
         self,
@@ -550,6 +683,7 @@ class ConversationToolLoop:
                                 "model_id": request.model_id,
                                 "input_modalities": list(input_modalities),
                             },
+                            capability=prepared.capability,
                         )
                         yield ChatStreamEvent(
                             kind=ChatStreamEventKind.CLIENT_TOOL_REQUEST,
@@ -680,6 +814,41 @@ class ConversationToolLoop:
                 )
             raise
         return self._with_tool_elapsed(self._add_tool_failure_guidance(result), started_at)
+
+    async def _execute_tool_call_with_audit(
+        self,
+        request: ChatCompletionRequest,
+        tool_call: ChatToolCall,
+        *args,
+        **kwargs,
+    ) -> ChatToolResult:
+        await self._record_tool_event(
+            request,
+            tool_call,
+            event_type="tool.started",
+            payload={"tool_name": tool_call.name},
+        )
+        try:
+            result = await self._execute_tool_call(request, tool_call, *args, **kwargs)
+        except asyncio.CancelledError:
+            await self._record_tool_event(
+                request,
+                tool_call,
+                event_type="tool.cancelled",
+                payload={"tool_name": tool_call.name},
+            )
+            raise
+        await self._record_tool_event(
+            request,
+            tool_call,
+            event_type="tool.completed" if result.ok else "tool.failed",
+            payload={
+                "tool_name": tool_call.name,
+                "ok": result.ok,
+                "elapsed_ms": result.elapsed_ms,
+            },
+        )
+        return result
 
     def _model_input_modalities(
         self,

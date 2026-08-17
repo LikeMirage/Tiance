@@ -7,7 +7,18 @@ import subprocess
 import sys
 
 TOOL_ROOT = Path(__file__).resolve().parents[1]
-REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+
+
+def _python_paths() -> list[str]:
+    paths = [str(TOOL_ROOT / "program")]
+    for parent in Path(__file__).resolve().parents:
+        backend_root = parent / "1_PythonServer"
+        if backend_root.is_dir():
+            paths.append(str(backend_root))
+            break
+    inherited = os.environ.get("PYTHONPATH", "")
+    paths.extend(part for part in inherited.split(os.pathsep) if part)
+    return paths
 
 
 def call(root: Path | None, payload: dict[str, object]) -> dict[str, object]:
@@ -17,9 +28,7 @@ def call(root: Path | None, payload: dict[str, object]) -> dict[str, object]:
     else:
         env["TIANCE_WORKSPACE_ROOT"] = str(root)
     env["PYTHONIOENCODING"] = "utf-8"
-    env["PYTHONPATH"] = os.pathsep.join(
-        [str(TOOL_ROOT / "program"), str(REPOSITORY_ROOT / "1_PythonServer")]
-    )
+    env["PYTHONPATH"] = os.pathsep.join(_python_paths())
     completed = subprocess.run(
         [sys.executable, str(TOOL_ROOT / "program" / "main.py")],
         input=json.dumps(payload, ensure_ascii=False),

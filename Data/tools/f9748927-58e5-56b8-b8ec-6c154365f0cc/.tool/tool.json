@@ -2,7 +2,7 @@
   "description": "通过 DMXAPI 调用豆包视觉模型解析一张或多张图片，按固定文档视觉识别规则输出 Markdown；默认直接返回结果，也可把每张图片的结果保存为同名 .md 文件。",
   "display_name": "DMX 豆包视觉解析",
   "execution": {
-    "parallel": false
+    "parallel": true
   },
   "files": {
     "examples": ".tool/examples.json",

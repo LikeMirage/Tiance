@@ -8,6 +8,7 @@ import type {
   ConversationSessionState,
 } from "../../../entities/llm-chat/model/conversation";
 import type {
+  ChatClientCapability,
   ChatCompletionMessageInput,
   ConversationMessageReferences,
 } from "../../../entities/llm-chat/model/chatCompletion";
@@ -23,7 +24,7 @@ import {
   type ChatMessage,
 } from "./chatMessage";
 import { buildSessionKey } from "./sessionKey";
-import { buildConversationRunRequest } from "./conversationRunRequest";
+import { buildConversationRunRequest } from "../../conversation-runtime/model/conversationRunRequest";
 import {
   buildConversationImageContentParts,
   hasConversationReferences,
@@ -33,7 +34,7 @@ import {
   toConversationDraftReferences,
 } from "./conversationDraftReferences";
 import { createChatStreamAccumulator } from "./chatStreamAccumulator";
-import { processChatStreamEventSideEffects } from "./chatStreamEventSideEffects";
+import { processChatStreamEventSideEffects } from "../../conversation-runtime/model/chatStreamEventSideEffects";
 import {
   clearChatStreamEventSequence,
   processSequencedChatStreamEvent,
@@ -80,6 +81,7 @@ type UseChatGenerationOptions = {
   activeSessionIdRef: MutableRefObject<string | null>;
   canStartConversation: boolean;
   clientToolExecutor?: ClientToolExecutor | null;
+  clientToolCapabilities: readonly ChatClientCapability[];
   clearReferences: () => void;
   createSessionStreamController: (sessionKey: string) => AbortController;
   draft: string;
@@ -121,6 +123,7 @@ export function useChatGeneration({
   activeSessionIdRef,
   canStartConversation,
   clientToolExecutor,
+  clientToolCapabilities,
   clearReferences,
   createSessionStreamController,
   draft,
@@ -361,6 +364,7 @@ export function useChatGeneration({
         messages: requestMessages,
         settings: streamSessionSettings,
         reasoningMode: streamReasoningMode,
+        clientCapabilities: clientToolCapabilities,
       }), {
         onEvent: async (event) => {
           if (!publishedRunningContent) {
@@ -537,6 +541,7 @@ export function useChatGeneration({
     activeSessionIdRef,
     canStartConversation,
     clientToolExecutor,
+    clientToolCapabilities,
     clearReferences,
     createSessionStreamController,
     draft,

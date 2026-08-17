@@ -1,8 +1,9 @@
-import { lazy } from "react";
+import { lazy, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import type { CodeEditorTextSelectionContextMenu } from "../../editor/ui/CodeEditor";
+import { PaginationControls } from "../../../shared/ui/pagination-controls/PaginationControls";
 import { getPreviewToggleLabel } from "../model/previewToggleLabel";
 import { EditorLazyBoundary, PreviewMountGate } from "./EditorContentBoundary";
 
@@ -59,6 +60,7 @@ export function DocumentTextContent({
   onEditorScroll,
   onEditorScrollerReady,
   onMarkDirty,
+  onConversationDataPageChange,
   onSaveTab,
   onSourceTextContextMenu,
   onUpdateContent,
@@ -80,12 +82,28 @@ export function DocumentTextContent({
   onEditorScroll: (scroller: HTMLElement) => void;
   onEditorScrollerReady: (scroller: HTMLElement | null) => void;
   onMarkDirty: (id: string) => void;
+  onConversationDataPageChange?: (tab: DocumentTab, page: number) => Promise<void>;
   onSaveTab: (id: string, contentSnapshot?: string) => Promise<boolean>;
   onSourceTextContextMenu: (selection: CodeEditorTextSelectionContextMenu) => void;
   onUpdateContent: (id: string, content: string) => void;
   previewOpen: boolean;
   setPreviewOpen: Dispatch<SetStateAction<boolean>>;
 }) {
+  const [isPageLoading, setIsPageLoading] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const dataView = activeTab.conversationDataView;
+  const handlePageChange = async (page: number) => {
+    if (!onConversationDataPageChange || isPageLoading) return;
+    setIsPageLoading(true);
+    setPageError(null);
+    try {
+      await onConversationDataPageChange(activeTab, page);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "分页数据读取失败。");
+    } finally {
+      setIsPageLoading(false);
+    }
+  };
   const isSystemPreviewOpen = previewOpen && (
     isHtml ||
     isCompressionLog ||
@@ -98,7 +116,21 @@ export function DocumentTextContent({
   );
 
   return (
-    <>
+    <div className="doc-editor__text-content">
+      {dataView && (!isSystemPreviewOpen || !isProjectMemory) ? (
+        <>
+          <PaginationControls
+            isLoading={isPageLoading}
+            onPageChange={handlePageChange}
+            page={dataView.page}
+            pageSize={dataView.pageSize}
+            totalCount={dataView.totalCount}
+            totalPages={dataView.totalPages}
+          />
+          {pageError ? <div className="doc-editor__pagination-error">{pageError}</div> : null}
+        </>
+      ) : null}
+      <div className="doc-editor__text-content-body">
       {!isSystemPreviewOpen && (
         <div className="doc-editor__full">
           <div className="doc-editor__source">
@@ -217,6 +249,7 @@ export function DocumentTextContent({
           </PreviewMountGate>
         </div>
       )}
-    </>
+      </div>
+    </div>
   );
 }

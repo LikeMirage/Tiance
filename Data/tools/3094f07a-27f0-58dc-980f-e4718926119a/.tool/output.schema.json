@@ -172,7 +172,7 @@
       "type": "object"
     },
     "error": {
-      "description": "动作失败时的稳定错误说明。目标会话正在运行时，应调用 wait，返回后用 list_sessions 重新检查，再决定是否重试发送。",
+      "description": "动作失败时的稳定错误说明，包括会话不存在、目标正在运行或运行启动失败。",
       "type": "string"
     }
   },

@@ -2,8 +2,10 @@ import { useCallback, useMemo, useRef } from "react";
 import type { MutableRefObject } from "react";
 
 import type { ConversationRuntimeStatus } from "../../../entities/llm-chat/model/conversation";
+import type { ChatClientCapability } from "../../../entities/llm-chat/model/chatCompletion";
 import {
   createClientToolRegistry,
+  type ClientToolRegistry,
   type ClientToolExecutor,
   type ClientToolRegistration,
 } from "../../client-tools/model/clientToolBridge";
@@ -16,7 +18,6 @@ type UseChatPanelClientToolRegistryInput = {
   activateSession: (sessionId: string) => void;
   activeProjectIdRef: MutableRefObject<string | null>;
   clientToolRegistrations: readonly ClientToolRegistration[];
-  reloadSessions: (projectId: string) => Promise<void>;
   reloadSessionsForSelection: (
     projectId: string,
   ) => Promise<ConversationSessionsReloadResult>;
@@ -31,12 +32,12 @@ export function useChatPanelClientToolRegistry({
   activateSession,
   activeProjectIdRef,
   clientToolRegistrations,
-  reloadSessions,
   reloadSessionsForSelection,
   setSessionRuntimeStatus,
 }: UseChatPanelClientToolRegistryInput) {
   const backgroundConversationRuns = getConversationBackgroundRunRegistry();
   const combinedClientToolExecutorRef = useRef<ClientToolExecutor | null>(null);
+  const combinedClientToolCapabilitiesRef = useRef<readonly ChatClientCapability[]>([]);
   const showSession = useCallback(async (
     requestedProjectId: string,
     sessionId: string,
@@ -54,29 +55,30 @@ export function useChatPanelClientToolRegistry({
     activateSession(sessionId);
   }, [activateSession, activeProjectIdRef, reloadSessionsForSelection]);
 
-  const clientToolExecutor = useMemo(() => createClientToolRegistry([
+  const clientToolRegistry: ClientToolRegistry = useMemo(() => createClientToolRegistry([
     ...clientToolRegistrations,
     createConversationManagementClientToolRegistration({
-      getCurrentProjectId: () => activeProjectIdRef.current,
-      onSessionsChanged: reloadSessions,
       showSession,
     }),
     createConversationInteractionClientToolRegistration({
       backgroundRuns: backgroundConversationRuns,
       getClientToolExecutor: () => combinedClientToolExecutorRef.current,
-      getCurrentProjectId: () => activeProjectIdRef.current,
-      onSessionsChanged: reloadSessions,
+      getClientCapabilities: () => combinedClientToolCapabilitiesRef.current,
       onSessionRuntimeStatusChanged: setSessionRuntimeStatus,
     }),
-  ]).execute, [
+  ]), [
     activeProjectIdRef,
     backgroundConversationRuns,
     clientToolRegistrations,
-    reloadSessions,
     setSessionRuntimeStatus,
     showSession,
   ]);
-  combinedClientToolExecutorRef.current = clientToolExecutor;
+  combinedClientToolExecutorRef.current = clientToolRegistry.execute;
+  combinedClientToolCapabilitiesRef.current = clientToolRegistry.capabilities;
 
-  return { backgroundConversationRuns, clientToolExecutor };
+  return {
+    backgroundConversationRuns,
+    clientToolCapabilities: clientToolRegistry.capabilities,
+    clientToolExecutor: clientToolRegistry.execute,
+  };
 }

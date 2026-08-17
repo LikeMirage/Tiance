@@ -65,6 +65,7 @@ type DocumentEditorActiveContentProps = {
   markdownAssetUrlResolver?: (src: string | undefined) => string | undefined;
   onEditorScroll: (scroller: HTMLElement) => void;
   onEditorScrollerReady: (scroller: HTMLElement | null) => void;
+  onConversationDataPageChange?: (tab: DocumentTab, page: number) => Promise<void>;
   onMarkDirty: (id: string) => void;
   onMarkMissing: (id: string) => void;
   onCreatePdfPageImageReference?: (request: EditorPdfPageImageReferenceRequest) => Promise<void>;
@@ -117,6 +118,7 @@ export function DocumentEditorActiveContent({
   markdownAssetUrlResolver,
   onEditorScroll,
   onEditorScrollerReady,
+  onConversationDataPageChange,
   onMarkDirty,
   onMarkMissing,
   onCreatePdfPageImageReference,
@@ -288,6 +290,7 @@ export function DocumentEditorActiveContent({
       isProjectMemory={isProjectMemory}
       onEditorScroll={onEditorScroll}
       onEditorScrollerReady={onEditorScrollerReady}
+      onConversationDataPageChange={onConversationDataPageChange}
       onMarkDirty={onMarkDirty}
       onSaveTab={onSaveTab}
       onSourceTextContextMenu={handleSourceTextContextMenu}

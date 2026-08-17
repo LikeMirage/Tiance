@@ -230,7 +230,7 @@ export function ThemeSettingsPanel({
           );
           setThemes((current) => mergeThemeSummary(current, savedTheme));
           if (savedTheme.id === currentActiveThemeId) {
-            requestAppThemeRefresh({ reason: "theme_designer", themeId: savedTheme.id });
+            requestAppThemeRefresh({ reason: "theme_workspace", themeId: savedTheme.id });
           }
         })
         .catch((saveError) => {

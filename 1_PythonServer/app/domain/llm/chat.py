@@ -84,6 +84,12 @@ class ChatToolResult:
 
 
 @dataclass(frozen=True, slots=True)
+class ChatClientCapability:
+    name: str
+    version: int
+
+
+@dataclass(frozen=True, slots=True)
 class ChatClientToolRequest:
     request_id: str
     call_id: str
@@ -93,6 +99,7 @@ class ChatClientToolRequest:
     session_id: str | None = None
     timeout_seconds: int = 60
     model_context: dict[str, Any] = field(default_factory=dict)
+    capability: ChatClientCapability | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,6 +132,7 @@ class ChatCompletionRequest:
     messages: tuple[ChatMessage, ...]
     project_id: str | None = None
     session_id: str | None = None
+    run_id: str | None = None
     cache_affinity_id: str | None = None
     tools: tuple[ChatToolDefinition, ...] = ()
     generation: LlmGenerationParams = field(default_factory=LlmGenerationParams)
@@ -135,6 +143,7 @@ class ChatCompletionRequest:
     reasoning_replay_mode: ReasoningReplayMode = ReasoningReplayMode.TOOL_CALL_ROUNDS
     inject_message_timestamps: bool = False
     max_tool_calls: int = 99999
+    client_capabilities: tuple[ChatClientCapability, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

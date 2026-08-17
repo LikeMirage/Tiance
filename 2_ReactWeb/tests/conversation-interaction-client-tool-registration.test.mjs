@@ -81,8 +81,14 @@ test("不等待模式只在消息持久化 started 后返回", async () => {
   assert.equal(startInput.userMessageId, "client_request-no-wait");
   assert.equal(
     startInput.message,
-    "后台执行\n\n本条消息来源会话名称：来源会话\n本条消息来源会话 ID：caller-session",
+    "后台执行",
   );
+  assert.deepEqual(startInput.sourceContext, {
+    project_id: "project-a",
+    session_id: "caller-session",
+    session_title: "来源会话",
+    tool_request_id: "request-no-wait",
+  });
   assert.equal(result.content.accepted, true);
   assert.equal(result.content.runtime_status, "running");
   assert.equal(result.content.outcome, "still_running");
@@ -367,36 +373,6 @@ test("等待模式区分模型错误与无正文取消终态", async () => {
   }
 });
 
-test("等待安全截止不会中断目标会话，并返回 still_running 与路径", async () => {
-  installSessionListFetch();
-  const backgroundRuns = {
-    hasActiveRun: () => false,
-    startOrResume: (input) => ({
-      started: Promise.resolve({ running: true, userMessageId: input.userMessageId }),
-      completion: new Promise(() => undefined),
-    }),
-  };
-  const registration = createInteractionRegistration(backgroundRuns);
-
-  const result = await registration.execute(clientToolRequest({
-    name: "interact_ai_conversation",
-    requestId: "request-deadline",
-    timeoutSeconds: 5,
-    arguments: {
-      action: "send",
-      session_id: "session-a",
-      message: "长任务",
-      wait_for_reply: true,
-    },
-  }));
-
-  assert.equal(result.ok, true);
-  assert.equal(result.content.wait_for_reply, true);
-  assert.equal(result.content.outcome, "still_running");
-  assert.equal(result.content.runtime_status, "running");
-  assert.deepEqual(result.content.history_locator, conversationHistoryLocator("session-a"));
-});
-
 test("发送启动竞争失败保留路径且不伪造运行终态", async () => {
   installSessionListFetch();
   const backgroundRuns = {
@@ -467,8 +443,7 @@ function createInteractionRegistration(backgroundRuns, overrides = {}) {
   return createConversationInteractionClientToolRegistration({
     backgroundRuns,
     getClientToolExecutor: () => null,
-    getCurrentProjectId: () => "project-a",
-    onSessionsChanged: async () => undefined,
+    getClientCapabilities: () => [],
     onSessionRuntimeStatusChanged: () => undefined,
     ...overrides,
   });

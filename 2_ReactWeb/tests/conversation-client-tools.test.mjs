@@ -197,6 +197,7 @@ test("不等待模式先返回 started，注册表按稳定消息 ID 复用同�
   });
   const session = conversationSession();
   const run = registry.startOrResume({
+    clientCapabilities: () => [],
     clientToolExecutor: () => null,
     message: "执行",
     projectId: "project-a",
@@ -213,6 +214,7 @@ test("不等待模式先返回 started，注册表按稳定消息 ID 复用同�
   assert.equal(onStartedCalled, true);
   assert.equal(registry.hasActiveRun("project-a", session.session_id), true);
   const repeatedRun = registry.startOrResume({
+    clientCapabilities: () => [],
     clientToolExecutor: () => null,
     message: "执行",
     projectId: "project-a",
@@ -302,6 +304,7 @@ test("流终态标识与持久化回复不一致时明确失败", async () => {
     loadTurn: async () => turn,
   });
   const run = registry.startOrResume({
+    clientCapabilities: () => [],
     clientToolExecutor: () => null,
     message: "执行",
     projectId: "project-a",

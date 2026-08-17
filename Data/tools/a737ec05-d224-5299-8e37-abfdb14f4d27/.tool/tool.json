@@ -2,7 +2,7 @@
   "description": "查看当前主题，精简列出、创建、克隆、自动派生配色、编辑、切换、恢复和删除 天策 主题配置。主题是 Data/themes 下的独立主题包，主题内容在 theme.json，资源放在包内 assets；克隆会完整复制源主题配置和资源并使用新的 ID 与名称；配色派生从背景、面板、正文和强调四个基础色确定性生成完整颜色 Token；编辑使用字段路径和值，避免破坏主题结构；删除主题时会删除整个未激活主题包。",
   "display_name": "主题设计工具",
   "execution": {
-    "parallel": false
+    "parallel": true
   },
   "files": {
     "examples": ".tool/examples.json",

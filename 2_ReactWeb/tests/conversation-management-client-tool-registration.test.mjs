@@ -201,7 +201,6 @@ test("会话管理 registration 返回真实状态、消息与保底路径", asy
 
 test("创建子会话只提交显式覆盖项并由后端继承父配置", async () => {
   let createBody = null;
-  const changedProjects = [];
   installFetchRouter(async ({ init, method, url }) => {
     if (url.pathname.endsWith("/conversations") && method === "GET") {
       return sessionListResponse();
@@ -216,9 +215,7 @@ test("创建子会话只提交显式覆盖项并由后端继承父配置", async
     }
     throw new Error(`未处理的测试请求：${method} ${url}`);
   });
-  const registration = createManagementRegistration({
-    onSessionsChanged: (projectId) => changedProjects.push(projectId),
-  });
+  const registration = createManagementRegistration();
 
   const result = await registration.execute(clientToolRequest({
     name: "manage_ai_conversations",
@@ -238,14 +235,12 @@ test("创建子会话只提交显式覆盖项并由后端继承父配置", async
   assert.equal(Object.hasOwn(createBody, "model_id"), false);
   assert.equal(Object.hasOwn(createBody, "reasoning_mode"), false);
   assert.equal(Object.hasOwn(createBody, "settings"), false);
-  assert.deepEqual(changedProjects, ["project-a"]);
   assert.equal(result.content.session.session_id, "session-child");
   assert.deepEqual(result.content.history_locator, conversationHistoryLocator("session-child"));
 });
 
 test("自动命名功能会话不传目标 ID 并由后端确定父会话", async () => {
   let submittedBody = null;
-  const changedSessions = [];
   installFetchRouter(async ({ init, method, url }) => {
     if (
       method === "POST"
@@ -261,11 +256,7 @@ test("自动命名功能会话不传目标 ID 并由后端确定父会话", asyn
     }
     throw new Error(`未处理的测试请求：${method} ${url}`);
   });
-  const registration = createManagementRegistration({
-    onSessionsChanged: async (projectId, sessionId) => {
-      changedSessions.push([projectId, sessionId]);
-    },
-  });
+  const registration = createManagementRegistration();
 
   const result = await registration.execute(clientToolRequest({
     name: "manage_ai_conversations",
@@ -283,7 +274,6 @@ test("自动命名功能会话不传目标 ID 并由后端确定父会话", asyn
   assert.equal(result.content.function_session_id, "function-session");
   assert.equal(result.content.source_session_id, "session-a");
   assert.equal(result.content.title, "Token 统计设计");
-  assert.deepEqual(changedSessions, [["project-a", undefined]]);
 });
 
 test("目标会话操作失败时仍保留会话身份与消息路径", async () => {
@@ -319,8 +309,6 @@ test("目标会话操作失败时仍保留会话身份与消息路径", async ()
 
 function createManagementRegistration(overrides = {}) {
   return createConversationManagementClientToolRegistration({
-    getCurrentProjectId: () => "project-a",
-    onSessionsChanged: async () => undefined,
     showSession: async () => undefined,
     ...overrides,
   });

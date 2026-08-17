@@ -214,7 +214,23 @@ class ConversationRunManager:
             task = run.task if run is not None else None
             if task is None or task.done():
                 return False
-            task.cancel()
+            assert run is not None
+
+        pending_client_requests = (
+            await self._client_tool_bridge_service.pending_request_ids(
+                project_id=project_id,
+                session_id=session_id,
+            )
+        )
+        for request_id in pending_client_requests:
+            await self._publish(
+                run,
+                {
+                    "kind": "client_tool_request_cancelled",
+                    "request_id": request_id,
+                },
+            )
+        task.cancel()
 
         await asyncio.gather(task, return_exceptions=True)
         await self._finish_run(run)

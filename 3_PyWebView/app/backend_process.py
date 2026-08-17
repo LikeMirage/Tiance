@@ -32,6 +32,7 @@ PYTHON_ENVIRONMENT_KEYS_TO_CLEAR = (
     "CONDA_DEFAULT_ENV",
 )
 SHELL_DEFAULT_ALLOWED_ORIGINS = ("https://pywebview.flowrl.com",)
+BACKEND_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS = 8.0
 
 
 class BackendProcessManager:
@@ -161,17 +162,12 @@ class BackendProcessManager:
         if process is not None:
             if process.poll() is None:
                 with timed_stage("backend process: stop", pid=process.pid):
-                    if os.name == "nt":
-                        # Kill the managed tree while its root still exists. If
-                        # the root exits first, Windows can no longer discover
-                        # its orphaned multiprocessing children.
-                        _kill_process_tree(process)
-                    else:
-                        process.terminate()
-                    deadline = time.monotonic() + 5
-                    while process.poll() is None and time.monotonic() < deadline:
-                        time.sleep(0.1)
-                    if process.poll() is None:
+                    self._lease_server.revoke()
+                    stopped_gracefully = _wait_for_process_exit(
+                        process,
+                        timeout_seconds=BACKEND_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS,
+                    )
+                    if not stopped_gracefully:
                         _kill_process_tree(process)
                     mark("backend process: stopped", returncode=process.poll())
             if process.poll() is not None:
@@ -267,6 +263,17 @@ def _resolve_backend_python_executable() -> str:
             return str(console_python)
 
     return str(current_python)
+
+
+def _wait_for_process_exit(
+    process: subprocess.Popen[bytes],
+    *,
+    timeout_seconds: float,
+) -> bool:
+    deadline = time.monotonic() + max(float(timeout_seconds), 0.0)
+    while process.poll() is None and time.monotonic() < deadline:
+        time.sleep(0.1)
+    return process.poll() is not None
 
 
 def _kill_process_tree(process: subprocess.Popen[bytes]) -> None:

@@ -1,11 +1,14 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import type { EditorReferenceViewerPayload } from "../../../entities/editor/model/editorReference";
 import { publishProjectFileMutation } from "../../../entities/project/model/projectFileMutation";
 import type { WorkspaceLayoutPreferenceUpdate } from "../../../entities/workspace/model/workspaceLayoutPreferences";
 import type { ConversationDataFileName } from "../../../features/ai-panel/ui/ChatDataDashboardPanel";
-import { createEditorTabsClientToolRegistration } from "../../../features/client-tools/model/editorTabsClientTool";
+import {
+  createEditorTabsClientToolRegistration,
+  type EditorTabsCapability,
+} from "../../../features/client-tools/model/editorTabsClientTool";
 import { saveProjectCodeBlock } from "../../../features/document-editor-canvas/model/saveProjectCodeBlock";
 import type { useDocumentTabs } from "../../../features/document-tabs/model/useDocumentTabs";
 import type { CodeBlockSavePayload } from "../../../features/markdown-preview/model/codeBlockFile";
@@ -25,8 +28,14 @@ export function useWorkspaceDocumentActions({
 }: UseWorkspaceDocumentActionsOptions) {
   const documentTabsRef = useRef(documentTabs);
   const projectIdRef = useRef(projectId);
+  const dataViewRequestsRef = useRef(new Map<string, AbortController>());
   documentTabsRef.current = documentTabs;
   projectIdRef.current = projectId;
+
+  useEffect(() => () => {
+    for (const controller of dataViewRequestsRef.current.values()) controller.abort();
+    dataViewRequestsRef.current.clear();
+  }, []);
 
   const handleSaveProjectCodeBlock = useCallback(async ({ code, language }: CodeBlockSavePayload) => {
     if (!projectId) {
@@ -79,6 +88,53 @@ export function useWorkspaceDocumentActions({
     documentTabs.openVirtualConversationBranches(resolvedProjectId);
   }, [documentTabs.openVirtualConversationBranches, projectId]);
 
+  const loadConversationDataView = useCallback(async ({
+    fileName,
+    page,
+    targetProjectId,
+    viewSessionId,
+  }: {
+    fileName: ConversationDataFileName;
+    page?: number;
+    targetProjectId: string;
+    viewSessionId: string | null;
+  }) => {
+    const requestKey = `${targetProjectId}:${viewSessionId ?? "project"}:${fileName}`;
+    dataViewRequestsRef.current.get(requestKey)?.abort();
+    const controller = new AbortController();
+    dataViewRequestsRef.current.set(requestKey, controller);
+    try {
+      const result = await getConversationDataView(
+        targetProjectId,
+        fileName,
+        viewSessionId,
+        { page, signal: controller.signal },
+      );
+      if (
+        controller.signal.aborted
+        || dataViewRequestsRef.current.get(requestKey) !== controller
+        || projectIdRef.current !== targetProjectId
+      ) return;
+      documentTabsRef.current.openVirtualConversationData({
+        content: result.content,
+        fileName,
+        projectId: targetProjectId,
+        revisionMs: result.revision_ms,
+        sessionId: viewSessionId,
+        totalCount: result.total_count,
+        page: result.page,
+        pageSize: result.page_size,
+        totalPages: result.total_pages,
+        hasPrevious: result.has_previous,
+        hasNext: result.has_next,
+      });
+    } finally {
+      if (dataViewRequestsRef.current.get(requestKey) === controller) {
+        dataViewRequestsRef.current.delete(requestKey);
+      }
+    }
+  }, []);
+
   const handleOpenConversationDataFile = useCallback((
     sessionId: string,
     fileName: ConversationDataFileName,
@@ -91,19 +147,26 @@ export function useWorkspaceDocumentActions({
     const viewSessionId = fileName === "index.json" || fileName === "project_memory.jsonl"
       ? null
       : sessionId;
-    void getConversationDataView(projectId, fileName, viewSessionId).then((result) => {
-      if (projectIdRef.current !== projectId) return;
-      documentTabsRef.current.openVirtualConversationData({
-        content: result.content,
-        fileName,
-        projectId,
-        revisionMs: result.revision_ms,
-        sessionId: viewSessionId,
-        totalCount: result.total_count,
-        truncated: result.truncated,
-      });
+    void loadConversationDataView({
+      fileName,
+      targetProjectId: projectId,
+      viewSessionId,
     });
-  }, [documentTabs.openVirtualMemoryDashboard, projectId]);
+  }, [documentTabs.openVirtualMemoryDashboard, loadConversationDataView, projectId]);
+
+  const handleConversationDataPageChange = useCallback(async (
+    tab: DocumentTab,
+    page: number,
+  ) => {
+    const view = tab.conversationDataView;
+    if (!tab.projectId || !view || page === view.page || page < 1 || page > view.totalPages) return;
+    await loadConversationDataView({
+      fileName: view.fileName as ConversationDataFileName,
+      page,
+      targetProjectId: tab.projectId,
+      viewSessionId: view.sessionId,
+    });
+  }, [loadConversationDataView]);
 
   const handleAiPanelWidthCommit = useCallback((aiPanelWidth: number) => {
     onLayoutPreferenceChange({ aiPanelWidth });
@@ -124,7 +187,7 @@ export function useWorkspaceDocumentActions({
   const visibleActiveTabId = visibleActiveTab ? documentTabs.activeTabId : null;
   const clientToolRegistrations = useMemo(() => [
     createEditorTabsClientToolRegistration({
-      getDocumentTabs: () => documentTabsRef.current,
+      getEditorTabs: () => createEditorTabsCapability(documentTabsRef.current),
       getProjectId: () => projectIdRef.current,
     }),
   ], []);
@@ -143,6 +206,7 @@ export function useWorkspaceDocumentActions({
     clientToolRegistrations,
     handleAiPanelWidthCommit,
     handleComposerHeightCommit,
+    handleConversationDataPageChange,
     handleGenerateMarkdownDocx,
     handleOpenConversationBranches,
     handleOpenConversationDataFile,
@@ -152,6 +216,28 @@ export function useWorkspaceDocumentActions({
     visibleActiveTab,
     visibleActiveTabId,
     visibleProjectTabs,
+  };
+}
+
+function createEditorTabsCapability(
+  documentTabs: ReturnType<typeof useDocumentTabs>,
+): EditorTabsCapability {
+  return {
+    activeTabId: documentTabs.activeTabId,
+    tabs: documentTabs.tabs,
+    closeTab: documentTabs.closeTab,
+    openProjectFile: async (projectId, path) => {
+      await documentTabs.openNode({
+        id: `project:${projectId}:${path}`,
+        kind: "file",
+        name: path.split("/").at(-1) || path,
+        path,
+      }, {
+        projectFilePath: path,
+        projectId,
+      });
+    },
+    selectTab: documentTabs.selectTab,
   };
 }
 
@@ -174,6 +260,8 @@ function getActiveConversationDataFile(tab: {
   if (path.endsWith("/compressions.jsonl")) return "compressions.jsonl";
   if (path.endsWith("/injection_preview.json")) return "injection_preview.json";
   if (path.endsWith("/messages.jsonl")) return "messages.jsonl";
+  if (path.endsWith("/conversation_journal.jsonl")) return "conversation_journal.jsonl";
+  if (path.endsWith("/model_exchanges.jsonl")) return "model_exchanges.jsonl";
   if (path.endsWith("/session.json")) return "session.json";
   return null;
 }

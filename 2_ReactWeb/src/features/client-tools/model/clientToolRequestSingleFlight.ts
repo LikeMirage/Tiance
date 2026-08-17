@@ -7,6 +7,7 @@ import type {
   ClientToolExecutionResult,
   ClientToolExecutor,
 } from "./clientToolBridge";
+import { claimClientToolRequest } from "../../../services/llm/claimClientToolRequest";
 
 const MAX_COMPLETED_RESULTS = 2_048;
 
@@ -16,15 +17,17 @@ type ClientToolResultSubmitter = (
 ) => Promise<ClientToolResultAck>;
 
 type SingleFlightEntry = {
+  abortController: AbortController;
   deliveryState: "retryable" | "accepted" | "closed";
   executionSettled: boolean;
-  resultPromise: Promise<ClientToolExecutionResult>;
+  resultPromise: Promise<ClientToolExecutionResult | null>;
   submitPromise: Promise<void> | null;
 };
 
 type ClientToolRequestSingleFlightOptions = {
   maxCompletedResults?: number;
   submitResult?: ClientToolResultSubmitter;
+  claimRequest?: (requestId: string) => Promise<boolean>;
 };
 
 /**
@@ -38,6 +41,7 @@ export class ClientToolRequestSingleFlight {
   private readonly entries = new Map<string, SingleFlightEntry>();
   private readonly maxCompletedResults: number;
   private readonly submitResult: ClientToolResultSubmitter;
+  private readonly claimRequest: (requestId: string) => Promise<boolean>;
 
   constructor(options: ClientToolRequestSingleFlightOptions = {}) {
     this.maxCompletedResults = normalizePositiveInteger(
@@ -45,6 +49,7 @@ export class ClientToolRequestSingleFlight {
       MAX_COMPLETED_RESULTS,
     );
     this.submitResult = options.submitResult ?? submitClientToolResult;
+    this.claimRequest = options.claimRequest ?? claimClientToolRequest;
   }
 
   run(
@@ -71,14 +76,29 @@ export class ClientToolRequestSingleFlight {
     return this.startSubmit(requestId, entry);
   }
 
+  cancel(requestId: string) {
+    const normalizedRequestId = requestId.trim();
+    if (!normalizedRequestId) return false;
+    const entry = this.entries.get(normalizedRequestId);
+    if (!entry || entry.executionSettled) return false;
+    entry.abortController.abort();
+    return true;
+  }
+
   private createEntry(
     requestId: string,
     request: ChatClientToolRequestEvent,
     executor: ClientToolExecutor,
   ): SingleFlightEntry {
-    const resultPromise = Promise.resolve()
-      .then(() => executeClientToolSafely(request, executor));
+    const abortController = new AbortController();
+    const resultPromise = this.claimRequest(requestId).then((acquired) => {
+      if (!acquired) {
+        return null;
+      }
+      return executeClientToolSafely(request, executor, abortController.signal);
+    });
     const entry: SingleFlightEntry = {
+      abortController,
       deliveryState: "retryable",
       executionSettled: false,
       resultPromise,
@@ -100,9 +120,11 @@ export class ClientToolRequestSingleFlight {
     entry: SingleFlightEntry,
   ): Promise<void> {
     const submission = entry.resultPromise
-      .then((result) => this.submitResult(requestId, result))
+      .then((result) => result === null
+        ? null
+        : this.submitResult(requestId, result))
       .then((ack) => {
-        entry.deliveryState = ack.accepted ? "accepted" : "closed";
+        entry.deliveryState = ack?.accepted ? "accepted" : "closed";
       });
     const trackedSubmission = submission.then(
       () => {
@@ -161,18 +183,43 @@ export function runClientToolRequestOnce(
   return sharedClientToolRequestSingleFlight.run(request, executor);
 }
 
+export function cancelClientToolRequest(requestId: string) {
+  return sharedClientToolRequestSingleFlight.cancel(requestId);
+}
+
 async function executeClientToolSafely(
   request: ChatClientToolRequestEvent,
   executor: ClientToolExecutor,
+  signal: AbortSignal,
 ): Promise<ClientToolExecutionResult> {
+  if (signal.aborted) return cancelledClientToolResult();
+  let resolveCancelled: (() => void) | null = null;
+  const cancelled = new Promise<ClientToolExecutionResult>((resolve) => {
+    resolveCancelled = () => resolve(cancelledClientToolResult());
+    signal.addEventListener("abort", resolveCancelled, { once: true });
+  });
+  const execution = (async (): Promise<ClientToolExecutionResult> => {
+    try {
+      return await executor(request, { signal });
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "前端工具执行失败。",
+      };
+    }
+  })();
   try {
-    return await executor(request);
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "前端工具执行失败。",
-    };
+    return await Promise.race([execution, cancelled]);
+  } finally {
+    if (resolveCancelled) signal.removeEventListener("abort", resolveCancelled);
   }
+}
+
+function cancelledClientToolResult(): ClientToolExecutionResult {
+  return {
+    ok: false,
+    error: "调用会话已停止等待；已开始的动作不会被伪装成已回滚。",
+  };
 }
 
 function normalizePositiveInteger(

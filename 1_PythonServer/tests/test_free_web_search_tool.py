@@ -43,7 +43,7 @@ def test_free_web_search_contract_supports_batch_queries_and_urls():
     assert manifest["name"] == "free_web_search"
     assert manifest["runtime"]["type"] == "python"
     assert manifest["loading"]["dynamic"] is True
-    assert manifest["execution"]["parallel"] is False
+    assert manifest["execution"]["parallel"] is True
     assert set(input_schema["properties"]) == {
         "engine",
         "queries",

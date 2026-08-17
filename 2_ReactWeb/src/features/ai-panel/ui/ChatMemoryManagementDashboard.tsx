@@ -6,6 +6,7 @@ import type {
   ProjectMemoryScope,
 } from "../../../entities/project-memory/model/projectMemory";
 import { useI18n, type TranslationKey } from "../../../shared/i18n";
+import { PaginationControls } from "../../../shared/ui/pagination-controls/PaginationControls";
 import {
   applyProjectMemoryOperation,
   getProjectMemory,
@@ -36,10 +37,16 @@ export function ChatMemoryManagementDashboard({
   const [editDraft, setEditDraft] = useState<DraftState>(EMPTY_DRAFT);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [deleteReason, setDeleteReason] = useState("");
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pageSize: 50,
+    totalCount: 0,
+    totalPages: 1,
+  });
   const requestIdRef = useRef(0);
   const { t } = useI18n();
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (page?: number, signal?: AbortSignal) => {
     if (!projectId) {
       setItems([]);
       setState("idle");
@@ -52,12 +59,20 @@ export function ChatMemoryManagementDashboard({
     setError(null);
     try {
       const response = await getProjectMemory(projectId, {
+        page,
+        pageSize: 50,
         query,
         scope,
         signal,
       });
       if (requestIdRef.current !== requestId) return;
       setItems(response.items);
+      setPagination({
+        page: response.page,
+        pageSize: response.page_size,
+        totalCount: response.total_count,
+        totalPages: response.total_pages,
+      });
       setState("ready");
     } catch (err) {
       if (signal?.aborted || requestIdRef.current !== requestId) return;
@@ -68,7 +83,7 @@ export function ChatMemoryManagementDashboard({
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(controller.signal);
+    void load(undefined, controller.signal);
     return () => {
       controller.abort();
       requestIdRef.current += 1;
@@ -78,20 +93,20 @@ export function ChatMemoryManagementDashboard({
   const saveAdd = useCallback(async () => {
     if (!projectId || !addDraft.content.trim() || !addDraft.reason.trim()) return;
     try {
-      const response = await applyProjectMemoryOperation(projectId, {
+      await applyProjectMemoryOperation(projectId, {
         scope,
         operation: "add",
         content: addDraft.content,
         keywords: keywordsFromDraft(addDraft.keywords),
         reason: addDraft.reason,
       });
-      setItems(response.items);
+      await load();
       setAddDraft(EMPTY_DRAFT);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("aiPanel.memoryDashboard.addFailed"));
     }
-  }, [addDraft, projectId, scope, t]);
+  }, [addDraft, load, projectId, scope, t]);
 
   const startEdit = useCallback((item: ProjectMemoryItem) => {
     setEditingId(item.id);
@@ -106,7 +121,7 @@ export function ChatMemoryManagementDashboard({
   const saveEdit = useCallback(async (item: ProjectMemoryItem) => {
     if (!projectId || !editDraft.content.trim() || !editDraft.reason.trim()) return;
     try {
-      const response = await applyProjectMemoryOperation(projectId, {
+      await applyProjectMemoryOperation(projectId, {
         scope,
         operation: "update",
         memory_id: item.id,
@@ -114,31 +129,31 @@ export function ChatMemoryManagementDashboard({
         keywords: keywordsFromDraft(editDraft.keywords),
         reason: editDraft.reason,
       });
-      setItems(response.items);
+      await load(pagination.page);
       setEditingId(null);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("aiPanel.memoryDashboard.updateFailed"));
     }
-  }, [editDraft, projectId, scope, t]);
+  }, [editDraft, load, pagination.page, projectId, scope, t]);
 
   const deleteItem = useCallback(async (item: ProjectMemoryItem) => {
     if (!projectId || !deleteReason.trim()) return;
     try {
-      const response = await applyProjectMemoryOperation(projectId, {
+      await applyProjectMemoryOperation(projectId, {
         scope,
         operation: "delete",
         memory_id: item.id,
         reason: deleteReason,
       });
-      setItems(response.items);
+      await load(pagination.page);
       setConfirmingDeleteId(null);
       setDeleteReason("");
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("aiPanel.memoryDashboard.deleteFailed"));
     }
-  }, [deleteReason, projectId, scope, t]);
+  }, [deleteReason, load, pagination.page, projectId, scope, t]);
 
   const scopedTitle = scope === "project"
     ? t("aiPanel.memoryDashboard.projectMemory")
@@ -158,7 +173,7 @@ export function ChatMemoryManagementDashboard({
           aria-label={t("aiPanel.memoryDashboard.refresh")}
           title={t("common.actions.refresh")}
           disabled={state === "loading" || isProjectMissing}
-          onClick={() => { void load(); }}
+          onClick={() => { void load(pagination.page); }}
         >
           <ArrowClockwise size={14} weight="bold" aria-hidden="true" />
         </button>
@@ -262,6 +277,16 @@ export function ChatMemoryManagementDashboard({
           />
         ))}
       </div>
+      {!isProjectMissing && pagination.totalCount > 0 ? (
+        <PaginationControls
+          isLoading={state === "loading"}
+          onPageChange={(page) => load(page)}
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          totalCount={pagination.totalCount}
+          totalPages={pagination.totalPages}
+        />
+      ) : null}
     </section>
   );
 }

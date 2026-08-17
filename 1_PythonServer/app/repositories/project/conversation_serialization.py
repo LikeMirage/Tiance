@@ -106,6 +106,11 @@ def _message_from_payload(payload: dict) -> ProjectConversationMessage:
             if role == "user"
             else _empty_session_references()
         ),
+        source_context=(
+            _source_context_from_payload(payload.get("source_context"))
+            if role == "user"
+            else {}
+        ),
     )
 
 def _session_to_payload(session: ProjectConversationSession) -> dict:
@@ -157,6 +162,8 @@ def _message_to_payload(message: ProjectConversationMessage) -> dict:
             payload["target_model_id"] = message.target_model_id
         if _has_message_references(message.references):
             payload["references"] = _message_references_from_payload(message.references)
+        if message.source_context:
+            payload["source_context"] = _source_context_from_payload(message.source_context)
     else:
         if message.provider_id:
             payload["provider_id"] = message.provider_id
@@ -233,12 +240,14 @@ def _index_session_items(index: dict) -> list:
     return sessions if isinstance(sessions, list) else []
 
 def _default_session_state(session_id: str) -> ProjectConversationSessionState:
+    now = _utc_now()
     return ProjectConversationSessionState(
         session_id=session_id,
         runtime_status="idle",
         draft="",
         references=_empty_session_references(),
-        updated_at=_utc_now(),
+        updated_at=now,
+        runtime_updated_at=now,
     )
 
 def _session_state_from_payload(
@@ -250,12 +259,14 @@ def _session_state_from_payload(
     runtime_status = str(payload.get("runtime_status") or "idle")
     if runtime_status not in _RUNTIME_STATUSES:
         runtime_status = "idle"
+    updated_at = str(payload.get("updated_at") or _utc_now())
     return ProjectConversationSessionState(
         session_id=session_id,
         runtime_status=runtime_status,
         draft=str(payload.get("draft") or ""),
         references=_session_references_from_payload(payload.get("references")),
-        updated_at=str(payload.get("updated_at") or _utc_now()),
+        updated_at=updated_at,
+        runtime_updated_at=str(payload.get("runtime_updated_at") or updated_at),
     )
 
 def _merge_session_state(
@@ -269,12 +280,16 @@ def _merge_session_state(
         runtime_status = current.runtime_status
     draft = payload.get("draft", current.draft)
     references = payload.get("references", current.references)
+    now = _utc_now()
     return ProjectConversationSessionState(
         session_id=session_id,
         runtime_status=str(runtime_status),
         draft=str(draft or ""),
         references=_session_references_from_payload(references),
-        updated_at=_utc_now(),
+        updated_at=now,
+        runtime_updated_at=(
+            now if "runtime_status" in payload else current.runtime_updated_at
+        ),
     )
 
 def _session_state_to_payload(state: ProjectConversationSessionState) -> dict:
@@ -283,6 +298,7 @@ def _session_state_to_payload(state: ProjectConversationSessionState) -> dict:
         "draft": state.draft,
         "references": state.references,
         "updated_at": state.updated_at,
+        "runtime_updated_at": state.runtime_updated_at or state.updated_at,
     }
 
 def _empty_session_references() -> list[dict]:
@@ -302,6 +318,17 @@ def _has_message_references(value: object) -> bool:
     references = _message_references_from_payload(value)
     return bool(references)
 
+def _source_context_from_payload(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    normalized: dict[str, str] = {}
+    for field in ("project_id", "session_id", "session_title", "tool_request_id"):
+        raw = value.get(field)
+        if not isinstance(raw, str) or not raw.strip():
+            return {}
+        normalized[field] = raw.strip()
+    return normalized
+
 def _runtime_status_for_appended_message(role: str) -> str | None:
     if role == "user":
         return "running"
@@ -316,12 +343,24 @@ def _expire_running_state_if_stale(
 ) -> ProjectConversationSessionState:
     if state.runtime_status != "running":
         return state
-    updated_at = _parse_utc_datetime(state.updated_at)
+    updated_at = _parse_utc_datetime(state.runtime_updated_at or state.updated_at)
     if updated_at is None:
-        return replace(state, runtime_status="idle", updated_at=_utc_now())
+        now = _utc_now()
+        return replace(
+            state,
+            runtime_status="idle",
+            updated_at=now,
+            runtime_updated_at=now,
+        )
     if datetime.now(UTC) - updated_at <= _RUNNING_STATUS_STALE_AFTER:
         return state
-    return replace(state, runtime_status="idle", updated_at=_utc_now())
+    now = _utc_now()
+    return replace(
+        state,
+        runtime_status="idle",
+        updated_at=now,
+        runtime_updated_at=now,
+    )
 
 def _optional_str(value: object) -> str | None:
     return value if isinstance(value, str) else None

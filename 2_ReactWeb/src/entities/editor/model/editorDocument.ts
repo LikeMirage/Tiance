@@ -40,6 +40,16 @@ export type DocumentTab = {
       mtimeMs: number | null;
     }
     | null;
+  conversationDataView?: {
+    fileName: string;
+    sessionId: string | null;
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+    hasPrevious: boolean;
+    hasNext: boolean;
+  } | null;
 };
 
 export type WorkspaceState = {

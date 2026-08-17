@@ -38,6 +38,8 @@ class LoadedTool:
 def load_tool(folder_root: str) -> LoadedTool:
     root = Path(folder_root)
     manifest = _read_json_object(root / TOOL_FOLDER_MANIFEST_FILE)
+    _read_parallel_flag(manifest.get("execution"))
+    _validate_runtime(manifest.get("runtime"))
     input_schema = _read_json_object(root / TOOL_INPUT_SCHEMA_FILE)
     output_schema = _read_json_object(root / TOOL_OUTPUT_SCHEMA_FILE)
     examples = _read_examples(root / TOOL_EXAMPLES_FILE)
@@ -55,6 +57,7 @@ def build_summary(loaded_tool: LoadedTool, *, category: str) -> ToolSummary:
     manifest = loaded_tool.manifest
     loading = manifest.get("loading")
     execution = manifest.get("execution")
+    client_capability = _read_client_capability(manifest.get("runtime"))
     return ToolSummary(
         name=loaded_tool.name,
         display_name=_read_string(manifest, "display_name"),
@@ -69,6 +72,8 @@ def build_summary(loaded_tool: LoadedTool, *, category: str) -> ToolSummary:
             if example_enabled(example)
         ),
         parallel=_read_parallel_flag(execution),
+        client_capability_name=(client_capability[0] if client_capability else None),
+        client_capability_min_version=(client_capability[1] if client_capability else None),
     )
 
 
@@ -165,9 +170,48 @@ def _read_dynamic_flag(loading: object) -> bool:
 
 def _read_parallel_flag(execution: object) -> bool:
     if not isinstance(execution, dict):
-        return False
+        raise BadRequestError("tool.json 缺少 execution.parallel。")
     parallel = execution.get("parallel")
-    return parallel if isinstance(parallel, bool) else False
+    if not isinstance(parallel, bool):
+        raise BadRequestError("tool.json 的 execution.parallel 必须是布尔值。")
+    return parallel
+
+
+def _validate_runtime(runtime: object) -> None:
+    if not isinstance(runtime, dict):
+        raise BadRequestError("tool.json 缺少 runtime。")
+    runtime_type = runtime.get("type")
+    if not isinstance(runtime_type, str) or not runtime_type.strip():
+        raise BadRequestError("tool.json 的 runtime.type 不能为空。")
+    timeout_seconds = runtime.get("timeout_seconds")
+    if not isinstance(timeout_seconds, int) or isinstance(timeout_seconds, bool) or timeout_seconds <= 0:
+        raise BadRequestError("tool.json 的 runtime.timeout_seconds 必须是正整数。")
+    if runtime_type.strip().lower() == "client":
+        _require_client_capability(runtime.get("client_capability"))
+        return
+    entry = runtime.get("entry")
+    if not isinstance(entry, str) or not entry.strip():
+        raise BadRequestError("Python 工具必须声明 runtime.entry。")
+
+
+def _read_client_capability(runtime: object) -> tuple[str, int] | None:
+    if not isinstance(runtime, dict):
+        return None
+    if str(runtime.get("type") or "").strip().lower() != "client":
+        return None
+    return _require_client_capability(runtime.get("client_capability"))
+
+
+def _require_client_capability(value: object) -> tuple[str, int]:
+    if not isinstance(value, dict):
+        raise BadRequestError("客户端工具必须声明 runtime.client_capability。")
+    name = value.get("name")
+    min_version = value.get("min_version")
+    if not isinstance(name, str) or not name.strip():
+        raise BadRequestError("runtime.client_capability.name 不能为空。")
+    if not isinstance(min_version, int) or isinstance(min_version, bool) or min_version <= 0:
+        raise BadRequestError("runtime.client_capability.min_version 必须是正整数。")
+    return name.strip(), min_version
 
 
 def _read_parameter_names(input_schema: dict[str, Any]) -> list[str]:

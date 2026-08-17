@@ -2,7 +2,7 @@
   "description": "单个文本文件中的精确、小范围字符串替换使用；多处、多文件或需要 unified diff 表达的结构化修改使用 safe_patch。默认要求 old_text 只匹配一次，支持 replace_all、expected_count、hash 校验、唯一备份、dry-run 校验、提交前冲突检查和原子替换；执行成功只返回匹配数、替换数和哈希等结果摘要，不返回正文或 diff。",
   "display_name": "精准替换",
   "execution": {
-    "parallel": false
+    "parallel": true
   },
   "files": {
     "examples": ".tool/examples.json",

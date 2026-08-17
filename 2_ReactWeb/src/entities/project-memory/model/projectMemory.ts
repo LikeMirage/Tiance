@@ -25,6 +25,12 @@ export type ProjectMemoryListResponse = {
   project_id: string;
   scope: string;
   count: number;
+  total_count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  has_previous: boolean;
+  has_next: boolean;
   items: ProjectMemoryItem[];
 };
 

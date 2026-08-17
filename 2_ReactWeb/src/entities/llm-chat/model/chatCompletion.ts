@@ -47,6 +47,12 @@ export type ChatCompletionMessageInput = {
   tool_calls?: ChatToolCallEvent[];
   thinking_content?: string;
   references?: ConversationMessageReferences;
+  source_context?: {
+    project_id: string;
+    session_id: string;
+    session_title: string;
+    tool_request_id: string;
+  };
 };
 
 export type ChatCompletionRequest = {
@@ -56,6 +62,7 @@ export type ChatCompletionRequest = {
   session_id?: string | null;
   messages: ChatCompletionMessageInput[];
   max_tool_calls?: number;
+  client_capabilities?: ChatClientCapability[];
   generation?: {
     reasoning?: {
       mode: DsLlmReasoningMode;
@@ -108,6 +115,15 @@ export type ChatClientToolRequestEvent = {
     model_id?: string | null;
     input_modalities?: string[];
   };
+  client_capability?: {
+    name: string;
+    min_version: number;
+  } | null;
+};
+
+export type ChatClientCapability = {
+  name: string;
+  version: number;
 };
 
 export type ChatCompletionResponse = {
@@ -166,6 +182,10 @@ export type ChatStreamEvent = (
     client_tool_request: ChatClientToolRequestEvent;
     finish_reason?: string | null;
     error?: string | null;
+  }
+  | {
+    kind: "client_tool_request_cancelled";
+    request_id: string;
   }
   | {
     kind: "tool_result";

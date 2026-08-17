@@ -42,8 +42,10 @@ from app.repositories.project.conversation_database import (
     list_message_payloads,
     list_message_payloads_range,
     read_message_turn_payloads,
+    read_conversation_list_snapshot,
     read_meta,
     read_session,
+    read_sessions,
     replace_message_payloads,
     session_exists,
     write_meta,
@@ -122,6 +124,9 @@ class ConversationSessionStore:
 
     def read_index(self, conversations_dir: Path) -> dict:
         payload = read_meta(conversations_dir, "conversation_index", _empty_index())
+        return self.normalize_index_payload(payload)
+
+    def normalize_index_payload(self, payload: object) -> dict:
         if not isinstance(payload, dict):
             return _empty_index()
         payload.setdefault("active_session_id", None)
@@ -130,6 +135,23 @@ class ConversationSessionStore:
         payload.setdefault("session_states", {})
         payload.pop("assistant_title", None)
         return self._state_store.normalize_runtime_states(payload)
+
+    def read_list_snapshot(
+        self,
+        conversations_dir: Path,
+    ) -> tuple[int, dict, dict[str, ProjectConversationSession], object]:
+        revision, raw_index, raw_sessions, raw_graph = read_conversation_list_snapshot(
+            conversations_dir,
+        )
+        return (
+            revision,
+            self.normalize_index_payload(raw_index),
+            {
+                session_id: _session_from_payload(payload)
+                for session_id, payload in raw_sessions.items()
+            },
+            raw_graph,
+        )
 
     def write_index(self, conversations_dir: Path, payload: dict) -> None:
         payload.pop("assistant_title", None)
@@ -175,6 +197,15 @@ class ConversationSessionStore:
         if not isinstance(payload, dict):
             return None
         return _session_from_payload(payload)
+
+    def read_sessions_from_conversations_dir(
+        self,
+        conversations_dir: Path,
+    ) -> dict[str, ProjectConversationSession]:
+        return {
+            session_id: _session_from_payload(payload)
+            for session_id, payload in read_sessions(conversations_dir).items()
+        }
 
     def write_session(self, session_dir: Path, session: ProjectConversationSession) -> None:
         write_session(
@@ -328,6 +359,9 @@ class ConversationMessageStore:
             "naming_calls",
             _naming_call_record_to_payload(record),
         )
+
+    def append_model_exchange(self, session_dir: Path, payload: dict) -> None:
+        append_event(session_dir, "model_exchanges", payload)
 
 
 def _extend_start_index_for_tool_context(

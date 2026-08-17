@@ -30,7 +30,10 @@ class ChatToolInjectionService:
         *,
         enabled_tool_names: tuple[str, ...] | None,
     ) -> ChatCompletionRequest:
-        summaries = self._list_allowed_summaries(enabled_tool_names=enabled_tool_names)
+        summaries = self._list_allowed_summaries(
+            enabled_tool_names=enabled_tool_names,
+            client_capabilities=request.client_capabilities,
+        )
         injected_tools = self._build_chat_tools_from_summaries(summaries)
         dynamic_directory = self._build_dynamic_tool_directory(summaries)
         if not injected_tools and not dynamic_directory:
@@ -48,16 +51,24 @@ class ChatToolInjectionService:
         self,
         *,
         enabled_tool_names: tuple[str, ...] | None,
+        client_capabilities=(),
     ) -> tuple[ChatToolDefinition, ...]:
-        summaries = self._list_allowed_summaries(enabled_tool_names=enabled_tool_names)
+        summaries = self._list_allowed_summaries(
+            enabled_tool_names=enabled_tool_names,
+            client_capabilities=client_capabilities,
+        )
         return self._build_chat_tools_from_summaries(summaries)
 
     def build_dynamic_tool_directory(
         self,
         *,
         enabled_tool_names: tuple[str, ...] | None,
+        client_capabilities=(),
     ) -> str:
-        summaries = self._list_allowed_summaries(enabled_tool_names=enabled_tool_names)
+        summaries = self._list_allowed_summaries(
+            enabled_tool_names=enabled_tool_names,
+            client_capabilities=client_capabilities,
+        )
         return self._build_dynamic_tool_directory(summaries)
 
     def _build_dynamic_tool_directory(
@@ -78,12 +89,21 @@ class ChatToolInjectionService:
         self,
         *,
         enabled_tool_names: tuple[str, ...] | None,
+        client_capabilities=(),
     ) -> tuple[ToolSummary, ...]:
         allowed_tool_names = _normalize_allowed_tool_names(enabled_tool_names)
         if allowed_tool_names is not None and not allowed_tool_names:
             return ()
 
-        catalog_summaries = self._catalog_service.list_tool_summaries()
+        supported_client_capabilities = {
+            capability.name: capability.version
+            for capability in client_capabilities
+        }
+        catalog_summaries = tuple(
+            summary
+            for summary in self._catalog_service.list_tool_summaries()
+            if _supports_client_tool(summary, supported_client_capabilities)
+        )
         if allowed_tool_names is None:
             return tuple(catalog_summaries)
 
@@ -198,6 +218,16 @@ def _merge_tool_definitions(
         merged_tools.append(tool)
         existing_names.add(tool.name)
     return tuple(merged_tools)
+
+
+def _supports_client_tool(
+    summary: ToolSummary,
+    supported_capabilities: dict[str, int],
+) -> bool:
+    if summary.client_capability_name is None:
+        return True
+    minimum = summary.client_capability_min_version or 1
+    return supported_capabilities.get(summary.client_capability_name, 0) >= minimum
 
 
 @lru_cache

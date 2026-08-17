@@ -10,7 +10,7 @@ import type { DsLlmReasoningMode } from "../../../entities/llm-runtime/model/gen
 import { isAbortError } from "../../../services/http/httpErrors";
 import { updateChatInjectionPreview } from "../../../services/llm/updateChatInjectionPreview";
 import type { ChatModelOption } from "./chatModelOption";
-import { buildGenerationParams } from "./generationParams";
+import { buildGenerationParams } from "../../conversation-runtime/model/generationParams";
 import {
   buildConversationImageContentParts,
   hasConversationReferences,

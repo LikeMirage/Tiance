@@ -2,7 +2,7 @@ import type { ThemeMode, ThemeSummary } from "./themeTypes";
 
 const APP_THEME_REFRESH_EVENT = "tiance:app-theme-refresh";
 
-export type AppThemeRefreshReason = "theme_designer" | "theme_workspace";
+export type AppThemeRefreshReason = "resource_invalidation" | "theme_workspace";
 
 export type AppThemeRefreshDetail = {
   reason: AppThemeRefreshReason;

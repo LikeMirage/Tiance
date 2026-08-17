@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+import asyncio
 from dataclasses import replace
 from functools import lru_cache
 import logging
@@ -15,6 +16,7 @@ from app.domain.llm.chat import (
     ChatToolCall,
     ChatUsage,
 )
+from app.domain.llm.chat_http_exchange import ChatHttpExchange, ChatHttpExchangeRecorder
 from app.domain.llm.token_estimation_settings import (
     DEFAULT_TOKEN_ESTIMATION_SETTINGS,
     TokenEstimationSettings,
@@ -58,6 +60,7 @@ class ChatCompletionService:
         api_key_scheduler: ProviderApiKeyScheduler,
         usage_service: LlmUsageService,
         token_estimation_settings_service: TokenEstimationSettingsService,
+        http_exchange_recorder: ChatHttpExchangeRecorder | None = None,
     ) -> None:
         self._catalog_repository = catalog_repository
         self._config_repository = config_repository
@@ -67,6 +70,7 @@ class ChatCompletionService:
         self._runtime_resolver = ProviderConfigRuntimeResolver(
             api_key_scheduler,
         )
+        self._http_exchange_recorder = http_exchange_recorder
 
     async def complete(self, request: ChatCompletionRequest) -> ChatCompletionResult:
         provider_template = self._catalog_repository.get_entry(request.provider_id)
@@ -99,6 +103,7 @@ class ChatCompletionService:
             runtime_config=runtime_config,
             api_key=selected_api_key.api_key,
             request=request,
+            on_exchange=self._record_http_exchange,
         )
         usage = complete_usage_with_estimates(
             request=request,
@@ -157,6 +162,7 @@ class ChatCompletionService:
             runtime_config=runtime_config,
             api_key=selected_api_key.api_key,
             request=request,
+            on_exchange=self._record_http_exchange,
         ):
             if event.kind == ChatStreamEventKind.USAGE and event.usage is not None:
                 provider_usage = _overlay_usage(provider_usage, event.usage)
@@ -232,6 +238,19 @@ class ChatCompletionService:
         except Exception:
             logger.exception("Failed to record usage for a completed model request.")
 
+    async def _record_http_exchange(
+        self,
+        request: ChatCompletionRequest,
+        exchange: ChatHttpExchange,
+    ) -> None:
+        if self._http_exchange_recorder is None:
+            return
+        await asyncio.to_thread(
+            self._http_exchange_recorder.record_http_exchange,
+            request,
+            exchange,
+        )
+
     @staticmethod
     def _validate_request(
         provider_template: ProviderCatalogEntry,
@@ -287,6 +306,8 @@ def _overlay_usage(current: ChatUsage | None, incoming: ChatUsage) -> ChatUsage:
 
 @lru_cache
 def get_chat_completion_service() -> ChatCompletionService:
+    from app.services.project.conversation_audit import get_conversation_audit_service
+
     return ChatCompletionService(
         get_provider_catalog_repository(),
         get_provider_config_repository(),
@@ -294,4 +315,5 @@ def get_chat_completion_service() -> ChatCompletionService:
         get_provider_api_key_scheduler(),
         get_llm_usage_service(),
         get_token_estimation_settings_service(),
+        get_conversation_audit_service(),
     )

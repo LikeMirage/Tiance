@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 
 import type {
+  ChatClientCapability,
+} from "../../../entities/llm-chat/model/chatCompletion";
+import type {
   ConversationBranchNode,
   ConversationRuntimeStatus,
   ConversationSession,
@@ -16,6 +19,7 @@ type AutomaticNamingConversationRunsOptions = {
   backgroundRuns: ConversationBackgroundRunRegistry;
   branchNodes: ConversationBranchNode[];
   clientToolExecutor: ClientToolExecutor | null;
+  clientToolCapabilities: readonly ChatClientCapability[];
   markSessionStreaming: (sessionKey: string) => void;
   projectId: string | null;
   reloadSessions: (projectId: string) => Promise<void>;
@@ -38,6 +42,7 @@ export function useAutomaticNamingConversationRuns({
   backgroundRuns,
   branchNodes,
   clientToolExecutor,
+  clientToolCapabilities,
   markSessionStreaming,
   projectId,
   reloadSessions,
@@ -82,6 +87,7 @@ export function useAutomaticNamingConversationRuns({
       try {
         run = backgroundRuns.startOrResume({
           clientToolExecutor: () => clientToolExecutor,
+          clientCapabilities: () => clientToolCapabilities,
           initialStrategy: "resume_then_start",
           message: taskPrompt,
           projectId,
@@ -135,6 +141,7 @@ export function useAutomaticNamingConversationRuns({
     backgroundRuns,
     branchNodes,
     clientToolExecutor,
+    clientToolCapabilities,
     markSessionStreaming,
     projectId,
     reloadSessions,

@@ -1,4 +1,7 @@
-import type { ChatClientToolRequestEvent } from "../../../entities/llm-chat/model/chatCompletion";
+import type {
+  ChatClientCapability,
+  ChatClientToolRequestEvent,
+} from "../../../entities/llm-chat/model/chatCompletion";
 
 export type ClientToolExecutionResult = {
   ok: boolean;
@@ -8,17 +11,17 @@ export type ClientToolExecutionResult = {
 
 export type ClientToolExecutor = (
   request: ChatClientToolRequestEvent,
+  context: Readonly<{ signal: AbortSignal }>,
 ) => Promise<ClientToolExecutionResult>;
 
 export type ClientToolRegistration = Readonly<{
-  name: string;
+  capability: ChatClientCapability;
   execute: ClientToolExecutor;
 }>;
 
 export type ClientToolRegistry = Readonly<{
   execute: ClientToolExecutor;
-  has: (name: string) => boolean;
-  names: readonly string[];
+  capabilities: readonly ChatClientCapability[];
 }>;
 
 /**
@@ -30,47 +33,56 @@ export type ClientToolRegistry = Readonly<{
 export function createClientToolRegistry(
   registrations: readonly ClientToolRegistration[],
 ): ClientToolRegistry {
-  const handlers = new Map<string, ClientToolExecutor>();
+  const handlers = new Map<string, ClientToolRegistration>();
   for (const registration of registrations) {
-    const name = validateRegisteredToolName(registration.name);
-    if (handlers.has(name)) {
-      throw new Error(`客户端工具重复注册：${name}`);
+    const capability = validateCapability(registration.capability);
+    if (handlers.has(capability.name)) {
+      throw new Error(`前端能力重复注册：${capability.name}`);
     }
-    handlers.set(name, registration.execute);
+    handlers.set(capability.name, { ...registration, capability });
   }
 
-  const names = Object.freeze([...handlers.keys()]);
-  const execute: ClientToolExecutor = async (request) => {
-    const handler = handlers.get(request.name);
-    return handler
-      ? handler(request)
-      : unsupportedClientToolResult(request.name);
+  const capabilities = Object.freeze(
+    [...handlers.values()].map((registration) => registration.capability),
+  );
+  const execute: ClientToolExecutor = async (request, context) => {
+    const required = request.client_capability;
+    if (!required) return unsupportedClientToolResult(request.name, "请求缺少前端能力合同");
+    const registration = handlers.get(required.name);
+    if (!registration || registration.capability.version < required.min_version) {
+      return unsupportedClientToolResult(
+        request.name,
+        `缺少前端能力 ${required.name} v${required.min_version}`,
+      );
+    }
+    return registration.execute(request, context);
   };
 
   return Object.freeze({
     execute,
-    has: (name: string) => handlers.has(name),
-    names,
+    capabilities,
   });
 }
 
-export function unsupportedClientToolResult(name: string): ClientToolExecutionResult {
+export function unsupportedClientToolResult(
+  name: string,
+  reason = "前端未注册所需能力",
+): ClientToolExecutionResult {
   return {
     ok: false,
     content: {
       tool: name,
     },
-    error: `前端未注册客户端工具：${name}`,
+    error: `${reason}：${name}`,
   };
 }
 
-function validateRegisteredToolName(value: string): string {
-  const name = value.trim();
-  if (!name) {
-    throw new Error("客户端工具注册名称不能为空。");
+function validateCapability(value: ChatClientCapability): ChatClientCapability {
+  const name = value.name.trim();
+  if (!name) throw new Error("前端能力名称不能为空。");
+  if (name !== value.name) throw new Error("前端能力名称不能包含首尾空白。");
+  if (!Number.isSafeInteger(value.version) || value.version < 1) {
+    throw new Error(`前端能力版本无效：${name}`);
   }
-  if (name !== value) {
-    throw new Error(`客户端工具注册名称不能包含首尾空白：${JSON.stringify(value)}`);
-  }
-  return name;
+  return Object.freeze({ name, version: value.version });
 }

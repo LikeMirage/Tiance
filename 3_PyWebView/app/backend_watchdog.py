@@ -15,6 +15,7 @@ from urllib.request import ProxyHandler, Request, build_opener
 LEASE_HEARTBEAT_PATH = "/heartbeat"
 LEASE_INSTANCE_HEADER = "X-Tiance-Instance-Id"
 LEASE_TOKEN_HEADER = "X-Tiance-Lease-Token"
+LEASE_REVOKED_STATUS = 410
 DEFAULT_HEALTH_INTERVAL_SECONDS = 2.0
 DEFAULT_HEALTH_TIMEOUT_SECONDS = 1.0
 DEFAULT_HEALTH_FAILURE_THRESHOLD = 3
@@ -100,6 +101,13 @@ class ShellLeaseServer:
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=2)
 
+    def revoke(self) -> None:
+        """Tell the managed backend to shut down on its next heartbeat."""
+        with self._lock:
+            server = self._server
+        if server is not None:
+            server.lease_revoked.set()
+
 
 class BackendHealthMonitor:
     """Continuously verifies that the managed backend belongs to this shell."""
@@ -183,6 +191,7 @@ class _LeaseHttpServer(ThreadingHTTPServer):
     ) -> None:
         self.instance_id = instance_id
         self.token = token
+        self.lease_revoked = threading.Event()
         super().__init__(server_address, _LeaseRequestHandler)
 
 
@@ -202,6 +211,11 @@ class _LeaseRequestHandler(BaseHTTPRequestHandler):
             and hmac.compare_digest(token, server.token)
         ):
             self.send_error(403)
+            return
+
+        if server.lease_revoked.is_set():
+            self.send_response(LEASE_REVOKED_STATUS)
+            self.end_headers()
             return
 
         self.send_response(204)

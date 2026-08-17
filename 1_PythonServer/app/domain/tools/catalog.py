@@ -13,6 +13,8 @@ class ToolSummary:
     parameter_names: tuple[str, ...]
     example_titles: tuple[str, ...]
     parallel: bool = False
+    client_capability_name: str | None = None
+    client_capability_min_version: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +44,8 @@ class ToolRegistryEntry:
     indexed_at: str
     updated_at: str
     parallel: bool = False
+    client_capability_name: str | None = None
+    client_capability_min_version: int | None = None
     full_injection_char_count: int = 0
     dynamic_injection_char_count: int = 0
 
@@ -56,6 +60,8 @@ class ToolRegistryEntry:
             parameter_names=self.parameter_names,
             example_titles=self.example_titles,
             parallel=self.parallel,
+            client_capability_name=self.client_capability_name,
+            client_capability_min_version=self.client_capability_min_version,
         )
 
 

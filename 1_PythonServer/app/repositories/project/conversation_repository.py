@@ -55,7 +55,11 @@ from app.repositories.project.conversation_stores import (
     ConversationStateStore,
 )
 from app.repositories.project.project_repository import ProjectRepository, get_project_repository
-from app.repositories.project.conversation_database import write_document
+from app.repositories.project.conversation_database import (
+    append_journal_event,
+    latest_user_message_id,
+    write_document,
+)
 
 
 class ProjectConversationRepository:
@@ -111,19 +115,24 @@ class ProjectConversationRepository:
         self,
         conversations_dir: Path,
         index: dict,
+        *,
+        stored_sessions: dict[str, ProjectConversationSession] | None = None,
     ) -> tuple[ProjectConversationSession, ...]:
         if not _index_session_items(index):
             return ()
         pinned_session_ids = _index_pinned_session_ids(index)
-        sessions: list[ProjectConversationSession] = []
-        for item in _index_session_items(index):
-            if not isinstance(item, dict):
-                continue
-            session_id = str(item.get("session_id") or "")
-            session = self._session_store.read_session_from_conversations_dir(
+        ordered_session_ids = tuple(
+            str(item.get("session_id") or "")
+            for item in _index_session_items(index)
+            if isinstance(item, dict) and item.get("session_id")
+        )
+        if stored_sessions is None:
+            stored_sessions = self._session_store.read_sessions_from_conversations_dir(
                 conversations_dir,
-                session_id,
             )
+        sessions: list[ProjectConversationSession] = []
+        for session_id in ordered_session_ids:
+            session = stored_sessions.get(session_id)
             if session is not None:
                 sessions.append(
                     replace(session, pinned=session_id in pinned_session_ids)
@@ -160,16 +169,54 @@ class ProjectConversationRepository:
         str | None,
         dict[str, ProjectConversationSessionState],
     ]:
+        (
+            _revision,
+            sessions,
+            branch_nodes,
+            _message_variants,
+            _assistant_title,
+            active_session_id,
+            session_states,
+        ) = self.get_list_data(project_id)
+        return (
+            sessions,
+            branch_nodes,
+            active_session_id,
+            session_states,
+        )
+
+    def get_list_data(
+        self,
+        project_id: str,
+    ) -> tuple[
+        int,
+        tuple[ProjectConversationSession, ...],
+        tuple[ProjectConversationBranchNode, ...],
+        tuple[ProjectConversationMessageVariant, ...],
+        str,
+        str | None,
+        dict[str, ProjectConversationSessionState],
+    ]:
+        """Return the complete conversation-list projection from one snapshot."""
         conversations_dir = self._session_store.conversations_dir(project_id)
-        index = self._session_store.read_index(conversations_dir)
-        sessions = self._list_sessions_from_index(conversations_dir, index)
-        graph = self._branch_store.read_graph(conversations_dir)
-        _assistant_title, active_session_id, session_states = (
+        revision, index, stored_sessions, raw_graph = self._session_store.read_list_snapshot(
+            conversations_dir,
+        )
+        sessions = self._list_sessions_from_index(
+            conversations_dir,
+            index,
+            stored_sessions=stored_sessions,
+        )
+        graph = self._branch_store.normalize_graph_payload(raw_graph)
+        assistant_title, active_session_id, session_states = (
             self._state_store.conversation_state(sessions, index)
         )
         return (
+            revision,
             sessions,
             self._branch_store.list_nodes(graph),
+            self._branch_store.list_variants(graph),
+            assistant_title,
             active_session_id,
             session_states,
         )
@@ -607,6 +654,7 @@ class ProjectConversationRepository:
         protocol_continuation: ChatProtocolContinuation | None = None,
         content_parts: tuple[ChatMessageContentPart, ...] = (),
         references: list[dict] | None = None,
+        source_context: dict[str, str] | None = None,
         status: str = "done",
         sync_session_model: bool = True,
         message_id: str | None = None,
@@ -673,12 +721,38 @@ class ProjectConversationRepository:
                 ),
                 content_parts=content_parts if role in {"user", "assistant", "tool"} else (),
                 references=references if role == "user" and references is not None else [],
+                source_context=(
+                    dict(source_context)
+                    if role == "user" and source_context is not None
+                    else {}
+                ),
                 origin_message_id=origin_message_id,
                 variant_group_id=variant_group_id,
                 variant_index=variant_index,
             )
 
             self._message_store.append_message(session_dir, message)
+
+            turn_id = (
+                resolved_message_id
+                if role == "user"
+                else latest_user_message_id(session_dir)
+            )
+            append_journal_event(
+                conversations_dir.parent,
+                session_id=session_id,
+                run_id=f"run_{turn_id}" if turn_id else None,
+                turn_id=turn_id,
+                tool_call_id=tool_call_id,
+                event_type=f"message.{role}.committed",
+                occurred_at=now,
+                payload={
+                    "message_id": resolved_message_id,
+                    "role": role,
+                    "status": status,
+                    "has_tool_calls": bool(tool_calls),
+                },
+            )
 
             session = self.get_session(project_id, session_id)
             if session is not None:
@@ -778,6 +852,28 @@ class ProjectConversationRepository:
             )
             messages.insert(anchor_index + 1, message)
             self._message_store.write_messages(session_dir, tuple(messages))
+            turn_id = next(
+                (
+                    candidate.message_id
+                    for candidate in reversed(messages[: anchor_index + 1])
+                    if candidate.role == "user"
+                ),
+                None,
+            )
+            append_journal_event(
+                conversations_dir.parent,
+                session_id=session_id,
+                run_id=f"run_{turn_id}" if turn_id else None,
+                turn_id=turn_id,
+                tool_call_id=None,
+                event_type="message.system.inserted",
+                occurred_at=now,
+                payload={
+                    "message_id": message_id,
+                    "after_message_id": after_message_id,
+                    "status": status,
+                },
+            )
 
             session = self.get_session(project_id, session_id)
             if session is not None:
@@ -848,6 +944,24 @@ class ProjectConversationRepository:
             )
             messages[message_index] = cancelled
             self._message_store.write_messages(session_dir, tuple(messages))
+            turn_id = next(
+                (
+                    candidate.message_id
+                    for candidate in reversed(messages[:message_index])
+                    if candidate.role == "user"
+                ),
+                None,
+            )
+            append_journal_event(
+                conversations_dir.parent,
+                session_id=session_id,
+                run_id=f"run_{turn_id}" if turn_id else None,
+                turn_id=turn_id,
+                tool_call_id=None,
+                event_type="message.assistant.cancelled",
+                occurred_at=cancelled.updated_at,
+                payload={"message_id": message_id, "status": "cancelled"},
+            )
             return cancelled
 
     def append_naming_call_record(
@@ -858,6 +972,19 @@ class ProjectConversationRepository:
     ) -> None:
         session_dir = self._session_store.require_session_dir(project_id, session_id, for_write=True)
         self._message_store.append_naming_call_record(session_dir, record)
+
+    def append_model_exchange(
+        self,
+        project_id: str,
+        session_id: str,
+        payload: dict,
+    ) -> None:
+        session_dir = self._session_store.require_session_dir(
+            project_id,
+            session_id,
+            for_write=True,
+        )
+        self._message_store.append_model_exchange(session_dir, payload)
 
     def write_injection_preview(
         self,

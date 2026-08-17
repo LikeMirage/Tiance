@@ -224,6 +224,23 @@ async def _coalesce_changes(
                 try:
                     next_item = await asyncio.wait_for(queue_.get(), timeout)
                 except TimeoutError:
+                    # Give the producer one scheduling turn, then include every
+                    # event already delivered at the quiet boundary.  Without
+                    # this, an event whose delay elapsed during a busy loop can
+                    # be split into a second batch only because the producer
+                    # task had not run yet.
+                    await asyncio.sleep(0)
+                    while True:
+                        try:
+                            boundary_item = queue_.get_nowait()
+                        except asyncio.QueueEmpty:
+                            break
+                        if boundary_item is None:
+                            source_finished = True
+                            break
+                        if isinstance(boundary_item, BaseException):
+                            raise boundary_item
+                        pending.update(boundary_item)
                     break
                 if next_item is None:
                     source_finished = True
