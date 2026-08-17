@@ -447,7 +447,6 @@
         "temperature": "温度",
         "defaultValue": "默认",
         "maxOutputTokens": "最大输出长度（含思维链）",
-        "returnThinkingContent": "工具调用时返回思考内容",
         "returnCancelledMessages": "返回截断消息",
         "returnUserBeforeCancelled": "返回截断前用户消息",
         "streamingOutput": "流式输出",
@@ -1387,6 +1386,12 @@
       "enable": "启用",
       "renameProvider": "重命名 {provider}",
       "selectProviderProtocol": "选择供应商协议",
+      "settingsTabs": {
+        "aria": "供应商配置分类",
+        "api": "API 配置",
+        "models": "模型管理",
+        "other": "其他配置"
+      },
       "apiAddress": {
         "placeholder": "输入完整生成 API 地址",
         "title": "API 地址",
@@ -1406,6 +1411,18 @@
         "retention": "前缀缓存有效期阈值",
         "unitAria": "选择缓存有效期单位",
         "units": { "minutes": "分钟", "hours": "小时" }
+      },
+      "reasoningReplay": {
+        "title": "思考回传",
+        "label": "历史思考回传方式",
+        "options": {
+          "never": "不返回",
+          "tool_call_rounds": "仅工具调用轮次返回",
+          "always": "总是返回"
+        }
+      },
+      "otherSettings": {
+        "tabsAria": "其他配置分类"
       },
       "apiKey": {
         "add": "新增 API KEY",

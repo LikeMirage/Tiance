@@ -32,7 +32,6 @@ export type RolePromptConfiguration = {
 };
 
 export type RoleResponseConfiguration = {
-  return_thinking_content: boolean;
   return_cancelled_messages: boolean;
   return_user_before_cancelled: boolean;
   streaming_enabled: boolean;
@@ -155,7 +154,6 @@ function parseSectionPayload<Section extends RoleConfigurationSection>(
       } as RoleConfigurationSectionValueMap[Section];
     case "response":
       return {
-        return_thinking_content: booleanValue(payload.return_thinking_content),
         return_cancelled_messages: booleanValue(payload.return_cancelled_messages),
         return_user_before_cancelled: booleanValue(payload.return_user_before_cancelled),
         streaming_enabled: booleanValue(payload.streaming_enabled),

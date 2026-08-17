@@ -32,7 +32,6 @@ _DEFAULT_REASONING_MODES = (
 @dataclass(frozen=True, slots=True)
 class VolcengineProfile:
     profile_id: str = "volcengine"
-    include_reasoning_content_in_messages: bool = True
     include_responses_message_phase: bool = False
     include_responses_web_search_sources: bool = False
     adaptation_rules: ProviderAdaptationRules | None = None

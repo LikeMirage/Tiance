@@ -9,6 +9,7 @@ from app.domain.llm.chat import (
     ChatToolDefinition,
 )
 from app.domain.llm.message_timestamp import model_visible_message_content
+from app.domain.llm.reasoning_replay import ReasoningReplayMode
 from json import dumps, loads
 from re import fullmatch
 
@@ -34,7 +35,7 @@ def _apply_generation_params(body: dict[str, object], request: ChatCompletionReq
 def _message_to_openai_payload(
     message: ChatMessage,
     *,
-    include_reasoning_content: bool = False,
+    reasoning_replay_mode: ReasoningReplayMode = ReasoningReplayMode.NEVER,
 ) -> dict[str, object]:
     payload: dict[str, object] = {
         "role": message.role.value,
@@ -51,9 +52,12 @@ def _message_to_openai_payload(
     if message.tool_calls:
         payload["tool_calls"] = [_tool_call_to_openai_payload(tool_call) for tool_call in message.tool_calls]
     if (
-        include_reasoning_content
+        reasoning_replay_mode != ReasoningReplayMode.NEVER
         and message.role == ChatMessageRole.ASSISTANT
-        and message.tool_calls
+        and (
+            reasoning_replay_mode == ReasoningReplayMode.ALWAYS
+            or bool(message.tool_calls)
+        )
     ):
         payload["reasoning_content"] = message.thinking_content
     return payload

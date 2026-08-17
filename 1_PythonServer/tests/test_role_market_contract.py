@@ -225,7 +225,6 @@ def _valid_files() -> dict[str, dict[str, object]]:
         },
         "prompt.json": {"system_prompt": "You are helpful."},
         "response.json": {
-            "return_thinking_content": False,
             "return_cancelled_messages": True,
             "return_user_before_cancelled": False,
             "streaming_enabled": True,

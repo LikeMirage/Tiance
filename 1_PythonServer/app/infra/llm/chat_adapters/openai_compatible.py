@@ -178,10 +178,7 @@ def _build_request_body(
         "messages": [
             _message_to_openai_payload(
                 message,
-                include_reasoning_content=_should_include_reasoning_content(
-                    request,
-                    provider_profile,
-                ),
+                reasoning_replay_mode=request.reasoning_replay_mode,
             )
             for message in request.messages
         ],
@@ -192,17 +189,6 @@ def _build_request_body(
         body["tools"] = [_tool_to_openai_payload(tool) for tool in request.tools]
     return provider_profile.apply_openai_compatible_body(body, request)
 
-
-def _should_include_reasoning_content(
-    request: ChatCompletionRequest,
-    provider_profile: ProviderProfile,
-) -> bool:
-    if not request.return_thinking_content:
-        return False
-    if provider_profile.include_reasoning_content_in_messages:
-        return True
-
-    return "deepseek" in request.model_id.lower()
 
 def _parse_response(
     request: ChatCompletionRequest,

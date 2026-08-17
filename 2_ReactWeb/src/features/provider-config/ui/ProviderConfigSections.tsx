@@ -1,6 +1,7 @@
 import { useState, type RefObject } from "react";
 
 import type { ProviderProtocolFamily } from "../../../entities/llm-provider/model/providerCatalog";
+import type { ProviderReasoningReplayMode } from "../../../entities/llm-provider/model/providerConfig";
 import { useI18n } from "../../../shared/i18n";
 import { OptionSelect } from "../../../shared/ui/option-select/OptionSelect";
 import type { UseProviderConfigStateResult } from "../model/useProviderConfigState";
@@ -23,17 +24,28 @@ type ProviderApiKeySectionProps = ProviderConfigSectionProps & {
 };
 
 type ProviderApiBaseUrlSectionProps = ProviderConfigSectionProps & {
+  apiKeyInputRefs: RefObject<Map<string, HTMLInputElement>>;
   isUpdatingProviderProtocol: boolean;
   onUpdateProviderProtocol: (protocolFamily: ProviderProtocolFamily) => void;
   protocolFamily: ProviderProtocolFamily;
 };
 
-type ApiAddressConfigMode = "generation" | "models";
+type ApiAddressConfigMode = "generation" | "models" | "api-key";
+type OtherSettingsMode = "cache" | "reasoning";
 
 const PROMPT_CACHE_RETENTION_UNIT_OPTIONS = [
   { label: "", value: "minutes" },
   { label: "", value: "hours" },
 ] as const;
+
+const REASONING_REPLAY_MODE_OPTIONS: ReadonlyArray<{
+  label: string;
+  value: ProviderReasoningReplayMode;
+}> = [
+  { label: "", value: "never" },
+  { label: "", value: "tool_call_rounds" },
+  { label: "", value: "always" },
+];
 
 export function ProviderApiKeySection({
   apiKeyInputRefs,
@@ -44,13 +56,8 @@ export function ProviderApiKeySection({
   const { t } = useI18n();
 
   return (
-    <div className="provider-canvas__canvas-group">
-      <header className="provider-canvas__canvas-section-head provider-canvas__api-key-section-head">
-        <div>
-          <h3 className="provider-canvas__canvas-section-title">
-            {t("providerCanvas.apiKey.title")}
-          </h3>
-        </div>
+    <div className="provider-canvas__api-key-panel">
+      <header className="provider-canvas__api-key-section-head">
         <button
           className="provider-canvas__canvas-plus"
           type="button"
@@ -162,6 +169,7 @@ export function ProviderApiKeySection({
 }
 
 export function ProviderApiBaseUrlSection({
+  apiKeyInputRefs,
   isUpdatingProviderProtocol,
   onUpdateProviderProtocol,
   protocolFamily,
@@ -171,7 +179,7 @@ export function ProviderApiBaseUrlSection({
 }: ProviderApiBaseUrlSectionProps) {
   const { t } = useI18n();
   const [activeConfigMode, setActiveConfigMode] =
-    useState<ApiAddressConfigMode>("generation");
+    useState<ApiAddressConfigMode>("api-key");
   const protocolFamilyOptions = PROVIDER_PROTOCOL_FAMILY_OPTIONS.map((option) => ({
     ...option,
     label: getProviderProtocolLabel(option.value, t),
@@ -179,16 +187,27 @@ export function ProviderApiBaseUrlSection({
 
   return (
     <div className="provider-canvas__canvas-group">
-      <header className="provider-canvas__canvas-section-head provider-canvas__api-address-section-head">
-        <div className="provider-canvas__api-address-heading">
-          <h3 className="provider-canvas__canvas-section-title">
-            {t("providerCanvas.apiAddress.title")}
-          </h3>
-          <div
-            className="provider-canvas__api-address-tabs"
-            role="tablist"
-            aria-label={t("providerCanvas.apiAddress.tabsAria")}
-          >
+      <header className="provider-canvas__api-address-section-head">
+        <div
+          className="provider-canvas__api-address-tabs"
+          role="tablist"
+          aria-label={t("providerCanvas.apiAddress.tabsAria")}
+        >
+            <button
+              id="provider-api-address-tab-api-key"
+              className={
+                activeConfigMode === "api-key"
+                  ? "provider-canvas__api-address-tab provider-canvas__api-address-tab--active"
+                  : "provider-canvas__api-address-tab"
+              }
+              type="button"
+              role="tab"
+              aria-controls="provider-api-address-panel-api-key"
+              aria-selected={activeConfigMode === "api-key"}
+              onClick={() => setActiveConfigMode("api-key")}
+            >
+              {t("providerCanvas.apiKey.title")}
+            </button>
             <button
               id="provider-api-address-tab-generation"
               className={
@@ -219,7 +238,6 @@ export function ProviderApiBaseUrlSection({
             >
               {t("providerCanvas.apiAddress.modelsTab")}
             </button>
-          </div>
         </div>
       </header>
 
@@ -293,7 +311,7 @@ export function ProviderApiBaseUrlSection({
             onChange={providerConfigState.updateSelectedAuthScheme}
           />
         </div>
-      ) : (
+      ) : activeConfigMode === "models" ? (
         <div
           id="provider-api-address-panel-models"
           className="provider-canvas__canvas-field"
@@ -362,64 +380,143 @@ export function ProviderApiBaseUrlSection({
             onChange={providerConfigState.updateSelectedModelDiscoveryAuthScheme}
           />
         </div>
+      ) : (
+        <div
+          id="provider-api-address-panel-api-key"
+          role="tabpanel"
+          aria-labelledby="provider-api-address-tab-api-key"
+        >
+          <ProviderApiKeySection
+            apiKeyInputRefs={apiKeyInputRefs}
+            providerConfigState={providerConfigState}
+            providerDisplayName={providerDisplayName}
+            selectedProviderDraft={selectedProviderDraft}
+          />
+        </div>
       )}
     </div>
   );
 }
 
-export function ProviderCacheSettingsSection({
+export function ProviderOtherSettingsSection({
   providerConfigState,
   selectedProviderDraft,
 }: ProviderConfigSectionProps) {
   const { t } = useI18n();
+  const [activeSettingsMode, setActiveSettingsMode] =
+    useState<OtherSettingsMode>("cache");
   const unitOptions = PROMPT_CACHE_RETENTION_UNIT_OPTIONS.map((option) => ({
     ...option,
     label: t(`providerCanvas.cacheSettings.units.${option.value}`),
   }));
+  const reasoningReplayModeOptions = REASONING_REPLAY_MODE_OPTIONS.map((option) => ({
+    ...option,
+    label: t(`providerCanvas.reasoningReplay.options.${option.value}`),
+  }));
 
   return (
     <div className="provider-canvas__canvas-group">
-      <header className="provider-canvas__canvas-section-head">
-        <h3 className="provider-canvas__canvas-section-title">
-          {t("providerCanvas.cacheSettings.title")}
-        </h3>
-      </header>
-      <div className="provider-canvas__canvas-field">
-        <label
-          className="provider-canvas__canvas-field-label"
-          htmlFor="provider-prompt-cache-retention"
+      <header className="provider-canvas__api-address-section-head">
+        <div
+          className="provider-canvas__api-address-tabs"
+          role="tablist"
+          aria-label={t("providerCanvas.otherSettings.tabsAria")}
         >
-          {t("providerCanvas.cacheSettings.retention")}
-        </label>
-        <div className="provider-canvas__cache-policy-row">
-          <input
-            id="provider-prompt-cache-retention"
-            className="provider-canvas__canvas-input"
-            type="number"
-            inputMode="numeric"
-            min="1"
-            disabled={providerConfigState.savingProviderId !== null}
-            value={selectedProviderDraft.promptCacheRetentionValue}
-            onBlur={() => {
-              void providerConfigState.saveSelectedPromptCachePolicy();
-            }}
-            onChange={(event) =>
-              providerConfigState.updateSelectedPromptCacheRetentionValue(
-                event.target.value,
-              )
+          <button
+            id="provider-other-settings-tab-cache"
+            className={
+              activeSettingsMode === "cache"
+                ? "provider-canvas__api-address-tab provider-canvas__api-address-tab--active"
+                : "provider-canvas__api-address-tab"
             }
-          />
+            type="button"
+            role="tab"
+            aria-controls="provider-other-settings-panel-cache"
+            aria-selected={activeSettingsMode === "cache"}
+            onClick={() => setActiveSettingsMode("cache")}
+          >
+            {t("providerCanvas.cacheSettings.title")}
+          </button>
+          <button
+            id="provider-other-settings-tab-reasoning"
+            className={
+              activeSettingsMode === "reasoning"
+                ? "provider-canvas__api-address-tab provider-canvas__api-address-tab--active"
+                : "provider-canvas__api-address-tab"
+            }
+            type="button"
+            role="tab"
+            aria-controls="provider-other-settings-panel-reasoning"
+            aria-selected={activeSettingsMode === "reasoning"}
+            onClick={() => setActiveSettingsMode("reasoning")}
+          >
+            {t("providerCanvas.reasoningReplay.title")}
+          </button>
+        </div>
+      </header>
+
+      {activeSettingsMode === "cache" ? (
+        <div
+          id="provider-other-settings-panel-cache"
+          className="provider-canvas__canvas-field"
+          role="tabpanel"
+          aria-labelledby="provider-other-settings-tab-cache"
+        >
+          <label
+            className="provider-canvas__canvas-field-label"
+            htmlFor="provider-prompt-cache-retention"
+          >
+            {t("providerCanvas.cacheSettings.retention")}
+          </label>
+          <div className="provider-canvas__cache-policy-row">
+            <input
+              id="provider-prompt-cache-retention"
+              className="provider-canvas__canvas-input"
+              type="number"
+              inputMode="numeric"
+              min="1"
+              disabled={providerConfigState.savingProviderId !== null}
+              value={selectedProviderDraft.promptCacheRetentionValue}
+              onBlur={() => {
+                void providerConfigState.saveSelectedPromptCachePolicy();
+              }}
+              onChange={(event) =>
+                providerConfigState.updateSelectedPromptCacheRetentionValue(
+                  event.target.value,
+                )
+              }
+            />
+            <OptionSelect
+              ariaLabel={t("providerCanvas.cacheSettings.unitAria")}
+              className="provider-canvas__cache-policy-unit"
+              disabled={providerConfigState.savingProviderId !== null}
+              options={unitOptions}
+              value={selectedProviderDraft.promptCacheRetentionUnit}
+              variant="integrated-overlay"
+              onChange={providerConfigState.updateSelectedPromptCacheRetentionUnit}
+            />
+          </div>
+        </div>
+      ) : (
+        <div
+          id="provider-other-settings-panel-reasoning"
+          className="provider-canvas__canvas-field"
+          role="tabpanel"
+          aria-labelledby="provider-other-settings-tab-reasoning"
+        >
+          <label className="provider-canvas__canvas-field-label">
+            {t("providerCanvas.reasoningReplay.label")}
+          </label>
           <OptionSelect
-            ariaLabel={t("providerCanvas.cacheSettings.unitAria")}
-            className="provider-canvas__cache-policy-unit"
+            ariaLabel={t("providerCanvas.reasoningReplay.label")}
             disabled={providerConfigState.savingProviderId !== null}
-            options={unitOptions}
-            value={selectedProviderDraft.promptCacheRetentionUnit}
+            options={reasoningReplayModeOptions}
+            value={selectedProviderDraft.reasoningReplayMode}
             variant="integrated-overlay"
-            onChange={providerConfigState.updateSelectedPromptCacheRetentionUnit}
+            onChange={providerConfigState.updateSelectedReasoningReplayMode}
           />
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -143,13 +143,7 @@ def _responses_reasoning_payload(
         effort = _responses_reasoning_effort(reasoning.mode)
         if effort is not None:
             payload["effort"] = effort
-    if (
-        reasoning is not None
-        and reasoning.mode != LlmReasoningMode.OFF
-    ) or (
-        reasoning is None
-        and request.return_thinking_content
-    ):
+    if reasoning is not None and reasoning.mode != LlmReasoningMode.OFF:
         payload["summary"] = "auto"
     return payload
 

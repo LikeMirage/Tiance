@@ -43,7 +43,6 @@
     "streamUsage": true
   },
   "behavior": {
-    "includeReasoningContentInMessages": true,
     "includeResponsesMessagePhase": false,
     "includeResponsesWebSearchSources": false,
     "promptCacheRetentionSeconds": 21600

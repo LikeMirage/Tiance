@@ -40,7 +40,6 @@
     "streamUsage": true
   },
   "behavior": {
-    "includeReasoningContentInMessages": true,
     "includeResponsesMessagePhase": false,
     "includeResponsesWebSearchSources": false
   }

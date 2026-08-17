@@ -33,7 +33,6 @@
   },
   "request": {},
   "behavior": {
-    "includeReasoningContentInMessages": false,
     "includeResponsesMessagePhase": true,
     "includeResponsesWebSearchSources": true
   }

@@ -14,15 +14,6 @@
     align-items: center;
   }
 
-  .provider-canvas__model-management-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .provider-canvas__model-mode-tabs {
-    gap: 14px;
-  }
-
   .provider-canvas__added-model-card {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:

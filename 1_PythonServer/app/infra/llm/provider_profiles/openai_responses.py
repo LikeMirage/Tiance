@@ -19,7 +19,6 @@ from app.domain.llm.runtime_capabilities import (
 @dataclass(frozen=True, slots=True)
 class OpenAIResponsesProfile:
     profile_id: str = "openai_responses"
-    include_reasoning_content_in_messages: bool = False
     include_responses_message_phase: bool = False
     include_responses_web_search_sources: bool = False
     adaptation_rules: ProviderAdaptationRules | None = None

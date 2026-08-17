@@ -13,6 +13,7 @@ from app.domain.llm.chat import (
     ChatToolCall,
     ChatToolDefinition,
 )
+from app.domain.llm.reasoning_replay import ReasoningReplayMode
 from app.domain.llm.generation_params import (
     LlmGenerationParams,
     LlmReasoningMode,
@@ -200,7 +201,7 @@ def test_openai_chat_payload_formats_tool_call_history_with_null_content():
     }
 
 
-def test_openai_chat_payload_can_include_reasoning_content_for_deepseek_history():
+def test_openai_chat_payload_includes_reasoning_for_tool_call_rounds():
     message = ChatMessage(
         role=ChatMessageRole.ASSISTANT,
         content="",
@@ -214,18 +215,21 @@ def test_openai_chat_payload_can_include_reasoning_content_for_deepseek_history(
         ),
     )
 
-    payload = _message_to_openai_payload(message, include_reasoning_content=True)
+    payload = _message_to_openai_payload(
+        message,
+        reasoning_replay_mode=ReasoningReplayMode.TOOL_CALL_ROUNDS,
+    )
 
     assert payload["content"] is None
     assert payload["reasoning_content"] == "需要先查看工作区。"
 
 
-def test_openai_chat_payload_includes_empty_reasoning_content_for_deepseek_tool_history():
+def test_openai_chat_payload_includes_empty_reasoning_for_tool_call_rounds():
     request = _request_with_tool_history()
 
     payload = _message_to_openai_payload(
         request.messages[-2],
-        include_reasoning_content=True,
+        reasoning_replay_mode=ReasoningReplayMode.TOOL_CALL_ROUNDS,
     )
 
     assert payload["content"] is None
@@ -302,29 +306,48 @@ def test_gemini_body_formats_image_parts_by_protocol():
     }
 
 
-def test_openai_chat_payload_does_not_include_reasoning_content_without_tool_calls():
+def test_openai_chat_payload_tool_call_mode_omits_non_tool_reasoning():
     message = ChatMessage(
         role=ChatMessageRole.ASSISTANT,
         content="普通回复",
         thinking_content="普通思考不回传。",
     )
 
-    payload = _message_to_openai_payload(message, include_reasoning_content=True)
+    payload = _message_to_openai_payload(
+        message,
+        reasoning_replay_mode=ReasoningReplayMode.TOOL_CALL_ROUNDS,
+    )
 
     assert payload["content"] == "普通回复"
     assert "reasoning_content" not in payload
 
 
-def test_openai_compatible_body_respects_return_thinking_content_setting():
+def test_openai_chat_payload_always_mode_includes_non_tool_reasoning():
+    message = ChatMessage(
+        role=ChatMessageRole.ASSISTANT,
+        content="普通回复",
+        thinking_content="普通思考也回传。",
+    )
+
+    payload = _message_to_openai_payload(
+        message,
+        reasoning_replay_mode=ReasoningReplayMode.ALWAYS,
+    )
+
+    assert payload["content"] == "普通回复"
+    assert payload["reasoning_content"] == "普通思考也回传。"
+
+
+def test_openai_compatible_body_respects_provider_reasoning_replay_mode():
     request = _request_with_tool_history()
 
     disabled_body = _build_request_body(
-        replace(request, return_thinking_content=False),
+        replace(request, reasoning_replay_mode=ReasoningReplayMode.NEVER),
         stream=False,
         provider_profile=DeepSeekProfile(),
     )
     enabled_body = _build_request_body(
-        replace(request, return_thinking_content=True),
+        replace(request, reasoning_replay_mode=ReasoningReplayMode.TOOL_CALL_ROUNDS),
         stream=False,
         provider_profile=DeepSeekProfile(),
     )
@@ -333,9 +356,12 @@ def test_openai_compatible_body_respects_return_thinking_content_setting():
     assert enabled_body["messages"][-2]["reasoning_content"] == ""
 
 
-def test_openai_compatible_body_includes_reasoning_content_for_volcengine_tool_history():
+def test_openai_compatible_body_replay_mode_is_not_provider_specific():
     body = _build_request_body(
-        replace(_request_with_tool_history(), return_thinking_content=True),
+        replace(
+            _request_with_tool_history(),
+            reasoning_replay_mode=ReasoningReplayMode.TOOL_CALL_ROUNDS,
+        ),
         stream=False,
         provider_profile=VolcengineProfile(),
     )
@@ -379,25 +405,25 @@ def test_volcengine_seed_2_pro_sends_supported_enabled_mode():
     assert body["thinking"] == {"type": "enabled"}
 
 
-def test_openai_compatible_body_includes_reasoning_content_for_generic_deepseek_model():
+def test_openai_compatible_body_does_not_infer_replay_mode_from_model_name():
     body = _build_request_body(
         replace(
             _request_with_tool_history(),
             model_id="deepseek-v4-flash",
-            return_thinking_content=True,
+            reasoning_replay_mode=ReasoningReplayMode.NEVER,
         ),
         stream=False,
         provider_profile=GenericOpenAICompatibleProfile(),
     )
 
-    assert body["messages"][-2]["reasoning_content"] == ""
+    assert "reasoning_content" not in body["messages"][-2]
 
 
-def test_openai_compatible_body_respects_thinking_return_switch_when_reasoning_is_enabled():
+def test_openai_compatible_body_replay_mode_is_independent_of_reasoning_generation():
     body = _build_request_body(
         replace(
             _request_with_tool_history(),
-            return_thinking_content=False,
+            reasoning_replay_mode=ReasoningReplayMode.NEVER,
             generation=LlmGenerationParams(
                 reasoning=LlmReasoningOptions(mode=LlmReasoningMode.HIGH),
             ),

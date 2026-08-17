@@ -447,7 +447,6 @@
         "temperature": "Temperature",
         "defaultValue": "Default",
         "maxOutputTokens": "Max output length, including reasoning",
-        "returnThinkingContent": "Return reasoning content from tool calls",
         "returnCancelledMessages": "Return cancelled messages",
         "returnUserBeforeCancelled": "Return user message before cancellation",
         "streamingOutput": "Streaming output",
@@ -1387,6 +1386,12 @@
       "enable": "Enable",
       "renameProvider": "Rename {provider}",
       "selectProviderProtocol": "Select provider protocol",
+      "settingsTabs": {
+        "aria": "Provider configuration sections",
+        "api": "API settings",
+        "models": "Model management",
+        "other": "Other settings"
+      },
       "apiAddress": {
         "placeholder": "Enter the full generation API URL",
         "title": "API URL",
@@ -1406,6 +1411,18 @@
         "retention": "Prefix cache lifetime threshold",
         "unitAria": "Select cache lifetime unit",
         "units": { "minutes": "Minutes", "hours": "Hours" }
+      },
+      "reasoningReplay": {
+        "title": "Reasoning replay",
+        "label": "Reasoning history replay",
+        "options": {
+          "never": "Never",
+          "tool_call_rounds": "Tool-call rounds only",
+          "always": "Always"
+        }
+      },
+      "otherSettings": {
+        "tabsAria": "Other settings categories"
       },
       "apiKey": {
         "add": "Add API key",

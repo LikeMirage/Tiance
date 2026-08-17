@@ -3,8 +3,6 @@ import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStat
 import type { ConversationSession } from "../../../entities/llm-chat/model/conversation";
 import { updateProjectConversation } from "../../../services/project/updateProjectConversation";
 import type { ChatModelOption } from "./chatModelOption";
-import { resolveSessionSettings } from "./sessionSettings";
-import { shouldAutoEnableToolThinkingReturn } from "./toolThinkingReturn";
 
 type UseChatPanelModelSelectionOptions = {
   activeProjectIdRef: MutableRefObject<string | null>;
@@ -33,16 +31,11 @@ export function useChatPanelModelSelection({
     setIsModelMenuOpen(false);
     if (!projectId || !activeSessionId) return;
 
-    const returnToolThinking = shouldAutoEnableToolThinkingReturn(model);
     const patchSession = (session: ConversationSession): ConversationSession => ({
       ...session,
       provider_id: model.providerId,
       model_id: model.modelId,
       role_status: "custom",
-      settings: {
-        ...resolveSessionSettings(session),
-        return_thinking_content: returnToolThinking,
-      },
       updated_at: new Date().toISOString(),
     });
     setSessions((prev) => prev.map((session) =>
@@ -52,9 +45,6 @@ export function useChatPanelModelSelection({
     void updateProjectConversation(projectId, activeSessionId, {
       provider_id: model.providerId,
       model_id: model.modelId,
-      settings: {
-        return_thinking_content: returnToolThinking,
-      },
     }).then((updatedSession) => {
       if (modelSelectionRequestSeqRef.current !== requestSeq) return;
       if (activeProjectIdRef.current !== projectId) return;

@@ -18,6 +18,7 @@ export function saveProviderConfig(
       model_discovery_auth_scheme: input.model_discovery_auth_scheme,
       api_keys: input.api_keys,
       enabled: input.enabled,
+      reasoning_replay_mode: input.reasoning_replay_mode,
     }),
     method: "PUT",
   });

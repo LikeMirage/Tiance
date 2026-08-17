@@ -347,7 +347,6 @@ class ProjectConversationLongTermMemoryService:
                         f"{task_id}"
                     ),
                     usage_feature_key=profile_definition.usage_feature_key,
-                    return_thinking_content=False,
                     max_tool_calls=creation.session.settings.max_tool_calls,
                 )
                 await self._functional_conversation_runner(request)

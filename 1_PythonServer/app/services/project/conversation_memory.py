@@ -622,7 +622,6 @@ class ProjectConversationMemoryService:
                         f"system:memory_compression:{compression_id}"
                     ),
                     usage_feature_key="memory_compression",
-                    return_thinking_content=False,
                     max_tool_calls=creation.session.settings.max_tool_calls,
                 )
                 await self._functional_conversation_runner(request)

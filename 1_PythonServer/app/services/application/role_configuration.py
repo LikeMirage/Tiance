@@ -244,7 +244,6 @@ class RoleConfigurationApplicationService:
             },
             "prompt.json": {"system_prompt": settings.system_prompt},
             "response.json": {
-                "return_thinking_content": settings.return_thinking_content,
                 "return_cancelled_messages": settings.return_cancelled_messages,
                 "return_user_before_cancelled": settings.return_user_before_cancelled,
                 "streaming_enabled": settings.streaming_enabled,
@@ -450,7 +449,6 @@ class RoleConfigurationApplicationService:
 
         bool_files = {
             "response.json": (
-                "return_thinking_content",
                 "return_cancelled_messages",
                 "return_user_before_cancelled",
                 "streaming_enabled",

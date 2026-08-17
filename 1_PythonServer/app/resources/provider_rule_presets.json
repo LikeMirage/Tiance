@@ -30,7 +30,6 @@
           "streamUsage": true
         },
         "behavior": {
-          "includeReasoningContentInMessages": true,
           "includeResponsesMessagePhase": false,
           "includeResponsesWebSearchSources": false,
           "promptCacheRetentionSeconds": 21600
@@ -68,7 +67,6 @@
           "streamUsage": true
         },
         "behavior": {
-          "includeReasoningContentInMessages": true,
           "includeResponsesMessagePhase": false,
           "includeResponsesWebSearchSources": false
         }
@@ -110,7 +108,6 @@
         },
         "request": {},
         "behavior": {
-          "includeReasoningContentInMessages": false,
           "includeResponsesMessagePhase": true,
           "includeResponsesWebSearchSources": true
         }

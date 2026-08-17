@@ -93,7 +93,7 @@ def test_protocol_continuation_survives_storage_and_request_rebuild():
             ),
         ),
         None,
-        ProjectConversationSessionSettings(return_thinking_content=True),
+        ProjectConversationSessionSettings(),
     )
 
     assert restored.protocol_continuation == continuation

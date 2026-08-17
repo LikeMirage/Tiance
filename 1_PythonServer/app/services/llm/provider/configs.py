@@ -15,6 +15,7 @@ from app.domain.llm.provider_catalog import (
     ProviderProtocolFamily,
 )
 from app.domain.llm.provider_config import ProviderConfig
+from app.domain.llm.reasoning_replay import ReasoningReplayMode
 from app.domain.llm.discovered_model import DiscoveredModel
 from app.domain.llm.provider_runtime import ProviderRuntimeConfig
 from app.infra.llm.provider_remote_client import ProviderRemoteClient, get_provider_remote_client
@@ -126,6 +127,7 @@ class ProviderConfigService:
         model_discovery_url: str | None = None,
         model_discovery_strategy: ModelDiscoveryStrategy,
         model_discovery_auth_scheme: AuthScheme,
+        reasoning_replay_mode: ReasoningReplayMode | None = None,
     ) -> ProviderConfig:
         provider_template = self._require_provider_template(provider_id)
         return self._config_writer.save_config(
@@ -138,6 +140,7 @@ class ProviderConfigService:
             model_discovery_auth_scheme=model_discovery_auth_scheme,
             enabled=enabled,
             api_keys=api_keys,
+            reasoning_replay_mode=reasoning_replay_mode,
         )
 
     async def discover_models(self, provider_id: str) -> list[DiscoveredModel] | None:

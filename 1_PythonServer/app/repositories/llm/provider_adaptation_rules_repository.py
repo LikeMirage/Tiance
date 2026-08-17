@@ -336,7 +336,6 @@ def _parse_behavior(value: object, location: str) -> LlmProtocolBehaviorRules:
     _reject_unknown(
         value,
         {
-            "includeReasoningContentInMessages",
             "includeResponsesMessagePhase",
             "includeResponsesWebSearchSources",
             "promptCacheRetentionSeconds",
@@ -344,11 +343,6 @@ def _parse_behavior(value: object, location: str) -> LlmProtocolBehaviorRules:
         f"{location}.behavior",
     )
     return LlmProtocolBehaviorRules(
-        include_reasoning_content_in_messages=_optional_bool(
-            value,
-            "includeReasoningContentInMessages",
-            location,
-        ),
         include_responses_message_phase=_optional_bool(
             value,
             "includeResponsesMessagePhase",

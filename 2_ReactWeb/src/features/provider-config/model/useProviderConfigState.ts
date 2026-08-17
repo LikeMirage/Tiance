@@ -7,6 +7,7 @@ import type {
   ProviderModelDiscoveryStrategy,
 } from "../../../entities/llm-provider/model/providerCatalog";
 import type { ProviderConfig } from "../../../entities/llm-provider/model/providerConfig";
+import type { ProviderReasoningReplayMode } from "../../../entities/llm-provider/model/providerConfig";
 import { emitLlmModelCatalogChanged } from "../../../entities/llm-provider/model/modelCatalogEvents";
 import { getProviderConfigs } from "../../../services/llm/getProviderConfigs";
 import { saveProviderConfig } from "../../../services/llm/saveProviderConfig";
@@ -49,6 +50,7 @@ export interface UseProviderConfigStateResult {
   updateSelectedModelDiscoveryAuthScheme: (value: ProviderAuthScheme) => void;
   updateSelectedPromptCacheRetentionUnit: (value: "hours" | "minutes") => void;
   updateSelectedPromptCacheRetentionValue: (value: string) => void;
+  updateSelectedReasoningReplayMode: (value: ProviderReasoningReplayMode) => void;
   updateSelectedApiKey: (apiKeyId: string, value: string) => void;
   updateSelectedApiKeyPollWeight: (apiKeyId: string, value: string) => void;
 }
@@ -497,6 +499,7 @@ export function useProviderConfigState(
         model_discovery_auth_scheme: draft.modelDiscoveryAuthScheme,
         enabled: draft.enabled,
         api_keys: apiKeysToSave,
+        reasoning_replay_mode: draft.reasoningReplayMode,
       });
 
       setPersistedConfigs((current) => ({
@@ -639,6 +642,10 @@ export function useProviderConfigState(
     persistSelectedDraftUpdate({ modelDiscoveryAuthScheme: value });
   };
 
+  const updateSelectedReasoningReplayMode = (value: ProviderReasoningReplayMode) => {
+    persistSelectedDraftUpdate({ reasoningReplayMode: value });
+  };
+
   return {
     addSelectedApiKey,
     clearSelectedApiKey,
@@ -663,6 +670,7 @@ export function useProviderConfigState(
     updateSelectedModelDiscoveryAuthScheme,
     updateSelectedPromptCacheRetentionUnit,
     updateSelectedPromptCacheRetentionValue,
+    updateSelectedReasoningReplayMode,
     updateSelectedApiKey,
     updateSelectedApiKeyPollWeight,
   };

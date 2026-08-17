@@ -134,7 +134,6 @@ export function conversationSession(overrides = {}) {
       memory_compression_enabled: true,
       memory_raw_context_token_reserve: 0,
       project_memory_enabled: true,
-      return_thinking_content: false,
       return_cancelled_messages: false,
       return_user_before_cancelled: false,
       streaming_enabled: true,

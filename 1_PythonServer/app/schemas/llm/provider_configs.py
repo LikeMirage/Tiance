@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from app.domain.llm.provider_cloud_model import ProviderCloudModelCache
 from app.domain.llm.provider_config import ProviderApiKeyConfig, ProviderConfig
+from app.domain.llm.reasoning_replay import ReasoningReplayMode
 from app.domain.llm.provider_catalog import (
     AuthScheme,
     ModelDiscoveryStrategy,
@@ -35,6 +36,7 @@ class ProviderConfigSaveRequest(BaseModel):
     model_discovery_auth_scheme: AuthScheme
     enabled: bool = False
     api_keys: list[ProviderApiKeyConfigInputRequest] = Field(default_factory=list)
+    reasoning_replay_mode: ReasoningReplayMode
 
 
 class ProviderApiKeyConfigResponse(BaseModel):
@@ -77,6 +79,7 @@ class ProviderConfigResponse(BaseModel):
     model_discovery_auth_scheme: AuthScheme
     enabled: bool
     prompt_cache_retention_seconds: int
+    reasoning_replay_mode: ReasoningReplayMode
     api_keys: list[ProviderApiKeyConfigResponse] = Field(default_factory=list)
     created_at: str
     updated_at: str
@@ -125,6 +128,7 @@ class ProviderConfigResponse(BaseModel):
             model_discovery_auth_scheme=model_discovery_auth_scheme,
             enabled=config.enabled,
             prompt_cache_retention_seconds=prompt_cache_retention_seconds,
+            reasoning_replay_mode=config.reasoning_replay_mode,
             api_keys=[
                 ProviderApiKeyConfigResponse.from_domain(
                     api_key,

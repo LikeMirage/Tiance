@@ -55,7 +55,6 @@ export type ChatCompletionRequest = {
   project_id?: string | null;
   session_id?: string | null;
   messages: ChatCompletionMessageInput[];
-  return_thinking_content?: boolean;
   max_tool_calls?: number;
   generation?: {
     reasoning?: {

@@ -199,11 +199,6 @@ class ConversationToolLoop:
 
             round_answer = "".join(round_answer_parts)
             round_thinking = "".join(round_thinking_parts)
-            returned_round_thinking = (
-                round_thinking
-                if original_request.return_thinking_content
-                else ""
-            )
             assistant_message = await asyncio.to_thread(
                 self._append_assistant_tool_call_message,
                 model_request,
@@ -230,7 +225,7 @@ class ConversationToolLoop:
                         role=ChatMessageRole.ASSISTANT,
                         content=round_answer,
                         tool_calls=tuple(round_tool_calls),
-                        thinking_content=returned_round_thinking,
+                        thinking_content=round_thinking,
                         protocol_continuation=round_protocol_continuation,
                     ),
                     assistant_message.message_id if assistant_message is not None else None,

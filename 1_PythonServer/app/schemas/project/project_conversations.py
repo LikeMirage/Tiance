@@ -32,7 +32,6 @@ class ProjectConversationSessionSettingsPatch(BaseModel):
     memory_raw_context_token_reserve: int | None = Field(default=None, ge=0)
     project_memory_enabled: bool | None = None
     project_memory_extraction_enabled: bool | None = None
-    return_thinking_content: bool | None = None
     return_cancelled_messages: bool | None = None
     return_user_before_cancelled: bool | None = None
     streaming_enabled: bool | None = None
@@ -99,7 +98,6 @@ class ProjectConversationSessionSettingsResponse(BaseModel):
     memory_raw_context_token_reserve: int = 30000
     project_memory_enabled: bool = True
     project_memory_extraction_enabled: bool = True
-    return_thinking_content: bool = False
     return_cancelled_messages: bool = True
     return_user_before_cancelled: bool = True
     streaming_enabled: bool = True
@@ -134,7 +132,6 @@ class ProjectConversationSessionSettingsResponse(BaseModel):
             project_memory_extraction_enabled=(
                 session.settings.project_memory_extraction_enabled
             ),
-            return_thinking_content=session.settings.return_thinking_content,
             return_cancelled_messages=session.settings.return_cancelled_messages,
             return_user_before_cancelled=session.settings.return_user_before_cancelled,
             streaming_enabled=session.settings.streaming_enabled,

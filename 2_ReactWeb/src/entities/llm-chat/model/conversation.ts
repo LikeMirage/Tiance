@@ -11,7 +11,6 @@ export type ConversationSessionSettings = {
   memory_raw_context_token_reserve: number;
   project_memory_enabled: boolean;
   project_memory_extraction_enabled: boolean;
-  return_thinking_content: boolean;
   return_cancelled_messages: boolean;
   return_user_before_cancelled: boolean;
   streaming_enabled: boolean;

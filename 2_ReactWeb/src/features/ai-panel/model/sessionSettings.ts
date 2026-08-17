@@ -11,7 +11,6 @@ export const DEFAULT_SESSION_SETTINGS: ConversationSessionSettings = {
   memory_raw_context_token_reserve: 30000,
   project_memory_enabled: true,
   project_memory_extraction_enabled: true,
-  return_thinking_content: false,
   return_cancelled_messages: true,
   return_user_before_cancelled: true,
   streaming_enabled: true,

@@ -82,6 +82,7 @@ def save_provider_config(
         model_discovery_auth_scheme=payload.model_discovery_auth_scheme,
         enabled=payload.enabled,
         api_keys=tuple(_to_api_key_input(api_key) for api_key in payload.api_keys),
+        reasoning_replay_mode=payload.reasoning_replay_mode,
     )
     return _provider_config_response(config, service)
 

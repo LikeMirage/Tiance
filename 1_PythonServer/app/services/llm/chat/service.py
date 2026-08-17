@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+from dataclasses import replace
 from functools import lru_cache
 import logging
 
@@ -78,6 +79,11 @@ class ChatCompletionService:
         if not provider_config.enabled:
             raise BadRequestError(f"Provider config '{request.provider_id}' is disabled.")
 
+        request = replace(
+            request,
+            reasoning_replay_mode=provider_config.reasoning_replay_mode,
+        )
+
         self._validate_request(provider_template, request)
 
         runtime_credentials = self._runtime_resolver.resolve_runtime_credentials(
@@ -124,6 +130,11 @@ class ChatCompletionService:
             raise NotFoundError(f"Provider config '{request.provider_id}' was not found.")
         if not provider_config.enabled:
             raise BadRequestError(f"Provider config '{request.provider_id}' is disabled.")
+
+        request = replace(
+            request,
+            reasoning_replay_mode=provider_config.reasoning_replay_mode,
+        )
 
         self._validate_request(provider_template, request)
 

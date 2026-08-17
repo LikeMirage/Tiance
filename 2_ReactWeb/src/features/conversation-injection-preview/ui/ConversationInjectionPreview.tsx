@@ -127,7 +127,6 @@ export function ConversationInjectionPreview({ content }: ConversationInjectionP
           <MetaItem label="项目 ID" value={stringValue(payload.request.project_id)} />
           <MetaItem label="会话 ID" value={stringValue(payload.request.session_id)} />
           <MetaItem label="预览来源" value={previewSourceLabel(stringValue(payload.request.preview_source))} />
-          <MetaItem label="工具调用时返回思考内容" value={flagValue(payload.request.return_thinking_content)} />
           <MetaItem label="工具调用上限" value={stringValue(payload.request.max_tool_calls)} />
           <MetaItem label="等待工具结果续写" value={flagValue(payload.request.ends_with_tool_result)} />
           <MetaItem label="生成时间" value={formatTime(payload.generatedAt)} />

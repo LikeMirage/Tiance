@@ -84,8 +84,6 @@ def read_conversation_data_view(
         total_count=total_count,
         truncated=truncated,
     )
-
-
 @router.post(
     "/{project_id}/conversations/{session_id}/attachments/images",
     response_model=ConversationImageAttachmentResponse,
@@ -250,11 +248,7 @@ def create_project_conversation(
         parent_session_id=payload.parent_session_id,
         created_by=payload.created_by,
         role_project_id=role_project_id,
-        settings=_settings_with_model_defaults(
-            provider_id,
-            model_id,
-            settings,
-        ),
+        settings=settings,
     )
     return ProjectConversationSessionResponse.from_domain(session)
 
@@ -549,29 +543,4 @@ def get_project_conversation_message_turn(
         user_message_id=turn.user_message_id,
         count=len(items),
         items=items,
-    )
-
-
-def _settings_with_model_defaults(
-    provider_id: str | None,
-    model_id: str | None,
-    settings: dict | None,
-) -> dict | None:
-    next_settings = dict(settings or {})
-    if (
-        _should_auto_enable_tool_thinking_return(provider_id, model_id)
-        and "return_thinking_content" not in next_settings
-    ):
-        next_settings["return_thinking_content"] = True
-    return next_settings or None
-
-
-def _should_auto_enable_tool_thinking_return(
-    provider_id: str | None,
-    model_id: str | None,
-) -> bool:
-    return any(
-        "deepseek" in value.lower()
-        for value in (provider_id or "", model_id or "")
-        if value
     )

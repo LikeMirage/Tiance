@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type {
   ProviderCatalogEntry,
   ProviderProtocolFamily,
@@ -6,8 +8,7 @@ import type { UseProviderConfigStateResult } from "../../provider-config/model/u
 import type { UseProviderModelDiscoveryResult } from "../../provider-model-discovery/model/useProviderModelDiscovery";
 import {
   ProviderApiBaseUrlSection,
-  ProviderApiKeySection,
-  ProviderCacheSettingsSection,
+  ProviderOtherSettingsSection,
 } from "../../provider-config/ui/ProviderConfigSections";
 import {
   formatModelSetUsage,
@@ -34,6 +35,8 @@ export type ProviderCanvasPanelProps = {
   selectedProvider: ProviderCatalogEntry;
 };
 
+type ProviderSettingsView = "api" | "models" | "other";
+
 export function ProviderCanvasPanel({
   isActive = true,
   isRenamingProvider,
@@ -45,6 +48,8 @@ export function ProviderCanvasPanel({
   selectedProvider,
 }: ProviderCanvasPanelProps) {
   const { t } = useI18n();
+  const [activeSettingsView, setActiveSettingsView] =
+    useState<ProviderSettingsView>("api");
   const controller = useProviderCanvasController({
     isActive,
     onUpdateProviderProtocol,
@@ -120,68 +125,66 @@ export function ProviderCanvasPanel({
         ) : null}
 
         <div className="provider-canvas__canvas-config">
-          <ProviderApiKeySection
-            apiKeyInputRefs={controller.apiKeyInputRefs}
-            providerConfigState={providerConfigState}
-            providerDisplayName={selectedProvider.display_name}
-            selectedProviderDraft={selectedProviderDraft}
-          />
+          <nav
+            className="provider-canvas__settings-tabs"
+            role="tablist"
+            aria-label={t("providerCanvas.settingsTabs.aria")}
+          >
+            {(["api", "models", "other"] as const).map((view) => (
+              <button
+                key={view}
+                className={
+                  activeSettingsView === view
+                    ? "provider-canvas__settings-tab provider-canvas__settings-tab--active"
+                    : "provider-canvas__settings-tab"
+                }
+                type="button"
+                role="tab"
+                aria-selected={activeSettingsView === view}
+                onClick={() => setActiveSettingsView(view)}
+              >
+                {t(`providerCanvas.settingsTabs.${view}`)}
+              </button>
+            ))}
+          </nav>
 
-          <ProviderApiBaseUrlSection
-            isUpdatingProviderProtocol={isUpdatingProviderProtocol}
-            protocolFamily={selectedProvider.protocol_family}
-            providerConfigState={providerConfigState}
-            providerDisplayName={selectedProvider.display_name}
-            selectedProviderDraft={selectedProviderDraft}
-            onUpdateProviderProtocol={(value) => {
-              void controller.updateSelectedProviderProtocol(value);
-            }}
-          />
+          {activeSettingsView === "api" ? (
+            <ProviderApiBaseUrlSection
+              apiKeyInputRefs={controller.apiKeyInputRefs}
+              isUpdatingProviderProtocol={isUpdatingProviderProtocol}
+              protocolFamily={selectedProvider.protocol_family}
+              providerConfigState={providerConfigState}
+              providerDisplayName={selectedProvider.display_name}
+              selectedProviderDraft={selectedProviderDraft}
+              onUpdateProviderProtocol={(value) => {
+                void controller.updateSelectedProviderProtocol(value);
+              }}
+            />
+          ) : null}
 
-          <ProviderCacheSettingsSection
-            providerConfigState={providerConfigState}
-            providerDisplayName={selectedProvider.display_name}
-            selectedProviderDraft={selectedProviderDraft}
-          />
+          {activeSettingsView === "other" ? (
+            <ProviderOtherSettingsSection
+              providerConfigState={providerConfigState}
+              providerDisplayName={selectedProvider.display_name}
+              selectedProviderDraft={selectedProviderDraft}
+            />
+          ) : null}
 
-          <div className="provider-canvas__canvas-group">
-            <header className="provider-canvas__canvas-section-head">
-              <div>
-                <h3 className="provider-canvas__canvas-section-title">
-                  {t("providerCanvas.modelManagement.title")}
-                </h3>
-              </div>
-              <div className="provider-canvas__model-management-actions">
+          {activeSettingsView === "models" ? (
+            <div className="provider-canvas__canvas-group">
+              <header className="provider-canvas__api-address-section-head">
                 <div
-                  className="provider-canvas__model-mode-tabs"
+                  className="provider-canvas__api-address-tabs"
                   role="tablist"
                   aria-label={t("providerCanvas.modelManagement.modeAria")}
                 >
-                  {controller.modelModeIndicator ? (
-                    <span
-                      className="provider-canvas__model-mode-indicator"
-                      aria-hidden="true"
-                      style={{
-                        width: `${controller.modelModeIndicator.width}px`,
-                        transform: `translateX(${controller.modelModeIndicator.offset}px)`,
-                      }}
-                    />
-                  ) : null}
                   {controller.modelModeTabs.map((tab) => (
                     <button
                       key={tab.id}
-                      ref={(node) => {
-                        if (node) {
-                          controller.modelModeTabRefs.current.set(tab.id, node);
-                          return;
-                        }
-
-                        controller.modelModeTabRefs.current.delete(tab.id);
-                      }}
                       className={
                         controller.modelManagementPanel.activeMode === tab.id
-                          ? "provider-canvas__model-mode-tab provider-canvas__model-mode-tab--active"
-                          : "provider-canvas__model-mode-tab"
+                          ? "provider-canvas__api-address-tab provider-canvas__api-address-tab--active"
+                          : "provider-canvas__api-address-tab"
                       }
                       type="button"
                       role="tab"
@@ -192,42 +195,21 @@ export function ProviderCanvasPanel({
                     </button>
                   ))}
                 </div>
-              </div>
-            </header>
+              </header>
 
-            <div className="provider-canvas__model-mode-stage">
-              <div
-                className={
-                  controller.modelModeTransitionState
-                    ? controller.modelModeTransitionState.direction === "forward"
-                      ? "provider-canvas__model-mode-view provider-canvas__model-mode-view--static provider-canvas__model-mode-view--enter-from-right"
-                      : "provider-canvas__model-mode-view provider-canvas__model-mode-view--static provider-canvas__model-mode-view--enter-from-left"
-                    : "provider-canvas__model-mode-view provider-canvas__model-mode-view--static"
-                }
-              >
-                <ProviderModelManagement
-                  hasAnyProviderApiKey={controller.hasAnyProviderApiKey}
-                  mode={controller.modelManagementPanel.activeMode}
-                  modelCheckStates={controller.modelCheckStates}
-                  modelManagementPanel={controller.modelManagementPanel}
-                  onTestModel={controller.testModelConnection}
-                  providerId={selectedProvider.provider_id}
-                  providerModelDiscovery={providerModelDiscovery}
-                  testingModelIds={controller.testingModelIds}
-                />
-              </div>
-              {controller.shouldRenderModelModeLeavingLayer && controller.modelModeTransitionState ? (
+              <div className="provider-canvas__model-mode-stage">
                 <div
                   className={
-                    controller.modelModeTransitionState.direction === "forward"
-                      ? "provider-canvas__model-mode-view provider-canvas__model-mode-view--layer provider-canvas__model-mode-view--exit-to-left"
-                      : "provider-canvas__model-mode-view provider-canvas__model-mode-view--layer provider-canvas__model-mode-view--exit-to-right"
+                    controller.modelModeTransitionState
+                      ? controller.modelModeTransitionState.direction === "forward"
+                        ? "provider-canvas__model-mode-view provider-canvas__model-mode-view--static provider-canvas__model-mode-view--enter-from-right"
+                        : "provider-canvas__model-mode-view provider-canvas__model-mode-view--static provider-canvas__model-mode-view--enter-from-left"
+                      : "provider-canvas__model-mode-view provider-canvas__model-mode-view--static"
                   }
-                  aria-hidden="true"
                 >
                   <ProviderModelManagement
                     hasAnyProviderApiKey={controller.hasAnyProviderApiKey}
-                    mode={controller.modelModeTransitionState.leavingMode}
+                    mode={controller.modelManagementPanel.activeMode}
                     modelCheckStates={controller.modelCheckStates}
                     modelManagementPanel={controller.modelManagementPanel}
                     onTestModel={controller.testModelConnection}
@@ -236,9 +218,30 @@ export function ProviderCanvasPanel({
                     testingModelIds={controller.testingModelIds}
                   />
                 </div>
-              ) : null}
+                {controller.shouldRenderModelModeLeavingLayer && controller.modelModeTransitionState ? (
+                  <div
+                    className={
+                      controller.modelModeTransitionState.direction === "forward"
+                        ? "provider-canvas__model-mode-view provider-canvas__model-mode-view--layer provider-canvas__model-mode-view--exit-to-left"
+                        : "provider-canvas__model-mode-view provider-canvas__model-mode-view--layer provider-canvas__model-mode-view--exit-to-right"
+                    }
+                    aria-hidden="true"
+                  >
+                    <ProviderModelManagement
+                      hasAnyProviderApiKey={controller.hasAnyProviderApiKey}
+                      mode={controller.modelModeTransitionState.leavingMode}
+                      modelCheckStates={controller.modelCheckStates}
+                      modelManagementPanel={controller.modelManagementPanel}
+                      onTestModel={controller.testModelConnection}
+                      providerId={selectedProvider.provider_id}
+                      providerModelDiscovery={providerModelDiscovery}
+                      testingModelIds={controller.testingModelIds}
+                    />
+                  </div>
+                ) : null}
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
     </div>

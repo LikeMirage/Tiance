@@ -188,7 +188,6 @@ class ChatCompletionRequestBody(BaseModel):
     project_id: str | None = None
     session_id: str | None = None
     messages: list[ChatMessageRequest] = Field(default_factory=list)
-    return_thinking_content: bool = False
     max_tool_calls: int = Field(default=99999, ge=1)
     tools: list[ChatToolDefinitionRequest] = Field(default_factory=list)
     generation: ChatGenerationParamsRequest | None = None
@@ -204,7 +203,6 @@ class ChatCompletionRequestBody(BaseModel):
             tools=tuple(tool.to_domain() for tool in self.tools),
             generation=self.generation.to_domain() if self.generation else LlmGenerationParams(),
             output=self.output.to_domain() if self.output else LlmOutputOptions(),
-            return_thinking_content=self.return_thinking_content,
             max_tool_calls=self.max_tool_calls,
         )
 

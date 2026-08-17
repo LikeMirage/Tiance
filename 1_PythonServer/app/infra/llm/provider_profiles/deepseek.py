@@ -23,7 +23,6 @@ _DEFAULT_SAMPLING_PARAMETERS = ("temperature", "top_p")
 @dataclass(frozen=True, slots=True)
 class DeepSeekProfile:
     profile_id: str = "deepseek"
-    include_reasoning_content_in_messages: bool = True
     include_responses_message_phase: bool = False
     include_responses_web_search_sources: bool = False
     adaptation_rules: ProviderAdaptationRules | None = None

@@ -83,7 +83,6 @@ def build_session_naming_request(
         record_usage=True,
         usage_message_id=naming_usage_message_id(project_id, session_id),
         usage_feature_key="conversation_naming",
-        return_thinking_content=False,
     )
 
 
