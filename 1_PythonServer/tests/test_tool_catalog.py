@@ -34,7 +34,7 @@ def _create_catalog_tool(
     manifest.update(
         {
             "name": call_name,
-            "display_name": folder_name,
+            "registration_name": folder_name,
             "description": "读取本地纯文本文件，支持元信息、按行读取和关键词搜索。",
             "keywords": ["文本", "读取", "源码"],
             "loading": {

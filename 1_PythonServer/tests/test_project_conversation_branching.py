@@ -591,7 +591,7 @@ def test_fork_creation_restores_index_if_relation_write_fails(tmp_path):
     assert sorted(path.name for path in session_dirs.iterdir()) == [root.session_id]
 
 
-def test_deleting_middle_session_keeps_tombstone_and_child_connection(tmp_path):
+def test_deleting_middle_session_promotes_child_to_nearest_live_ancestor(tmp_path):
     repository = _repository(tmp_path)
     root = _create_session(repository)
     root_user = _append(repository, root.session_id, "user", "root")
@@ -613,13 +613,19 @@ def test_deleting_middle_session_keeps_tombstone_and_child_connection(tmp_path):
         references=[],
     )
 
-    repository.delete_session(PROJECT_ID, middle.session.session_id)
+    repository.delete_session(
+        PROJECT_ID,
+        middle.session.session_id,
+        session_ids=(middle.session.session_id,),
+    )
 
     nodes, _variants = repository.list_branch_graph(PROJECT_ID)
     node_by_session = {node.session_id: node for node in nodes}
     assert node_by_session[middle.session.session_id].deleted_at is not None
     assert node_by_session[child.session.session_id].deleted_at is None
-    assert node_by_session[child.session.session_id].parent_branch_id == middle.branch.branch_id
+    assert node_by_session[child.session.session_id].parent_branch_id == node_by_session[root.session_id].branch_id
+    assert node_by_session[child.session.session_id].parent_session_id == root.session_id
+    assert node_by_session[child.session.session_id].source_message_id is None
     assert repository.get_session(PROJECT_ID, child.session.session_id) is not None
 
 
@@ -636,7 +642,11 @@ def test_deleting_branch_root_promotes_a_live_session_in_branch_overview(tmp_pat
         references=[],
     )
 
-    repository.delete_session(PROJECT_ID, root.session_id)
+    repository.delete_session(
+        PROJECT_ID,
+        root.session_id,
+        session_ids=(root.session_id,),
+    )
 
     sessions = repository.list_sessions(PROJECT_ID)
     nodes, _variants = repository.list_branch_graph(PROJECT_ID)
@@ -644,6 +654,181 @@ def test_deleting_branch_root_promotes_a_live_session_in_branch_overview(tmp_pat
     assert len(groups) == 1
     assert groups[0].root_session_id == branch.session.session_id
     assert groups[0].session_ids == (branch.session.session_id,)
+    live_branch = next(
+        node
+        for node in nodes
+        if node.session_id == branch.session.session_id
+    )
+    assert live_branch.parent_session_id is None
+    assert live_branch.parent_branch_id is None
+    assert live_branch.source_message_id is None
+
+
+def test_deleting_inactive_session_preserves_active_session(tmp_path):
+    repository = _repository(tmp_path)
+    inactive = _create_session(repository, "非活动会话")
+    active = _create_session(repository, "活动会话")
+
+    repository.delete_session(
+        PROJECT_ID,
+        inactive.session_id,
+        session_ids=(inactive.session_id,),
+    )
+
+    active_session_id, _states = repository.get_state(PROJECT_ID)
+    assert active_session_id == active.session_id
+
+
+def test_deleting_active_session_selects_latest_remaining_root(tmp_path):
+    repository = _repository(tmp_path)
+    older_root = _create_session(repository, "较早顶层会话")
+    newer_root = _create_session(repository, "较新顶层会话")
+    older_root_user = _append(repository, older_root.session_id, "user", "创建下级")
+    _append(repository, older_root.session_id, "assistant", "原回答")
+    newest_non_root = repository.fork_session(
+        PROJECT_ID,
+        older_root.session_id,
+        source_message_id=older_root_user.message_id,
+        draft="最新下级会话",
+        references=[],
+    )
+    active_root = _create_session(repository, "待删除活动会话")
+
+    repository.delete_session(
+        PROJECT_ID,
+        active_root.session_id,
+        session_ids=(active_root.session_id,),
+    )
+
+    active_session_id, _states = repository.get_state(PROJECT_ID)
+    assert repository.get_session(
+        PROJECT_ID,
+        newest_non_root.session.session_id,
+    ) is not None
+    assert active_session_id == newer_root.session_id
+
+
+def test_selective_tree_deletion_keeps_unselected_descendant_and_repairs_parent(tmp_path):
+    repository = _repository(tmp_path)
+    root = _create_session(repository, "主会话")
+    root_user = _append(repository, root.session_id, "user", "root")
+    _append(repository, root.session_id, "assistant", "root answer")
+    middle = repository.fork_session(
+        PROJECT_ID,
+        root.session_id,
+        source_message_id=root_user.message_id,
+        draft="middle",
+        references=[],
+    )
+    middle_user = _append(repository, middle.session.session_id, "user", "middle")
+    _append(repository, middle.session.session_id, "assistant", "middle answer")
+    child = repository.fork_session(
+        PROJECT_ID,
+        middle.session.session_id,
+        source_message_id=middle_user.message_id,
+        draft="child",
+        references=[],
+    )
+    child_user = _append(repository, child.session.session_id, "user", "child")
+    _append(repository, child.session.session_id, "assistant", "child answer")
+    grandchild = repository.fork_session(
+        PROJECT_ID,
+        child.session.session_id,
+        source_message_id=child_user.message_id,
+        draft="grandchild",
+        references=[],
+    )
+
+    repository.delete_session(
+        PROJECT_ID,
+        middle.session.session_id,
+        session_ids=(middle.session.session_id, child.session.session_id),
+    )
+
+    nodes, _variants = repository.list_branch_graph(PROJECT_ID)
+    node_by_session = {node.session_id: node for node in nodes}
+    assert node_by_session[middle.session.session_id].deleted_at is not None
+    assert node_by_session[child.session.session_id].deleted_at is not None
+    assert node_by_session[grandchild.session.session_id].deleted_at is None
+    assert node_by_session[grandchild.session.session_id].parent_session_id == root.session_id
+    assert node_by_session[grandchild.session.session_id].parent_branch_id == node_by_session[root.session_id].branch_id
+    assert repository.get_session(PROJECT_ID, grandchild.session.session_id) is not None
+
+
+def test_selective_tree_deletion_rejects_unrelated_session(tmp_path):
+    import pytest
+
+    from app.core.errors import BadRequestError
+
+    repository = _repository(tmp_path)
+    target = _create_session(repository, "待删除会话")
+    unrelated = _create_session(repository, "无关会话")
+
+    with pytest.raises(BadRequestError, match="只能删除当前会话及其下级会话"):
+        repository.delete_session(
+            PROJECT_ID,
+            target.session_id,
+            session_ids=(target.session_id, unrelated.session_id),
+        )
+
+    assert repository.get_session(PROJECT_ID, target.session_id) is not None
+    assert repository.get_session(PROJECT_ID, unrelated.session_id) is not None
+
+
+def test_parent_deletion_preserves_functional_session_without_special_lifecycle_rule():
+    from app.repositories.project.conversation_branch_store import ConversationBranchStore
+
+    graph = {
+        "version": 4,
+        "nodes": [
+            {
+                "branch_id": "branch-root",
+                "tree_id": "tree-root",
+                "session_id": "session-root",
+                "parent_branch_id": None,
+                "parent_session_id": None,
+                "relation_kind": "root",
+                "function_type": None,
+                "created_by": "user",
+                "history_mode": "empty",
+                "source_message_id": None,
+                "sibling_index": 0,
+                "created_at": "2026-08-18T00:00:00+00:00",
+                "deleted_at": None,
+            },
+            {
+                "branch_id": "branch-function",
+                "tree_id": "tree-function",
+                "session_id": "session-function",
+                "parent_branch_id": "branch-root",
+                "parent_session_id": "session-root",
+                "relation_kind": "functional",
+                "function_type": "memory_compaction",
+                "created_by": "system",
+                "history_mode": "copy",
+                "source_message_id": "msg-source",
+                "sibling_index": 1,
+                "created_at": "2026-08-18T00:01:00+00:00",
+                "deleted_at": None,
+            },
+        ],
+        "variants": [],
+    }
+    store = ConversationBranchStore()
+
+    store.delete_sessions_and_reparent(
+        graph,
+        frozenset({"session-root"}),
+        deleted_at="2026-08-18T00:02:00+00:00",
+    )
+
+    function_node = store.node_for_session(graph, "session-function")
+    assert function_node is not None
+    assert function_node.deleted_at is None
+    assert function_node.parent_session_id is None
+    assert function_node.parent_branch_id is None
+    assert function_node.relation_kind == "functional"
+    assert function_node.function_type == "memory_compaction"
 
 
 def test_fork_only_inherits_completed_compressions_fully_before_branch_point(tmp_path):

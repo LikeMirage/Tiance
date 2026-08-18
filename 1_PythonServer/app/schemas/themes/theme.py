@@ -151,13 +151,38 @@ class ThemeIntegrations(ThemeContract):
     milkdown: str
 
 
-class ThemeDefinition(ThemeContract):
+class ThemeBaseDefinition(ThemeContract):
     schema_version: Literal[2] = Field(alias="schemaVersion")
     id: str
-    name: str
     mode: Literal["dark", "light"]
     tokens: ThemeTokens
     integrations: ThemeIntegrations
+
+
+class ThemeDefinition(ThemeBaseDefinition):
+    name: str
+
+
+class ThemePackageDefinition(ThemeBaseDefinition):
+    registration_name: str = Field(alias="registrationName")
+
+
+def theme_definition_from_package(
+    package: ThemePackageDefinition,
+    *,
+    name: str,
+) -> ThemeDefinition:
+    payload = package.model_dump(mode="python", exclude={"registration_name"})
+    return ThemeDefinition(name=name, **payload)
+
+
+def theme_package_from_definition(
+    theme: ThemeDefinition,
+    *,
+    registration_name: str,
+) -> ThemePackageDefinition:
+    payload = theme.model_dump(mode="python", exclude={"name"})
+    return ThemePackageDefinition(registration_name=registration_name, **payload)
 
 
 class ThemeSummary(BaseModel):

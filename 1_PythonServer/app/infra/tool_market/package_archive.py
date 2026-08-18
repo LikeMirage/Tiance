@@ -115,11 +115,11 @@ class ToolPackageArchive:
             raise BadRequestError("工具包中的运行定义无效。") from exc
         runtime = loaded.manifest.get("runtime")
         runtime_type = runtime.get("type") if isinstance(runtime, dict) else None
-        display_name = loaded.manifest.get("display_name")
+        registration_name = loaded.manifest.get("registration_name")
         description = loaded.manifest.get("description")
         if (
             loaded.name != market_entry.call_name
-            or display_name != market_entry.display_name
+            or registration_name != market_entry.display_name
             or description != market_entry.summary
             or runtime_type != market_entry.runtime
         ):

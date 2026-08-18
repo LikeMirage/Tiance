@@ -1,6 +1,6 @@
 {
   "description": "多处、多文件或需要 unified diff 表达的结构化修改使用；单文件精确、小范围字符串替换优先使用 replace_text。支持新增、更新、删除、编码与换行保真、dry-run、备份和每文件 sha256 校验；所有文件会先完整验证和暂存，写入失败时回滚已提交文件。",
-  "display_name": "文件补丁编辑",
+  "registration_name": "文件补丁编辑",
   "execution": {
     "parallel": true
   },

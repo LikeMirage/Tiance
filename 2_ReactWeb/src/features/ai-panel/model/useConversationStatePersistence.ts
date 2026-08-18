@@ -103,8 +103,18 @@ export function useConversationStatePersistence({
   ) => {
     const savedDraft = patch.draft;
     if (savedDraft !== undefined) rememberPendingDraft(projectId, sessionId, savedDraft);
+    const input: SaveProjectConversationStateInput = {};
+    if (patch.runtime_status !== undefined) {
+      input.session_runtime_statuses = { [sessionId]: patch.runtime_status };
+    }
+    if (patch.draft !== undefined) {
+      input.session_drafts = { [sessionId]: patch.draft };
+    }
+    if (patch.references !== undefined) {
+      input.session_references = { [sessionId]: patch.references };
+    }
     void saveConversationState(projectId, {
-      session_states: { [sessionId]: patch },
+      ...input,
     }).then(() => {
       if (savedDraft !== undefined) clearPendingDraft(projectId, sessionId, savedDraft);
     }).catch(() => undefined);

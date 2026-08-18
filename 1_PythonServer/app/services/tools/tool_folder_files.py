@@ -163,13 +163,6 @@ class ToolFolderFileService:
         except ValueError as exc:
             raise BadRequestError(str(exc)) from exc
         if _is_tool_standard_file_path(target_path):
-            if _is_tool_manifest_file_path(target_path) and self._tool_projects is not None:
-                display_name = loads(content)["display_name"]
-                self._tool_projects.rename_tool_folder(
-                    category_id,
-                    project_id,
-                    name=display_name,
-                )
             self._rebuild_registry()
         return node
 
@@ -263,14 +256,11 @@ class ToolFolderFileService:
             return
         payload = loads(content)
         call_name = payload.get("name")
-        display_name = payload.get("display_name")
         for entry in self._registry_service.list_entries(enabled_only=False):
             if entry.project_id == project_id:
                 continue
             if entry.tool_name == call_name:
                 raise ConflictError("同名工具调用名称已存在。")
-            if entry.display_name == display_name:
-                raise ConflictError("同名工具已存在。")
 
 
 def _is_tool_standard_file_path(target_path: str) -> bool:

@@ -121,23 +121,6 @@ class ChatMessageContentPartRequest(BaseModel):
         )
 
 
-class ChatMessageSourceContextRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    project_id: str = Field(min_length=1)
-    session_id: str = Field(min_length=1)
-    session_title: str = Field(min_length=1)
-    tool_request_id: str = Field(min_length=1)
-
-    def to_payload(self) -> dict[str, str]:
-        return {
-            "project_id": self.project_id.strip(),
-            "session_id": self.session_id.strip(),
-            "session_title": self.session_title.strip(),
-            "tool_request_id": self.tool_request_id.strip(),
-        }
-
-
 class ChatMessageRequest(BaseModel):
     role: ChatMessageRole
     content: str = ""
@@ -153,14 +136,11 @@ class ChatMessageRequest(BaseModel):
     tool_calls: list[ChatToolCallRequest] = Field(default_factory=list)
     thinking_content: str = ""
     references: ConversationReferences = Field(default_factory=ConversationReferences)
-    source_context: ChatMessageSourceContextRequest | None = None
 
     def to_domain(self) -> ChatMessage:
         internal_metadata = {}
         if self.role == ChatMessageRole.USER:
             internal_metadata["conversation_references"] = self.references.to_payload()
-            if self.source_context is not None:
-                internal_metadata["source_context"] = self.source_context.to_payload()
         return ChatMessage(
             role=self.role,
             content=self.content,

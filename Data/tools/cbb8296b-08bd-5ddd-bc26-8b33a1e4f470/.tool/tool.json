@@ -1,6 +1,6 @@
 {
   "description": "阻塞当前工具调用指定秒数，等待结束后再继续后续步骤。适合短时间延迟、稍后重试或等待外部状态变化；只负责本次调用内等待，不创建后台任务。",
-  "display_name": "等待",
+  "registration_name": "等待",
   "execution": {
     "parallel": true
   },

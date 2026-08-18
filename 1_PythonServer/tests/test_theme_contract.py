@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.themes import ThemeDefinition
+from app.schemas.themes import ThemePackageDefinition
 from app.domain.project import Project, ProjectKind
 from app.infra.database import (
     database_transaction,
@@ -34,7 +34,7 @@ def test_all_theme_packages_and_builtin_backups_follow_current_contract() -> Non
 
     for path in [*theme_files, *backup_files]:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        theme = ThemeDefinition.model_validate(payload)
+        theme = ThemePackageDefinition.model_validate(payload)
         expected_id = path.parent.name if path.name == "theme.json" else path.stem
 
         assert theme.schema_version == 2
@@ -54,7 +54,7 @@ def test_structure_tokens_are_required_per_theme() -> None:
     payload["tokens"].pop("structure")
 
     with pytest.raises(ValidationError):
-        ThemeDefinition.model_validate(payload)
+        ThemePackageDefinition.model_validate(payload)
 
 
 def test_theme_project_is_opened_by_project_id(monkeypatch, tmp_path) -> None:
@@ -96,6 +96,13 @@ def test_theme_project_is_opened_by_project_id(monkeypatch, tmp_path) -> None:
     assert loaded.name == project.name
     assert renamed == [(project.project_id, "新主题名")]
     assert saved.id == loaded.id
+    saved_package = ThemePackageDefinition.model_validate_json(
+        target_path.read_text(encoding="utf-8")
+    )
+    source_package = ThemePackageDefinition.model_validate_json(
+        source_path.read_text(encoding="utf-8")
+    )
+    assert saved_package.registration_name == source_package.registration_name
 
 
 def test_schema_migration_removes_only_legacy_active_theme_metadata(tmp_path) -> None:

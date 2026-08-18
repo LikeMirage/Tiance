@@ -14,7 +14,10 @@ from app.domain.llm.chat import (
 from app.domain.llm.generation_params import LlmReasoningMode
 from app.domain.project.project_conversation import (
     ProjectConversationMessage,
+    ProjectConversationMessageRole,
+    ProjectConversationMessageStatus,
     ProjectConversationNamingCallRecord,
+    ProjectConversationRuntimeStatus,
     ProjectConversationSession,
     ProjectConversationSessionState,
 )
@@ -25,8 +28,9 @@ from app.repositories.project.conversation_serialization_settings import (
 )
 
 _RUNTIME_STATUSES = {"idle", "running", "error"}
+_MESSAGE_ROLES = {"system", "user", "assistant", "tool", "error"}
+_MESSAGE_STATUSES = {"running", "done", "error", "cancelled"}
 _RUNNING_STATUS_STALE_AFTER = timedelta(seconds=150)
-_DEFAULT_ASSISTANT_TITLE = "AI 助手"
 _REASONING_MODES = {mode.value for mode in LlmReasoningMode}
 
 def _session_from_payload(payload: dict) -> ProjectConversationSession:
@@ -49,7 +53,7 @@ def _session_from_payload(payload: dict) -> ProjectConversationSession:
     )
 
 def _message_from_payload(payload: dict) -> ProjectConversationMessage:
-    role = str(payload.get("role") or "assistant")
+    role = _message_role(payload.get("role"))
     target_provider_id = _optional_str(payload.get("target_provider_id"))
     target_model_id = _optional_str(payload.get("target_model_id"))
     provider_id = _optional_str(payload.get("provider_id"))
@@ -73,7 +77,7 @@ def _message_from_payload(payload: dict) -> ProjectConversationMessage:
         usage=payload.get("usage") if role in {"assistant", "error"} and isinstance(payload.get("usage"), dict) else None,
         provider_id=provider_id,
         model_id=model_id,
-        status=str(payload.get("status") or "done"),
+        status=_message_status(payload.get("status")),
         created_at=str(payload.get("created_at") or ""),
         updated_at=str(payload.get("updated_at") or ""),
         created_at_local=_optional_str(payload.get("created_at_local")),
@@ -106,11 +110,6 @@ def _message_from_payload(payload: dict) -> ProjectConversationMessage:
             if role == "user"
             else _empty_session_references()
         ),
-        source_context=(
-            _source_context_from_payload(payload.get("source_context"))
-            if role == "user"
-            else {}
-        ),
     )
 
 def _session_to_payload(session: ProjectConversationSession) -> dict:
@@ -128,15 +127,6 @@ def _session_to_payload(session: ProjectConversationSession) -> dict:
         "settings": _session_settings_to_payload(session.settings),
         "role_project_id": session.role_project_id,
         "role_configuration_hash": session.role_configuration_hash,
-    }
-
-def _session_index_payload(session: ProjectConversationSession) -> dict:
-    return {
-        "session_id": session.session_id,
-        "sequence_number": session.sequence_number,
-        "title": session.title,
-        "updated_at": session.updated_at,
-        "message_count": session.message_count,
     }
 
 def _message_to_payload(message: ProjectConversationMessage) -> dict:
@@ -162,8 +152,6 @@ def _message_to_payload(message: ProjectConversationMessage) -> dict:
             payload["target_model_id"] = message.target_model_id
         if _has_message_references(message.references):
             payload["references"] = _message_references_from_payload(message.references)
-        if message.source_context:
-            payload["source_context"] = _source_context_from_payload(message.source_context)
     else:
         if message.provider_id:
             payload["provider_id"] = message.provider_id
@@ -219,8 +207,6 @@ def _empty_index() -> dict:
     return {
         "active_session_id": None,
         "pinned_session_ids": [],
-        "sessions": [],
-        "session_states": {},
     }
 
 
@@ -234,10 +220,6 @@ def _index_pinned_session_ids(index: dict) -> set[str]:
         if isinstance(value, str) and value.strip()
     }
 
-
-def _index_session_items(index: dict) -> list:
-    sessions = index.get("sessions")
-    return sessions if isinstance(sessions, list) else []
 
 def _default_session_state(session_id: str) -> ProjectConversationSessionState:
     now = _utc_now()
@@ -256,10 +238,17 @@ def _session_state_from_payload(
 ) -> ProjectConversationSessionState:
     if not isinstance(payload, dict):
         return _default_session_state(session_id)
-    runtime_status = str(payload.get("runtime_status") or "idle")
-    if runtime_status not in _RUNTIME_STATUSES:
-        runtime_status = "idle"
-    updated_at = str(payload.get("updated_at") or _utc_now())
+    runtime_status = _runtime_status(payload.get("runtime_status"))
+    component_timestamps = tuple(
+        str(payload.get(key) or "")
+        for key in (
+            "runtime_updated_at",
+            "draft_updated_at",
+            "references_updated_at",
+            "updated_at",
+        )
+    )
+    updated_at = max(component_timestamps) or _utc_now()
     return ProjectConversationSessionState(
         session_id=session_id,
         runtime_status=runtime_status,
@@ -277,13 +266,13 @@ def _merge_session_state(
     current = existing or _default_session_state(session_id)
     runtime_status = payload.get("runtime_status", current.runtime_status)
     if runtime_status not in _RUNTIME_STATUSES:
-        runtime_status = current.runtime_status
+        raise ValueError(f"Unsupported conversation runtime status: {runtime_status!r}")
     draft = payload.get("draft", current.draft)
     references = payload.get("references", current.references)
     now = _utc_now()
     return ProjectConversationSessionState(
         session_id=session_id,
-        runtime_status=str(runtime_status),
+        runtime_status=_runtime_status(runtime_status),
         draft=str(draft or ""),
         references=_session_references_from_payload(references),
         updated_at=now,
@@ -317,17 +306,6 @@ def _message_references_from_payload(value: object) -> list[dict]:
 def _has_message_references(value: object) -> bool:
     references = _message_references_from_payload(value)
     return bool(references)
-
-def _source_context_from_payload(value: object) -> dict[str, str]:
-    if not isinstance(value, dict):
-        return {}
-    normalized: dict[str, str] = {}
-    for field in ("project_id", "session_id", "session_title", "tool_request_id"):
-        raw = value.get(field)
-        if not isinstance(raw, str) or not raw.strip():
-            return {}
-        normalized[field] = raw.strip()
-    return normalized
 
 def _runtime_status_for_appended_message(role: str) -> str | None:
     if role == "user":
@@ -364,6 +342,27 @@ def _expire_running_state_if_stale(
 
 def _optional_str(value: object) -> str | None:
     return value if isinstance(value, str) else None
+
+
+def _message_role(value: object) -> ProjectConversationMessageRole:
+    role = str(value or "")
+    if role not in _MESSAGE_ROLES:
+        raise ValueError(f"Unsupported conversation message role: {role!r}")
+    return role  # type: ignore[return-value]
+
+
+def _message_status(value: object) -> ProjectConversationMessageStatus:
+    status = str(value or "")
+    if status not in _MESSAGE_STATUSES:
+        raise ValueError(f"Unsupported conversation message status: {status!r}")
+    return status  # type: ignore[return-value]
+
+
+def _runtime_status(value: object) -> ProjectConversationRuntimeStatus:
+    status = str(value or "idle")
+    if status not in _RUNTIME_STATUSES:
+        raise ValueError(f"Unsupported conversation runtime status: {status!r}")
+    return status  # type: ignore[return-value]
 
 def _tool_calls_from_payload(value: object) -> tuple[ChatToolCall, ...]:
     if not isinstance(value, list):
@@ -530,27 +529,11 @@ def _optional_int_or_none(value: object) -> int | None:
     except (TypeError, ValueError):
         return None
 
-def _next_session_sequence_number(index: dict) -> int:
-    max_sequence_number = 0
-    sessions = index.get("sessions")
-    if not isinstance(sessions, list):
-        return 1
-    for item in sessions:
-        if isinstance(item, dict):
-            max_sequence_number = max(max_sequence_number, _payload_int(item.get("sequence_number")))
-    return max_sequence_number + 1
-
 def _normalize_session_title(value: object) -> str:
     if not isinstance(value, str):
         return "新对话"
     title = " ".join(value.strip().split())
     return title or "新对话"
-
-def _normalize_assistant_title(value: object) -> str:
-    if not isinstance(value, str):
-        return _DEFAULT_ASSISTANT_TITLE
-    title = value.strip()
-    return title or _DEFAULT_ASSISTANT_TITLE
 
 def _new_session_id() -> str:
     return datetime.now(UTC).strftime("%Y%m%d%H%M%S") + f"-{uuid4().hex[:8]}"

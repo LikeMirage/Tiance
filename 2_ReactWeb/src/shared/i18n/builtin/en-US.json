@@ -551,6 +551,10 @@
             "title": "Model request records",
             "description": "Inspect each logical model request, response, tool call, and token usage record."
           },
+          "modelHttpExchanges": {
+            "title": "Raw model exchanges",
+            "description": "Inspect paged, redacted raw HTTP requests and responses with integrity metadata."
+          },
           "session": {
             "title": "Conversation settings dashboard",
             "description": "View the current conversation title, model, generation parameters, memory parameters, and tool settings."
@@ -1118,6 +1122,11 @@
         "updateTitle": "Update online tool",
         "updateMessage": "Update “{name}” from v{current} to v{next}. The local call name, enabled state, dependencies, and program/config.json are preserved.",
         "updateConfirm": "Confirm update"
+      },
+      "dependencies": {
+        "title": "This tool has Python dependencies",
+        "message": "Open the tool dependency dashboard to check and install missing or mismatched dependencies.",
+        "open": "Open dependencies"
       }
     },
     "providerMarket": {
@@ -1293,7 +1302,13 @@
       "activeSessions": "Active {count}",
       "deleteFailed": "Failed to delete conversation.",
       "deleteSessionDeleting": "Deleting...",
-      "deleteSessionMessage": "Delete conversation \"{title}\"? Its messages will also be removed.",
+      "deleteSessionMessage": "Delete conversation \"{title}\" and its messages.",
+      "deleteSessionCurrent": "Current conversation",
+      "deleteSessionDescendants": "Select lower conversations ({count})",
+      "deleteSessionPromotionHint": "Unselected lower conversations will be kept and attached to the nearest surviving parent.",
+      "deleteSessionSelectionSummary": "{count} conversation(s) will be deleted.",
+      "deleteSessionTreeLoadFailed": "Could not load lower conversations. Close this dialog and try again.",
+      "deleteSessionTreeLoading": "Loading lower conversations...",
       "deleteSessionTitle": "Delete Conversation",
       "emptyCategory": "This category has no projects.",
       "emptyRoleCategory": "This category has no roles.",

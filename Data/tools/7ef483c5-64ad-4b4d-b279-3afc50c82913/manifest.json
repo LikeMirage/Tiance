@@ -1,1 +1,16 @@
-{"schemaVersion":1,"kind":"tiance-tool-package","id":"github_pull_request","version": "1.0.1","author":{"name":"LikeMirage"},"license":"Apache-2.0","compatibility":{"minTianceVersion":"0.3.0","platforms":["windows-x64"]}}
+{
+  "schemaVersion": 1,
+  "kind": "tiance-tool-package",
+  "id": "github_pull_request",
+  "version": "1.0.2",
+  "author": {
+    "name": "LikeMirage"
+  },
+  "license": "Apache-2.0",
+  "compatibility": {
+    "minTianceVersion": "0.3.20",
+    "platforms": [
+      "windows-x64"
+    ]
+  }
+}

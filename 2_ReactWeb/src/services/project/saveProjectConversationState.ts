@@ -5,21 +5,15 @@ import type {
 } from "../../entities/llm-chat/model/conversation";
 import { fetchJson } from "../http/httpClient";
 
-export type SaveProjectConversationSessionState = Partial<{
-  runtime_status: ConversationRuntimeStatus;
-  draft: string;
-  references: ConversationDraftReferences;
-}>;
-
 export type SaveProjectConversationStateInput = {
-  assistant_title?: string | null;
   active_session_id?: string | null;
-  session_states?: Record<string, SaveProjectConversationSessionState>;
+  session_runtime_statuses?: Record<string, ConversationRuntimeStatus>;
+  session_drafts?: Record<string, string>;
+  session_references?: Record<string, ConversationDraftReferences>;
 };
 
 export type SaveProjectConversationStateResponse = {
   project_id: string;
-  assistant_title: string;
   active_session_id: string | null;
   session_states: Record<string, ConversationSessionState>;
 };

@@ -10,7 +10,7 @@ from zipfile import BadZipFile, ZipFile, ZipInfo
 from PIL import Image, UnidentifiedImageError
 
 from app.core.errors import BadRequestError
-from app.schemas.themes import ThemeDefinition
+from app.schemas.themes import ThemePackageDefinition
 from app.schemas.themes.theme_market import ThemeMarketThemeEntry
 
 
@@ -96,12 +96,14 @@ class ThemePackageArchive:
         if not theme_file.is_file() or not manifest_file.is_file():
             raise BadRequestError("主题包缺少 theme.json 或 manifest.json。")
         try:
-            theme = ThemeDefinition.model_validate_json(theme_file.read_text(encoding="utf-8"))
+            theme = ThemePackageDefinition.model_validate_json(
+                theme_file.read_text(encoding="utf-8")
+            )
             manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             raise BadRequestError("主题包配置无效。") from exc
-        if theme.id != market_entry.id:
-            raise BadRequestError("主题包 ID 与市场索引不一致。")
+        if theme.id != market_entry.id or theme.registration_name != market_entry.name:
+            raise BadRequestError("主题包标识与市场索引不一致。")
         self._validate_manifest(manifest, market_entry=market_entry, package_root=package_root)
         self._validate_theme_assets(theme, package_root=package_root)
         for image_file in package_root.rglob("*"):
@@ -142,7 +144,11 @@ class ThemePackageArchive:
             raise BadRequestError("主题包缺少合法预览图。")
 
     @staticmethod
-    def _validate_theme_assets(theme: ThemeDefinition, *, package_root: Path) -> None:
+    def _validate_theme_assets(
+        theme: ThemePackageDefinition,
+        *,
+        package_root: Path,
+    ) -> None:
         image = theme.tokens.background.image.strip().replace("\\", "/")
         if not image:
             return

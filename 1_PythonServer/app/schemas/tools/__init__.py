@@ -40,8 +40,8 @@ from .tool_folder_files import (
 )
 from .toolsets import (
     ToolFolderCreateRequest,
-    ToolFolderDynamicLoadingRequest,
-    ToolFolderDynamicLoadingResponse,
+    ToolFolderRuntimeSettingsRequest,
+    ToolFolderRuntimeSettingsResponse,
     ToolFolderListResponse,
     ToolFolderMoveRequest,
     ToolFolderRenameRequest,
@@ -83,8 +83,8 @@ __all__ = [
     "ToolCallRecordSummaryResponse",
     "ToolCallRecordTopToolResponse",
     "ToolFolderCreateRequest",
-    "ToolFolderDynamicLoadingRequest",
-    "ToolFolderDynamicLoadingResponse",
+    "ToolFolderRuntimeSettingsRequest",
+    "ToolFolderRuntimeSettingsResponse",
     "ToolFolderListResponse",
     "ToolFolderMoveRequest",
     "ToolFolderRenameRequest",

@@ -58,7 +58,6 @@ export type ConversationSessionListResponse = {
   project_id: string;
   revision: number;
   count: number;
-  assistant_title: string;
   active_session_id: string | null;
   session_states: Record<string, ConversationSessionState>;
   items: ConversationSession[];

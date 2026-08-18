@@ -8,11 +8,15 @@ import sqlite3
 from app.repositories.project import conversation_database as conversation_database_module
 from app.repositories.project.conversation_database import (
     append_journal_event,
+    count_embedded_artifacts,
     count_journal_events,
     database_path_from_workspace,
     ensure_database,
     journal_mode,
+    list_embedded_artifacts_range,
     list_journal_events_range,
+    read_meta,
+    read_session_state_payloads,
     write_artifact_record,
 )
 from app.domain.project import Project
@@ -48,7 +52,7 @@ def test_new_project_database_uses_wal(tmp_path: Path) -> None:
     assert journal_mode(database_path_from_workspace(workspace)) == "wal"
 
 
-def test_version_one_database_migrates_to_journal_and_artifact_schema(tmp_path: Path) -> None:
+def test_version_one_database_migrates_to_current_audit_schema(tmp_path: Path) -> None:
     workspace = tmp_path / ".Tiance"
     workspace.mkdir()
     database_path = database_path_from_workspace(workspace)
@@ -66,7 +70,7 @@ def test_version_one_database_migrates_to_journal_and_artifact_schema(tmp_path: 
 
     connection = sqlite3.connect(database_path)
     try:
-        assert connection.execute("SELECT version FROM conversation_schema").fetchone()[0] == 2
+        assert connection.execute("SELECT version FROM conversation_schema").fetchone()[0] == 4
         tables = {
             row[0]
             for row in connection.execute(
@@ -77,6 +81,140 @@ def test_version_one_database_migrates_to_journal_and_artifact_schema(tmp_path: 
         connection.close()
     assert "conversation_journal" in tables
     assert "conversation_artifacts" in tables
+    assert "conversation_artifact_payloads" in tables
+
+
+def test_version_two_database_migrates_to_embedded_artifact_payloads(tmp_path: Path) -> None:
+    workspace = tmp_path / ".Tiance"
+    workspace.mkdir()
+    database_path = database_path_from_workspace(workspace)
+    connection = sqlite3.connect(database_path)
+    connection.executescript(
+        """
+        CREATE TABLE conversation_schema (version INTEGER NOT NULL);
+        INSERT INTO conversation_schema(version) VALUES (2);
+        CREATE TABLE conversation_sessions (
+            session_id TEXT PRIMARY KEY,
+            payload_json TEXT NOT NULL
+        );
+        CREATE TABLE conversation_artifacts (
+            artifact_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            relative_path TEXT NOT NULL,
+            media_type TEXT NOT NULL,
+            encoding TEXT,
+            size_bytes INTEGER NOT NULL,
+            sha256 TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            metadata_json TEXT NOT NULL,
+            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE
+        );
+        CREATE TABLE conversation_journal (
+            event_id INTEGER PRIMARY KEY,
+            session_id TEXT,
+            run_id TEXT,
+            turn_id TEXT,
+            tool_call_id TEXT,
+            event_type TEXT NOT NULL,
+            occurred_at TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            artifact_id TEXT,
+            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE,
+            FOREIGN KEY(artifact_id) REFERENCES conversation_artifacts(artifact_id) ON DELETE SET NULL
+        );
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    ensure_database(workspace)
+
+    connection = sqlite3.connect(database_path)
+    try:
+        version = connection.execute("SELECT version FROM conversation_schema").fetchone()[0]
+        payload_columns = {
+            row[1]
+            for row in connection.execute(
+                "PRAGMA table_info(conversation_artifact_payloads)"
+            ).fetchall()
+        }
+    finally:
+        connection.close()
+    assert version == 4
+    assert payload_columns == {
+        "artifact_id",
+        "compression",
+        "stored_size_bytes",
+        "payload_blob",
+    }
+
+
+def test_version_three_database_migrates_session_state_and_removes_duplicate_index_facts(
+    tmp_path: Path,
+) -> None:
+    projects = _Projects(tmp_path)
+    conversations = ProjectConversationRepository(projects)
+    session = conversations.create_session(
+        "project-1",
+        title="migration",
+        provider_id=None,
+        model_id=None,
+        reasoning_mode=None,
+    )
+    workspace = tmp_path / ".Tiance"
+    database_path = database_path_from_workspace(workspace)
+    legacy_index = {
+        "assistant_title": "ignored",
+        "active_session_id": session.session_id,
+        "pinned_session_ids": [session.session_id, "missing-session"],
+        "sessions": [{"session_id": "index-only-session"}],
+        "session_states": {
+            session.session_id: {
+                "runtime_status": "running",
+                "draft": "unfinished",
+                "references": [{"type": "text", "reference": {"id": "ref-1"}}],
+                "updated_at": "2026-08-18T00:00:00+00:00",
+                "runtime_updated_at": "2026-08-18T00:00:01+00:00",
+            }
+        },
+    }
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.executescript(
+            """
+            DROP TABLE conversation_session_runtime_states;
+            DROP TABLE conversation_session_drafts;
+            DROP TABLE conversation_session_references;
+            UPDATE conversation_schema SET version = 3;
+            """
+        )
+        connection.execute(
+            "UPDATE conversation_meta SET value_json = ? WHERE key = 'conversation_index'",
+            (dumps(legacy_index, ensure_ascii=False),),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    conversation_database_module._initialized_database_paths.discard(database_path.resolve())
+
+    ensure_database(workspace)
+
+    state = read_session_state_payloads(
+        workspace / "conversations",
+        {session.session_id},
+    )[session.session_id]
+    index = read_meta(workspace / "conversations", "conversation_index")
+    assert state["runtime_status"] == "running"
+    assert state["draft"] == "unfinished"
+    assert state["references"] == [
+        {"type": "text", "reference": {"id": "ref-1"}}
+    ]
+    assert index == {
+        "active_session_id": session.session_id,
+        "pinned_session_ids": [session.session_id],
+    }
 
 
 def test_journal_keeps_project_order_and_artifact_reference(tmp_path: Path) -> None:
@@ -406,7 +544,7 @@ def test_model_exchange_record_contains_logical_request_and_response() -> None:
     assert "api_key" not in dumps(record)
 
 
-def test_http_exchange_is_written_as_artifact_and_linked_from_journal(tmp_path: Path) -> None:
+def test_http_exchange_is_stored_in_database_and_linked_from_journal(tmp_path: Path) -> None:
     projects = _Projects(tmp_path)
     conversations = ProjectConversationRepository(projects)
     session = conversations.create_session(
@@ -456,19 +594,107 @@ def test_http_exchange_is_written_as_artifact_and_linked_from_journal(tmp_path: 
         for event in events
         if event["event_type"] == "model.http_exchange.completed"
     )
-    artifact_files = list(
-        (
-            tmp_path
-            / ".Tiance"
-            / "conversations"
-            / "sessions"
-            / session.session_id
-            / "artifacts"
-        ).glob("*.json")
+    artifacts = list_embedded_artifacts_range(
+        tmp_path / ".Tiance",
+        session_id=session.session_id,
+        kind="model_http_exchange",
+        offset=0,
+        limit=20,
     )
 
     assert exchange_event["artifact_id"] is not None
-    assert len(artifact_files) == 1
-    artifact = loads(artifact_files[0].read_text(encoding="utf-8"))
-    assert artifact["request"]["body"]["input"] == "question"
-    assert artifact["response"]["body"]["content"] == '{"output":"answer"}'
+    assert count_embedded_artifacts(
+        tmp_path / ".Tiance",
+        session_id=session.session_id,
+        kind="model_http_exchange",
+    ) == 1
+    assert len(artifacts) == 1
+    assert artifacts[0]["artifact_id"] == exchange_event["artifact_id"]
+    assert artifacts[0]["compression"] == "gzip"
+    assert artifacts[0]["stored_size_bytes"] > 0
+    assert artifacts[0]["content"]["request"]["body"]["input"] == "question"
+    assert artifacts[0]["content"]["response"]["body"]["content"] == '{"output":"answer"}'
+    assert not (
+        tmp_path
+        / ".Tiance"
+        / "conversations"
+        / "sessions"
+        / session.session_id
+        / "artifacts"
+    ).exists()
+
+    view = ConversationDataViewRepository(projects).read(
+        "project-1",
+        name="model_http_exchanges.jsonl",
+        session_id=session.session_id,
+        page=1,
+        page_size=20,
+    )
+    view_payload = loads(view.content.strip())
+    assert view.total_count == 1
+    assert view_payload["artifact_id"] == exchange_event["artifact_id"]
+    assert view_payload["content"]["request"]["body"]["input"] == "question"
+
+
+def test_deleting_session_cascades_embedded_http_exchange(tmp_path: Path) -> None:
+    projects = _Projects(tmp_path)
+    conversations = ProjectConversationRepository(projects)
+    session = conversations.create_session(
+        "project-1",
+        title="raw exchange",
+        provider_id="provider",
+        model_id="model",
+        reasoning_mode=None,
+    )
+    request = ChatCompletionRequest(
+        provider_id="provider",
+        model_id="model",
+        project_id="project-1",
+        session_id=session.session_id,
+        run_id="run-1",
+        messages=(
+            ChatMessage(
+                role=ChatMessageRole.USER,
+                content="question",
+                message_id="turn-1",
+            ),
+        ),
+    )
+    ConversationAuditService(projects).record_http_exchange(
+        request,
+        ChatHttpExchange(
+            started_at="2026-08-18T00:00:00+00:00",
+            completed_at="2026-08-18T00:00:01+00:00",
+            request_url="https://example.test/v1/responses",
+            request_headers={},
+            request_body={"input": "question"},
+            response_status=200,
+            response_headers={},
+            response_body=b"answer",
+        ),
+    )
+
+    conversations.delete_session(
+        "project-1",
+        session.session_id,
+        session_ids=(session.session_id,),
+    )
+
+    connection = sqlite3.connect(database_path_from_workspace(tmp_path / ".Tiance"))
+    try:
+        artifact_count = connection.execute(
+            "SELECT COUNT(*) FROM conversation_artifacts WHERE session_id = ?",
+            (session.session_id,),
+        ).fetchone()[0]
+        payload_count = connection.execute(
+            "SELECT COUNT(*) FROM conversation_artifact_payloads",
+        ).fetchone()[0]
+        journal_count = connection.execute(
+            "SELECT COUNT(*) FROM conversation_journal WHERE session_id = ?",
+            (session.session_id,),
+        ).fetchone()[0]
+    finally:
+        connection.close()
+    assert artifact_count == 0
+    assert payload_count == 0
+    assert journal_count == 0

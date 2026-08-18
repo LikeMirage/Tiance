@@ -1,4 +1,5 @@
 .tool-dependencies-dashboard {
+  container-type: inline-size;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -44,7 +45,8 @@
 }
 
 .tool-dependencies-dashboard h1,
-.tool-dependencies-dashboard p {
+.tool-dependencies-dashboard p,
+.tool-dependencies-dashboard ul {
   margin: 0;
 }
 
@@ -54,12 +56,17 @@
   line-height: 1.25;
 }
 
-.tool-dependencies-dashboard p {
+.tool-dependencies-dashboard__description {
   max-width: 780px;
   margin-top: 8px;
+  padding-left: 18px;
   color: var(--color-text-secondary);
   font-size: 0.84rem;
   line-height: 1.65;
+}
+
+.tool-dependencies-dashboard__description li + li {
+  margin-top: 2px;
 }
 
 .tool-dependencies-dashboard__icon-button,
@@ -306,7 +313,7 @@
   font-size: 0.82rem;
 }
 
-@media (max-width: 760px) {
+@container (max-width: 720px) {
   .tool-dependencies-dashboard {
     padding: 18px 16px 24px;
   }
@@ -323,5 +330,11 @@
   .tool-dependencies-dashboard__primary-button,
   .tool-dependencies-dashboard__secondary-button {
     width: 100%;
+  }
+}
+
+@media (max-width: 760px) {
+  .tool-dependencies-dashboard {
+    padding: 18px 16px 24px;
   }
 }

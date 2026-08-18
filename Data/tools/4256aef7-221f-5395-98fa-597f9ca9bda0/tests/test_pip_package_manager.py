@@ -74,7 +74,7 @@ def _create_tool(
     (tool_root / ".tool").mkdir(parents=True)
     (tool_root / "program").mkdir()
     (tool_root / ".tool" / "tool.json").write_text(
-        json.dumps({"name": name, "display_name": display_name}),
+        json.dumps({"name": name, "registration_name": display_name}),
         encoding="utf-8",
     )
     (tool_root / "manifest.json").write_text(
@@ -82,6 +82,17 @@ def _create_tool(
         encoding="utf-8",
     )
     (tool_root / "program" / "requirements.txt").write_text("", encoding="utf-8")
+    catalog_path = tools_root / "catalog.json"
+    catalog = (
+        json.loads(catalog_path.read_text(encoding="utf-8"))
+        if catalog_path.is_file()
+        else {"projects": []}
+    )
+    catalog["projects"].append({
+        "project_id": folder_id,
+        "name": display_name,
+    })
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
     return tool_root
 
 

@@ -1,33 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Word 文档编辑器",
-  "description": "创建、检查或编辑 DOCX。预览引用使用 selection.word_range；工具会解析文字与原生公式片段，小幅公式边界差异会在原容器内校准，无法唯一确认时返回局部候选。edit 必须先 dry_run，再使用返回的 validation_token 写入。",
+  "description": "检查或安全编辑已有 DOCX。预览引用使用 selection.word_range；工具会解析文字与原生公式片段，小幅公式边界差异会在原容器内校准，无法唯一确认时返回局部候选。edit 必须先 dry_run，再使用返回的 validation_token 写入。新建 Word 请使用 Markdown 转 Word 工具。",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "action": { "type": "string", "enum": ["create", "inspect", "edit"] },
+    "action": { "type": "string", "enum": ["inspect", "edit"] },
     "input_path": { "type": "string", "description": "工作区内的输入 DOCX 路径。" },
     "output_path": { "type": "string", "description": "工作区内的输出 DOCX 路径。" },
     "overwrite": { "type": "boolean", "default": false, "description": "输出文件已存在时必须为 true；原位编辑时 dry_run 和正式提交都要传 true。" },
     "backup": { "type": "boolean", "default": true, "description": "原位覆盖时备份到 .Tiance/tool-backups/word_document_editor；该策略纳入 validation_token。" },
     "dry_run": { "type": "boolean", "default": false, "description": "edit 预演，不写文件；同时检查输出路径与覆盖策略并返回 validation_token。" },
     "validation_token": { "type": "string", "pattern": "^dryrun:[0-9a-f]{64}$", "description": "同一输入文档版本、输出路径、operations、overwrite 和 backup 的 dry_run 返回值。" },
-    "properties": { "type": "object", "additionalProperties": true },
-    "page": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "orientation": { "type": "string", "enum": ["portrait", "landscape"], "default": "portrait" },
-        "margin_top": { "type": "number" },
-        "margin_bottom": { "type": "number" },
-        "margin_left": { "type": "number" },
-        "margin_right": { "type": "number" }
-      }
-    },
     "theme": { "type": "object", "additionalProperties": true },
-    "header": { "type": "string" },
-    "footer": { "type": "string" },
-    "elements": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/element" } },
     "operations": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/editOperation" } },
     "inspect": {
       "type": "object",
@@ -46,10 +31,6 @@
   },
   "required": ["action"],
   "allOf": [
-    {
-      "if": { "properties": { "action": { "const": "create" } }, "required": ["action"] },
-      "then": { "required": ["output_path", "elements"] }
-    },
     {
       "if": { "properties": { "action": { "const": "inspect" } }, "required": ["action"] },
       "then": { "required": ["input_path"] }

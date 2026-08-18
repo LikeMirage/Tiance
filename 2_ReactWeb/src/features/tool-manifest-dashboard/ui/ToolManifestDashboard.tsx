@@ -54,7 +54,7 @@ export function ToolManifestDashboard({
   const required = asRequiredSet(manifest.input_schema?.required);
   const inputCallRules = asString(manifest.input_schema?.description);
   const accentColor = "var(--color-accent)";
-  const displayName = getDisplayName(manifest);
+  const registrationName = getRegistrationName(manifest);
   const description = getDescription(manifest);
   const examples = getExamples(manifest.examples);
   const isDynamicLoadingEnabled = getDynamicLoadingEnabled(manifest);
@@ -124,7 +124,7 @@ export function ToolManifestDashboard({
     <article className="tool-dashboard" style={{ "--tool-dashboard-accent": accentColor } as CSSProperties}>
       <header className="tool-dashboard__header">
         <div>
-          <h1>{displayName || "未命名工具"}</h1>
+          <h1>{registrationName || "未命名工具"}</h1>
         </div>
         <div className="tool-dashboard__header-actions">
           <button
@@ -187,11 +187,11 @@ export function ToolManifestDashboard({
       {view === "basics" ? (
         <>
           <section className="tool-dashboard__form-grid">
-            <Field label="显示名称">
+            <Field label="注册名称">
               <input
                 className="tool-dashboard__input"
-                value={displayName}
-                onChange={(event) => updateManifest((draft) => { draft.display_name = event.target.value; })}
+                value={registrationName}
+                onChange={(event) => updateManifest((draft) => { draft.registration_name = event.target.value; })}
               />
             </Field>
             <Field label="调用名称">
@@ -319,8 +319,8 @@ function toJsonObject(value: unknown): JsonObject {
     : {};
 }
 
-function getDisplayName(manifest: { display_name?: unknown }) {
-  return asString(manifest.display_name);
+function getRegistrationName(manifest: { registration_name?: unknown }) {
+  return asString(manifest.registration_name);
 }
 
 function getDescription(manifest: { description?: unknown }) {

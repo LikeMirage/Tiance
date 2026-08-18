@@ -3,7 +3,6 @@ import type {
   ConversationSessionSettings,
 } from "../../../entities/llm-chat/model/conversation";
 import type { DsLlmReasoningMode } from "../../../entities/llm-runtime/model/generationParams";
-import { withReasoningOffOption } from "../../../entities/llm-runtime/model/reasoningModes";
 import { getModelCatalog } from "../../../services/llm/getModelCatalog";
 import { getRuntimeCapabilities } from "../../../services/llm/getRuntimeCapabilities";
 import type { CreateProjectConversationInput } from "../../../services/project/createProjectConversation";
@@ -204,7 +203,7 @@ async function validateEffectiveConfiguration(input: {
   }
   const capabilities = await getRuntimeCapabilities(input.providerId, input.modelId);
   const reasoningModes = capabilities.reasoning.supported
-    ? withReasoningOffOption(capabilities.reasoning.modes)
+    ? [...capabilities.reasoning.modes]
     : [];
   if (
     input.reasoningModeWasExplicit &&

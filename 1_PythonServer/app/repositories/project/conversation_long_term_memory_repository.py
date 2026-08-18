@@ -35,7 +35,6 @@ from app.repositories.project.conversation_branch_store import (
 )
 from app.repositories.project.conversation_serialization import (
     _new_session_id,
-    _next_session_sequence_number,
     _utc_now,
 )
 from app.repositories.project.conversation_storage import (
@@ -237,7 +236,7 @@ class ProjectConversationLongTermMemoryRepository:
             function_session = replace(
                 source_session,
                 session_id=function_session_id,
-                sequence_number=_next_session_sequence_number(index),
+                sequence_number=self._session_store.next_sequence_number(conversations_dir),
                 title=build_derived_session_title(
                     source_session.title,
                     branch.sibling_index,
@@ -308,7 +307,7 @@ class ProjectConversationLongTermMemoryRepository:
                 )
                 atomic_replace_path(temporary_dir, target_session_dir)
 
-                next_index = self._session_store.index_with_session(
+                next_index = self._session_store.index_after_session_write(
                     conversations_dir,
                     function_session,
                     set_active=False,
@@ -471,9 +470,6 @@ class ProjectConversationLongTermMemoryRepository:
         graph: dict,
     ) -> bool:
         conversations_dir = self._session_store.conversations_dir(project_id)
-        index = self._session_store.read_index(conversations_dir)
-        raw_states = index.get("session_states")
-        session_states = raw_states if isinstance(raw_states, dict) else {}
         for node in self._branch_store.list_nodes(graph):
             if (
                 node.parent_session_id != source_session_id
@@ -489,10 +485,11 @@ class ProjectConversationLongTermMemoryRepository:
             task = _read_json_object(task_path)
             if task is None or task.get("status") not in ACTIVE_TASK_STATUSES:
                 continue
-            state = session_states.get(node.session_id)
-            state_payload = state if isinstance(state, dict) else {}
-            runtime_status = state_payload.get("runtime_status")
-            if runtime_status == "running":
+            state = self._session_store.read_session_state(
+                conversations_dir,
+                node.session_id,
+            )
+            if state.runtime_status == "running":
                 return True
             failed = {
                 **task,

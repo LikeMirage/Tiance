@@ -23,11 +23,15 @@ type EditorTabsClientToolOptions = {
 };
 
 export type EditorTabsCapability = {
-  activeTabId: string | null;
-  tabs: DocumentTab[];
   closeTab: (tabId: string) => void;
+  getSnapshot: () => EditorTabsSnapshot;
   openProjectFile: (projectId: string, path: string) => Promise<void>;
   selectTab: (tabId: string) => void;
+};
+
+type EditorTabsSnapshot = {
+  activeTabId: string | null;
+  tabs: DocumentTab[];
 };
 
 export function createEditorTabsClientToolRegistration(
@@ -67,12 +71,13 @@ async function executeEditorTabsClientTool(
   }
 
   const documentTabs = options.getEditorTabs();
-  const projectTabs = getProjectTabs(options, projectId);
+  const initialSnapshot = documentTabs.getSnapshot();
+  const projectTabs = getProjectTabs(initialSnapshot, projectId);
   if (action === "list_tabs") {
     return ok({
       action,
-      tabs: projectTabs.map((tab) => serializeTab(tab, documentTabs.activeTabId)),
-      active_tab_id: documentTabs.activeTabId,
+      tabs: projectTabs.map((tab) => serializeTab(tab, initialSnapshot.activeTabId)),
+      active_tab_id: initialSnapshot.activeTabId,
     });
   }
 
@@ -80,7 +85,7 @@ async function executeEditorTabsClientTool(
     const filePath = requestedPath;
     if (!filePath) return fail("open_file 需要 path 参数。");
     await documentTabs.openProjectFile(projectId, filePath);
-    const latestDocumentTabs = options.getEditorTabs();
+    const latestDocumentTabs = documentTabs.getSnapshot();
     const openedTab = findProjectTabByPath(
       latestDocumentTabs.tabs.filter((tab) => tab.projectId === projectId),
       filePath,
@@ -110,9 +115,9 @@ async function executeEditorTabsClientTool(
       });
     }
     documentTabs.selectTab(tab.id);
-    const latestDocumentTabs = options.getEditorTabs();
+    const latestDocumentTabs = documentTabs.getSnapshot();
     const focusedTab = findProjectTabByPath(
-      getProjectTabs(options, projectId),
+      getProjectTabs(latestDocumentTabs, projectId),
       filePath,
     );
     if (!focusedTab || latestDocumentTabs.activeTabId !== focusedTab.id) {
@@ -132,7 +137,12 @@ async function executeEditorTabsClientTool(
       ? projectTabs.filter((tab) => requestedPaths.includes(tabPath(tab) ?? ""))
       : projectTabs;
     const closeResult = closeCleanTabs(documentTabs, targetTabs);
-    const stillOpen = findStillOpenTabs(options, projectId, closeResult.closed);
+    const latestDocumentTabs = documentTabs.getSnapshot();
+    const stillOpen = findStillOpenTabs(
+      latestDocumentTabs,
+      projectId,
+      closeResult.closed,
+    );
     if (stillOpen.length > 0) {
       return fail("前端未能关闭部分标签页。", {
         action,
@@ -150,7 +160,7 @@ async function executeEditorTabsClientTool(
     const keepPath = requestedPath;
     const keepTab = keepPath
       ? findProjectTabByPath(projectTabs, keepPath)
-      : projectTabs.find((tab) => tab.id === documentTabs.activeTabId) ?? null;
+      : projectTabs.find((tab) => tab.id === initialSnapshot.activeTabId) ?? null;
     if (!keepTab) {
       return fail("没有找到需要保留的当前项目标签页。", {
         action,
@@ -162,12 +172,16 @@ async function executeEditorTabsClientTool(
       documentTabs,
       projectTabs.filter((tab) => tab.id !== keepTab.id),
     );
-    const latestDocumentTabs = options.getEditorTabs();
-    const latestProjectTabs = getProjectTabs(options, projectId);
+    const latestDocumentTabs = documentTabs.getSnapshot();
+    const latestProjectTabs = getProjectTabs(latestDocumentTabs, projectId);
     const latestKeepTab = keepPath
       ? findProjectTabByPath(latestProjectTabs, keepPath)
       : latestProjectTabs.find((tab) => tab.id === keepTab.id) ?? null;
-    const stillOpen = findStillOpenTabs(options, projectId, closeResult.closed);
+    const stillOpen = findStillOpenTabs(
+      latestDocumentTabs,
+      projectId,
+      closeResult.closed,
+    );
     if (!latestKeepTab) {
       return fail("前端未能保留目标标签页。", {
         action,
@@ -195,10 +209,10 @@ async function executeEditorTabsClientTool(
 }
 
 function getProjectTabs(
-  options: EditorTabsClientToolOptions,
+  snapshot: EditorTabsSnapshot,
   projectId: string,
 ) {
-  return options.getEditorTabs().tabs.filter(
+  return snapshot.tabs.filter(
     (tab) => tab.projectId === projectId && !isProjectConversationOverviewTab(tab),
   );
 }
@@ -207,11 +221,12 @@ function closeCleanTabs(
   documentTabs: EditorTabsCapability,
   tabs: DocumentTab[],
 ) {
+  const activeTabId = documentTabs.getSnapshot().activeTabId;
   const closed: ReturnType<typeof serializeTab>[] = [];
   const skippedDirty: ReturnType<typeof serializeTab>[] = [];
   const skippedPinned: ReturnType<typeof serializeTab>[] = [];
   for (const tab of tabs) {
-    const serialized = serializeTab(tab, documentTabs.activeTabId);
+    const serialized = serializeTab(tab, activeTabId);
     if (tab.isDirty) {
       skippedDirty.push(serialized);
       continue;
@@ -234,11 +249,11 @@ function closeCleanTabs(
 }
 
 function findStillOpenTabs(
-  options: EditorTabsClientToolOptions,
+  snapshot: EditorTabsSnapshot,
   projectId: string,
   tabs: ReturnType<typeof serializeTab>[],
 ) {
-  const latestProjectTabs = getProjectTabs(options, projectId);
+  const latestProjectTabs = getProjectTabs(snapshot, projectId);
   return tabs.filter((tab) => tab.path && findProjectTabByPath(latestProjectTabs, tab.path));
 }
 

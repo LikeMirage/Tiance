@@ -590,7 +590,7 @@ def _create_tool_root(
         dumps(
             {
                 "name": tool_name,
-                "display_name": "文本读取",
+                "registration_name": "文本读取",
                 "description": "读取文件。",
                 "runtime": {
                     "type": "python",

@@ -83,8 +83,16 @@ def test_conversation_creation_activity_is_idempotent_and_survives_deletion(tmp_
 
     assert activity_service.get_conversation_count() == 2
 
-    conversation_service.delete_session(project.project_id, forked.session.session_id)
-    conversation_service.delete_session(project.project_id, original.session_id)
+    conversation_service.delete_session(
+        project.project_id,
+        forked.session.session_id,
+        session_ids=(forked.session.session_id,),
+    )
+    conversation_service.delete_session(
+        project.project_id,
+        original.session_id,
+        session_ids=(original.session_id,),
+    )
 
     remaining = conversation_service.list_sessions(project.project_id)
     assert len(remaining) == 1
@@ -161,7 +169,11 @@ def test_sent_user_message_activity_is_idempotent_and_survives_session_deletion(
 
     assert activity_service.get_sent_message_count() == 1
 
-    conversation_service.delete_session(project.project_id, session.session_id)
+    conversation_service.delete_session(
+        project.project_id,
+        session.session_id,
+        session_ids=(session.session_id,),
+    )
     assert activity_service.get_sent_message_count() == 1
 
 
@@ -216,7 +228,11 @@ def test_conversation_count_can_sync_to_current_sessions(tmp_path):
     project = project_service.create_project(name="同步测试")
 
     first = conversation_service.create_session(project.project_id)
-    conversation_service.delete_session(project.project_id, first.session_id)
+    conversation_service.delete_session(
+        project.project_id,
+        first.session_id,
+        session_ids=(first.session_id,),
+    )
     conversation_service.create_session(project.project_id)
 
     assert activity_service.get_conversation_count() == 3

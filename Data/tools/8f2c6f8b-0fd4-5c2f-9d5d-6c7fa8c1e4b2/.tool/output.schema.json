@@ -6,9 +6,25 @@
     "summary": {"type": "string"},
     "session_id": {"type": "string"},
     "session_title": {"type": "string"},
+    "sources": {"type": "array", "items": {"type": "string"}},
+    "source_counts": {"type": "object", "additionalProperties": {"type": "integer"}},
     "count": {"type": "integer"},
     "total_count": {"type": "integer"},
-    "results": {"type": "array", "items": {"type": "object"}},
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {"type": "string"},
+          "record_id": {"type": "string"},
+          "snippet": {"type": "string"},
+          "created_at": {"type": "string"},
+          "raw": {}
+        },
+        "required": ["source", "record_id", "snippet"]
+      }
+    },
+    "warnings": {"type": "array", "items": {"type": "string"}},
     "error": {"type": "object"}
   },
   "required": ["ok"]

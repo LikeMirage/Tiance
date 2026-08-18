@@ -21,9 +21,6 @@ from app.repositories.project.conversation_branch_store import (
 from app.repositories.project.conversation_serialization import (
     _merge_session_state,
     _new_session_id,
-    _next_session_sequence_number,
-    _session_state_from_payload,
-    _session_state_to_payload,
     _utc_now,
 )
 from app.repositories.project.conversation_storage import conversation_write_lock
@@ -65,10 +62,9 @@ class ProjectConversationBranchRepository:
             if source_session is None:
                 raise NotFoundError(f"Conversation session '{source_session_id}' was not found.")
             index = self._session_store.read_index(conversations_dir)
-            states = index.get("session_states")
-            source_state = _session_state_from_payload(
+            source_state = self._session_store.read_session_state(
+                conversations_dir,
                 source_session_id,
-                states.get(source_session_id) if isinstance(states, dict) else None,
             )
             if source_state.runtime_status == "running":
                 raise ConflictError("当前会话正在生成，完成或停止后才能创建分支。")
@@ -131,7 +127,7 @@ class ProjectConversationBranchRepository:
             child_session = replace(
                 source_session,
                 session_id=target_session_id,
-                sequence_number=_next_session_sequence_number(index),
+                sequence_number=self._session_store.next_sequence_number(conversations_dir),
                 title=build_derived_session_title(
                     source_session.title,
                     branch.sibling_index,
@@ -171,14 +167,29 @@ class ProjectConversationBranchRepository:
                     references=references,
                 )
                 atomic_replace_path(temporary_dir, target_session_dir)
-                next_index = self._session_store.index_with_session(
+                next_index = self._session_store.index_after_session_write(
                     conversations_dir,
                     child_session,
                     set_active=True,
                 )
-                session_states = next_index.setdefault("session_states", {})
-                if isinstance(session_states, dict):
-                    session_states[target_session_id] = _session_state_to_payload(child_state)
+                self._session_store.write_session_runtime_status(
+                    conversations_dir,
+                    target_session_id,
+                    child_state.runtime_status,
+                    child_state.runtime_updated_at,
+                )
+                self._session_store.write_session_draft(
+                    conversations_dir,
+                    target_session_id,
+                    child_state.draft,
+                    child_state.updated_at,
+                )
+                self._session_store.write_session_references(
+                    conversations_dir,
+                    target_session_id,
+                    child_state.references,
+                    child_state.updated_at,
+                )
                 self._session_store.write_index(conversations_dir, next_index)
                 index_written = True
                 self._branch_store.write_graph(conversations_dir, graph)

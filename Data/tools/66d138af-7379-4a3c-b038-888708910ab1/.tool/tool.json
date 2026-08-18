@@ -1,5 +1,5 @@
 {
-  "name":"github_repository","display_name":"GitHub 仓库","description":"管理 GitHub 远端仓库。支持列出、查看、创建、改名和修改设置、Fork、删除仓库。写操作可传 dry_run=true 先模拟；优先复用设定集 GitHub 登录，也可在高级配置提供 Token。",
+  "name":"github_repository","registration_name":"GitHub 仓库","description":"管理 GitHub 远端仓库。支持列出、查看、创建、改名和修改设置、Fork、删除仓库。写操作可传 dry_run=true 先模拟；优先复用设定集 GitHub 登录，也可在高级配置提供 Token。",
   "keywords":["GitHub","仓库","创建仓库","Fork","删除仓库"],"execution":{"parallel": true},"loading":{"dynamic":false},"state":{"enabled":true},
   "runtime":{"type":"python","entry":"program/main.py","timeout_seconds":600},"io":{"input":"stdin_json","output":"stdout_json"},
   "files":{"input_schema":".tool/input.schema.json","output_schema":".tool/output.schema.json","examples":".tool/examples.json"}

@@ -157,7 +157,7 @@ export function useProjectOverviewSessionActions({
     }
   }, [loadOverview, renamingSession, sessionActionBusy, t]);
 
-  const confirmDeleteSession = useCallback(async () => {
+  const confirmDeleteSession = useCallback(async (sessionIds: string[]) => {
     if (!deletingSession || sessionActionBusy) return;
     setSessionActionBusy(true);
     setSessionActionError(null);
@@ -165,6 +165,7 @@ export function useProjectOverviewSessionActions({
       await deleteProjectConversation(
         deletingSession.projectId,
         deletingSession.sessionId,
+        sessionIds,
       );
       dispatchProjectConversationUpdated({
         kind: "structure",

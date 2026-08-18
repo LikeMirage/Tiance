@@ -232,7 +232,11 @@ async function executeConversationManagementClientTool(
         throw new Error("删除会话必须明确传入 confirm=true。");
       }
       preventSelfTermination(request.session_id, session.session_id, "删除");
-      await deleteProjectConversation(projectId, session.session_id);
+      await deleteProjectConversation(
+        projectId,
+        session.session_id,
+        [session.session_id],
+      );
       notifySessionsChanged(projectId, session.session_id, "structure");
       return clientToolSuccess({
         action,

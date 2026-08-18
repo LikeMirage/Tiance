@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:mml="http://www.w3.org/1998/Math/MathML"
-	xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+	xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+	xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <xsl:output method="xml" encoding="UTF-8" />
 
 
@@ -954,17 +955,31 @@
     <xsl:param name="ndCur" />
     <xsl:param name="fontfamily" />
     <xsl:param name="fNor" />
-    <xsl:variable name="mstyleColor">
-      <xsl:if test="not(not($ndCur))">
-        <xsl:choose>
-          <xsl:when test="$ndCur/ancestor::mml:mstyle[@color][1]/@color">
-            <xsl:value-of select="$ndCur/ancestor::mml:mstyle[@color][1]/@color"/>
-          </xsl:when>
-          <xsl:otherwise>
-            <xsl:value-of select="$ndCur/ancestor::mml:mstyle[@color][1]/@mml:color"/>
-          </xsl:otherwise>
-        </xsl:choose>
-      </xsl:if>
+    <xsl:variable name="sRunColor">
+      <xsl:choose>
+        <xsl:when test="normalize-space($mathcolor)!=''">
+          <xsl:value-of select="normalize-space($mathcolor)"/>
+        </xsl:when>
+        <xsl:when test="normalize-space($color)!=''">
+          <xsl:value-of select="normalize-space($color)"/>
+        </xsl:when>
+        <xsl:when test="$ndCur/ancestor-or-self::*[@mathcolor][1]/@mathcolor">
+          <xsl:value-of select="$ndCur/ancestor-or-self::*[@mathcolor][1]/@mathcolor"/>
+        </xsl:when>
+        <xsl:when test="$ndCur/ancestor-or-self::*[@color][1]/@color">
+          <xsl:value-of select="$ndCur/ancestor-or-self::*[@color][1]/@color"/>
+        </xsl:when>
+      </xsl:choose>
+    </xsl:variable>
+    <xsl:variable name="sRunBackground">
+      <xsl:choose>
+        <xsl:when test="normalize-space($mathbackground)!=''">
+          <xsl:value-of select="normalize-space($mathbackground)"/>
+        </xsl:when>
+        <xsl:when test="$ndCur/ancestor-or-self::*[@mathbackground][1]/@mathbackground">
+          <xsl:value-of select="$ndCur/ancestor-or-self::*[@mathbackground][1]/@mathbackground"/>
+        </xsl:when>
+      </xsl:choose>
     </xsl:variable>
     <xsl:call-template name="CreateMathRPR">
       <xsl:with-param name="mathvariant" select="$mathvariant" />
@@ -973,6 +988,16 @@
       <xsl:with-param name="ndCur" select="$ndCur" />
       <xsl:with-param name="fNor" select="$fNor" />
     </xsl:call-template>
+    <xsl:if test="normalize-space($sRunColor)!='' or normalize-space($sRunBackground)!=''">
+      <w:rPr>
+        <xsl:if test="normalize-space($sRunColor)!=''">
+          <w:color w:val="{$sRunColor}" />
+        </xsl:if>
+        <xsl:if test="normalize-space($sRunBackground)!=''">
+          <w:shd w:val="clear" w:color="auto" w:fill="{$sRunBackground}" />
+        </xsl:if>
+      </w:rPr>
+    </xsl:if>
   </xsl:template>
 
   <!-- %%Template: CreateMathRPR
@@ -1001,6 +1026,23 @@
           <xsl:with-param name="fNor" select="$fNor" />
         </xsl:call-template>
       </xsl:element>
+    </xsl:if>
+  </xsl:template>
+
+  <xsl:template name="CreateStyledCtrlPr">
+    <xsl:variable name="sControlColor" select="ancestor-or-self::*[@mathcolor][1]/@mathcolor" />
+    <xsl:variable name="sControlBackground" select="ancestor-or-self::*[@mathbackground][1]/@mathbackground" />
+    <xsl:if test="normalize-space($sControlColor)!='' or normalize-space($sControlBackground)!=''">
+      <m:ctrlPr>
+        <w:rPr>
+          <xsl:if test="normalize-space($sControlColor)!=''">
+            <w:color w:val="{$sControlColor}" />
+          </xsl:if>
+          <xsl:if test="normalize-space($sControlBackground)!=''">
+            <w:shd w:val="clear" w:color="auto" w:fill="{$sControlBackground}" />
+          </xsl:if>
+        </w:rPr>
+      </m:ctrlPr>
     </xsl:if>
   </xsl:template>
 
@@ -1212,6 +1254,7 @@
             </xsl:choose>
           </xsl:attribute>
         </xsl:element>
+        <xsl:call-template name="CreateStyledCtrlPr" />
       </xsl:element>
       <xsl:element name="m:num">
         <xsl:call-template name="CreateArgProp" />
@@ -1248,6 +1291,7 @@
             <xsl:element name="m:degHide">
               <xsl:attribute name="m:val">on</xsl:attribute>
             </xsl:element>
+            <xsl:call-template name="CreateStyledCtrlPr" />
           </xsl:element>
           <xsl:element name="m:deg">
             <xsl:call-template name="CreateArgProp" />
@@ -1422,6 +1466,7 @@
         <xsl:element name="m:degHide">
           <xsl:attribute name="m:val">off</xsl:attribute>
         </xsl:element>
+        <xsl:call-template name="CreateStyledCtrlPr" />
       </xsl:element>
       <xsl:element name="m:deg">
         <xsl:call-template name="CreateArgProp" />
@@ -1521,6 +1566,7 @@
         <xsl:element name="m:type">
           <xsl:attribute name="m:val">lin</xsl:attribute>
         </xsl:element>
+        <xsl:call-template name="CreateStyledCtrlPr" />
       </xsl:element>
       <xsl:element name="m:num">
         <xsl:call-template name="CreateArgProp" />
@@ -1940,6 +1986,7 @@
           <xsl:value-of select="$vertJc"/>
         </xsl:attribute>
       </xsl:element>
+      <xsl:call-template name="CreateStyledCtrlPr" />
     </xsl:element>
   </xsl:template>
 
@@ -3817,6 +3864,7 @@
           </xsl:choose>
         </xsl:attribute>
       </m:supHide>
+      <xsl:call-template name="CreateStyledCtrlPr" />
     </m:naryPr>
   </xsl:template>
 </xsl:stylesheet>

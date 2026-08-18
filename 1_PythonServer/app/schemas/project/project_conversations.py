@@ -8,6 +8,8 @@ from app.domain.llm.generation_params import LlmReasoningMode
 from app.domain.project.project_conversation import (
     conversation_session_configuration_hash,
     ProjectConversationMessage,
+    ProjectConversationMessageRole,
+    ProjectConversationMessageStatus,
     ProjectConversationSession,
     ProjectConversationSessionState,
 )
@@ -64,6 +66,10 @@ class ProjectConversationSessionUpdateRequest(BaseModel):
     model_id: str | None = None
     reasoning_mode: LlmReasoningMode | None = None
     settings: ProjectConversationSessionSettingsPatch | None = None
+
+
+class ProjectConversationDeleteRequest(BaseModel):
+    session_ids: list[str] = Field(min_length=1)
 
 
 class ProjectConversationAutomaticTitleRequest(BaseModel):
@@ -196,16 +202,13 @@ class ProjectConversationSessionResponse(BaseModel):
         )
 
 
-class ProjectConversationSessionStatePatch(BaseModel):
-    runtime_status: ProjectConversationRuntimeStatus | None = None
-    draft: str | None = None
-    references: ConversationReferences | None = None
-
-
 class ProjectConversationStateSaveRequest(BaseModel):
-    assistant_title: str | None = None
     active_session_id: str | None = None
-    session_states: dict[str, ProjectConversationSessionStatePatch] = Field(default_factory=dict)
+    session_runtime_statuses: dict[str, ProjectConversationRuntimeStatus] = Field(
+        default_factory=dict
+    )
+    session_drafts: dict[str, str] = Field(default_factory=dict)
+    session_references: dict[str, ConversationReferences] = Field(default_factory=dict)
 
 
 class ProjectConversationSessionStateResponse(BaseModel):
@@ -231,7 +234,6 @@ class ProjectConversationSessionStateResponse(BaseModel):
 
 class ProjectConversationStateResponse(BaseModel):
     project_id: str
-    assistant_title: str
     active_session_id: str | None = None
     session_states: dict[str, ProjectConversationSessionStateResponse] = Field(default_factory=dict)
 
@@ -240,7 +242,6 @@ class ProjectConversationListResponse(BaseModel):
     project_id: str
     revision: int = Field(ge=0)
     count: int
-    assistant_title: str
     active_session_id: str | None = None
     session_states: dict[str, ProjectConversationSessionStateResponse] = Field(default_factory=dict)
     items: list[ProjectConversationSessionResponse]
@@ -422,7 +423,7 @@ class ProjectConversationForkResponse(BaseModel):
 class ProjectConversationMessageResponse(BaseModel):
     message_id: str
     session_id: str
-    role: str
+    role: ProjectConversationMessageRole
     content: str
     thinking_content: str
     usage: dict | None = None
@@ -437,7 +438,7 @@ class ProjectConversationMessageResponse(BaseModel):
     tool_calls: list[ChatToolCallResponse] = Field(default_factory=list)
     content_parts: list[ChatMessageContentPartResponse] = Field(default_factory=list)
     references: ConversationReferences = Field(default_factory=ConversationReferences)
-    status: str
+    status: ProjectConversationMessageStatus
     created_at: str
     updated_at: str
     origin_message_id: str

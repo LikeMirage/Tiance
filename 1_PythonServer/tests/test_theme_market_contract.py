@@ -74,7 +74,7 @@ def test_theme_package_archive_validates_and_extracts_market_metadata(tmp_path) 
     package_root = tmp_path / "source" / "sample-theme"
     package_root.mkdir(parents=True)
     theme = json.loads((RECOVERY_ROOT / "light.json").read_text(encoding="utf-8"))
-    theme.update({"id": "sample-theme", "name": "示例主题"})
+    theme.update({"id": "sample-theme", "registrationName": "示例主题"})
     (package_root / "theme.json").write_text(
         json.dumps(theme, ensure_ascii=False),
         encoding="utf-8",

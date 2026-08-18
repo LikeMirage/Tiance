@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-from contextlib import suppress
 from json import dumps, loads
-from pathlib import Path
-from tempfile import NamedTemporaryFile
-from threading import RLock
 from functools import lru_cache
 
-from app.core.atomic_replace import atomic_replace_path
 from app.core.errors import BadRequestError
 from app.infra.tools.tool_project_config_constants import (
     TOOL_EXAMPLES_FILE,
@@ -34,9 +29,6 @@ from app.infra.tools.tool_project_config_helpers import (
 class ToolProjectConfigStorage:
     """只管理单个工具项目中的标准配置文件，不负责项目或分类生命周期。"""
 
-    def __init__(self) -> None:
-        self._write_lock = RLock()
-
     def normalize_standard_file_content(
         self,
         target_path: str,
@@ -55,20 +47,6 @@ class ToolProjectConfigStorage:
             return _normalize_examples_content(content)
         return content
 
-    def update_manifest_display_name(
-        self,
-        project_root: str | Path,
-        *,
-        display_name: str,
-    ) -> None:
-        manifest_path = Path(project_root) / TOOL_FOLDER_MANIFEST_FILE
-        if not manifest_path.is_file():
-            return
-        with self._write_lock:
-            manifest = self._read_object(manifest_path)
-            manifest["display_name"] = display_name
-            self._write_object(manifest_path, manifest)
-
     def _normalize_manifest_content(
         self,
         *,
@@ -81,9 +59,9 @@ class ToolProjectConfigStorage:
         if not isinstance(payload, dict):
             raise BadRequestError("tool.json 必须是 JSON 对象。")
 
-        display_name = payload.get("display_name")
-        if not isinstance(display_name, str) or not display_name.strip():
-            raise BadRequestError("工具显示名称不能为空。")
+        registration_name = payload.get("registration_name")
+        if not isinstance(registration_name, str) or not registration_name.strip():
+            raise BadRequestError("工具注册名称不能为空。")
         call_name = _normalize_tool_call_name(
             payload.get("name") if isinstance(payload.get("name"), str) else None
         )
@@ -108,7 +86,7 @@ class ToolProjectConfigStorage:
         if not isinstance(payload.get("description"), str):
             payload["description"] = ""
         payload["name"] = call_name
-        payload["display_name"] = display_name.strip()
+        payload["registration_name"] = registration_name.strip()
         payload["keywords"] = _normalize_string_list(payload.get("keywords"))
         _normalize_tool_loading(payload)
         _normalize_tool_execution(payload)
@@ -116,36 +94,6 @@ class ToolProjectConfigStorage:
         _normalize_tool_manifest_files(payload)
         _normalize_tool_runtime(payload)
         return dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-
-    @staticmethod
-    def _read_object(path: Path) -> dict[str, object]:
-        payload = loads(path.read_text(encoding="utf-8-sig"))
-        if not isinstance(payload, dict):
-            raise ValueError("工具配置必须是 JSON 对象。")
-        return payload
-
-    @staticmethod
-    def _write_object(path: Path, payload: dict[str, object]) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        text = dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-        temporary_path: Path | None = None
-        try:
-            with NamedTemporaryFile(
-                "w",
-                encoding="utf-8",
-                dir=path.parent,
-                delete=False,
-                prefix=f".{path.name}.",
-                suffix=".tmp",
-            ) as temporary_file:
-                temporary_path = Path(temporary_file.name)
-                temporary_file.write(text)
-            atomic_replace_path(temporary_path, path)
-        except Exception:
-            if temporary_path is not None:
-                with suppress(OSError):
-                    temporary_path.unlink()
-            raise
 
 
 @lru_cache

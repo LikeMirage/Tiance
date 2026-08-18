@@ -223,9 +223,8 @@ function createEditorTabsCapability(
   documentTabs: ReturnType<typeof useDocumentTabs>,
 ): EditorTabsCapability {
   return {
-    activeTabId: documentTabs.activeTabId,
-    tabs: documentTabs.tabs,
     closeTab: documentTabs.closeTab,
+    getSnapshot: documentTabs.getSnapshot,
     openProjectFile: async (projectId, path) => {
       await documentTabs.openNode({
         id: `project:${projectId}:${path}`,
@@ -262,6 +261,7 @@ function getActiveConversationDataFile(tab: {
   if (path.endsWith("/messages.jsonl")) return "messages.jsonl";
   if (path.endsWith("/conversation_journal.jsonl")) return "conversation_journal.jsonl";
   if (path.endsWith("/model_exchanges.jsonl")) return "model_exchanges.jsonl";
+  if (path.endsWith("/model_http_exchanges.jsonl")) return "model_http_exchanges.jsonl";
   if (path.endsWith("/session.json")) return "session.json";
   return null;
 }

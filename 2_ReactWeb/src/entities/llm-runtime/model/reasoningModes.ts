@@ -27,15 +27,3 @@ export function normalizeLlmReasoningMode(value: unknown): DsLlmReasoningMode | 
     ? value as DsLlmReasoningMode
     : null;
 }
-
-export function withReasoningOffOption(
-  modes: readonly DsLlmReasoningMode[],
-): DsLlmReasoningMode[] {
-  const next: DsLlmReasoningMode[] = ["off"];
-  modes.forEach((mode) => {
-    if (!next.includes(mode)) {
-      next.push(mode);
-    }
-  });
-  return next;
-}

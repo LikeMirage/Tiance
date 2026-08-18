@@ -35,7 +35,6 @@ from app.repositories.project.conversation_branch_store import (
 from app.repositories.project.conversation_memory_repository import COMPRESSIONS_FILE
 from app.repositories.project.conversation_serialization import (
     _new_session_id,
-    _next_session_sequence_number,
     _utc_now,
 )
 from app.repositories.project.conversation_storage import (
@@ -138,7 +137,7 @@ class ProjectConversationCompactionRepository:
             records, has_active_task = _recover_stale_tasks(
                 records,
                 conversations_dir=conversations_dir,
-                index=index,
+                session_store=self._session_store,
                 now=_utc_now(),
             )
             _write_jsonl(source_session_dir / COMPRESSIONS_FILE, records)
@@ -251,7 +250,7 @@ class ProjectConversationCompactionRepository:
             source_records, has_active_task = _recover_stale_tasks(
                 source_records,
                 conversations_dir=conversations_dir,
-                index=index,
+                session_store=self._session_store,
                 now=_utc_now(),
             )
             if has_active_task:
@@ -294,7 +293,7 @@ class ProjectConversationCompactionRepository:
             function_session = replace(
                 source_session,
                 session_id=function_session_id,
-                sequence_number=_next_session_sequence_number(index),
+                sequence_number=self._session_store.next_sequence_number(conversations_dir),
                 title=build_derived_session_title(
                     source_session.title,
                     branch.sibling_index,
@@ -390,7 +389,7 @@ class ProjectConversationCompactionRepository:
                 )
                 atomic_replace_path(temporary_dir, target_session_dir)
 
-                next_index = self._session_store.index_with_session(
+                next_index = self._session_store.index_after_session_write(
                     conversations_dir,
                     function_session,
                     set_active=False,
@@ -739,13 +738,11 @@ def _recover_stale_tasks(
     records: list[dict[str, Any]],
     *,
     conversations_dir: Path,
-    index: dict[str, Any],
+    session_store: ConversationSessionStore,
     now: str,
 ) -> tuple[list[dict[str, Any]], bool]:
     active_remains = False
     recovered: list[dict[str, Any]] = []
-    states = index.get("session_states")
-    session_states = states if isinstance(states, dict) else {}
     for record in records:
         if (
             record.get("source_type") != COMPACTION_SOURCE_TYPE
@@ -754,14 +751,12 @@ def _recover_stale_tasks(
             recovered.append(record)
             continue
         function_session_id = record.get("function_session_id")
-        state = (
-            session_states.get(function_session_id)
-            if isinstance(function_session_id, str)
-            else None
-        )
         runtime_status = (
-            state.get("runtime_status")
-            if isinstance(state, dict)
+            session_store.read_session_state(
+                conversations_dir,
+                function_session_id,
+            ).runtime_status
+            if isinstance(function_session_id, str)
             else None
         )
         if runtime_status == "running" or not _task_is_older_than_grace(

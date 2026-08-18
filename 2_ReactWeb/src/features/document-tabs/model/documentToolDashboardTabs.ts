@@ -185,7 +185,7 @@ export function publishToolCatalogMetadataChange(source: DocumentFileSource) {
 function buildToolDashboardPlaceholder(title: string, view: ToolDashboardView): Record<string, unknown> {
   if (view === "basics") {
     return {
-      display_name: title,
+      registration_name: title,
       input_schema: {
         properties: {},
         required: [],
@@ -195,7 +195,7 @@ function buildToolDashboardPlaceholder(title: string, view: ToolDashboardView): 
   }
   if (view === "examples") {
     return {
-      display_name: title,
+      registration_name: title,
       examples: [],
     };
   }

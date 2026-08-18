@@ -6,5 +6,13 @@
   {
     "title": "检索指定会话中的全部关键词",
     "input": {"query": "Word 公式 表格", "session_id": "20260804063112-aa7b1c35", "mode": "all_terms", "roles": ["user", "assistant"]}
+  },
+  {
+    "title": "检索模型原始请求和响应",
+    "input": {"query": "reasoning_content", "sources": ["artifacts"], "mode": "contains"}
+  },
+  {
+    "title": "同时检索消息、模型交换和事件总账",
+    "input": {"query": "tool_call", "sources": ["messages", "model_exchanges", "journal"], "mode": "contains"}
   }
 ]

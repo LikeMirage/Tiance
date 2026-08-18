@@ -90,6 +90,9 @@ class ToolProjectFixture:
             updated_at=folder.updated_at,
         )
 
+    def folder_for_project(self, project: Project) -> ToolFolder:
+        return self.get_tool_folder(project.category_id, project.project_id)
+
     def rename_tool_folder(
         self,
         category_id: str,
@@ -126,7 +129,7 @@ def _write_tool_files(
 ) -> None:
     manifest = {
         "name": f"custom_tool_{project_id.replace('-', '_')}",
-        "display_name": display_name,
+        "registration_name": display_name,
         "description": "",
         "keywords": [],
         "loading": {"dynamic": True},

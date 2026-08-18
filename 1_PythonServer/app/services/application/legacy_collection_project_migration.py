@@ -61,7 +61,7 @@ class LegacyCollectionProjectMigrationService:
                 theme = load_theme_package(theme_dir)
                 project_id = self._import_theme_project(
                     theme_id=theme.id,
-                    name=theme.name,
+                    name=theme.registration_name,
                     root_path=theme_dir,
                 )
                 if project_id is not None:

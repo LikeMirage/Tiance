@@ -17,7 +17,6 @@ from app.repositories.project.conversation_branch_store import (
 from app.repositories.project.conversation_serialization import (
     _merge_session_settings,
     _new_session_id,
-    _next_session_sequence_number,
     _optional_reasoning_mode,
     _utc_now,
 )
@@ -92,7 +91,7 @@ class ProjectConversationRelationRepository:
             )
             session = ProjectConversationSession(
                 session_id=session_id,
-                sequence_number=_next_session_sequence_number(index),
+                sequence_number=self._session_store.next_sequence_number(conversations_dir),
                 title=title.strip() if title and title.strip() else "新对话",
                 provider_id=(
                     provider_id
@@ -139,7 +138,7 @@ class ProjectConversationRelationRepository:
                 atomic_replace_path(temporary_dir, target_session_dir)
                 self._session_store.write_index(
                     conversations_dir,
-                    self._session_store.index_with_session(
+                    self._session_store.index_after_session_write(
                         conversations_dir,
                         session,
                         set_active=set_active,

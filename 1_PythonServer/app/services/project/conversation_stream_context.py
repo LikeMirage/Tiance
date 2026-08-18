@@ -15,7 +15,6 @@ from app.services.project.conversation_references import (
     normalize_conversation_references,
     references_from_chat_message,
 )
-from app.services.project.conversation_message_source import source_context_from_chat_message
 from app.services.project.conversation_memory import ProjectConversationMemoryService
 from app.services.project.project_conversations import ProjectConversationService
 from app.services.tools.chat_tool_injection import ChatToolInjectionService
@@ -100,11 +99,6 @@ class ConversationStreamContextBuilder:
                     or persisted_current_user.created_at
                     if persisted_current_user is not None
                     else None
-                ),
-                next_user_source_context=(
-                    persisted_current_user.source_context
-                    if persisted_current_user is not None
-                    else source_context_from_chat_message(current_user_message)
                 ),
             ),
         )

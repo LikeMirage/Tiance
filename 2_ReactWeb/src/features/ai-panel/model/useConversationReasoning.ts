@@ -3,10 +3,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 
 import type { ConversationSession } from "../../../entities/llm-chat/model/conversation";
 import type { DsLlmReasoningMode } from "../../../entities/llm-runtime/model/generationParams";
-import {
-  normalizeLlmReasoningMode,
-  withReasoningOffOption,
-} from "../../../entities/llm-runtime/model/reasoningModes";
+import { normalizeLlmReasoningMode } from "../../../entities/llm-runtime/model/reasoningModes";
 import { useI18n, type TranslationKey } from "../../../shared/i18n";
 import { updateProjectConversation } from "../../../services/project/updateProjectConversation";
 import type { OptionSelectItem } from "../../../shared/ui/option-select/OptionSelect";
@@ -59,7 +56,7 @@ export function useConversationReasoning({
   const runtimeCapabilities = useRuntimeCapabilities(activeModel, activeModelKey);
   const supportedReasoningModes = useMemo(
     () => runtimeCapabilities?.reasoning.supported
-      ? withReasoningOffOption(runtimeCapabilities.reasoning.modes)
+      ? [...runtimeCapabilities.reasoning.modes]
       : [],
     [runtimeCapabilities],
   );

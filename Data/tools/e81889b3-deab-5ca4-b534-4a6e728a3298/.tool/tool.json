@@ -1,6 +1,6 @@
 {
   "description": "按 glob 路径模式查找工作区内文件或目录，支持排除目录、隐藏文件控制和结果数量限制。",
-  "display_name": "文件匹配",
+  "registration_name": "文件匹配",
   "execution": {
     "parallel": true
   },

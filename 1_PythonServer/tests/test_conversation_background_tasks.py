@@ -66,7 +66,23 @@ def test_delete_stops_main_run_and_background_tasks_before_removing_session():
             calls.append(f"cancel:{project_id}:{session_id}")
 
     class ConversationService:
-        def delete_session(self, project_id: str, session_id: str) -> None:
+        def validate_session_deletion(
+            self,
+            project_id: str,
+            session_id: str,
+            *,
+            session_ids: tuple[str, ...],
+        ) -> tuple[str, ...]:
+            calls.append(f"validate:{project_id}:{session_id}")
+            return session_ids
+
+        def delete_session(
+            self,
+            project_id: str,
+            session_id: str,
+            *,
+            session_ids: tuple[str, ...],
+        ) -> None:
             calls.append(f"delete:{project_id}:{session_id}")
 
     with (
@@ -82,9 +98,16 @@ def test_delete_stops_main_run_and_background_tasks_before_removing_session():
             return_value=ConversationService(),
         ),
     ):
-        asyncio.run(conversation_routes.delete_project_conversation("project-1", "session-1"))
+        asyncio.run(conversation_routes.delete_project_conversation(
+            "project-1",
+            "session-1",
+            conversation_routes.ProjectConversationDeleteRequest(
+                session_ids=["session-1"],
+            ),
+        ))
 
     assert calls == [
+        "validate:project-1:session-1",
         "stop:project-1:session-1",
         "cancel:project-1:session-1",
         "delete:project-1:session-1",

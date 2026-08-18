@@ -8,6 +8,7 @@ import {
   getToolMarketSettings,
   installToolFromMarket,
   saveToolMarketFilters,
+  type ToolMarketInstallResponse,
 } from "../../../services/tools/toolMarketApi";
 import { useOnlineMarketSource } from "../../../shared/online-market/useOnlineMarketSource";
 import type { ToolMarketFilters, ToolMarketIndex } from "./toolMarket";
@@ -21,7 +22,10 @@ export type ToolInstallState = {
   phase: "idle" | "installing" | "success" | "error";
 };
 
-export function useToolMarket(isActive: boolean, onInstalled?: () => void) {
+export function useToolMarket(
+  isActive: boolean,
+  onInstalled?: (result: ToolMarketInstallResponse) => void,
+) {
   const [installStates, setInstallStates] = useState<Record<string, ToolInstallState>>({});
   const operationControllersRef = useRef(new Map<string, AbortController>());
   const { setIndex, ...market } = useOnlineMarketSource<ToolMarketIndex, ToolMarketFilters>({
@@ -46,7 +50,7 @@ export function useToolMarket(isActive: boolean, onInstalled?: () => void) {
     categoryId: string | null,
     callName: string | null,
   ) => {
-    if (operationControllersRef.current.has(toolId)) return false;
+    if (operationControllersRef.current.has(toolId)) return null;
     const controller = new AbortController();
     operationControllersRef.current.set(toolId, controller);
     setInstallStates((current) => ({
@@ -69,10 +73,10 @@ export function useToolMarket(isActive: boolean, onInstalled?: () => void) {
         ...current, [toolId]: { error: null, phase: "success" },
       }));
       dispatchProjectCatalogChanged();
-      onInstalled?.();
-      return true;
+      onInstalled?.(result);
+      return result;
     } catch (installError) {
-      if (controller.signal.aborted) return false;
+      if (controller.signal.aborted) return null;
       setInstallStates((current) => ({
         ...current,
         [toolId]: {
@@ -80,7 +84,7 @@ export function useToolMarket(isActive: boolean, onInstalled?: () => void) {
           phase: "error",
         },
       }));
-      return false;
+      return null;
     } finally {
       operationControllersRef.current.delete(toolId);
     }

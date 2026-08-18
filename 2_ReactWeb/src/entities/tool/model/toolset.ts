@@ -49,13 +49,17 @@ export type ToolFolderMoveRequest = {
   target_category_id: string;
 };
 
-export type ToolFolderDynamicLoadingRequest = {
-  dynamic: boolean;
+export type ToolFolderRuntimeSettingsRequest = {
+  enabled?: boolean;
+  dynamic?: boolean;
+  parallel?: boolean;
 };
 
-export type ToolFolderDynamicLoadingResponse = {
+export type ToolFolderRuntimeSettingsResponse = {
   category_id: string;
   project_id: string;
+  enabled: boolean;
   dynamic: boolean;
+  parallel: boolean;
   updated_at: string;
 };

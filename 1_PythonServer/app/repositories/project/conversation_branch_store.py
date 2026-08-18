@@ -286,6 +286,97 @@ class ConversationBranchStore:
                 changed = True
         return changed
 
+    def live_descendant_session_ids(
+        self,
+        graph: dict,
+        session_id: str,
+    ) -> frozenset[str]:
+        """Return live descendants using the persisted parent relation, not UI grouping."""
+        nodes_by_session_id = {
+            node.session_id: node
+            for node in self.list_nodes(graph)
+        }
+        descendants: set[str] = set()
+        for node in nodes_by_session_id.values():
+            if node.deleted_at is not None or node.session_id == session_id:
+                continue
+            visited = {node.session_id}
+            parent_session_id = node.parent_session_id
+            while parent_session_id is not None:
+                if parent_session_id in visited:
+                    raise ConflictError("会话分支关系存在循环，无法安全删除会话。")
+                if parent_session_id == session_id:
+                    descendants.add(node.session_id)
+                    break
+                visited.add(parent_session_id)
+                parent = nodes_by_session_id.get(parent_session_id)
+                if parent is None:
+                    break
+                parent_session_id = parent.parent_session_id
+        return frozenset(descendants)
+
+    def delete_sessions_and_reparent(
+        self,
+        graph: dict,
+        session_ids: frozenset[str],
+        *,
+        deleted_at: str,
+    ) -> frozenset[str]:
+        """Tombstone selected nodes and reconnect every surviving node to live ancestry."""
+        if not session_ids:
+            return frozenset()
+
+        node_payloads = _dict_items(graph.get("nodes"))
+        payload_by_session_id = {
+            str(payload.get("session_id")): payload
+            for payload in node_payloads
+            if _required_str(payload.get("session_id"))
+        }
+        promoted_session_ids: set[str] = set()
+
+        for payload in node_payloads:
+            current_session_id = _required_str(payload.get("session_id"))
+            if not current_session_id or payload.get("deleted_at"):
+                continue
+            if current_session_id in session_ids:
+                payload["deleted_at"] = deleted_at
+                continue
+
+            original_parent_session_id = _optional_str(payload.get("parent_session_id"))
+            resolved_parent_session_id = _nearest_live_parent_session_id(
+                original_parent_session_id,
+                payload_by_session_id,
+                session_ids,
+            )
+            if resolved_parent_session_id == original_parent_session_id:
+                continue
+
+            resolved_parent = (
+                payload_by_session_id.get(resolved_parent_session_id)
+                if resolved_parent_session_id is not None
+                else None
+            )
+            payload["parent_session_id"] = resolved_parent_session_id
+            payload["parent_branch_id"] = (
+                _optional_str(resolved_parent.get("branch_id"))
+                if resolved_parent is not None
+                else None
+            )
+            # The old branch point belongs to the removed direct parent. Keeping it
+            # would make the persisted relation claim an anchor that no longer exists.
+            payload["source_message_id"] = None
+            promoted_session_ids.add(current_session_id)
+
+        for payload in _dict_items(graph.get("variants")):
+            if (
+                _required_str(payload.get("session_id")) in session_ids
+                and not payload.get("deleted_at")
+            ):
+                payload["deleted_at"] = deleted_at
+
+        _renumber_live_siblings(node_payloads)
+        return frozenset(promoted_session_ids)
+
 
 def _empty_graph() -> dict:
     return {"version": BRANCH_GRAPH_VERSION, "nodes": [], "variants": []}
@@ -295,6 +386,54 @@ def _dict_items(value: object) -> list[dict]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, dict)]
+
+
+def _nearest_live_parent_session_id(
+    parent_session_id: str | None,
+    payload_by_session_id: dict[str, dict],
+    deleted_session_ids: frozenset[str],
+) -> str | None:
+    visited: set[str] = set()
+    current_session_id = parent_session_id
+    while current_session_id is not None:
+        if current_session_id in visited:
+            raise ConflictError("会话分支关系存在循环，无法安全删除会话。")
+        visited.add(current_session_id)
+        parent = payload_by_session_id.get(current_session_id)
+        if parent is None:
+            return None
+        if current_session_id not in deleted_session_ids and not parent.get("deleted_at"):
+            return current_session_id
+        current_session_id = _optional_str(parent.get("parent_session_id"))
+    return None
+
+
+def _renumber_live_siblings(node_payloads: list[dict]) -> None:
+    sibling_groups: dict[tuple[str | None, str, str | None], list[dict]] = {}
+    for payload in node_payloads:
+        if payload.get("deleted_at"):
+            continue
+        group_key = (
+            _optional_str(payload.get("parent_session_id")),
+            _relation_kind(payload.get("relation_kind")),
+            _function_type(payload.get("function_type")),
+        )
+        sibling_groups.setdefault(group_key, []).append(payload)
+
+    for siblings in sibling_groups.values():
+        siblings.sort(
+            key=lambda payload: (
+                _required_str(payload.get("created_at")),
+                _required_str(payload.get("session_id")),
+            )
+        )
+        for sibling_index, payload in enumerate(siblings, start=1):
+            payload["sibling_index"] = (
+                0
+                if _optional_str(payload.get("parent_session_id")) is None
+                and _relation_kind(payload.get("relation_kind")) == RELATION_KIND_ROOT
+                else sibling_index
+            )
 
 
 def _is_dict_list(value: object) -> bool:

@@ -229,7 +229,7 @@ def _create_tool(
         dumps(
             {
                 "name": name,
-                "display_name": name,
+                "registration_name": name,
                 "description": name,
                 "loading": {"dynamic": dynamic},
                 "runtime": {

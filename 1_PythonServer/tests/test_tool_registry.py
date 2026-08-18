@@ -28,7 +28,7 @@ def test_tool_registry_rebuild_populates_searchable_memory_index(tmp_path):
     manifest.update(
         {
             "name": "read_text_file",
-            "display_name": "文本读取",
+            "registration_name": "工具包注册名称",
             "description": "读取本地纯文本文件。",
             "keywords": ["文本", "源码"],
             "execution": {"parallel": True},
@@ -75,6 +75,7 @@ def test_tool_registry_rebuild_populates_searchable_memory_index(tmp_path):
     entry = service.get_enabled_entry("read_text_file")
     assert entry is not None
     assert entry.project_id == folder.project_id
+    assert entry.display_name == "文本读取"
     assert entry.category_name == "基础工具"
     assert entry.parallel is True
     assert entry.parameter_names == ("file_path", "mode")
@@ -99,7 +100,7 @@ def test_tool_catalog_can_read_summaries_from_registry(tmp_path):
     manifest.update(
         {
             "name": "read_text_file",
-            "display_name": "文本读取",
+            "registration_name": "文本读取",
             "description": "读取本地纯文本文件。",
             "keywords": ["文本"],
             "state": {"enabled": True},
@@ -141,7 +142,7 @@ def test_tool_registry_rebuild_raises_when_tool_files_are_incomplete(tmp_path):
     manifest.update(
         {
             "name": "read_text_file",
-            "display_name": "文本读取",
+            "registration_name": "文本读取",
             "description": "读取本地纯文本文件。",
             "state": {"enabled": True},
         }

@@ -17,6 +17,7 @@ from app.repositories.project.conversation_database import (
     list_message_payloads,
     read_events,
     read_meta,
+    read_session_state_payloads,
     replace_message_payloads,
     write_meta,
 )
@@ -188,7 +189,7 @@ def test_workspace_get_state_ignores_old_workspace_directory(tmp_path):
 
     assert state is None
     assert old_workspace.exists()
-    assert (tmp_path / ".Tiance" / "tiance.db").is_file()
+    assert not (tmp_path / ".Tiance" / "tiance.db").exists()
 
 
 def test_workspace_save_state_writes_tiance_without_migrating_old_workspace(tmp_path):
@@ -350,13 +351,68 @@ def test_conversation_repository_empty_reads_do_not_create_default_session(tmp_p
     repository = ProjectConversationRepository(FakeProjectRepository(str(tmp_path)))
 
     sessions = repository.list_sessions(PROJECT_ID)
-    assistant_title, active_session_id, states = repository.get_state(PROJECT_ID)
+    active_session_id, states = repository.get_state(PROJECT_ID)
 
     assert sessions == ()
-    assert assistant_title == "AI 助手"
     assert active_session_id is None
     assert states == {}
-    assert (tmp_path / ".Tiance" / "tiance.db").is_file()
+    assert not (tmp_path / ".Tiance" / "tiance.db").exists()
+
+
+def test_direct_conversation_reads_do_not_create_database(tmp_path):
+    conversations_dir = tmp_path / ".Tiance" / "conversations"
+
+    assert read_meta(conversations_dir, "conversation_index", {}) == {}
+    assert read_session_state_payloads(conversations_dir, {"missing-session"}) == {}
+
+    assert not (tmp_path / ".Tiance").exists()
+
+
+def test_conversation_list_uses_session_table_not_index_projection(tmp_path):
+    repository = ProjectConversationRepository(FakeProjectRepository(str(tmp_path)))
+    session = repository.create_session(
+        PROJECT_ID,
+        title="正式会话",
+        provider_id=None,
+        model_id=None,
+        reasoning_mode=None,
+    )
+    conversations_dir = tmp_path / ".Tiance" / "conversations"
+    index = read_meta(conversations_dir, "conversation_index")
+    index["sessions"] = [{"session_id": "index-only-session", "title": "错误投影"}]
+    write_meta(conversations_dir, "conversation_index", index)
+
+    sessions = repository.list_sessions(PROJECT_ID)
+
+    assert [item.session_id for item in sessions] == [session.session_id]
+    assert sessions[0].title == "正式会话"
+
+
+def test_conversation_message_role_and_status_reject_unknown_values(tmp_path):
+    repository = ProjectConversationRepository(FakeProjectRepository(str(tmp_path)))
+    session = repository.create_session(
+        PROJECT_ID,
+        title=None,
+        provider_id=None,
+        model_id=None,
+        reasoning_mode=None,
+    )
+
+    with pytest.raises(BadRequestError, match="角色"):
+        repository.append_message(
+            PROJECT_ID,
+            session.session_id,
+            role="unknown",  # type: ignore[arg-type]
+            content="invalid",
+        )
+    with pytest.raises(BadRequestError, match="状态"):
+        repository.append_message(
+            PROJECT_ID,
+            session.session_id,
+            role="assistant",
+            content="invalid",
+            status="pending",  # type: ignore[arg-type]
+        )
 
 
 def test_conversation_repository_get_state_does_not_write_index(tmp_path):
@@ -371,20 +427,21 @@ def test_conversation_repository_get_state_does_not_write_index(tmp_path):
     conversations_dir = tmp_path / ".Tiance" / "conversations"
     stale_index = read_meta(conversations_dir, "conversation_index")
     stale_index["active_session_id"] = "missing-session"
-    stale_index["session_states"] = {
-        session.session_id: {
-            "runtime_status": "running",
-            "draft": "keep",
-            "updated_at": "2000-01-01T00:00:00+00:00",
-        }
-    }
     write_meta(conversations_dir, "conversation_index", stale_index)
+    repository.save_state(
+        PROJECT_ID,
+        active_session_id=None,
+        should_update_active_session=False,
+        session_runtime_statuses={session.session_id: "running"},
+        session_drafts={session.session_id: "keep"},
+        session_references={},
+    )
     before = read_meta(conversations_dir, "conversation_index")
 
-    _assistant_title, active_session_id, states = repository.get_state(PROJECT_ID)
+    active_session_id, states = repository.get_state(PROJECT_ID)
 
     assert active_session_id == session.session_id
-    assert states[session.session_id].runtime_status == "idle"
+    assert states[session.session_id].runtime_status == "running"
     assert states[session.session_id].draft == "keep"
     assert states[session.session_id].references == []
     assert read_meta(conversations_dir, "conversation_index") == before
@@ -405,13 +462,13 @@ def test_conversation_repository_persists_session_references(tmp_path):
         {"type": "text", "reference": {"id": "text-1", "content": "selected"}},
     ]
 
-    _assistant_title, _active_session_id, states = repository.save_state(
+    _active_session_id, states = repository.save_state(
         PROJECT_ID,
-        assistant_title=None,
-        should_update_assistant_title=False,
         active_session_id=None,
         should_update_active_session=False,
-        session_states={session.session_id: {"references": references}},
+        session_runtime_statuses={},
+        session_drafts={},
+        session_references={session.session_id: references},
     )
 
     assert states[session.session_id].references == references
@@ -419,7 +476,11 @@ def test_conversation_repository_persists_session_references(tmp_path):
         tmp_path / ".Tiance" / "conversations",
         "conversation_index",
     )
-    assert saved_index["session_states"][session.session_id]["references"] == references
+    assert "session_states" not in saved_index
+    assert read_session_state_payloads(
+        tmp_path / ".Tiance" / "conversations",
+        {session.session_id},
+    )[session.session_id]["references"] == references
 
 
 def test_conversation_repository_recreates_default_session_after_deleting_last(tmp_path):
@@ -432,7 +493,11 @@ def test_conversation_repository_recreates_default_session_after_deleting_last(t
         reasoning_mode=None,
     )
 
-    repository.delete_session(PROJECT_ID, first_session.session_id)
+    repository.delete_session(
+        PROJECT_ID,
+        first_session.session_id,
+        session_ids=(first_session.session_id,),
+    )
 
     sessions = repository.list_sessions(PROJECT_ID)
     assert len(sessions) == 1
@@ -443,7 +508,8 @@ def test_conversation_repository_recreates_default_session_after_deleting_last(t
     index = read_meta(tmp_path / ".Tiance" / "conversations", "conversation_index")
     assert "assistant_title" not in index
     assert index["active_session_id"] == sessions[0].session_id
-    assert [item["session_id"] for item in index["sessions"]] == [sessions[0].session_id]
+    assert "sessions" not in index
+    assert "session_states" not in index
 
 
 def test_conversation_repository_persists_pins_without_changing_updated_at(tmp_path):
@@ -514,7 +580,11 @@ def test_conversation_repository_removes_deleted_session_from_pins(tmp_path):
         pinned=True,
     )
 
-    repository.delete_session(PROJECT_ID, pinned_session.session_id)
+    repository.delete_session(
+        PROJECT_ID,
+        pinned_session.session_id,
+        session_ids=(pinned_session.session_id,),
+    )
 
     index = read_meta(tmp_path / ".Tiance" / "conversations", "conversation_index")
     assert index["pinned_session_ids"] == []
@@ -545,11 +615,12 @@ def test_conversation_repository_can_create_without_changing_active_session(tmp_
 
     index = read_meta(tmp_path / ".Tiance" / "conversations", "conversation_index")
     assert index["active_session_id"] == active_session.session_id
-    assert [item["session_id"] for item in index["sessions"]] == [
-        background_session.session_id,
+    assert "sessions" not in index
+    assert "session_states" not in index
+    assert {session.session_id for session in repository.list_sessions(PROJECT_ID)} == {
         active_session.session_id,
-    ]
-    assert background_session.session_id in index["session_states"]
+        background_session.session_id,
+    }
 
 
 def test_conversation_session_uses_current_tool_call_default(tmp_path):
@@ -757,8 +828,10 @@ def test_runtime_status_update_does_not_rescan_all_sessions(tmp_path, monkeypatc
     repository.save_session_runtime_status(PROJECT_ID, session.session_id, "running")
 
     conversations_dir = tmp_path / ".Tiance" / "conversations"
-    index = repository._session_store.read_index(conversations_dir)
-    assert index["session_states"][session.session_id]["runtime_status"] == "running"
+    assert read_session_state_payloads(
+        conversations_dir,
+        {session.session_id},
+    )[session.session_id]["runtime_status"] == "running"
 
 
 def test_conversation_overview_resolves_project_root_once(tmp_path):

@@ -33,9 +33,7 @@ from app.repositories.project.conversation_branch_store import (
 from app.repositories.project.conversation_serialization import (
     _merge_session_state,
     _new_session_id,
-    _next_session_sequence_number,
     _normalize_session_title,
-    _session_state_to_payload,
     _utc_now,
 )
 from app.repositories.project.conversation_storage import (
@@ -165,7 +163,7 @@ class ProjectConversationNamingRepository:
             function_session = replace(
                 source_session,
                 session_id=function_session_id,
-                sequence_number=_next_session_sequence_number(index),
+                sequence_number=self._session_store.next_sequence_number(conversations_dir),
                 title=build_derived_session_title(
                     source_session.title,
                     branch.sibling_index,
@@ -239,16 +237,29 @@ class ProjectConversationNamingRepository:
                 )
                 atomic_replace_path(temporary_dir, target_session_dir)
 
-                next_index = self._session_store.index_with_session(
+                next_index = self._session_store.index_after_session_write(
                     conversations_dir,
                     function_session,
                     set_active=False,
                 )
-                states = next_index.setdefault("session_states", {})
-                if isinstance(states, dict):
-                    states[function_session_id] = _session_state_to_payload(
-                        function_state
-                    )
+                self._session_store.write_session_runtime_status(
+                    conversations_dir,
+                    function_session_id,
+                    function_state.runtime_status,
+                    function_state.runtime_updated_at,
+                )
+                self._session_store.write_session_draft(
+                    conversations_dir,
+                    function_session_id,
+                    function_state.draft,
+                    function_state.updated_at,
+                )
+                self._session_store.write_session_references(
+                    conversations_dir,
+                    function_session_id,
+                    function_state.references,
+                    function_state.updated_at,
+                )
                 self._session_store.write_index(conversations_dir, next_index)
                 index_written = True
                 self._branch_store.write_graph(conversations_dir, graph)
@@ -376,7 +387,7 @@ class ProjectConversationNamingRepository:
                 )
                 self._session_store.write_index(
                     conversations_dir,
-                    self._session_store.index_with_session(
+                    self._session_store.index_after_session_write(
                         conversations_dir,
                         updated_session,
                         set_active=False,
@@ -444,9 +455,6 @@ class ProjectConversationNamingRepository:
         graph: dict,
     ) -> bool:
         conversations_dir = self._session_store.conversations_dir(project_id)
-        index = self._session_store.read_index(conversations_dir)
-        raw_states = index.get("session_states")
-        session_states = raw_states if isinstance(raw_states, dict) else {}
         for node in self._branch_store.list_nodes(graph):
             if (
                 node.parent_session_id != source_session_id
@@ -463,13 +471,11 @@ class ProjectConversationNamingRepository:
             )
             if task is None or task.get("status") not in ACTIVE_TASK_STATUSES:
                 continue
-            state = session_states.get(node.session_id)
-            state_payload = state if isinstance(state, dict) else {}
-            runtime_status = state_payload.get("runtime_status")
-            draft = state_payload.get("draft")
-            if runtime_status == "running" or (
-                isinstance(draft, str) and draft.strip()
-            ):
+            state = self._session_store.read_session_state(
+                conversations_dir,
+                node.session_id,
+            )
+            if state.runtime_status == "running" or state.draft.strip():
                 return True
 
             task_path = self._session_store.session_dir(

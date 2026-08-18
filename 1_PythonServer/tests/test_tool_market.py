@@ -59,6 +59,27 @@ class _RemoteClient:
         return self.payload
 
 
+class _PackageRemoteClient:
+    async def download_package(self, **_: object) -> None:
+        return None
+
+
+class _PackageArchive:
+    def __init__(self, package_root: Path) -> None:
+        self.package_root = package_root
+
+    def validate_and_extract(self, **_: object) -> Path:
+        return self.package_root
+
+
+class _IndexGateway:
+    def __init__(self, index: ToolMarketRemoteIndex) -> None:
+        self.index = index
+
+    async def fetch(self, _: str):
+        return SimpleNamespace(index=self.index)
+
+
 def test_tool_market_default_source_is_github_pages(tmp_path) -> None:
     repository = ToolMarketSettingsRepository(tmp_path / "market-settings.json")
 
@@ -254,6 +275,48 @@ def test_tool_market_update_preserves_local_identity_config_and_dependencies(tmp
     assert registry.rebuild_count == 1
 
 
+def test_tool_market_install_reports_declared_python_dependencies(tmp_path) -> None:
+    tool_root = tmp_path / "tools" / "local-project"
+    _write_package(tool_root, version="1.0.0")
+    package_root = tmp_path / "download" / "sample-tool"
+    _write_package(package_root, version="1.1.0")
+    (package_root / "program/requirements.txt").write_text(
+        "python-docx==1.2.0\n",
+        encoding="utf-8",
+    )
+    project = _project(tool_root, "00000000-0000-0000-0000-000000000123")
+    service = ToolMarketApplicationService(
+        app_version="0.1.0",
+        settings_repository=ToolMarketSettingsRepository(tmp_path / "market-settings.json"),
+        cache_repository=ToolMarketCacheRepository(tmp_path / ".market-cache"),
+        remote_client=_PackageRemoteClient(),
+        archive=_PackageArchive(package_root),
+        project_service=object(),
+        creation_service=object(),
+        tool_projects=_ToolProjects((project,)),
+        registry=_Registry(),
+    )
+    service.prepare()
+    service._index_gateway = _IndexGateway(
+        ToolMarketRemoteIndex.model_validate({
+            "schemaVersion": 1,
+            "kind": "tiance-tool-market",
+            "name": "测试工具市场",
+            "updatedAt": datetime.now(UTC).isoformat(),
+            "tools": [_entry(version="1.1.0").model_dump(by_alias=True)],
+        })
+    )
+    service._update_installed_tool = lambda **_: project
+
+    result = asyncio.run(
+        service.install_tool(tool_id="sample-tool", category_id=None, call_name=None)
+    )
+
+    assert result.has_dependencies is True
+    assert result.project_id == project.project_id
+    assert result.updated is True
+
+
 def _entry(*, version: str) -> ToolMarketEntry:
     return ToolMarketEntry.model_validate(_entry_payload(version=version))
 
@@ -301,7 +364,7 @@ def _package_files(*, version: str) -> dict[str, str]:
             },
             ".tool/tool.json": {
                 "name": "sample_tool",
-                "display_name": "示例工具",
+                "registration_name": "示例工具",
                 "description": "用于测试在线工具包。",
                 "keywords": [],
                 "loading": {"dynamic": False},

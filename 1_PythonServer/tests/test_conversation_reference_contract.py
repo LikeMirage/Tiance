@@ -4,7 +4,7 @@ from pydantic import ValidationError
 from app.domain.llm.chat import ChatMessageRole
 from app.schemas.conversation_references import ConversationReferences
 from app.schemas.llm.chat import ChatMessageRequest
-from app.schemas.project.project_conversations import ProjectConversationSessionStatePatch
+from app.schemas.project.project_conversations import ProjectConversationStateSaveRequest
 
 
 def test_chat_message_reference_contract_preserves_valid_file_reference():
@@ -37,11 +37,13 @@ def test_chat_message_reference_contract_rejects_incomplete_element():
 
 def test_draft_reference_contract_rejects_unknown_fields():
     with pytest.raises(ValidationError):
-        ProjectConversationSessionStatePatch(
-            references=[{
-                "type": "file",
-                "reference": {**_file_reference(), "unexpected": True},
-            }]
+        ProjectConversationStateSaveRequest(
+            session_references={
+                "session-1": [{
+                    "type": "file",
+                    "reference": {**_file_reference(), "unexpected": True},
+                }]
+            }
         )
 
 

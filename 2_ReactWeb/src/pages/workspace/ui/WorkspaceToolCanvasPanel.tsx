@@ -24,6 +24,8 @@ import { useWorkspaceEditorReferences } from "../model/useWorkspaceEditorReferen
 import { useToolOverviewNavigation } from "../model/useToolOverviewNavigation";
 import { ProjectCategoryOverviewKeepAlive } from "./ProjectCategoryOverviewKeepAlive";
 import { ProjectConversationOverviewDashboard } from "../../../features/project-category-overview/ui/ProjectConversationOverviewDashboard";
+import { createToolFolderDocumentSource } from "../../../features/document-tabs/model/documentFileSources";
+import type { ToolMarketInstallResponse } from "../../../services/tools/toolMarketApi";
 
 type WorkspaceToolCanvasPanelProps = {
   activeWorkspaceKey: string | null;
@@ -81,6 +83,7 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     projectId: string;
     sessionId: string;
   } | null>(null);
+  const [dependencyTarget, setDependencyTarget] = useState<ToolMarketInstallResponse | null>(null);
   useEffect(() => {
     setActiveSessionId(null);
   }, [projectId]);
@@ -340,10 +343,50 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     <ToolMarketBoard
       categories={projectCategories}
       isActive={isActive && overviewView === "online"}
-      onInstalled={onReloadFolders}
+      onInstalled={() => onReloadFolders()}
+      onOpenDependencies={setDependencyTarget}
       selectedCategoryId={selectedToolset?.category_id ?? null}
     />
   );
+  useEffect(() => {
+    if (!dependencyTarget) return;
+    if (selectedToolset?.category_id !== dependencyTarget.categoryId) {
+      onSelectToolset(dependencyTarget.categoryId);
+      return;
+    }
+    const folder = folders.find((item) => item.project_id === dependencyTarget.projectId);
+    if (!folder) {
+      if (folderState !== "loading") onReloadFolders();
+      return;
+    }
+    if (expandedToolFolder?.project_id !== folder.project_id) {
+      onSelectFolder(folder.project_id);
+      onOpenFolder(folder.project_id);
+      return;
+    }
+    setDependencyTarget(null);
+    const source = createToolFolderDocumentSource(
+      folder.category_id,
+      folder.project_id,
+      folder.name,
+      folder.project_id,
+    );
+    void documentTabs.openToolDashboard(source, {
+      activeView: "dependencies",
+      title: folder.name,
+    });
+  }, [
+    dependencyTarget,
+    documentTabs.openToolDashboard,
+    expandedToolFolder?.project_id,
+    folderState,
+    folders,
+    onOpenFolder,
+    onReloadFolders,
+    onSelectFolder,
+    onSelectToolset,
+    selectedToolset?.category_id,
+  ]);
   const handleRevealProject = useCallback(async (targetProjectId: string) => {
     const folder = findFolderByProjectId(targetProjectId);
     if (!folder) return;

@@ -1,6 +1,6 @@
 {
   "description": "调用 Tavily Search API 执行实时网络搜索，返回 AI 总结、结果标题、链接、摘要、相关度、发布时间和可选原文内容。",
-  "display_name": "Tavily 网络搜索",
+  "registration_name": "Tavily 网络搜索",
   "execution": {
     "parallel": true
   },

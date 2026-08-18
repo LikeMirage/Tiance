@@ -51,18 +51,14 @@ _WRITE_QUEUES: WeakValueDictionary[str, _WriteQueue] = WeakValueDictionary()
 class ProjectWorkspaceDirectoryResolver:
     def resolve_workspace_dir(self, project_root: Path, *, for_write: bool = False) -> Path:
         workspace_dir = require_existing_project_root(project_root) / WORKSPACE_DIR
-        if workspace_dir.exists():
-            if for_write:
-                ensure_workspace_readme(workspace_dir)
-            from app.repositories.project.conversation_database import ensure_database
-
-            ensure_database(workspace_dir)
-            return workspace_dir
         if for_write:
             ensure_workspace_readme(workspace_dir)
         from app.repositories.project.conversation_database import ensure_database
+        from app.repositories.project.conversation_database import database_path_from_workspace
 
-        ensure_database(workspace_dir)
+        database_path = database_path_from_workspace(workspace_dir)
+        if for_write or database_path.is_file():
+            ensure_database(workspace_dir)
         return workspace_dir
 
 

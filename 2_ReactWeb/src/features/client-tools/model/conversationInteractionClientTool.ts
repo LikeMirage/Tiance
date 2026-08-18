@@ -83,13 +83,10 @@ async function executeConversationInteractionClientTool(
       clientToolExecutor: options.getClientToolExecutor,
       clientCapabilities: options.getClientCapabilities,
       initialStrategy: runtimeStatus === "running" ? "resume_then_start" : "start",
-      message,
-      sourceContext: {
-        project_id: projectId,
-        session_id: sourceSession.session_id,
-        session_title: sourceSession.title,
-        tool_request_id: request.request_id,
-      },
+      message: appendSourceSessionAttribution(message, {
+        sessionId: sourceSession.session_id,
+        title: sourceSession.title,
+      }),
       projectId,
       session,
       userMessageId: `client_${request.request_id}`,
@@ -157,6 +154,19 @@ async function executeConversationInteractionClientTool(
   } catch (error) {
     return clientToolFailure(error, { action, ...failureContext });
   }
+}
+
+function appendSourceSessionAttribution(
+  message: string,
+  source: { sessionId: string; title: string },
+): string {
+  const sourceTitle = source.title.replace(/[\r\n]+/g, " ").trim();
+  return [
+    message,
+    "",
+    `本条消息来源会话名称：${sourceTitle}`,
+    `本条消息来源会话 ID：${source.sessionId}`,
+  ].join("\n");
 }
 
 function serializeCompletedSend(

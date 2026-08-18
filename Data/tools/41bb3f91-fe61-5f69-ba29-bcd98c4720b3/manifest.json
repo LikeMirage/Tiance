@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "word_document_editor",
-  "version": "2.2.1",
+  "version": "3.0.0",
   "author": {
     "name": "LikeMirage"
   },
   "license": "CC0-1.0",
   "compatibility": {
-    "minTianceVersion": "0.1.0",
+    "minTianceVersion": "0.3.20",
     "platforms": [
       "windows-x64"
     ]

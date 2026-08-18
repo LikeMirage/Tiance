@@ -112,7 +112,11 @@ class ToolRegistryService:
                 if not (Path(project.root_path) / TOOL_FOLDER_MANIFEST_FILE).is_file():
                     continue
                 loaded_tool = load_tool(project.root_path)
-                summary = build_summary(loaded_tool, category=category.name)
+                summary = build_summary(
+                    loaded_tool,
+                    category=category.name,
+                    display_name=project.name,
+                )
                 if summary.name in seen_tool_names:
                     raise ConflictError(
                         f"工具调用名称 '{summary.name}' 已重复，无法重建工具注册表。"

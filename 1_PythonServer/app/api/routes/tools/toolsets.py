@@ -2,8 +2,8 @@ from fastapi import APIRouter, status
 
 from app.schemas.tools import (
     ToolFolderCreateRequest,
-    ToolFolderDynamicLoadingRequest,
-    ToolFolderDynamicLoadingResponse,
+    ToolFolderRuntimeSettingsRequest,
+    ToolFolderRuntimeSettingsResponse,
     ToolFolderListResponse,
     ToolFolderMoveRequest,
     ToolFolderRenameRequest,
@@ -105,24 +105,28 @@ def move_tool_project(
 
 
 @router.patch(
-    "/{category_id}/projects/{project_id}/dynamic-loading",
-    response_model=ToolFolderDynamicLoadingResponse,
+    "/{category_id}/projects/{project_id}/runtime-settings",
+    response_model=ToolFolderRuntimeSettingsResponse,
 )
-def set_tool_project_dynamic_loading(
+def set_tool_project_runtime_settings(
     category_id: str,
     project_id: str,
-    payload: ToolFolderDynamicLoadingRequest,
-) -> ToolFolderDynamicLoadingResponse:
-    project = get_toolset_service().set_tool_folder_dynamic_loading(
+    payload: ToolFolderRuntimeSettingsRequest,
+) -> ToolFolderRuntimeSettingsResponse:
+    result = get_toolset_service().set_tool_folder_runtime_settings(
         category_id,
         project_id,
+        enabled=payload.enabled,
         dynamic=payload.dynamic,
+        parallel=payload.parallel,
     )
-    return ToolFolderDynamicLoadingResponse(
-        category_id=project.category_id,
-        project_id=project.project_id,
-        dynamic=payload.dynamic,
-        updated_at=project.updated_at,
+    return ToolFolderRuntimeSettingsResponse(
+        category_id=result.folder.category_id,
+        project_id=result.folder.project_id,
+        enabled=result.enabled,
+        dynamic=result.dynamic,
+        parallel=result.parallel,
+        updated_at=result.folder.updated_at,
     )
 
 

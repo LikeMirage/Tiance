@@ -9,6 +9,7 @@ import {
 import { OnlineMarketBoardShell } from "../../../shared/online-market/OnlineMarketBoardShell";
 import { ConfirmModal } from "../../../shared/ui/confirm-modal/ConfirmModal";
 import { DEFAULT_TOOL_MARKET_SOURCE } from "../../../services/tools/toolMarketApi";
+import type { ToolMarketInstallResponse } from "../../../services/tools/toolMarketApi";
 import {
   filterToolMarketItems,
   listToolMarketPlatforms,
@@ -24,11 +25,12 @@ import "../../role-market/ui/role-market-board.css";
 import "./tool-market-board.css";
 
 export function ToolMarketBoard({
-  categories, isActive, onInstalled, selectedCategoryId,
+  categories, isActive, onInstalled, onOpenDependencies, selectedCategoryId,
 }: {
   categories: readonly ProjectCategory[];
   isActive: boolean;
-  onInstalled?: () => void;
+  onInstalled?: (result: ToolMarketInstallResponse) => void;
+  onOpenDependencies?: (result: ToolMarketInstallResponse) => void;
   selectedCategoryId: string | null;
 }) {
   const { language, t } = useI18n();
@@ -37,6 +39,7 @@ export function ToolMarketBoard({
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [pendingTool, setPendingTool] = useState<ToolMarketTool | null>(null);
   const [pendingUpdate, setPendingUpdate] = useState<ToolMarketTool | null>(null);
+  const [dependencyPrompt, setDependencyPrompt] = useState<ToolMarketInstallResponse | null>(null);
   const tools = useMemo(
     () => filterToolMarketItems(market.index?.tools ?? [], market.filters, query),
     [market.filters, market.index?.tools, query],
@@ -152,7 +155,9 @@ export function ToolMarketBoard({
           onConfirm={(categoryId, callName) => {
             const toolId = pendingTool.id;
             setPendingTool(null);
-            void market.install(toolId, categoryId, callName);
+            void market.install(toolId, categoryId, callName).then((result) => {
+              if (result?.hasDependencies) setDependencyPrompt(result);
+            });
           }}
           selectedCategoryId={selectedCategoryId}
           tool={pendingTool}
@@ -170,9 +175,24 @@ export function ToolMarketBoard({
           onConfirm={() => {
             const toolId = pendingUpdate.id;
             setPendingUpdate(null);
-            void market.install(toolId, null, null);
+            void market.install(toolId, null, null).then((result) => {
+              if (result?.hasDependencies) setDependencyPrompt(result);
+            });
           }}
           title={t("toolMarket.install.updateTitle")}
+        />
+      ) : null}
+      {dependencyPrompt ? (
+        <ConfirmModal
+          confirmLabel={t("toolMarket.dependencies.open")}
+          message={t("toolMarket.dependencies.message")}
+          onCancel={() => setDependencyPrompt(null)}
+          onConfirm={() => {
+            const target = dependencyPrompt;
+            setDependencyPrompt(null);
+            onOpenDependencies?.(target);
+          }}
+          title={t("toolMarket.dependencies.title")}
         />
       ) : null}
     </section>

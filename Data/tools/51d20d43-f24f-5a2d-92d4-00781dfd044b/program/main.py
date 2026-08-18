@@ -149,8 +149,15 @@ def validate_tool_folder(
 
     if not CALL_NAME_RE.match(tool_name):
         issue(issues, "error", "INVALID_TOOL_NAME", "工具调用名必须是小写英文开头，只包含小写英文、数字和下划线。", path=tool_json_path, tool_name=tool_name)
-    if not string_value(manifest.get("display_name")):
-        issue(issues, "error", "MISSING_DISPLAY_NAME", "display_name 不能为空。", path=tool_json_path, tool_name=tool_name)
+    if not string_value(manifest.get("registration_name")):
+        issue(
+            issues,
+            "error",
+            "MISSING_REGISTRATION_NAME",
+            "registration_name 不能为空。",
+            path=tool_json_path,
+            tool_name=tool_name,
+        )
     if not string_value(manifest.get("description")):
         issue(issues, "warning", "MISSING_DESCRIPTION", "description 为空会降低工具可理解性。", path=tool_json_path, tool_name=tool_name)
     validate_execution(manifest, tool_json_path, tool_name, issues)
@@ -170,7 +177,7 @@ def validate_tool_folder(
             issue(issues, "warning", "MISSING_ASSETS_DIR", "建议保留 assets 目录，即使当前为空。", path=folder / "assets", tool_name=tool_name)
     return {
         "name": tool_name,
-        "display_name": string_value(manifest.get("display_name")),
+        "registration_name": string_value(manifest.get("registration_name")),
         "enabled": enabled,
         "folder": folder.name,
     }

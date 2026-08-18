@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "serpapi_search",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": {
     "name": "LikeMirage"
   },
   "license": "CC0-1.0",
   "compatibility": {
-    "minTianceVersion": "0.1.0",
+    "minTianceVersion": "0.3.20",
     "platforms": [
       "windows-x64"
     ]

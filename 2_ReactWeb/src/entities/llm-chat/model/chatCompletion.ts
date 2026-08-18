@@ -47,12 +47,6 @@ export type ChatCompletionMessageInput = {
   tool_calls?: ChatToolCallEvent[];
   thinking_content?: string;
   references?: ConversationMessageReferences;
-  source_context?: {
-    project_id: string;
-    session_id: string;
-    session_title: string;
-    tool_request_id: string;
-  };
 };
 
 export type ChatCompletionRequest = {

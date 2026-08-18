@@ -1,6 +1,6 @@
 {
   "description": "统一 Excel 工作簿工具。调用 export_markdown 前必须读取本工具目录 docs/excel-to-markdown-rules.md；通过 action 执行 inspect、export_markdown、create、edit、validate：可读取摘要，把已有 Excel 规范化提取为 content.md、format.md 和 AI 规则报告，新建多 Sheet 报表，编辑已有 .xlsx，预检复杂输入。支持批量数据、单元格值/公式、样式、合并单元格、行列调整、Sheet 管理、表格、筛选、冻结窗格、数据验证、条件格式和常用图表。复杂宏、透视表、切片器和复杂图表不承诺完整反向还原。",
-  "display_name": "Excel 工作簿",
+  "registration_name": "Excel 工作簿",
   "execution": {
     "parallel": true
   },

@@ -32,7 +32,6 @@ from app.services.project.conversation_references import (
     normalize_conversation_references,
     references_from_chat_message,
 )
-from app.services.project.conversation_message_source import source_context_from_chat_message
 from app.services.tools.tool_call_records import ToolCallRecordService
 from app.services.tools.tool_cancellation import (
     ToolCancellationScope,
@@ -114,7 +113,6 @@ class ConversationStreamPersistence:
             return None
         last_user_message = user_messages[-1]
         references = references_from_chat_message(last_user_message)
-        source_context = source_context_from_chat_message(last_user_message)
         if self._matching_pending_user_message(request, last_user_message) is not None:
             return None
         message = self._append_conversation_message(
@@ -124,7 +122,6 @@ class ConversationStreamPersistence:
             content=last_user_message.content,
             content_parts=last_user_message.content_parts,
             references=references,
-            source_context=source_context,
             provider_id=request.provider_id,
             model_id=request.model_id,
             message_id=last_user_message.message_id,
@@ -159,12 +156,10 @@ class ConversationStreamPersistence:
 
         existing_user = turn.items[0]
         requested_references = references_from_chat_message(requested_user)
-        requested_source_context = source_context_from_chat_message(requested_user)
         if not (
             existing_user.content == requested_user.content
             and existing_user.content_parts == requested_user.content_parts
             and normalize_conversation_references(existing_user.references) == requested_references
-            and existing_user.source_context == requested_source_context
             and existing_user.target_provider_id == request.provider_id
             and existing_user.target_model_id == request.model_id
         ):
@@ -714,7 +709,6 @@ class ConversationStreamPersistence:
             return None
         last_existing_message = existing_messages[-1]
         requested_references = references_from_chat_message(last_user_message)
-        requested_source_context = source_context_from_chat_message(last_user_message)
         matches = (
             last_existing_message.role == "user"
             and (
@@ -724,7 +718,6 @@ class ConversationStreamPersistence:
             and last_existing_message.content == last_user_message.content
             and last_existing_message.content_parts == last_user_message.content_parts
             and normalize_conversation_references(last_existing_message.references) == requested_references
-            and last_existing_message.source_context == requested_source_context
             and last_existing_message.target_provider_id == request.provider_id
             and last_existing_message.target_model_id == request.model_id
         )

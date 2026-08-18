@@ -1,4 +1,3 @@
-import { withReasoningOffOption } from "../../../entities/llm-runtime/model/reasoningModes";
 import { getModelCatalog } from "../../../services/llm/getModelCatalog";
 import { getRuntimeCapabilities } from "../../../services/llm/getRuntimeCapabilities";
 import { toChatModelOption } from "../../ai-panel/model/chatModelOption";
@@ -56,7 +55,7 @@ export async function queryConversationModels(input: {
         reasoning: {
           supported: capabilities.reasoning.supported,
           modes: capabilities.reasoning.supported
-            ? withReasoningOffOption(capabilities.reasoning.modes)
+            ? [...capabilities.reasoning.modes]
             : [],
         },
         sampling: {

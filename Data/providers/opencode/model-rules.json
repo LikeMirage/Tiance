@@ -11,7 +11,6 @@
         "reasoning": {
           "supported": true,
           "modes": [
-            "off",
             "high",
             "max"
           ]
@@ -39,6 +38,23 @@
         ],
         "jsonObjectResponseFormat": true,
         "streamUsage": true,
+        "reasoningEffortParameter": "reasoning_effort"
+      },
+      "behavior": {}
+    },
+    "mimo-v2.5": {
+      "capabilities": {
+        "reasoning": {
+          "supported": true,
+          "modes": [
+            "off",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      },
+      "request": {
         "reasoningEffortParameter": "reasoning_effort",
         "reasoningToggleParameter": "thinking",
         "reasoningEnabledValue": {

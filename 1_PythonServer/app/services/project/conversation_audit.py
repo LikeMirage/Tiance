@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from functools import lru_cache
+from gzip import compress as gzip_compress
 from hashlib import sha256
 from json import dumps
 from pathlib import Path
 from uuid import uuid4
 
-from app.core.atomic_replace import atomic_replace_path
 from app.domain.llm.chat import ChatCompletionRequest
 from app.domain.llm.chat_http_exchange import ChatHttpExchange, exchange_to_payload
 from app.repositories.project.conversation_database import (
     append_journal_event,
+    transaction_for_conversations,
     write_artifact_record,
 )
 from app.repositories.project.conversation_storage import (
@@ -45,31 +46,24 @@ class ConversationAuditService:
         )
         conversations_dir = workspace_dir / "conversations"
         artifact_id = f"artifact_{uuid4().hex}"
-        artifact_dir = (
-            conversations_dir
-            / "sessions"
-            / request.session_id
-            / "artifacts"
-        )
-        artifact_dir.mkdir(parents=True, exist_ok=True)
-        artifact_path = artifact_dir / f"{artifact_id}.json"
-        temporary_path = artifact_dir / f".{artifact_id}.{uuid4().hex}.tmp"
         content = dumps(
             exchange_to_payload(exchange),
             ensure_ascii=False,
             separators=(",", ":"),
         ).encode("utf-8")
-        temporary_path.write_bytes(content)
-        atomic_replace_path(temporary_path, artifact_path)
+        compressed_content = gzip_compress(content, mtime=0)
         created_at = datetime.now(UTC).isoformat()
-        try:
-            with conversation_write_lock(conversations_dir):
+        with conversation_write_lock(conversations_dir):
+            with transaction_for_conversations(conversations_dir):
                 write_artifact_record(
                     workspace_dir,
                     artifact_id=artifact_id,
                     session_id=request.session_id,
                     kind="model_http_exchange",
-                    relative_path=artifact_path.relative_to(workspace_dir).as_posix(),
+                    relative_path=(
+                        f"conversations/sessions/{request.session_id}/"
+                        "model_http_exchanges.jsonl"
+                    ),
                     media_type="application/json",
                     encoding="utf-8",
                     size_bytes=len(content),
@@ -80,6 +74,9 @@ class ConversationAuditService:
                         "provider_id": request.provider_id,
                         "model_id": request.model_id,
                     },
+                    payload_blob=compressed_content,
+                    compression="gzip",
+                    stored_size_bytes=len(compressed_content),
                 )
                 append_journal_event(
                     workspace_dir,
@@ -101,9 +98,6 @@ class ConversationAuditService:
                     },
                     artifact_id=artifact_id,
                 )
-        except Exception:
-            artifact_path.unlink(missing_ok=True)
-            raise
 
     def record_event(
         self,

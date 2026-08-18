@@ -1,12 +1,20 @@
 from dataclasses import asdict, dataclass, field, replace
 from hashlib import sha256
 from json import dumps
+from typing import Literal
 
 from app.domain.llm.chat import (
     ChatMessageContentPart,
     ChatProtocolContinuation,
     ChatToolCall,
 )
+
+
+ProjectConversationMessageRole = Literal[
+    "system", "user", "assistant", "tool", "error"
+]
+ProjectConversationMessageStatus = Literal["running", "done", "error", "cancelled"]
+ProjectConversationRuntimeStatus = Literal["idle", "running", "error"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,13 +97,13 @@ def conversation_session_configuration_hash(
 class ProjectConversationMessage:
     message_id: str
     session_id: str
-    role: str
+    role: ProjectConversationMessageRole
     content: str
     thinking_content: str
     usage: dict | None
     provider_id: str | None
     model_id: str | None
-    status: str
+    status: ProjectConversationMessageStatus
     created_at: str
     updated_at: str
     created_at_local: str | None = None
@@ -112,7 +120,6 @@ class ProjectConversationMessage:
     variant_group_id: str | None = None
     variant_index: int = 1
     references: list[dict] = field(default_factory=list)
-    source_context: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,7 +153,7 @@ class ProjectConversationNamingCallRecord:
 @dataclass(frozen=True, slots=True)
 class ProjectConversationSessionState:
     session_id: str
-    runtime_status: str
+    runtime_status: ProjectConversationRuntimeStatus
     draft: str
     references: list[dict]
     updated_at: str

@@ -551,6 +551,10 @@
             "title": "模型请求记录",
             "description": "逐轮查看实际提交给模型的逻辑请求、回复、工具调用和 token 用量。"
           },
+          "modelHttpExchanges": {
+            "title": "模型原始交换记录",
+            "description": "分页查看已脱敏的原始 HTTP 请求与响应，以及完整性校验信息。"
+          },
           "session": {
             "title": "会话配置看板",
             "description": "查看当前会话标题、模型、生成参数、记忆参数和工具设置。"
@@ -1118,6 +1122,11 @@
         "updateTitle": "更新在线工具",
         "updateMessage": "将“{name}”从 v{current} 更新到 v{next}。本地调用名、启用状态、依赖和 program/config.json 会保留。",
         "updateConfirm": "确认更新"
+      },
+      "dependencies": {
+        "title": "工具包含 Python 依赖",
+        "message": "打开该工具的依赖看板，检查并安装缺失或版本不匹配的依赖。",
+        "open": "打开依赖看板"
       }
     },
     "providerMarket": {
@@ -1293,7 +1302,13 @@
       "activeSessions": "活跃 {count}",
       "deleteFailed": "会话删除失败。",
       "deleteSessionDeleting": "删除中...",
-      "deleteSessionMessage": "确定删除会话“{title}”吗？删除后会话消息也会一起移除。",
+      "deleteSessionMessage": "删除会话“{title}”及其消息。",
+      "deleteSessionCurrent": "当前会话",
+      "deleteSessionDescendants": "选择下级会话（{count}）",
+      "deleteSessionPromotionHint": "未勾选的下级会话将保留，并自动接到最近的保留上级。",
+      "deleteSessionSelectionSummary": "本次将删除 {count} 个会话。",
+      "deleteSessionTreeLoadFailed": "无法读取下级会话，请关闭后重试。",
+      "deleteSessionTreeLoading": "正在读取下级会话...",
       "deleteSessionTitle": "删除会话",
       "emptyCategory": "当前分类没有项目。",
       "emptyRoleCategory": "当前分类没有角色。",

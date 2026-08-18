@@ -13,6 +13,21 @@
       "outputPricePerMillion": null,
       "createdAt": "2026-08-17T06:24:07.871495+00:00",
       "updatedAt": "2026-08-17T06:24:07.871495+00:00"
+    },
+    {
+      "modelId": "mimo-v2.5",
+      "displayName": "mimo-v2.5",
+      "familyGroup": "mimo-v2.5",
+      "capabilityTags": [
+        "reasoning"
+      ],
+      "note": "",
+      "priceCurrency": "CNY",
+      "inputPricePerMillion": null,
+      "cacheHitPricePerMillion": null,
+      "outputPricePerMillion": null,
+      "createdAt": "2026-08-18T01:12:44.693587+00:00",
+      "updatedAt": "2026-08-18T01:16:50.933090+00:00"
     }
   ]
 }

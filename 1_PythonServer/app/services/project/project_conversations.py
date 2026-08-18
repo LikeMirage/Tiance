@@ -4,6 +4,8 @@ from typing import Protocol
 from app.core.errors import NotFoundError
 from app.domain.project.project_conversation import (
     ProjectConversationMessage,
+    ProjectConversationMessageRole,
+    ProjectConversationMessageStatus,
     ProjectConversationMessagePage,
     ProjectConversationMessageTurn,
     ProjectConversationNamingCallRecord,
@@ -142,26 +144,26 @@ class ProjectConversationService:
     def get_state(
         self,
         project_id: str,
-    ) -> tuple[str, str | None, dict[str, ProjectConversationSessionState]]:
+    ) -> tuple[str | None, dict[str, ProjectConversationSessionState]]:
         return self._repository.get_state(project_id)
 
     def save_state(
         self,
         project_id: str,
         *,
-        assistant_title: str | None,
-        should_update_assistant_title: bool,
         active_session_id: str | None,
         should_update_active_session: bool,
-        session_states: dict[str, dict],
-    ) -> tuple[str, str | None, dict[str, ProjectConversationSessionState]]:
+        session_runtime_statuses: dict[str, str],
+        session_drafts: dict[str, str],
+        session_references: dict[str, list[dict]],
+    ) -> tuple[str | None, dict[str, ProjectConversationSessionState]]:
         return self._repository.save_state(
             project_id,
-            assistant_title=assistant_title,
-            should_update_assistant_title=should_update_assistant_title,
             active_session_id=active_session_id,
             should_update_active_session=should_update_active_session,
-            session_states=session_states,
+            session_runtime_statuses=session_runtime_statuses,
+            session_drafts=session_drafts,
+            session_references=session_references,
         )
 
     def create_session(
@@ -247,8 +249,31 @@ class ProjectConversationService:
             pinned=pinned,
         )
 
-    def delete_session(self, project_id: str, session_id: str) -> None:
-        replacement = self._repository.delete_session(project_id, session_id)
+    def validate_session_deletion(
+        self,
+        project_id: str,
+        session_id: str,
+        *,
+        session_ids: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        return self._repository.validate_session_deletion(
+            project_id,
+            session_id,
+            session_ids=session_ids,
+        )
+
+    def delete_session(
+        self,
+        project_id: str,
+        session_id: str,
+        *,
+        session_ids: tuple[str, ...],
+    ) -> None:
+        replacement = self._repository.delete_session(
+            project_id,
+            session_id,
+            session_ids=session_ids,
+        )
         if replacement is not None:
             self._record_conversation_created(replacement)
 
@@ -292,7 +317,7 @@ class ProjectConversationService:
         project_id: str,
         session_id: str,
     ) -> None:
-        _assistant_title, _active_session_id, session_states = self.get_state(project_id)
+        _active_session_id, session_states = self.get_state(project_id)
         state = session_states.get(session_id)
         if state is None:
             return
@@ -338,7 +363,7 @@ class ProjectConversationService:
         project_id: str,
         session_id: str,
         *,
-        role: str,
+        role: ProjectConversationMessageRole,
         content: str,
         thinking_content: str = "",
         usage: dict | None = None,
@@ -352,8 +377,7 @@ class ProjectConversationService:
         protocol_continuation: ChatProtocolContinuation | None = None,
         content_parts: tuple[ChatMessageContentPart, ...] = (),
         references: list[dict] | None = None,
-        source_context: dict[str, str] | None = None,
-        status: str = "done",
+        status: ProjectConversationMessageStatus = "done",
         sync_session_model: bool = True,
         message_id: str | None = None,
     ) -> ProjectConversationMessage:
@@ -374,7 +398,6 @@ class ProjectConversationService:
             protocol_continuation=protocol_continuation,
             content_parts=content_parts,
             references=references,
-            source_context=source_context,
             status=status,
             sync_session_model=sync_session_model,
             message_id=message_id,
@@ -388,7 +411,7 @@ class ProjectConversationService:
         after_message_id: str,
         content: str,
         name: str | None = None,
-        status: str = "done",
+        status: ProjectConversationMessageStatus = "done",
     ) -> ProjectConversationMessage:
         return self._repository.insert_system_message_after(
             project_id,

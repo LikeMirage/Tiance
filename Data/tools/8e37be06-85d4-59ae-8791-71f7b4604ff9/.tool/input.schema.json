@@ -24,9 +24,86 @@
         "minLength": 1,
         "type": "string"
       },
+      "minItems": 1,
+      "uniqueItems": true,
       "type": "array"
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "list_tabs"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "path"
+              ]
+            },
+            {
+              "required": [
+                "paths"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": [
+              "open_file",
+              "focus_file",
+              "close_others_clean"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "path"
+        ],
+        "not": {
+          "required": [
+            "paths"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "close_clean_tabs"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "path"
+          ]
+        }
+      }
+    }
+  ],
   "required": [
     "action"
   ],

@@ -14,6 +14,7 @@ export type ToolMarketInstallResponse = {
   toolId: string;
   updated: boolean;
   version: string;
+  hasDependencies: boolean;
 };
 
 export function getToolMarketSettings(signal?: AbortSignal) {

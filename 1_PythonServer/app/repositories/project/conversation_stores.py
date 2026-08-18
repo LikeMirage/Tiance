@@ -12,20 +12,15 @@ from app.domain.project.project_conversation import (
     ProjectConversationSessionState,
 )
 from app.repositories.project.conversation_serialization import (
-    _DEFAULT_ASSISTANT_TITLE,
-    _default_session_state,
     _empty_index,
     _expire_running_state_if_stale,
     _index_pinned_session_ids,
-    _index_session_items,
     _message_from_payload,
     _message_to_payload,
     _naming_call_record_to_payload,
     _optional_str,
     _session_from_payload,
-    _session_index_payload,
     _session_state_from_payload,
-    _session_state_to_payload,
     _session_to_payload,
 )
 from app.repositories.project.conversation_storage import (
@@ -45,49 +40,90 @@ from app.repositories.project.conversation_database import (
     read_conversation_list_snapshot,
     read_meta,
     read_session,
+    read_session_state_payloads,
     read_sessions,
     replace_message_payloads,
     session_exists,
     write_meta,
     write_session,
+    write_session_draft,
+    write_session_references,
+    write_session_runtime_state,
 )
 
 
 class ConversationStateStore:
     def conversation_state(
         self,
+        conversations_dir: Path,
         sessions: tuple[ProjectConversationSession, ...],
         index: dict,
-    ) -> tuple[str, str | None, dict[str, ProjectConversationSessionState]]:
+        *,
+        stored_states: dict[str, dict] | None = None,
+    ) -> tuple[str | None, dict[str, ProjectConversationSessionState]]:
         session_ids = {session.session_id for session in sessions}
-        assistant_title = _DEFAULT_ASSISTANT_TITLE
         active_session_id = _optional_str(index.get("active_session_id"))
         if active_session_id not in session_ids:
             active_session_id = sessions[0].session_id if sessions else None
+        raw_states = (
+            read_session_state_payloads(conversations_dir, session_ids)
+            if stored_states is None
+            else stored_states
+        )
+        states = {
+            session_id: _expire_running_state_if_stale(
+                _session_state_from_payload(session_id, raw_states.get(session_id))
+            )
+            for session_id in session_ids
+        }
+        return active_session_id, states
 
-        raw_states = index.get("session_states", {})
-        states: dict[str, ProjectConversationSessionState] = {}
-        if isinstance(raw_states, dict):
-            for session_id in session_ids:
-                states[session_id] = _session_state_from_payload(
-                    session_id,
-                    raw_states.get(session_id),
-                )
-        else:
-            states = {session_id: _default_session_state(session_id) for session_id in session_ids}
-        return assistant_title, active_session_id, states
+    def read_session_state(
+        self,
+        conversations_dir: Path,
+        session_id: str,
+    ) -> ProjectConversationSessionState:
+        payload = read_session_state_payloads(conversations_dir, {session_id}).get(session_id)
+        return _expire_running_state_if_stale(
+            _session_state_from_payload(session_id, payload)
+        )
 
-    def normalize_runtime_states(self, index: dict) -> dict:
-        raw_states = index.get("session_states", {})
-        if not isinstance(raw_states, dict):
-            index["session_states"] = {}
-            return index
+    def write_runtime_status(
+        self,
+        conversations_dir: Path,
+        session_id: str,
+        runtime_status: str,
+        updated_at: str,
+    ) -> None:
+        write_session_runtime_state(
+            conversations_dir,
+            session_id,
+            runtime_status,
+            updated_at,
+        )
 
-        for session_id, payload in list(raw_states.items()):
-            state = _session_state_from_payload(str(session_id), payload)
-            normalized_state = _expire_running_state_if_stale(state)
-            raw_states[session_id] = _session_state_to_payload(normalized_state)
-        return index
+    def write_draft(
+        self,
+        conversations_dir: Path,
+        session_id: str,
+        draft: str,
+        updated_at: str,
+    ) -> None:
+        write_session_draft(conversations_dir, session_id, draft, updated_at)
+
+    def write_references(
+        self,
+        conversations_dir: Path,
+        session_id: str,
+        references: list[dict],
+        updated_at: str,
+    ) -> None:
+        write_session_references(
+            conversations_dir,
+            session_id,
+            references,
+            updated_at,
+        )
 
 
 class ConversationSessionStore:
@@ -129,18 +165,25 @@ class ConversationSessionStore:
     def normalize_index_payload(self, payload: object) -> dict:
         if not isinstance(payload, dict):
             return _empty_index()
-        payload.setdefault("active_session_id", None)
-        payload["pinned_session_ids"] = sorted(_index_pinned_session_ids(payload))
-        payload.setdefault("sessions", [])
-        payload.setdefault("session_states", {})
-        payload.pop("assistant_title", None)
-        return self._state_store.normalize_runtime_states(payload)
+        active_session_id = payload.get("active_session_id")
+        return {
+            "active_session_id": (
+                active_session_id if isinstance(active_session_id, str) else None
+            ),
+            "pinned_session_ids": sorted(_index_pinned_session_ids(payload)),
+        }
 
     def read_list_snapshot(
         self,
         conversations_dir: Path,
-    ) -> tuple[int, dict, dict[str, ProjectConversationSession], object]:
-        revision, raw_index, raw_sessions, raw_graph = read_conversation_list_snapshot(
+    ) -> tuple[
+        int,
+        dict,
+        dict[str, ProjectConversationSession],
+        dict[str, dict],
+        object,
+    ]:
+        revision, raw_index, raw_sessions, raw_states, raw_graph = read_conversation_list_snapshot(
             conversations_dir,
         )
         return (
@@ -150,14 +193,18 @@ class ConversationSessionStore:
                 session_id: _session_from_payload(payload)
                 for session_id, payload in raw_sessions.items()
             },
+            raw_states,
             raw_graph,
         )
 
     def write_index(self, conversations_dir: Path, payload: dict) -> None:
-        payload.pop("assistant_title", None)
-        write_meta(conversations_dir, "conversation_index", payload)
+        write_meta(
+            conversations_dir,
+            "conversation_index",
+            self.normalize_index_payload(payload),
+        )
 
-    def index_with_session(
+    def index_after_session_write(
         self,
         conversations_dir: Path,
         session: ProjectConversationSession,
@@ -165,20 +212,56 @@ class ConversationSessionStore:
         set_active: bool,
     ) -> dict:
         index = self.read_index(conversations_dir)
-        sessions = [
-            item for item in index.get("sessions", [])
-            if isinstance(item, dict) and item.get("session_id") != session.session_id
-        ]
-        sessions.insert(0, _session_index_payload(session))
         if set_active:
             index["active_session_id"] = session.session_id
-        index["sessions"] = sessions
-        session_states = index.setdefault("session_states", {})
-        if isinstance(session_states, dict) and session.session_id not in session_states:
-            session_states[session.session_id] = _session_state_to_payload(
-                _default_session_state(session.session_id)
-            )
         return index
+
+    def next_sequence_number(self, conversations_dir: Path) -> int:
+        sessions = self.read_sessions_from_conversations_dir(conversations_dir)
+        return max(
+            (session.sequence_number for session in sessions.values()),
+            default=0,
+        ) + 1
+
+    def read_session_state(
+        self,
+        conversations_dir: Path,
+        session_id: str,
+    ) -> ProjectConversationSessionState:
+        return self._state_store.read_session_state(conversations_dir, session_id)
+
+    def write_session_runtime_status(
+        self,
+        conversations_dir: Path,
+        session_id: str,
+        runtime_status: str,
+        updated_at: str,
+    ) -> None:
+        self._state_store.write_runtime_status(
+            conversations_dir, session_id, runtime_status, updated_at
+        )
+
+    def write_session_draft(
+        self,
+        conversations_dir: Path,
+        session_id: str,
+        draft: str,
+        updated_at: str,
+    ) -> None:
+        self._state_store.write_draft(
+            conversations_dir, session_id, draft, updated_at
+        )
+
+    def write_session_references(
+        self,
+        conversations_dir: Path,
+        session_id: str,
+        references: list[dict],
+        updated_at: str,
+    ) -> None:
+        self._state_store.write_references(
+            conversations_dir, session_id, references, updated_at
+        )
 
     def read_session(self, project_id: str, session_id: str) -> ProjectConversationSession | None:
         return self.read_session_from_conversations_dir(

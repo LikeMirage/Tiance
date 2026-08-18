@@ -8,9 +8,8 @@ import sys
 from zipfile import ZipFile
 
 from docx import Document
-from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml import OxmlElement
-from docx.shared import Inches, Pt, RGBColor
+from docx.shared import Pt, RGBColor
 from lxml import etree
 
 WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -82,22 +81,105 @@ def create_markdown_docx(markdown: str, output: Path) -> None:
     converter.convert(markdown).save(output)
 
 
-def test_create_uses_content_aware_table_widths_and_native_formula(tmp_path: Path) -> None:
-    output = tmp_path / "result.docx"
+def test_formula_core_files_stay_aligned_with_md2docx() -> None:
+    md2docx_root = REPOSITORY_ROOT / "Data" / "tools" / "e76a4e0a-205d-50c4-8415-081cdaa49d39"
+    for relative_path in (
+        "program/formula_converter.py",
+        "program/latex_diagrams.py",
+        "program/latex_extensions.py",
+        "program/mathml_styles.py",
+        "program/omml_validation.py",
+        "program/text_scanning.py",
+        "assets/MML2OMML.XSL",
+    ):
+        expected = (md2docx_root / relative_path).read_text(encoding="utf-8").splitlines()
+        actual = (TOOL_ROOT / relative_path).read_text(encoding="utf-8").splitlines()
+        assert actual == expected, f"公式核心已偏离 md2docx：{relative_path}"
+
+
+def test_create_action_is_removed(tmp_path: Path) -> None:
+    output = tmp_path / "should_not_exist.docx"
+    result = call(
+        tmp_path,
+        {"action": "create", "output_path": output.name, "elements": [{"type": "paragraph", "text": "x"}]},
+    )
+    assert result["ok"] is False
+    assert result["error_info"]["code"] == "INVALID_ARGUMENT"
+    assert "Markdown 转 Word" in result["error"]
+    assert not output.exists()
+
+
+def test_edit_inserts_complex_formulas_supported_by_md2docx_core(tmp_path: Path) -> None:
+    source = tmp_path / "complex_source.docx"
+    output = tmp_path / "complex_edited.docx"
+    doc = Document()
+    for marker in ("待写入极值公式", "待写入对齐公式", "待写入彩色公式"):
+        doc.add_paragraph(marker)
+    doc.save(source)
+
     result = call(
         tmp_path,
         {
-            "action": "create",
+            "action": "edit",
+            "input_path": source.name,
             "output_path": output.name,
-            "elements": [
+            "operations": [
                 {
-                    "type": "table",
-                    "rows": [
-                        ["编号", "非常长的工作内容说明"],
-                        ["1", "这一列需要明显更多宽度，以减少无意义换行。"],
-                    ],
+                    "type": "selection",
+                    "selection": {"start_anchor": "待写入极值公式", "boundary_mode": "inclusive", "expand": "paragraph_end"},
+                    "action": "replace",
+                    "content_mode": "equation",
+                    "content": r"\argmax_{x\in X} f(x)",
                 },
-                {"type": "equation", "latex": r"\sum_{i=1}^{N} x_i"},
+                {
+                    "type": "selection",
+                    "selection": {"start_anchor": "待写入对齐公式", "boundary_mode": "inclusive", "expand": "paragraph_end"},
+                    "action": "replace",
+                    "content_mode": "equation",
+                    "content": r"\begin{aligned}a&=b+c\\d&=e\end{aligned}",
+                },
+                {
+                    "type": "selection",
+                    "selection": {"start_anchor": "待写入彩色公式", "boundary_mode": "inclusive", "expand": "paragraph_end"},
+                    "action": "replace",
+                    "content_mode": "equation",
+                    "content": r"\textcolor{red}{x}+y",
+                },
+            ],
+        },
+    )
+    assert result["ok"] is True, result
+    root = document_xml(output)
+    assert root.xpath("count(.//m:oMath)", namespaces=NS) == 3
+    assert "\\argmax" not in "".join(root.itertext())
+
+
+def test_append_content_uses_content_aware_table_widths_and_native_formula(tmp_path: Path) -> None:
+    source = tmp_path / "source.docx"
+    output = tmp_path / "result.docx"
+    doc = Document()
+    doc.add_paragraph("已有内容")
+    doc.save(source)
+    result = call(
+        tmp_path,
+        {
+            "action": "edit",
+            "input_path": source.name,
+            "output_path": output.name,
+            "operations": [
+                {
+                    "type": "append_content",
+                    "elements": [
+                        {
+                            "type": "table",
+                            "rows": [
+                                ["编号", "非常长的工作内容说明"],
+                                ["1", "这一列需要明显更多宽度，以减少无意义换行。"],
+                            ],
+                        },
+                        {"type": "equation", "latex": r"\sum_{i=1}^{N} x_i"},
+                    ],
+                }
             ],
         },
     )
@@ -111,60 +193,32 @@ def test_create_uses_content_aware_table_widths_and_native_formula(tmp_path: Pat
     assert not list(tmp_path.glob("*.docx.tmp"))
 
 
-def test_create_defaults_match_markdown_to_word_base_style(tmp_path: Path) -> None:
-    output = tmp_path / "styled.docx"
+def test_invalid_formula_is_preserved_as_text_with_warning(tmp_path: Path) -> None:
+    source = tmp_path / "source.docx"
+    output = tmp_path / "invalid.docx"
+    doc = Document()
+    doc.add_paragraph("待替换")
+    doc.save(source)
     result = call(
         tmp_path,
         {
-            "action": "create",
+            "action": "edit",
+            "input_path": source.name,
             "output_path": output.name,
-            "elements": [
-                {"type": "heading", "level": 1, "text": "标题"},
-                {"type": "paragraph", "text": "正文内容"},
-                {"type": "table", "rows": [["表头", "数值"], ["项目", "1"]]},
+            "operations": [
+                {
+                    "type": "selection",
+                    "selection": {"start_anchor": "待替换", "boundary_mode": "inclusive", "expand": "paragraph_end"},
+                    "action": "replace",
+                    "content_mode": "markdown",
+                    "content": "$$\\frac{a{b}$$",
+                }
             ],
         },
     )
-    assert result["ok"] is True, result
-
-    doc = Document(output)
-    section = doc.sections[0]
-    assert section.top_margin == Inches(0.75)
-    assert section.bottom_margin == Inches(0.75)
-    assert section.left_margin == Inches(0.75)
-    assert section.right_margin == Inches(0.75)
-
-    heading, body = doc.paragraphs[:2]
-    assert heading.runs[0].font.size == Pt(18)
-    assert heading.runs[0].font.color.rgb == RGBColor(0, 0, 0)
-    assert heading.paragraph_format.keep_with_next is True
-    assert body.runs[0].font.size == Pt(12)
-    assert body.runs[0].font.color.rgb == RGBColor(0, 0, 0)
-    assert body.paragraph_format.space_after == Pt(6)
-    assert body.paragraph_format.line_spacing == 1.15
-    assert abs(body.paragraph_format.first_line_indent - Inches(0.28)) <= Pt(0.01)
-
-    table = doc.tables[0]
-    assert table.alignment == WD_TABLE_ALIGNMENT.LEFT
-    header_run = table.cell(0, 0).paragraphs[0].runs[0]
-    assert header_run.font.size == Pt(10.5)
-    assert header_run.font.color.rgb == RGBColor(0, 0, 0)
-    root = document_xml(output)
-    assert root.xpath("string(.//w:tbl[1]/w:tr[1]/w:tc[1]/w:tcPr/w:shd/@w:fill)", namespaces=NS) == "F2F2F2"
-
-
-def test_invalid_formula_is_preserved_as_text_with_warning(tmp_path: Path) -> None:
-    output = tmp_path / "invalid.docx"
-    result = call(
-        tmp_path,
-        {
-            "action": "create",
-            "output_path": output.name,
-            "elements": [{"type": "equation", "latex": r"\frac{a{b}"}],
-        },
-    )
     assert result["ok"] is True
-    assert any("花括号未配对" in warning for warning in result["warnings"])
+    warnings = result["data"]["operations"][0]["warnings"]
+    assert any("花括号未配对" in warning for warning in warnings)
     root = document_xml(output)
     assert "\\frac{a{b}" in "".join(root.itertext())
 
@@ -347,19 +401,7 @@ def test_inclusive_boundary_replaces_anchors_themselves(tmp_path: Path) -> None:
 def test_formula_anchor_replaces_matching_word_equation(tmp_path: Path) -> None:
     source = tmp_path / "formula.docx"
     output = tmp_path / "formula_edited.docx"
-    created = call(
-        tmp_path,
-        {
-            "action": "create",
-            "output_path": source.name,
-            "elements": [
-                {"type": "paragraph", "text": "公式如下："},
-                {"type": "equation", "latex": r"\sum_{i=1}^{N} x_i"},
-                {"type": "paragraph", "text": "结束"},
-            ],
-        },
-    )
-    assert created["ok"] is True, created
+    create_markdown_docx("公式如下：\n\n$$\\sum_{i=1}^{N} x_i$$\n\n结束", source)
     result = call(
         tmp_path,
         {
@@ -438,15 +480,7 @@ def test_markdown_table_formula_can_be_inspected_and_replaced(tmp_path: Path) ->
 def test_formula_ref_format_changes_equation_color_without_replacing_content(tmp_path: Path) -> None:
     source = tmp_path / "formula_format.docx"
     output = tmp_path / "formula_format_edited.docx"
-    created = call(
-        tmp_path,
-        {
-            "action": "create",
-            "output_path": source.name,
-            "elements": [{"type": "equation", "latex": r"E=mc^2"}],
-        },
-    )
-    assert created["ok"] is True, created
+    create_markdown_docx("$$E=mc^2$$", source)
     inspected = call(tmp_path, {"action": "inspect", "input_path": source.name})
     formula_ref = inspected["data"]["formulas"][0]["formula_ref"]
 
@@ -514,20 +548,7 @@ def test_markdown_table_formula_anchor_accepts_markdown_formula_replacement(tmp_
 
 def test_formula_end_anchor_uses_document_paragraph_order(tmp_path: Path) -> None:
     source = tmp_path / "formula_end.docx"
-    created = call(
-        tmp_path,
-        {
-            "action": "create",
-            "output_path": source.name,
-            "elements": [
-                {"type": "paragraph", "text": "前文一"},
-                {"type": "paragraph", "text": "前文二"},
-                {"type": "paragraph", "text": "起点"},
-                {"type": "equation", "latex": r"x^2"},
-            ],
-        },
-    )
-    assert created["ok"] is True, created
+    create_markdown_docx("前文一\n\n前文二\n\n起点\n\n$$x^2$$", source)
     preview = call(
         tmp_path,
         {
@@ -549,15 +570,7 @@ def test_formula_end_anchor_uses_document_paragraph_order(tmp_path: Path) -> Non
 
 def test_formula_match_failure_returns_inspectable_candidate(tmp_path: Path) -> None:
     source = tmp_path / "formula_candidate.docx"
-    created = call(
-        tmp_path,
-        {
-            "action": "create",
-            "output_path": source.name,
-            "elements": [{"type": "equation", "latex": r"x^2+y^2"}],
-        },
-    )
-    assert created["ok"] is True, created
+    create_markdown_docx("$$x^2+y^2$$", source)
     failed = call(
         tmp_path,
         {

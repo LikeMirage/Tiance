@@ -1,10 +1,10 @@
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useState } from "react";
 import { ArrowSquareIn, FolderOpen } from "@phosphor-icons/react";
 
 import type { ToolCallRecordSummaryItem } from "../../../entities/tool/model/toolCallRecord";
 import type { ToolFolder, Toolset } from "../../../entities/tool/model/toolset";
-import { updateToolFolderDynamicLoading } from "../../../services/tools/updateToolFolderDynamicLoading";
 import { useToolsetCallRecordSummary } from "../model/useToolsetCallRecordSummary";
+import { useToolRuntimeSettings } from "../model/useToolRuntimeSettings";
 
 import "./toolset-overview.css";
 
@@ -36,49 +36,14 @@ export const ToolsetOverview = memo(function ToolsetOverview({
   toolset,
 }: ToolsetOverviewProps) {
   const [revealingFolderId, setRevealingFolderId] = useState<string | null>(null);
-  const [updatingDynamicFolderId, setUpdatingDynamicFolderId] = useState<string | null>(null);
-  const [dynamicUpdateError, setDynamicUpdateError] = useState<string | null>(null);
-  const [dynamicOverrides, setDynamicOverrides] = useState<Map<string, boolean>>(() => new Map());
   const callSummary = useToolsetCallRecordSummary(toolset?.category_id ?? null, { isActive });
-
-  useEffect(() => {
-    setDynamicOverrides(new Map());
-  }, [toolset?.category_id]);
-
-  const handleDynamicLoadingChange = async (
-    folder: ToolFolder,
-    stats: ToolCallRecordSummaryItem,
-  ) => {
-    if (!toolset || readonly || stats.dynamic == null) return;
-    const previousDynamic = stats.dynamic;
-    const nextDynamic = !previousDynamic;
-    setUpdatingDynamicFolderId(folder.project_id);
-    setDynamicUpdateError(null);
-    setDynamicOverrides((current) => {
-      const next = new Map(current);
-      next.set(folder.project_id, nextDynamic);
-      return next;
-    });
-    try {
-      await updateToolFolderDynamicLoading(toolset.category_id, folder.project_id, {
-        dynamic: nextDynamic,
-      });
-      callSummary.reload();
-    } catch (requestError) {
-      setDynamicOverrides((current) => {
-        const next = new Map(current);
-        next.set(folder.project_id, previousDynamic);
-        return next;
-      });
-      setDynamicUpdateError(
-        requestError instanceof Error ? requestError.message : "动态加载设置保存失败。",
-      );
-    } finally {
-      setUpdatingDynamicFolderId((current) =>
-        current === folder.project_id ? null : current,
-      );
-    }
-  };
+  const runtimeSettings = useToolRuntimeSettings({
+    itemsByFolderId: callSummary.itemsByFolderId,
+    onReload: callSummary.reload,
+    readonly,
+    summaryVersion: callSummary.summary,
+    toolsetId: toolset?.category_id ?? null,
+  });
 
   if (!toolset) {
     return <div className="toolset-overview__status">请选择一个工具集。</div>;
@@ -116,9 +81,9 @@ export const ToolsetOverview = memo(function ToolsetOverview({
         <div className="toolset-overview__inline-error" role="status">
           {callSummary.error}
         </div>
-      ) : dynamicUpdateError ? (
+      ) : runtimeSettings.error ? (
         <div className="toolset-overview__inline-error" role="status">
-          {dynamicUpdateError}
+          {runtimeSettings.error}
         </div>
       ) : callSummary.state === "loading" && !callSummary.summary ? (
         <div className="toolset-overview__inline-note" role="status">
@@ -130,14 +95,12 @@ export const ToolsetOverview = memo(function ToolsetOverview({
         <div className="toolset-overview__grid">
           {folders.map((folder) => {
             const stats = callSummary.itemsByFolderId.get(folder.project_id) ?? null;
-            const overrideDynamic = dynamicOverrides.get(folder.project_id);
-            const effectiveDynamic = overrideDynamic ?? stats?.dynamic ?? null;
-            const displayStats = stats
-              ? { ...stats, dynamic: effectiveDynamic }
-              : null;
-            const isDynamic = effectiveDynamic === true;
-            const canToggleDynamic = !readonly && stats?.dynamic != null;
-            const isUpdatingDynamic = updatingDynamicFolderId === folder.project_id;
+            const displayStats = runtimeSettings.resolveStats(folder.project_id, stats);
+            const effectiveEnabled = displayStats?.enabled ?? null;
+            const effectiveDynamic = displayStats?.dynamic ?? null;
+            const effectiveParallel = displayStats?.parallel ?? null;
+            const canUpdateRuntime = !readonly && stats != null;
+            const isUpdatingRuntime = runtimeSettings.updatingFolderId === folder.project_id;
             const injectionMetric = getInjectionMetric(displayStats);
             return (
               <article
@@ -201,26 +164,32 @@ export const ToolsetOverview = memo(function ToolsetOverview({
                     <strong>调用 {formatInteger(stats?.call_count ?? 0)} 次</strong>
                     <span>全局 {formatPercent(stats?.global_call_share ?? 0)}</span>
                   </span>
-                  <button
-                    className={[
-                      "toolset-overview__dynamic-switch",
-                      isDynamic ? "toolset-overview__dynamic-switch--on" : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                    type="button"
-                    role="switch"
-                    aria-checked={isDynamic}
-                    disabled={!canToggleDynamic || isUpdatingDynamic}
-                    title={readonly ? "只读工具集不能修改" : "切换动态加载"}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (displayStats) void handleDynamicLoadingChange(folder, displayStats);
-                    }}
-                  >
-                    <span>动态加载</span>
-                    <i aria-hidden="true" />
-                  </button>
+                  <span className="toolset-overview__runtime-switches">
+                    <RuntimeSwitch
+                      checked={effectiveEnabled === true}
+                      disabled={!canUpdateRuntime || effectiveEnabled == null || isUpdatingRuntime}
+                      label="启用"
+                      onChange={() => {
+                        if (displayStats) void runtimeSettings.updateSetting(folder, displayStats, "enabled");
+                      }}
+                    />
+                    <RuntimeSwitch
+                      checked={effectiveDynamic === true}
+                      disabled={!canUpdateRuntime || effectiveDynamic == null || isUpdatingRuntime}
+                      label="动态"
+                      onChange={() => {
+                        if (displayStats) void runtimeSettings.updateSetting(folder, displayStats, "dynamic");
+                      }}
+                    />
+                    <RuntimeSwitch
+                      checked={effectiveParallel === true}
+                      disabled={!canUpdateRuntime || effectiveParallel == null || isUpdatingRuntime}
+                      label="并发"
+                      onChange={() => {
+                        if (displayStats) void runtimeSettings.updateSetting(folder, displayStats, "parallel");
+                      }}
+                    />
+                  </span>
                 </footer>
               </article>
             );
@@ -234,6 +203,39 @@ export const ToolsetOverview = memo(function ToolsetOverview({
     </section>
   );
 });
+
+function RuntimeSwitch({
+  checked,
+  disabled,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  disabled: boolean;
+  label: string;
+  onChange: () => void;
+}) {
+  return (
+    <button
+      className={[
+        "toolset-overview__runtime-switch",
+        checked ? "toolset-overview__runtime-switch--on" : "",
+      ].filter(Boolean).join(" ")}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      title={`切换${label}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onChange();
+      }}
+    >
+      <span>{label}</span>
+      <i aria-hidden="true" />
+    </button>
+  );
+}
 
 function Metric({
   detail,

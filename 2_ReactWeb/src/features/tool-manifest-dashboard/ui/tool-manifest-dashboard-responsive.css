@@ -1,6 +1,7 @@
 @media (max-width: 980px) {
   .tool-dashboard__form-grid,
-  .tool-dashboard__grid {
+  .tool-dashboard__grid,
+  .tool-dashboard__compact-form {
     grid-template-columns: 1fr;
   }
 

@@ -1,6 +1,6 @@
 {
   "description": "查看和管理项目集、知识集、经验集、角色集、主题集、工具集或供应商集与 GitHub 仓库的同步。支持读取已授权仓库、绑定仓库、预览拉取或提交差异，并凭计划号执行；未明确确认差异前不要执行 pull 或 push。优先复用天策 GitHub 登录，未登录时可使用工具 config.json 中的 Token。",
-  "display_name": "GitHub 仓库同步",
+  "registration_name": "GitHub 仓库同步",
   "execution": {
     "parallel": true
   },

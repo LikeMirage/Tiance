@@ -15,14 +15,7 @@ from tiance_runtime import run_tool
 from word_errors import WordOperationError
 from word_editing import apply_operations, inspect_document
 from word_selection import resolve_selection
-from word_elements import (
-    add_elements,
-    apply_core_properties,
-    apply_document_defaults,
-    apply_page_settings,
-    merged_theme,
-    set_header_footer,
-)
+from word_elements import merged_theme
 
 
 TOOL_BACKUP_ROOT = Path(".Tiance") / "tool-backups" / "word_document_editor"
@@ -120,42 +113,6 @@ def ensure_can_write(output_path: Path, *, overwrite: bool) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if output_path.exists() and not overwrite:
         raise ToolError("OUTPUT_EXISTS", "输出文件已存在。", {"output_path": str(output_path)})
-
-
-def create_document(payload: dict[str, Any], root: Path) -> dict[str, Any]:
-    output_path = resolve_output_path(payload.get("output_path"), root)
-    overwrite = read_bool(payload.get("overwrite"), False)
-    ensure_can_write(output_path, overwrite=overwrite)
-
-    elements = payload.get("elements")
-    if not isinstance(elements, list) or not elements:
-        raise ToolError("INVALID_ARGUMENT", "create 操作必须提供非空 elements。")
-
-    theme = merged_theme(payload.get("theme"))
-    doc = Document()
-    apply_document_defaults(doc, theme)
-    apply_page_settings(doc, payload.get("page"))
-    apply_core_properties(doc, payload.get("properties"))
-    if isinstance(payload.get("header"), str) or isinstance(payload.get("footer"), str):
-        set_header_footer(
-            doc,
-            header=payload.get("header") if isinstance(payload.get("header"), str) else None,
-            footer=payload.get("footer") if isinstance(payload.get("footer"), str) else None,
-            theme=theme,
-        )
-    warnings: list[str] = []
-    stats = add_elements(doc, elements, theme, root, warnings=warnings)
-    save_document_atomic(doc, output_path)
-    return ok(
-        f"DOCX 创建完成：{output_path.name}。",
-        {
-            "action": "create",
-            "output_path": str(output_path),
-            "stats": stats,
-            "overwrite": overwrite,
-        },
-        warnings=warnings,
-    )
 
 
 def inspect_docx(payload: dict[str, Any], root: Path) -> dict[str, Any]:
@@ -360,13 +317,15 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         action = str(payload.get("action") or "").strip().lower()
         root = workspace_root()
-        if action == "create":
-            return create_document(payload, root)
         if action == "inspect":
             return inspect_docx(payload, root)
         if action == "edit":
             return edit_document(payload, root)
-        raise ToolError("INVALID_ARGUMENT", "action 必须是 create、inspect 或 edit。", {"action": action})
+        raise ToolError(
+            "INVALID_ARGUMENT",
+            "action 必须是 inspect 或 edit；新建 Word 请使用 Markdown 转 Word 工具。",
+            {"action": action},
+        )
     except ToolError as exc:
         return fail(exc.code, exc.message, exc.details)
     except WordOperationError as exc:

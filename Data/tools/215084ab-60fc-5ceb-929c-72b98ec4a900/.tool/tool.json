@@ -1,6 +1,6 @@
 {
   "description": "管理由 run_python_script 通过天策内置 Python 启动并登记的后台进程。需要日志时直接使用 read_logs；get 仅用于不读取日志的状态查询。支持可靠识别 orphaned 失联记录，并通过 prune 批量清理已结束或确认失联的安全候选；不会扫描或控制其他 Python 进程。",
-  "display_name": "Python 后台进程管理",
+  "registration_name": "Python 后台进程管理",
   "execution": {
     "parallel": true
   },

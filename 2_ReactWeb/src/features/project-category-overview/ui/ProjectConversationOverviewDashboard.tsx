@@ -4,7 +4,6 @@ import type { ProjectOverviewSession } from "../../../entities/project/model/pro
 import { dispatchProjectConversationUpdated } from "../../../entities/llm-chat/model/projectConversationEvents";
 import { useI18n } from "../../../shared/i18n";
 import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
-import { ConfirmModal } from "../../../shared/ui/confirm-modal/ConfirmModal";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import { deleteProjectConversation } from "../../../services/project/deleteProjectConversation";
 import { getProjectConversations } from "../../../services/project/getProjectConversations";
@@ -14,6 +13,7 @@ import { useProjectConversationOverview } from "../model/useProjectConversationO
 import type { ProjectOverviewSessionContextMenuState } from "../model/useProjectOverviewSessionActions";
 import { ProjectOverviewCard } from "./ProjectOverviewCard";
 import { ProjectOverviewSessionContextMenu } from "./ProjectOverviewSessionContextMenu";
+import { ProjectConversationDeleteModal } from "./ProjectConversationDeleteModal";
 
 import "./project-category-overview.css";
 import "./project-conversation-overview-dashboard.css";
@@ -169,12 +169,16 @@ export const ProjectConversationOverviewDashboard = memo(
       }
     }, [loadOverview, projectId, renamingSession, sessionActionBusy, t]);
 
-    const handleConfirmDeleteSession = useCallback(async () => {
+    const handleConfirmDeleteSession = useCallback(async (sessionIds: string[]) => {
       if (!projectId || !deletingSession || sessionActionBusy) return;
       setSessionActionBusy(true);
       setSessionActionError(null);
       try {
-        await deleteProjectConversation(projectId, deletingSession.sessionId);
+        await deleteProjectConversation(
+          projectId,
+          deletingSession.sessionId,
+          sessionIds,
+        );
         dispatchProjectConversationUpdated({
           kind: "structure",
           projectId,
@@ -300,31 +304,20 @@ export const ProjectConversationOverviewDashboard = memo(
           />
         ) : null}
 
-        {isActive && deletingSession ? (
-          <ConfirmModal
-            cancelDisabled={sessionActionBusy}
-            confirmDisabled={sessionActionBusy}
-            confirmLabel={sessionActionBusy
-              ? t("projectOverview.deleteSessionDeleting")
-              : t("common.actions.delete")}
-            danger
-            message={t("projectOverview.deleteSessionMessage", {
-              title: deletingSession.title,
-            })}
+        {isActive && projectId && deletingSession ? (
+          <ProjectConversationDeleteModal
+            busy={sessionActionBusy}
+            error={sessionActionError}
             onCancel={() => {
               if (sessionActionBusy) return;
               setDeletingSession(null);
               setSessionActionError(null);
             }}
-            onConfirm={() => void handleConfirmDeleteSession()}
-            title={t("projectOverview.deleteSessionTitle")}
-          >
-            {sessionActionError ? (
-              <p className="project-category-overview__session-action-error">
-                {sessionActionError}
-              </p>
-            ) : null}
-          </ConfirmModal>
+            onConfirm={(sessionIds) => void handleConfirmDeleteSession(sessionIds)}
+            projectId={projectId}
+            sessionId={deletingSession.sessionId}
+            title={deletingSession.title}
+          />
         ) : null}
       </section>
     );

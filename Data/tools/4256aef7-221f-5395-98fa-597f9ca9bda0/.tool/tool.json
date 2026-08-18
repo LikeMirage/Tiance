@@ -1,6 +1,6 @@
 {
   "description": "管理天策内置 Python 依赖，主要用于按工具名称或 ID 把依赖补齐到该工具自己的独立目录；支持主动安装、一键读取 requirements.txt、其他明确目录、检查、修复、查看和卸载。",
-  "display_name": "PIP 依赖管理",
+  "registration_name": "PIP 依赖管理",
   "execution": {
     "parallel": true
   },

@@ -1,6 +1,6 @@
 {
   "description": "在工作区内创建、覆盖或追加文本文件。默认 create 模式不覆盖已有文件，覆盖和追加支持 hash 校验、备份和 dry-run 校验；执行成功只返回路径、大小和哈希等结果摘要，不返回文件正文或 diff。",
-  "display_name": "文件写入",
+  "registration_name": "文件写入",
   "execution": {
     "parallel": true
   },

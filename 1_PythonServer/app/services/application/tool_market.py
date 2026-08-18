@@ -23,6 +23,7 @@ from app.infra.tool_market import (
     remove_tool_market_staging_path,
     resolve_tool_market_asset_url,
 )
+from app.infra.tools.tool_project_config_constants import TOOL_REQUIREMENTS_FILE
 from app.repositories.tools.tool_market_cache_repository import ToolMarketCacheRepository
 from app.repositories.tools.tool_market_settings_repository import (
     ToolMarketSettingsRepository,
@@ -46,6 +47,7 @@ from app.services.application.online_market import OnlineMarketIndexGateway
 from app.services.project.projects import ProjectService, get_project_service
 from app.services.tools.tool_projects import ToolProjectService, get_tool_project_service
 from app.services.tools.tool_registry import ToolRegistryService, get_tool_registry_service
+from app.services.tools.tool_dependency_requirements import parse_requirements_file
 
 
 _MARKET_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
@@ -181,6 +183,12 @@ class ToolMarketApplicationService:
                 staging_root=staging_root,
                 market_entry=entry,
             )
+            has_dependencies = bool(
+                await asyncio.to_thread(
+                    parse_requirements_file,
+                    package_root / TOOL_REQUIREMENTS_FILE,
+                )
+            )
             if existing is not None:
                 project = await asyncio.to_thread(
                     self._update_installed_tool,
@@ -209,6 +217,7 @@ class ToolMarketApplicationService:
                 callName=selected_call_name,
                 version=entry.version,
                 updated=updated,
+                hasDependencies=has_dependencies,
             )
         finally:
             await asyncio.to_thread(
@@ -227,11 +236,12 @@ class ToolMarketApplicationService:
         call_name: str,
     ) -> Project:
         _write_tool_call_name(package_root, call_name)
+        registration_name = _read_tool_registration_name(package_root)
         project_id = str(uuid4())
         project = self._project_service.install_managed_project_snapshot(
             staged_root=package_root,
             project_id=project_id,
-            name=entry.display_name,
+            name=registration_name,
             category_id=category_id,
             project_kind=ProjectKind.TOOL,
         )
@@ -530,6 +540,14 @@ def _read_tool_call_name(project: Project) -> str:
     value = payload.get("name")
     if not isinstance(value, str) or not value.strip():
         raise ValueError("Tool call name is missing.")
+    return value.strip()
+
+
+def _read_tool_registration_name(tool_root: Path) -> str:
+    payload = _read_json_object(tool_root / _TOOL_MANIFEST_FILE)
+    value = payload.get("registration_name")
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("Tool registration name is missing.")
     return value.strip()
 
 

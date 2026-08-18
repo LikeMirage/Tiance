@@ -5,7 +5,7 @@ export type ToolManifest = {
     when_to_use?: unknown;
   };
   description?: unknown;
-  display_name?: unknown;
+  registration_name?: unknown;
   examples?: unknown;
   execution?: {
     parallel?: unknown;

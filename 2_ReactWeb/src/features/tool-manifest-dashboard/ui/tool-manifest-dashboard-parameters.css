@@ -1,18 +1,21 @@
 .tool-dashboard__param-list {
   display: grid;
-  gap: 8px;
+  gap: 0;
+  border-top: 1px solid var(--color-border-subtle);
 }
 
 .tool-dashboard__param-card {
   overflow: hidden;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 4px;
-  background: var(--color-surface-muted);
+  border: 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  border-radius: 0;
+  background: transparent;
 }
 
 .tool-dashboard__param-card--expanded {
-  border-color: rgba(var(--color-accent-rgb), 0.24);
   overflow: visible;
+  background: rgba(var(--color-accent-rgb), 0.035);
+  box-shadow: inset 2px 0 0 rgba(var(--color-accent-rgb), 0.7);
 }
 
 .tool-dashboard__param-summary {
@@ -21,8 +24,8 @@
   gap: 8px;
   align-items: center;
   width: 100%;
-  min-height: 44px;
-  padding: 8px 10px;
+  min-height: 52px;
+  padding: 9px 4px;
   border: 0;
   background: transparent;
   color: var(--color-text-primary);
@@ -32,7 +35,7 @@
 }
 
 .tool-dashboard__param-summary:hover {
-  background: var(--color-surface-item-hover);
+  background: rgba(var(--color-accent-rgb), 0.045);
 }
 
 .tool-dashboard__example-header {
@@ -132,12 +135,12 @@
 .tool-dashboard__param-badges strong {
   display: inline-flex;
   max-width: 140px;
-  height: 22px;
+  height: 20px;
   align-items: center;
-  padding: 0 7px;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 4px;
-  background: var(--color-surface-input);
+  padding: 0 5px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--color-text-secondary);
   font-size: 0.72rem;
   font-weight: 500;
@@ -147,17 +150,20 @@
 }
 
 .tool-dashboard__param-badges strong {
-  border-color: rgba(var(--color-accent-rgb), 0.28);
   color: var(--tool-dashboard-accent);
 }
 
+.tool-dashboard__param-badges > * + *::before {
+  content: "\00b7";
+  margin-right: 7px;
+  color: var(--color-text-muted);
+}
+
 .tool-dashboard__param-badges .tool-dashboard__validation-badge--error {
-  border-color: rgba(225, 92, 76, 0.35);
   color: var(--color-danger);
 }
 
 .tool-dashboard__param-badges .tool-dashboard__validation-badge--ok {
-  border-color: rgba(var(--color-accent-rgb), 0.28);
   color: var(--tool-dashboard-accent);
 }
 
@@ -177,9 +183,9 @@
 }
 
 .tool-dashboard__param-panel {
-  padding: 12px;
+  padding: 16px 22px 18px;
   border-top: 1px solid var(--color-border-subtle);
-  background: var(--color-surface-panel);
+  background: transparent;
 }
 
 .tool-dashboard__param-form {

@@ -1,6 +1,6 @@
 {
   "description": "查看和管理 天策 长期记忆。list/search 一次返回全部当前有效的全局记忆和项目记忆；新增、更新和删除需指定写入范围。所有修改都通过后端记忆事件链路写入，不直接编辑记忆文件。",
-  "display_name": "记忆管理",
+  "registration_name": "记忆管理",
   "execution": {
     "parallel": true
   },

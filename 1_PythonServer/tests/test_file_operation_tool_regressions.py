@@ -9,6 +9,7 @@ import sys
 from types import ModuleType, SimpleNamespace
 
 from tests.formal_tool_paths import resolve_formal_tool_root
+from app.services.tools.tool_execution_arguments import validate_tool_arguments
 
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -22,6 +23,7 @@ _RUN_PYTHON_SCRIPT = resolve_formal_tool_root("run_python_script")
 _INTERACT_AI_CONVERSATION = resolve_formal_tool_root(
     "interact_ai_conversation"
 )
+_EDITOR_TABS_MANAGER = resolve_formal_tool_root("editor_tabs_manager")
 
 
 def test_replace_text_keeps_original_when_atomic_commit_fails(
@@ -439,7 +441,7 @@ def test_theme_designer_current_and_list_results_are_compact(
     theme_path.write_text("{}", encoding="utf-8")
     payload = {
         "id": "midnight",
-        "name": "午夜",
+        "registrationName": "午夜注册名",
         "mode": "dark",
         "tokens": {
             "color": {
@@ -453,6 +455,16 @@ def test_theme_designer_current_and_list_results_are_compact(
     monkeypatch.setattr(module, "get_settings", lambda: SimpleNamespace(themes_data_path=themes_root))
     monkeypatch.setattr(module, "get_theme_settings_repository", lambda: repository)
     monkeypatch.setattr(module, "read_theme_payload", lambda *_args, **_kwargs: payload)
+    monkeypatch.setattr(
+        module,
+        "get_theme",
+        lambda _theme_id: SimpleNamespace(name="午夜"),
+    )
+    monkeypatch.setattr(
+        module,
+        "get_theme_workspace_reconciliation_service",
+        lambda: SimpleNamespace(synchronize=lambda: None),
+    )
 
     current = module.run({"action": "get_current"})
     listed = module.run({"action": "list"})
@@ -497,6 +509,18 @@ def test_theme_designer_clone_copies_assets_and_applies_explicit_overrides(
         "get_settings",
         lambda: SimpleNamespace(themes_data_path=themes_root),
     )
+    monkeypatch.setattr(
+        module,
+        "get_theme",
+        lambda theme_id: SimpleNamespace(
+            name="浅色副本" if theme_id == "light-copy" else "浅色"
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "get_theme_workspace_reconciliation_service",
+        lambda: SimpleNamespace(synchronize=lambda: None),
+    )
 
     result = module.run(
         {
@@ -526,7 +550,7 @@ def test_theme_designer_clone_copies_assets_and_applies_explicit_overrides(
     assert result["data"]["activated"] is False
     assert result["data"]["copied_asset_count"] == len(source_assets_before)
     assert target_payload["id"] == "light-copy"
-    assert target_payload["name"] == "浅色副本"
+    assert target_payload["registrationName"] == "浅色副本"
     assert target_payload["tokens"]["color"]["accent"]["base"] == "#336699"
     assert target_payload["tokens"]["color"]["accent"]["rgb"] == "51, 102, 153"
     assert target_payload["tokens"]["background"]["opacity"] == 0.25
@@ -550,6 +574,11 @@ def test_theme_designer_clone_rejects_existing_target_without_modifying_it(
         module,
         "get_settings",
         lambda: SimpleNamespace(themes_data_path=themes_root),
+    )
+    monkeypatch.setattr(
+        module,
+        "get_theme",
+        lambda _theme_id: SimpleNamespace(name="浅色"),
     )
 
     result = module.run(
@@ -626,6 +655,11 @@ def test_theme_designer_derives_palette_deterministically_and_preserves_non_colo
         "get_settings",
         lambda: SimpleNamespace(themes_data_path=themes_root),
     )
+    monkeypatch.setattr(
+        module,
+        "get_theme",
+        lambda _theme_id: SimpleNamespace(name="浅色"),
+    )
     request = {
         "action": "derive_palette",
         "theme_id": "light",
@@ -653,7 +687,7 @@ def test_theme_designer_derives_palette_deterministically_and_preserves_non_colo
     assert first_payload["tokens"]["color"]["accent"]["rgb"] == "53, 106, 138"
     assert first_payload["tokens"]["color"]["accent"]["selectionText"] == "#FFFFFF"
     assert first_payload["id"] == before["id"]
-    assert first_payload["name"] == before["name"]
+    assert first_payload["registrationName"] == before["registrationName"]
     assert first_payload["mode"] == before["mode"]
     assert first_payload["tokens"]["background"] == before["tokens"]["background"]
     assert first_payload["tokens"]["structure"]["enabled"] == before["tokens"]["structure"]["enabled"]
@@ -733,6 +767,38 @@ def test_conversation_interaction_contract_only_exposes_send() -> None:
     assert all(
         item.get("properties", {}).get("action", {}).get("const") in (None, "send")
         for item in output_schema["oneOf"]
+    )
+
+
+def test_editor_tabs_contract_rejects_parameters_for_another_action() -> None:
+    input_schema = _read_json(
+        _EDITOR_TABS_MANAGER / ".tool" / "input.schema.json"
+    )
+
+    assert validate_tool_arguments({"action": "list_tabs"}, input_schema) == []
+    assert validate_tool_arguments(
+        {"action": "open_file", "path": "report.docx"},
+        input_schema,
+    ) == []
+    assert validate_tool_arguments(
+        {"action": "close_clean_tabs", "paths": ["a.md", "b.md"]},
+        input_schema,
+    ) == []
+    assert validate_tool_arguments(
+        {"action": "close_others_clean", "path": "a.md"},
+        input_schema,
+    ) == []
+    assert validate_tool_arguments(
+        {"action": "close_others_clean", "paths": ["a.md"]},
+        input_schema,
+    )
+    assert validate_tool_arguments(
+        {"action": "focus_file", "path": "a.md", "paths": ["b.md"]},
+        input_schema,
+    )
+    assert validate_tool_arguments(
+        {"action": "list_tabs", "path": "a.md"},
+        input_schema,
     )
 
 

@@ -68,7 +68,7 @@ def test_theme_and_tool_creation_use_native_project_workspace(tmp_path):
     }
     theme_manifest = loads((Path(theme.root_path) / "theme.json").read_text(encoding="utf-8"))
     assert theme_manifest["id"] == theme.project_id
-    assert theme_manifest["name"] == theme.name
+    assert theme_manifest["registrationName"] == theme.name
     assert {path.name for path in Path(tool.root_path).iterdir()} == {".Tiance"}
     assert len(conversation_service.list_sessions(theme.project_id)) == 1
     assert len(conversation_service.list_sessions(tool.project_id)) == 1
@@ -136,7 +136,7 @@ def test_project_creation_creates_initial_conversation_with_default_role(tmp_pat
     project = creation_service.create_project(name="新项目")
 
     sessions = conversation_service.list_sessions(project.project_id)
-    _assistant_title, active_session_id, states = conversation_service.get_state(project.project_id)
+    active_session_id, states = conversation_service.get_state(project.project_id)
     assert len(sessions) == 1
     session = sessions[0]
     assert session.provider_id == "deepseek"

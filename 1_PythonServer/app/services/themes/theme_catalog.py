@@ -7,7 +7,13 @@ from uuid import uuid4
 from app.core.atomic_replace import atomic_replace_path
 from app.domain.project import Project, ProjectKind
 from app.repositories.themes import get_theme_settings_repository
-from app.schemas.themes import ThemeDefinition, ThemeSummary
+from app.schemas.themes import (
+    ThemeDefinition,
+    ThemePackageDefinition,
+    ThemeSummary,
+    theme_definition_from_package,
+    theme_package_from_definition,
+)
 from app.services.project import get_project_service
 
 DEFAULT_THEME_ID = "dark-gold"
@@ -85,7 +91,7 @@ def set_active_theme(theme_id: str) -> ThemeDefinition:
 def get_theme(theme_id: str) -> ThemeDefinition:
     _validate_theme_id(theme_id)
     project, theme = _find_theme(theme_id)
-    return theme.model_copy(update={"name": project.name})
+    return theme_definition_from_package(theme, name=project.name)
 
 
 def save_theme(theme_id: str, theme: ThemeDefinition) -> ThemeDefinition:
@@ -96,7 +102,11 @@ def save_theme(theme_id: str, theme: ThemeDefinition) -> ThemeDefinition:
 
     theme_file = Path(project.root_path) / THEME_MANIFEST_FILE
 
-    payload = theme.model_dump(mode="json", by_alias=True)
+    package = theme_package_from_definition(
+        theme,
+        registration_name=current.registration_name,
+    )
+    payload = package.model_dump(mode="json", by_alias=True)
     content = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
     temp_file = theme_file.with_name(f".{theme_file.name}.{uuid4().hex}.tmp")
 
@@ -132,7 +142,7 @@ def get_theme_asset_path(asset_path: str) -> Path:
     return target
 
 
-def _load_theme_file(theme_file: Path) -> ThemeDefinition:
+def _load_theme_file(theme_file: Path) -> ThemePackageDefinition:
     try:
         payload: Any = json.loads(theme_file.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -141,7 +151,7 @@ def _load_theme_file(theme_file: Path) -> ThemeDefinition:
         raise ThemeCatalogError(f"Unable to read theme: {theme_file.name}") from exc
 
     try:
-        theme = ThemeDefinition.model_validate(payload)
+        theme = ThemePackageDefinition.model_validate(payload)
     except Exception as exc:
         raise ThemeCatalogError(f"Invalid theme contract: {theme_file.name}") from exc
 
@@ -149,12 +159,12 @@ def _load_theme_file(theme_file: Path) -> ThemeDefinition:
     return theme
 
 
-def load_theme_package(theme_root: Path) -> ThemeDefinition:
+def load_theme_package(theme_root: Path) -> ThemePackageDefinition:
     return _load_theme_file(theme_root / THEME_MANIFEST_FILE)
 
 
-def _find_theme(theme_id: str) -> tuple[Project, ThemeDefinition]:
-    matched: tuple[Project, ThemeDefinition] | None = None
+def _find_theme(theme_id: str) -> tuple[Project, ThemePackageDefinition]:
+    matched: tuple[Project, ThemePackageDefinition] | None = None
     for project in _theme_projects():
         theme_file = Path(project.root_path) / THEME_MANIFEST_FILE
         if not theme_file.is_file():

@@ -15,7 +15,7 @@ from app.core.config import get_settings
 from app.domain.project import Project, ProjectCategory, ProjectKind
 from app.repositories.project import FileProjectCatalog, get_project_repository
 from app.repositories.themes import ThemeSettingsRepository, get_theme_settings_repository
-from app.schemas.themes import ThemeDefinition
+from app.schemas.themes import ThemePackageDefinition
 from app.services.project.projects import (
     DEFAULT_THEME_PROJECT_CATEGORY_ID,
     DEFAULT_THEME_PROJECT_CATEGORY_NAME,
@@ -94,7 +94,7 @@ class ThemeWorkspaceReconciliationService:
                 now = _utc_now()
                 project = Project(
                     project_id=project_id,
-                    name=theme.name,
+                    name=theme.registration_name,
                     root_path=str(root),
                     category_id=default_category.category_id,
                     project_kind=ProjectKind.THEME,
@@ -172,11 +172,11 @@ class ThemeWorkspaceReconciliationService:
 
     def _scan_valid_themes(
         self,
-    ) -> tuple[dict[Path, ThemeDefinition], list[str]]:
-        valid_by_root: dict[Path, ThemeDefinition] = {}
+    ) -> tuple[dict[Path, ThemePackageDefinition], list[str]]:
+        valid_by_root: dict[Path, ThemePackageDefinition] = {}
         invalid_directories: list[str] = []
         roots_by_theme_id: dict[str, list[Path]] = {}
-        themes_by_root: dict[Path, ThemeDefinition] = {}
+        themes_by_root: dict[Path, ThemePackageDefinition] = {}
         for child in sorted(
             self._themes_root.iterdir(),
             key=lambda item: item.name.casefold(),
@@ -246,12 +246,12 @@ class ThemeWorkspaceReconciliationService:
         ))
 
 
-def _load_recovery_file(theme_file: Path) -> ThemeDefinition:
+def _load_recovery_file(theme_file: Path) -> ThemePackageDefinition:
     if not theme_file.is_file():
         raise RuntimeError(f"缺少内置恢复主题：{theme_file.name}")
     try:
         payload = json.loads(theme_file.read_text(encoding="utf-8"))
-        return ThemeDefinition.model_validate(payload)
+        return ThemePackageDefinition.model_validate(payload)
     except Exception as exc:
         raise RuntimeError(f"内置恢复主题无效：{theme_file.name}") from exc
 

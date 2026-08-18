@@ -58,7 +58,6 @@ export function sessionListResponse() {
   return {
     project_id: "project-a",
     count: 2,
-    assistant_title: "AI",
     active_session_id: "session-a",
     session_states: {
       "session-a": {

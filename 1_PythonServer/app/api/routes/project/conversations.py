@@ -16,6 +16,7 @@ from app.schemas.project import (
     ProjectConversationBranchGroupListResponse,
     ProjectConversationBranchGroupResponse,
     ProjectConversationCreateRequest,
+    ProjectConversationDeleteRequest,
     ProjectConversationDataViewResponse,
     ProjectConversationForkRequest,
     ProjectConversationForkResponse,
@@ -175,7 +176,6 @@ def list_project_conversations(project_id: str) -> ProjectConversationListRespon
         sessions,
         branch_nodes,
         message_variants,
-        assistant_title,
         active_session_id,
         session_states,
     ) = service.get_list_data(project_id)
@@ -184,7 +184,6 @@ def list_project_conversations(project_id: str) -> ProjectConversationListRespon
         project_id=project_id,
         revision=revision,
         count=len(items),
-        assistant_title=assistant_title,
         active_session_id=active_session_id,
         session_states={
             session_id: ProjectConversationSessionStateResponse.from_domain(state)
@@ -282,20 +281,19 @@ def save_project_conversation_state(
     payload: ProjectConversationStateSaveRequest,
 ) -> ProjectConversationStateResponse:
     service = get_project_conversation_service()
-    assistant_title, active_session_id, session_states = service.save_state(
+    active_session_id, session_states = service.save_state(
         project_id,
-        assistant_title=payload.assistant_title,
-        should_update_assistant_title="assistant_title" in payload.model_fields_set,
         active_session_id=payload.active_session_id,
         should_update_active_session="active_session_id" in payload.model_fields_set,
-        session_states={
-            session_id: state.model_dump(exclude_none=True, by_alias=True)
-            for session_id, state in payload.session_states.items()
+        session_runtime_statuses=dict(payload.session_runtime_statuses),
+        session_drafts=dict(payload.session_drafts),
+        session_references={
+            session_id: references.to_payload()
+            for session_id, references in payload.session_references.items()
         },
     )
     return ProjectConversationStateResponse(
         project_id=project_id,
-        assistant_title=assistant_title,
         active_session_id=active_session_id,
         session_states={
             session_id: ProjectConversationSessionStateResponse.from_domain(state)
@@ -484,11 +482,32 @@ async def fork_project_conversation(
 async def delete_project_conversation(
     project_id: str,
     session_id: str,
+    payload: ProjectConversationDeleteRequest,
 ) -> None:
-    await get_conversation_run_manager().stop(project_id, session_id)
-    await get_conversation_background_task_registry().cancel_session(project_id, session_id)
     service = get_project_conversation_service()
-    await asyncio.to_thread(service.delete_session, project_id, session_id)
+    selected_session_ids = await asyncio.to_thread(
+        service.validate_session_deletion,
+        project_id,
+        session_id,
+        session_ids=tuple(payload.session_ids),
+    )
+    await asyncio.gather(*(
+        get_conversation_run_manager().stop(project_id, selected_session_id)
+        for selected_session_id in selected_session_ids
+    ))
+    await asyncio.gather(*(
+        get_conversation_background_task_registry().cancel_session(
+            project_id,
+            selected_session_id,
+        )
+        for selected_session_id in selected_session_ids
+    ))
+    await asyncio.to_thread(
+        service.delete_session,
+        project_id,
+        session_id,
+        session_ids=selected_session_ids,
+    )
 
 
 @router.get(

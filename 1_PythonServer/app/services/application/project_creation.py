@@ -30,6 +30,7 @@ from app.services.themes.theme_catalog import (
     ThemeCatalogError,
     load_theme_package,
 )
+from app.schemas.themes import theme_package_from_definition
 
 
 class ProjectCreationApplicationService:
@@ -116,8 +117,12 @@ class ProjectCreationApplicationService:
             source_assets = source_root / "assets"
             if source_assets.is_dir():
                 copytree(source_assets, target_root / "assets", dirs_exist_ok=True)
-        payload = active_theme.model_copy(
+        theme = active_theme.model_copy(
             update={"id": project.project_id, "name": project.name},
+        )
+        payload = theme_package_from_definition(
+            theme,
+            registration_name=project.name,
         ).model_dump(mode="json", by_alias=True)
         (target_root / THEME_MANIFEST_FILE).write_text(
             dumps(payload, ensure_ascii=False, indent=2) + "\n",

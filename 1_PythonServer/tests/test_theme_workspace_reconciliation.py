@@ -220,7 +220,7 @@ def _create_service(
 def _write_theme(theme_root: Path, *, theme_id: str, name: str) -> None:
     payload = json.loads((RECOVERY_ROOT / "light.json").read_text(encoding="utf-8"))
     payload["id"] = theme_id
-    payload["name"] = name
+    payload["registrationName"] = name
     theme_root.mkdir(parents=True, exist_ok=True)
     (theme_root / "theme.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",

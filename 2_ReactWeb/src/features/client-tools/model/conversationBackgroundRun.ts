@@ -41,12 +41,6 @@ type ConversationBackgroundRunInput = {
   clientCapabilities: () => readonly ChatClientCapability[];
   initialStrategy?: ConversationRunInitialStrategy;
   message: string;
-  sourceContext?: {
-    project_id: string;
-    session_id: string;
-    session_title: string;
-    tool_request_id: string;
-  };
   onSettled?: (outcome: ConversationRunOutcome | null) => void | Promise<void>;
   onStarted?: () => void | Promise<void>;
   projectId: string;
@@ -89,7 +83,6 @@ export class ConversationBackgroundRunRegistry {
         role: "user",
         content: input.message,
         message_id: userMessageId,
-        source_context: input.sourceContext,
       }],
       modelId: input.session.model_id,
       projectId: input.projectId,

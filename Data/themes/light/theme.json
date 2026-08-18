@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "id": "light",
-  "name": "浅色",
+  "registrationName": "浅色",
   "mode": "light",
   "tokens": {
     "color": {

@@ -13,7 +13,6 @@ import { useDesktopShell } from "../../desktop-shell/model/useDesktopShell";
 import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import { OptionSelect, type OptionSelectItem } from "../../../shared/ui/option-select/OptionSelect";
-import { ConfirmModal } from "../../../shared/ui/confirm-modal/ConfirmModal";
 import { useI18n } from "../../../shared/i18n";
 import {
   buildProjectOverviewRollerItems,
@@ -27,6 +26,7 @@ import { ProjectOverviewStack } from "./ProjectOverviewStack";
 import { ProjectOverviewViewTabs } from "./ProjectOverviewViewTabs";
 import type { ProjectMarketScope } from "../../project-market/model/projectMarket";
 import { ProjectOverviewSessionContextMenu } from "./ProjectOverviewSessionContextMenu";
+import { ProjectConversationDeleteModal } from "./ProjectConversationDeleteModal";
 
 import "./project-category-overview.css";
 
@@ -601,26 +601,15 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
         />
       ) : null}
       {isActive && deletingSession ? (
-        <ConfirmModal
-          cancelDisabled={sessionActionBusy}
-          confirmDisabled={sessionActionBusy}
-          confirmLabel={sessionActionBusy
-            ? t("projectOverview.deleteSessionDeleting")
-            : t("common.actions.delete")}
-          danger
-          message={t("projectOverview.deleteSessionMessage", {
-            title: deletingSession.title,
-          })}
+        <ProjectConversationDeleteModal
+          busy={sessionActionBusy}
+          error={sessionActionError}
           onCancel={cancelDeleteSession}
-          onConfirm={() => void confirmDeleteSession()}
-          title={t("projectOverview.deleteSessionTitle")}
-        >
-          {sessionActionError ? (
-            <p className="project-category-overview__session-action-error">
-              {sessionActionError}
-            </p>
-          ) : null}
-        </ConfirmModal>
+          onConfirm={(sessionIds) => void confirmDeleteSession(sessionIds)}
+          projectId={deletingSession.projectId}
+          sessionId={deletingSession.sessionId}
+          title={deletingSession.title}
+        />
       ) : null}
     </section>
   );

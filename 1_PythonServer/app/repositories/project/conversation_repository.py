@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from uuid import uuid4
 
-from app.core.errors import ConflictError, NotFoundError
+from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.domain.llm.chat import (
     ChatMessageContentPart,
     ChatProtocolContinuation,
@@ -15,6 +15,8 @@ from app.domain.llm.chat import (
 from app.domain.project.project_conversation import (
     conversation_session_configuration_hash,
     ProjectConversationMessage,
+    ProjectConversationMessageRole,
+    ProjectConversationMessageStatus,
     ProjectConversationMessagePage,
     ProjectConversationMessageTurn,
     ProjectConversationNamingCallRecord,
@@ -35,17 +37,12 @@ from app.repositories.project.conversation_relation_repository import (
 )
 from app.repositories.project.conversation_serialization import (
     _index_pinned_session_ids,
-    _index_session_items,
     _merge_session_settings,
-    _merge_session_state,
     _new_session_id,
-    _next_session_sequence_number,
     _normalize_session_title,
     _optional_reasoning_mode,
     _runtime_status_for_appended_message,
     _session_settings_from_payload,
-    _session_state_from_payload,
-    _session_state_to_payload,
     _utc_now,
 )
 from app.repositories.project.conversation_storage import conversation_write_lock
@@ -109,34 +106,24 @@ class ProjectConversationRepository:
     def list_sessions(self, project_id: str) -> tuple[ProjectConversationSession, ...]:
         conversations_dir = self._session_store.conversations_dir(project_id)
         index = self._session_store.read_index(conversations_dir)
-        return self._list_sessions_from_index(conversations_dir, index)
+        return self._list_sessions(conversations_dir, index)
 
-    def _list_sessions_from_index(
+    def _list_sessions(
         self,
         conversations_dir: Path,
         index: dict,
         *,
         stored_sessions: dict[str, ProjectConversationSession] | None = None,
     ) -> tuple[ProjectConversationSession, ...]:
-        if not _index_session_items(index):
-            return ()
         pinned_session_ids = _index_pinned_session_ids(index)
-        ordered_session_ids = tuple(
-            str(item.get("session_id") or "")
-            for item in _index_session_items(index)
-            if isinstance(item, dict) and item.get("session_id")
-        )
         if stored_sessions is None:
             stored_sessions = self._session_store.read_sessions_from_conversations_dir(
                 conversations_dir,
             )
-        sessions: list[ProjectConversationSession] = []
-        for session_id in ordered_session_ids:
-            session = stored_sessions.get(session_id)
-            if session is not None:
-                sessions.append(
-                    replace(session, pinned=session_id in pinned_session_ids)
-                )
+        sessions = [
+            replace(session, pinned=session_id in pinned_session_ids)
+            for session_id, session in stored_sessions.items()
+        ]
         if not sessions:
             return ()
         return tuple(
@@ -154,11 +141,11 @@ class ProjectConversationRepository:
     def get_state(
         self,
         project_id: str,
-    ) -> tuple[str, str | None, dict[str, ProjectConversationSessionState]]:
+    ) -> tuple[str | None, dict[str, ProjectConversationSessionState]]:
         conversations_dir = self._session_store.conversations_dir(project_id)
         index = self._session_store.read_index(conversations_dir)
-        sessions = self._list_sessions_from_index(conversations_dir, index)
-        return self._state_store.conversation_state(sessions, index)
+        sessions = self._list_sessions(conversations_dir, index)
+        return self._state_store.conversation_state(conversations_dir, sessions, index)
 
     def get_overview_data(
         self,
@@ -174,7 +161,6 @@ class ProjectConversationRepository:
             sessions,
             branch_nodes,
             _message_variants,
-            _assistant_title,
             active_session_id,
             session_states,
         ) = self.get_list_data(project_id)
@@ -193,30 +179,33 @@ class ProjectConversationRepository:
         tuple[ProjectConversationSession, ...],
         tuple[ProjectConversationBranchNode, ...],
         tuple[ProjectConversationMessageVariant, ...],
-        str,
         str | None,
         dict[str, ProjectConversationSessionState],
     ]:
         """Return the complete conversation-list projection from one snapshot."""
         conversations_dir = self._session_store.conversations_dir(project_id)
-        revision, index, stored_sessions, raw_graph = self._session_store.read_list_snapshot(
+        revision, index, stored_sessions, stored_states, raw_graph = self._session_store.read_list_snapshot(
             conversations_dir,
         )
-        sessions = self._list_sessions_from_index(
+        sessions = self._list_sessions(
             conversations_dir,
             index,
             stored_sessions=stored_sessions,
         )
         graph = self._branch_store.normalize_graph_payload(raw_graph)
-        assistant_title, active_session_id, session_states = (
-            self._state_store.conversation_state(sessions, index)
+        active_session_id, session_states = (
+            self._state_store.conversation_state(
+                conversations_dir,
+                sessions,
+                index,
+                stored_states=stored_states,
+            )
         )
         return (
             revision,
             sessions,
             self._branch_store.list_nodes(graph),
             self._branch_store.list_variants(graph),
-            assistant_title,
             active_session_id,
             session_states,
         )
@@ -225,19 +214,19 @@ class ProjectConversationRepository:
         self,
         project_id: str,
         *,
-        assistant_title: str | None,
-        should_update_assistant_title: bool,
         active_session_id: str | None,
         should_update_active_session: bool,
-        session_states: dict[str, dict],
-    ) -> tuple[str, str | None, dict[str, ProjectConversationSessionState]]:
-        _ = assistant_title, should_update_assistant_title
+        session_runtime_statuses: dict[str, str],
+        session_drafts: dict[str, str],
+        session_references: dict[str, list[dict]],
+    ) -> tuple[str | None, dict[str, ProjectConversationSessionState]]:
         conversations_dir = self._session_store.conversations_dir(project_id, for_write=True)
         with conversation_write_lock(conversations_dir):
             index = self._session_store.read_index(conversations_dir)
-            sessions = self._list_sessions_from_index(conversations_dir, index)
-            _assistant_title, existing_active_session_id, existing_states = (
+            sessions = self._list_sessions(conversations_dir, index)
+            existing_active_session_id, _existing_states = (
                 self._state_store.conversation_state(
+                    conversations_dir,
                     sessions,
                     index,
                 )
@@ -251,23 +240,31 @@ class ProjectConversationRepository:
             else:
                 index["active_session_id"] = existing_active_session_id
 
-            updated_states = dict(existing_states)
-            for session_id, payload in session_states.items():
+            changed_session_ids = (
+                set(session_runtime_statuses)
+                | set(session_drafts)
+                | set(session_references)
+            )
+            for session_id in changed_session_ids:
                 if session_id not in session_ids:
                     raise NotFoundError(f"Conversation session '{session_id}' was not found.")
-                updated_states[session_id] = _merge_session_state(
-                    session_id,
-                    payload,
-                    updated_states.get(session_id),
+            now = _utc_now()
+            for session_id, runtime_status in session_runtime_statuses.items():
+                self._state_store.write_runtime_status(
+                    conversations_dir, session_id, runtime_status, now
                 )
-
-            index["session_states"] = {
-                session_id: _session_state_to_payload(state)
-                for session_id, state in updated_states.items()
-                if session_id in session_ids
-            }
+            for session_id, draft in session_drafts.items():
+                self._state_store.write_draft(
+                    conversations_dir, session_id, draft, now
+                )
+            for session_id, references in session_references.items():
+                self._state_store.write_references(
+                    conversations_dir, session_id, references, now
+                )
             self._session_store.write_index(conversations_dir, index)
-            return self._state_store.conversation_state(sessions, index)
+            return self._state_store.conversation_state(
+                conversations_dir, sessions, index
+            )
 
     def get_session(
         self,
@@ -309,11 +306,11 @@ class ProjectConversationRepository:
             else:
                 pinned_session_ids.discard(session_id)
 
-            live_session_ids = {
-                str(item.get("session_id") or "")
-                for item in _index_session_items(index)
-                if isinstance(item, dict)
-            }
+            live_session_ids = set(
+                self._session_store.read_sessions_from_conversations_dir(
+                    conversations_dir
+                )
+            )
             index["pinned_session_ids"] = sorted(
                 pinned_session_ids & live_session_ids
             )
@@ -385,7 +382,7 @@ class ProjectConversationRepository:
         now = _utc_now()
         session = ProjectConversationSession(
             session_id=_new_session_id(),
-            sequence_number=_next_session_sequence_number(self._session_store.read_index(conversations_dir)),
+            sequence_number=self._session_store.next_sequence_number(conversations_dir),
             title=title.strip() if title and title.strip() else "新对话",
             provider_id=provider_id,
             model_id=model_id,
@@ -410,7 +407,7 @@ class ProjectConversationRepository:
         self._message_store.ensure_messages_file(session_dir)
         self._session_store.write_index(
             conversations_dir,
-            self._session_store.index_with_session(
+            self._session_store.index_after_session_write(
                 conversations_dir,
                 session,
                 set_active=set_active,
@@ -486,7 +483,7 @@ class ProjectConversationRepository:
             self._session_store.write_session(session_dir, updated)
             self._session_store.write_index(
                 conversations_dir,
-                self._session_store.index_with_session(conversations_dir, updated, set_active=False),
+                self._session_store.index_after_session_write(conversations_dir, updated, set_active=False),
             )
             return updated
 
@@ -497,7 +494,7 @@ class ProjectConversationRepository:
         runtime_status: str,
     ) -> None:
         if runtime_status not in {"idle", "running", "error"}:
-            runtime_status = "idle"
+            raise BadRequestError("无效的会话运行状态。")
         conversations_dir = self._session_store.conversations_dir(project_id, for_write=True)
         with conversation_write_lock(conversations_dir):
             self._session_store.require_session_dir(
@@ -505,61 +502,64 @@ class ProjectConversationRepository:
                 session_id,
                 for_write=True,
             )
-            index = self._session_store.read_index(conversations_dir)
-            session_states = index.setdefault("session_states", {})
-            if not isinstance(session_states, dict):
-                session_states = {}
-                index["session_states"] = session_states
-            existing_state = _session_state_from_payload(session_id, session_states.get(session_id))
-            session_states[session_id] = _session_state_to_payload(
-                _merge_session_state(
-                    session_id,
-                    {"runtime_status": runtime_status},
-                    existing_state,
-                )
+            self._state_store.write_runtime_status(
+                conversations_dir,
+                session_id,
+                runtime_status,
+                _utc_now(),
             )
-            self._session_store.write_index(conversations_dir, index)
 
     def delete_session(
         self,
         project_id: str,
         session_id: str,
+        *,
+        session_ids: tuple[str, ...],
     ) -> ProjectConversationSession | None:
         conversations_dir = self._session_store.conversations_dir(project_id, for_write=True)
         with conversation_write_lock(conversations_dir):
-            session_dir = self._session_store.require_session_dir(project_id, session_id, for_write=True)
+            normalized_session_ids = self._validate_session_deletion_unlocked(
+                project_id,
+                conversations_dir,
+                session_id,
+                session_ids,
+            )
+            session_dirs = {
+                selected_session_id: self._session_store.require_session_dir(
+                    project_id,
+                    selected_session_id,
+                    for_write=True,
+                )
+                for selected_session_id in normalized_session_ids
+            }
             deleted_session = self.get_session(project_id, session_id)
             if deleted_session is None:
                 raise NotFoundError(
                     f"Conversation session '{session_id}' was not found."
                 )
             graph = self._branch_store.read_graph(conversations_dir)
-            graph_changed = self._branch_store.mark_session_deleted(
+            self._branch_store.delete_sessions_and_reparent(
                 graph,
-                session_id,
+                frozenset(normalized_session_ids),
                 deleted_at=_utc_now(),
             )
-            self._session_store.delete_session_dir(session_dir, session_id)
-            if graph_changed:
-                self._branch_store.write_graph(conversations_dir, graph)
+            for selected_session_id, session_dir in session_dirs.items():
+                self._session_store.delete_session_dir(
+                    session_dir,
+                    selected_session_id,
+                )
+            self._branch_store.write_graph(conversations_dir, graph)
 
             index = self._session_store.read_index(conversations_dir)
-            index["sessions"] = [
-                item for item in index.get("sessions", [])
-                if isinstance(item, dict) and item.get("session_id") != session_id
-            ]
             index["pinned_session_ids"] = sorted(
-                _index_pinned_session_ids(index) - {session_id}
+                _index_pinned_session_ids(index) - set(normalized_session_ids)
             )
 
-            session_states = index.get("session_states")
-            if isinstance(session_states, dict):
-                session_states.pop(session_id, None)
-
-            remaining_session_items = _index_session_items(index)
-            if not remaining_session_items:
+            remaining_sessions = self._session_store.read_sessions_from_conversations_dir(
+                conversations_dir
+            )
+            if not remaining_sessions:
                 index["active_session_id"] = None
-                index["session_states"] = {}
                 self._session_store.write_index(conversations_dir, index)
                 return self._create_session_unlocked(
                     project_id,
@@ -574,17 +574,86 @@ class ProjectConversationRepository:
                     role_project_id=deleted_session.role_project_id,
                 )
 
-            if index.get("active_session_id") == session_id:
-                remaining_sessions = [
-                    self.get_session(project_id, str(item.get("session_id") or ""))
-                    for item in remaining_session_items
-                    if isinstance(item, dict)
+            if index.get("active_session_id") in normalized_session_ids:
+                live_non_root_session_ids = {
+                    node.session_id
+                    for node in self._branch_store.list_nodes(graph)
+                    if node.deleted_at is None and node.parent_session_id is not None
+                }
+                remaining_root_sessions = [
+                    remaining_session
+                    for remaining_session in remaining_sessions.values()
+                    if remaining_session.session_id not in live_non_root_session_ids
                 ]
-                remaining_sessions = [session for session in remaining_sessions if session is not None]
-                index["active_session_id"] = remaining_sessions[0].session_id if remaining_sessions else None
+                index["active_session_id"] = (
+                    max(
+                        remaining_root_sessions,
+                        key=lambda session: session.sequence_number,
+                    ).session_id
+                    if remaining_root_sessions
+                    else None
+                )
 
             self._session_store.write_index(conversations_dir, index)
             return None
+
+    def validate_session_deletion(
+        self,
+        project_id: str,
+        session_id: str,
+        *,
+        session_ids: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        conversations_dir = self._session_store.conversations_dir(project_id)
+        return self._validate_session_deletion_unlocked(
+            project_id,
+            conversations_dir,
+            session_id,
+            session_ids,
+        )
+
+    def _validate_session_deletion_unlocked(
+        self,
+        project_id: str,
+        conversations_dir: Path,
+        session_id: str,
+        session_ids: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        normalized_session_ids = tuple(dict.fromkeys(
+            selected_session_id.strip()
+            for selected_session_id in session_ids
+            if selected_session_id.strip()
+        ))
+        if session_id not in normalized_session_ids:
+            raise BadRequestError("删除列表必须包含当前会话。")
+
+        existing_session_ids = {
+            session.session_id
+            for session in self.list_sessions(project_id)
+        }
+        missing_session_ids = sorted(
+            set(normalized_session_ids) - existing_session_ids
+        )
+        if missing_session_ids:
+            raise BadRequestError(
+                "删除列表包含不存在的会话。",
+                details={"session_ids": missing_session_ids},
+            )
+
+        graph = self._branch_store.read_graph(conversations_dir)
+        allowed_session_ids = {
+            session_id,
+            *self._branch_store.live_descendant_session_ids(graph, session_id),
+        }
+        unrelated_session_ids = sorted(
+            set(normalized_session_ids) - allowed_session_ids
+        )
+        if unrelated_session_ids:
+            raise BadRequestError(
+                "只能删除当前会话及其下级会话。",
+                details={"session_ids": unrelated_session_ids},
+            )
+        return normalized_session_ids
 
     def fork_session(
         self,
@@ -640,7 +709,7 @@ class ProjectConversationRepository:
         project_id: str,
         session_id: str,
         *,
-        role: str,
+        role: ProjectConversationMessageRole,
         content: str,
         thinking_content: str = "",
         usage: dict | None = None,
@@ -654,11 +723,14 @@ class ProjectConversationRepository:
         protocol_continuation: ChatProtocolContinuation | None = None,
         content_parts: tuple[ChatMessageContentPart, ...] = (),
         references: list[dict] | None = None,
-        source_context: dict[str, str] | None = None,
-        status: str = "done",
+        status: ProjectConversationMessageStatus = "done",
         sync_session_model: bool = True,
         message_id: str | None = None,
     ) -> ProjectConversationMessage:
+        if role not in {"system", "user", "assistant", "tool", "error"}:
+            raise BadRequestError("无效的会话消息角色。")
+        if status not in {"running", "done", "error", "cancelled"}:
+            raise BadRequestError("无效的会话消息状态。")
         conversations_dir = self._session_store.conversations_dir(project_id, for_write=True)
         with conversation_write_lock(conversations_dir):
             session_dir = self._session_store.require_session_dir(project_id, session_id, for_write=True)
@@ -721,11 +793,6 @@ class ProjectConversationRepository:
                 ),
                 content_parts=content_parts if role in {"user", "assistant", "tool"} else (),
                 references=references if role == "user" and references is not None else [],
-                source_context=(
-                    dict(source_context)
-                    if role == "user" and source_context is not None
-                    else {}
-                ),
                 origin_message_id=origin_message_id,
                 variant_group_id=variant_group_id,
                 variant_index=variant_index,
@@ -769,23 +836,16 @@ class ProjectConversationRepository:
                     message_count=session.message_count + 1,
                 )
                 self._session_store.write_session(session_dir, updated)
-                index = self._session_store.index_with_session(conversations_dir, updated, set_active=False)
+                index = self._session_store.index_after_session_write(
+                    conversations_dir, updated, set_active=False
+                )
                 runtime_status = _runtime_status_for_appended_message(role)
                 if runtime_status is not None:
-                    session_states = index.setdefault("session_states", {})
-                    if not isinstance(session_states, dict):
-                        session_states = {}
-                        index["session_states"] = session_states
-                    existing_state = _session_state_from_payload(
+                    self._state_store.write_runtime_status(
+                        conversations_dir,
                         session_id,
-                        session_states.get(session_id),
-                    )
-                    session_states[session_id] = _session_state_to_payload(
-                        _merge_session_state(
-                            session_id,
-                            {"runtime_status": runtime_status},
-                            existing_state,
-                        )
+                        runtime_status,
+                        now,
                     )
                 self._session_store.write_index(conversations_dir, index)
             if pending_variant is not None:
@@ -806,7 +866,7 @@ class ProjectConversationRepository:
         after_message_id: str,
         content: str,
         name: str | None = None,
-        status: str = "done",
+        status: ProjectConversationMessageStatus = "done",
     ) -> ProjectConversationMessage:
         conversations_dir = self._session_store.conversations_dir(
             project_id,
@@ -883,7 +943,7 @@ class ProjectConversationRepository:
                     message_count=session.message_count + 1,
                 )
                 self._session_store.write_session(session_dir, updated)
-                index = self._session_store.index_with_session(
+                index = self._session_store.index_after_session_write(
                     conversations_dir,
                     updated,
                     set_active=False,

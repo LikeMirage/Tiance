@@ -1,6 +1,6 @@
 {
   "description": "调用 SerpAPI 多引擎搜索接口，支持 Google、Google Scholar、Bing、Baidu 以及其他 SerpAPI engine。返回结构化结果、搜索元信息、相关搜索和可选原始响应片段。",
-  "display_name": "SerpAPI 多引擎搜索",
+  "registration_name": "SerpAPI 多引擎搜索",
   "execution": {
     "parallel": true
   },

@@ -8,11 +8,13 @@ from typing import Literal
 
 from app.core.errors import BadRequestError, NotFoundError
 from app.repositories.project.conversation_database import (
+    count_embedded_artifacts,
     count_events,
     count_journal_events,
     count_message_payloads,
     count_project_events,
     database_path_from_workspace,
+    list_embedded_artifacts_range,
     list_events_range,
     list_journal_events_range,
     list_message_payloads_range,
@@ -20,6 +22,8 @@ from app.repositories.project.conversation_database import (
     read_document,
     read_meta,
     read_session,
+    read_session_state_payloads,
+    read_sessions,
 )
 from app.repositories.project.conversation_storage import ProjectWorkspaceDirectoryResolver
 from app.repositories.project.project_repository import ProjectRepository
@@ -31,6 +35,7 @@ ConversationDataViewName = Literal[
     "messages.jsonl",
     "conversation_journal.jsonl",
     "model_exchanges.jsonl",
+    "model_http_exchanges.jsonl",
     "compressions.jsonl",
     "injection_preview.json",
     "project_memory.jsonl",
@@ -94,9 +99,33 @@ class ConversationDataViewRepository:
         revision_ms = _database_mtime(workspace_dir)
 
         if name == "index.json":
-            payload = read_meta(conversations_dir, "conversation_index", {})
-            sessions = payload.get("sessions", []) if isinstance(payload, dict) else []
-            session_items = [item for item in sessions if isinstance(item, dict)]
+            raw_index = read_meta(conversations_dir, "conversation_index", {})
+            index = raw_index if isinstance(raw_index, dict) else {}
+            stored_sessions = read_sessions(conversations_dir)
+            pinned_ids = {
+                str(value)
+                for value in index.get("pinned_session_ids", [])
+                if isinstance(value, str)
+            }
+            session_items = sorted(
+                stored_sessions.values(),
+                key=lambda item: (
+                    str(item.get("session_id") or "") in pinned_ids,
+                    str(item.get("created_at") or ""),
+                    int(item.get("sequence_number") or 0),
+                ),
+                reverse=True,
+            )
+            states = read_session_state_payloads(
+                conversations_dir,
+                set(stored_sessions),
+            )
+            payload = {
+                "active_session_id": index.get("active_session_id"),
+                "pinned_session_ids": sorted(pinned_ids & set(stored_sessions)),
+                "sessions": session_items,
+                "session_states": states,
+            }
             window = _page_window(
                 total_count=len(session_items),
                 page=page,
@@ -162,6 +191,21 @@ class ConversationDataViewRepository:
                 end_ordinal=window.end,
             )
             return _paged_view(_jsonl(events), revision_ms, window)
+        if name == "model_http_exchanges.jsonl":
+            total_count = count_embedded_artifacts(
+                workspace_dir,
+                session_id=resolved_session_id,
+                kind="model_http_exchange",
+            )
+            window = _page_window(total_count, page, page_size)
+            artifacts = list_embedded_artifacts_range(
+                workspace_dir,
+                session_id=resolved_session_id,
+                kind="model_http_exchange",
+                offset=window.start,
+                limit=window.end - window.start,
+            )
+            return _paged_view(_jsonl(artifacts), revision_ms, window)
         if name == "injection_preview.json":
             return ConversationDataView(
                 _json(read_document(session_dir, "injection_preview") or {}),

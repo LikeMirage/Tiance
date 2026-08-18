@@ -14,7 +14,11 @@ from tiance_runtime import run_tool
 
 from app.core.config import get_settings
 from app.repositories.themes import get_theme_settings_repository
-from app.schemas.themes import ThemeDefinition
+from app.schemas.themes import ThemePackageDefinition
+from app.services.application.theme_workspace_reconciliation import (
+    get_theme_workspace_reconciliation_service,
+)
+from app.services.project import get_project_service
 from app.services.themes import get_active_theme_id, get_theme, set_active_theme
 
 from palette import PaletteError, derive_theme_palette
@@ -169,6 +173,7 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def list_themes_action() -> dict[str, Any]:
+    get_theme_workspace_reconciliation_service().synchronize()
     theme_dir = get_settings().themes_data_path
     if not theme_dir.is_dir():
         raise ToolError("THEME_DIR_NOT_FOUND", "主题目录不存在。", {"theme_dir": str(theme_dir)})
@@ -209,7 +214,7 @@ def list_themes_action() -> dict[str, Any]:
         themes.append(
             {
                 "theme_id": str(theme_payload["id"]),
-                "theme_name": str(theme_payload["name"]),
+                "theme_name": get_theme(str(theme_payload["id"])).name,
                 "mode": str(theme_payload["mode"]),
                 "active": theme_payload["id"] == active_theme_id,
             }
@@ -236,12 +241,13 @@ def get_current_theme_action() -> dict[str, Any]:
     path = existing_theme_path(active_theme_id)
     theme_payload = read_theme_payload(path, expected_id=active_theme_id)
     color_tokens = theme_payload["tokens"]["color"]
+    current_theme = get_theme(active_theme_id)
     return success(
-        f"当前主题是 {theme_payload['name']}（{active_theme_id}）。",
+        f"当前主题是 {current_theme.name}（{active_theme_id}）。",
         {
             "action": "get_current",
             "theme_id": active_theme_id,
-            "theme_name": str(theme_payload["name"]),
+            "theme_name": current_theme.name,
             "mode": str(theme_payload["mode"]),
             "accent_base": str(color_tokens["accent"]["base"]),
             "surface_base": str(color_tokens["surface"]["base"]),
@@ -264,13 +270,14 @@ def create_theme(payload: dict[str, Any]) -> dict[str, Any]:
     background_result = apply_background_updates(next_payload, payload, theme_id)
     validate_theme_payload(next_payload, expected_id=theme_id)
     write_theme_payload(target_path, next_payload)
-    saved = read_theme_payload(target_path, expected_id=theme_id)
+    get_theme_workspace_reconciliation_service().synchronize()
+    read_theme_payload(target_path, expected_id=theme_id)
     return success(
         f"已创建主题 {theme_name}（{theme_id}）。",
         {
             "action": "create",
             "theme_id": theme_id,
-            "theme_name": saved["name"],
+            "theme_name": get_theme(theme_id).name,
             "theme_package_path": str(package_path),
             "theme_file_path": str(target_path),
             "background": background_result["background"],
@@ -297,8 +304,8 @@ def clone_theme(payload: dict[str, Any]) -> dict[str, Any]:
     source_payload = read_theme_payload(source_path, expected_id=source_theme_id)
     next_payload = deepcopy(source_payload)
     next_payload["id"] = theme_id
-    next_payload["name"] = theme_name
-    changed_fields = ["id", "name"]
+    next_payload["registrationName"] = theme_name
+    changed_fields = ["id", "registrationName"]
 
     for field_path, value in read_theme_parameter_updates(payload).items():
         apply_field_update(next_payload, field_path, value)
@@ -347,7 +354,8 @@ def clone_theme(payload: dict[str, Any]) -> dict[str, Any]:
             except OSError:
                 pass
 
-    saved = read_theme_payload(target_path, expected_id=theme_id)
+    get_theme_workspace_reconciliation_service().synchronize()
+    read_theme_payload(target_path, expected_id=theme_id)
     copied_asset_count = count_theme_asset_files(target_package_path)
     return success(
         f"已克隆主题 {source_theme_id} 为 {theme_name}（{theme_id}）。",
@@ -355,7 +363,7 @@ def clone_theme(payload: dict[str, Any]) -> dict[str, Any]:
             "action": "clone",
             "source_theme_id": source_theme_id,
             "theme_id": theme_id,
-            "theme_name": saved["name"],
+            "theme_name": get_theme(theme_id).name,
             "theme_package_path": str(target_package_path),
             "theme_file_path": str(target_path),
             "copied_asset_count": copied_asset_count,
@@ -399,11 +407,11 @@ def derive_palette_action(payload: dict[str, Any]) -> dict[str, Any]:
     write_theme_payload(target_path, next_payload)
     saved = read_theme_payload(target_path, expected_id=theme_id)
     return success(
-        f"已从四个基础色派生并应用主题配色：{saved['name']}（{theme_id}）。",
+        f"已从四个基础色派生并应用主题配色：{get_theme(theme_id).name}（{theme_id}）。",
         {
             "action": "derive_palette",
             "theme_id": theme_id,
-            "theme_name": saved["name"],
+            "theme_name": get_theme(theme_id).name,
             "mode": saved["mode"],
             "theme_package_path": str(theme_package_path(theme_id)),
             "theme_file_path": str(target_path),
@@ -427,9 +435,13 @@ def edit_theme(payload: dict[str, Any]) -> dict[str, Any]:
     next_payload = deepcopy(current_payload)
     changed_fields: list[str] = []
 
+    requested_name = None
     if "theme_name" in payload and payload.get("theme_name") is not None:
-        next_payload["name"] = read_non_empty_string(payload.get("theme_name"), field_name="theme_name")
-        changed_fields.append("name")
+        requested_name = read_non_empty_string(
+            payload.get("theme_name"),
+            field_name="theme_name",
+        )
+        changed_fields.append("project.name")
 
     updates = read_updates(payload.get("updates"))
     for field_path, value in updates.items():
@@ -458,13 +470,15 @@ def edit_theme(payload: dict[str, Any]) -> dict[str, Any]:
         raise ToolError("ID_CHANGE_NOT_ALLOWED", "编辑主题不允许修改 theme id。")
 
     write_theme_payload(target_path, next_payload)
-    saved = read_theme_payload(target_path, expected_id=theme_id)
+    if requested_name is not None:
+        rename_theme_project(theme_id, requested_name)
+    read_theme_payload(target_path, expected_id=theme_id)
     return success(
-        f"已编辑主题 {saved['name']}（{theme_id}）。",
+        f"已编辑主题 {get_theme(theme_id).name}（{theme_id}）。",
         {
             "action": "edit",
             "theme_id": theme_id,
-            "theme_name": saved["name"],
+            "theme_name": get_theme(theme_id).name,
             "theme_package_path": str(theme_package_path(theme_id)),
             "theme_file_path": str(target_path),
             "changed_fields": changed_fields,
@@ -505,13 +519,14 @@ def restore_themes(payload: dict[str, Any]) -> dict[str, Any]:
         restored.append(
             {
                 "theme_id": theme_id,
-                "theme_name": str(backup_payload["name"]),
+                "theme_name": str(backup_payload["registrationName"]),
                 "theme_package_path": str(theme_package_path(theme_id)),
                 "theme_file_path": str(target_path),
                 "backup_file_path": str(backup_path),
             }
         )
 
+    get_theme_workspace_reconciliation_service().synchronize()
     if active_theme_id in restore_ids:
         get_theme(active_theme_id)
 
@@ -538,7 +553,7 @@ def delete_theme(payload: dict[str, Any]) -> dict[str, Any]:
 
     target_path = existing_theme_path(theme_id)
     theme_payload = read_theme_payload(target_path, expected_id=theme_id)
-    theme_name = str(theme_payload["name"])
+    theme_name = get_theme(theme_id).name
     package_path = theme_package_path(theme_id).resolve()
     theme_root = get_settings().themes_data_path.resolve()
     try:
@@ -558,6 +573,8 @@ def delete_theme(payload: dict[str, Any]) -> dict[str, Any]:
             "无法删除主题包目录。",
             {"theme_package_path": str(package_path), "error": str(exc)},
         ) from exc
+
+    get_theme_workspace_reconciliation_service().synchronize()
 
     return success(
         f"已删除主题 {theme_name}（{theme_id}）。",
@@ -675,7 +692,7 @@ def build_theme_payload_from_parameters(
     next_payload: dict[str, Any] = {
         "schemaVersion": 2,
         "id": theme_id,
-        "name": theme_name,
+        "registrationName": theme_name,
         "mode": read_theme_mode(raw_payload.get("theme_mode")),
         "tokens": {},
         "integrations": {},
@@ -1028,7 +1045,7 @@ def read_theme_payload(path: Path, *, expected_id: str) -> dict[str, Any]:
 
 def validate_theme_payload(payload: dict[str, Any], *, expected_id: str) -> None:
     try:
-        theme = ThemeDefinition.model_validate(payload)
+        theme = ThemePackageDefinition.model_validate(payload)
     except Exception as exc:
         raise ToolError("INVALID_THEME_CONTRACT", "主题配置不符合当前主题契约。", {"error": str(exc)}) from exc
     if theme.id != expected_id:
@@ -1093,6 +1110,26 @@ def theme_file_path(theme_id: str) -> Path:
 
 def theme_package_path(theme_id: str) -> Path:
     return get_settings().themes_data_path / theme_id
+
+
+def rename_theme_project(theme_id: str, name: str) -> None:
+    target_root = theme_package_path(theme_id).resolve()
+    project_service = get_project_service()
+    project = next(
+        (
+            item
+            for item in project_service.list_projects()
+            if Path(item.root_path).resolve() == target_root
+        ),
+        None,
+    )
+    if project is None:
+        raise ToolError(
+            "THEME_PROJECT_NOT_FOUND",
+            "主题尚未登记到主题集。",
+            {"theme_id": theme_id},
+        )
+    project_service.rename_project(project.project_id, name=name)
 
 
 def backup_theme_path(theme_id: str) -> Path:

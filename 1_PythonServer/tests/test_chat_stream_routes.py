@@ -105,7 +105,7 @@ class _RuntimeStateRepository:
 
     def get_state(self, project_id: str):
         state = type("RuntimeState", (), {"runtime_status": self.runtime_status})()
-        return "AI", "session-1", {"session-1": state}
+        return "session-1", {"session-1": state}
 
     def save_session_runtime_status(
         self,

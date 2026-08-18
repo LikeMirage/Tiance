@@ -5,7 +5,7 @@
     "query": {
       "type": "string",
       "minLength": 1,
-      "description": "要在原始消息记录中查找的文字。"
+      "description": "要在所选会话记录来源中查找的文字。"
     },
     "session_id": {
       "type": "string",
@@ -19,17 +19,29 @@
     },
     "roles": {
       "type": "array",
-      "items": {"type": "string", "enum": ["user", "assistant", "tool", "system"]},
+      "items": {"type": "string", "enum": ["user", "assistant", "tool", "system", "error"]},
       "uniqueItems": true,
+      "maxItems": 5,
+      "description": "只过滤 messages 来源中的指定消息角色；省略时检索全部消息角色。"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["messages", "model_exchanges", "journal", "artifacts"]
+      },
+      "uniqueItems": true,
+      "minItems": 1,
       "maxItems": 4,
-      "description": "只检索指定消息角色；省略时检索全部角色。"
+      "default": ["messages"],
+      "description": "记录来源。messages 是正式会话消息；model_exchanges 是会话级模型交换记录；journal 是运行事件总账；artifacts 包含可完整还原的模型原始 HTTP 请求和响应等工件。"
     },
     "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
     "offset": {"type": "integer", "minimum": 0, "maximum": 1000000, "default": 0},
     "include_raw": {
       "type": "boolean",
       "default": true,
-      "description": "是否在每条结果中返回数据库保存的完整原始消息对象。"
+      "description": "是否在每条结果中返回数据库保存的完整原始对象；artifacts 来源会解压并返回完整工件内容。"
     },
     "context_chars": {
       "type": "integer",

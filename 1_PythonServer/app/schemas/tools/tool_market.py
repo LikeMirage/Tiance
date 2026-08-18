@@ -101,6 +101,7 @@ class ToolMarketInstallResponse(ToolMarketContract):
     call_name: str = Field(alias="callName")
     version: str
     updated: bool
+    has_dependencies: bool = Field(alias="hasDependencies")
 
 
 class ToolPackageAuthor(ToolMarketContract):

@@ -12,7 +12,6 @@ from app.services.tools.tool_result_content import (
 )
 from app.services.project.conversation_request_provenance import tag_conversation_message
 from app.services.project.conversation_references import build_referenced_user_message_content
-from app.services.project.conversation_message_source import add_source_context_to_model_content
 
 
 def build_conversation_request_messages(
@@ -24,7 +23,6 @@ def build_conversation_request_messages(
     next_user_references: list[dict] | None = None,
     next_user_message_id: str | None = None,
     next_user_created_at: str | None = None,
-    next_user_source_context: dict[str, str] | None = None,
 ) -> tuple[ChatMessage, ...]:
     skipped_user_ids = (
         set()
@@ -53,7 +51,6 @@ def build_conversation_request_messages(
         next_user_references,
         next_user_content_parts,
     )
-    content = add_source_context_to_model_content(content, next_user_source_context)
     return (
         *normalized_messages,
         tag_conversation_message(
@@ -96,7 +93,6 @@ def _to_request_message(
             message.references,
             message.content_parts,
         )
-        content = add_source_context_to_model_content(content, message.source_context)
     else:
         content = message.content.strip()
     has_tool_calls = bool(message.tool_calls)

@@ -1,6 +1,6 @@
 {
   "description": "调用 DMXAPI 的 OpenAI 兼容图片生成接口生成图片，默认模型 gpt-image-2-03。API Key 只从工具 config.json 或环境变量 DMXAPI_API_KEY 读取，不作为绘图调用参数传入；未配置 Key 时会提示 AI 向用户索要并写入 config.json。结果保存为工作区内图片文件并返回路径，不回显密钥。",
-  "display_name": "DMXAPI 绘图",
+  "registration_name": "DMXAPI 绘图",
   "execution": {
     "parallel": true
   },

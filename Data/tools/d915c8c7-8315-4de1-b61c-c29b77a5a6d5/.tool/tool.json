@@ -1,6 +1,6 @@
 {
   "description": "直接调用 DeepSeek 官方 OpenAI Responses 接口，使用 deepseek-v4-flash 的服务端 web_search 完成实时网络搜索。action=configure 可保存 API Key，action=search 执行搜索，action=config_info 返回独立配置文件路径和配置方法。工具不读取天策供应商设置、当前会话模型或后端能力桥。",
-  "display_name": "DeepSeek 官方网络搜索",
+  "registration_name": "DeepSeek 官方网络搜索",
   "execution": {
     "parallel": true
   },

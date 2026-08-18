@@ -38,6 +38,7 @@ class LoadedTool:
 def load_tool(folder_root: str) -> LoadedTool:
     root = Path(folder_root)
     manifest = _read_json_object(root / TOOL_FOLDER_MANIFEST_FILE)
+    _read_string(manifest, "registration_name")
     _read_parallel_flag(manifest.get("execution"))
     _validate_runtime(manifest.get("runtime"))
     input_schema = _read_json_object(root / TOOL_INPUT_SCHEMA_FILE)
@@ -53,14 +54,19 @@ def load_tool(folder_root: str) -> LoadedTool:
     )
 
 
-def build_summary(loaded_tool: LoadedTool, *, category: str) -> ToolSummary:
+def build_summary(
+    loaded_tool: LoadedTool,
+    *,
+    category: str,
+    display_name: str,
+) -> ToolSummary:
     manifest = loaded_tool.manifest
     loading = manifest.get("loading")
     execution = manifest.get("execution")
     client_capability = _read_client_capability(manifest.get("runtime"))
     return ToolSummary(
         name=loaded_tool.name,
-        display_name=_read_string(manifest, "display_name"),
+        display_name=display_name,
         description=_read_string(manifest, "description"),
         keywords=tuple(_read_string_list(manifest.get("keywords"))),
         category=category,

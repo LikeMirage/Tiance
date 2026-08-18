@@ -69,7 +69,7 @@
       "type": "string"
     },
     "theme_name": {
-      "description": "主题显示名称。create 和 clone 必填；edit 可选。clone 必须提供新主题的名称。名称允许重复，但建议能区分。",
+      "description": "create 和 clone 时作为包内注册名称及首次登记的显示名称；edit 时只修改本地当前显示名称，不改包内注册名称。名称允许重复，但建议能区分。",
       "title": "主题名称",
       "type": "string"
     },

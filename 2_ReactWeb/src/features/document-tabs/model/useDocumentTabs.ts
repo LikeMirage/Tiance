@@ -75,6 +75,11 @@ export function useDocumentTabs() {
     activeTabIdRef.current = activeTabId;
   }, [activeTabId]);
 
+  const getSnapshot = useCallback(() => ({
+    activeTabId: activeTabIdRef.current,
+    tabs: tabsRef.current,
+  }), []);
+
   const {
     refreshTabContent,
     registerFileSource,
@@ -852,6 +857,7 @@ export function useDocumentTabs() {
     ensureProjectConversationOverview,
     ensureProjectRoleConfiguration,
     ensureProjectThemeConfiguration,
+    getSnapshot,
     markTabDirty,
     markTabMissing,
     openNode,
@@ -883,6 +889,7 @@ export function useDocumentTabs() {
     ensureProjectConversationOverview,
     ensureProjectRoleConfiguration,
     ensureProjectThemeConfiguration,
+    getSnapshot,
     markTabDirty,
     markTabMissing,
     openNode,

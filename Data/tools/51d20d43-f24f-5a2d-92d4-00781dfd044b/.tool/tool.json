@@ -1,6 +1,6 @@
 {
   "description": "检查 天策 工具目录、配置、输入输出契约、示例和入口文件是否符合标准，适合制作或调整工具后的验收。",
-  "display_name": "工具体检",
+  "registration_name": "工具体检",
   "execution": {
     "parallel": true
   },

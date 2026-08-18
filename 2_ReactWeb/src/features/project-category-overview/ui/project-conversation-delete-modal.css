@@ -1,0 +1,62 @@
+.project-conversation-delete-modal {
+  box-sizing: border-box;
+  width: min(520px, calc(100vw - 32px));
+  max-width: 520px;
+}
+
+.project-conversation-delete-modal__tree-node > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.project-conversation-delete-modal__tree-node > label > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-conversation-delete-modal__tree {
+  max-height: min(300px, 42vh);
+  margin-top: 2px;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 6px;
+  background: var(--color-surface-input);
+}
+
+.project-conversation-delete-modal__tree-node > label {
+  min-height: 27px;
+  color: var(--color-text-primary);
+  font-size: 0.79rem;
+}
+
+.project-conversation-delete-modal__tree-children {
+  margin-left: 8px;
+  padding-left: 14px;
+  border-left: 1px solid var(--color-border-soft);
+}
+
+.project-conversation-delete-modal__summary,
+.project-conversation-delete-modal__hint,
+.project-conversation-delete-modal__status {
+  margin: 9px 2px 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.project-conversation-delete-modal__summary {
+  color: var(--color-text-primary);
+}
+
+.project-conversation-delete-modal__hint,
+.project-conversation-delete-modal__status {
+  color: var(--color-text-muted);
+}
+
+.project-conversation-delete-modal input[type="checkbox"] {
+  flex: 0 0 auto;
+  accent-color: var(--color-accent);
+}

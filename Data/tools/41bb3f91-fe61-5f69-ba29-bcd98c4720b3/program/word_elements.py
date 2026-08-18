@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any
 
 from docx import Document
-from docx.enum.section import WD_ORIENT
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
@@ -39,7 +38,6 @@ TABLE_FONT_SIZE = 10.5
 BODY_SPACE_AFTER = 6.0
 BODY_LINE_SPACING = 1.15
 BODY_FIRST_LINE_INDENT = 0.28
-DEFAULT_PAGE_MARGIN = 0.75
 HEADING_FONT_SIZES = {1: 18.0, 2: 15.0, 3: 13.0}
 FORMULA_XSL_PATH = Path(__file__).resolve().parents[1] / "assets" / "MML2OMML.XSL"
 
@@ -64,73 +62,6 @@ def normalize_theme_fonts(theme: dict[str, Any]) -> None:
     theme["font_family"] = font_family
     theme["east_asia_font"] = str(east_asia_font)
     theme["complex_script_font"] = str(complex_script_font)
-
-
-def apply_document_defaults(doc: Document, theme: dict[str, Any]) -> None:
-    font_family = str(theme.get("font_family") or DEFAULT_THEME["font_family"])
-    east_asia_font = str(theme.get("east_asia_font") or font_family)
-    complex_script_font = str(theme.get("complex_script_font") or font_family)
-    style_names = [
-        "Normal",
-        "Heading 1",
-        "Heading 2",
-        "Heading 3",
-        "Heading 4",
-        "Heading 5",
-        "Heading 6",
-        "Heading 7",
-        "Heading 8",
-        "Heading 9",
-        "List Bullet",
-        "List Bullet 2",
-        "List Bullet 3",
-        "List Number",
-        "List Number 2",
-        "List Number 3",
-    ]
-    for style_name in style_names:
-        if style_name in doc.styles:
-            doc.styles[style_name].font.size = Pt(BODY_FONT_SIZE)
-            set_font_family(
-                doc.styles[style_name].font,
-                font_family,
-                east_asia_font=east_asia_font,
-                complex_script_font=complex_script_font,
-            )
-
-
-def apply_page_settings(doc: Document, page: Any) -> None:
-    page = page if isinstance(page, dict) else {}
-    for section in doc.sections:
-        if str(page.get("orientation") or "").lower() == "landscape":
-            section.orientation = WD_ORIENT.LANDSCAPE
-            section.page_width, section.page_height = section.page_height, section.page_width
-        for attr, key in (
-            ("top_margin", "margin_top"),
-            ("bottom_margin", "margin_bottom"),
-            ("left_margin", "margin_left"),
-            ("right_margin", "margin_right"),
-        ):
-            value = page.get(key, DEFAULT_PAGE_MARGIN)
-            if isinstance(value, (int, float)):
-                setattr(section, attr, Inches(value))
-
-
-def apply_core_properties(doc: Document, value: Any) -> None:
-    if not isinstance(value, dict):
-        return
-    mapping = {
-        "title": "title",
-        "subject": "subject",
-        "author": "author",
-        "category": "category",
-        "comments": "comments",
-        "keywords": "keywords",
-    }
-    for key, attr in mapping.items():
-        item = value.get(key)
-        if isinstance(item, str):
-            setattr(doc.core_properties, attr, item)
 
 
 def set_header_footer(doc: Document, *, header: str | None = None, footer: str | None = None, theme: dict[str, Any]) -> None:
@@ -383,7 +314,7 @@ def add_formula_to_paragraph(paragraph: Any, latex: str, theme: dict[str, Any], 
         run.font.size = Pt(BODY_FONT_SIZE)
         return False
 
-    omml, error = latex_to_word_omml(latex, xsl_path=FORMULA_XSL_PATH)
+    omml, error = latex_to_word_omml(latex, xsl_path=FORMULA_XSL_PATH, warnings=warnings)
     if omml is not None:
         paragraph._p.append(omml)
         return False

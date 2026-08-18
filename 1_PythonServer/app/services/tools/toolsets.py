@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from functools import lru_cache
 import json
 from pathlib import Path
@@ -11,6 +12,14 @@ from app.infra.tools.tool_project_config_constants import (
 )
 from app.services.tools.tool_projects import ToolProjectService, get_tool_project_service
 from app.services.tools.tool_registry import ToolRegistryService, get_tool_registry_service
+
+
+@dataclass(frozen=True)
+class ToolFolderRuntimeSettingsResult:
+    folder: ToolFolder
+    enabled: bool
+    dynamic: bool
+    parallel: bool
 
 
 class ToolsetService:
@@ -70,27 +79,64 @@ class ToolsetService:
         self._rebuild_registry()
         return folder
 
-    def set_tool_folder_dynamic_loading(
+    def set_tool_folder_runtime_settings(
         self,
         category_id: str,
         project_id: str,
         *,
-        dynamic: bool,
-    ) -> ToolFolder:
+        enabled: bool | None,
+        dynamic: bool | None,
+        parallel: bool | None,
+    ) -> ToolFolderRuntimeSettingsResult:
+        if enabled is None and dynamic is None and parallel is None:
+            raise BadRequestError("至少需要修改一项工具运行设置。")
         project = self._projects.require_tool_project(category_id, project_id)
         manifest_path = Path(project.root_path) / TOOL_FOLDER_MANIFEST_FILE
         if not manifest_path.is_file():
             raise BadRequestError("当前工具项目尚未配置 tool.json。")
         payload = _read_object(manifest_path)
+
+        state = payload.get("state")
+        if not isinstance(state, dict):
+            state = {"enabled": True}
+            payload["state"] = state
+        current_enabled = state.get("enabled")
+        if not isinstance(current_enabled, bool):
+            current_enabled = True
+            state["enabled"] = current_enabled
+        if enabled is not None:
+            current_enabled = enabled
+            state["enabled"] = enabled
+
         loading = payload.get("loading")
         if not isinstance(loading, dict):
-            loading = {}
+            loading = {"dynamic": True}
             payload["loading"] = loading
-        loading["dynamic"] = dynamic
+        current_dynamic = loading.get("dynamic")
+        if not isinstance(current_dynamic, bool):
+            current_dynamic = True
+            loading["dynamic"] = current_dynamic
+        if dynamic is not None:
+            current_dynamic = dynamic
+            loading["dynamic"] = dynamic
+
+        execution = payload.get("execution")
+        if not isinstance(execution, dict) or not isinstance(execution.get("parallel"), bool):
+            raise BadRequestError("tool.json 缺少有效的 execution.parallel。")
+        current_parallel = execution["parallel"]
+        if parallel is not None:
+            current_parallel = parallel
+            execution["parallel"] = parallel
+
         _write_object(manifest_path, payload)
         self._rebuild_registry()
         updated = self._projects.require_tool_project(category_id, project_id)
-        return self._projects.folder_for_project(updated)
+        return ToolFolderRuntimeSettingsResult(
+            folder=self._projects.folder_for_project(updated),
+            enabled=current_enabled,
+            dynamic=current_dynamic,
+            parallel=current_parallel,
+        )
 
     def reveal_tool_folder(self, category_id: str, project_id: str) -> None:
         self._projects.reveal_tool_folder(category_id, project_id)

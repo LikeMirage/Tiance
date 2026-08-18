@@ -1,6 +1,6 @@
 {
   "description": "提交系统明确要求生成的记忆压缩结果。请勿自行调用；只有当前会话收到记忆压缩任务要求时才使用。",
-  "display_name": "提交记忆压缩",
+  "registration_name": "提交记忆压缩",
   "execution": {
     "parallel": true
   },

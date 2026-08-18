@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from gzip import decompress as gzip_decompress
+from hashlib import sha256
 from json import dumps, loads
 from pathlib import Path
 import sqlite3
 from threading import Lock, local
 from typing import Any, Iterator
+from zlib import error as zlib_error
 
 
 DATABASE_FILE = "tiance.db"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 _thread_state = local()
 _database_initialization_lock = Lock()
 _initialized_database_paths: set[Path] = set()
@@ -100,8 +103,29 @@ def connection_for_path(path: Path) -> Iterator[sqlite3.Connection]:
         connection.close()
 
 
+@contextmanager
+def read_connection_for_path(path: Path) -> Iterator[sqlite3.Connection | None]:
+    """Open an existing database without creating files or running migrations."""
+    resolved = path.resolve()
+    active = getattr(_thread_state, "transactions", {})
+    existing = active.get(resolved)
+    if existing is not None:
+        yield existing[0]
+        return
+    if not resolved.is_file():
+        yield None
+        return
+    connection = _open_read_connection(resolved)
+    try:
+        yield connection
+    finally:
+        connection.close()
+
+
 def read_meta(conversations_dir: Path, key: str, default: Any = None) -> Any:
-    with connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+    with read_connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        if connection is None:
+            return default
         row = connection.execute(
             "SELECT value_json FROM conversation_meta WHERE key = ?",
             (key,),
@@ -121,7 +145,9 @@ def write_meta(conversations_dir: Path, key: str, value: Any) -> None:
 
 
 def read_session(conversations_dir: Path, session_id: str) -> dict[str, Any] | None:
-    with connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+    with read_connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        if connection is None:
+            return None
         row = connection.execute(
             "SELECT payload_json FROM conversation_sessions WHERE session_id = ?",
             (session_id,),
@@ -132,7 +158,9 @@ def read_session(conversations_dir: Path, session_id: str) -> dict[str, Any] | N
 
 def read_sessions(conversations_dir: Path) -> dict[str, dict[str, Any]]:
     """Read all session records with one database connection."""
-    with connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+    with read_connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        if connection is None:
+            return {}
         rows = connection.execute(
             "SELECT session_id, payload_json FROM conversation_sessions",
         ).fetchall()
@@ -146,12 +174,14 @@ def read_sessions(conversations_dir: Path) -> dict[str, dict[str, Any]]:
 
 def read_conversation_list_snapshot(
     conversations_dir: Path,
-) -> tuple[int, Any, dict[str, dict[str, Any]], Any]:
+) -> tuple[int, Any, dict[str, dict[str, Any]], dict[str, dict[str, Any]], Any]:
     """Read one consistent projection for conversation-list consumers."""
     path = database_path_from_conversations(conversations_dir).resolve()
     active_transactions = getattr(_thread_state, "transactions", {})
     owns_snapshot = path not in active_transactions
-    with connection_for_path(path) as connection:
+    with read_connection_for_path(path) as connection:
+        if connection is None:
+            return 0, None, {}, {}, None
         if owns_snapshot:
             connection.execute("BEGIN")
         meta_rows = connection.execute(
@@ -162,6 +192,21 @@ def read_conversation_list_snapshot(
         ).fetchall()
         session_rows = connection.execute(
             "SELECT session_id, payload_json FROM conversation_sessions",
+        ).fetchall()
+        state_rows = connection.execute(
+            """
+            SELECT session.session_id,
+                   runtime.runtime_status, runtime.updated_at,
+                   draft.draft, draft.updated_at,
+                   reference.payload_json, reference.updated_at
+            FROM conversation_sessions AS session
+            LEFT JOIN conversation_session_runtime_states AS runtime
+                ON runtime.session_id = session.session_id
+            LEFT JOIN conversation_session_drafts AS draft
+                ON draft.session_id = session.session_id
+            LEFT JOIN conversation_session_references AS reference
+                ON reference.session_id = session.session_id
+            """
         ).fetchall()
 
     meta = {str(key): _decode(raw_value) for key, raw_value in meta_rows}
@@ -176,6 +221,7 @@ def read_conversation_list_snapshot(
         revision,
         meta.get("conversation_index"),
         sessions,
+        _session_state_payloads_from_rows(state_rows),
         meta.get("branch_graph"),
     )
 
@@ -200,7 +246,9 @@ def delete_session(conversations_dir: Path, session_id: str) -> None:
 
 
 def session_exists(conversations_dir: Path, session_id: str) -> bool:
-    with connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+    with read_connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        if connection is None:
+            return False
         row = connection.execute(
             "SELECT 1 FROM conversation_sessions WHERE session_id = ?",
             (session_id,),
@@ -208,9 +256,120 @@ def session_exists(conversations_dir: Path, session_id: str) -> bool:
     return row is not None
 
 
+def read_session_state_payloads(
+    conversations_dir: Path,
+    session_ids: set[str] | None = None,
+) -> dict[str, dict[str, Any]]:
+    with read_connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        if connection is None:
+            return {}
+        rows = connection.execute(
+            """
+            SELECT session.session_id,
+                   runtime.runtime_status, runtime.updated_at,
+                   draft.draft, draft.updated_at,
+                   reference.payload_json, reference.updated_at
+            FROM conversation_sessions AS session
+            LEFT JOIN conversation_session_runtime_states AS runtime
+                ON runtime.session_id = session.session_id
+            LEFT JOIN conversation_session_drafts AS draft
+                ON draft.session_id = session.session_id
+            LEFT JOIN conversation_session_references AS reference
+                ON reference.session_id = session.session_id
+            """
+        ).fetchall()
+    result = _session_state_payloads_from_rows(rows)
+    if session_ids is None:
+        return result
+    return {
+        session_id: payload
+        for session_id, payload in result.items()
+        if session_id in session_ids
+    }
+
+
+def _session_state_payloads_from_rows(
+    rows: list[sqlite3.Row] | list[tuple[Any, ...]],
+) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        session_id = str(row[0])
+        references = _decode(row[5]) if row[5] is not None else []
+        result[session_id] = {
+            "runtime_status": str(row[1] or "idle"),
+            "runtime_updated_at": str(row[2] or ""),
+            "draft": str(row[3] or ""),
+            "draft_updated_at": str(row[4] or ""),
+            "references": references if isinstance(references, list) else [],
+            "references_updated_at": str(row[6] or ""),
+        }
+    return result
+
+
+def write_session_runtime_state(
+    conversations_dir: Path,
+    session_id: str,
+    runtime_status: str,
+    updated_at: str,
+) -> None:
+    with connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        connection.execute(
+            """
+            INSERT INTO conversation_session_runtime_states(
+                session_id, runtime_status, updated_at
+            ) VALUES (?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                runtime_status = excluded.runtime_status,
+                updated_at = excluded.updated_at
+            """,
+            (session_id, runtime_status, updated_at),
+        )
+
+
+def write_session_draft(
+    conversations_dir: Path,
+    session_id: str,
+    draft: str,
+    updated_at: str,
+) -> None:
+    with connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        connection.execute(
+            """
+            INSERT INTO conversation_session_drafts(session_id, draft, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                draft = excluded.draft,
+                updated_at = excluded.updated_at
+            """,
+            (session_id, draft, updated_at),
+        )
+
+
+def write_session_references(
+    conversations_dir: Path,
+    session_id: str,
+    references: list[dict[str, Any]],
+    updated_at: str,
+) -> None:
+    with connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        connection.execute(
+            """
+            INSERT INTO conversation_session_references(
+                session_id, payload_json, updated_at
+            ) VALUES (?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                payload_json = excluded.payload_json,
+                updated_at = excluded.updated_at
+            """,
+            (session_id, _encode(references), updated_at),
+        )
+
+
 def list_message_payloads(session_dir: Path) -> list[dict[str, Any]]:
     session_id = session_id_from_session_dir(session_dir)
-    with connection_for_path(database_path_from_session(session_dir)) as connection:
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return []
         rows = connection.execute(
             """
             SELECT payload_json FROM conversation_messages
@@ -222,7 +381,9 @@ def list_message_payloads(session_dir: Path) -> list[dict[str, Any]]:
 
 
 def count_message_payloads(session_dir: Path) -> int:
-    with connection_for_path(database_path_from_session(session_dir)) as connection:
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return 0
         row = connection.execute(
             "SELECT COUNT(*) FROM conversation_messages WHERE session_id = ?",
             (session_id_from_session_dir(session_dir),),
@@ -231,7 +392,9 @@ def count_message_payloads(session_dir: Path) -> int:
 
 
 def find_message_ordinal(session_dir: Path, message_id: str) -> int | None:
-    with connection_for_path(database_path_from_session(session_dir)) as connection:
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return None
         row = connection.execute(
             """
             SELECT ordinal FROM conversation_messages
@@ -243,7 +406,9 @@ def find_message_ordinal(session_dir: Path, message_id: str) -> int | None:
 
 
 def latest_user_message_id(session_dir: Path) -> str | None:
-    with connection_for_path(database_path_from_session(session_dir)) as connection:
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return None
         row = connection.execute(
             """
             SELECT message_id FROM conversation_messages
@@ -261,7 +426,9 @@ def list_message_payloads_range(
     start_ordinal: int,
     end_ordinal: int,
 ) -> list[dict[str, Any]]:
-    with connection_for_path(database_path_from_session(session_dir)) as connection:
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return []
         rows = connection.execute(
             """
             SELECT payload_json FROM conversation_messages
@@ -282,7 +449,9 @@ def read_message_turn_payloads(
     message_id: str,
 ) -> tuple[str | None, list[dict[str, Any]]]:
     session_id = session_id_from_session_dir(session_dir)
-    with connection_for_path(database_path_from_session(session_dir)) as connection:
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return None, []
         target = connection.execute(
             """
             SELECT ordinal, json_extract(payload_json, '$.role')
@@ -384,7 +553,9 @@ def append_event(session_dir: Path, kind: str, payload: dict[str, Any]) -> None:
 
 
 def read_events(session_dir: Path, kind: str) -> list[dict[str, Any]]:
-    with connection_for_path(database_path_from_session(session_dir)) as connection:
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return []
         rows = connection.execute(
             """
             SELECT payload_json FROM conversation_session_events
@@ -396,7 +567,9 @@ def read_events(session_dir: Path, kind: str) -> list[dict[str, Any]]:
 
 
 def count_events(session_dir: Path, kind: str) -> int:
-    with connection_for_path(database_path_from_session(session_dir)) as connection:
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return 0
         row = connection.execute(
             """
             SELECT COUNT(*) FROM conversation_session_events
@@ -414,7 +587,9 @@ def list_events_range(
     start_ordinal: int,
     end_ordinal: int,
 ) -> list[dict[str, Any]]:
-    with connection_for_path(database_path_from_session(session_dir)) as connection:
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return []
         rows = connection.execute(
             """
             SELECT payload_json FROM conversation_session_events
@@ -450,7 +625,9 @@ def replace_events(session_dir: Path, kind: str, payloads: list[dict[str, Any]])
 
 
 def read_document(session_dir: Path, kind: str) -> dict[str, Any] | None:
-    with connection_for_path(database_path_from_session(session_dir)) as connection:
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return None
         row = connection.execute(
             """
             SELECT payload_json FROM conversation_session_documents
@@ -483,7 +660,9 @@ def delete_document(session_dir: Path, kind: str) -> None:
 
 
 def read_project_events(workspace_dir: Path, kind: str) -> list[dict[str, Any]]:
-    with connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+    with read_connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        if connection is None:
+            return []
         rows = connection.execute(
             "SELECT payload_json FROM conversation_project_events WHERE kind = ? ORDER BY ordinal",
             (kind,),
@@ -492,7 +671,9 @@ def read_project_events(workspace_dir: Path, kind: str) -> list[dict[str, Any]]:
 
 
 def count_project_events(workspace_dir: Path, kind: str) -> int:
-    with connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+    with read_connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        if connection is None:
+            return 0
         row = connection.execute(
             "SELECT COUNT(*) FROM conversation_project_events WHERE kind = ?",
             (kind,),
@@ -507,7 +688,9 @@ def list_project_events_range(
     start_ordinal: int,
     end_ordinal: int,
 ) -> list[dict[str, Any]]:
-    with connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+    with read_connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        if connection is None:
+            return []
         rows = connection.execute(
             """
             SELECT payload_json FROM conversation_project_events
@@ -571,7 +754,9 @@ def append_journal_event(
 
 
 def count_journal_events(workspace_dir: Path, *, session_id: str | None = None) -> int:
-    with connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+    with read_connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        if connection is None:
+            return 0
         if session_id is None:
             row = connection.execute("SELECT COUNT(*) FROM conversation_journal").fetchone()
         else:
@@ -589,7 +774,9 @@ def list_journal_events_range(
     offset: int,
     limit: int,
 ) -> list[dict[str, Any]]:
-    with connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+    with read_connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        if connection is None:
+            return []
         if session_id is None:
             rows = connection.execute(
                 """
@@ -641,6 +828,9 @@ def write_artifact_record(
     status: str,
     created_at: str,
     metadata: dict[str, Any],
+    payload_blob: bytes | None = None,
+    compression: str | None = None,
+    stored_size_bytes: int | None = None,
 ) -> None:
     with connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
         connection.execute(
@@ -664,10 +854,76 @@ def write_artifact_record(
                 _encode(metadata),
             ),
         )
+        if payload_blob is not None:
+            if compression is None or stored_size_bytes is None:
+                raise ValueError("Embedded artifact payload requires compression metadata.")
+            if stored_size_bytes != len(payload_blob):
+                raise ValueError("Embedded artifact stored size does not match its payload.")
+            connection.execute(
+                """
+                INSERT INTO conversation_artifact_payloads(
+                    artifact_id, compression, stored_size_bytes, payload_blob
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (artifact_id, compression, stored_size_bytes, payload_blob),
+            )
+
+
+def count_embedded_artifacts(
+    workspace_dir: Path,
+    *,
+    session_id: str,
+    kind: str,
+) -> int:
+    with read_connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        if connection is None:
+            return 0
+        row = connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM conversation_artifacts AS artifact
+            INNER JOIN conversation_artifact_payloads AS payload
+                ON payload.artifact_id = artifact.artifact_id
+            WHERE artifact.session_id = ? AND artifact.kind = ?
+            """,
+            (session_id, kind),
+        ).fetchone()
+    return int(row[0]) if row is not None else 0
+
+
+def list_embedded_artifacts_range(
+    workspace_dir: Path,
+    *,
+    session_id: str,
+    kind: str,
+    offset: int,
+    limit: int,
+) -> list[dict[str, Any]]:
+    with read_connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        if connection is None:
+            return []
+        rows = connection.execute(
+            """
+            SELECT artifact.artifact_id, artifact.created_at, artifact.media_type,
+                   artifact.encoding, artifact.size_bytes, artifact.sha256,
+                   artifact.status, artifact.metadata_json, payload.compression,
+                   payload.stored_size_bytes, payload.payload_blob
+            FROM conversation_artifacts AS artifact
+            INNER JOIN conversation_artifact_payloads AS payload
+                ON payload.artifact_id = artifact.artifact_id
+            WHERE artifact.session_id = ? AND artifact.kind = ?
+            ORDER BY artifact.created_at, artifact.artifact_id
+            LIMIT ? OFFSET ?
+            """,
+            (session_id, kind, limit, offset),
+        ).fetchall()
+    return [_restore_embedded_artifact(row) for row in rows]
 
 
 def journal_mode(database_path: Path) -> str:
-    with connection_for_path(database_path) as connection:
+    with read_connection_for_path(database_path) as connection:
+        if connection is None:
+            raise FileNotFoundError(database_path)
         return str(connection.execute("PRAGMA journal_mode").fetchone()[0]).lower()
 
 
@@ -677,6 +933,13 @@ def _open_connection(path: Path) -> sqlite3.Connection:
     connection.execute("PRAGMA busy_timeout=10000")
     connection.execute("PRAGMA foreign_keys=ON")
     connection.execute("PRAGMA synchronous=NORMAL")
+    return connection
+
+
+def _open_read_connection(path: Path) -> sqlite3.Connection:
+    connection = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=10.0)
+    connection.execute("PRAGMA busy_timeout=10000")
+    connection.execute("PRAGMA foreign_keys=ON")
     return connection
 
 
@@ -739,6 +1002,12 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
     if current_version < 2:
         _migrate_schema_v1_to_v2(connection)
         current_version = 2
+    if current_version < 3:
+        _migrate_schema_v2_to_v3(connection)
+        current_version = 3
+    if current_version < 4:
+        _migrate_schema_v3_to_v4(connection)
+        current_version = 4
     if current_version != SCHEMA_VERSION:
         raise RuntimeError(f"Unsupported project conversation database version: {current_version}")
 
@@ -786,6 +1055,166 @@ def _migrate_schema_v1_to_v2(connection: sqlite3.Connection) -> None:
         UPDATE conversation_schema SET version = 2;
         """
     )
+
+
+def _migrate_schema_v2_to_v3(connection: sqlite3.Connection) -> None:
+    connection.executescript(
+        """
+        CREATE TABLE conversation_artifact_payloads (
+            artifact_id TEXT PRIMARY KEY,
+            compression TEXT NOT NULL,
+            stored_size_bytes INTEGER NOT NULL,
+            payload_blob BLOB NOT NULL,
+            FOREIGN KEY(artifact_id) REFERENCES conversation_artifacts(artifact_id) ON DELETE CASCADE
+        );
+        UPDATE conversation_schema SET version = 3;
+        """
+    )
+
+
+def _migrate_schema_v3_to_v4(connection: sqlite3.Connection) -> None:
+    connection.executescript(
+        """
+        CREATE TABLE conversation_session_runtime_states (
+            session_id TEXT PRIMARY KEY,
+            runtime_status TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE
+        );
+        CREATE TABLE conversation_session_drafts (
+            session_id TEXT PRIMARY KEY,
+            draft TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE
+        );
+        CREATE TABLE conversation_session_references (
+            session_id TEXT PRIMARY KEY,
+            payload_json TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE
+        );
+        """
+    )
+    row = connection.execute(
+        "SELECT value_json FROM conversation_meta WHERE key = 'conversation_index'",
+    ).fetchone()
+    try:
+        index = _decode(row[0]) if row is not None else {}
+    except (TypeError, ValueError) as error:
+        raise RuntimeError("Conversation index cannot be decoded during schema migration.") from error
+    if not isinstance(index, dict):
+        raise RuntimeError("Conversation index must be an object during schema migration.")
+    raw_states = index.get("session_states")
+    if raw_states is not None and not isinstance(raw_states, dict):
+        raise RuntimeError("Conversation session states must be an object during schema migration.")
+    states = raw_states or {}
+    live_session_ids = {
+        str(session_row[0])
+        for session_row in connection.execute(
+            "SELECT session_id FROM conversation_sessions"
+        ).fetchall()
+    }
+    for session_id, raw_state in states.items():
+        normalized_session_id = str(session_id)
+        if normalized_session_id not in live_session_ids:
+            continue
+        if not isinstance(raw_state, dict):
+            raise RuntimeError(
+                f"Conversation session state '{normalized_session_id}' must be an object."
+            )
+        updated_at = str(raw_state.get("updated_at") or "")
+        if not updated_at:
+            raise RuntimeError(
+                f"Conversation session state '{normalized_session_id}' has no update time."
+            )
+        runtime_updated_at = str(raw_state.get("runtime_updated_at") or updated_at)
+        runtime_status = str(raw_state.get("runtime_status") or "idle")
+        if runtime_status not in {"idle", "running", "error"}:
+            raise RuntimeError(
+                f"Conversation session state '{normalized_session_id}' has invalid runtime status."
+            )
+        draft = str(raw_state.get("draft") or "")
+        references = raw_state.get("references")
+        if not isinstance(references, list):
+            raise RuntimeError(
+                f"Conversation session state '{normalized_session_id}' has invalid references."
+            )
+        connection.execute(
+            """
+            INSERT INTO conversation_session_runtime_states(
+                session_id, runtime_status, updated_at
+            ) VALUES (?, ?, ?)
+            """,
+            (normalized_session_id, runtime_status, runtime_updated_at),
+        )
+        connection.execute(
+            """
+            INSERT INTO conversation_session_drafts(session_id, draft, updated_at)
+            VALUES (?, ?, ?)
+            """,
+            (normalized_session_id, draft, updated_at),
+        )
+        connection.execute(
+            """
+            INSERT INTO conversation_session_references(
+                session_id, payload_json, updated_at
+            ) VALUES (?, ?, ?)
+            """,
+            (normalized_session_id, _encode(references), updated_at),
+        )
+    active_session_id = index.get("active_session_id")
+    pinned = index.get("pinned_session_ids")
+    index = {
+        "active_session_id": (
+            active_session_id
+            if isinstance(active_session_id, str) and active_session_id in live_session_ids
+            else None
+        ),
+    }
+    index["pinned_session_ids"] = (
+        [str(value) for value in pinned if str(value) in live_session_ids]
+        if isinstance(pinned, list)
+        else []
+    )
+    _upsert_meta(connection, "conversation_index", index)
+    connection.execute("UPDATE conversation_schema SET version = 4")
+
+
+def _restore_embedded_artifact(row: sqlite3.Row | tuple[Any, ...]) -> dict[str, Any]:
+    artifact_id = str(row[0])
+    compression = str(row[8])
+    stored_payload = bytes(row[10])
+    stored_size_bytes = int(row[9])
+    if len(stored_payload) != stored_size_bytes:
+        raise RuntimeError(f"Artifact {artifact_id} stored size validation failed.")
+    if compression != "gzip":
+        raise RuntimeError(f"Artifact {artifact_id} uses unsupported compression: {compression}.")
+    try:
+        content = gzip_decompress(stored_payload)
+    except (OSError, EOFError, zlib_error) as error:
+        raise RuntimeError(f"Artifact {artifact_id} cannot be decompressed.") from error
+    if len(content) != int(row[4]):
+        raise RuntimeError(f"Artifact {artifact_id} original size validation failed.")
+    if sha256(content).hexdigest() != str(row[5]):
+        raise RuntimeError(f"Artifact {artifact_id} SHA-256 validation failed.")
+    encoding = str(row[3] or "utf-8")
+    try:
+        payload = loads(content.decode(encoding))
+    except (UnicodeDecodeError, ValueError) as error:
+        raise RuntimeError(f"Artifact {artifact_id} does not contain valid JSON.") from error
+    return {
+        "artifact_id": artifact_id,
+        "created_at": row[1],
+        "media_type": row[2],
+        "encoding": row[3],
+        "size_bytes": int(row[4]),
+        "stored_size_bytes": stored_size_bytes,
+        "sha256": row[5],
+        "status": row[6],
+        "metadata": _decode(row[7]),
+        "compression": compression,
+        "content": payload,
+    }
 
 
 def _encode(value: Any) -> str:

@@ -81,14 +81,8 @@ test("不等待模式只在消息持久化 started 后返回", async () => {
   assert.equal(startInput.userMessageId, "client_request-no-wait");
   assert.equal(
     startInput.message,
-    "后台执行",
+    "后台执行\n\n本条消息来源会话名称：来源会话\n本条消息来源会话 ID：caller-session",
   );
-  assert.deepEqual(startInput.sourceContext, {
-    project_id: "project-a",
-    session_id: "caller-session",
-    session_title: "来源会话",
-    tool_request_id: "request-no-wait",
-  });
   assert.equal(result.content.accepted, true);
   assert.equal(result.content.runtime_status, "running");
   assert.equal(result.content.outcome, "still_running");

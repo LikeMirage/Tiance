@@ -2,8 +2,15 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "conversation_history_search",
-  "version": "1.0.1",
-  "author": {"name": "LikeMirage"},
+  "version": "1.1.1",
+  "author": {
+    "name": "LikeMirage"
+  },
   "license": "CC0-1.0",
-  "compatibility": {"minTianceVersion": "0.3.13", "platforms": ["windows-x64"]}
+  "compatibility": {
+    "minTianceVersion": "0.3.20",
+    "platforms": [
+      "windows-x64"
+    ]
+  }
 }

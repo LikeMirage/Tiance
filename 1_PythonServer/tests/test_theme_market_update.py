@@ -51,7 +51,10 @@ class FakeArchive:
         root = staging_root / market_entry.id
         root.mkdir(parents=True)
         (root / "theme.json").write_text(
-            json.dumps({"id": market_entry.id, "name": market_entry.name}),
+            json.dumps({
+                "id": market_entry.id,
+                "registrationName": market_entry.name,
+            }),
             encoding="utf-8",
         )
         (root / "manifest.json").write_text(
@@ -116,7 +119,7 @@ def _create_service(tmp_path, *, fail_once: bool = False):
     theme_root = themes_root / "sample-theme"
     theme_root.mkdir(parents=True)
     (theme_root / "theme.json").write_text(
-        json.dumps({"id": "sample-theme", "name": "示例主题"}),
+        json.dumps({"id": "sample-theme", "registrationName": "示例主题"}),
         encoding="utf-8",
     )
     (theme_root / "manifest.json").write_text(

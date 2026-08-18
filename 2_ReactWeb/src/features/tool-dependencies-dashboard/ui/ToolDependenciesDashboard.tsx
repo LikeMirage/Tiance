@@ -239,10 +239,11 @@ export function ToolDependenciesDashboard({
       <header className="tool-dependencies-dashboard__header">
         <div>
           <h1>工具依赖</h1>
-          <p>
-            读取当前工具的 program/requirements.txt，检查依赖是否已安装到工具专用 Python 环境。
-            可修改镜像源后安装缺失或版本不匹配的依赖，不会影响后端自身依赖。
-          </p>
+          <ul className="tool-dependencies-dashboard__description">
+            <li>读取当前工具的 program/requirements.txt，检查依赖是否已安装到工具专用 Python 环境。</li>
+            <li>可修改镜像源后安装缺失或版本不匹配的依赖，不会影响后端自身依赖。</li>
+            <li>依赖安装在当前工具目录的 dependencies/py313/ 专用环境中。</li>
+          </ul>
         </div>
         <button
           className="tool-dependencies-dashboard__icon-button"

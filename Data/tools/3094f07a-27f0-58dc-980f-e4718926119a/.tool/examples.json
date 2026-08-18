@@ -5,7 +5,7 @@
   },
   {
     "title": "发送后让目标会话后台运行",
-    "content": "发送消息并在消息持久化、目标运行启动后立即返回；目标会话独立继续运行。来源项目、来源会话和工具请求会作为结构化元数据保存，不会拼进 message 正文。\n\n输入参数：\n{\n  \"action\": \"send\",\n  \"session_id\": \"sess_xxx\",\n  \"message\": \"执行完整专项检查并把结论写入项目报告。\",\n  \"wait_for_reply\": false\n}\n\n成功结果包含 accepted=true、runtime_status 和 history_locator。目标会话正在运行时 send 返回错误，不会排队或写入第二轮消息。"
+    "content": "发送消息并在消息持久化、目标运行启动后立即返回；目标会话独立继续运行。工具会把实时来源会话名称和 ID 追加到普通消息正文末尾，目标 AI 可按该 ID 汇报。\n\n输入参数：\n{\n  \"action\": \"send\",\n  \"session_id\": \"sess_xxx\",\n  \"message\": \"执行完整专项检查并把结论写入项目报告。\",\n  \"wait_for_reply\": false\n}\n\n成功结果包含 accepted=true、runtime_status 和 history_locator。目标会话正在运行时 send 返回错误，不会排队或写入第二轮消息。"
   },
   {
     "title": "目标会话运行中时返回明确冲突",

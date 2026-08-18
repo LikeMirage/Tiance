@@ -126,6 +126,7 @@ def _resolve_tool_target(identifier: str, runtime_paths: RuntimePaths) -> Packag
             {"tools_root": str(tools_root)},
         )
     normalized = identifier.casefold()
+    catalog_names = _read_tool_catalog_names(tools_root)
     matches: list[tuple[Path, dict[str, object], dict[str, object]]] = []
     for tool_root in tools_root.iterdir():
         if not tool_root.is_dir():
@@ -135,7 +136,7 @@ def _resolve_tool_target(identifier: str, runtime_paths: RuntimePaths) -> Packag
         identities = {
             tool_root.name,
             str(tool_manifest.get("name") or ""),
-            str(tool_manifest.get("display_name") or ""),
+            catalog_names.get(tool_root.name, ""),
             str(market_manifest.get("id") or ""),
         }
         if normalized in {value.casefold() for value in identities if value}:
@@ -163,7 +164,11 @@ def _resolve_tool_target(identifier: str, runtime_paths: RuntimePaths) -> Packag
         warning = _migrate_legacy_script_environment(runtime_paths, environment_root)
         warnings = (warning,) if warning else ()
     return PackageTarget(
-        display_name=str(tool_manifest.get("display_name") or tool_manifest.get("name") or tool_root.name),
+        display_name=(
+            catalog_names.get(tool_root.name)
+            or str(tool_manifest.get("registration_name") or "")
+            or str(tool_manifest.get("name") or tool_root.name)
+        ),
         environment_root=environment_root,
         identifier=tool_root.name,
         kind="tool",
@@ -171,6 +176,23 @@ def _resolve_tool_target(identifier: str, runtime_paths: RuntimePaths) -> Packag
         tool_root=tool_root,
         warnings=warnings,
     )
+
+
+def _read_tool_catalog_names(tools_root: Path) -> dict[str, str]:
+    payload = _read_json_object(tools_root / "catalog.json")
+    projects = payload.get("projects")
+    if not isinstance(projects, list):
+        return {}
+    names: dict[str, str] = {}
+    for item in projects:
+        if not isinstance(item, dict):
+            continue
+        project_id = str(item.get("project_id") or "").strip()
+        root_name = str(item.get("root_name") or project_id).strip()
+        name = str(item.get("name") or "").strip()
+        if root_name and name:
+            names[root_name] = name
+    return names
 
 
 def _migrate_legacy_script_environment(

@@ -7,7 +7,6 @@ from app.domain.project import Project, ProjectCategory, ProjectKind
 from app.domain.tools import ToolFolder, Toolset
 from app.services.project.project_files import ProjectFileService, get_project_file_service
 from app.services.project.projects import ProjectService, get_project_service
-from app.infra.tools import ToolProjectConfigStorage, get_tool_project_config_storage
 
 
 class ToolProjectService:
@@ -18,12 +17,10 @@ class ToolProjectService:
         project_service: ProjectService,
         project_file_service: ProjectFileService,
         tools_root: Path,
-        config_storage: ToolProjectConfigStorage | None = None,
     ) -> None:
         self._project_service = project_service
         self._project_file_service = project_file_service
         self._tools_root = tools_root
-        self._config_storage = config_storage or get_tool_project_config_storage()
 
     def ensure_default_category(self) -> None:
         self._project_service.ensure_default_tool_project_category()
@@ -82,10 +79,6 @@ class ToolProjectService:
     ) -> ToolFolder:
         project = self.require_tool_project(category_id, project_id)
         updated = self._project_service.rename_project(project.project_id, name=name)
-        self._config_storage.update_manifest_display_name(
-            updated.root_path,
-            display_name=updated.name,
-        )
         return self._to_tool_folder(updated)
 
     def delete_tool_folder(self, category_id: str, project_id: str) -> None:
@@ -178,5 +171,4 @@ def get_tool_project_service() -> ToolProjectService:
         get_project_service(),
         get_project_file_service(),
         get_settings().tools_data_path,
-        get_tool_project_config_storage(),
     )

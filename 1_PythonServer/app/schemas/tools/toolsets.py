@@ -75,12 +75,16 @@ class ToolFolderMoveRequest(BaseModel):
     target_category_id: str
 
 
-class ToolFolderDynamicLoadingRequest(BaseModel):
-    dynamic: bool
+class ToolFolderRuntimeSettingsRequest(BaseModel):
+    enabled: bool | None = None
+    dynamic: bool | None = None
+    parallel: bool | None = None
 
 
-class ToolFolderDynamicLoadingResponse(BaseModel):
+class ToolFolderRuntimeSettingsResponse(BaseModel):
     category_id: str
     project_id: str
+    enabled: bool
     dynamic: bool
+    parallel: bool
     updated_at: str

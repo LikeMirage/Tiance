@@ -25,7 +25,7 @@ def _service(storage: ToolProjectFixture) -> ToolFolderFileService:
     )
 
 
-def test_tool_project_manifest_save_normalizes_content_and_syncs_project_name(tmp_path):
+def test_tool_project_manifest_save_keeps_registration_and_project_names_independent(tmp_path):
     storage = ToolProjectFixture(tmp_path / "tools")
     toolset = storage.create_toolset(name="基础工具")
     folder = storage.create_tool_folder(toolset.category_id, name="脚本工具")
@@ -33,7 +33,7 @@ def test_tool_project_manifest_save_normalizes_content_and_syncs_project_name(tm
     manifest_path = Path(folder.root_path) / TOOL_FOLDER_MANIFEST_FILE
     payload = loads(manifest_path.read_text(encoding="utf-8"))
     payload.update({
-        "display_name": "脚本工具新版",
+        "registration_name": "脚本工具发布名",
         "summary": "旧摘要",
         "ui": {"icon": "old"},
     })
@@ -46,8 +46,8 @@ def test_tool_project_manifest_save_normalizes_content_and_syncs_project_name(tm
     )
 
     saved = loads(manifest_path.read_text(encoding="utf-8"))
-    assert saved["display_name"] == "脚本工具新版"
-    assert storage.get_tool_folder(toolset.category_id, folder.project_id).name == "脚本工具新版"
+    assert saved["registration_name"] == "脚本工具发布名"
+    assert storage.get_tool_folder(toolset.category_id, folder.project_id).name == "脚本工具"
     assert "summary" not in saved
     assert "ui" not in saved
 
@@ -63,7 +63,7 @@ def test_tool_project_manifest_rejects_placeholder_call_name(tmp_path):
             toolset.category_id,
             folder.project_id,
             TOOL_FOLDER_MANIFEST_FILE,
-            dumps({"name": "tool_load_error", "display_name": "脚本工具"}),
+            dumps({"name": "tool_load_error", "registration_name": "脚本工具"}),
         )
 
 
