@@ -154,6 +154,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     handleGenerateMarkdownDocx,
     handleOpenConversationBranches,
     handleOpenConversationDataFile: openConversationDataFile,
+    handleOpenProjectFile: openProjectFile,
     handleOpenReference,
     handlePreviewHtmlCode,
     handleSaveProjectCodeBlock,
@@ -176,6 +177,12 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     }
     openConversationDataFile(sessionId, fileName);
   }, [expandedProjectId, onExpandProject, openConversationDataFile, projectId]);
+  const handleOpenProjectFile = useCallback(async (path: string, _line: number | null) => {
+    if (!projectId) return;
+    const entered = await onExpandProject(projectId);
+    if (entered === false) return;
+    await openProjectFile(path);
+  }, [onExpandProject, openProjectFile, projectId]);
 
   const handleRevealOverviewProject = useCallback(async (targetProjectId: string) => {
     await revealProjectFile(targetProjectId, { path: "" });
@@ -462,6 +469,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       onOpenConversationBranches={handleOpenCurrentConversationBranches}
       onOpenConversationOverview={handleOpenCurrentConversationOverview}
       onOpenConversationDataFile={handleOpenConversationDataFile}
+      onOpenProjectFile={handleOpenProjectFile}
       onOpenReference={handleOpenReference}
       onPreviewHtmlCode={handlePreviewHtmlCode}
       onReferenceExternalPath={handleReferenceExternalPath}
@@ -492,6 +500,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     handleOpenCurrentConversationBranches,
     handleOpenCurrentConversationOverview,
     handleOpenConversationDataFile,
+    handleOpenProjectFile,
     handleOpenReference,
     handlePreviewHtmlCode,
     handleReferenceExternalPath,

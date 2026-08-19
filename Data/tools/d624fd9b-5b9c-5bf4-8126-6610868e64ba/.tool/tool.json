@@ -1,6 +1,5 @@
 {
   "description": "管理当前项目的 AI 会话。list_sessions 默认只列调用会话的父级链和自己的下级树，支持限制关系深度或显式查看项目全部会话，只返回实时标题、ID、运行状态和聊天面板当前显示的 active_session_id；get_session_info 单独查看模型、设置及分支或子会话来源属性；get_session 按完成轮次读取消息和用量；name_parent_session 仅供自动命名功能会话提交其父会话标题。需要检索完整原始历史时使用结果中的 history_locator。列出的会话 ID 可交给 interact_ai_conversation 发送消息，并要求目标 AI 通过来源会话 ID 直接汇报。创建会话默认完整继承调用会话的模型与会话配置。",
-  "registration_name": "AI 会话管理",
   "execution": {
     "parallel": true
   },
@@ -26,10 +25,11 @@
     "dynamic": false
   },
   "name": "manage_ai_conversations",
+  "registration_name": "AI 会话管理",
   "runtime": {
     "client_capability": {
-      "name": "conversation.management",
-      "min_version": 1
+      "min_version": 1,
+      "name": "conversation.management"
     },
     "timeout_seconds": 600,
     "type": "client"

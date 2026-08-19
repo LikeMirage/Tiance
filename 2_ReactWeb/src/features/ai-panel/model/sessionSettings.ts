@@ -15,6 +15,8 @@ export const DEFAULT_SESSION_SETTINGS: ConversationSessionSettings = {
   return_user_before_cancelled: true,
   streaming_enabled: true,
   auto_collapse_assistant_process: true,
+  malformed_tool_call_recovery_enabled: true,
+  upstream_retry_count: 1,
   inject_message_timestamps: true,
   system_prompt: "",
   max_output_tokens: 32768,

@@ -21,8 +21,6 @@ export type CompressionRecord = {
   functionSessionId: string;
   sourceType: string;
   mode: string;
-  attemptIndex: number;
-  retryOf: string;
   sourceMessageCount: number;
   newlyCoveredMessageCount: number;
   supersedesCompressionId: string;
@@ -157,8 +155,6 @@ function normalizeCompressionRecord(
     functionSessionId: stringValue(raw.function_session_id),
     sourceType: stringValue(raw.source_type),
     mode: stringValue(raw.mode),
-    attemptIndex: numberValue(raw.attempt_index),
-    retryOf: stringValue(raw.retry_of),
     sourceMessageCount: numberValue(raw.source_message_count),
     newlyCoveredMessageCount: stringArray(raw.newly_covered_message_ids).length,
     supersedesCompressionId: stringValue(raw.supersedes_compression_id),

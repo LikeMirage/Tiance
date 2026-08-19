@@ -52,6 +52,64 @@ def test_new_project_database_uses_wal(tmp_path: Path) -> None:
     assert journal_mode(database_path_from_workspace(workspace)) == "wal"
 
 
+def test_conversation_run_failure_is_durable_without_becoming_a_message(tmp_path: Path) -> None:
+    projects = _Projects(tmp_path)
+    conversations = ProjectConversationRepository(projects)
+    session = conversations.create_session(
+        "project-1",
+        title="run outcome",
+        provider_id="deepseek",
+        model_id="deepseek-v4",
+        reasoning_mode=None,
+    )
+    user_message = conversations.append_message(
+        "project-1",
+        session.session_id,
+        role="user",
+        content="hello",
+    )
+    conversations.begin_run(
+        "project-1",
+        session.session_id,
+        run_id="run-test",
+        user_message_id=user_message.message_id,
+        started_at="2026-08-19T00:00:00+00:00",
+    )
+
+    assert conversations.settle_run(
+        "project-1",
+        session.session_id,
+        run_id="run-test",
+        status="error",
+        error_code="upstream_stream_incomplete",
+        error_message="上游响应在完成标记前结束。",
+        attempt_count=2,
+        settled_at="2026-08-19T00:00:01+00:00",
+    ) is True
+    assert conversations.settle_run(
+        "project-1",
+        session.session_id,
+        run_id="run-test",
+        status="done",
+        error_code=None,
+        error_message=None,
+        attempt_count=3,
+        settled_at="2026-08-19T00:00:02+00:00",
+    ) is False
+
+    page = conversations.list_messages_page(
+        "project-1",
+        session.session_id,
+        limit=20,
+    )
+    assert [message.role for message in page.items] == ["user"]
+    assert len(page.run_outcomes) == 1
+    assert page.run_outcomes[0].run_id == "run-test"
+    assert page.run_outcomes[0].attempt_count == 2
+    assert page.run_outcomes[0].error_code == "upstream_stream_incomplete"
+    assert not (tmp_path / ".Tiance" / "conversations" / "tiance.db").exists()
+
+
 def test_version_one_database_migrates_to_current_audit_schema(tmp_path: Path) -> None:
     workspace = tmp_path / ".Tiance"
     workspace.mkdir()
@@ -70,7 +128,7 @@ def test_version_one_database_migrates_to_current_audit_schema(tmp_path: Path) -
 
     connection = sqlite3.connect(database_path)
     try:
-        assert connection.execute("SELECT version FROM conversation_schema").fetchone()[0] == 4
+        assert connection.execute("SELECT version FROM conversation_schema").fetchone()[0] == 5
         tables = {
             row[0]
             for row in connection.execute(
@@ -82,6 +140,7 @@ def test_version_one_database_migrates_to_current_audit_schema(tmp_path: Path) -
     assert "conversation_journal" in tables
     assert "conversation_artifacts" in tables
     assert "conversation_artifact_payloads" in tables
+    assert "conversation_runs" in tables
 
 
 def test_version_two_database_migrates_to_embedded_artifact_payloads(tmp_path: Path) -> None:
@@ -142,7 +201,7 @@ def test_version_two_database_migrates_to_embedded_artifact_payloads(tmp_path: P
         }
     finally:
         connection.close()
-    assert version == 4
+    assert version == 5
     assert payload_columns == {
         "artifact_id",
         "compression",

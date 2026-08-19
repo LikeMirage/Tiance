@@ -157,7 +157,10 @@ test("已执行结果长期保留并按有界 LRU 淘汰", async () => {
   const executionCounts = new Map();
   const coordinator = new ClientToolRequestSingleFlight({
     maxCompletedResults: 2,
-    claimRequest: async () => true,
+    executorId: "frontend-test",
+    executionStore: createExecutionStore(),
+    claimRequest: async () => claimLease(),
+    renewClaim: async () => true,
     submitResult: async () => ({ accepted: true }),
   });
   const executor = async (pendingRequest) => {
@@ -179,11 +182,68 @@ test("已执行结果长期保留并按有界 LRU 淘汰", async () => {
   assert.equal(executionCounts.get("lru-c"), 1);
 });
 
+test("前端重载后不重复执行结果未知的动作", async () => {
+  let executeCount = 0;
+  let submittedResult;
+  const executionStore = createExecutionStore();
+  executionStore.write("interrupted", { state: "executing" });
+  const coordinator = new ClientToolRequestSingleFlight({
+    executorId: "frontend-reloaded",
+    executionStore,
+    claimRequest: async () => claimLease({ resumed: true }),
+    renewClaim: async () => true,
+    submitResult: async (_requestId, result) => {
+      submittedResult = result;
+      return { accepted: true };
+    },
+  });
+
+  await coordinator.run(request("interrupted"), async () => {
+    executeCount += 1;
+    return { ok: true };
+  });
+
+  assert.equal(executeCount, 0);
+  assert.equal(submittedResult.ok, false);
+  assert.equal(
+    submittedResult.content.error_code,
+    "CLIENT_TOOL_EXECUTION_INTERRUPTED",
+  );
+});
+
 function createCoordinator(submitResult) {
   return new ClientToolRequestSingleFlight({
-    claimRequest: async () => true,
+    executorId: "frontend-test",
+    executionStore: createExecutionStore(),
+    claimRequest: async () => claimLease(),
+    renewClaim: async () => true,
     submitResult,
   });
+}
+
+function claimLease(overrides = {}) {
+  return {
+    acquired: true,
+    claim_id: "claim-test",
+    lease_duration_seconds: 30,
+    resumed: false,
+    ...overrides,
+  };
+}
+
+function createExecutionStore() {
+  const records = new Map();
+  return {
+    read(requestId) {
+      return records.get(requestId) ?? null;
+    },
+    write(requestId, record) {
+      records.set(requestId, record);
+    },
+    remove(requestId) {
+      records.delete(requestId);
+    },
+  };
 }
 
 function request(requestId) {

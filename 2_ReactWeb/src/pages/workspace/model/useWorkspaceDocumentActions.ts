@@ -82,6 +82,21 @@ export function useWorkspaceDocumentActions({
     });
   }, [documentTabs.openVirtualReferenceViewer, projectId]);
 
+  const handleOpenProjectFile = useCallback(async (path: string) => {
+    if (!projectId || !path.trim()) {
+      throw new Error("文件路径为空，无法在工作区中查看。");
+    }
+    await documentTabs.openNode({
+      id: `project:${projectId}:${path}`,
+      kind: "file",
+      name: path.split(/[\\/]/).at(-1) || path,
+      path,
+    }, {
+      projectFilePath: path,
+      projectId,
+    });
+  }, [documentTabs.openNode, projectId]);
+
   const handleOpenConversationBranches = useCallback((targetProjectId?: string | null) => {
     const resolvedProjectId = targetProjectId ?? projectId;
     if (!resolvedProjectId) return;
@@ -210,6 +225,7 @@ export function useWorkspaceDocumentActions({
     handleGenerateMarkdownDocx,
     handleOpenConversationBranches,
     handleOpenConversationDataFile,
+    handleOpenProjectFile,
     handleOpenReference,
     handlePreviewHtmlCode,
     handleSaveProjectCodeBlock,

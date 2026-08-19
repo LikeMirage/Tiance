@@ -4,14 +4,21 @@
   max-width: 520px;
 }
 
-.project-conversation-delete-modal__tree-node > label {
+.project-conversation-delete-modal__tree-row {
   display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.project-conversation-delete-modal__tree-row > label {
+  display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
-.project-conversation-delete-modal__tree-node > label > span {
+.project-conversation-delete-modal__tree-row > label > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -25,12 +32,80 @@
   border: 1px solid var(--color-border-soft);
   border-radius: 6px;
   background: var(--color-surface-input);
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
 }
 
-.project-conversation-delete-modal__tree-node > label {
+.project-conversation-delete-modal__tree::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+.project-conversation-delete-modal__tree::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.project-conversation-delete-modal__tree::-webkit-scrollbar-thumb {
+  min-height: 24px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+  background-clip: content-box;
+}
+
+.project-conversation-delete-modal__tree::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+.project-conversation-delete-modal__tree::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.project-conversation-delete-modal__tree-row > label {
   min-height: 27px;
   color: var(--color-text-primary);
   font-size: 0.79rem;
+}
+
+.project-conversation-delete-modal__tree-toggle,
+.project-conversation-delete-modal__tree-toggle-spacer {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 27px;
+}
+
+.project-conversation-delete-modal__tree-toggle {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.project-conversation-delete-modal__tree-toggle:hover:not(:disabled) {
+  color: var(--color-accent);
+}
+
+.project-conversation-delete-modal__tree-toggle:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.project-conversation-delete-modal__tree-toggle > span {
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 140ms ease;
+}
+
+.project-conversation-delete-modal__tree-toggle[aria-expanded="true"] > span {
+  transform: rotate(45deg) translate(-1px, -1px);
 }
 
 .project-conversation-delete-modal__tree-children {
@@ -40,7 +115,6 @@
 }
 
 .project-conversation-delete-modal__summary,
-.project-conversation-delete-modal__hint,
 .project-conversation-delete-modal__status {
   margin: 9px 2px 0;
   font-size: 0.76rem;
@@ -51,7 +125,6 @@
   color: var(--color-text-primary);
 }
 
-.project-conversation-delete-modal__hint,
 .project-conversation-delete-modal__status {
   color: var(--color-text-muted);
 }

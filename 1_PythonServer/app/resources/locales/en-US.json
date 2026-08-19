@@ -665,8 +665,6 @@
       },
       "memoryCompression": {
         "prompt": "Compaction and long-term memory",
-        "failureRetryCount": "Failure retry count",
-        "failureRetryDescription": "Additional attempts after the first failure. Network and timeout failures use short backoff; invalid output is retried at most once. Set 0 to disable automatic retries. Maximum: 10.",
         "cacheHitOptimizationMode": "Cache-hit optimization mode",
         "cacheHitOptimizationDescription": "Reuse the actual conversation model and request prefix that triggered compression, then append only the memory-compression task to improve the chance of an upstream context-cache hit and reduce repeated input costs.",
         "cacheHitOptimizationSettingsNote": "The model and reasoning settings follow the triggering request; temperature, Top P, and maximum output length still use the settings on this page.",
@@ -680,8 +678,6 @@
         "globalTriggerTokenDescription": "Create a global memory management functional conversation when complete valid message groups added since the last successful run reach this value. Default: 100K. Tool calls are never separated from their results.",
         "blockingEnabled": "Blocking management",
         "blockingDescription": "When enabled, the current conversation waits for long-term memory management to finish after reaching the threshold. When disabled, it runs asynchronously in the background.",
-        "failureRetryCount": "Failure retry count",
-        "failureRetryDescription": "Additional attempts after the first failure. Network and timeout failures use short backoff; a missing valid tool call is retried at most once. Set 0 to disable automatic retries. Maximum: 10.",
         "cacheHitOptimizationMode": "Cache-hit optimization mode",
         "cacheHitOptimizationDescription": "Reuse the real request model, generation settings, and complete effective conversation prefix that triggered the task, then append the long-term memory management task.",
         "cacheHitOptimizationSettingsNote": "Model, reasoning, temperature, Top P, and maximum output length all follow the latest real request that triggered the task.",

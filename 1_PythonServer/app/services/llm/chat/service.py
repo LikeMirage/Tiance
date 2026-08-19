@@ -98,13 +98,51 @@ class ChatCompletionService:
             raise BadRequestError(f"Provider config '{request.provider_id}' has no saved API key.")
 
         runtime_config, selected_api_key = runtime_credentials
-        result = await self._remote_client.complete(
-            provider_template=provider_template,
-            runtime_config=runtime_config,
-            api_key=selected_api_key.api_key,
-            request=request,
-            on_exchange=self._record_http_exchange,
-        )
+        attempt_count = max(1, request.upstream_retry_count + 1)
+        result = None
+        for attempt_index in range(1, attempt_count + 1):
+            attempt_request = replace(
+                request,
+                upstream_attempt_index=attempt_index,
+                upstream_attempt_count=attempt_count,
+            )
+            try:
+                result = await self._remote_client.complete(
+                    provider_template=provider_template,
+                    runtime_config=runtime_config,
+                    api_key=selected_api_key.api_key,
+                    request=attempt_request,
+                    on_exchange=self._record_http_exchange,
+                )
+                if result is None:
+                    raise RuntimeError("Upstream completion ended without a result.")
+            except asyncio.CancelledError:
+                await self._record_attempt_outcome(
+                    attempt_request,
+                    status="cancelled",
+                    error_code="request_cancelled",
+                    error_message="Request cancelled locally.",
+                )
+                raise
+            except Exception as exc:
+                await self._record_attempt_outcome(
+                    attempt_request,
+                    status="failed",
+                    error_code=type(exc).__name__,
+                    error_message=str(exc),
+                )
+                if attempt_index >= attempt_count:
+                    raise
+                continue
+            await self._record_attempt_outcome(
+                attempt_request,
+                status="completed",
+                error_code=None,
+                error_message=None,
+            )
+            break
+        if result is None:
+            raise RuntimeError("Upstream completion retry loop ended without a result.")
         usage = complete_usage_with_estimates(
             request=request,
             provider_usage=result.usage,
@@ -150,52 +188,104 @@ class ChatCompletionService:
             raise BadRequestError(f"Provider config '{request.provider_id}' has no saved API key.")
 
         runtime_config, selected_api_key = runtime_credentials
-        provider_usage: ChatUsage | None = None
-        done_event: ChatStreamEvent | None = None
-        content_parts: list[str] = []
-        thinking_parts: list[str] = []
-        tool_calls: list[ChatToolCall] = []
-        protocol_continuation: ChatProtocolContinuation | None = None
-        failed = False
-        async for event in self._remote_client.stream(
-            provider_template=provider_template,
-            runtime_config=runtime_config,
-            api_key=selected_api_key.api_key,
-            request=request,
-            on_exchange=self._record_http_exchange,
-        ):
-            if event.kind == ChatStreamEventKind.USAGE and event.usage is not None:
-                provider_usage = _overlay_usage(provider_usage, event.usage)
-                continue
-            if event.kind == ChatStreamEventKind.DONE:
-                done_event = event
-                continue
-            if event.kind == ChatStreamEventKind.DELTA and event.content:
-                content_parts.append(event.content)
-            elif event.kind == ChatStreamEventKind.THINKING_DELTA and event.content:
-                thinking_parts.append(event.content)
-            elif event.kind == ChatStreamEventKind.TOOL_CALL and event.tool_call is not None:
-                tool_calls.append(event.tool_call)
-            elif (
-                event.kind == ChatStreamEventKind.PROTOCOL_CONTINUATION
-                and event.protocol_continuation is not None
-            ):
-                protocol_continuation = event.protocol_continuation
-            elif event.kind == ChatStreamEventKind.ERROR:
-                failed = True
-                if provider_usage is not None:
-                    self._record_usage_if_present(
-                        request=request,
-                        usage=provider_usage,
-                    )
+        attempt_count = max(1, request.upstream_retry_count + 1)
+        for attempt_index in range(1, attempt_count + 1):
+            attempt_request = replace(
+                request,
+                upstream_attempt_index=attempt_index,
+                upstream_attempt_count=attempt_count,
+            )
+            provider_usage: ChatUsage | None = None
+            done_event: ChatStreamEvent | None = None
+            error_event: ChatStreamEvent | None = None
+            content_parts: list[str] = []
+            thinking_parts: list[str] = []
+            tool_calls: list[ChatToolCall] = []
+            protocol_continuation: ChatProtocolContinuation | None = None
+            try:
+                async for event in self._remote_client.stream(
+                    provider_template=provider_template,
+                    runtime_config=runtime_config,
+                    api_key=selected_api_key.api_key,
+                    request=attempt_request,
+                    on_exchange=self._record_http_exchange,
+                ):
+                    if event.kind == ChatStreamEventKind.USAGE and event.usage is not None:
+                        provider_usage = _overlay_usage(provider_usage, event.usage)
+                        continue
+                    if event.kind == ChatStreamEventKind.DONE:
+                        done_event = event
+                        continue
+                    if event.kind == ChatStreamEventKind.ERROR:
+                        error_event = event
+                        continue
+                    if event.kind == ChatStreamEventKind.DELTA and event.content:
+                        content_parts.append(event.content)
+                    elif event.kind == ChatStreamEventKind.THINKING_DELTA and event.content:
+                        thinking_parts.append(event.content)
+                    elif event.kind == ChatStreamEventKind.TOOL_CALL and event.tool_call is not None:
+                        tool_calls.append(event.tool_call)
+                    elif (
+                        event.kind == ChatStreamEventKind.PROTOCOL_CONTINUATION
+                        and event.protocol_continuation is not None
+                    ):
+                        protocol_continuation = event.protocol_continuation
+                    yield event
+            except asyncio.CancelledError:
+                await self._record_attempt_outcome(
+                    attempt_request,
+                    status="cancelled",
+                    error_code="request_cancelled",
+                    error_message="Request cancelled locally.",
+                )
+                raise
+            except Exception as exc:
+                await self._record_attempt_outcome(
+                    attempt_request,
+                    status="failed",
+                    error_code=type(exc).__name__,
+                    error_message=str(exc),
+                )
+                if attempt_index < attempt_count:
                     yield ChatStreamEvent(
-                        kind=ChatStreamEventKind.USAGE,
-                        usage=provider_usage,
+                        kind=ChatStreamEventKind.RETRY_RESET,
+                        error=str(exc),
+                        error_code=type(exc).__name__,
+                        attempt_index=attempt_index + 1,
+                        attempt_count=attempt_count,
                     )
-                    provider_usage = None
-            yield event
+                    continue
+                raise
 
-        if not failed:
+            if error_event is None and done_event is None:
+                error_event = ChatStreamEvent(
+                    kind=ChatStreamEventKind.ERROR,
+                    error="上游响应在完成标记前结束。",
+                    error_code="upstream_stream_incomplete",
+                )
+
+            if error_event is not None:
+                await self._record_attempt_outcome(
+                    attempt_request,
+                    status="failed",
+                    error_code=error_event.error_code,
+                    error_message=error_event.error,
+                )
+                if attempt_index < attempt_count:
+                    yield ChatStreamEvent(
+                        kind=ChatStreamEventKind.RETRY_RESET,
+                        error=error_event.error,
+                        error_code=error_event.error_code,
+                        attempt_index=attempt_index + 1,
+                        attempt_count=attempt_count,
+                    )
+                    continue
+                if provider_usage is not None:
+                    self._record_usage_if_present(request=request, usage=provider_usage)
+                    yield ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=provider_usage)
+                yield error_event
+                return
+
             usage = complete_usage_with_estimates(
                 request=request,
                 provider_usage=provider_usage,
@@ -209,13 +299,16 @@ class ChatCompletionService:
                 settings=self._estimation_settings_for(provider_usage),
             )
             self._record_usage_if_present(request=request, usage=usage)
+            await self._record_attempt_outcome(
+                attempt_request,
+                status="completed",
+                error_code=None,
+                error_message=None,
+            )
             yield ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=usage)
-        elif provider_usage is not None:
-            self._record_usage_if_present(request=request, usage=provider_usage)
-            yield ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=provider_usage)
-
-        if done_event is not None:
-            yield done_event
+            if done_event is not None:
+                yield done_event
+            return
 
     def _record_usage_if_present(
         self,
@@ -249,6 +342,24 @@ class ChatCompletionService:
             self._http_exchange_recorder.record_http_exchange,
             request,
             exchange,
+        )
+
+    async def _record_attempt_outcome(
+        self,
+        request: ChatCompletionRequest,
+        *,
+        status: str,
+        error_code: str | None,
+        error_message: str | None,
+    ) -> None:
+        if self._http_exchange_recorder is None:
+            return
+        await asyncio.to_thread(
+            self._http_exchange_recorder.record_attempt_outcome,
+            request,
+            status=status,
+            error_code=error_code,
+            error_message=error_message,
         )
 
     @staticmethod

@@ -32,6 +32,8 @@ const CONFIGURABLE_SETTING_KEYS = [
   "return_user_before_cancelled",
   "streaming_enabled",
   "auto_collapse_assistant_process",
+  "malformed_tool_call_recovery_enabled",
+  "upstream_retry_count",
   "inject_message_timestamps",
   "system_prompt",
   "max_output_tokens",

@@ -181,6 +181,12 @@ export function ChatBasicSettingsPanel({
         value={activeSessionSettings.max_output_tokens}
         onCommit={(value) => onUpdateSessionSettings({ max_output_tokens: value })}
       />
+      <SettingsIntegerInput
+        label={t("aiPanel.basicSettings.upstreamRetryCount")}
+        min={0}
+        value={activeSessionSettings.upstream_retry_count}
+        onCommit={(value) => onUpdateSessionSettings({ upstream_retry_count: value })}
+      />
 
       <SettingsToggle
         checked={activeSessionSettings.return_cancelled_messages}
@@ -208,6 +214,13 @@ export function ChatBasicSettingsPanel({
         label={t("aiPanel.basicSettings.autoCollapseProcess")}
         onChange={(checked) => onUpdateSessionSettings({
           auto_collapse_assistant_process: checked,
+        })}
+      />
+      <SettingsToggle
+        checked={activeSessionSettings.malformed_tool_call_recovery_enabled}
+        label={t("aiPanel.basicSettings.malformedToolCallRecovery")}
+        onChange={(checked) => onUpdateSessionSettings({
+          malformed_tool_call_recovery_enabled: checked,
         })}
       />
       <SettingsToggle

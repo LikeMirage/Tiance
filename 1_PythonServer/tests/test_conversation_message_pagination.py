@@ -77,6 +77,85 @@ def test_messages_api_returns_stable_parameter_error_for_unknown_cursor(
     }
 
 
+def test_messages_api_returns_durable_run_outcomes(monkeypatch, tmp_path):
+    repository, session_id = _repository_with_message(tmp_path)
+    user_message = repository.list_messages(PROJECT_ID, session_id)[0]
+    repository.begin_run(
+        PROJECT_ID,
+        session_id,
+        run_id="run-failed",
+        user_message_id=user_message.message_id,
+        started_at="2026-08-19T00:00:00+00:00",
+    )
+    repository.settle_run(
+        PROJECT_ID,
+        session_id,
+        run_id="run-failed",
+        status="error",
+        error_code="upstream_stream_incomplete",
+        error_message="上游响应在完成标记前结束。",
+        attempt_count=2,
+        settled_at="2026-08-19T00:00:01+00:00",
+    )
+    monkeypatch.setattr(
+        conversation_routes,
+        "get_project_conversation_service",
+        lambda: ProjectConversationService(repository),
+    )
+    application = FastAPI()
+    register_exception_handlers(application)
+    application.include_router(conversation_routes.router)
+
+    response = TestClient(application).get(
+        f"/projects/{PROJECT_ID}/conversations/{session_id}/messages",
+        params={"limit": 20},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["role"] for item in payload["items"]] == ["user"]
+    assert payload["run_outcomes"] == [
+        {
+            "run_id": "run-failed",
+            "session_id": session_id,
+            "user_message_id": user_message.message_id,
+            "status": "error",
+            "error_code": "upstream_stream_incomplete",
+            "error_message": "上游响应在完成标记前结束。",
+            "attempt_count": 2,
+            "started_at": "2026-08-19T00:00:00+00:00",
+            "settled_at": "2026-08-19T00:00:01+00:00",
+        }
+    ]
+
+
+def test_branch_group_list_does_not_depend_on_message_page(monkeypatch):
+    class EmptyBranchService:
+        def list_branch_groups(self, project_id):
+            assert project_id == PROJECT_ID
+            return ()
+
+    monkeypatch.setattr(
+        conversation_routes,
+        "get_project_conversation_service",
+        lambda: EmptyBranchService(),
+    )
+    application = FastAPI()
+    register_exception_handlers(application)
+    application.include_router(conversation_routes.router)
+
+    response = TestClient(application).get(
+        f"/projects/{PROJECT_ID}/conversation-branches"
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "project_id": PROJECT_ID,
+        "count": 0,
+        "items": [],
+    }
+
+
 def _repository_with_message(tmp_path) -> tuple[ProjectConversationRepository, str]:
     repository = ProjectConversationRepository(FakeProjectRepository(str(tmp_path)))
     session = repository.create_session(

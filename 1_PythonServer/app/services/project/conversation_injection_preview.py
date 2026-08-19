@@ -39,6 +39,10 @@ def build_conversation_injection_preview(
             "model_id": request.model_id,
             "preview_source": preview_source,
             "inject_message_timestamps": request.inject_message_timestamps,
+            "malformed_tool_call_recovery_enabled": (
+                request.malformed_tool_call_recovery_enabled
+            ),
+            "upstream_retry_count": request.upstream_retry_count,
             "max_tool_calls": request.max_tool_calls,
             "message_count": len(request.messages),
             "system_message_count": len(system_messages),

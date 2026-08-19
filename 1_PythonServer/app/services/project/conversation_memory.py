@@ -65,11 +65,7 @@ from app.services.project.conversation_memory_results import (
 from app.services.project.conversation_functional_runtime import (
     resolve_functional_conversation_model_target,
 )
-from app.services.project.conversation_functional_run import (
-    TRANSIENT_FUNCTION_ERROR_CODES,
-    FunctionalConversationRunError,
-    FunctionalConversationRunner,
-)
+from app.services.project.conversation_functional_run import FunctionalConversationRunner
 from app.services.project.conversation_functional_settings import (
     bool_setting,
     int_setting,
@@ -92,8 +88,6 @@ from app.services.project.project_conversations import (
 
 _MEMORY_PROFILE_KEY = "memoryCompression"
 _COMPACTION_STATUS_MESSAGE_NAME = "memory_compaction"
-DEFAULT_COMPACTION_FAILURE_RETRY_COUNT = 0
-MAX_COMPACTION_FAILURE_RETRY_COUNT = 10
 class MissingCompactionSubmissionError(RuntimeError):
     pass
 
@@ -457,13 +451,6 @@ class ProjectConversationMemoryService:
             else blocking
         )
         prompt = string_setting(settings, "prompt")
-        retry_count = int_setting(
-            settings,
-            "failureRetryCount",
-            default_value=DEFAULT_COMPACTION_FAILURE_RETRY_COUNT,
-            minimum=0,
-            maximum=MAX_COMPACTION_FAILURE_RETRY_COUNT,
-        )
         task_prompt = prompt
         target = resolve_functional_conversation_model_target(
             settings,
@@ -480,7 +467,6 @@ class ProjectConversationMemoryService:
         )
         fingerprint = _configuration_fingerprint(
             settings=settings,
-            failure_retry_count=retry_count,
             mode=mode,
             provider_id=provider_id,
             model_id=model_id,
@@ -544,136 +530,101 @@ class ProjectConversationMemoryService:
             "newly_covered_token_count": plan.newly_covered_token_count,
             "protected_tail_token_count": plan.protected_tail_token_count,
         }
-        first_compression_id: str | None = None
-        for attempt_index in range(retry_count + 1):
-            if not await self._memory_compression_is_enabled(
+        if not await self._memory_compression_is_enabled(project_id, session_id):
+            await self._clear_manual_compaction_request(
                 project_id,
                 session_id,
-            ):
-                await self._clear_manual_compaction_request(
-                    project_id,
-                    session_id,
-                    manual_request,
-                )
-                return
-            compression_id = f"cmp_{uuid4().hex[:16]}"
-            if first_compression_id is None:
-                first_compression_id = compression_id
-            creation = None
-            try:
-                creation = await asyncio.to_thread(
-                    self._compaction_repository.create_task,
-                    project_id,
-                    session_id,
-                    compression_id=compression_id,
-                    source_boundary_message_id=plan.source_boundary_message_id,
-                    snapshot_boundary_message_id=plan.snapshot_boundary_message_id,
-                    source_message_ids=plan.source_message_ids,
-                    newly_covered_message_ids=plan.newly_covered_message_ids,
-                    supersedes_compression_id=(
-                        plan.active_record.get("compression_id")
-                        if plan.active_record is not None
-                        else None
-                    ),
-                    target_provider_id=provider_id,
-                    target_model_id=model_id,
-                    target_reasoning_mode=target.reasoning_mode,
-                    target_settings=target.session_settings,
-                    mode=mode,
-                    trigger=trigger,
-                    configuration_fingerprint=fingerprint,
-                    attempt_index=attempt_index,
-                    retry_of=(
-                        first_compression_id
-                        if attempt_index > 0
-                        else None
-                    ),
-                )
-                if attempt_index == 0:
-                    await self._insert_compaction_status(
-                        project_id,
-                        session_id,
-                        after_message_id=plan.snapshot_boundary_message_id,
-                        content=(
-                            "正在执行记忆压缩。"
-                            if is_blocking
-                            else "正在异步执行记忆压缩。"
-                        ),
-                    )
-                await asyncio.to_thread(
-                    self._compaction_repository.mark_task_running,
-                    project_id,
-                    creation.session.session_id,
-                )
-                request = ChatCompletionRequest(
-                    provider_id=provider_id,
-                    model_id=model_id,
-                    project_id=project_id,
-                    session_id=creation.session.session_id,
-                    messages=(
-                        ChatMessage(
-                            role=ChatMessageRole.USER,
-                            content=task_prompt,
-                        ),
-                    ),
-                    generation=target.generation,
-                    record_usage=True,
-                    usage_message_id=(
-                        f"system:memory_compression:{compression_id}"
-                    ),
-                    usage_feature_key="memory_compression",
-                    max_tool_calls=creation.session.settings.max_tool_calls,
-                )
-                await self._functional_conversation_runner(request)
-                task = await asyncio.to_thread(
-                    self._compaction_repository.read_task,
-                    project_id,
-                    creation.session.session_id,
-                )
-                if task is not None and task.get("status") == "completed":
-                    await self._append_compaction_status(
-                        project_id,
-                        session_id,
-                        content=(
-                            "已完成记忆压缩。"
-                            if is_blocking
-                            else "已完成异步记忆压缩。"
-                        ),
-                        status="done",
-                    )
-                    await self._clear_manual_compaction_request(
-                        project_id,
-                        session_id,
-                        manual_request,
-                    )
-                    return
+                manual_request,
+            )
+            return
+        compression_id = f"cmp_{uuid4().hex[:16]}"
+        creation = None
+        try:
+            creation = await asyncio.to_thread(
+                self._compaction_repository.create_task,
+                project_id,
+                session_id,
+                compression_id=compression_id,
+                source_boundary_message_id=plan.source_boundary_message_id,
+                snapshot_boundary_message_id=plan.snapshot_boundary_message_id,
+                source_message_ids=plan.source_message_ids,
+                newly_covered_message_ids=plan.newly_covered_message_ids,
+                supersedes_compression_id=(
+                    plan.active_record.get("compression_id")
+                    if plan.active_record is not None
+                    else None
+                ),
+                target_provider_id=provider_id,
+                target_model_id=model_id,
+                target_reasoning_mode=target.reasoning_mode,
+                target_settings=target.session_settings,
+                mode=mode,
+                trigger=trigger,
+                configuration_fingerprint=fingerprint,
+            )
+            await self._insert_compaction_status(
+                project_id,
+                session_id,
+                after_message_id=plan.snapshot_boundary_message_id,
+                content=(
+                    "正在执行记忆压缩。"
+                    if is_blocking
+                    else "正在异步执行记忆压缩。"
+                ),
+            )
+            await asyncio.to_thread(
+                self._compaction_repository.mark_task_running,
+                project_id,
+                creation.session.session_id,
+            )
+            request = ChatCompletionRequest(
+                provider_id=provider_id,
+                model_id=model_id,
+                project_id=project_id,
+                session_id=creation.session.session_id,
+                messages=(ChatMessage(role=ChatMessageRole.USER, content=task_prompt),),
+                generation=target.generation,
+                record_usage=True,
+                usage_message_id=f"system:memory_compression:{compression_id}",
+                usage_feature_key="memory_compression",
+                max_tool_calls=creation.session.settings.max_tool_calls,
+                upstream_retry_count=creation.session.settings.upstream_retry_count,
+            )
+            await self._functional_conversation_runner(request)
+            task = await asyncio.to_thread(
+                self._compaction_repository.read_task,
+                project_id,
+                creation.session.session_id,
+            )
+            if task is None or task.get("status") != "completed":
                 raise MissingCompactionSubmissionError(
                     "压缩会话结束时没有提交压缩结果。"
                 )
-            except asyncio.CancelledError:
-                if creation is not None:
-                    await asyncio.to_thread(
-                        self._compaction_repository.mark_task_failed,
-                        project_id,
-                        creation.session.session_id,
-                        stage="cancelled",
-                        reason="CancelledError",
-                        message="记忆压缩任务已取消。",
-                    )
-                    await self._append_compaction_status(
-                        project_id,
-                        session_id,
-                        content=(
-                            "记忆压缩已取消。"
-                            if is_blocking
-                            else "异步记忆压缩已取消。"
-                        ),
-                        status="error",
-                    )
-                raise
-            except ConflictError as exc:
-                if creation is None:
-                    return
+            await self._append_compaction_status(
+                project_id,
+                session_id,
+                content=("已完成记忆压缩。" if is_blocking else "已完成异步记忆压缩。"),
+                status="done",
+            )
+        except asyncio.CancelledError:
+            if creation is not None:
+                await asyncio.to_thread(
+                    self._compaction_repository.mark_task_failed,
+                    project_id,
+                    creation.session.session_id,
+                    stage="cancelled",
+                    reason="CancelledError",
+                    message="记忆压缩任务已取消。",
+                )
+                await self._append_compaction_status(
+                    project_id,
+                    session_id,
+                    content=("记忆压缩已取消。" if is_blocking else "异步记忆压缩已取消。"),
+                    status="error",
+                )
+            raise
+        except ConflictError as exc:
+            if creation is not None:
                 await asyncio.to_thread(
                     self._compaction_repository.mark_task_failed,
                     project_id,
@@ -682,86 +633,28 @@ class ProjectConversationMemoryService:
                     reason=type(exc).__name__,
                     message=str(exc),
                 )
-                await self._append_compaction_status(
+        except Exception as exc:
+            if creation is not None:
+                await asyncio.to_thread(
+                    self._compaction_repository.mark_task_failed,
                     project_id,
-                    session_id,
-                    content=(
-                        "记忆压缩失败。"
-                        if is_blocking
-                        else "异步记忆压缩失败。"
-                    ),
-                    status="error",
+                    creation.session.session_id,
+                    stage="conversation_run",
+                    reason=type(exc).__name__,
+                    message=str(exc),
                 )
-                await self._clear_manual_compaction_request(
-                    project_id,
-                    session_id,
-                    manual_request,
-                )
-                return
-            except Exception as exc:
-                if creation is not None:
-                    await asyncio.to_thread(
-                        self._compaction_repository.mark_task_failed,
-                        project_id,
-                        creation.session.session_id,
-                        stage="conversation_run",
-                        reason=type(exc).__name__,
-                        message=str(exc),
-                    )
-                allowed_retries = (
-                    min(retry_count, 1)
-                    if isinstance(exc, MissingCompactionSubmissionError)
-                    else retry_count
-                )
-                if (
-                    isinstance(exc, FunctionalConversationRunError)
-                    and exc.code
-                    and exc.code not in TRANSIENT_FUNCTION_ERROR_CODES
-                ):
-                    await self._append_compaction_status(
-                        project_id,
-                        session_id,
-                        content=(
-                            "记忆压缩失败。"
-                            if is_blocking
-                            else "异步记忆压缩失败。"
-                        ),
-                        status="error",
-                    )
-                    await self._clear_manual_compaction_request(
-                        project_id,
-                        session_id,
-                        manual_request,
-                    )
-                    return
-                if attempt_index >= allowed_retries:
-                    await self._append_compaction_status(
-                        project_id,
-                        session_id,
-                        content=(
-                            "记忆压缩失败。"
-                            if is_blocking
-                            else "异步记忆压缩失败。"
-                        ),
-                        status="error",
-                    )
-                    await self._clear_manual_compaction_request(
-                        project_id,
-                        session_id,
-                        manual_request,
-                    )
-                    return
-                await self._append_compaction_status(
-                    project_id,
-                    session_id,
-                    content=(
-                        "记忆压缩失败，正在重试。"
-                        if is_blocking
-                        else "异步记忆压缩失败，正在重试。"
-                    ),
-                    status="running",
-                )
-                await asyncio.sleep(min(2 ** attempt_index, 4))
+            await self._append_compaction_status(
+                project_id,
+                session_id,
+                content=("记忆压缩失败。" if is_blocking else "异步记忆压缩失败。"),
+                status="error",
+            )
+        finally:
+            await self._clear_manual_compaction_request(
+                project_id,
+                session_id,
+                manual_request,
+            )
 
     async def _memory_compression_is_enabled(
         self,
@@ -960,7 +853,6 @@ def _configuration_failure_record(
 def _configuration_fingerprint(
     *,
     settings: dict[str, Any],
-    failure_retry_count: int,
     mode: str,
     provider_id: str | None,
     model_id: str | None,
@@ -968,7 +860,6 @@ def _configuration_fingerprint(
 ) -> str:
     payload = {
         "generation": settings.get("generation"),
-        "failure_retry_count": failure_retry_count,
         "mode": mode,
         "model_id": model_id,
         "prompt": prompt,

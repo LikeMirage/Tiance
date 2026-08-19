@@ -1,5 +1,10 @@
 import type { ChatClientToolRequestEvent } from "../../../entities/llm-chat/model/chatCompletion";
 import {
+  claimClientToolRequest,
+  type ClientToolClaimLease,
+} from "../../../services/llm/claimClientToolRequest";
+import { renewClientToolClaim } from "../../../services/llm/renewClientToolClaim";
+import {
   submitClientToolResult,
   type ClientToolResultAck,
 } from "../../../services/llm/submitClientToolResult";
@@ -7,49 +12,75 @@ import type {
   ClientToolExecutionResult,
   ClientToolExecutor,
 } from "./clientToolBridge";
-import { claimClientToolRequest } from "../../../services/llm/claimClientToolRequest";
+import {
+  clientToolExecutionStore,
+  getClientToolExecutorId,
+  type ClientToolExecutionStore,
+} from "./clientToolExecutionSession";
 
 const MAX_COMPLETED_RESULTS = 2_048;
+
+type ClientToolOwnership = {
+  executorId: string;
+  claimId: string;
+  leaseDurationSeconds: number;
+};
 
 type ClientToolResultSubmitter = (
   requestId: string,
   result: ClientToolExecutionResult,
+  ownership: ClientToolOwnership,
 ) => Promise<ClientToolResultAck>;
+
+type SingleFlightExecution = {
+  ownership: ClientToolOwnership;
+  result: ClientToolExecutionResult;
+};
 
 type SingleFlightEntry = {
   abortController: AbortController;
   deliveryState: "retryable" | "accepted" | "closed";
   executionSettled: boolean;
-  resultPromise: Promise<ClientToolExecutionResult | null>;
+  resultPromise: Promise<SingleFlightExecution | null>;
   submitPromise: Promise<void> | null;
 };
 
 type ClientToolRequestSingleFlightOptions = {
   maxCompletedResults?: number;
+  executorId?: string;
+  executionStore?: ClientToolExecutionStore;
   submitResult?: ClientToolResultSubmitter;
-  claimRequest?: (requestId: string) => Promise<boolean>;
+  claimRequest?: (requestId: string, executorId: string) => Promise<ClientToolClaimLease>;
+  renewClaim?: (requestId: string, ownership: ClientToolOwnership) => Promise<boolean>;
 };
 
 /**
  * Coordinates client-tool execution and result delivery by server request id.
  *
- * Execution is single-flight and its result is retained in a bounded LRU. Result
- * delivery is independently single-flight: a transient submission failure may be
- * retried by a later SSE replay without ever executing the tool again.
+ * The backend owns request truth. This coordinator persists only enough local
+ * execution evidence to finish result delivery after a frontend reload. An
+ * interrupted side effect is never repeated automatically when its outcome is
+ * unknown.
  */
 export class ClientToolRequestSingleFlight {
   private readonly entries = new Map<string, SingleFlightEntry>();
   private readonly maxCompletedResults: number;
+  private readonly executorId: string;
+  private readonly executionStore: ClientToolExecutionStore;
   private readonly submitResult: ClientToolResultSubmitter;
-  private readonly claimRequest: (requestId: string) => Promise<boolean>;
+  private readonly claimRequest: NonNullable<ClientToolRequestSingleFlightOptions["claimRequest"]>;
+  private readonly renewClaim: NonNullable<ClientToolRequestSingleFlightOptions["renewClaim"]>;
 
   constructor(options: ClientToolRequestSingleFlightOptions = {}) {
     this.maxCompletedResults = normalizePositiveInteger(
       options.maxCompletedResults,
       MAX_COMPLETED_RESULTS,
     );
+    this.executorId = options.executorId ?? getClientToolExecutorId();
+    this.executionStore = options.executionStore ?? clientToolExecutionStore;
     this.submitResult = options.submitResult ?? submitClientToolResult;
     this.claimRequest = options.claimRequest ?? claimClientToolRequest;
+    this.renewClaim = options.renewClaim ?? renewClientToolClaim;
   }
 
   run(
@@ -91,11 +122,40 @@ export class ClientToolRequestSingleFlight {
     executor: ClientToolExecutor,
   ): SingleFlightEntry {
     const abortController = new AbortController();
-    const resultPromise = this.claimRequest(requestId).then((acquired) => {
-      if (!acquired) {
+    const resultPromise = this.claimRequest(requestId, this.executorId).then(async (lease) => {
+      const ownership = normalizeOwnership(lease, this.executorId);
+      if (!ownership) {
+        this.executionStore.remove(requestId);
         return null;
       }
-      return executeClientToolSafely(request, executor, abortController.signal);
+
+      const stored = this.executionStore.read(requestId);
+      if (stored?.state === "completed") {
+        return { ownership, result: stored.result };
+      }
+      if (stored?.state === "executing" || lease.resumed) {
+        const result = interruptedClientToolResult();
+        this.executionStore.write(requestId, { state: "completed", result });
+        return { ownership, result };
+      }
+
+      this.executionStore.write(requestId, { state: "executing" });
+      const stopHeartbeat = this.startLeaseHeartbeat(
+        requestId,
+        ownership,
+        abortController,
+      );
+      try {
+        const result = await executeClientToolSafely(
+          request,
+          executor,
+          abortController.signal,
+        );
+        this.executionStore.write(requestId, { state: "completed", result });
+        return { ownership, result };
+      } finally {
+        stopHeartbeat();
+      }
     });
     const entry: SingleFlightEntry = {
       abortController,
@@ -115,16 +175,34 @@ export class ClientToolRequestSingleFlight {
     return entry;
   }
 
+  private startLeaseHeartbeat(
+    requestId: string,
+    ownership: ClientToolOwnership,
+    abortController: AbortController,
+  ): () => void {
+    const intervalMs = Math.max(1_000, Math.floor(ownership.leaseDurationSeconds * 1_000 / 3));
+    const timer = globalThis.setInterval(() => {
+      void this.renewClaim(requestId, ownership).then((renewed) => {
+        if (!renewed) abortController.abort();
+      }).catch(() => {
+        // A transient network error does not prove ownership was lost. The
+        // backend lease remains the authority and a later renewal may succeed.
+      });
+    }, intervalMs);
+    return () => globalThis.clearInterval(timer);
+  }
+
   private startSubmit(
     requestId: string,
     entry: SingleFlightEntry,
   ): Promise<void> {
     const submission = entry.resultPromise
-      .then((result) => result === null
+      .then((execution) => execution === null
         ? null
-        : this.submitResult(requestId, result))
+        : this.submitResult(requestId, execution.result, execution.ownership))
       .then((ack) => {
         entry.deliveryState = ack?.accepted ? "accepted" : "closed";
+        if (ack) this.executionStore.remove(requestId);
       });
     const trackedSubmission = submission.then(
       () => {
@@ -219,6 +297,36 @@ function cancelledClientToolResult(): ClientToolExecutionResult {
   return {
     ok: false,
     error: "调用会话已停止等待；已开始的动作不会被伪装成已回滚。",
+  };
+}
+
+function interruptedClientToolResult(): ClientToolExecutionResult {
+  return {
+    ok: false,
+    content: {
+      error_code: "CLIENT_TOOL_EXECUTION_INTERRUPTED",
+      message: "前端执行环境在结果确认前发生重载，无法确认动作是否完成。",
+    },
+    error: "前端执行环境在结果确认前发生重载；为避免重复副作用，本次动作未自动重试。",
+  };
+}
+
+function normalizeOwnership(
+  lease: ClientToolClaimLease,
+  executorId: string,
+): ClientToolOwnership | null {
+  if (
+    !lease.acquired
+    || !lease.claim_id
+    || typeof lease.lease_duration_seconds !== "number"
+    || lease.lease_duration_seconds <= 0
+  ) {
+    return null;
+  }
+  return {
+    executorId,
+    claimId: lease.claim_id,
+    leaseDurationSeconds: lease.lease_duration_seconds,
   };
 }
 

@@ -142,6 +142,10 @@ class ChatCompletionRequest:
     usage_feature_key: str = "main_chat"
     reasoning_replay_mode: ReasoningReplayMode = ReasoningReplayMode.TOOL_CALL_ROUNDS
     inject_message_timestamps: bool = False
+    malformed_tool_call_recovery_enabled: bool = True
+    upstream_retry_count: int = 1
+    upstream_attempt_index: int = 1
+    upstream_attempt_count: int = 1
     max_tool_calls: int = 99999
     client_capabilities: tuple[ChatClientCapability, ...] = ()
 
@@ -181,6 +185,7 @@ class ChatStreamEventKind(StrEnum):
     PROTOCOL_CONTINUATION = "protocol_continuation"
     DONE = "done"
     ERROR = "error"
+    RETRY_RESET = "retry_reset"
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,3 +200,5 @@ class ChatStreamEvent:
     client_tool_request: ChatClientToolRequest | None = None
     tool_result: ChatToolResult | None = None
     protocol_continuation: ChatProtocolContinuation | None = None
+    attempt_index: int | None = None
+    attempt_count: int | None = None

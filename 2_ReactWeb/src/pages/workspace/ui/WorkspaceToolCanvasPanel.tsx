@@ -206,6 +206,23 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     }
     openConversationDataFile(sessionId, fileName);
   }, [expandedToolFolder?.project_id, handleExpandToolProject, openConversationDataFile, projectId]);
+  const handleOpenToolFile = useCallback(async (path: string) => {
+    if (!selectedToolFolder || !path.trim()) {
+      throw new Error("文件路径为空，无法在工具工作区中查看。");
+    }
+    const source = createToolFolderDocumentSource(
+      selectedToolFolder.category_id,
+      selectedToolFolder.project_id,
+      selectedToolFolder.name,
+      selectedToolFolder.project_id,
+    );
+    await documentTabs.openWorkspaceFile({
+      id: `tool:${selectedToolFolder.project_id}:${path}`,
+      kind: "file",
+      name: path.split(/[\\/]/).at(-1) || path,
+      path,
+    }, source, { filePath: path });
+  }, [documentTabs.openWorkspaceFile, selectedToolFolder]);
   const handleSaveTab = useCallback(async (id: string, contentSnapshot?: string) => {
     const tab = documentTabs.tabs.find((item) => item.id === id) ?? null;
     const didSave = await documentTabs.saveTab(id, contentSnapshot);
@@ -275,6 +292,7 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
       onOpenConversationBranches={handleOpenCurrentConversationBranches}
       onOpenConversationOverview={handleOpenCurrentConversationOverview}
       onOpenConversationDataFile={handleOpenConversationDataFile}
+      onOpenProjectFile={handleOpenToolFile}
       onOpenReference={handleOpenReference}
       onPreviewHtmlCode={handlePreviewHtmlCode}
       onReferenceExternalPath={handleReferenceExternalPath}
@@ -307,6 +325,7 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     handleOpenCurrentConversationBranches,
     handleOpenCurrentConversationOverview,
     handleOpenConversationDataFile,
+    handleOpenToolFile,
     handleOpenReference,
     handlePreviewHtmlCode,
     handleReferenceExternalPath,

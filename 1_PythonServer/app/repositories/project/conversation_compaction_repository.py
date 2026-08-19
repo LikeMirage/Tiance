@@ -216,8 +216,6 @@ class ProjectConversationCompactionRepository:
         mode: str,
         trigger: dict[str, Any],
         configuration_fingerprint: str,
-        attempt_index: int,
-        retry_of: str | None,
     ) -> ConversationCompactionTaskCreation:
         conversations_dir = self._session_store.conversations_dir(
             project_id,
@@ -326,8 +324,6 @@ class ProjectConversationCompactionRepository:
                 "provider_id": target_provider_id,
                 "model_id": target_model_id,
                 "configuration_fingerprint": configuration_fingerprint,
-                "attempt_index": attempt_index,
-                "retry_of": retry_of,
                 "status": "pending",
                 "trigger": trigger,
                 "created_at": now,
@@ -351,8 +347,6 @@ class ProjectConversationCompactionRepository:
                 "provider_id": target_provider_id,
                 "model_id": target_model_id,
                 "configuration_fingerprint": configuration_fingerprint,
-                "attempt_index": attempt_index,
-                "retry_of": retry_of,
                 "created_at": now,
                 "completed_at": None,
             }

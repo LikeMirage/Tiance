@@ -199,6 +199,8 @@ class ChatCompletionRequestBody(BaseModel):
     project_id: str | None = None
     session_id: str | None = None
     messages: list[ChatMessageRequest] = Field(default_factory=list)
+    malformed_tool_call_recovery_enabled: bool = True
+    upstream_retry_count: int = Field(default=1, ge=0)
     max_tool_calls: int = Field(default=99999, ge=1)
     tools: list[ChatToolDefinitionRequest] = Field(default_factory=list)
     generation: ChatGenerationParamsRequest | None = None
@@ -212,6 +214,10 @@ class ChatCompletionRequestBody(BaseModel):
             messages=tuple(message.to_domain() for message in self.messages),
             project_id=self.project_id.strip() if self.project_id else None,
             session_id=self.session_id.strip() if self.session_id else None,
+            malformed_tool_call_recovery_enabled=(
+                self.malformed_tool_call_recovery_enabled
+            ),
+            upstream_retry_count=self.upstream_retry_count,
             tools=tuple(tool.to_domain() for tool in self.tools),
             generation=self.generation.to_domain() if self.generation else LlmGenerationParams(),
             output=self.output.to_domain() if self.output else LlmOutputOptions(),

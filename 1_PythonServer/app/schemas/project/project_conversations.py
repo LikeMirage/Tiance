@@ -12,6 +12,7 @@ from app.domain.project.project_conversation import (
     ProjectConversationMessageStatus,
     ProjectConversationSession,
     ProjectConversationSessionState,
+    ProjectConversationRunOutcome,
 )
 from app.domain.project.conversation_branch_overview import (
     ProjectConversationBranchGroup,
@@ -38,6 +39,8 @@ class ProjectConversationSessionSettingsPatch(BaseModel):
     return_user_before_cancelled: bool | None = None
     streaming_enabled: bool | None = None
     auto_collapse_assistant_process: bool | None = None
+    malformed_tool_call_recovery_enabled: bool | None = None
+    upstream_retry_count: int | None = Field(default=None, ge=0)
     inject_message_timestamps: bool | None = None
     system_prompt: str | None = None
     max_output_tokens: int | None = Field(default=None, ge=1)
@@ -108,6 +111,8 @@ class ProjectConversationSessionSettingsResponse(BaseModel):
     return_user_before_cancelled: bool = True
     streaming_enabled: bool = True
     auto_collapse_assistant_process: bool = True
+    malformed_tool_call_recovery_enabled: bool = True
+    upstream_retry_count: int = Field(default=1, ge=0)
     inject_message_timestamps: bool = True
     system_prompt: str = ""
     max_output_tokens: int = 32768
@@ -142,6 +147,10 @@ class ProjectConversationSessionSettingsResponse(BaseModel):
             return_user_before_cancelled=session.settings.return_user_before_cancelled,
             streaming_enabled=session.settings.streaming_enabled,
             auto_collapse_assistant_process=session.settings.auto_collapse_assistant_process,
+            malformed_tool_call_recovery_enabled=(
+                session.settings.malformed_tool_call_recovery_enabled
+            ),
+            upstream_retry_count=session.settings.upstream_retry_count,
             inject_message_timestamps=session.settings.inject_message_timestamps,
             system_prompt=session.settings.system_prompt,
             max_output_tokens=session.settings.max_output_tokens,
@@ -491,6 +500,7 @@ class ProjectConversationMessageListResponse(BaseModel):
     has_more: bool = False
     next_before_message_id: str | None = None
     items: list[ProjectConversationMessageResponse]
+    run_outcomes: list["ProjectConversationRunOutcomeResponse"] = Field(default_factory=list)
 
 
 class ProjectConversationDataViewResponse(BaseModel):
@@ -513,3 +523,23 @@ class ProjectConversationMessageTurnResponse(BaseModel):
     user_message_id: str
     count: int
     items: list[ProjectConversationMessageResponse]
+    run_outcomes: list["ProjectConversationRunOutcomeResponse"] = Field(default_factory=list)
+
+
+class ProjectConversationRunOutcomeResponse(BaseModel):
+    run_id: str
+    session_id: str
+    user_message_id: str
+    status: Literal["running", "done", "error", "cancelled"]
+    error_code: str | None = None
+    error_message: str | None = None
+    attempt_count: int = 0
+    started_at: str
+    settled_at: str | None = None
+
+    @classmethod
+    def from_domain(
+        cls,
+        outcome: ProjectConversationRunOutcome,
+    ) -> "ProjectConversationRunOutcomeResponse":
+        return cls(**{field: getattr(outcome, field) for field in cls.model_fields})

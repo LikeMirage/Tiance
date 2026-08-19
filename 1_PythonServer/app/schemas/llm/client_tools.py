@@ -6,6 +6,8 @@ from app.services.tools.client_tool_bridge import ClientToolResultPayload
 
 
 class ClientToolResultRequestBody(BaseModel):
+    executor_id: str
+    claim_id: str
     ok: bool
     content: Any = None
     error: str | None = None
@@ -24,3 +26,19 @@ class ClientToolResultAck(BaseModel):
 
 class ClientToolClaimAck(BaseModel):
     acquired: bool
+    claim_id: str | None = None
+    lease_duration_seconds: float | None = None
+    resumed: bool = False
+
+
+class ClientToolClaimRequestBody(BaseModel):
+    executor_id: str
+
+
+class ClientToolLeaseRenewRequestBody(BaseModel):
+    executor_id: str
+    claim_id: str
+
+
+class ClientToolLeaseRenewAck(BaseModel):
+    renewed: bool

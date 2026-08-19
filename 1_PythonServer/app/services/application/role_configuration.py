@@ -250,6 +250,10 @@ class RoleConfigurationApplicationService:
                 "auto_collapse_assistant_process": (
                     settings.auto_collapse_assistant_process
                 ),
+                "malformed_tool_call_recovery_enabled": (
+                    settings.malformed_tool_call_recovery_enabled
+                ),
+                "upstream_retry_count": settings.upstream_retry_count,
             },
             "context.json": {
                 "inject_message_timestamps": settings.inject_message_timestamps,
@@ -453,6 +457,7 @@ class RoleConfigurationApplicationService:
                 "return_user_before_cancelled",
                 "streaming_enabled",
                 "auto_collapse_assistant_process",
+                "malformed_tool_call_recovery_enabled",
             ),
             "context.json": (
                 "inject_message_timestamps",
@@ -473,6 +478,12 @@ class RoleConfigurationApplicationService:
             for field_name in field_names:
                 if isinstance(payload.get(field_name), bool):
                     settings[field_name] = payload[field_name]
+        response = payloads.get("response.json", {})
+        _assign_valid_nonnegative_int(
+            settings,
+            "upstream_retry_count",
+            response.get("upstream_retry_count"),
+        )
 
         memory = payloads["memory.json"]
         _assign_valid_positive_int(

@@ -24,6 +24,7 @@ from app.schemas.project import (
     ProjectConversationMessageListResponse,
     ProjectConversationMessageResponse,
     ProjectConversationMessageTurnResponse,
+    ProjectConversationRunOutcomeResponse,
     ProjectConversationBranchNodeResponse,
     ProjectConversationMessageVariantResponse,
     ProjectConversationSessionResponse,
@@ -553,6 +554,10 @@ def list_project_conversation_messages(
         has_more=page.has_more,
         next_before_message_id=page.next_before_message_id,
         items=items,
+        run_outcomes=[
+            ProjectConversationRunOutcomeResponse.from_domain(outcome)
+            for outcome in page.run_outcomes
+        ],
     )
 
 
@@ -581,4 +586,8 @@ def get_project_conversation_message_turn(
         user_message_id=turn.user_message_id,
         count=len(items),
         items=items,
+        run_outcomes=[
+            ProjectConversationRunOutcomeResponse.from_domain(outcome)
+            for outcome in turn.run_outcomes
+        ],
     )

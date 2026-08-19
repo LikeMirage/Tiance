@@ -1,4 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Response, status
+
+from app.schemas.desktop_local_path import DesktopLocalPathRequest
 
 from app.schemas.desktop_page_zoom import (
     DesktopPageZoomPreferencesResponse,
@@ -12,6 +14,7 @@ from app.services.desktop_page_zoom_preferences import (
     get_desktop_page_zoom_preferences_service,
 )
 from app.services.desktop_window_preferences import get_desktop_window_preferences_service
+from app.services.desktop_local_path import get_desktop_local_path_service
 
 router = APIRouter(prefix="/desktop", tags=["desktop"])
 
@@ -66,3 +69,23 @@ def save_desktop_page_zoom_preferences(
     return DesktopPageZoomPreferencesResponse.from_domain(
         service.save_preferences(zoom_factor=payload.zoom_factor),
     )
+
+
+@router.post(
+    "/local-path/reveal",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Reveal an explicit local path in the system file explorer",
+)
+def reveal_desktop_local_path(payload: DesktopLocalPathRequest) -> Response:
+    get_desktop_local_path_service().reveal(payload.path)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/local-path/open-default",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Open an explicit local path with the system default application",
+)
+def open_desktop_local_path(payload: DesktopLocalPathRequest) -> Response:
+    get_desktop_local_path_service().open_default(payload.path)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

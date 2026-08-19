@@ -74,18 +74,6 @@ export function ProjectConversationDeleteModal({
     return () => controller.abort();
   }, [projectId, sessionId, t, title]);
 
-  const descendantSessionIds = useMemo(
-    () => collectTreeSessionIds(tree).filter(
-      (treeSessionId) => treeSessionId !== sessionId,
-    ),
-    [sessionId, tree],
-  );
-  const selectedDescendantCount = descendantSessionIds.reduce(
-    (count, descendantSessionId) => (
-      count + (selectedSessionIds.has(descendantSessionId) ? 1 : 0)
-    ),
-    0,
-  );
   return (
     <ConfirmModal
       cancelDisabled={busy}
@@ -113,6 +101,7 @@ export function ProjectConversationDeleteModal({
               <DeleteTreeItem
                 key={node.sessionId}
                 busy={busy}
+                defaultExpanded={node.sessionId === sessionId}
                 locked={node.sessionId === sessionId}
                 node={node}
                 selectedSessionIds={selectedSessionIds}
@@ -125,11 +114,6 @@ export function ProjectConversationDeleteModal({
               count: selectedSessionIds.size,
             })}
           </p>
-          {selectedDescendantCount < descendantSessionIds.length ? (
-            <p className="project-conversation-delete-modal__hint">
-              {t("projectOverview.deleteSessionPromotionHint")}
-            </p>
-          ) : null}
         </>
       ) : null}
 
@@ -144,6 +128,7 @@ export function ProjectConversationDeleteModal({
 
 type DeleteTreeItemProps = {
   busy: boolean;
+  defaultExpanded?: boolean;
   locked?: boolean;
   node: DeleteTreeNode;
   selectedSessionIds: Set<string>;
@@ -152,11 +137,14 @@ type DeleteTreeItemProps = {
 
 function DeleteTreeItem({
   busy,
+  defaultExpanded = false,
   locked = false,
   node,
   selectedSessionIds,
   setSelectedSessionIds,
 }: DeleteTreeItemProps) {
+  const { t } = useI18n();
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const subtreeSessionIds = useMemo(() => [
     node.sessionId,
     ...collectTreeSessionIds(node.children),
@@ -168,8 +156,8 @@ function DeleteTreeItem({
     0,
   );
   const checkboxRef = useRef<HTMLInputElement>(null);
-  const checked = locked || selectedCount === subtreeSessionIds.length;
-  const indeterminate = !locked && selectedCount > 0 && !checked;
+  const checked = selectedCount === subtreeSessionIds.length;
+  const indeterminate = selectedCount > 0 && !checked;
 
   useEffect(() => {
     if (checkboxRef.current) checkboxRef.current.indeterminate = indeterminate;
@@ -177,26 +165,44 @@ function DeleteTreeItem({
 
   return (
     <div className="project-conversation-delete-modal__tree-node">
-      <label>
-        <input
-          ref={checkboxRef}
-          checked={checked}
-          disabled={busy || locked}
-          type="checkbox"
-          onChange={() => {
-            setSelectedSessionIds((current) => {
-              const next = new Set(current);
-              subtreeSessionIds.forEach((subtreeSessionId) => {
-                if (checked) next.delete(subtreeSessionId);
-                else next.add(subtreeSessionId);
-              });
-              return next;
-            });
-          }}
-        />
-        <span>{node.title}</span>
-      </label>
-      {node.children.length > 0 ? (
+      <div className="project-conversation-delete-modal__tree-row">
+        {node.children.length > 0 ? (
+          <button
+            aria-expanded={expanded}
+            aria-label={t(expanded
+              ? "projectOverview.deleteSessionCollapseBranch"
+              : "projectOverview.deleteSessionExpandBranch")}
+            className="project-conversation-delete-modal__tree-toggle"
+            disabled={busy}
+            onClick={() => setExpanded((current) => !current)}
+            type="button"
+          >
+            <span aria-hidden="true" />
+          </button>
+        ) : (
+          <span
+            aria-hidden="true"
+            className="project-conversation-delete-modal__tree-toggle-spacer"
+          />
+        )}
+        <label>
+          <input
+            ref={checkboxRef}
+            checked={checked}
+            disabled={busy}
+            type="checkbox"
+            onChange={() => {
+              setSelectedSessionIds((current) => toggleDeleteTreeSelection(
+                current,
+                subtreeSessionIds,
+                locked ? node.sessionId : undefined,
+              ));
+            }}
+          />
+          <span>{node.title}</span>
+        </label>
+      </div>
+      {expanded && node.children.length > 0 ? (
         <div className="project-conversation-delete-modal__tree-children">
           {node.children.map((child) => (
             <DeleteTreeItem
@@ -211,6 +217,24 @@ function DeleteTreeItem({
       ) : null}
     </div>
   );
+}
+
+export function toggleDeleteTreeSelection(
+  current: ReadonlySet<string>,
+  subtreeSessionIds: readonly string[],
+  lockedSessionId?: string,
+) {
+  const next = new Set(current);
+  const fullySelected = subtreeSessionIds.every((subtreeSessionId) => (
+    current.has(subtreeSessionId)
+  ));
+
+  subtreeSessionIds.forEach((subtreeSessionId) => {
+    if (fullySelected) next.delete(subtreeSessionId);
+    else next.add(subtreeSessionId);
+  });
+  if (lockedSessionId) next.add(lockedSessionId);
+  return next;
 }
 
 function buildDeleteTree(

@@ -75,6 +75,10 @@ class ConversationStreamContextBuilder:
         return replace(
             request,
             inject_message_timestamps=session.settings.inject_message_timestamps,
+            malformed_tool_call_recovery_enabled=(
+                session.settings.malformed_tool_call_recovery_enabled
+            ),
+            upstream_retry_count=session.settings.upstream_retry_count,
             cache_affinity_id=self._conversation_service.get_cache_affinity_id(
                 request.project_id,
                 request.session_id,

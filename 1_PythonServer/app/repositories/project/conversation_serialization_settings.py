@@ -41,6 +41,15 @@ def _session_settings_from_payload(payload: object) -> ProjectConversationSessio
             payload.get("auto_collapse_assistant_process"),
             default_value=True,
         ),
+        malformed_tool_call_recovery_enabled=_optional_bool(
+            payload.get("malformed_tool_call_recovery_enabled"),
+            default_value=True,
+        ),
+        upstream_retry_count=_optional_int_in_range(
+            payload.get("upstream_retry_count"),
+            default_value=1,
+            minimum=0,
+        ),
         inject_message_timestamps=_optional_bool(
             payload.get("inject_message_timestamps"),
             default_value=True,
@@ -130,6 +139,19 @@ def _merge_session_settings(
             payload.get("auto_collapse_assistant_process"),
             default_value=current.auto_collapse_assistant_process,
         ),
+        malformed_tool_call_recovery_enabled=_optional_bool(
+            payload.get("malformed_tool_call_recovery_enabled"),
+            default_value=current.malformed_tool_call_recovery_enabled,
+        ),
+        upstream_retry_count=(
+            _optional_int_in_range(
+                payload.get("upstream_retry_count"),
+                default_value=current.upstream_retry_count,
+                minimum=0,
+            )
+            if "upstream_retry_count" in payload
+            else current.upstream_retry_count
+        ),
         inject_message_timestamps=_optional_bool(
             payload.get("inject_message_timestamps"),
             default_value=current.inject_message_timestamps,
@@ -196,6 +218,10 @@ def _session_settings_to_payload(settings: ProjectConversationSessionSettings) -
         "return_user_before_cancelled": settings.return_user_before_cancelled,
         "streaming_enabled": settings.streaming_enabled,
         "auto_collapse_assistant_process": settings.auto_collapse_assistant_process,
+        "malformed_tool_call_recovery_enabled": (
+            settings.malformed_tool_call_recovery_enabled
+        ),
+        "upstream_retry_count": settings.upstream_retry_count,
         "inject_message_timestamps": settings.inject_message_timestamps,
         "system_prompt": settings.system_prompt,
         "max_output_tokens": settings.max_output_tokens,

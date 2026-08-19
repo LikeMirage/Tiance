@@ -23,6 +23,10 @@ export function buildConversationRunRequest(input: {
     project_id: input.projectId,
     session_id: input.sessionId,
     messages: input.messages,
+    malformed_tool_call_recovery_enabled: (
+      input.settings.malformed_tool_call_recovery_enabled
+    ),
+    upstream_retry_count: input.settings.upstream_retry_count,
     max_tool_calls: input.settings.max_tool_calls,
     client_capabilities: [...input.clientCapabilities],
     generation: buildGenerationParams(input.settings, input.reasoningMode),

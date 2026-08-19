@@ -28,6 +28,16 @@ class ChatHttpExchangeRecorder(Protocol):
     ) -> None:
         ...
 
+    def record_attempt_outcome(
+        self,
+        request: ChatCompletionRequest,
+        *,
+        status: str,
+        error_code: str | None,
+        error_message: str | None,
+    ) -> None:
+        ...
+
 
 def exchange_to_payload(exchange: ChatHttpExchange) -> dict[str, Any]:
     try:

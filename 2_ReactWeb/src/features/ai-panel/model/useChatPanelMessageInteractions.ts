@@ -4,6 +4,8 @@ import type { EditorReferenceViewerPayload } from "../../../entities/editor/mode
 import type { CodeBlockSavePayload } from "../../markdown-preview/model/codeBlockFile";
 import type { ChatMessage } from "./chatMessage";
 import type { ChatMessageItemInteractions } from "../ui/chatMessageItemTypes";
+import type { LocalFileReference } from "../../../entities/local-file/model/localFileReference";
+import type { MarkdownLocalFileActions } from "../../markdown-preview/ui/MarkdownLocalFileLink";
 
 type UseChatPanelMessageInteractionsOptions = {
   activeSessionId: string | null;
@@ -12,6 +14,8 @@ type UseChatPanelMessageInteractionsOptions = {
   onOpenReference?: (payload: EditorReferenceViewerPayload) => void;
   onPreviewHtmlCode?: (html: string) => void;
   onSaveCodeBlock?: (payload: CodeBlockSavePayload) => Promise<string>;
+  localFileActions: MarkdownLocalFileActions;
+  resolveLocalFileReference: (href: string) => LocalFileReference | null;
   pauseThinkingAutoScroll: (messageId: string) => void;
   projectId: string | null;
   setThinkingContentRef: (messageId: string, node: HTMLDivElement | null) => void;
@@ -32,6 +36,8 @@ export function useChatPanelMessageInteractions({
   onOpenReference,
   onPreviewHtmlCode,
   onSaveCodeBlock,
+  localFileActions,
+  resolveLocalFileReference,
   pauseThinkingAutoScroll,
   projectId,
   setThinkingContentRef,
@@ -77,6 +83,8 @@ export function useChatPanelMessageInteractions({
     onOpenReference,
     onPreviewHtmlCode,
     onSaveCodeBlock: saveCodeBlock,
+    localFileActions,
+    resolveLocalFileReference,
     onThinkingContentScroll: handleThinkingContentScroll,
     onThinkingContentWheel: handleThinkingContentWheel,
     onToggleThinking: toggleThinking,
@@ -92,6 +100,8 @@ export function useChatPanelMessageInteractions({
     pauseThinkingAutoScroll,
     projectId,
     saveCodeBlock,
+    localFileActions,
+    resolveLocalFileReference,
     setThinkingContentRef,
     toggleThinking,
     toggleUserMessageExpanded,

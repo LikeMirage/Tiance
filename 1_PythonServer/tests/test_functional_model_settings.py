@@ -163,10 +163,8 @@ def test_memory_compression_defaults_use_single_prompt_and_high_reasoning():
     assert defaults["generation"]["maxOutputTokens"] == DEFAULT_FUNCTIONAL_MAX_OUTPUT_TOKENS
     assert defaults["generation"]["reasoning"]["mode"] == "high"
     assert defaults["blockingEnabled"] is False
-    assert defaults["failureRetryCount"] == 0
     assert set(defaults) == {
         "blockingEnabled",
-        "failureRetryCount",
         "generation",
         "modelKey",
         "modelSource",
@@ -210,7 +208,6 @@ def test_memory_management_defaults_are_scoped(
     assert defaults["modelSource"] == "session"
     assert defaults["triggerTokenThreshold"] == threshold
     assert defaults["blockingEnabled"] is False
-    assert defaults["failureRetryCount"] == 0
     assert defaults["output"]["format"] == "text"
     assert "必须且只能调用 manage_memory 工具" in defaults["prompt"]
     assert "使用 operation=list 读取全部当前有效" in defaults["prompt"]

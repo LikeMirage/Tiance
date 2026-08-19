@@ -73,6 +73,8 @@ class ConversationAuditService:
                     metadata={
                         "provider_id": request.provider_id,
                         "model_id": request.model_id,
+                        "attempt_index": request.upstream_attempt_index,
+                        "attempt_count": request.upstream_attempt_count,
                     },
                     payload_blob=compressed_content,
                     compression="gzip",
@@ -95,9 +97,32 @@ class ConversationAuditService:
                         "model_id": request.model_id,
                         "status": exchange.response_status,
                         "response_bytes": len(exchange.response_body),
+                        "attempt_index": request.upstream_attempt_index,
+                        "attempt_count": request.upstream_attempt_count,
                     },
                     artifact_id=artifact_id,
                 )
+
+    def record_attempt_outcome(
+        self,
+        request: ChatCompletionRequest,
+        *,
+        status: str,
+        error_code: str | None,
+        error_message: str | None,
+    ) -> None:
+        self.record_event(
+            request,
+            event_type=f"model.request_attempt.{status}",
+            payload={
+                "provider_id": request.provider_id,
+                "model_id": request.model_id,
+                "attempt_index": request.upstream_attempt_index,
+                "attempt_count": request.upstream_attempt_count,
+                "error_code": error_code,
+                "error_message": error_message,
+            },
+        )
 
     def record_event(
         self,

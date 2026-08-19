@@ -238,9 +238,16 @@ def test_reconnect_replays_client_tool_request_while_result_is_pending():
         reconnected_listener = manager.stream(reconnected)
         assert await reconnected_listener.__anext__() == first_event
 
+        lease = await bridge.claim_request(
+            client_request.request_id,
+            executor_id="frontend-1",
+        )
+        assert lease.acquired is True
         assert await bridge.submit_result(
             client_request.request_id,
             ClientToolResultPayload(ok=True, content={"opened": True}),
+            executor_id="frontend-1",
+            claim_id=lease.claim_id or "",
         ) is True
         assert await bridge.wait_for_result(
             client_request.request_id,
@@ -269,7 +276,16 @@ def test_reconnect_skips_submitted_client_tool_request_but_receives_later_events
         await original_listener.aclose()
 
         submitted_result = ClientToolResultPayload(ok=True, content={"opened": True})
-        assert await bridge.submit_result(client_request.request_id, submitted_result) is True
+        lease = await bridge.claim_request(
+            client_request.request_id,
+            executor_id="frontend-1",
+        )
+        assert await bridge.submit_result(
+            client_request.request_id,
+            submitted_result,
+            executor_id="frontend-1",
+            claim_id=lease.claim_id or "",
+        ) is True
         reconnected = await manager.subscribe("project-1", "session-1")
         reconnected_listener = manager.stream(reconnected)
         assert await bridge.wait_for_result(
@@ -310,10 +326,19 @@ def test_concurrent_client_tool_result_submissions_accept_exactly_once():
             timeout_seconds=30,
         )
         submitted_result = ClientToolResultPayload(ok=True, content={"opened": True})
+        lease = await bridge.claim_request(
+            client_request.request_id,
+            executor_id="frontend-1",
+        )
 
         accepted = await asyncio.gather(
             *(
-                bridge.submit_result(client_request.request_id, submitted_result)
+                bridge.submit_result(
+                    client_request.request_id,
+                    submitted_result,
+                    executor_id="frontend-1",
+                    claim_id=lease.claim_id or "",
+                )
                 for _ in range(20)
             )
         )
@@ -366,12 +391,140 @@ def test_concurrent_client_tool_claims_acquire_exactly_once():
             timeout_seconds=30,
         )
 
-        acquired = await asyncio.gather(
-            *(bridge.claim_request(client_request.request_id) for _ in range(20))
+        leases = await asyncio.gather(
+            *(
+                bridge.claim_request(
+                    client_request.request_id,
+                    executor_id=f"frontend-{index}",
+                )
+                for index in range(20)
+            )
         )
 
-        assert acquired.count(True) == 1
-        assert acquired.count(False) == 19
+        assert sum(lease.acquired for lease in leases) == 1
+        owner_index = next(index for index, lease in enumerate(leases) if lease.acquired)
+        resumed = await bridge.claim_request(
+            client_request.request_id,
+            executor_id=f"frontend-{owner_index}",
+        )
+        assert resumed.acquired is True
+        assert resumed.resumed is True
+        assert resumed.claim_id == leases[owner_index].claim_id
+
+    asyncio.run(run_test())
+
+
+def test_abandoned_client_tool_claim_settles_as_explicit_failure():
+    async def run_test():
+        bridge = ClientToolBridgeService(lease_duration_seconds=0.02)
+        client_request = await bridge.create_request(
+            ChatToolCall(call_id="call-1", name="open_editor", arguments="{}"),
+            project_id="project-1",
+            session_id="session-1",
+            timeout_seconds=30,
+        )
+        lease = await bridge.claim_request(
+            client_request.request_id,
+            executor_id="frontend-1",
+        )
+        assert lease.acquired is True
+
+        result = await bridge.wait_for_result(
+            client_request.request_id,
+            timeout_seconds=1,
+        )
+
+        assert result.ok is False
+        assert result.content["error_code"] == "CLIENT_TOOL_EXECUTOR_LOST"
+        assert "执行租约" in (result.error or "")
+
+    asyncio.run(run_test())
+
+
+def test_unclaimed_client_tool_request_settles_without_waiting_for_tool_timeout():
+    async def run_test():
+        bridge = ClientToolBridgeService(lease_duration_seconds=0.02)
+        client_request = await bridge.create_request(
+            ChatToolCall(call_id="call-1", name="open_editor", arguments="{}"),
+            project_id="project-1",
+            session_id="session-1",
+            timeout_seconds=30,
+        )
+
+        result = await bridge.wait_for_result(
+            client_request.request_id,
+            timeout_seconds=1,
+        )
+
+        assert result.ok is False
+        assert result.content["error_code"] == "CLIENT_TOOL_EXECUTOR_LOST"
+        assert "执行租约" in (result.error or "")
+
+    asyncio.run(run_test())
+
+
+def test_client_tool_lease_renewal_keeps_request_active_for_its_owner():
+    async def run_test():
+        bridge = ClientToolBridgeService(lease_duration_seconds=0.04)
+        client_request = await bridge.create_request(
+            ChatToolCall(call_id="call-1", name="open_editor", arguments="{}"),
+            project_id="project-1",
+            session_id="session-1",
+            timeout_seconds=30,
+        )
+        lease = await bridge.claim_request(
+            client_request.request_id,
+            executor_id="frontend-1",
+        )
+        await asyncio.sleep(0.025)
+        assert await bridge.renew_claim(
+            client_request.request_id,
+            executor_id="frontend-1",
+            claim_id=lease.claim_id or "",
+        ) is True
+        await asyncio.sleep(0.025)
+        assert await bridge.submit_result(
+            client_request.request_id,
+            ClientToolResultPayload(ok=True, content={"opened": True}),
+            executor_id="frontend-1",
+            claim_id=lease.claim_id or "",
+        ) is True
+
+        result = await bridge.wait_for_result(
+            client_request.request_id,
+            timeout_seconds=1,
+        )
+        assert result.ok is True
+
+    asyncio.run(run_test())
+
+
+def test_client_tool_result_rejects_non_owner_credentials():
+    async def run_test():
+        bridge = ClientToolBridgeService()
+        client_request = await bridge.create_request(
+            ChatToolCall(call_id="call-1", name="open_editor", arguments="{}"),
+            project_id="project-1",
+            session_id="session-1",
+            timeout_seconds=30,
+        )
+        lease = await bridge.claim_request(
+            client_request.request_id,
+            executor_id="frontend-1",
+        )
+
+        assert await bridge.submit_result(
+            client_request.request_id,
+            ClientToolResultPayload(ok=True),
+            executor_id="frontend-2",
+            claim_id=lease.claim_id or "",
+        ) is False
+        assert await bridge.submit_result(
+            client_request.request_id,
+            ClientToolResultPayload(ok=True),
+            executor_id="frontend-1",
+            claim_id="wrong-claim",
+        ) is False
 
     asyncio.run(run_test())
 

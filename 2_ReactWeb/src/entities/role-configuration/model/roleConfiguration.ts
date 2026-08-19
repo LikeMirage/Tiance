@@ -36,6 +36,8 @@ export type RoleResponseConfiguration = {
   return_user_before_cancelled: boolean;
   streaming_enabled: boolean;
   auto_collapse_assistant_process: boolean;
+  malformed_tool_call_recovery_enabled: boolean;
+  upstream_retry_count: number;
 };
 
 export type RoleContextConfiguration = {
@@ -158,6 +160,12 @@ function parseSectionPayload<Section extends RoleConfigurationSection>(
         return_user_before_cancelled: booleanValue(payload.return_user_before_cancelled),
         streaming_enabled: booleanValue(payload.streaming_enabled),
         auto_collapse_assistant_process: booleanValue(payload.auto_collapse_assistant_process),
+        malformed_tool_call_recovery_enabled: booleanValue(
+          payload.malformed_tool_call_recovery_enabled,
+        ),
+        upstream_retry_count: typeof payload.upstream_retry_count === "number"
+          ? integerValue(payload.upstream_retry_count, 0)
+          : 1,
       } as RoleConfigurationSectionValueMap[Section];
     case "context":
       return {

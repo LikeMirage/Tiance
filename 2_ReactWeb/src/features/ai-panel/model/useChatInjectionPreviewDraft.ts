@@ -78,6 +78,9 @@ export function useChatInjectionPreviewDraft({
       project_id: projectId,
       session_id: activeSessionId,
       messages: requestMessages,
+      malformed_tool_call_recovery_enabled: (
+        activeSessionSettings.malformed_tool_call_recovery_enabled
+      ),
       max_tool_calls: activeSessionSettings.max_tool_calls,
       generation: buildGenerationParams(activeSessionSettings, activeReasoningMode),
     }, { signal: controller.signal }).then(() => {

@@ -5,16 +5,19 @@
   "profileId": "generic",
   "protocolFamily": "openai_compatible",
   "generationAuthSchemes": {
-    "openai_compatible": "bearer_token"
+    "openai_compatible": "bearer_token",
+    "openai_responses": "bearer_token",
+    "anthropic_messages": "x_api_key"
   },
   "modelDiscoveryStrategy": "openai_models",
   "modelDiscoveryAuthScheme": "bearer_token",
   "generationUrls": {
-    "openai_compatible": "https://opencode.ai/zen/go/v1/chat/completions"
+    "openai_compatible": "https://opencode.ai/zen/go/v1/chat/completions",
+    "openai_responses": "https://opencode.ai/zen/go/v1/responses"
   },
   "modelDiscoveryUrl": "https://opencode.ai/zen/go/v1/models",
   "enabled": true,
   "reasoningReplayMode": "tool_call_rounds",
   "createdAt": "2026-08-12T01:39:44.798345+00:00",
-  "updatedAt": "2026-08-18T01:12:46.363509+00:00"
+  "updatedAt": "2026-08-19T11:22:58.879881+00:00"
 }

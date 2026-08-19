@@ -27,6 +27,7 @@ from app.domain.llm.chat import (
 from app.domain.llm.provider_catalog import ProviderProtocolFamily
 from app.domain.project.project_conversation import (
     ProjectConversationMessage,
+    ProjectConversationRunOutcome,
     ProjectConversationSession,
     ProjectConversationSessionSettings,
 )
@@ -35,6 +36,9 @@ from app.services.project.conversation_background_tasks import (
     ConversationBackgroundTaskRegistry,
 )
 from app.services.project.conversation_tool_loop import _normalize_tool_call_limit
+from app.services.project.conversation_tool_call_recovery import (
+    prepare_tool_calls_for_replay,
+)
 from app.services.tools.client_tool_bridge import ClientToolResultPayload
 from app.services.tools.tool_execution import PreparedClientToolExecution
 
@@ -76,7 +80,7 @@ def test_stream_close_persists_partial_assistant_without_rebinding_session_model
         (
             "",
             ["conversation_run_started", "conversation_run_settled"],
-            "msg-2",
+            None,
         ),
     ],
 )
@@ -108,12 +112,7 @@ def test_stream_task_cancellation_emits_settled_marker_with_or_without_partial_c
         assert payloads[1]["content"] == partial_content
         assert conversation_service.appended[-1]["status"] == "cancelled"
     else:
-        assert [item["role"] for item in conversation_service.appended] == [
-            "user",
-            "assistant",
-        ]
-        assert conversation_service.appended[-1]["content"] == ""
-        assert conversation_service.appended[-1]["status"] == "cancelled"
+        assert [item["role"] for item in conversation_service.appended] == ["user"]
     assert len(conversation_service.ai_run_records) == 1
     assert conversation_service.ai_run_records[0]["user_message"].message_id == "msg-1"
     assert conversation_service.ai_run_records[0]["elapsed_ms"] >= 0
@@ -203,7 +202,7 @@ def test_empty_successful_response_persists_error_and_emits_one_error_terminal()
         {
             "kind": "conversation_run_settled",
             "user_message_id": "msg-1",
-            "assistant_message_id": "msg-2",
+            "assistant_message_id": None,
             "status": "error",
         },
         {
@@ -212,12 +211,8 @@ def test_empty_successful_response_persists_error_and_emits_one_error_terminal()
             "error_code": "empty_model_response",
         },
     ]
-    assert [item["role"] for item in conversation_service.appended] == [
-        "user",
-        "error",
-    ]
-    assert conversation_service.appended[-1]["status"] == "error"
-    assert conversation_service.appended[-1]["content"] == "模型未返回可持久化的回复内容。"
+    assert [item["role"] for item in conversation_service.appended] == ["user"]
+    assert next(iter(conversation_service.runs.values())).status == "error"
     assert conversation_service.runtime_statuses[-1] == (
         "project-1",
         "session-1",
@@ -999,14 +994,13 @@ def test_task_cancellation_during_tool_execution_settles_persisted_tool_round():
     assert payloads[-1] == {
         "kind": "conversation_run_settled",
         "user_message_id": "msg-1",
-        "assistant_message_id": "msg-4",
+        "assistant_message_id": None,
         "status": "cancelled",
     }
     assert [item["role"] for item in conversation_service.appended] == [
         "user",
         "assistant",
         "tool",
-        "assistant",
     ]
     assert conversation_service.appended[1]["tool_calls"][0].call_id == "call-1"
     cancelled_tool_payload = json.loads(conversation_service.appended[2]["content"])
@@ -1014,7 +1008,6 @@ def test_task_cancellation_during_tool_execution_settles_persisted_tool_round():
     assert cancelled_result["outcome"] == "cancelled"
     assert cancelled_result["cancel_scope"] == "execution"
     assert conversation_service.appended[2]["status"] == "cancelled"
-    assert conversation_service.appended[3]["status"] == "cancelled"
     assert conversation_service.cancelled_messages == []
 
 
@@ -1046,7 +1039,6 @@ def test_task_cancellation_during_client_tool_wait_preserves_wait_scope():
         "user",
         "assistant",
         "tool",
-        "assistant",
     ]
     cancelled_tool_payload = json.loads(conversation_service.appended[2]["content"])
     cancelled_result = json.loads(cancelled_tool_payload["result"])
@@ -1111,17 +1103,14 @@ def test_task_cancellation_after_tool_results_appends_one_empty_terminal_message
     assert payloads[-1] == {
         "kind": "conversation_run_settled",
         "user_message_id": "msg-1",
-        "assistant_message_id": "msg-4",
+        "assistant_message_id": None,
         "status": "cancelled",
     }
     assert [item["role"] for item in conversation_service.appended] == [
         "user",
         "assistant",
         "tool",
-        "assistant",
     ]
-    assert conversation_service.appended[-1]["content"] == ""
-    assert conversation_service.appended[-1]["status"] == "cancelled"
     assert conversation_service.cancelled_messages == []
 
 
@@ -1153,12 +1142,11 @@ def test_multiround_tool_cancellation_keeps_each_completed_model_round_usage():
 
     assert payloads[-1]["status"] == "cancelled"
     assert conversation_service.cancelled_messages == []
-    assert [item["role"] for item in conversation_service.appended[-3:]] == [
+    assert [item["role"] for item in conversation_service.appended[-2:]] == [
         "assistant",
         "tool",
-        "assistant",
     ]
-    cancelled_tool_payload = json.loads(conversation_service.appended[-2]["content"])
+    cancelled_tool_payload = json.loads(conversation_service.appended[-1]["content"])
     cancelled_result = json.loads(cancelled_tool_payload["result"])
     assert cancelled_result["cancel_scope"] == "execution"
     assert conversation_service.appended[-1]["status"] == "cancelled"
@@ -1397,11 +1385,12 @@ def test_stream_keeps_completed_round_usage_when_later_model_round_connection_fa
         prompt_cache_miss_tokens=20,
         reasoning_tokens=5,
     )
-    error_message = conversation_service.appended[-1]
     assert payloads[-1]["kind"] == "error"
-    assert error_message["role"] == "error"
-    assert error_message["usage"] is None
-    assert error_message["context_tokens"] is None
+    assert [item["role"] for item in conversation_service.appended] == [
+        "user",
+        "assistant",
+        "tool",
+    ]
     assert usage_service.records == [
         {
             "project_id": "project-1",
@@ -1413,6 +1402,27 @@ def test_stream_keeps_completed_round_usage_when_later_model_round_connection_fa
             "usage_feature_key": "main_chat",
         }
     ]
+
+
+def test_stream_run_attempt_count_is_scoped_to_the_final_model_round():
+    conversation_service = _FakeConversationService()
+    service = ProjectConversationStreamService(
+        _RetriedToolRoundThenSuccessfulFinalRoundChatService(),
+        conversation_service,
+        _FakeUsageService(),
+        _FakeNamingService(),
+        _FakeMemoryService(),
+        tool_execution_service=_FakeToolExecutionService(),
+        project_service=_FakeProjectService(),
+    )
+    request = replace(_request(), tools=(_tool_definition("read_text_file"),))
+
+    payloads = asyncio.run(_collect_payloads(service, request=request))
+
+    assert payloads[-1]["kind"] == "done"
+    run = next(iter(conversation_service.runs.values()))
+    assert run.status == "done"
+    assert run.attempt_count == 1
 
 
 def test_stream_preserves_usage_when_provider_emits_error_event():
@@ -1428,15 +1438,13 @@ def test_stream_preserves_usage_when_provider_emits_error_event():
 
     payloads = asyncio.run(_collect_payloads(service))
 
-    error_message = conversation_service.appended[-1]
     assert payloads[-1] == {
         "kind": "error",
         "error": "provider failed",
         "error_code": "upstream_response_failed",
     }
-    assert error_message["role"] == "error"
-    assert error_message["usage"]["total_tokens"] == 18
-    assert usage_service.records[0]["usage"].total_tokens == 18
+    assert [item["role"] for item in conversation_service.appended] == ["user"]
+    assert next(iter(conversation_service.runs.values())).error_message == "provider failed"
 
 
 def test_provider_error_usage_record_failure_keeps_original_terminal_events_and_one_error():
@@ -1460,7 +1468,7 @@ def test_provider_error_usage_record_failure_keeps_original_terminal_events_and_
     assert payloads[-2] == {
         "kind": "conversation_run_settled",
         "user_message_id": "msg-1",
-        "assistant_message_id": "msg-2",
+        "assistant_message_id": None,
         "status": "error",
     }
     assert payloads[-1] == {
@@ -1468,11 +1476,7 @@ def test_provider_error_usage_record_failure_keeps_original_terminal_events_and_
         "error": "provider failed",
         "error_code": "upstream_response_failed",
     }
-    assert [item["role"] for item in conversation_service.appended] == [
-        "user",
-        "error",
-    ]
-    assert conversation_service.appended[-1]["content"] == "provider failed"
+    assert [item["role"] for item in conversation_service.appended] == ["user"]
     assert conversation_service.runtime_statuses[-1] == (
         "project-1",
         "session-1",
@@ -1673,6 +1677,106 @@ def test_stream_stops_when_configured_tool_call_limit_is_exceeded():
 
 def test_tool_call_limit_above_old_cap_is_preserved():
     assert _normalize_tool_call_limit(400) == 400
+
+
+@pytest.mark.parametrize("arguments", ('["value"]', '"value"', "null"))
+def test_non_object_tool_arguments_are_also_rejected(arguments: str):
+    tool_call = ChatToolCall(
+        call_id="invalid-shape",
+        name="read_text_file",
+        arguments=arguments,
+    )
+
+    prepared = prepare_tool_calls_for_replay((tool_call,))
+
+    assert prepared.replay_calls[0].arguments == "{}"
+    assert prepared.executable_calls == ()
+    assert prepared.invalid_results[0][1].arguments == arguments
+
+
+def test_malformed_tool_call_is_not_executed_and_is_replayed_as_empty_object():
+    conversation_service = _FakeConversationService()
+    chat_service = _MalformedThenCorrectingToolCallChatService()
+    tool_execution_service = _RejectingToolExecutionService()
+    service = ProjectConversationStreamService(
+        chat_service,
+        conversation_service,
+        _FakeUsageService(),
+        _FakeNamingService(),
+        _FakeMemoryService(),
+        tool_execution_service=tool_execution_service,
+        project_service=_FakeProjectService(),
+    )
+    request = replace(
+        _request(),
+        tools=(
+            ChatToolDefinition(
+                name="read_text_file",
+                description="读取本地纯文本文件。",
+                parameters={"type": "object", "properties": {}},
+            ),
+        ),
+    )
+
+    payloads = asyncio.run(_collect_payloads(service, request=request))
+
+    assert tool_execution_service.calls == []
+    assert len(chat_service.requests) == 2
+    replay_messages = chat_service.requests[1].messages
+    assistant_tool_message = next(
+        message for message in replay_messages if message.role == ChatMessageRole.ASSISTANT
+    )
+    assert assistant_tool_message.tool_calls[0].arguments == "{}"
+    tool_message = next(
+        message for message in replay_messages if message.role == ChatMessageRole.TOOL
+    )
+    tool_payload = json.loads(tool_message.content)
+    assert tool_payload == {
+        "ok": False,
+        "error_code": "INVALID_TOOL_ARGUMENTS",
+        "message": "本次工具指令参数不是合法 JSON，请检查并重新输出完整工具调用。",
+        "received_arguments": '{"file_path":',
+    }
+    assert any(payload["kind"] == "delta" for payload in payloads)
+
+
+def test_disabled_malformed_tool_call_recovery_stops_after_structured_failure():
+    settings = ProjectConversationSessionSettings(
+        malformed_tool_call_recovery_enabled=False,
+    )
+    conversation_service = _FakeConversationService(settings=settings)
+    chat_service = _MalformedThenCorrectingToolCallChatService()
+    tool_execution_service = _RejectingToolExecutionService()
+    service = ProjectConversationStreamService(
+        chat_service,
+        conversation_service,
+        _FakeUsageService(),
+        _FakeNamingService(),
+        _FakeMemoryService(),
+        tool_execution_service=tool_execution_service,
+        project_service=_FakeProjectService(),
+    )
+    request = replace(
+        _request(),
+        malformed_tool_call_recovery_enabled=False,
+        tools=(
+            ChatToolDefinition(
+                name="read_text_file",
+                description="读取本地纯文本文件。",
+                parameters={"type": "object", "properties": {}},
+            ),
+        ),
+    )
+
+    payloads = asyncio.run(_collect_payloads(service, request=request))
+
+    assert tool_execution_service.calls == []
+    assert len(chat_service.requests) == 1
+    assert any(
+        payload["kind"] == "tool_result"
+        and payload["tool_result"]["ok"] is False
+        for payload in payloads
+    )
 
 
 async def _close_after_first_content_payload(service: ProjectConversationStreamService):
@@ -2261,6 +2365,32 @@ class _UsageThenConnectionFailureToolLoopChatService:
         )
 
 
+class _RetriedToolRoundThenSuccessfulFinalRoundChatService:
+    def __init__(self) -> None:
+        self.requests: list[ChatCompletionRequest] = []
+
+    async def stream(self, request):
+        self.requests.append(request)
+        if len(self.requests) == 1:
+            yield ChatStreamEvent(
+                kind=ChatStreamEventKind.RETRY_RESET,
+                attempt_index=2,
+                attempt_count=2,
+            )
+            yield ChatStreamEvent(
+                kind=ChatStreamEventKind.TOOL_CALL,
+                tool_call=ChatToolCall(
+                    call_id="call-1",
+                    name="read_text_file",
+                    arguments='{"file_path":"C:/work/app.py"}',
+                ),
+            )
+            yield ChatStreamEvent(kind=ChatStreamEventKind.DONE, finish_reason="tool_calls")
+            return
+        yield ChatStreamEvent(kind=ChatStreamEventKind.DELTA, content="final answer")
+        yield ChatStreamEvent(kind=ChatStreamEventKind.DONE, finish_reason="stop")
+
+
 class _UsageThenErrorChatService:
     async def stream(self, _request):
         yield ChatStreamEvent(
@@ -2321,6 +2451,27 @@ class _RepeatingToolCallingChatService:
         yield ChatStreamEvent(kind=ChatStreamEventKind.DONE, finish_reason="tool_calls")
 
 
+class _MalformedThenCorrectingToolCallChatService:
+    def __init__(self) -> None:
+        self.requests: list[ChatCompletionRequest] = []
+
+    async def stream(self, request):
+        self.requests.append(request)
+        if len(self.requests) == 1:
+            yield ChatStreamEvent(
+                kind=ChatStreamEventKind.TOOL_CALL,
+                tool_call=ChatToolCall(
+                    call_id="call-invalid",
+                    name="read_text_file",
+                    arguments='{"file_path":',
+                ),
+            )
+            yield ChatStreamEvent(kind=ChatStreamEventKind.DONE, finish_reason="tool_calls")
+            return
+        yield ChatStreamEvent(kind=ChatStreamEventKind.DELTA, content="已重新检查工具参数。")
+        yield ChatStreamEvent(kind=ChatStreamEventKind.DONE, finish_reason="stop")
+
+
 class _FakeConversationService:
     def __init__(
         self,
@@ -2332,7 +2483,9 @@ class _FakeConversationService:
         self.cancelled_messages = []
         self.ai_run_records = []
         self.runtime_statuses = []
+        self.model_exchanges = []
         self.messages = messages
+        self.runs: dict[str, ProjectConversationRunOutcome] = {}
         self.session = ProjectConversationSession(
             session_id="session-1",
             sequence_number=1,
@@ -2446,6 +2599,61 @@ class _FakeConversationService:
 
     def write_injection_preview(self, project_id, session_id, payload):
         self.injection_preview = (project_id, session_id, payload)
+
+    def append_model_exchange(self, _project_id, _session_id, payload):
+        self.model_exchanges.append(payload)
+
+    def begin_run(
+        self,
+        _project_id,
+        session_id,
+        *,
+        run_id,
+        user_message_id,
+        started_at,
+    ):
+        self.runs.setdefault(
+            run_id,
+            ProjectConversationRunOutcome(
+                run_id=run_id,
+                session_id=session_id,
+                user_message_id=user_message_id,
+                status="running",
+                error_code=None,
+                error_message=None,
+                attempt_count=0,
+                started_at=started_at,
+                settled_at=None,
+            ),
+        )
+
+    def get_run(self, _project_id, _session_id, run_id):
+        return self.runs.get(run_id)
+
+    def settle_run(
+        self,
+        _project_id,
+        _session_id,
+        *,
+        run_id,
+        status,
+        error_code,
+        error_message,
+        attempt_count,
+        settled_at,
+    ):
+        current = self.runs.get(run_id)
+        if current is None or current.status != "running":
+            return False
+        self.runs[run_id] = replace(
+            current,
+            status=status,
+            error_code=error_code,
+            error_message=error_message,
+            attempt_count=attempt_count,
+            settled_at=settled_at,
+        )
+        return True
 
 
 class _StatefulFakeConversationService(_FakeConversationService):
@@ -2741,6 +2949,15 @@ class _FakeToolExecutionService:
             content='{"ok":true,"content":"hello"}',
             tool_project_id="tool_1",
         )
+
+
+class _RejectingToolExecutionService(_FakeToolExecutionService):
+    def __init__(self) -> None:
+        self.calls: list[ChatToolCall] = []
+
+    def execute(self, tool_call, *, context):
+        self.calls.append(tool_call)
+        raise AssertionError("畸形工具调用不得进入工具执行层。")
 
 
 class _ClientToolExecutionService(_FakeToolExecutionService):

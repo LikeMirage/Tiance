@@ -152,6 +152,8 @@ def role_files(version: str = "1.0.0") -> dict[str, dict[str, object]]:
             "return_user_before_cancelled": False,
             "streaming_enabled": True,
             "auto_collapse_assistant_process": True,
+            "malformed_tool_call_recovery_enabled": True,
+            "upstream_retry_count": 1,
         },
         "context.json": {"inject_message_timestamps": True},
         "memory.json": {

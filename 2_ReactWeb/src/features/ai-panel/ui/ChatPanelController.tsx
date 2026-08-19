@@ -38,6 +38,7 @@ import { fromConversationDraftReferences } from "../model/conversationDraftRefer
 import { useChatDraftReferences } from "../model/useChatDraftReferences";
 import { useChatPanelClientToolRegistry } from "../model/useChatPanelClientToolRegistry";
 import { useChatComposerReferences } from "../model/useChatComposerReferences";
+import { useChatLocalFileLinks } from "../model/useChatLocalFileLinks";
 import {
   useActiveSessionLiveReload,
   useActiveSessionMessagesLoader,
@@ -85,6 +86,7 @@ type Props = {
   onOpenConversationBranches?: () => void;
   onOpenConversationOverview?: () => void;
   onOpenReference?: (payload: EditorReferenceViewerPayload) => void;
+  onOpenProjectFile?: (path: string, line: number | null) => Promise<void> | void;
   onPreviewHtmlCode?: (html: string) => void;
   onReferenceProjectFile?: (file: ProjectFileDragData) => void;
   onReferenceExternalPath?: (reference: EditorExternalPathReferenceRequest) => void;
@@ -120,6 +122,7 @@ export function ChatPanelController({
   onOpenConversationBranches,
   onOpenConversationOverview,
   onOpenReference,
+  onOpenProjectFile,
   onPreviewHtmlCode,
   onReferenceExternalPath,
   onReferenceProjectFile,
@@ -137,6 +140,7 @@ export function ChatPanelController({
   sessionSelectionRequest,
 }: Props) {
   const [activeView, setActiveView] = useState<ChatPanelView>("chat");
+  const [localFileActionError, setLocalFileActionError] = useState<string | null>(null);
   const [exportRequest, setExportRequest] = useState<ConversationExportRequest | null>(null);
   const isChatPresentationVisibleRef = useRef(isActive);
   isChatPresentationVisibleRef.current = isActive && activeView === "chat";
@@ -190,6 +194,7 @@ export function ChatPanelController({
     queues: queuedStreamEventSequencesRef,
   }), []);
   const handledSessionSelectionRequestIdRef = useRef<number | null>(null);
+  const stoppingSessionKeysRef = useRef(new Set<string>());
   const {
     abortProjectStreams,
     abortSessionStream,
@@ -526,6 +531,12 @@ export function ChatPanelController({
     reloadSessionMessages,
     sessions,
   });
+  const localFileLinks = useChatLocalFileLinks({
+    onError: setLocalFileActionError,
+    onOpenProjectFile,
+    projectId,
+    projectRootPath,
+  });
   const {
     expandedUserMessageIds,
     messageInteractions,
@@ -536,6 +547,8 @@ export function ChatPanelController({
     onOpenReference,
     onPreviewHtmlCode,
     onSaveCodeBlock,
+    localFileActions: localFileLinks.actions,
+    resolveLocalFileReference: localFileLinks.resolveReference,
     pauseThinkingAutoScroll,
     projectId,
     setThinkingContentRef,
@@ -679,32 +692,33 @@ export function ChatPanelController({
 
   const stopActiveGeneration = useCallback(() => {
     if (!projectId || !activeSessionId || !activeSessionKey) return;
+    if (stoppingSessionKeysRef.current.has(activeSessionKey)) return;
+    stoppingSessionKeysRef.current.add(activeSessionKey);
     preserveCurrentView();
-    const stopRequest = stopChatCompletionStream(projectId, activeSessionId);
-    let didSettleStop = false;
     abortSessionStream(activeSessionKey);
-    void stopRequest
-      .then(() => {
-        didSettleStop = true;
-        setSessionRuntimeStatus(projectId, activeSessionId, "idle");
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        void reloadSessions(projectId);
-        void reloadSessionMessages(projectId, activeSessionId, {
+    void (async () => {
+      try {
+        await stopChatCompletionStream(projectId, activeSessionId);
+        await reloadSessionMessages(projectId, activeSessionId, {
           forceRefresh: true,
-          preserveLocalIfShorter: !didSettleStop,
-        }).catch(() => undefined);
-      });
+          shouldPreserveLocal: () => isSessionStreaming(activeSessionKey),
+        }).catch(() => false);
+        await reloadSessions(projectId).catch(() => undefined);
+      } catch {
+        await reloadSessions(projectId).catch(() => undefined);
+      } finally {
+        stoppingSessionKeysRef.current.delete(activeSessionKey);
+      }
+    })();
   }, [
     abortSessionStream,
     activeSessionId,
     activeSessionKey,
+    isSessionStreaming,
     projectId,
     preserveCurrentView,
     reloadSessionMessages,
     reloadSessions,
-    setSessionRuntimeStatus,
   ]);
 
   const {
@@ -801,6 +815,12 @@ export function ChatPanelController({
       {branchError ? (
         <div className="ai-panel__inline-error" role="status">
           {branchError}
+        </div>
+      ) : null}
+
+      {localFileActionError ? (
+        <div className="ai-panel__inline-error" role="status">
+          {localFileActionError}
         </div>
       ) : null}
 

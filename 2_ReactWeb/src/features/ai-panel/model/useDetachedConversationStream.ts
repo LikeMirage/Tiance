@@ -8,6 +8,7 @@ import { HttpRequestError } from "../../../services/http/httpClient";
 import type { ClientToolExecutor } from "../../client-tools/model/clientToolBridge";
 import { createChatStreamAccumulator, type UpdateSessionMessages } from "./chatStreamAccumulator";
 import type { ChatMessage } from "./chatMessage";
+import type { SessionStreamingLease } from "./sessionStreamingRegistry";
 import {
   prepareConversationStreamFullReplay,
   prepareConversationStreamResume,
@@ -26,7 +27,7 @@ type UseDetachedConversationStreamOptions = {
   isActive: boolean;
   isSessionMessagesPresented: (projectId: string, sessionId: string) => boolean;
   isThinkingStuckToBottom: (messageId: string) => boolean;
-  markSessionStreaming: (sessionKey: string) => void;
+  markSessionStreaming: (sessionKey: string) => SessionStreamingLease;
   projectId: string | null;
   reloadSessionMessages: (
     projectId: string,
@@ -53,7 +54,7 @@ type UseDetachedConversationStreamOptions = {
     sessionId: string,
     runtimeStatus: ConversationRuntimeStatus,
   ) => void;
-  unmarkSessionStreaming: (sessionKey: string) => void;
+  unmarkSessionStreaming: (sessionKey: string, lease: SessionStreamingLease) => void;
   updateSessionMessages: UpdateSessionMessages;
 };
 
@@ -104,7 +105,7 @@ export function useDetachedConversationStream({
     let shouldRefreshPersistedUsageOnNextToolCall = false;
     let shouldClearEventSequence = false;
     let terminalRuntimeStatus: ConversationRuntimeStatus | null = null;
-    markSessionStreaming(activeSessionKey);
+    const streamingLease = markSessionStreaming(activeSessionKey);
 
     const createAccumulatorForMessage = (
       id: string,
@@ -269,7 +270,7 @@ export function useDetachedConversationStream({
             terminalRuntimeStatus,
           );
         }
-        unmarkSessionStreaming(activeSessionKey);
+        unmarkSessionStreaming(activeSessionKey, streamingLease);
         if (!controller.signal.aborted) {
           void reloadSessionMessages(projectId, activeSessionId, {
             forceRefresh: true,

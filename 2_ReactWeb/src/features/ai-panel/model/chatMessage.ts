@@ -5,7 +5,10 @@ import type {
   ChatToolCallEvent,
   ChatToolResultEvent,
 } from "../../../entities/llm-chat/model/chatCompletion";
-import type { ConversationMessage } from "../../../entities/llm-chat/model/conversation";
+import type {
+  ConversationMessage,
+  ConversationRunOutcome,
+} from "../../../entities/llm-chat/model/conversation";
 
 export type ChatToolProcessStatus =
   | "preparing"
@@ -80,10 +83,14 @@ export type ChatMessage = {
   originMessageId?: string;
   variantGroupId?: string | null;
   variantIndex?: number;
+  runOutcome?: ConversationRunOutcome;
 };
 
-export function mapConversationMessages(messages: ConversationMessage[]): ChatMessage[] {
-  return messages.map((message) => ({
+export function mapConversationMessages(
+  messages: ConversationMessage[],
+  runOutcomes: ConversationRunOutcome[] = [],
+): ChatMessage[] {
+  const mappedMessages = messages.map((message) => ({
     id: message.message_id,
     role: mapConversationMessageRole(message.role),
     content: message.content,
@@ -112,6 +119,28 @@ export function mapConversationMessages(messages: ConversationMessage[]): ChatMe
     variantGroupId: message.variant_group_id ?? null,
     variantIndex: Math.max(1, message.variant_index ?? 1),
   }));
+  const mappedOutcomes: ChatMessage[] = runOutcomes.map((outcome) => ({
+    id: `run-outcome:${outcome.run_id}`,
+    role: "error",
+    content: outcome.error_message,
+    thinkingContent: "",
+    status: "error",
+    usage: null,
+    isThinkingExpanded: false,
+    thinkingStartedAt: null,
+    thinkingFinishedAt: null,
+    createdAt: parseMessageTimestamp(outcome.settled_at),
+    updatedAt: parseMessageTimestamp(outcome.settled_at),
+    originMessageId: `run-outcome:${outcome.run_id}`,
+    runOutcome: outcome,
+  }));
+  return [...mappedMessages, ...mappedOutcomes]
+    .map((message, stableIndex) => ({ message, stableIndex }))
+    .sort((left, right) => {
+      const timeDifference = (left.message.createdAt ?? 0) - (right.message.createdAt ?? 0);
+      return timeDifference || left.stableIndex - right.stableIndex;
+    })
+    .map(({ message }) => message);
 }
 
 export function getLastMessageContextTokens(messages: ChatMessage[]) {

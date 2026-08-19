@@ -55,6 +55,8 @@ export type ChatCompletionRequest = {
   project_id?: string | null;
   session_id?: string | null;
   messages: ChatCompletionMessageInput[];
+  malformed_tool_call_recovery_enabled?: boolean;
+  upstream_retry_count?: number;
   max_tool_calls?: number;
   client_capabilities?: ChatClientCapability[];
   generation?: {
@@ -138,6 +140,13 @@ export type ChatCompletionResponse = {
 
 export type ChatStreamEvent = (
   | { kind: "conversation_resume_reset" }
+  | {
+    kind: "retry_reset";
+    error?: string | null;
+    error_code?: string | null;
+    attempt_index?: number | null;
+    attempt_count?: number | null;
+  }
   | { kind: "conversation_run_started"; user_message_id: string }
   | {
     kind: "conversation_run_settled";
@@ -198,4 +207,6 @@ export type ChatStreamEvent = (
   }
 ) & {
   run_sequence?: number;
+  attempt_index?: number | null;
+  attempt_count?: number | null;
 };

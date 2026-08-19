@@ -15,6 +15,8 @@ export type ConversationSessionSettings = {
   return_user_before_cancelled: boolean;
   streaming_enabled: boolean;
   auto_collapse_assistant_process: boolean;
+  malformed_tool_call_recovery_enabled: boolean;
+  upstream_retry_count: number;
   inject_message_timestamps: boolean;
   system_prompt: string;
   max_output_tokens: number;
@@ -152,6 +154,7 @@ export type ConversationMessageListResponse = {
   has_more: boolean;
   next_before_message_id: string | null;
   items: ConversationMessage[];
+  run_outcomes: ConversationRunOutcome[];
 };
 
 export type ConversationMessageTurnResponse = {
@@ -160,6 +163,19 @@ export type ConversationMessageTurnResponse = {
   user_message_id: string;
   count: number;
   items: ConversationMessage[];
+  run_outcomes: ConversationRunOutcome[];
+};
+
+export type ConversationRunOutcome = {
+  run_id: string;
+  session_id: string;
+  user_message_id: string;
+  status: "error";
+  error_code: string | null;
+  error_message: string;
+  attempt_count: number;
+  started_at: string;
+  settled_at: string;
 };
 
 export type ConversationBranchGroup = {

@@ -665,8 +665,6 @@
       },
       "memoryCompression": {
         "prompt": "压缩与长期记忆",
-        "failureRetryCount": "失败重试次数",
-        "failureRetryDescription": "首次失败后的额外尝试次数。网络与超时错误按短暂退避重试；输出格式错误最多重试一次；0 表示不自动重试，最大 10 次。",
         "cacheHitOptimizationMode": "缓存命中优化模式",
         "cacheHitOptimizationDescription": "复用触发本次压缩的真实会话模型和原请求前缀，只在末尾追加记忆压缩任务，尽量提高供应商上下文缓存的命中机会，降低重复输入成本。",
         "cacheHitOptimizationSettingsNote": "模型和推理设置跟随触发压缩的那次真实请求；温度、Top P 和最大输出长度仍使用本页设置。",
@@ -680,8 +678,6 @@
         "globalTriggerTokenDescription": "自上次成功管理后，新增的完整合法消息组累计达到该值时创建全局记忆管理功能会话。默认 100K；工具调用与工具结果不会被拆开。",
         "blockingEnabled": "阻塞管理",
         "blockingDescription": "开启后，达到阈值时等待长期记忆管理完成再继续当前会话；关闭时在后台异步执行。",
-        "failureRetryCount": "失败重试次数",
-        "failureRetryDescription": "首次失败后的额外尝试次数。网络与超时错误按短暂退避重试；缺少有效工具调用时最多重试一次；0 表示不自动重试，最大 10 次。",
         "cacheHitOptimizationMode": "缓存命中优化模式",
         "cacheHitOptimizationDescription": "复用触发任务的真实请求模型、生成设置和完整有效会话前缀，再追加长期记忆管理任务。",
         "cacheHitOptimizationSettingsNote": "模型、推理、温度、Top P 和最大输出长度均跟随触发任务的最近一次真实请求。",

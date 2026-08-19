@@ -30,6 +30,8 @@ class ProjectConversationSessionSettings:
     return_user_before_cancelled: bool = True
     streaming_enabled: bool = True
     auto_collapse_assistant_process: bool = True
+    malformed_tool_call_recovery_enabled: bool = True
+    upstream_retry_count: int = 1
     inject_message_timestamps: bool = True
     system_prompt: str = ""
     max_output_tokens: int = 32768
@@ -128,12 +130,27 @@ class ProjectConversationMessagePage:
     total_count: int
     has_more: bool
     next_before_message_id: str | None
+    run_outcomes: tuple["ProjectConversationRunOutcome", ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
 class ProjectConversationMessageTurn:
     user_message_id: str
     items: tuple[ProjectConversationMessage, ...]
+    run_outcomes: tuple["ProjectConversationRunOutcome", ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectConversationRunOutcome:
+    run_id: str
+    session_id: str
+    user_message_id: str
+    status: Literal["running", "done", "error", "cancelled"]
+    error_code: str | None
+    error_message: str | None
+    attempt_count: int
+    started_at: str
+    settled_at: str | None
 
 
 @dataclass(frozen=True, slots=True)

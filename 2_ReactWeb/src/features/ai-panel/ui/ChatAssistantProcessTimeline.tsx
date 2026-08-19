@@ -361,8 +361,10 @@ function AssistantContentProcessBlock({
         content={content}
         isStreaming={isStreaming}
         mathErrorMode="neutral"
+        localFileActions={interactions.localFileActions}
         onPreviewHtmlCode={interactions.onPreviewHtmlCode}
         onSaveCodeBlock={interactions.onSaveCodeBlock}
+        resolveLocalFileReference={interactions.resolveLocalFileReference}
       />
     </div>
   );
@@ -422,8 +424,10 @@ function ThinkingProcessBlock({
             content={item.content}
             isStreaming={isStreaming}
             mathErrorMode="neutral"
+            localFileActions={interactions.localFileActions}
             onPreviewHtmlCode={interactions.onPreviewHtmlCode}
             onSaveCodeBlock={interactions.onSaveCodeBlock}
+            resolveLocalFileReference={interactions.resolveLocalFileReference}
           />
         </div>
       ) : null}

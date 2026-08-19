@@ -221,6 +221,152 @@ def test_stream_estimates_missing_provider_usage_before_done():
     assert usage_service.records[0]["usage"] == usage
 
 
+def test_stream_retries_same_logical_request_after_incomplete_upstream_attempt():
+    recorder = _FakeExchangeRecorder()
+    remote_client = _SequencedRemoteClient(
+        stream_attempts=(
+            (ChatStreamEvent(kind=ChatStreamEventKind.DELTA, content="partial"),),
+            (
+                ChatStreamEvent(kind=ChatStreamEventKind.DELTA, content="ok"),
+                ChatStreamEvent(kind=ChatStreamEventKind.DONE),
+            ),
+        )
+    )
+    service = _build_service(
+        remote_client=remote_client,
+        usage_service=_FakeUsageService(),
+        http_exchange_recorder=recorder,
+    )
+    request = replace(
+        _request(project_id="p1", session_id="s1"),
+        upstream_retry_count=1,
+    )
+
+    events = asyncio.run(_collect_stream(service, request))
+
+    assert [event.kind for event in events] == [
+        ChatStreamEventKind.DELTA,
+        ChatStreamEventKind.RETRY_RESET,
+        ChatStreamEventKind.DELTA,
+        ChatStreamEventKind.USAGE,
+        ChatStreamEventKind.DONE,
+    ]
+    assert [(item.upstream_attempt_index, item.upstream_attempt_count) for item in remote_client.requests] == [
+        (1, 2),
+        (2, 2),
+    ]
+    assert [item["status"] for item in recorder.attempts] == ["failed", "completed"]
+    assert recorder.attempts[0]["error_code"] == "upstream_stream_incomplete"
+
+
+def test_complete_retries_transport_failure_without_changing_logical_messages():
+    recorder = _FakeExchangeRecorder()
+    result = ChatCompletionResult(
+        provider_id="deepseek",
+        model_id="deepseek-v4",
+        message=ChatMessage(role=ChatMessageRole.ASSISTANT, content="ok"),
+    )
+    remote_client = _SequencedRemoteClient(
+        complete_attempts=(TimeoutError("temporary timeout"), result),
+    )
+    service = _build_service(
+        remote_client=remote_client,
+        usage_service=_FakeUsageService(),
+        http_exchange_recorder=recorder,
+    )
+    request = replace(
+        _request(project_id="p1", session_id="s1"),
+        upstream_retry_count=1,
+    )
+
+    completed = asyncio.run(service.complete(request))
+
+    assert completed.message.content == "ok"
+    assert len(remote_client.requests) == 2
+    assert remote_client.requests[0].messages == remote_client.requests[1].messages
+    assert [item["status"] for item in recorder.attempts] == ["failed", "completed"]
+
+
+def test_complete_retries_empty_upstream_result():
+    recorder = _FakeExchangeRecorder()
+    completed_result = ChatCompletionResult(
+        provider_id="deepseek",
+        model_id="deepseek-v4",
+        message=ChatMessage(role=ChatMessageRole.ASSISTANT, content="ok"),
+    )
+    remote_client = _SequencedRemoteClient(
+        complete_attempts=(None, completed_result),
+    )
+    service = _build_service(
+        remote_client=remote_client,
+        usage_service=_FakeUsageService(),
+        http_exchange_recorder=recorder,
+    )
+    request = replace(
+        _request(project_id="p1", session_id="s1"),
+        upstream_retry_count=1,
+    )
+
+    completed = asyncio.run(service.complete(request))
+
+    assert completed.message.content == "ok"
+    assert len(remote_client.requests) == 2
+    assert [item["status"] for item in recorder.attempts] == ["failed", "completed"]
+    assert recorder.attempts[0]["error_code"] == "RuntimeError"
+
+
+def test_stream_exhausts_retries_before_exposing_incomplete_response_error():
+    recorder = _FakeExchangeRecorder()
+    remote_client = _SequencedRemoteClient(
+        stream_attempts=(
+            (ChatStreamEvent(kind=ChatStreamEventKind.DELTA, content="first partial"),),
+            (ChatStreamEvent(kind=ChatStreamEventKind.DELTA, content="second partial"),),
+        )
+    )
+    service = _build_service(
+        remote_client=remote_client,
+        usage_service=_FakeUsageService(),
+        http_exchange_recorder=recorder,
+    )
+    request = replace(
+        _request(project_id="p1", session_id="s1"),
+        upstream_retry_count=1,
+    )
+
+    events = asyncio.run(_collect_stream(service, request))
+
+    assert [event.kind for event in events] == [
+        ChatStreamEventKind.DELTA,
+        ChatStreamEventKind.RETRY_RESET,
+        ChatStreamEventKind.DELTA,
+        ChatStreamEventKind.ERROR,
+    ]
+    assert events[-1].error_code == "upstream_stream_incomplete"
+    assert [item["status"] for item in recorder.attempts] == ["failed", "failed"]
+
+
+def test_cancelled_upstream_request_is_never_retried():
+    recorder = _FakeExchangeRecorder()
+    remote_client = _SequencedRemoteClient(
+        complete_attempts=(asyncio.CancelledError(),),
+    )
+    service = _build_service(
+        remote_client=remote_client,
+        usage_service=_FakeUsageService(),
+        http_exchange_recorder=recorder,
+    )
+    request = replace(
+        _request(project_id="p1", session_id="s1"),
+        upstream_retry_count=5,
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(service.complete(request))
+
+    assert len(remote_client.requests) == 1
+    assert [item["status"] for item in recorder.attempts] == ["cancelled"]
+
+
 def test_session_usage_summary_groups_same_model_by_feature(tmp_path):
     repository = LlmUsageRepository(tmp_path / "usage")
 
@@ -389,7 +535,7 @@ def test_usage_service_marks_estimated_usage_record():
     assert repository.records[0]["is_estimated"] is True
 
 
-def _build_service(*, remote_client, usage_service):
+def _build_service(*, remote_client, usage_service, http_exchange_recorder=None):
     return ChatCompletionService(
         _FakeCatalogRepository(),
         _FakeConfigRepository(),
@@ -397,6 +543,7 @@ def _build_service(*, remote_client, usage_service):
         _FakeApiKeyScheduler(),
         usage_service,
         _FakeTokenEstimationSettingsService(),
+        http_exchange_recorder,
     )
 
 
@@ -475,6 +622,45 @@ class _FakeRemoteClient:
     async def stream(self, **_kwargs):
         for event in self._stream_events:
             yield event
+
+
+class _SequencedRemoteClient:
+    def __init__(self, *, complete_attempts=(), stream_attempts=()) -> None:
+        self._complete_attempts = list(complete_attempts)
+        self._stream_attempts = list(stream_attempts)
+        self.requests: list[ChatCompletionRequest] = []
+
+    async def complete(self, **kwargs):
+        self.requests.append(kwargs["request"])
+        outcome = self._complete_attempts.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+    async def stream(self, **kwargs):
+        self.requests.append(kwargs["request"])
+        outcome = self._stream_attempts.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        for event in outcome:
+            yield event
+
+
+class _FakeExchangeRecorder:
+    def __init__(self) -> None:
+        self.attempts: list[dict[str, object]] = []
+
+    def record_http_exchange(self, _request, _exchange) -> None:
+        return None
+
+    def record_attempt_outcome(self, request, **outcome) -> None:
+        self.attempts.append(
+            {
+                "attempt_index": request.upstream_attempt_index,
+                "attempt_count": request.upstream_attempt_count,
+                **outcome,
+            }
+        )
 
 
 class _FakeApiKeyScheduler:

@@ -19,6 +19,7 @@ from app.domain.project.project_conversation import (
     ProjectConversationMessageStatus,
     ProjectConversationMessagePage,
     ProjectConversationMessageTurn,
+    ProjectConversationRunOutcome,
     ProjectConversationNamingCallRecord,
     ProjectConversationSession,
     ProjectConversationSessionState,
@@ -54,7 +55,11 @@ from app.repositories.project.conversation_stores import (
 from app.repositories.project.project_repository import ProjectRepository, get_project_repository
 from app.repositories.project.conversation_database import (
     append_journal_event,
+    begin_conversation_run,
     latest_user_message_id,
+    list_conversation_run_outcomes,
+    read_conversation_run,
+    settle_conversation_run,
     write_document,
 )
 
@@ -689,10 +694,17 @@ class ProjectConversationRepository:
         before_message_id: str | None = None,
     ) -> ProjectConversationMessagePage:
         session_dir = self._session_store.require_session_dir(project_id, session_id)
-        return self._message_store.list_messages_page(
+        page = self._message_store.list_messages_page(
             session_dir,
             limit=limit,
             before_message_id=before_message_id,
+        )
+        return replace(
+            page,
+            run_outcomes=self._run_outcomes_for_messages(
+                session_dir,
+                page.items,
+            ),
         )
 
     def get_message_turn(
@@ -702,7 +714,84 @@ class ProjectConversationRepository:
         user_message_id: str,
     ) -> ProjectConversationMessageTurn:
         session_dir = self._session_store.require_session_dir(project_id, session_id)
-        return self._message_store.get_message_turn(session_dir, user_message_id)
+        turn = self._message_store.get_message_turn(session_dir, user_message_id)
+        return replace(
+            turn,
+            run_outcomes=self._run_outcomes_for_messages(session_dir, turn.items),
+        )
+
+    def begin_run(
+        self,
+        project_id: str,
+        session_id: str,
+        *,
+        run_id: str,
+        user_message_id: str,
+        started_at: str,
+    ) -> None:
+        session_dir = self._session_store.require_session_dir(project_id, session_id)
+        begin_conversation_run(
+            session_dir.parent.parent.parent,
+            run_id=run_id,
+            session_id=session_id,
+            user_message_id=user_message_id,
+            started_at=started_at,
+        )
+
+    def settle_run(
+        self,
+        project_id: str,
+        session_id: str,
+        *,
+        run_id: str,
+        status: str,
+        error_code: str | None,
+        error_message: str | None,
+        attempt_count: int,
+        settled_at: str,
+    ) -> bool:
+        session_dir = self._session_store.require_session_dir(project_id, session_id)
+        return settle_conversation_run(
+            session_dir.parent.parent.parent,
+            run_id=run_id,
+            session_id=session_id,
+            status=status,
+            error_code=error_code,
+            error_message=error_message,
+            attempt_count=attempt_count,
+            settled_at=settled_at,
+        )
+
+    def get_run(
+        self,
+        project_id: str,
+        session_id: str,
+        run_id: str,
+    ) -> ProjectConversationRunOutcome | None:
+        session_dir = self._session_store.require_session_dir(project_id, session_id)
+        payload = read_conversation_run(
+            session_dir.parent.parent.parent,
+            run_id,
+            session_id=session_id,
+        )
+        return _run_outcome_from_payload(payload) if payload is not None else None
+
+    @staticmethod
+    def _run_outcomes_for_messages(
+        session_dir: Path,
+        messages: tuple[ProjectConversationMessage, ...],
+    ) -> tuple[ProjectConversationRunOutcome, ...]:
+        user_message_ids = tuple(
+            message.message_id for message in messages if message.role == "user"
+        )
+        return tuple(
+            _run_outcome_from_payload(payload)
+            for payload in list_conversation_run_outcomes(
+                session_dir.parent.parent.parent,
+                session_id=session_dir.name,
+                user_message_ids=user_message_ids,
+            )
+        )
 
     def append_message(
         self,
@@ -1061,6 +1150,20 @@ def _message_creation_times() -> tuple[str, str]:
     return (
         local_now.astimezone(UTC).isoformat(),
         local_now.isoformat(timespec="seconds"),
+    )
+
+
+def _run_outcome_from_payload(payload: dict) -> ProjectConversationRunOutcome:
+    return ProjectConversationRunOutcome(
+        run_id=str(payload["run_id"]),
+        session_id=str(payload["session_id"]),
+        user_message_id=str(payload["user_message_id"]),
+        status=payload["status"],
+        error_code=payload.get("error_code"),
+        error_message=payload.get("error_message"),
+        attempt_count=max(0, int(payload.get("attempt_count") or 0)),
+        started_at=str(payload["started_at"]),
+        settled_at=(str(payload["settled_at"]) if payload.get("settled_at") else None),
     )
 
 

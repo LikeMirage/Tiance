@@ -1,8 +1,4 @@
 import { useI18n } from "../../../shared/i18n";
-import {
-  DEFAULT_MEMORY_COMPRESSION_FAILURE_RETRY_COUNT,
-  MAX_MEMORY_COMPRESSION_FAILURE_RETRY_COUNT,
-} from "../model/functionalModelSettings";
 import { FunctionalModelProfileSettingsForm } from "./FunctionalModelProfileSettingsForm";
 
 export function MemoryCompressionModelSettings() {
@@ -15,17 +11,6 @@ export function MemoryCompressionModelSettings() {
           description: t("functionalModelSettings.memoryCompression.blockingDescription"),
           key: "blockingEnabled",
           label: t("functionalModelSettings.memoryCompression.blockingEnabled"),
-        },
-      ]}
-      additionalNumberFields={[
-        {
-          defaultValue: DEFAULT_MEMORY_COMPRESSION_FAILURE_RETRY_COUNT,
-          description: t("functionalModelSettings.memoryCompression.failureRetryDescription"),
-          key: "failureRetryCount",
-          label: t("functionalModelSettings.memoryCompression.failureRetryCount"),
-          max: MAX_MEMORY_COMPRESSION_FAILURE_RETRY_COUNT,
-          min: 0,
-          step: 1,
         },
       ]}
       hideGenerationControlsForSessionModel

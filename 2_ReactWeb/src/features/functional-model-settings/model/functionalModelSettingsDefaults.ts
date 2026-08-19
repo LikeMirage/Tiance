@@ -14,7 +14,6 @@ export type FunctionalModelNamingSettings = {
 
 export type FunctionalModelMemoryCompressionSettings = {
   blockingEnabled: boolean;
-  failureRetryCount: number;
   generation: DsLlmGenerationParams;
   modelKey: string;
   modelSource: "session" | "dedicated";
@@ -24,7 +23,6 @@ export type FunctionalModelMemoryCompressionSettings = {
 
 export type FunctionalModelMemoryManagementSettings = {
   blockingEnabled: boolean;
-  failureRetryCount: number;
   generation: DsLlmGenerationParams;
   modelKey: string;
   modelSource: "session" | "dedicated";
@@ -62,10 +60,6 @@ export const FUNCTIONAL_MODEL_SETTINGS_VERSION = 25;
 export const DEFAULT_FUNCTIONAL_MAX_OUTPUT_TOKENS = 32768;
 export const DEFAULT_NAMING_MAX_OUTPUT_TOKENS = DEFAULT_FUNCTIONAL_MAX_OUTPUT_TOKENS;
 export const DEFAULT_MEMORY_COMPRESSION_MAX_OUTPUT_TOKENS = DEFAULT_FUNCTIONAL_MAX_OUTPUT_TOKENS;
-export const DEFAULT_MEMORY_COMPRESSION_FAILURE_RETRY_COUNT = 0;
-export const MAX_MEMORY_COMPRESSION_FAILURE_RETRY_COUNT = 10;
-export const DEFAULT_LONG_TERM_MEMORY_FAILURE_RETRY_COUNT = 0;
-export const MAX_LONG_TERM_MEMORY_FAILURE_RETRY_COUNT = 10;
 
 export const DEFAULT_FUNCTIONAL_MODEL_GENERATION: DsLlmGenerationParams = {
   maxOutputTokens: DEFAULT_NAMING_MAX_OUTPUT_TOKENS,
@@ -108,7 +102,6 @@ export const DEFAULT_GLOBAL_MEMORY_MANAGEMENT_PROMPT = "";
 export const DEFAULT_FUNCTIONAL_MODEL_PROFILE_SETTINGS = {
   memoryCompression: {
     blockingEnabled: false,
-    failureRetryCount: DEFAULT_MEMORY_COMPRESSION_FAILURE_RETRY_COUNT,
     generation: createDefaultMemoryCompressionGeneration(),
     modelKey: "",
     modelSource: "session",
@@ -117,7 +110,6 @@ export const DEFAULT_FUNCTIONAL_MODEL_PROFILE_SETTINGS = {
   },
   projectMemoryManagement: {
     blockingEnabled: false,
-    failureRetryCount: DEFAULT_LONG_TERM_MEMORY_FAILURE_RETRY_COUNT,
     generation: createDefaultGeneration(DEFAULT_FUNCTIONAL_MAX_OUTPUT_TOKENS),
     modelKey: "",
     modelSource: "session",
@@ -129,7 +121,6 @@ export const DEFAULT_FUNCTIONAL_MODEL_PROFILE_SETTINGS = {
   },
   globalMemoryManagement: {
     blockingEnabled: false,
-    failureRetryCount: DEFAULT_LONG_TERM_MEMORY_FAILURE_RETRY_COUNT,
     generation: createDefaultGeneration(DEFAULT_FUNCTIONAL_MAX_OUTPUT_TOKENS),
     modelKey: "",
     modelSource: "session",

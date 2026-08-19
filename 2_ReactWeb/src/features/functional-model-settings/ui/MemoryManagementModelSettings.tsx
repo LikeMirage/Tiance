@@ -1,8 +1,4 @@
 import { useI18n } from "../../../shared/i18n";
-import {
-  DEFAULT_LONG_TERM_MEMORY_FAILURE_RETRY_COUNT,
-  MAX_LONG_TERM_MEMORY_FAILURE_RETRY_COUNT,
-} from "../model/functionalModelSettings";
 import { FunctionalModelProfileSettingsForm } from "./FunctionalModelProfileSettingsForm";
 
 type MemoryManagementModelSettingsProps = {
@@ -67,19 +63,6 @@ function MemoryManagementModelSettings({
           ),
           min: 1,
           step: 1000,
-        },
-        {
-          defaultValue: DEFAULT_LONG_TERM_MEMORY_FAILURE_RETRY_COUNT,
-          description: t(
-            "functionalModelSettings.longTermMemoryManagement.failureRetryDescription",
-          ),
-          key: "failureRetryCount",
-          label: t(
-            "functionalModelSettings.longTermMemoryManagement.failureRetryCount",
-          ),
-          max: MAX_LONG_TERM_MEMORY_FAILURE_RETRY_COUNT,
-          min: 0,
-          step: 1,
         },
       ]}
       hideGenerationControlsForSessionModel

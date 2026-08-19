@@ -1,12 +1,13 @@
 import { memo, useLayoutEffect, useMemo, useRef } from "react";
 import type { ReactNode, TdHTMLAttributes, ThHTMLAttributes } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import "katex/dist/katex.min.css";
 
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
+import type { LocalFileReference } from "../../../entities/local-file/model/localFileReference";
 import type { CodeBlockSavePayload } from "../model/codeBlockFile";
 import {
   buildStreamingMarkdownSegments,
@@ -22,6 +23,11 @@ import {
 import { renderMarkdownKatex } from "../model/markdownKatex";
 import { useProgressiveMarkdownSegments } from "../model/useProgressiveMarkdownSegments";
 import { MarkdownCodeBlock } from "./MarkdownCodeBlock";
+import {
+  MarkdownLocalFileLink,
+  type MarkdownLocalFileActions,
+} from "./MarkdownLocalFileLink";
+import { remarkLocalFilePaths } from "../model/remarkLocalFilePaths";
 import "./markdown-preview.css";
 
 export type MarkdownPreviewProps = {
@@ -30,13 +36,22 @@ export type MarkdownPreviewProps = {
   mathErrorMode?: "diagnostic" | "neutral";
   onPreviewHtmlCode?: (html: string) => void;
   onSaveCodeBlock?: (payload: CodeBlockSavePayload) => Promise<string>;
+  localFileActions?: MarkdownLocalFileActions;
   renderStrategy?: "complete" | "progressive";
   resolveAssetUrl?: (src: string | undefined) => string | undefined;
+  resolveLocalFileReference?: (href: string) => LocalFileReference | null;
 };
 
 const MAX_RICH_MARKDOWN_CHARS = 180_000;
 const markdownHtmlSanitizeSchema = {
   ...defaultSchema,
+  protocols: {
+    ...defaultSchema.protocols,
+    href: [
+      ...(defaultSchema.protocols?.href ?? []),
+      "tiance-local-path",
+    ],
+  },
   tagNames: [
     ...(defaultSchema.tagNames ?? []),
     "center",
@@ -79,8 +94,10 @@ export const MarkdownPreview = memo(function MarkdownPreview({
   mathErrorMode = "diagnostic",
   onPreviewHtmlCode,
   onSaveCodeBlock,
+  localFileActions,
   renderStrategy = "complete",
   resolveAssetUrl,
+  resolveLocalFileReference,
 }: MarkdownPreviewProps) {
   const shouldUsePlainLargePreview =
     renderStrategy === "complete" && content.length > MAX_RICH_MARKDOWN_CHARS;
@@ -103,7 +120,9 @@ export const MarkdownPreview = memo(function MarkdownPreview({
         mathErrorMode={mathErrorMode}
         onPreviewHtmlCode={onPreviewHtmlCode}
         onSaveCodeBlock={onSaveCodeBlock}
+        localFileActions={localFileActions}
         resolveAssetUrl={resolveAssetUrl}
+        resolveLocalFileReference={resolveLocalFileReference}
       />
     );
   }
@@ -115,7 +134,9 @@ export const MarkdownPreview = memo(function MarkdownPreview({
         mathErrorMode={mathErrorMode}
         onPreviewHtmlCode={onPreviewHtmlCode}
         onSaveCodeBlock={onSaveCodeBlock}
+        localFileActions={localFileActions}
         resolveAssetUrl={resolveAssetUrl}
+        resolveLocalFileReference={resolveLocalFileReference}
       />
     );
   }
@@ -127,7 +148,9 @@ export const MarkdownPreview = memo(function MarkdownPreview({
         content={content}
         onPreviewHtmlCode={onPreviewHtmlCode}
         onSaveCodeBlock={onSaveCodeBlock}
+        localFileActions={localFileActions}
         resolveAssetUrl={resolveAssetUrl}
+        resolveLocalFileReference={resolveLocalFileReference}
       />
     </div>
   );
@@ -138,7 +161,9 @@ type MarkdownRichContentProps = {
   content: string;
   onPreviewHtmlCode?: (html: string) => void;
   onSaveCodeBlock?: (payload: CodeBlockSavePayload) => Promise<string>;
+  localFileActions?: MarkdownLocalFileActions;
   resolveAssetUrl?: (src: string | undefined) => string | undefined;
+  resolveLocalFileReference?: (href: string) => LocalFileReference | null;
   tableFragment?: "continuation" | "first";
 };
 
@@ -147,7 +172,9 @@ const MarkdownRichContent = memo(function MarkdownRichContent({
   content,
   onPreviewHtmlCode,
   onSaveCodeBlock,
+  localFileActions,
   resolveAssetUrl,
+  resolveLocalFileReference,
   tableFragment,
 }: MarkdownRichContentProps) {
   const renderContent = useMemo(
@@ -155,9 +182,16 @@ const MarkdownRichContent = memo(function MarkdownRichContent({
     [content],
   );
   const markdownComponents = useMemo(() => ({
-    a: ({ href, children }: { href?: string; children?: ReactNode }) => (
-      <a href={href} target="_blank" rel="noreferrer">{children}</a>
-    ),
+    a: ({ href, children }: { href?: string; children?: ReactNode }) => {
+      const localReference = href ? resolveLocalFileReference?.(href) : null;
+      return localReference && localFileActions ? (
+        <MarkdownLocalFileLink actions={localFileActions} reference={localReference}>
+          {children}
+        </MarkdownLocalFileLink>
+      ) : (
+        <a href={href} target="_blank" rel="noreferrer">{children}</a>
+      );
+    },
     img: ({
       alt,
       height,
@@ -208,19 +242,24 @@ const MarkdownRichContent = memo(function MarkdownRichContent({
     codeBlocksAreStreaming,
     onPreviewHtmlCode,
     onSaveCodeBlock,
+    localFileActions,
     resolveAssetUrl,
+    resolveLocalFileReference,
     tableFragment,
   ]);
 
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, ...markdownMathRemarkPlugins]}
+      remarkPlugins={[remarkGfm, remarkLocalFilePaths, ...markdownMathRemarkPlugins]}
       rehypePlugins={[
         rehypeRaw,
         [rehypeSanitize, markdownHtmlSanitizeSchema],
         ...markdownMathRehypePlugins,
       ]}
       components={markdownComponents}
+      urlTransform={(url) => url.startsWith("tiance-local-path:")
+        ? url
+        : defaultUrlTransform(url)}
     >
       {renderContent}
     </ReactMarkdown>
@@ -232,7 +271,9 @@ function StreamingMarkdownPreview({
   mathErrorMode,
   onPreviewHtmlCode,
   onSaveCodeBlock,
+  localFileActions,
   resolveAssetUrl,
+  resolveLocalFileReference,
 }: Omit<MarkdownPreviewProps, "isStreaming">) {
   const { chunks, tail } = useMemo(
     () => buildStreamingMarkdownSegments(content),
@@ -252,7 +293,9 @@ function StreamingMarkdownPreview({
           content={chunk.content}
           onPreviewHtmlCode={onPreviewHtmlCode}
           onSaveCodeBlock={onSaveCodeBlock}
+          localFileActions={localFileActions}
           resolveAssetUrl={resolveAssetUrl}
+          resolveLocalFileReference={resolveLocalFileReference}
         />
       ))}
       {richContent ? (
@@ -261,7 +304,9 @@ function StreamingMarkdownPreview({
           content={richContent}
           onPreviewHtmlCode={onPreviewHtmlCode}
           onSaveCodeBlock={onSaveCodeBlock}
+          localFileActions={localFileActions}
           resolveAssetUrl={resolveAssetUrl}
+          resolveLocalFileReference={resolveLocalFileReference}
         />
       ) : null}
       {pendingDisplayMathBody !== null ? (
@@ -296,7 +341,9 @@ function ProgressiveMarkdownPreview({
   mathErrorMode,
   onPreviewHtmlCode,
   onSaveCodeBlock,
+  localFileActions,
   resolveAssetUrl,
+  resolveLocalFileReference,
 }: Omit<MarkdownPreviewProps, "isStreaming" | "renderStrategy">) {
   const { isComplete, visibleSegments } = useProgressiveMarkdownSegments(content);
   const renderItems = useMemo(
@@ -314,7 +361,9 @@ function ProgressiveMarkdownPreview({
           key={item.id}
           onPreviewHtmlCode={onPreviewHtmlCode}
           onSaveCodeBlock={onSaveCodeBlock}
+          localFileActions={localFileActions}
           resolveAssetUrl={resolveAssetUrl}
+          resolveLocalFileReference={resolveLocalFileReference}
           segments={item.segments}
         />
       ) : (
@@ -324,7 +373,9 @@ function ProgressiveMarkdownPreview({
           content={item.segment.content}
           onPreviewHtmlCode={onPreviewHtmlCode}
           onSaveCodeBlock={onSaveCodeBlock}
+          localFileActions={localFileActions}
           resolveAssetUrl={resolveAssetUrl}
+          resolveLocalFileReference={resolveLocalFileReference}
         />
       ))}
       {!isComplete ? (
@@ -345,12 +396,16 @@ type ProgressiveMarkdownRenderItem =
 const ProgressiveMarkdownTable = memo(function ProgressiveMarkdownTable({
   onPreviewHtmlCode,
   onSaveCodeBlock,
+  localFileActions,
   resolveAssetUrl,
+  resolveLocalFileReference,
   segments,
 }: {
   onPreviewHtmlCode?: (html: string) => void;
   onSaveCodeBlock?: (payload: CodeBlockSavePayload) => Promise<string>;
+  localFileActions?: MarkdownLocalFileActions;
   resolveAssetUrl?: (src: string | undefined) => string | undefined;
+  resolveLocalFileReference?: (href: string) => LocalFileReference | null;
   segments: MarkdownSegment[];
 }) {
   return (
@@ -363,7 +418,9 @@ const ProgressiveMarkdownTable = memo(function ProgressiveMarkdownTable({
             content={segment.content}
             onPreviewHtmlCode={onPreviewHtmlCode}
             onSaveCodeBlock={onSaveCodeBlock}
+            localFileActions={localFileActions}
             resolveAssetUrl={resolveAssetUrl}
+            resolveLocalFileReference={resolveLocalFileReference}
             tableFragment={segment.tablePartIndex === 0 ? "first" : "continuation"}
           />
         ))}

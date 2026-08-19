@@ -18,6 +18,10 @@ import { buildSessionKey } from "./sessionKey";
 import { emptyConversationDraftReferences } from "./conversationDraftReferences";
 import { mergeStreamingRuntimeStatuses } from "./conversationRuntimeState";
 import {
+  SessionStreamingRegistry,
+  type SessionStreamingLease,
+} from "./sessionStreamingRegistry";
+import {
   useConversationStatePersistence,
   type ConversationDraftRequestSnapshot,
   type ConversationSessionStatePatch as SessionStatePatch,
@@ -77,9 +81,10 @@ export function useConversationSessions({
   const [sessionStates, setSessionStates] = useState<Record<string, ConversationSessionState>>({});
   const [draft, setDraft] = useState("");
   const [settledDraft, setSettledDraft] = useState<SettledConversationDraft | null>(null);
+  const streamingRegistryRef = useRef(new SessionStreamingRegistry());
   const [streamingSessionKeys, setStreamingSessionKeys] = useState<Set<string>>(() => new Set());
   const streamingSessionKeysRef = useRef(streamingSessionKeys);
-  streamingSessionKeysRef.current = streamingSessionKeys;
+  streamingSessionKeysRef.current = streamingRegistryRef.current.keys();
   const latestDraftRef = useRef({ projectId, activeSessionId, draft });
   const projectSessionSnapshotsRef = useRef(new Map<string, ConversationProjectSessionSnapshot>());
   const latestAppliedRevisionsRef = useRef(new Map<string, number>());
@@ -137,33 +142,32 @@ export function useConversationSessions({
     };
   }
 
-  const markSessionStreaming = useCallback((sessionKey: string) => {
-    if (streamingSessionKeysRef.current.has(sessionKey)) return;
-    const next = new Set(streamingSessionKeysRef.current);
-    next.add(sessionKey);
+  const markSessionStreaming = useCallback((sessionKey: string): SessionStreamingLease => {
+    const lease = streamingRegistryRef.current.acquire(sessionKey);
+    const next = streamingRegistryRef.current.keys();
     streamingSessionKeysRef.current = next;
     setStreamingSessionKeys(next);
+    return lease;
   }, []);
 
-  const unmarkSessionStreaming = useCallback((sessionKey: string) => {
-    if (!streamingSessionKeysRef.current.has(sessionKey)) return;
-    const next = new Set(streamingSessionKeysRef.current);
-    next.delete(sessionKey);
+  const unmarkSessionStreaming = useCallback((
+    sessionKey: string,
+    lease: SessionStreamingLease,
+  ) => {
+    if (!streamingRegistryRef.current.release(sessionKey, lease)) return;
+    const next = streamingRegistryRef.current.keys();
     streamingSessionKeysRef.current = next;
     setStreamingSessionKeys(next);
   }, []);
 
   const isSessionStreaming = useCallback(
-    (sessionKey: string) => streamingSessionKeysRef.current.has(sessionKey),
+    (sessionKey: string) => streamingRegistryRef.current.has(sessionKey),
     [],
   );
 
   const clearProjectStreamingSessions = useCallback((pid: string) => {
-    const prefix = `${pid}:`;
-    const next = new Set(
-      [...streamingSessionKeysRef.current].filter((key) => !key.startsWith(prefix)),
-    );
-    if (next.size === streamingSessionKeysRef.current.size) return;
+    if (!streamingRegistryRef.current.clearProject(pid)) return;
+    const next = streamingRegistryRef.current.keys();
     streamingSessionKeysRef.current = next;
     setStreamingSessionKeys(next);
   }, []);

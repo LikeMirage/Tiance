@@ -6,8 +6,6 @@ import type {
 import {
   DEFAULT_FUNCTIONAL_MODEL_GENERATION,
   DEFAULT_FUNCTIONAL_MODEL_SETTINGS,
-  MAX_MEMORY_COMPRESSION_FAILURE_RETRY_COUNT,
-  MAX_LONG_TERM_MEMORY_FAILURE_RETRY_COUNT,
   DEFAULT_NAMING_PROMPT,
   type FunctionalModelMemoryCompressionSettings,
   type FunctionalModelMemoryManagementSettings,
@@ -22,10 +20,6 @@ export {
   DEFAULT_FUNCTIONAL_MODEL_PROFILE_SETTINGS,
   DEFAULT_FUNCTIONAL_MODEL_SETTINGS,
   DEFAULT_MEMORY_COMPRESSION_MAX_OUTPUT_TOKENS,
-  DEFAULT_MEMORY_COMPRESSION_FAILURE_RETRY_COUNT,
-  DEFAULT_LONG_TERM_MEMORY_FAILURE_RETRY_COUNT,
-  MAX_LONG_TERM_MEMORY_FAILURE_RETRY_COUNT,
-  MAX_MEMORY_COMPRESSION_FAILURE_RETRY_COUNT,
   DEFAULT_MEMORY_COMPRESSION_PROMPT,
   DEFAULT_GLOBAL_MEMORY_MANAGEMENT_PROMPT,
   DEFAULT_PROJECT_MEMORY_MANAGEMENT_PROMPT,
@@ -135,12 +129,6 @@ function normalizeMemoryManagementSettings(
     blockingEnabled: typeof record.blockingEnabled === "boolean"
       ? record.blockingEnabled
       : defaults.blockingEnabled,
-    failureRetryCount: normalizeInteger(
-      record.failureRetryCount,
-      defaults.failureRetryCount,
-      0,
-      MAX_LONG_TERM_MEMORY_FAILURE_RETRY_COUNT,
-    ),
     generation: normalizeGenerationSettings(record.generation, defaults.generation),
     modelKey: typeof record.modelKey === "string" ? record.modelKey : "",
     modelSource: record.modelSource === "dedicated" ? "dedicated" : "session",
@@ -168,12 +156,6 @@ function normalizeMemoryCompressionSettings(
     blockingEnabled: typeof record.blockingEnabled === "boolean"
       ? record.blockingEnabled
       : defaults.blockingEnabled,
-    failureRetryCount: normalizeInteger(
-      record.failureRetryCount,
-      defaults.failureRetryCount,
-      0,
-      MAX_MEMORY_COMPRESSION_FAILURE_RETRY_COUNT,
-    ),
     generation,
     modelKey,
     modelSource: record.modelSource === "dedicated" ? "dedicated" : "session",

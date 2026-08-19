@@ -12,7 +12,7 @@ from zlib import error as zlib_error
 
 
 DATABASE_FILE = "tiance.db"
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 _thread_state = local()
 _database_initialization_lock = Lock()
 _initialized_database_paths: set[Path] = set()
@@ -753,6 +753,108 @@ def append_journal_event(
         return int(cursor.lastrowid)
 
 
+def begin_conversation_run(
+    workspace_dir: Path,
+    *,
+    run_id: str,
+    session_id: str,
+    user_message_id: str,
+    started_at: str,
+) -> None:
+    with connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        connection.execute(
+            """
+            INSERT INTO conversation_runs(
+                run_id, session_id, user_message_id, status, error_code,
+                error_message, attempt_count, started_at, settled_at
+            ) VALUES (?, ?, ?, 'running', NULL, NULL, 0, ?, NULL)
+            ON CONFLICT(run_id) DO NOTHING
+            """,
+            (run_id, session_id, user_message_id, started_at),
+        )
+
+
+def settle_conversation_run(
+    workspace_dir: Path,
+    *,
+    run_id: str,
+    session_id: str,
+    status: str,
+    error_code: str | None,
+    error_message: str | None,
+    attempt_count: int,
+    settled_at: str,
+) -> bool:
+    if status not in {"done", "error", "cancelled"}:
+        raise ValueError(f"Unsupported conversation run status: {status}")
+    with connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        cursor = connection.execute(
+            """
+            UPDATE conversation_runs
+            SET status = ?, error_code = ?, error_message = ?,
+                attempt_count = ?, settled_at = ?
+            WHERE run_id = ? AND session_id = ? AND status = 'running'
+            """,
+            (
+                status,
+                error_code,
+                error_message,
+                max(1, int(attempt_count)),
+                settled_at,
+                run_id,
+                session_id,
+            ),
+        )
+        return cursor.rowcount > 0
+
+
+def read_conversation_run(
+    workspace_dir: Path,
+    run_id: str,
+    *,
+    session_id: str,
+) -> dict[str, Any] | None:
+    with read_connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        if connection is None:
+            return None
+        row = connection.execute(
+            """
+            SELECT run_id, session_id, user_message_id, status, error_code,
+                   error_message, attempt_count, started_at, settled_at
+            FROM conversation_runs WHERE run_id = ? AND session_id = ?
+            """,
+            (run_id, session_id),
+        ).fetchone()
+    return _conversation_run_from_row(row) if row is not None else None
+
+
+def list_conversation_run_outcomes(
+    workspace_dir: Path,
+    *,
+    session_id: str,
+    user_message_ids: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    if not user_message_ids:
+        return []
+    placeholders = ",".join("?" for _ in user_message_ids)
+    with read_connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        if connection is None:
+            return []
+        rows = connection.execute(
+            f"""
+            SELECT run_id, session_id, user_message_id, status, error_code,
+                   error_message, attempt_count, started_at, settled_at
+            FROM conversation_runs
+            WHERE session_id = ?
+              AND user_message_id IN ({placeholders})
+              AND status = 'error'
+            ORDER BY started_at, run_id
+            """,
+            (session_id, *user_message_ids),
+        ).fetchall()
+    return [_conversation_run_from_row(row) for row in rows]
+
+
 def count_journal_events(workspace_dir: Path, *, session_id: str | None = None) -> int:
     with read_connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
         if connection is None:
@@ -1008,6 +1110,9 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
     if current_version < 4:
         _migrate_schema_v3_to_v4(connection)
         current_version = 4
+    if current_version < 5:
+        _migrate_schema_v4_to_v5(connection)
+        current_version = 5
     if current_version != SCHEMA_VERSION:
         raise RuntimeError(f"Unsupported project conversation database version: {current_version}")
 
@@ -1178,6 +1283,42 @@ def _migrate_schema_v3_to_v4(connection: sqlite3.Connection) -> None:
     )
     _upsert_meta(connection, "conversation_index", index)
     connection.execute("UPDATE conversation_schema SET version = 4")
+
+
+def _migrate_schema_v4_to_v5(connection: sqlite3.Connection) -> None:
+    connection.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS conversation_runs (
+            run_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            user_message_id TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('running', 'done', 'error', 'cancelled')),
+            error_code TEXT,
+            error_message TEXT,
+            attempt_count INTEGER NOT NULL,
+            started_at TEXT NOT NULL,
+            settled_at TEXT,
+            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_conversation_runs_session_user
+            ON conversation_runs(session_id, user_message_id, started_at);
+        UPDATE conversation_schema SET version = 5;
+        """
+    )
+
+
+def _conversation_run_from_row(row: sqlite3.Row | tuple[Any, ...]) -> dict[str, Any]:
+    return {
+        "run_id": str(row[0]),
+        "session_id": str(row[1]),
+        "user_message_id": str(row[2]),
+        "status": str(row[3]),
+        "error_code": row[4],
+        "error_message": row[5],
+        "attempt_count": int(row[6]),
+        "started_at": str(row[7]),
+        "settled_at": row[8],
+    }
 
 
 def _restore_embedded_artifact(row: sqlite3.Row | tuple[Any, ...]) -> dict[str, Any]:

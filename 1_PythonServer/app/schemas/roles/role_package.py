@@ -34,6 +34,8 @@ class RoleResponseConfiguration(RoleConfigurationContract):
     return_user_before_cancelled: bool
     streaming_enabled: bool
     auto_collapse_assistant_process: bool
+    malformed_tool_call_recovery_enabled: bool
+    upstream_retry_count: int = Field(ge=0)
 
 
 class RoleContextConfiguration(RoleConfigurationContract):

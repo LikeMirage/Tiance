@@ -12,6 +12,7 @@ import type {
 import { dispatchProjectConversationUpdated } from "../../../entities/llm-chat/model/projectConversationEvents";
 import { settleAutomaticConversationNaming } from "../../../services/project/settleAutomaticConversationNaming";
 import { buildSessionKey } from "../../ai-panel/model/sessionKey";
+import type { SessionStreamingLease } from "../../ai-panel/model/sessionStreamingRegistry";
 import type { ClientToolExecutor } from "./clientToolBridge";
 import type { ConversationBackgroundRunRegistry } from "./conversationBackgroundRun";
 
@@ -20,7 +21,7 @@ type AutomaticNamingConversationRunsOptions = {
   branchNodes: ConversationBranchNode[];
   clientToolExecutor: ClientToolExecutor | null;
   clientToolCapabilities: readonly ChatClientCapability[];
-  markSessionStreaming: (sessionKey: string) => void;
+  markSessionStreaming: (sessionKey: string) => SessionStreamingLease;
   projectId: string | null;
   reloadSessions: (projectId: string) => Promise<void>;
   saveSessionState: (
@@ -35,7 +36,7 @@ type AutomaticNamingConversationRunsOptions = {
     sessionId: string,
     status: ConversationRuntimeStatus,
   ) => void;
-  unmarkSessionStreaming: (sessionKey: string) => void;
+  unmarkSessionStreaming: (sessionKey: string, lease: SessionStreamingLease) => void;
 };
 
 export function useAutomaticNamingConversationRuns({
@@ -83,6 +84,7 @@ export function useAutomaticNamingConversationRuns({
 
       claimedSessionIdsRef.current.add(node.session_id);
       const sessionKey = buildSessionKey(projectId, node.session_id);
+      let streamingLease: SessionStreamingLease | null = null;
       let run;
       try {
         run = backgroundRuns.startOrResume({
@@ -94,7 +96,7 @@ export function useAutomaticNamingConversationRuns({
           session,
           userMessageId: `automatic_naming_${node.session_id}`,
           onStarted: () => {
-            markSessionStreaming(sessionKey);
+            streamingLease = markSessionStreaming(sessionKey);
             saveSessionState(projectId, node.session_id, {
               draft: "",
               runtime_status: "running",
@@ -114,7 +116,9 @@ export function useAutomaticNamingConversationRuns({
                 outcome ?? "error",
               );
             } finally {
-              unmarkSessionStreaming(sessionKey);
+              if (streamingLease) {
+                unmarkSessionStreaming(sessionKey, streamingLease);
+              }
               setSessionRuntimeStatus(
                 projectId,
                 node.session_id,

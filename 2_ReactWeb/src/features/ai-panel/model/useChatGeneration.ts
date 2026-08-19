@@ -24,6 +24,7 @@ import {
   type ChatMessage,
 } from "./chatMessage";
 import { buildSessionKey } from "./sessionKey";
+import type { SessionStreamingLease } from "./sessionStreamingRegistry";
 import { buildConversationRunRequest } from "../../conversation-runtime/model/conversationRunRequest";
 import {
   buildConversationImageContentParts,
@@ -90,7 +91,7 @@ type UseChatGenerationOptions = {
   isSessionMessagesPresented: (pid: string, sessionId: string) => boolean;
   isNotFoundRequestError: (error: unknown) => boolean;
   isThinkingStuckToBottom: (messageId: string) => boolean;
-  markSessionStreaming: (sessionKey: string) => void;
+  markSessionStreaming: (sessionKey: string) => SessionStreamingLease;
   markConversationProjectUnavailable: (pid: string) => void;
   models: ChatModelOption[];
   projectId: string | null;
@@ -111,7 +112,7 @@ type UseChatGenerationOptions = {
   streamEventSequenceState: ChatStreamEventSequenceState;
   showChatView: () => void;
   supportsImageInput: boolean;
-  unmarkSessionStreaming: (sessionKey: string) => void;
+  unmarkSessionStreaming: (sessionKey: string, lease: SessionStreamingLease) => void;
   updateSessionMessages: UpdateSessionMessages;
   unavailableProjectIdRef: MutableRefObject<string | null>;
 };
@@ -301,7 +302,7 @@ export function useChatGeneration({
       }
       showChatView();
     }
-    markSessionStreaming(streamSessionKey);
+    const streamingLease = markSessionStreaming(streamSessionKey);
     saveSessionState(streamProjectId, sessionId, {
       draft: "",
       references: emptyConversationDraftReferences(),
@@ -530,7 +531,7 @@ export function useChatGeneration({
       if (shouldClearEventSequence) {
         clearChatStreamEventSequence(streamSessionKey, streamEventSequenceState);
       }
-      unmarkSessionStreaming(streamSessionKey);
+      unmarkSessionStreaming(streamSessionKey, streamingLease);
       publishCurrentDraftSnapshot(streamProjectId, sessionId);
       releaseSessionStreamController(streamSessionKey, streamController);
       sendingSessionKeysRef.current.delete(streamSessionKey);

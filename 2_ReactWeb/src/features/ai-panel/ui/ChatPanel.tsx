@@ -41,6 +41,7 @@ type Props = {
   onOpenConversationBranches?: () => void;
   onOpenConversationOverview?: () => void;
   onOpenReference?: (payload: EditorReferenceViewerPayload) => void;
+  onOpenProjectFile?: (path: string, line: number | null) => Promise<void> | void;
   onPreviewHtmlCode?: (html: string) => void;
   onClearReferences?: () => void;
   onDraftReferencesChange?: (references: ConversationMessageReferences) => void;

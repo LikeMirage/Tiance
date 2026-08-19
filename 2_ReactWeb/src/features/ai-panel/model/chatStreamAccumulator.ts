@@ -57,6 +57,16 @@ export function createChatStreamAccumulator({
   let streamRole: ChatMessage["role"] = initialMessage?.role ?? "assistant";
   let streamHadError = false;
   let hasCollapsedThinkingOnBodyStart = Boolean(initialMessage?.content.trim());
+  let committedContentBuffer = contentBuffer;
+  let committedThinkingBuffer = thinkingBuffer;
+  let committedContentPartsBuffer = [...contentPartsBuffer];
+  let committedProcessItems = [...processItems];
+  let committedToolCallIds = new Set(
+    (initialMessage?.toolCalls ?? [])
+      .filter((tool) => tool.status === "done" || tool.status === "error")
+      .map((tool) => tool.callId),
+  );
+  let committedHasCollapsedThinking = hasCollapsedThinkingOnBodyStart;
   let flushTimer: number | null = null;
 
   const flushStreamUpdate = () => {
@@ -147,6 +157,37 @@ export function createChatStreamAccumulator({
   };
 
   const handleEvent = (event: ChatStreamEvent) => {
+    if (event.kind === "retry_reset") {
+      if (flushTimer !== null) {
+        window.clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      contentBuffer = committedContentBuffer;
+      thinkingBuffer = committedThinkingBuffer;
+      contentPartsBuffer = [...committedContentPartsBuffer];
+      processItems = [...committedProcessItems];
+      hasCollapsedThinkingOnBodyStart = committedHasCollapsedThinking;
+      streamRole = "assistant";
+      streamHadError = false;
+      updateSessionMessages(streamProjectId, sessionId, (prev) => prev.map((message) =>
+        message.id === assistantId
+          ? {
+              ...message,
+              role: "assistant",
+              content: contentBuffer,
+              contentParts: contentPartsBuffer,
+              thinkingContent: thinkingBuffer,
+              status: "running",
+              processItems,
+              toolCalls: (message.toolCalls ?? []).filter((tool) =>
+                committedToolCallIds.has(tool.callId)),
+              updatedAt: Date.now(),
+            }
+          : message,
+      ));
+      return;
+    }
+
     if (event.kind === "delta" && event.content) {
       contentBuffer += event.content;
       if (contentBuffer.trim().length > 0) {
@@ -216,6 +257,12 @@ export function createChatStreamAccumulator({
     if (event.kind === "tool_result" && event.tool_result) {
       const toolItem = createFinishedToolProcessItem(event.tool_result, Date.now());
       processItems = upsertToolProcessItemInTimeline(processItems, toolItem);
+      committedContentBuffer = contentBuffer;
+      committedThinkingBuffer = thinkingBuffer;
+      committedContentPartsBuffer = [...contentPartsBuffer];
+      committedProcessItems = [...processItems];
+      committedToolCallIds = new Set([...committedToolCallIds, toolItem.callId]);
+      committedHasCollapsedThinking = hasCollapsedThinkingOnBodyStart;
       updateSessionMessages(streamProjectId, sessionId, (prev) =>
         upsertAssistantToolProcessItem(prev, assistantId, toolItem, processItems, contentBuffer),
       );

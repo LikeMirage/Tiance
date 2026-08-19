@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from app.core.errors import AppError, BadRequestError, ConflictError, NotFoundError
 from app.domain.llm.chat import (
@@ -13,6 +14,7 @@ from app.domain.llm.chat import (
 )
 from app.domain.project.project_conversation import (
     ProjectConversationMessage,
+    ProjectConversationRunOutcome,
     ProjectConversationSession,
 )
 from app.services.llm.usage import LlmUsageService
@@ -204,6 +206,60 @@ class ConversationStreamPersistence:
             elapsed_ms=elapsed_ms,
         )
 
+    def begin_run(
+        self,
+        request: ChatCompletionRequest,
+        user_message: ProjectConversationMessage | None,
+    ) -> None:
+        if (
+            not request.project_id
+            or not request.session_id
+            or not request.run_id
+            or user_message is None
+        ):
+            return
+        self._conversation_service.begin_run(
+            request.project_id,
+            request.session_id,
+            run_id=request.run_id,
+            user_message_id=user_message.message_id,
+            started_at=datetime.now(UTC).isoformat(),
+        )
+
+    def run_outcome(
+        self,
+        request: ChatCompletionRequest,
+    ) -> ProjectConversationRunOutcome | None:
+        if not request.project_id or not request.session_id or not request.run_id:
+            return None
+        return self._conversation_service.get_run(
+            request.project_id,
+            request.session_id,
+            request.run_id,
+        )
+
+    def settle_run(
+        self,
+        request: ChatCompletionRequest,
+        *,
+        status: str,
+        error_code: str | None = None,
+        error_message: str | None = None,
+        attempt_count: int = 1,
+    ) -> bool:
+        if not request.project_id or not request.session_id or not request.run_id:
+            return False
+        return self._conversation_service.settle_run(
+            request.project_id,
+            request.session_id,
+            run_id=request.run_id,
+            status=status,
+            error_code=error_code,
+            error_message=error_message,
+            attempt_count=attempt_count,
+            settled_at=datetime.now(UTC).isoformat(),
+        )
+
     def session_snapshot(
         self,
         request: ChatCompletionRequest,
@@ -317,19 +373,7 @@ class ConversationStreamPersistence:
                 context_tokens=context_tokens,
                 context_tokens_estimated=context_tokens_estimated,
             )
-        return self._append_conversation_message(
-            request.project_id,
-            request.session_id,
-            role="assistant",
-            content="",
-            usage=usage_payload,
-            context_tokens=context_tokens,
-            context_tokens_estimated=context_tokens_estimated,
-            provider_id=request.provider_id,
-            model_id=request.model_id,
-            status="cancelled",
-            sync_session_model=False,
-        )
+        return None
 
     def complete_interrupted_tool_round(
         self,

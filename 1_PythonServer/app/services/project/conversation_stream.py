@@ -241,13 +241,17 @@ class ProjectConversationStreamService:
         persisted_tool_call_message_id: str | None = None
         persisted_tool_call_round_serial: int | None = None
         cancelled_tool_scopes: dict[str, ToolCancellationScope] = {}
+        upstream_attempt_index = 1
 
         def capture_model_request(model_request: ChatCompletionRequest) -> None:
             nonlocal usage, usage_payload
             nonlocal context_tokens, context_tokens_estimated, last_model_request
-            nonlocal model_round_serial
+            nonlocal model_round_serial, upstream_attempt_index
             last_model_request = model_request
             model_round_serial += 1
+            # Attempt indexes are local to one upstream model round.  A retry in
+            # an earlier tool round must not leak into the final run outcome.
+            upstream_attempt_index = 1
             usage = None
             usage_payload = None
             context_tokens = None
@@ -376,6 +380,35 @@ class ProjectConversationStreamService:
                 )
             if run_user_message is not None and request.run_id is None:
                 request = replace(request, run_id=f"run_{run_user_message.message_id}")
+            existing_run = await asyncio.to_thread(
+                self._persistence.run_outcome,
+                request,
+            )
+            if existing_run is not None and existing_run.status in {"error", "cancelled"}:
+                started_payload = conversation_run_started_payload(run_user_message)
+                if started_payload is not None:
+                    yield started_payload
+                settled_payload = conversation_run_settled_payload(
+                    run_user_message,
+                    None,
+                    status=existing_run.status,
+                )
+                if settled_payload is not None:
+                    yield settled_payload
+                if existing_run.status == "error":
+                    yield {
+                        "kind": "error",
+                        "error": existing_run.error_message or "上游请求失败。",
+                        "error_code": existing_run.error_code or "upstream_response_failed",
+                    }
+                else:
+                    yield {"kind": "done", "finish_reason": "cancelled"}
+                return
+            await asyncio.to_thread(
+                self._persistence.begin_run,
+                request,
+                run_user_message,
+            )
             memory_session_snapshot = await asyncio.to_thread(
                 self._persistence.session_snapshot,
                 request,
@@ -478,6 +511,25 @@ class ProjectConversationStreamService:
                 if event.kind == ChatStreamEventKind.PROTOCOL_CONTINUATION:
                     continue
 
+                if event.kind == ChatStreamEventKind.RETRY_RESET:
+                    upstream_attempt_index = max(
+                        upstream_attempt_index,
+                        event.attempt_index or upstream_attempt_index,
+                    )
+                    request = replace(
+                        request,
+                        upstream_attempt_index=upstream_attempt_index,
+                    )
+                    answer_parts.clear()
+                    thinking_parts.clear()
+                    yield stream_event_to_payload(
+                        event,
+                        usage_payload=usage_payload,
+                        context_tokens=context_tokens,
+                        context_tokens_estimated=context_tokens_estimated,
+                    )
+                    continue
+
                 if event.kind == ChatStreamEventKind.ERROR:
                     error = event.error or "上游供应商返回错误。"
                     failed_message, settled_payload = await self._settlement.settle_failed(
@@ -485,12 +537,14 @@ class ProjectConversationStreamService:
                         run_user_message,
                         run_started_at=run_started_at,
                         content=error,
+                        error_code=event.error_code or "upstream_response_failed",
+                        attempt_count=upstream_attempt_index,
                         usage=usage,
                         usage_payload=usage_payload,
                         context_tokens=context_tokens,
                         context_tokens_estimated=context_tokens_estimated,
                     )
-                    if last_model_request is not None:
+                    if last_model_request is not None and failed_message is not None:
                         await asyncio.to_thread(
                             self._persistence.record_model_exchange,
                             last_model_request,
@@ -564,6 +618,8 @@ class ProjectConversationStreamService:
                     run_user_message,
                     run_started_at=run_started_at,
                     content=empty_response_error,
+                    error_code="empty_model_response",
+                    attempt_count=upstream_attempt_index,
                     usage=usage,
                     usage_payload=usage_payload,
                     context_tokens=context_tokens,
@@ -571,7 +627,7 @@ class ProjectConversationStreamService:
                 )
                 if settled_payload is not None:
                     yield settled_payload
-                if last_model_request is not None:
+                if last_model_request is not None and final_assistant_message is not None:
                     await asyncio.to_thread(
                         self._persistence.record_model_exchange,
                         last_model_request,
@@ -653,6 +709,12 @@ class ProjectConversationStreamService:
             if await_background_tasks and background_tasks:
                 await asyncio.gather(*background_tasks, return_exceptions=True)
             await asyncio.to_thread(self._persistence.save_runtime_status, request, "idle")
+            await asyncio.to_thread(
+                self._persistence.settle_run,
+                request,
+                status="done",
+                attempt_count=upstream_attempt_index,
+            )
             settled_payload = conversation_run_settled_payload(
                 run_user_message,
                 assistant_message,
@@ -724,12 +786,14 @@ class ProjectConversationStreamService:
                 run_user_message,
                 run_started_at=run_started_at,
                 content=upstream_error.message,
+                error_code=upstream_error.code,
+                attempt_count=upstream_attempt_index,
                 usage=usage,
                 usage_payload=usage_payload,
                 context_tokens=context_tokens,
                 context_tokens_estimated=context_tokens_estimated,
             )
-            if last_model_request is not None:
+            if last_model_request is not None and failed_message is not None:
                 await asyncio.to_thread(
                     self._persistence.record_model_exchange,
                     last_model_request,
@@ -758,12 +822,14 @@ class ProjectConversationStreamService:
                 run_user_message,
                 run_started_at=run_started_at,
                 content=error,
+                error_code="upstream_connection_failed",
+                attempt_count=upstream_attempt_index,
                 usage=usage,
                 usage_payload=usage_payload,
                 context_tokens=context_tokens,
                 context_tokens_estimated=context_tokens_estimated,
             )
-            if last_model_request is not None:
+            if last_model_request is not None and failed_message is not None:
                 await asyncio.to_thread(
                     self._persistence.record_model_exchange,
                     last_model_request,
@@ -787,12 +853,14 @@ class ProjectConversationStreamService:
                 run_user_message,
                 run_started_at=run_started_at,
                 content=exc.message,
+                error_code=exc.code,
+                attempt_count=upstream_attempt_index,
                 usage=usage,
                 usage_payload=usage_payload,
                 context_tokens=context_tokens,
                 context_tokens_estimated=context_tokens_estimated,
             )
-            if last_model_request is not None:
+            if last_model_request is not None and failed_message is not None:
                 await asyncio.to_thread(
                     self._persistence.record_model_exchange,
                     last_model_request,
@@ -807,6 +875,12 @@ class ProjectConversationStreamService:
             logger.exception("Conversation generation failed unexpectedly.")
             if final_assistant_message is not None:
                 await asyncio.to_thread(self._persistence.save_runtime_status, request, "idle")
+                await asyncio.to_thread(
+                    self._persistence.settle_run,
+                    request,
+                    status="done",
+                    attempt_count=upstream_attempt_index,
+                )
                 await self._settlement.record_ai_run_elapsed(
                     run_user_message,
                     final_assistant_message,
@@ -823,12 +897,14 @@ class ProjectConversationStreamService:
                     run_user_message,
                     run_started_at=run_started_at,
                     content="会话生成任务异常终止。",
+                    error_code="conversation_generation_failed",
+                    attempt_count=upstream_attempt_index,
                     usage=usage,
                     usage_payload=usage_payload,
                     context_tokens=context_tokens,
                     context_tokens_estimated=context_tokens_estimated,
                 )
-                if last_model_request is not None:
+                if last_model_request is not None and failed_message is not None:
                     await asyncio.to_thread(
                         self._persistence.record_model_exchange,
                         last_model_request,

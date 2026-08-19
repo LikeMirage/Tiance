@@ -231,6 +231,62 @@ test("关闭流式显示时工具边界仍会保存前段正文并在结束时�
   assert.equal(messages[0].content, "工具后正文");
 });
 
+test("上游重试只撤销未提交片段并保留已经完成的工具轮次", () => {
+  let messages = [message({
+    id: "assistant-retry",
+    role: "assistant",
+    status: "running",
+  })];
+  const accumulator = createChatStreamAccumulator({
+    assistantId: "assistant-retry",
+    isSessionPresented: () => false,
+    isThinkingStuckToBottom: () => false,
+    onUsage: () => undefined,
+    scrollThinkingContentToBottom: () => undefined,
+    sessionId: "session-retry",
+    streamProjectId: "project-retry",
+    streamingEnabled: false,
+    updateSessionMessages: (_projectId, _sessionId, updater) => {
+      messages = updater(messages);
+    },
+  });
+
+  accumulator.handleEvent({ kind: "delta", content: "已提交工具前正文" });
+  accumulator.handleEvent({
+    kind: "tool_call",
+    tool_call: {
+      call_id: "call-committed",
+      name: "write_text_file",
+      arguments: "{}",
+    },
+  });
+  accumulator.handleEvent({
+    kind: "tool_result",
+    tool_result: {
+      call_id: "call-committed",
+      name: "write_text_file",
+      arguments: "{}",
+      ok: true,
+      content: "完成",
+    },
+  });
+  accumulator.handleEvent({ kind: "delta", content: "断流前残片" });
+  accumulator.handleEvent({ kind: "thinking_delta", content: "未提交思考" });
+  accumulator.handleEvent({ kind: "retry_reset", attempt_index: 2, attempt_count: 2 });
+
+  assert.equal(messages[0].content, "");
+  assert.equal(messages[0].thinkingContent, "");
+  assert.deepEqual(
+    messages[0].processItems
+      .filter((item) => item.type === "content")
+      .map((item) => item.content),
+    ["已提交工具前正文"],
+  );
+  assert.equal(messages[0].toolCalls.length, 1);
+  assert.equal(messages[0].toolCalls[0].callId, "call-committed");
+  assert.equal(messages[0].toolCalls[0].status, "done");
+});
+
 test("运行中的已保存工具轮次不会因为普通 done 消息被误判失败", () => {
   const runningTool = tool({ status: "running", finishedAt: null });
   const displayMessages = buildChatDisplayMessages([

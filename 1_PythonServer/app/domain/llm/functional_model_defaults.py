@@ -177,7 +177,6 @@ def get_default_functional_model_profile_settings(
     defaults = {
         "memoryCompression": {
             "blockingEnabled": False,
-            "failureRetryCount": 0,
             "generation": _default_memory_compression_generation(),
             "modelKey": "deepseek:deepseek-v4-flash",
             "modelSource": "session",
@@ -186,7 +185,6 @@ def get_default_functional_model_profile_settings(
         },
         "projectMemoryManagement": {
             "blockingEnabled": False,
-            "failureRetryCount": 0,
             "generation": _default_generation(
                 DEFAULT_LONG_TERM_MEMORY_MAX_OUTPUT_TOKENS
             ),
@@ -198,7 +196,6 @@ def get_default_functional_model_profile_settings(
         },
         "globalMemoryManagement": {
             "blockingEnabled": False,
-            "failureRetryCount": 0,
             "generation": _default_generation(
                 DEFAULT_LONG_TERM_MEMORY_MAX_OUTPUT_TOKENS
             ),

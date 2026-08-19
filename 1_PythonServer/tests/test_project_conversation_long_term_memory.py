@@ -123,10 +123,7 @@ def test_long_term_memory_success_advances_boundary_and_does_not_repeat(
 
 
 def test_long_term_memory_failure_does_not_advance_boundary(tmp_path):
-    conversation, session, repository, _global_repository, service = _create_services(
-        tmp_path,
-        settings_overrides={"failureRetryCount": 0},
-    )
+    conversation, session, repository, _global_repository, service = _create_services(tmp_path)
     _append_turn(conversation, session.session_id, 1)
     function_session_ids: list[str] = []
 
@@ -418,7 +415,6 @@ def _create_services(
     )
     project_settings = {
         "blockingEnabled": False,
-        "failureRetryCount": 3,
         "generation": {
             "maxOutputTokens": 4096,
             "reasoning": {"mode": "off"},

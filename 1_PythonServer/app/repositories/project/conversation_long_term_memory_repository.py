@@ -156,8 +156,6 @@ class ProjectConversationLongTermMemoryRepository:
         target_settings: ProjectConversationSessionSettings,
         mode: str,
         trigger: dict[str, Any],
-        attempt_index: int,
-        retry_of: str | None,
     ) -> LongTermMemoryTaskCreation:
         conversations_dir = self._session_store.conversations_dir(
             project_id,
@@ -266,8 +264,6 @@ class ProjectConversationLongTermMemoryRepository:
                 "mode": mode,
                 "provider_id": target_provider_id,
                 "model_id": target_model_id,
-                "attempt_index": attempt_index,
-                "retry_of": retry_of,
                 "status": "pending",
                 "trigger": trigger,
                 "created_at": now,

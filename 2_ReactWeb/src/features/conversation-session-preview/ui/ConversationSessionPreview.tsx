@@ -209,6 +209,7 @@ function buildSessionSections(session: JsonObject, settings: JsonObject): Sessio
       title: "工具与注入",
       entries: [
         { label: "注入用户消息时间戳", value: flagValue(settings.inject_message_timestamps) },
+        { label: "工具调用容错", value: flagValue(settings.malformed_tool_call_recovery_enabled) },
         { label: "工具调用上限", value: stringValue(settings.max_tool_calls) },
         { label: "启用工具", value: settings.enabled_tool_names === null ? "全部工具" : enabledToolNames.join("、") },
         { label: "取消消息返回", value: flagValue(settings.return_cancelled_messages) },

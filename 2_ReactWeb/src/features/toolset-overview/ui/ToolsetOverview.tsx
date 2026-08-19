@@ -149,21 +149,26 @@ export const ToolsetOverview = memo(function ToolsetOverview({
                   </div>
                 </header>
 
-                <div className="toolset-overview__metrics" aria-label={`${folder.name} 调用统计`}>
-                  <Metric
-                    detail={injectionMetric.detail}
-                    label="注入字符"
-                    value={injectionMetric.value}
-                  />
-                  <Metric label="成功率" value={formatSuccessRate(stats)} />
-                  <Metric label="平均耗时" value={formatElapsed(stats?.average_elapsed_ms ?? null)} />
+                <div className="toolset-overview__activity" aria-label={`${folder.name} 调用统计`}>
+                  <span className="toolset-overview__call-count">
+                    <strong>{formatInteger(stats?.call_count ?? 0)}</strong>
+                    <small>次调用</small>
+                  </span>
+                  <span className="toolset-overview__highlights">
+                    <Metric label="成功" value={formatSuccessRate(stats)} />
+                    <Metric label="平均" value={formatElapsed(stats?.average_elapsed_ms ?? null)} />
+                  </span>
+                </div>
+
+                <div className="toolset-overview__metadata">
+                  <span>
+                    注入 <strong>{injectionMetric.value}</strong>
+                    {injectionMetric.detail ? <small>{injectionMetric.detail}</small> : null}
+                  </span>
+                  <span>全局 <strong>{formatPercent(stats?.global_call_share ?? 0)}</strong></span>
                 </div>
 
                 <footer className="toolset-overview__card-footer">
-                  <span className="toolset-overview__call-summary">
-                    <strong>调用 {formatInteger(stats?.call_count ?? 0)} 次</strong>
-                    <span>全局 {formatPercent(stats?.global_call_share ?? 0)}</span>
-                  </span>
                   <span className="toolset-overview__runtime-switches">
                     <RuntimeSwitch
                       checked={effectiveEnabled === true}
@@ -238,21 +243,16 @@ function RuntimeSwitch({
 }
 
 function Metric({
-  detail,
   label,
   value,
 }: {
-  detail?: string;
   label: string;
   value: string;
 }) {
   return (
     <span className="toolset-overview__metric">
       <span className="toolset-overview__metric-label">{label}</span>
-      <span className="toolset-overview__metric-value">
-        <strong>{value}</strong>
-        {detail ? <small>{detail}</small> : null}
-      </span>
+      <strong className="toolset-overview__metric-value">{value}</strong>
     </span>
   );
 }

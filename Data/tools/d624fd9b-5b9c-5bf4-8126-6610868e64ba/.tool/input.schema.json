@@ -192,6 +192,10 @@
               "description": "聊天面板是否自动折叠助手执行过程。",
               "type": "boolean"
             },
+            "malformed_tool_call_recovery_enabled": {
+              "description": "是否在模型输出畸形工具参数时阻止执行、回传结构化错误并继续让模型纠正。",
+              "type": "boolean"
+            },
             "enabled_tool_names": {
               "description": "会话可用工具调用名；null 使用默认工具集合，空数组禁用全部工具。",
               "items": {

@@ -119,6 +119,12 @@ class ConversationStreamSettlement:
             if assistant_message is not None and assistant_message.status == "done"
             else "cancelled"
         )
+        await asyncio.to_thread(
+            self._persistence.settle_run,
+            request,
+            status=status,
+            attempt_count=max(1, request.upstream_attempt_index),
+        )
         return (
             assistant_message,
             conversation_run_settled_payload(
@@ -136,23 +142,23 @@ class ConversationStreamSettlement:
         run_started_at: float,
         assistant_message: ProjectConversationMessage | None = None,
         content: str,
+        error_code: str | None,
+        attempt_count: int,
         usage: ChatUsage | None,
         usage_payload: dict[str, object] | None,
         context_tokens: int | None,
         context_tokens_estimated: bool,
     ) -> tuple[ProjectConversationMessage | None, dict[str, object | None] | None]:
-        if assistant_message is None and user_message is not None:
-            assistant_message = await asyncio.to_thread(
-                self._persistence.append_assistant_message,
-                request,
-                content=content,
-                usage=usage_payload,
-                context_tokens=context_tokens,
-                context_tokens_estimated=context_tokens_estimated,
-                status="error",
-            )
         if user_message is not None:
             await asyncio.to_thread(self._persistence.save_runtime_status, request, "error")
+        await asyncio.to_thread(
+            self._persistence.settle_run,
+            request,
+            status="error",
+            error_code=error_code,
+            error_message=content,
+            attempt_count=attempt_count,
+        )
         await self.record_ai_run_elapsed(
             user_message,
             assistant_message,

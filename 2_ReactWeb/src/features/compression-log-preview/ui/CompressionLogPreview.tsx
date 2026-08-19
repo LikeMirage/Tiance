@@ -247,8 +247,6 @@ export function CompressionLogPreview({
                     <MetaItem label="覆盖原文" value={String(record.sourceMessageCount || record.sourceMessageIds.length)} />
                     <MetaItem label="本次吸收" value={String(record.newlyCoveredMessageCount)} />
                     <MetaItem label="任务会话" value={record.functionSessionId || "-"} />
-                    <MetaItem label="尝试次数" value={String(record.attemptIndex + 1)} />
-                    <MetaItem label="重试来源" value={record.retryOf || "-"} />
                     <MetaItem label="创建" value={formatTime(record.createdAt)} />
                     <MetaItem label="完成" value={formatTime(record.completedAt)} />
                     <MetaItem highlight label="原文" value={`${formatTokenCount(record.sourceTokenCount)} tokens`} />

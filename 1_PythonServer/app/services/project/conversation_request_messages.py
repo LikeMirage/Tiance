@@ -76,7 +76,11 @@ def _to_request_message(
 ) -> ChatMessage | None:
     if message.role in {"system", "error"} or message.status == "running":
         return None
-    if message.status == "cancelled" and not settings.return_cancelled_messages:
+    if (
+        message.status == "cancelled"
+        and not settings.return_cancelled_messages
+        and not _is_committed_tool_protocol_message(message)
+    ):
         return None
 
     role = _request_role(message.role)
@@ -174,13 +178,26 @@ def _user_messages_before_cancelled_assistant(
         if message.role == "user":
             last_user_id = message.message_id
             continue
-        if message.role == "assistant" and message.status == "cancelled" and last_user_id:
+        if (
+            message.role == "assistant"
+            and message.status == "cancelled"
+            and not message.tool_calls
+            and last_user_id
+        ):
             user_ids.add(last_user_id)
             last_user_id = None
             continue
         if message.role == "assistant" and message.status != "cancelled":
             last_user_id = None
     return user_ids
+
+
+def _is_committed_tool_protocol_message(message: ProjectConversationMessage) -> bool:
+    if message.role == "assistant":
+        return bool(message.tool_calls)
+    if message.role == "tool":
+        return bool(message.tool_call_id)
+    return False
 
 
 def _request_role(role: str) -> ChatMessageRole | None:

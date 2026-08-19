@@ -34,10 +34,22 @@ export function RoleResponseContextPanel({
   return (
     <div className="role-dashboard__panel-grid">
       <RoleSection title="回复行为">
+        <div className="role-dashboard__form-grid">
+          <RoleField label="上游失败重试次数">
+            <RoleNumberInput
+              min={0}
+              value={response.upstream_retry_count}
+              onCommit={(value) => editor.updateSection("response", {
+                ...response,
+                upstream_retry_count: value ?? 0,
+              })}
+            />
+          </RoleField>
+        </div>
         <div className="role-dashboard__toggle-grid">
           <RoleToggle
             checked={response.return_cancelled_messages}
-            label="返回被取消消息"
+            label="取消后继续使用已生成内容"
             onChange={(value) => editor.updateSection("response", {
               ...response,
               return_cancelled_messages: value,
@@ -45,7 +57,7 @@ export function RoleResponseContextPanel({
           />
           <RoleToggle
             checked={response.return_user_before_cancelled}
-            label="返回截断前用户消息"
+            label="取消后继续使用本轮用户消息"
             onChange={(value) => editor.updateSection("response", {
               ...response,
               return_user_before_cancelled: value,
@@ -65,6 +77,14 @@ export function RoleResponseContextPanel({
             onChange={(value) => editor.updateSection("response", {
               ...response,
               auto_collapse_assistant_process: value,
+            })}
+          />
+          <RoleToggle
+            checked={response.malformed_tool_call_recovery_enabled}
+            label="工具调用容错"
+            onChange={(value) => editor.updateSection("response", {
+              ...response,
+              malformed_tool_call_recovery_enabled: value,
             })}
           />
         </div>

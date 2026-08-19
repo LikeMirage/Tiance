@@ -49,6 +49,10 @@ from app.services.tools.tool_execution import (
     ToolExecutionContext,
     ToolExecutionService,
 )
+from app.services.project.conversation_tool_call_recovery import (
+    INVALID_TOOL_ARGUMENTS,
+    prepare_tool_calls_for_replay,
+)
 from app.services.tools.tool_metadata import normalize_tool_name
 from app.services.tools.tool_execution_runtime import ToolExecutionCancellation
 from app.services.tools.tool_result_guidance import ToolResultGuidanceService
@@ -159,6 +163,16 @@ class ConversationToolLoop:
             if on_model_request is not None:
                 on_model_request(model_request)
             async for event in self._chat_service.stream(model_request):
+                if event.kind == ChatStreamEventKind.RETRY_RESET:
+                    round_answer_parts.clear()
+                    round_thinking_parts.clear()
+                    round_tool_calls.clear()
+                    round_protocol_continuation = None
+                    round_usage = None
+                    round_context_tokens = None
+                    round_context_tokens_estimated = False
+                    yield event
+                    continue
                 if event.kind == ChatStreamEventKind.DELTA and event.content:
                     round_answer_parts.append(event.content)
                     yield event
@@ -202,6 +216,9 @@ class ConversationToolLoop:
                 )
                 return
 
+            prepared_tool_calls = prepare_tool_calls_for_replay(
+                tuple(round_tool_calls)
+            )
             round_answer = "".join(round_answer_parts)
             round_thinking = "".join(round_thinking_parts)
             assistant_message = await asyncio.to_thread(
@@ -209,7 +226,7 @@ class ConversationToolLoop:
                 model_request,
                 content=round_answer,
                 thinking_content=round_thinking,
-                tool_calls=tuple(round_tool_calls),
+                tool_calls=prepared_tool_calls.replay_calls,
                 protocol_continuation=round_protocol_continuation,
                 usage=usage_to_payload(round_usage) if round_usage is not None else None,
                 context_tokens=round_context_tokens,
@@ -229,18 +246,62 @@ class ConversationToolLoop:
                     ChatMessage(
                         role=ChatMessageRole.ASSISTANT,
                         content=round_answer,
-                        tool_calls=tuple(round_tool_calls),
+                        tool_calls=prepared_tool_calls.replay_calls,
                         thinking_content=round_thinking,
                         protocol_continuation=round_protocol_continuation,
                     ),
                     assistant_message.message_id if assistant_message is not None else None,
                 ),
             ]
+            round_resource_parts = []
+            for invalid_call, invalid_result in prepared_tool_calls.invalid_results:
+                yield ChatStreamEvent(
+                    kind=ChatStreamEventKind.TOOL_CALL,
+                    tool_call=invalid_call,
+                )
+                await self._record_tool_event(
+                    original_request,
+                    invalid_call,
+                    event_type="tool.failed",
+                    payload={
+                        "tool_name": invalid_call.name,
+                        "ok": False,
+                        "error_code": INVALID_TOOL_ARGUMENTS,
+                    },
+                )
+                tool_message = await self._persist_tool_result(
+                    original_request,
+                    invalid_result,
+                )
+                yield ChatStreamEvent(
+                    kind=ChatStreamEventKind.TOOL_RESULT,
+                    tool_result=invalid_result,
+                )
+                if tool_message is not None:
+                    yield ConversationPersistenceCheckpoint(tool_message.message_id)
+                next_messages.append(
+                    tag_conversation_message(
+                        ChatMessage(
+                            role=ChatMessageRole.TOOL,
+                            content=invalid_result.content,
+                            name=invalid_result.name,
+                            tool_call_id=invalid_result.call_id,
+                            content_parts=(
+                                tool_message.content_parts
+                                if tool_message is not None
+                                else ()
+                            ),
+                        ),
+                        tool_message.message_id if tool_message is not None else None,
+                    )
+                )
+                if tool_message is not None:
+                    round_resource_parts.extend(tool_message.content_parts)
+
             tool_call_batches = await asyncio.to_thread(
                 self._build_tool_call_batches,
-                tuple(round_tool_calls),
+                prepared_tool_calls.executable_calls,
             )
-            round_resource_parts = []
             for tool_call_batch in tool_call_batches:
                 for tool_call in tool_call_batch:
                     yield ChatStreamEvent(
@@ -340,6 +401,11 @@ class ConversationToolLoop:
             if resource_message is not None:
                 next_messages.append(resource_message)
             executed_tool_calls += len(round_tool_calls)
+            if (
+                prepared_tool_calls.invalid_results
+                and not original_request.malformed_tool_call_recovery_enabled
+            ):
+                return
             current_request = replace(current_request, messages=tuple(next_messages))
 
     def _build_tool_call_batches(

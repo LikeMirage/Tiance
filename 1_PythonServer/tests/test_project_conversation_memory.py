@@ -93,7 +93,6 @@ class FakeFunctionalModelSettingsService:
                 "modelKey": "deepseek:deepseek-v4",
                 "modelSource": "session",
                 "prompt": DEFAULT_MEMORY_COMPRESSION_PROMPT,
-                "failureRetryCount": 3,
                 "generation": {
                     "temperature": 0.2,
                     "topP": 1,
@@ -994,10 +993,10 @@ def test_queued_check_honors_current_disabled_setting(tmp_path):
     ) == []
 
 
-def test_failed_attempt_retries_in_a_new_function_session(tmp_path):
+def test_failed_function_session_does_not_start_a_second_special_retry(tmp_path):
     conversation, session, repository, memory = _create_services(
         tmp_path,
-        functional_overrides={"failureRetryCount": 1},
+        settings={"upstream_retry_count": 4},
     )
     _append_turn(conversation, session.session_id, 1)
     _append_turn(conversation, session.session_id, 2)
@@ -1005,29 +1004,8 @@ def test_failed_attempt_retries_in_a_new_function_session(tmp_path):
 
     async def run(request: ChatCompletionRequest) -> None:
         calls.append(request.session_id)
-        if len(calls) == 1:
-            raise TimeoutError("temporary timeout")
-        conversation.append_message(
-            PROJECT_ID,
-            request.session_id,
-            role="assistant",
-            content="",
-            provider_id=request.provider_id,
-            model_id=request.model_id,
-            tool_calls=(
-                ChatToolCall(
-                    call_id="call-submit",
-                    name="submit_memory_compaction",
-                    arguments='{"result":{}}',
-                ),
-            ),
-            context_tokens=120,
-        )
-        memory.submit_compaction_result(
-            PROJECT_ID,
-            request.session_id,
-            COMPACTION_RESULT,
-        )
+        assert request.upstream_retry_count == 4
+        raise TimeoutError("temporary timeout")
 
     memory.set_functional_conversation_runner(run)
     asyncio.run(
@@ -1043,11 +1021,8 @@ def test_failed_attempt_retries_in_a_new_function_session(tmp_path):
     )
 
     records = repository.list_compressions(PROJECT_ID, session.session_id)
-    assert len(calls) == 2
-    assert calls[0] != calls[1]
-    assert [record["status"] for record in records] == ["failed", "completed"]
-    assert records[1]["retry_of"] == records[0]["compression_id"]
-    assert records[1]["source_message_ids"] == records[0]["source_message_ids"]
+    assert len(calls) == 1
+    assert [record["status"] for record in records] == ["failed"]
     status_messages = [
         message
         for message in conversation.list_messages(PROJECT_ID, session.session_id)
@@ -1055,8 +1030,7 @@ def test_failed_attempt_retries_in_a_new_function_session(tmp_path):
     ]
     assert [message.content for message in status_messages] == [
         "正在异步执行记忆压缩。",
-        "异步记忆压缩失败，正在重试。",
-        "已完成异步记忆压缩。",
+        "异步记忆压缩失败。",
     ]
     function_titles = sorted(
         item.title
@@ -1065,15 +1039,11 @@ def test_failed_attempt_retries_in_a_new_function_session(tmp_path):
     )
     assert function_titles == [
         "主会话_1",
-        "主会话_2",
     ]
 
 
 def test_zero_retry_setting_stops_after_first_failed_function_session(tmp_path):
-    conversation, session, repository, memory = _create_services(
-        tmp_path,
-        functional_overrides={"failureRetryCount": 0},
-    )
+    conversation, session, repository, memory = _create_services(tmp_path)
     _append_turn(conversation, session.session_id, 1)
     _append_turn(conversation, session.session_id, 2)
     function_session_ids: list[str] = []

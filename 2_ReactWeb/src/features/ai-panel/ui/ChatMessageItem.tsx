@@ -333,8 +333,10 @@ function ThinkingBlock({
             content={message.thinkingContent}
             isStreaming={isStreaming}
             mathErrorMode="neutral"
+            localFileActions={interactions.localFileActions}
             onPreviewHtmlCode={interactions.onPreviewHtmlCode}
             onSaveCodeBlock={interactions.onSaveCodeBlock}
+            resolveLocalFileReference={interactions.resolveLocalFileReference}
           />
         ) : null}
       </div>
@@ -379,8 +381,10 @@ function MessageBody({
               content={bodyContent}
               isStreaming={isBodyStreaming}
               mathErrorMode="neutral"
+              localFileActions={interactions.localFileActions}
               onPreviewHtmlCode={interactions.onPreviewHtmlCode}
               onSaveCodeBlock={interactions.onSaveCodeBlock}
+              resolveLocalFileReference={interactions.resolveLocalFileReference}
             />
           </div>
         ) : null}

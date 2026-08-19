@@ -8,6 +8,7 @@ from app.domain.project.project_conversation import (
     ProjectConversationMessageStatus,
     ProjectConversationMessagePage,
     ProjectConversationMessageTurn,
+    ProjectConversationRunOutcome,
     ProjectConversationNamingCallRecord,
     ProjectConversationSession,
     ProjectConversationSessionState,
@@ -357,6 +358,54 @@ class ProjectConversationService:
             session_id,
             user_message_id,
         )
+
+    def begin_run(
+        self,
+        project_id: str,
+        session_id: str,
+        *,
+        run_id: str,
+        user_message_id: str,
+        started_at: str,
+    ) -> None:
+        self._repository.begin_run(
+            project_id,
+            session_id,
+            run_id=run_id,
+            user_message_id=user_message_id,
+            started_at=started_at,
+        )
+
+    def settle_run(
+        self,
+        project_id: str,
+        session_id: str,
+        *,
+        run_id: str,
+        status: str,
+        error_code: str | None,
+        error_message: str | None,
+        attempt_count: int,
+        settled_at: str,
+    ) -> bool:
+        return self._repository.settle_run(
+            project_id,
+            session_id,
+            run_id=run_id,
+            status=status,
+            error_code=error_code,
+            error_message=error_message,
+            attempt_count=attempt_count,
+            settled_at=settled_at,
+        )
+
+    def get_run(
+        self,
+        project_id: str,
+        session_id: str,
+        run_id: str,
+    ) -> ProjectConversationRunOutcome | None:
+        return self._repository.get_run(project_id, session_id, run_id)
 
     def append_message(
         self,

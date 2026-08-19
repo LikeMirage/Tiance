@@ -27,11 +27,7 @@ from app.services.llm.token_estimation_settings import (
     TokenEstimationSettingsService,
     get_token_estimation_settings_service,
 )
-from app.services.project.conversation_functional_run import (
-    TRANSIENT_FUNCTION_ERROR_CODES,
-    FunctionalConversationRunError,
-    FunctionalConversationRunner,
-)
+from app.services.project.conversation_functional_run import FunctionalConversationRunner
 from app.services.project.conversation_functional_runtime import (
     resolve_functional_conversation_model_target,
 )
@@ -50,8 +46,6 @@ from app.services.project.project_conversations import (
 )
 
 
-DEFAULT_FAILURE_RETRY_COUNT = 0
-MAX_FAILURE_RETRY_COUNT = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,13 +253,6 @@ class ProjectConversationLongTermMemoryService:
         )
         if target is None:
             return
-        retry_count = int_setting(
-            settings,
-            "failureRetryCount",
-            default_value=DEFAULT_FAILURE_RETRY_COUNT,
-            minimum=0,
-            maximum=MAX_FAILURE_RETRY_COUNT,
-        )
         is_blocking = bool_setting(
             settings,
             "blockingEnabled",
@@ -281,136 +268,90 @@ class ProjectConversationLongTermMemoryService:
             "snapshot_boundary_message_id": plan.snapshot_boundary_message_id,
             "blocking": is_blocking,
         }
-        first_task_id: str | None = None
-        for attempt_index in range(retry_count + 1):
-            if not await self._memory_extraction_is_enabled(
-                profile_definition,
+        if not await self._memory_extraction_is_enabled(
+            profile_definition,
+            project_id,
+            session_id,
+        ):
+            return
+        task_id = f"{profile_definition.task_id_prefix}_{uuid4().hex[:16]}"
+        creation = None
+        try:
+            creation = await asyncio.to_thread(
+                repository.create_task,
                 project_id,
                 session_id,
-            ):
-                return
-            task_id = (
-                f"{profile_definition.task_id_prefix}_"
-                f"{uuid4().hex[:16]}"
+                task_id=task_id,
+                previous_boundary_message_id=plan.previous_boundary_message_id,
+                snapshot_boundary_message_id=plan.snapshot_boundary_message_id,
+                newly_covered_message_ids=plan.newly_covered_message_ids,
+                target_provider_id=target.provider_id,
+                target_model_id=target.model_id,
+                target_reasoning_mode=target.reasoning_mode,
+                target_settings=target.session_settings,
+                mode=target.mode,
+                trigger=trigger,
             )
-            if first_task_id is None:
-                first_task_id = task_id
-            creation = None
-            try:
-                creation = await asyncio.to_thread(
-                    repository.create_task,
-                    project_id,
-                    session_id,
-                    task_id=task_id,
-                    previous_boundary_message_id=(
-                        plan.previous_boundary_message_id
-                    ),
-                    snapshot_boundary_message_id=(
-                        plan.snapshot_boundary_message_id
-                    ),
-                    newly_covered_message_ids=(
-                        plan.newly_covered_message_ids
-                    ),
-                    target_provider_id=target.provider_id,
-                    target_model_id=target.model_id,
-                    target_reasoning_mode=target.reasoning_mode,
-                    target_settings=target.session_settings,
-                    mode=target.mode,
-                    trigger=trigger,
-                    attempt_index=attempt_index,
-                    retry_of=(
-                        first_task_id
-                        if attempt_index > 0
-                        else None
-                    ),
-                )
+            await asyncio.to_thread(
+                repository.mark_task_running,
+                project_id,
+                creation.session.session_id,
+            )
+            request = ChatCompletionRequest(
+                provider_id=target.provider_id,
+                model_id=target.model_id,
+                project_id=project_id,
+                session_id=creation.session.session_id,
+                messages=(ChatMessage(role=ChatMessageRole.USER, content=prompt),),
+                generation=target.generation,
+                record_usage=True,
+                usage_message_id=(
+                    f"system:{profile_definition.usage_feature_key}:{task_id}"
+                ),
+                usage_feature_key=profile_definition.usage_feature_key,
+                max_tool_calls=creation.session.settings.max_tool_calls,
+                upstream_retry_count=creation.session.settings.upstream_retry_count,
+            )
+            await self._functional_conversation_runner(request)
+            await asyncio.to_thread(
+                self._validate_function_run,
+                project_id,
+                creation.session.session_id,
+                prompt,
+            )
+            await asyncio.to_thread(
+                repository.mark_task_completed,
+                project_id,
+                creation.session.session_id,
+            )
+        except asyncio.CancelledError:
+            if creation is not None:
                 await asyncio.to_thread(
-                    repository.mark_task_running,
+                    repository.mark_task_failed,
                     project_id,
                     creation.session.session_id,
+                    reason="CancelledError",
+                    message=f"{profile_definition.repository.label}任务已取消。",
                 )
-                request = ChatCompletionRequest(
-                    provider_id=target.provider_id,
-                    model_id=target.model_id,
-                    project_id=project_id,
-                    session_id=creation.session.session_id,
-                    messages=(
-                        ChatMessage(
-                            role=ChatMessageRole.USER,
-                            content=prompt,
-                        ),
-                    ),
-                    generation=target.generation,
-                    record_usage=True,
-                    usage_message_id=(
-                        f"system:{profile_definition.usage_feature_key}:"
-                        f"{task_id}"
-                    ),
-                    usage_feature_key=profile_definition.usage_feature_key,
-                    max_tool_calls=creation.session.settings.max_tool_calls,
-                )
-                await self._functional_conversation_runner(request)
+            raise
+        except ConflictError:
+            if creation is not None:
                 await asyncio.to_thread(
-                    self._validate_function_run,
+                    repository.mark_task_failed,
                     project_id,
                     creation.session.session_id,
-                    prompt,
+                    reason="stale_result",
+                    message=f"{profile_definition.repository.label}任务边界已经变化。",
                 )
+        except Exception as exc:
+            if creation is not None:
                 await asyncio.to_thread(
-                    repository.mark_task_completed,
+                    repository.mark_task_failed,
                     project_id,
                     creation.session.session_id,
+                    reason=type(exc).__name__,
+                    message=str(exc),
                 )
-                return
-            except asyncio.CancelledError:
-                if creation is not None:
-                    await asyncio.to_thread(
-                        repository.mark_task_failed,
-                        project_id,
-                        creation.session.session_id,
-                        reason="CancelledError",
-                        message=f"{profile_definition.repository.label}任务已取消。",
-                    )
-                raise
-            except ConflictError:
-                if creation is not None:
-                    await asyncio.to_thread(
-                        repository.mark_task_failed,
-                        project_id,
-                        creation.session.session_id,
-                        reason="stale_result",
-                        message=(
-                            f"{profile_definition.repository.label}"
-                            "任务边界已经变化。"
-                        ),
-                    )
-                return
-            except Exception as exc:
-                if creation is not None:
-                    await asyncio.to_thread(
-                        repository.mark_task_failed,
-                        project_id,
-                        creation.session.session_id,
-                        reason=type(exc).__name__,
-                        message=str(exc),
-                    )
-                allowed_retries = (
-                    min(retry_count, 1)
-                    if isinstance(
-                        exc,
-                        MissingMemoryManagementToolCallError,
-                    )
-                    else retry_count
-                )
-                if (
-                    isinstance(exc, FunctionalConversationRunError)
-                    and exc.code
-                    and exc.code not in TRANSIENT_FUNCTION_ERROR_CODES
-                ):
-                    return
-                if attempt_index >= allowed_retries:
-                    return
-                await asyncio.sleep(min(2 ** attempt_index, 4))
 
     async def _memory_extraction_is_enabled(
         self,
