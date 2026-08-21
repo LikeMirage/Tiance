@@ -12,6 +12,7 @@ import {
   upsertToolProcessItemInTimeline,
   type ChatAssistantProcessItem,
   type ChatMessage,
+  type ChatRetryStatus,
   type ChatToolProcessItem,
 } from "./chatMessage";
 
@@ -56,6 +57,10 @@ export function createChatStreamAccumulator({
   ];
   let streamRole: ChatMessage["role"] = initialMessage?.role ?? "assistant";
   let streamHadError = false;
+  let retryStatus: ChatRetryStatus | null = initialMessage?.retryStatus ?? null;
+  let currentAttemptIndex = Math.max(1, retryStatus?.attemptIndex ?? 1);
+  let currentAttemptCount = Math.max(currentAttemptIndex, retryStatus?.attemptCount ?? 1);
+  let attemptFailureSerial = 0;
   let hasCollapsedThinkingOnBodyStart = Boolean(initialMessage?.content.trim());
   let committedContentBuffer = contentBuffer;
   let committedThinkingBuffer = thinkingBuffer;
@@ -81,6 +86,7 @@ export function createChatStreamAccumulator({
             contentParts: contentPartsBuffer,
             thinkingContent: thinkingBuffer,
             status: streamRole === "error" ? "error" : "running",
+            retryStatus,
             processItems,
             toolCalls: streamHadError
               ? (message.toolCalls ?? []).map((tool) =>
@@ -112,7 +118,9 @@ export function createChatStreamAccumulator({
   const flushNow = () => {
     if (flushTimer !== null) {
       window.clearTimeout(flushTimer);
+      flushTimer = null;
     }
+    if (streamHadError) return;
     flushStreamUpdate();
   };
 
@@ -122,6 +130,7 @@ export function createChatStreamAccumulator({
       flushTimer = null;
     }
     const now = Date.now();
+    retryStatus = null;
     processItems = removeToolPreparingProcess(
       finishOpenThinkingProcess(processItems, now),
     ).map((item) => item.type === "tool"
@@ -135,6 +144,7 @@ export function createChatStreamAccumulator({
             contentParts: contentPartsBuffer,
             thinkingContent: thinkingBuffer,
             status: "cancelled",
+            retryStatus: null,
             processItems,
             toolCalls: (message.toolCalls ?? []).map((tool) =>
               finalizeActiveTool(tool, now, "cancelled")),
@@ -156,6 +166,53 @@ export function createChatStreamAccumulator({
     contentBuffer = "";
   };
 
+  const markRetryAttemptProgress = () => {
+    if (retryStatus === null) return;
+    retryStatus = null;
+    updateSessionMessages(streamProjectId, sessionId, (prev) => prev.map((message) =>
+      message.id === assistantId
+        ? { ...message, retryStatus: null, updatedAt: Date.now() }
+        : message,
+    ));
+  };
+
+  const createAttemptFailureMessage = (
+    error: string,
+    errorCode: string | null,
+    attemptIndex: number,
+    attemptCount: number,
+  ): ChatMessage => {
+    const now = Date.now();
+    const normalizedAttemptIndex = Math.max(1, attemptIndex);
+    attemptFailureSerial += 1;
+    return {
+      id: `run-attempt-failure:live:${assistantId}:${attemptFailureSerial}`,
+      role: "error",
+      content: error,
+      thinkingContent: "",
+      status: "error",
+      usage: null,
+      isThinkingExpanded: false,
+      thinkingStartedAt: null,
+      thinkingFinishedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      originMessageId: `run-attempt-failure:live:${assistantId}:${attemptFailureSerial}`,
+      runAttemptFailure: {
+        event_id: -attemptFailureSerial,
+        run_id: assistantId,
+        session_id: sessionId,
+        user_message_id: "",
+        error_code: errorCode,
+        error_message: error,
+        attempt_index: normalizedAttemptIndex,
+        attempt_count: Math.max(normalizedAttemptIndex, attemptCount),
+        occurred_at: new Date(now).toISOString(),
+      },
+      retryStatus: null,
+    };
+  };
+
   const handleEvent = (event: ChatStreamEvent) => {
     if (event.kind === "retry_reset") {
       if (flushTimer !== null) {
@@ -169,26 +226,44 @@ export function createChatStreamAccumulator({
       hasCollapsedThinkingOnBodyStart = committedHasCollapsedThinking;
       streamRole = "assistant";
       streamHadError = false;
-      updateSessionMessages(streamProjectId, sessionId, (prev) => prev.map((message) =>
+      const attemptIndex = Math.max(1, event.attempt_index ?? 1);
+      const failedAttemptIndex = Math.max(1, attemptIndex - 1);
+      currentAttemptIndex = attemptIndex;
+      currentAttemptCount = Math.max(attemptIndex, event.attempt_count ?? attemptIndex);
+      const attemptFailureMessage = createAttemptFailureMessage(
+        event.error || "",
+        event.error_code?.trim() || null,
+        failedAttemptIndex,
+        currentAttemptCount,
+      );
+      retryStatus = {
+        error: event.error || "",
+        errorCode: event.error_code?.trim() || null,
+        attemptIndex,
+        attemptCount: currentAttemptCount,
+      };
+      updateSessionMessages(streamProjectId, sessionId, (prev) => prev.flatMap((message) =>
         message.id === assistantId
-          ? {
+          ? [attemptFailureMessage, {
               ...message,
               role: "assistant",
               content: contentBuffer,
               contentParts: contentPartsBuffer,
               thinkingContent: thinkingBuffer,
               status: "running",
+              retryStatus,
               processItems,
               toolCalls: (message.toolCalls ?? []).filter((tool) =>
                 committedToolCallIds.has(tool.callId)),
               updatedAt: Date.now(),
-            }
-          : message,
+            }]
+          : [message],
       ));
       return;
     }
 
     if (event.kind === "delta" && event.content) {
+      markRetryAttemptProgress();
       contentBuffer += event.content;
       if (contentBuffer.trim().length > 0) {
         processItems = finishOpenThinkingProcess(processItems, Date.now());
@@ -198,6 +273,7 @@ export function createChatStreamAccumulator({
     }
 
     if (event.kind === "thinking_delta" && event.content) {
+      markRetryAttemptProgress();
       thinkingBuffer += event.content;
       processItems = appendThinkingProcessDelta(
         processItems,
@@ -225,6 +301,7 @@ export function createChatStreamAccumulator({
     }
 
     if (event.kind === "tool_call_delta") {
+      markRetryAttemptProgress();
       const now = Date.now();
       moveBufferedContentToProcess();
       if (event.tool_call) {
@@ -242,6 +319,7 @@ export function createChatStreamAccumulator({
     }
 
     if (event.kind === "tool_call" && event.tool_call) {
+      markRetryAttemptProgress();
       const now = Date.now();
       moveBufferedContentToProcess();
       const toolItem = createRunningToolProcessItem(event.tool_call, now);
@@ -269,16 +347,55 @@ export function createChatStreamAccumulator({
     }
 
     if (event.kind === "error") {
+      if (flushTimer !== null) {
+        window.clearTimeout(flushTimer);
+        flushTimer = null;
+      }
       const now = Date.now();
       streamHadError = true;
-      streamRole = "error";
-      processItems = removeToolPreparingProcess(
-        finishOpenThinkingProcess(processItems, now),
-      ).map((item) => item.type === "tool"
-        ? { ...item, tool: finalizeActiveTool(item.tool, now, "error") }
-        : item);
-      contentBuffer = event.error || "请求失败";
-      flushNow();
+      streamRole = "assistant";
+      retryStatus = null;
+      currentAttemptIndex = Math.max(1, event.attempt_index ?? currentAttemptIndex);
+      currentAttemptCount = Math.max(
+        currentAttemptIndex,
+        event.attempt_count ?? currentAttemptCount,
+      );
+      contentBuffer = committedContentBuffer;
+      thinkingBuffer = committedThinkingBuffer;
+      contentPartsBuffer = [...committedContentPartsBuffer];
+      processItems = [...committedProcessItems];
+      hasCollapsedThinkingOnBodyStart = committedHasCollapsedThinking;
+      const attemptFailureMessage = createAttemptFailureMessage(
+        event.error || "",
+        event.error_code?.trim() || null,
+        currentAttemptIndex,
+        currentAttemptCount,
+      );
+      const hasCommittedAssistantProcess = Boolean(
+        contentBuffer.trim()
+        || thinkingBuffer.trim()
+        || processItems.length > 0
+        || committedToolCallIds.size > 0,
+      );
+      updateSessionMessages(streamProjectId, sessionId, (prev) => prev.flatMap((message) => {
+        if (message.id !== assistantId) return [message];
+        if (!hasCommittedAssistantProcess) return [attemptFailureMessage];
+        return [{
+          ...message,
+          role: "assistant",
+          content: contentBuffer,
+          contentParts: contentPartsBuffer,
+          thinkingContent: thinkingBuffer,
+          status: "done",
+          retryStatus: null,
+          processItems,
+          toolCalls: (message.toolCalls ?? []).filter((tool) =>
+            committedToolCallIds.has(tool.callId)),
+          isThinkingExpanded: false,
+          thinkingFinishedAt: message.thinkingStartedAt !== null ? now : null,
+          updatedAt: now,
+        }, attemptFailureMessage];
+      }));
     }
   };
 

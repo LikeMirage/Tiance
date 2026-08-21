@@ -31,6 +31,7 @@ import {
   resolveRenamedTabId,
 } from "./documentTabUtils";
 import { decideAssetRefresh } from "./assetRefreshPolicy";
+import { getTextContentUnavailable } from "./documentTextLoadError";
 
 type UseDocumentTabFileSyncOptions = {
   activeTabIdRef: MutableRefObject<EditorTabId | null>;
@@ -155,6 +156,7 @@ export function useDocumentTabFileSync({
             savedContent: res.content,
             textContentAccessedAt: Date.now(),
             textContentLoaded: true,
+            textContentUnavailable: null,
             isDirty: false,
             isMissing: false,
             externalChange: null,
@@ -166,7 +168,19 @@ export function useDocumentTabFileSync({
     } catch (err) {
       if (err instanceof HttpRequestError && err.status === 404) {
         markDeletedWorkspacePath(runtime.source.key, normalizedFilePath);
+        return;
       }
+      const unavailable = getTextContentUnavailable(err);
+      if (!unavailable || fileLoadRequestIdsRef.current.get(tabId) !== requestId) return;
+      setTabs((prev) => prev.map((tab) => tab.id === tabId
+        ? {
+          ...tab,
+          textContentLoaded: false,
+          textContentUnavailable: unavailable,
+          saveState: "idle" as const,
+          saveError: null,
+        }
+        : tab));
     }
   }, [fileLoadRequestIdsRef, markDeletedWorkspacePath, setTabs]);
 

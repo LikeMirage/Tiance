@@ -8,6 +8,7 @@ from app.api.routes.project import conversations as conversation_routes
 from app.core.errors import BadRequestError, register_exception_handlers
 from app.domain.project import Project
 from app.repositories.project.conversation_repository import ProjectConversationRepository
+from app.repositories.project.conversation_database import append_journal_event
 from app.services.project.project_conversations import ProjectConversationService
 
 
@@ -87,6 +88,25 @@ def test_messages_api_returns_durable_run_outcomes(monkeypatch, tmp_path):
         user_message_id=user_message.message_id,
         started_at="2026-08-19T00:00:00+00:00",
     )
+    for attempt_index, error_message in (
+        (1, "第一次连接失败。"),
+        (2, "上游响应在完成标记前结束。"),
+    ):
+        append_journal_event(
+            tmp_path / ".Tiance",
+            session_id=session_id,
+            run_id="run-failed",
+            turn_id=None,
+            tool_call_id=None,
+            event_type="model.request_attempt.failed",
+            occurred_at=f"2026-08-19T00:00:0{attempt_index}+00:00",
+            payload={
+                "attempt_index": attempt_index,
+                "attempt_count": 2,
+                "error_code": "upstream_stream_incomplete",
+                "error_message": error_message,
+            },
+        )
     repository.settle_run(
         PROJECT_ID,
         session_id,
@@ -120,12 +140,19 @@ def test_messages_api_returns_durable_run_outcomes(monkeypatch, tmp_path):
             "session_id": session_id,
             "user_message_id": user_message.message_id,
             "status": "error",
-            "error_code": "upstream_stream_incomplete",
-            "error_message": "上游响应在完成标记前结束。",
+            "error_code": None,
+            "error_message": None,
             "attempt_count": 2,
             "started_at": "2026-08-19T00:00:00+00:00",
             "settled_at": "2026-08-19T00:00:01+00:00",
         }
+    ]
+    assert [
+        (failure["attempt_index"], failure["attempt_count"], failure["error_message"])
+        for failure in payload["run_attempt_failures"]
+    ] == [
+        (1, 2, "第一次连接失败。"),
+        (2, 2, "上游响应在完成标记前结束。"),
     ]
 
 

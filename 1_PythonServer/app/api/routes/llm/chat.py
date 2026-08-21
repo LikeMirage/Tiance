@@ -9,6 +9,7 @@ from app.core.errors import (
     BadRequestError,
     NotFoundError,
     UpstreamProviderError,
+    local_exception_message,
     to_upstream_provider_error,
 )
 from app.schemas.llm.chat import (
@@ -40,7 +41,10 @@ async def create_chat_completion(
     except httpx.HTTPStatusError as exc:
         raise to_upstream_provider_error(exc) from exc
     except httpx.RequestError as exc:
-        raise UpstreamProviderError(f"上游供应商连接失败：{exc}") from exc
+        raise UpstreamProviderError(
+            local_exception_message(exc),
+            code="upstream_connection_error",
+        ) from exc
     return ChatCompletionResponse.from_domain(result)
 
 

@@ -131,6 +131,7 @@ class ProjectConversationMessagePage:
     has_more: bool
     next_before_message_id: str | None
     run_outcomes: tuple["ProjectConversationRunOutcome", ...] = ()
+    run_attempt_failures: tuple["ProjectConversationRunAttemptFailure", ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +139,7 @@ class ProjectConversationMessageTurn:
     user_message_id: str
     items: tuple[ProjectConversationMessage, ...]
     run_outcomes: tuple["ProjectConversationRunOutcome", ...] = ()
+    run_attempt_failures: tuple["ProjectConversationRunAttemptFailure", ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +153,19 @@ class ProjectConversationRunOutcome:
     attempt_count: int
     started_at: str
     settled_at: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectConversationRunAttemptFailure:
+    event_id: int
+    run_id: str
+    session_id: str
+    user_message_id: str
+    error_code: str | None
+    error_message: str
+    attempt_index: int
+    attempt_count: int
+    occurred_at: str
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import base64
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
 import http.client
 import io
 import json
@@ -18,7 +19,9 @@ from urllib.parse import unquote, urlparse
 from zipfile import ZipFile
 
 from mineru_result_download import ResultDownloadError, download_result_bytes
+from pdf_ocr_policy import OCR_MODES, OcrDependencyMissingError, decide_ocr
 from tiance_runtime import run_tool
+from vision_selection import select_vision_images, should_force_ocr_rerun
 
 
 CONFIG_PATH = Path(__file__).with_name("config.json")
@@ -81,7 +84,8 @@ class ParseOptions:
     output_dir: Path
     overwrite: bool
     analyze_images: bool
-    max_images: int
+    analyze_full_page_images: bool
+    ocr_mode: str
     image_concurrency: int
     parse_timeout_seconds: int
     poll_interval_seconds: int
@@ -105,6 +109,22 @@ class ToolConfig:
     dmxapi_thinking_type: str
     dmxapi_system_prompt: str
     dmxapi_user_prompt: str
+
+
+@dataclass(frozen=True)
+class MineruAttempt:
+    attempt: int
+    is_ocr: bool
+    task_ref: str
+    data_id: str
+    model_version: str
+    status: dict[str, Any]
+    zip_path: Path
+    extracted_root: Path
+    full_md_path: Path
+    markdown: str
+    referenced_image_paths: list[str]
+    content_list_path: Path | None
 
 
 def ok(summary: str, data: dict[str, Any], warnings: list[str]) -> dict[str, Any]:
@@ -248,6 +268,10 @@ def prepare_options(payload: dict[str, Any]) -> ParseOptions:
     output_dir = (output_root / folder_name).resolve(strict=False)
     ensure_inside(output_dir, root, "OUTPUT_OUTSIDE_WORKSPACE", "输出目录必须在工作区内。")
 
+    ocr_mode = str(payload.get("ocr_mode") or "auto").strip().lower()
+    if ocr_mode not in OCR_MODES:
+        raise ToolError("INVALID_ARGUMENT", "ocr_mode 只能是 auto、always 或 never。")
+
     return ParseOptions(
         source_file=source_file,
         workspace_root=root,
@@ -255,8 +279,9 @@ def prepare_options(payload: dict[str, Any]) -> ParseOptions:
         output_dir=output_dir,
         overwrite=read_bool(payload.get("overwrite"), False),
         analyze_images=read_bool(payload.get("analyze_images"), True),
-        max_images=read_int(payload.get("max_images"), 50, 0, 200),
-        image_concurrency=read_int(payload.get("image_concurrency"), 4, 1, 12),
+        analyze_full_page_images=read_bool(payload.get("analyze_full_page_images"), False),
+        ocr_mode=ocr_mode,
+        image_concurrency=read_int(payload.get("image_concurrency"), 50, 1, 50),
         parse_timeout_seconds=read_int(payload.get("parse_timeout_seconds"), 1800, 60, 7200),
         poll_interval_seconds=read_int(payload.get("poll_interval_seconds"), 3, 1, 30),
         request_timeout_seconds=read_int(payload.get("request_timeout_seconds"), 60, 10, 300),
@@ -481,7 +506,6 @@ def prepare_output_dir(options: ParseOptions) -> str | None:
         backup_dir = str(backup_path)
     options.output_dir.mkdir(parents=True, exist_ok=False)
     (options.output_dir / "source").mkdir(parents=True, exist_ok=True)
-    (options.output_dir / "mineru_extracted").mkdir(parents=True, exist_ok=True)
     (options.output_dir / "images").mkdir(parents=True, exist_ok=True)
     return backup_dir
 
@@ -597,10 +621,20 @@ def safe_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return copied
 
 
-def submit_mineru_task(options: ParseOptions, config: ToolConfig) -> tuple[str, str, str, str]:
+def submit_mineru_task(
+    options: ParseOptions,
+    config: ToolConfig,
+    *,
+    is_ocr: bool,
+) -> tuple[str, str, str, str]:
     model_version = model_version_for(options.source_file, config)
     data_id = f"tiance-{int(time.time())}-{os.urandom(4).hex()}"
-    payload = {"files": [{"name": options.source_file.name, "data_id": data_id}], "model_version": model_version}
+    file_payload: dict[str, Any] = {"name": options.source_file.name, "data_id": data_id}
+    if options.source_file.suffix.lower() == ".pdf" or options.source_file.suffix.lower() in IMAGE_EXTENSIONS:
+        file_payload["is_ocr"] = is_ocr
+    payload: dict[str, Any] = {"files": [file_payload], "model_version": model_version}
+    if options.source_file.suffix.lower() not in {".html", ".htm"}:
+        payload.update({"enable_formula": True, "enable_table": True})
     url = f"{config.mineru_base_url.rstrip('/')}/api/v4/file-urls/batch"
     response_payload = post_json(url, mineru_headers(config), payload, options.request_timeout_seconds, "MinerU")
     data = response_payload.get("data") if isinstance(response_payload.get("data"), dict) else {}
@@ -719,11 +753,12 @@ def find_artifact(root: Path, filename_hint: str) -> Path | None:
 
 def find_artifact_by_suffix(root: Path, filename_suffix: str) -> Path | None:
     lowered = filename_suffix.lower()
+    exact_name = lowered.lstrip("_")
     candidates = sorted(
         (
             path
             for path in root.rglob("*")
-            if path.is_file() and path.name.lower().endswith(lowered)
+            if path.is_file() and (path.name.lower() == exact_name or path.name.lower().endswith(lowered))
         ),
         key=lambda path: path.relative_to(root).as_posix().lower(),
     )
@@ -761,19 +796,6 @@ def markdown_to_plain_text(markdown: str) -> str:
     return text.strip()
 
 
-def discover_all_images(root: Path) -> list[Path]:
-    images = [path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS]
-    return sorted(images, key=lambda item: item.relative_to(root).as_posix().lower())
-
-
-def discover_images(root: Path, limit: int, relative_paths: list[str] | None = None) -> tuple[list[Path], bool]:
-    if relative_paths is None:
-        images = discover_all_images(root)
-    else:
-        images = resolve_relative_image_paths(root, relative_paths)
-    return images[:limit], len(images) > limit
-
-
 def analyze_images(
     options: ParseOptions,
     extracted_root: Path,
@@ -781,41 +803,83 @@ def analyze_images(
     config: ToolConfig,
     relative_paths: list[str],
 ) -> list[dict[str, Any]]:
-    if not options.analyze_images or options.max_images <= 0:
+    if not options.analyze_images:
         return []
-    images, truncated = discover_images(extracted_root, options.max_images, relative_paths)
-    if truncated:
-        warnings.append(f"正文图片数量超过 max_images={options.max_images}，只分析前 {options.max_images} 张。")
+    images = resolve_relative_image_paths(extracted_root, relative_paths)
     if not images:
         return []
-    worker_count = max(1, min(options.image_concurrency, len(images)))
+
+    checksum_groups: dict[str, list[Path]] = {}
+    for image_path in images:
+        checksum = _file_sha256(image_path)
+        checksum_groups.setdefault(checksum, []).append(image_path)
+    unique_images = [group[0] for group in checksum_groups.values()]
+    worker_count = max(1, min(options.image_concurrency, len(unique_images)))
     results: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        future_map = {
-            executor.submit(analyze_single_image, image_path, extracted_root, options.vision_timeout_seconds, config): image_path
-            for image_path in images
-        }
+        pending: dict[Future[dict[str, Any]], Path] = {}
+        image_iterator = iter(unique_images)
+        for _ in range(worker_count):
+            image_path = next(image_iterator, None)
+            if image_path is None:
+                break
+            pending[
+                executor.submit(analyze_single_image, image_path, extracted_root, options.vision_timeout_seconds, config)
+            ] = image_path
         completed = 0
-        for future in as_completed(future_map):
-            image_path = future_map[future]
-            completed += 1
-            try:
-                result = future.result()
-            except Exception as exc:
-                result = {
-                    "ok": False,
-                    "image_path": image_path.relative_to(extracted_root).as_posix(),
-                    "error": str(exc) or exc.__class__.__name__,
-                }
-                warnings.append(f"图片分析失败：{result['image_path']}：{result['error']}")
-            results.append(result)
-            update_status(
-                options.output_dir,
-                "vision_analysis",
-                f"图片分析中：{completed}/{len(images)}",
-                {"completed": completed, "total": len(images)},
-            )
+        while pending:
+            done, _ = wait(pending, return_when=FIRST_COMPLETED)
+            for future in done:
+                image_path = pending.pop(future)
+                completed += 1
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    result = {
+                        "ok": False,
+                        "image_path": image_path.relative_to(extracted_root).as_posix(),
+                        "error": str(exc) or exc.__class__.__name__,
+                    }
+                    warnings.append(f"图片分析失败：{result['image_path']}：{result['error']}")
+                checksum = _file_sha256(image_path)
+                duplicate_group = checksum_groups[checksum]
+                for duplicate_path in duplicate_group:
+                    duplicate_result = dict(result)
+                    duplicate_result["image_path"] = duplicate_path.relative_to(extracted_root).as_posix()
+                    if duplicate_path != image_path:
+                        duplicate_result["reused_from"] = image_path.relative_to(extracted_root).as_posix()
+                    results.append(duplicate_result)
+                update_status(
+                    options.output_dir,
+                    "vision_analysis",
+                    f"图片分析中：{completed}/{len(unique_images)}",
+                    {
+                        "completed": completed,
+                        "total": len(unique_images),
+                        "referenced_total": len(images),
+                        "concurrency": worker_count,
+                    },
+                )
+                next_image = next(image_iterator, None)
+                if next_image is not None:
+                    pending[
+                        executor.submit(
+                            analyze_single_image,
+                            next_image,
+                            extracted_root,
+                            options.vision_timeout_seconds,
+                            config,
+                        )
+                    ] = next_image
     return sorted(results, key=lambda item: str(item.get("image_path") or ""))
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for block in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def analyze_single_image(image_path: Path, extracted_root: Path, timeout: int, config: ToolConfig) -> dict[str, Any]:
@@ -858,7 +922,31 @@ def analyze_single_image(image_path: Path, extracted_root: Path, timeout: int, c
     headers = {"Authorization": f"Bearer {config.dmxapi_api_key}", "Content-Type": "application/json"}
     url = f"{config.dmxapi_base_url.rstrip('/')}/chat/completions"
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    status_code, text = http_request("POST", url, headers=headers, body=body, timeout=timeout, service_name="DMXAPI")
+    status_code = 0
+    text = ""
+    retry_count = 0
+    for attempt in range(3):
+        try:
+            status_code, text = http_request(
+                "POST",
+                url,
+                headers=headers,
+                body=body,
+                timeout=timeout,
+                service_name="DMXAPI",
+            )
+        except ToolError as exc:
+            if exc.code != "HTTP_REQUEST_FAILED" or attempt == 2:
+                raise
+            retry_count += 1
+            time.sleep(0.5 * (2**attempt))
+            continue
+        if status_code not in {408, 425, 429} and status_code < 500:
+            break
+        if attempt == 2:
+            break
+        retry_count += 1
+        time.sleep(0.5 * (2**attempt))
     try:
         response_payload = json.loads(text)
     except ValueError as exc:
@@ -922,6 +1010,7 @@ def analyze_single_image(image_path: Path, extracted_root: Path, timeout: int, c
         "mime_type": mime_type,
         "model": config.dmxapi_model,
         "analysis": content_text,
+        "retry_count": retry_count,
         "usage": response_payload.get("usage") if isinstance(response_payload.get("usage"), dict) else None,
     }
 
@@ -1104,51 +1193,141 @@ def cleanup_success_outputs(options: ParseOptions, files: list[Path | None], dir
             warnings.append(f"清理中间目录失败：{relative_or_absolute(dir_path, options.workspace_root)}：{exc}")
 
 
+def execute_mineru_attempt(
+    options: ParseOptions,
+    config: ToolConfig,
+    *,
+    is_ocr: bool,
+    attempt: int,
+) -> MineruAttempt:
+    update_status(
+        options.output_dir,
+        "mineru_submit",
+        f"向 MinerU 申请上传地址（第 {attempt} 次，OCR={'开启' if is_ocr else '关闭'}）",
+    )
+    task_ref, upload_url, data_id, model_version = submit_mineru_task(options, config, is_ocr=is_ocr)
+    append_log(options.output_dir, f"mineru_attempt={attempt} task_ref={task_ref} is_ocr={is_ocr}")
+
+    update_status(options.output_dir, "mineru_upload", "上传源文件到 MinerU", {"task_ref": task_ref, "attempt": attempt})
+    upload_to_mineru(upload_url, options.source_file, options.request_timeout_seconds)
+    update_status(options.output_dir, "mineru_polling", "等待 MinerU 解析完成", {"task_ref": task_ref, "attempt": attempt})
+    result_url, mineru_status = poll_mineru_result(options, task_ref, data_id, config)
+    append_log(options.output_dir, f"mineru_result_host={urlparse(result_url).hostname or 'unknown'}")
+
+    update_status(options.output_dir, "mineru_download", "下载 MinerU 结果包", {"task_ref": task_ref, "attempt": attempt})
+    try:
+        zip_bytes = download_result_bytes(result_url, options.request_timeout_seconds)
+    except ResultDownloadError as exc:
+        raise ToolError(exc.code, exc.message, exc.details) from exc
+    zip_path = options.output_dir / f"mineru_result_{attempt}.zip"
+    zip_path.write_bytes(zip_bytes)
+    extracted_root = options.output_dir / f"mineru_extracted_{attempt}"
+    extracted_root.mkdir(parents=True, exist_ok=False)
+    extracted_files = extract_zip_safely(zip_bytes, extracted_root)
+    full_md_path = find_artifact(extracted_root, "full.md")
+    if full_md_path is None:
+        raise ToolError("FULL_MARKDOWN_MISSING", "MinerU 解析结果中未找到 full.md。", {"extracted_files": extracted_files[:200]})
+    markdown = full_md_path.read_text(encoding="utf-8", errors="replace")
+    referenced_image_paths = collect_markdown_image_references(markdown, full_md_path, extracted_root)
+    content_list_path = find_artifact_by_suffix(extracted_root, "_content_list.json")
+    return MineruAttempt(
+        attempt=attempt,
+        is_ocr=is_ocr,
+        task_ref=task_ref,
+        data_id=data_id,
+        model_version=model_version,
+        status=mineru_status,
+        zip_path=zip_path,
+        extracted_root=extracted_root,
+        full_md_path=full_md_path,
+        markdown=markdown,
+        referenced_image_paths=referenced_image_paths,
+        content_list_path=content_list_path,
+    )
+
+
+def meaningful_markdown_char_count(markdown: str) -> int:
+    return sum(1 for character in markdown_to_plain_text(markdown) if character.isalnum())
+
+
 def run(payload: dict[str, Any]) -> dict[str, Any]:
     warnings: list[str] = []
     try:
         options = prepare_options(payload)
         config = ensure_tool_config(options)
+        try:
+            ocr_decision = decide_ocr(options.source_file, options.ocr_mode)
+        except OcrDependencyMissingError as exc:
+            raise ToolError("DEPENDENCY_MISSING", str(exc)) from exc
+        except Exception as exc:
+            raise ToolError("PDF_OCR_INSPECTION_FAILED", f"无法判断 PDF 是否需要 OCR：{exc}") from exc
+
         backup_dir = prepare_output_dir(options)
-        update_status(options.output_dir, "started", "开始文档解析")
+        update_status(
+            options.output_dir,
+            "started",
+            "开始文档解析",
+            {"ocr_mode": options.ocr_mode, "ocr_enabled": ocr_decision.enabled},
+        )
         append_log(options.output_dir, f"source={options.source_file}")
 
         copied_source = options.output_dir / "source" / options.source_file.name
         shutil.copy2(options.source_file, copied_source)
 
-        update_status(options.output_dir, "mineru_submit", "向 MinerU 申请上传地址")
-        task_ref, upload_url, data_id, model_version = submit_mineru_task(options, config)
-        append_log(options.output_dir, f"mineru_task_ref={task_ref}")
+        attempts = [
+            execute_mineru_attempt(
+                options,
+                config,
+                is_ocr=ocr_decision.enabled,
+                attempt=1,
+            )
+        ]
+        final_attempt = attempts[-1]
+        initial_selection = select_vision_images(
+            final_attempt.referenced_image_paths,
+            content_list_path=final_attempt.content_list_path,
+            known_page_count=ocr_decision.page_count,
+            source_suffix=options.source_file.suffix,
+            analyze_full_page_images=options.analyze_full_page_images,
+        )
+        if should_force_ocr_rerun(
+            selection=initial_selection,
+            markdown_text_chars=meaningful_markdown_char_count(final_attempt.markdown),
+            ocr_mode=options.ocr_mode,
+            ocr_enabled=final_attempt.is_ocr,
+        ):
+            warnings.append("首次结果疑似把扫描页当成整页图片，已强制开启 OCR 重新解析一次。")
+            attempts.append(execute_mineru_attempt(options, config, is_ocr=True, attempt=2))
+            final_attempt = attempts[-1]
 
-        update_status(options.output_dir, "mineru_upload", "上传源文件到 MinerU", {"task_ref": task_ref})
-        upload_to_mineru(upload_url, options.source_file, options.request_timeout_seconds)
-
-        update_status(options.output_dir, "mineru_polling", "等待 MinerU 解析完成", {"task_ref": task_ref})
-        result_url, mineru_status = poll_mineru_result(options, task_ref, data_id, config)
-        append_log(options.output_dir, f"mineru_result_host={urlparse(result_url).hostname or 'unknown'}")
-
-        update_status(options.output_dir, "mineru_download", "下载 MinerU 结果包", {"task_ref": task_ref})
-        try:
-            zip_bytes = download_result_bytes(result_url, options.request_timeout_seconds)
-        except ResultDownloadError as exc:
-            raise ToolError(exc.code, exc.message, exc.details) from exc
-        zip_path = options.output_dir / "mineru_result.zip"
-        zip_path.write_bytes(zip_bytes)
-
-        extracted_root = options.output_dir / "mineru_extracted"
-        extracted_files = extract_zip_safely(zip_bytes, extracted_root)
-        full_md_path = find_artifact(extracted_root, "full.md")
-        if full_md_path is None:
-            raise ToolError("FULL_MARKDOWN_MISSING", "MinerU 解析结果中未找到 full.md。", {"extracted_files": extracted_files[:200]})
-        markdown = full_md_path.read_text(encoding="utf-8", errors="replace")
-        referenced_image_paths = collect_markdown_image_references(markdown, full_md_path, extracted_root)
+        extracted_root = final_attempt.extracted_root
+        full_md_path = final_attempt.full_md_path
+        markdown = final_attempt.markdown
+        referenced_image_paths = final_attempt.referenced_image_paths
+        vision_selection = select_vision_images(
+            referenced_image_paths,
+            content_list_path=final_attempt.content_list_path,
+            known_page_count=ocr_decision.page_count,
+            source_suffix=options.source_file.suffix,
+            analyze_full_page_images=options.analyze_full_page_images,
+        )
+        if vision_selection.skipped_full_page_paths:
+            warnings.append(
+                f"已跳过 {len(vision_selection.skipped_full_page_paths)} 张疑似整页扫描图的 DMX 二次分析。"
+            )
         raw_markdown_path = options.output_dir / "full.md"
         raw_markdown_path.write_text(markdown, encoding="utf-8")
 
         structured_artifacts = preserve_structured_artifacts(extracted_root, options.output_dir)
 
         update_status(options.output_dir, "vision_analysis", "分析解析结果中的图片")
-        image_results = analyze_images(options, extracted_root, warnings, config, referenced_image_paths)
+        image_results = analyze_images(
+            options,
+            extracted_root,
+            warnings,
+            config,
+            list(vision_selection.selected_paths),
+        )
         image_analysis_path = options.output_dir / "image_analysis.json"
         write_json(image_analysis_path, image_results)
 
@@ -1172,10 +1351,24 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
             "backup_dir": backup_dir,
             "mineru": {
                 "base_url": config.mineru_base_url,
-                "model_version": model_version,
-                "task_ref": task_ref,
-                "data_id": data_id,
-                "status": mineru_status,
+                "model_version": final_attempt.model_version,
+                "task_ref": final_attempt.task_ref,
+                "data_id": final_attempt.data_id,
+                "status": final_attempt.status,
+                "ocr": {
+                    **ocr_decision.to_dict(),
+                    "actual_enabled": final_attempt.is_ocr,
+                    "rerun_count": len(attempts) - 1,
+                },
+                "attempts": [
+                    {
+                        "attempt": attempt.attempt,
+                        "is_ocr": attempt.is_ocr,
+                        "task_ref": attempt.task_ref,
+                        "data_id": attempt.data_id,
+                    }
+                    for attempt in attempts
+                ],
             },
             "dmxapi": {
                 "base_url": config.dmxapi_base_url,
@@ -1188,7 +1381,12 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
                     "type": config.dmxapi_thinking_type,
                 },
                 "analyze_images": options.analyze_images,
+                "analyze_full_page_images": options.analyze_full_page_images,
+                "image_concurrency": options.image_concurrency,
                 "referenced_image_count": len(referenced_image_paths),
+                "selected_image_count": len(vision_selection.selected_paths),
+                "skipped_full_page_count": len(vision_selection.skipped_full_page_paths),
+                "selection": vision_selection.to_dict(),
                 "image_count": len(image_results),
                 "image_success_count": sum(1 for item in image_results if item.get("ok")),
                 "image_failed_count": sum(1 for item in image_results if not item.get("ok")),
@@ -1213,7 +1411,7 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
         }
         metadata_path = options.output_dir / "metadata.json"
         write_json(metadata_path, metadata)
-        update_status(options.output_dir, "done", "文档解析完成", {"task_ref": task_ref})
+        update_status(options.output_dir, "done", "文档解析完成", {"task_ref": final_attempt.task_ref})
 
         cleanup_success_outputs(
             options,
@@ -1221,11 +1419,11 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
                 raw_markdown_path,
                 plain_text_path,
                 image_analysis_path,
-                zip_path,
+                *[attempt.zip_path for attempt in attempts],
                 options.output_dir / "status.json",
                 options.output_dir / "run.log",
             ],
-            [extracted_root, options.output_dir / "source"],
+            [*[attempt.extracted_root for attempt in attempts], options.output_dir / "source"],
             warnings,
         )
 
@@ -1246,14 +1444,17 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
             },
             "relative_output_dir": relative_or_absolute(options.output_dir, options.workspace_root),
             "mineru": {
-                "task_ref": task_ref,
-                "data_id": data_id,
-                "model_version": model_version,
+                "task_ref": final_attempt.task_ref,
+                "data_id": final_attempt.data_id,
+                "model_version": final_attempt.model_version,
+                "ocr_enabled": final_attempt.is_ocr,
+                "ocr_rerun_count": len(attempts) - 1,
             },
             "image_analysis": {
                 "total": len(image_results),
                 "success": sum(1 for item in image_results if item.get("ok")),
                 "failed": sum(1 for item in image_results if not item.get("ok")),
+                "skipped_full_page": len(vision_selection.skipped_full_page_paths),
             },
         }
         return ok(f"文档解析完成：{options.output_dir.name}", data, warnings)

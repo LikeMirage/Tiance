@@ -30,6 +30,8 @@ import { resolveAssistantBodyContent } from "../model/chatDisplayMessages";
 import { createWorkspaceAssetUrl } from "../../document-editor-canvas/model/documentAssetUrls";
 import {
   buildChatMessageClass,
+  formatChatRetryNotice,
+  formatChatRunFailureNotice,
   readToolProcessItemFromMessage,
   resolveThinkingElapsedSeconds,
   shouldOfferUserMessageExpand,
@@ -114,8 +116,13 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   return (
     <>
       {modelSwitchModelId ? <ModelSwitchNotice modelId={modelSwitchModelId} /> : null}
+      {message.retryStatus && message.role !== "error" ? (
+        <RetryNotice message={message} />
+      ) : null}
       {isMemoryCompactionStatus ? (
         <MemoryCompactionNotice message={message} />
+      ) : message.role === "error" ? (
+        <RunFailureNotice message={message} />
       ) : (
         <div
           className={buildChatMessageClass(message)}
@@ -170,6 +177,31 @@ export const ChatMessageItem = memo(function ChatMessageItem({
     </>
   );
 }, areChatMessageItemPropsEqual);
+
+function RetryNotice({ message }: { message: ChatMessage }) {
+  if (!message.retryStatus) return null;
+  const text = formatChatRetryNotice(message.retryStatus);
+  return (
+    <ConversationEventNotice
+      className="chat-msg__upstream-retry"
+      icon={<ArrowsClockwise size={12} weight="bold" aria-hidden="true" />}
+      text={text}
+      title={`${text}。${message.retryStatus.error}`}
+    />
+  );
+}
+
+function RunFailureNotice({ message }: { message: ChatMessage }) {
+  const text = formatChatRunFailureNotice(message);
+  return (
+    <ConversationEventNotice
+      className="chat-msg__run-failure"
+      icon={<WarningCircle size={12} weight="fill" aria-hidden="true" />}
+      messageId={message.id}
+      text={text}
+    />
+  );
+}
 
 function ModelSwitchNotice({ modelId }: { modelId: string }) {
   return (

@@ -7,6 +7,7 @@ import type {
 } from "../../../entities/llm-chat/model/chatCompletion";
 import type {
   ConversationMessage,
+  ConversationRunAttemptFailure,
   ConversationRunOutcome,
 } from "../../../entities/llm-chat/model/conversation";
 
@@ -16,6 +17,13 @@ export type ChatToolProcessStatus =
   | "done"
   | "error"
   | "cancelled";
+
+export type ChatRetryStatus = {
+  error: string;
+  errorCode: string | null;
+  attemptIndex: number;
+  attemptCount: number;
+};
 
 export type ChatToolProcessItem = {
   id: string;
@@ -84,11 +92,49 @@ export type ChatMessage = {
   variantGroupId?: string | null;
   variantIndex?: number;
   runOutcome?: ConversationRunOutcome;
+  runAttemptFailure?: ConversationRunAttemptFailure;
+  retryStatus?: ChatRetryStatus | null;
 };
+
+export function formatChatRetryNotice(retryStatus: ChatRetryStatus) {
+  return `上游请求失败，正在进行第 ${retryStatus.attemptIndex}/${retryStatus.attemptCount} 次尝试`;
+}
+
+export function formatChatRunFailureNotice(message: ChatMessage) {
+  if (message.runAttemptFailure) {
+    const { attemptIndex, attemptCount } = normalizeAttemptPosition(
+      message.runAttemptFailure.attempt_index,
+      message.runAttemptFailure.attempt_count,
+    );
+    const reason = message.content;
+    if (!reason) {
+      return attemptCount > 1
+        ? `第 ${attemptIndex}/${attemptCount} 次请求失败`
+        : "请求失败";
+    }
+    return attemptCount > 1
+      ? `第 ${attemptIndex}/${attemptCount} 次请求失败：${reason}`
+      : `请求失败：${reason}`;
+  }
+  const attemptCount = Math.max(
+    1,
+    message.runOutcome?.attempt_count ?? message.retryStatus?.attemptCount ?? 1,
+  );
+  const reason = message.content;
+  if (!reason) {
+    return attemptCount > 1
+      ? `请求失败（共尝试 ${attemptCount} 次）`
+      : "请求失败";
+  }
+  return attemptCount > 1
+    ? `请求失败（共尝试 ${attemptCount} 次）：${reason}`
+    : `请求失败：${reason}`;
+}
 
 export function mapConversationMessages(
   messages: ConversationMessage[],
   runOutcomes: ConversationRunOutcome[] = [],
+  runAttemptFailures: ConversationRunAttemptFailure[] = [],
 ): ChatMessage[] {
   const mappedMessages = messages.map((message) => ({
     id: message.message_id,
@@ -118,8 +164,45 @@ export function mapConversationMessages(
     originMessageId: message.origin_message_id || message.message_id,
     variantGroupId: message.variant_group_id ?? null,
     variantIndex: Math.max(1, message.variant_index ?? 1),
+    retryStatus: null,
   }));
-  const mappedOutcomes: ChatMessage[] = runOutcomes.map((outcome) => ({
+  const runOutcomeByRunId = new Map(
+    runOutcomes.map((outcome) => [outcome.run_id, outcome]),
+  );
+  const lastFailureEventIdByRunId = new Map<string, number>();
+  runAttemptFailures.forEach((failure) => {
+    const previousEventId = lastFailureEventIdByRunId.get(failure.run_id) ?? 0;
+    if (failure.event_id > previousEventId) {
+      lastFailureEventIdByRunId.set(failure.run_id, failure.event_id);
+    }
+  });
+  const mappedAttemptFailures: ChatMessage[] = runAttemptFailures.map((failure) => ({
+    id: `run-attempt-failure:${failure.event_id}`,
+    role: "error",
+    content: failure.error_message,
+    thinkingContent: "",
+    status: "error",
+    usage: null,
+    isThinkingExpanded: false,
+    thinkingStartedAt: null,
+    thinkingFinishedAt: null,
+    createdAt: parseMessageTimestamp(failure.occurred_at),
+    updatedAt: parseMessageTimestamp(failure.occurred_at),
+    originMessageId: `run-attempt-failure:${failure.event_id}`,
+    runOutcome: (
+      failure.event_id === lastFailureEventIdByRunId.get(failure.run_id)
+        ? runOutcomeByRunId.get(failure.run_id)
+        : undefined
+    ),
+    runAttemptFailure: failure,
+    retryStatus: null,
+  }));
+  const runsWithAttemptFailures = new Set(
+    runAttemptFailures.map((failure) => failure.run_id),
+  );
+  const mappedOutcomes: ChatMessage[] = runOutcomes
+    .filter((outcome) => !runsWithAttemptFailures.has(outcome.run_id))
+    .map((outcome) => ({
     id: `run-outcome:${outcome.run_id}`,
     role: "error",
     content: outcome.error_message,
@@ -133,14 +216,23 @@ export function mapConversationMessages(
     updatedAt: parseMessageTimestamp(outcome.settled_at),
     originMessageId: `run-outcome:${outcome.run_id}`,
     runOutcome: outcome,
+    retryStatus: null,
   }));
-  return [...mappedMessages, ...mappedOutcomes]
+  return [...mappedMessages, ...mappedAttemptFailures, ...mappedOutcomes]
     .map((message, stableIndex) => ({ message, stableIndex }))
     .sort((left, right) => {
       const timeDifference = (left.message.createdAt ?? 0) - (right.message.createdAt ?? 0);
       return timeDifference || left.stableIndex - right.stableIndex;
     })
     .map(({ message }) => message);
+}
+
+function normalizeAttemptPosition(attemptIndex: number, attemptCount: number) {
+  const normalizedIndex = Math.max(1, attemptIndex);
+  return {
+    attemptIndex: normalizedIndex,
+    attemptCount: Math.max(normalizedIndex, attemptCount),
+  };
 }
 
 export function getLastMessageContextTokens(messages: ChatMessage[]) {
@@ -420,6 +512,22 @@ export function finishOpenThinkingProcess(
     ...lastItem,
     status: "done",
     finishedAt: lastItem.finishedAt ?? now,
+  };
+  return next;
+}
+
+export function reopenTrailingThinkingProcess(
+  items: ChatAssistantProcessItem[],
+) {
+  const lastItem = items[items.length - 1];
+  if (lastItem?.type !== "thinking" || lastItem.status === "running") {
+    return items;
+  }
+  const next = [...items];
+  next[next.length - 1] = {
+    ...lastItem,
+    status: "running",
+    finishedAt: null,
   };
   return next;
 }

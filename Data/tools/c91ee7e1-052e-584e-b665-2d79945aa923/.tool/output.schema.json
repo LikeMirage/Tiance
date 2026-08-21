@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "成功时返回结果文件夹、原文件名 Markdown、images 图片文件夹、metadata.json、structure 结构数据、MinerU 任务信息和图片分析统计。content_list_v2/content_list 中的 page_idx 从 0 开始，实际页码为 page_idx + 1。成功后只清理 ZIP、临时解压目录、日志等中间产物，不删除结构数据。失败时返回 ok=false，并在 error_info 中说明原因。",
+  "description": "成功时返回结果文件夹、原文件名 Markdown、images 图片文件夹、metadata.json、structure 结构数据、OCR 决策、MinerU 任务信息和图片分析统计。content_list_v2/content_list 中的 page_idx 从 0 开始，实际页码为 page_idx + 1。成功后只清理 ZIP、临时解压目录、日志等中间产物，不删除结构数据。失败时返回 ok=false，并在 error_info 中说明原因。",
   "properties": {
     "ok": {
       "type": "boolean"

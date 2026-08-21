@@ -1,5 +1,5 @@
 {
-  "description": "调用 MinerU 解析 PDF、Word、PPT、HTML 和图片等文档，再通过 DMXAPI 调用豆包视觉模型还原图片承载的信息，并在工作区生成同名结果文件夹。保留原文件名.md、images、metadata.json 以及 MinerU 提供的 structure 结构数据；定位内容页码时读取 content_list_v2.json 或 content_list.json 的 page_idx（从 0 开始，实际页码为 page_idx + 1）。",
+  "description": "调用 MinerU 解析 PDF、Word、PPT、HTML 和图片等文档；自动识别扫描型 PDF 并开启 OCR，过滤批量整页扫描底图，再通过 DMXAPI 还原真正插图承载的信息。DMX 图片总量不限，最多同时处理 50 张。生成原文件名.md、images、metadata.json 和 structure 结构数据；定位页码时读取 content_list_v2.json 或 content_list.json 的 page_idx（从 0 开始，实际页码为 page_idx + 1）。",
   "registration_name": "MinerU 文档解析 + DMX 豆包视觉",
   "execution": {
     "parallel": true

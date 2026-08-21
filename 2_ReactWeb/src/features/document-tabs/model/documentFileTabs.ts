@@ -62,6 +62,7 @@ export function hydrateWorkspaceFileTab(
     savedContent: response.content,
     textContentAccessedAt: Date.now(),
     textContentLoaded: true,
+    textContentUnavailable: null,
     assetVersion: null,
     isDirty: false,
     isMissing: false,

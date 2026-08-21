@@ -753,6 +753,38 @@ def append_journal_event(
         return int(cursor.lastrowid)
 
 
+def find_model_exchange_artifact_id(
+    workspace_dir: Path,
+    *,
+    session_id: str,
+    run_id: str,
+    attempt_index: int,
+) -> str | None:
+    with read_connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        if connection is None:
+            return None
+        rows = connection.execute(
+            """
+            SELECT payload_json, artifact_id
+            FROM conversation_journal
+            WHERE session_id = ?
+              AND run_id = ?
+              AND event_type IN (
+                  'model.http_exchange.completed',
+                  'model.http_exchange.failed'
+              )
+              AND artifact_id IS NOT NULL
+            ORDER BY event_id DESC
+            """,
+            (session_id, run_id),
+        ).fetchall()
+    for row in rows:
+        payload = _decode(row[0])
+        if int(payload.get("attempt_index") or 1) == max(1, int(attempt_index)):
+            return str(row[1])
+    return None
+
+
 def begin_conversation_run(
     workspace_dir: Path,
     *,
@@ -788,6 +820,21 @@ def settle_conversation_run(
     if status not in {"done", "error", "cancelled"}:
         raise ValueError(f"Unsupported conversation run status: {status}")
     with connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        has_attempt_failure = (
+            status == "error"
+            and connection.execute(
+                """
+                SELECT 1
+                FROM conversation_journal
+                WHERE session_id = ?
+                  AND run_id = ?
+                  AND event_type = 'model.request_attempt.failed'
+                LIMIT 1
+                """,
+                (session_id, run_id),
+            ).fetchone()
+            is not None
+        )
         cursor = connection.execute(
             """
             UPDATE conversation_runs
@@ -797,8 +844,8 @@ def settle_conversation_run(
             """,
             (
                 status,
-                error_code,
-                error_message,
+                None if has_attempt_failure else error_code,
+                None if has_attempt_failure else error_message,
                 max(1, int(attempt_count)),
                 settled_at,
                 run_id,
@@ -853,6 +900,61 @@ def list_conversation_run_outcomes(
             (session_id, *user_message_ids),
         ).fetchall()
     return [_conversation_run_from_row(row) for row in rows]
+
+
+def list_conversation_run_attempt_failures(
+    workspace_dir: Path,
+    *,
+    session_id: str,
+    user_message_ids: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    if not user_message_ids:
+        return []
+    placeholders = ",".join("?" for _ in user_message_ids)
+    with read_connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        if connection is None:
+            return []
+        rows = connection.execute(
+            f"""
+            SELECT journal.event_id,
+                   journal.run_id,
+                   runs.user_message_id,
+                   journal.occurred_at,
+                   journal.payload_json
+            FROM conversation_journal AS journal
+            JOIN conversation_runs AS runs
+              ON runs.run_id = journal.run_id
+             AND runs.session_id = journal.session_id
+            WHERE journal.session_id = ?
+              AND runs.user_message_id IN ({placeholders})
+              AND journal.event_type = 'model.request_attempt.failed'
+            ORDER BY journal.event_id
+            """,
+            (session_id, *user_message_ids),
+        ).fetchall()
+    failures: list[dict[str, Any]] = []
+    for row in rows:
+        payload = _decode(row[4])
+        run_id = str(row[1] or "").strip()
+        user_message_id = str(row[2] or "").strip()
+        if not run_id or not user_message_id:
+            continue
+        attempt_index = max(1, int(payload.get("attempt_index") or 1))
+        attempt_count = max(attempt_index, int(payload.get("attempt_count") or attempt_index))
+        failures.append(
+            {
+                "event_id": int(row[0]),
+                "run_id": run_id,
+                "session_id": session_id,
+                "user_message_id": user_message_id,
+                "error_code": payload.get("error_code"),
+                "error_message": str(payload.get("error_message") or ""),
+                "attempt_index": attempt_index,
+                "attempt_count": attempt_count,
+                "occurred_at": row[3],
+            }
+        )
+    return failures
 
 
 def count_journal_events(workspace_dir: Path, *, session_id: str | None = None) -> int:

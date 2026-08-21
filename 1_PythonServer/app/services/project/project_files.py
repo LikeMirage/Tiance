@@ -20,6 +20,7 @@ from app.services.document_conversion import (
     MarkdownDocxService,
     get_markdown_docx_service,
 )
+from app.services.file_workspace_text import read_editor_text_file
 from app.services.project.project_ids import normalize_project_id
 
 _UPLOAD_ROOT_DIR = ".Tiance/conversation_references"
@@ -137,6 +138,16 @@ class ProjectFileService:
         project_root = self._require_project_root(project_id)
         try:
             return self._storage.read_text_file(project_root, target_path)
+        except FileNotFoundError as exc:
+            raise NotFoundError(str(exc)) from exc
+        except ValueError as exc:
+            raise BadRequestError(str(exc)) from exc
+
+    def read_editor_text_file(self, project_id: str, target_path: str) -> tuple[str, int]:
+        """读取供编辑器展示的文本文件，并执行编辑器体积限制。"""
+        project_root = self._require_project_root(project_id)
+        try:
+            return read_editor_text_file(self._storage, project_root, target_path)
         except FileNotFoundError as exc:
             raise NotFoundError(str(exc)) from exc
         except ValueError as exc:

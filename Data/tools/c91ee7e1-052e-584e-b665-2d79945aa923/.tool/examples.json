@@ -1,12 +1,12 @@
 [
   {
-    "content": "适合把论文、报告或合同解析成 Markdown，并让豆包视觉模型把图片、表格截图、流程图等内容还原到对应图片下方。结果还会保留 structure 目录；需要判断某段内容位于哪一页时，优先读取 content_list_v2.json，其次读取 content_list.json。page_idx 从 0 开始，例如 page_idx=0 表示第 1 页。\n\n输入参数：\n{\n  \"file_path\": \"docs/example.pdf\"\n}\n\n预期返回：\n{\n  \"ok\": true,\n  \"summary\": \"文档解析完成：example\",\n  \"data\": {\n    \"output_dir\": \"C:/Users/WW/Desktop/Tiance/example\",\n    \"main_markdown\": \"C:/Users/WW/Desktop/Tiance/example/example.md\",\n    \"image_dir\": \"C:/Users/WW/Desktop/Tiance/example/images\",\n    \"structure_dir\": \"C:/Users/WW/Desktop/Tiance/example/structure\"\n  },\n  \"warnings\": []\n}",
+    "content": "适合把论文、报告、合同或扫描书解析成 Markdown。PDF 默认自动检查文字层；扫描页由 MinerU OCR，真正的插图再由豆包视觉模型补充，批量整页扫描图不会进入 DMX。结果还会保留 structure 目录；需要判断某段内容位于哪一页时，优先读取 content_list_v2.json，其次读取 content_list.json。page_idx 从 0 开始，例如 page_idx=0 表示第 1 页。\n\n输入参数：\n{\n  \"file_path\": \"docs/example.pdf\"\n}\n\n预期返回：\n{\n  \"ok\": true,\n  \"summary\": \"文档解析完成：example\",\n  \"data\": {\n    \"output_dir\": \"C:/Users/WW/Desktop/Tiance/example\",\n    \"main_markdown\": \"C:/Users/WW/Desktop/Tiance/example/example.md\",\n    \"image_dir\": \"C:/Users/WW/Desktop/Tiance/example/images\",\n    \"structure_dir\": \"C:/Users/WW/Desktop/Tiance/example/structure\"\n  },\n  \"warnings\": []\n}",
     "enabled": true,
     "inject_content": false,
     "title": "解析工作区内的 PDF 并生成同名文件夹"
   },
   {
-    "content": "当同名结果文件夹已存在，且确认要重新解析时使用 overwrite=true。旧文件夹会被移动为备份目录，不会直接删除。\n\n输入参数：\n{\n  \"file_path\": \"docs/example.pdf\",\n  \"overwrite\": true,\n  \"max_images\": 20\n}\n\n预期返回会包含 output_dir、backup_dir、metadata_path 和 image_analysis_path。",
+    "content": "当同名结果文件夹已存在，且确认要重新解析时使用 overwrite=true。旧文件夹会被移动为备份目录，不会直接删除。\n\n输入参数：\n{\n  \"file_path\": \"docs/example.pdf\",\n  \"overwrite\": true\n}\n\n预期返回会包含 output_dir、backup_dir、metadata_path 和图片分析统计。",
     "enabled": true,
     "inject_content": false,
     "title": "重新生成已有解析结果"
@@ -16,5 +16,11 @@
     "enabled": true,
     "inject_content": false,
     "title": "只做 MinerU 解析，不调用视觉模型"
+  },
+  {
+    "content": "相册、画册等文件本来就需要分析整页视觉内容时，明确允许整页图片进入 DMX。普通扫描书不要开启。\n\n输入参数：\n{\n  \"file_path\": \"docs/photo-book.pdf\",\n  \"analyze_full_page_images\": true\n}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "分析相册中的整页图片"
   }
 ]

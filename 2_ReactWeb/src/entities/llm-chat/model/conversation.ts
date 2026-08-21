@@ -155,6 +155,7 @@ export type ConversationMessageListResponse = {
   next_before_message_id: string | null;
   items: ConversationMessage[];
   run_outcomes: ConversationRunOutcome[];
+  run_attempt_failures: ConversationRunAttemptFailure[];
 };
 
 export type ConversationMessageTurnResponse = {
@@ -164,6 +165,19 @@ export type ConversationMessageTurnResponse = {
   count: number;
   items: ConversationMessage[];
   run_outcomes: ConversationRunOutcome[];
+  run_attempt_failures: ConversationRunAttemptFailure[];
+};
+
+export type ConversationRunAttemptFailure = {
+  event_id: number;
+  run_id: string;
+  session_id: string;
+  user_message_id: string;
+  error_code: string | null;
+  error_message: string;
+  attempt_index: number;
+  attempt_count: number;
+  occurred_at: string;
 };
 
 export type ConversationRunOutcome = {

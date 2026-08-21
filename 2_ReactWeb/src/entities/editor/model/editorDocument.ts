@@ -22,6 +22,11 @@ export type DocumentTab = {
   savedContent: string;
   textContentAccessedAt: number | null;
   textContentLoaded: boolean;
+  textContentUnavailable?: {
+    reason: "too_large";
+    sizeBytes: number;
+    limitBytes: number;
+  } | null;
   isDirty: boolean;
   isMissing: boolean;
   saveState: "idle" | "saving" | "saved" | "error";

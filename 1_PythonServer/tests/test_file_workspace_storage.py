@@ -2,9 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from app.core.errors import ConflictError
+from app.core.errors import AppError, ConflictError
 from app.infra.file_workspace import file_storage as file_storage_module
-from app.infra.file_workspace import FileWorkspaceStorage
+from app.infra.file_workspace import FileWorkspaceStorage, TextFileReadLimitExceededError
+from app.services import file_workspace_text
 
 
 def test_file_workspace_storage_rejects_path_escape(tmp_path):
@@ -59,6 +60,36 @@ def test_file_workspace_storage_reads_large_text_files(tmp_path):
 
     assert loaded == content
     assert isinstance(mtime_ms, int)
+
+
+def test_file_workspace_storage_rejects_text_over_explicit_read_limit(tmp_path):
+    storage = FileWorkspaceStorage()
+    target = tmp_path / "oversized.txt"
+    target.write_text("0123456789", encoding="utf-8")
+
+    with pytest.raises(TextFileReadLimitExceededError) as exc_info:
+        storage.read_text_file_limited(
+            str(tmp_path),
+            target.name,
+            max_size_bytes=9,
+        )
+
+    assert exc_info.value.size_bytes == 10
+    assert exc_info.value.limit_bytes == 9
+
+
+def test_editor_text_read_limit_returns_explicit_api_error(tmp_path, monkeypatch):
+    storage = FileWorkspaceStorage()
+    target = tmp_path / "oversized.txt"
+    target.write_text("0123456789", encoding="utf-8")
+    monkeypatch.setattr(file_workspace_text, "MAX_EDITOR_TEXT_FILE_SIZE_BYTES", 9)
+
+    with pytest.raises(AppError) as exc_info:
+        file_workspace_text.read_editor_text_file(storage, str(tmp_path), target.name)
+
+    assert exc_info.value.status_code == 413
+    assert exc_info.value.code == "editor_text_file_too_large"
+    assert exc_info.value.details == {"size_bytes": 10, "limit_bytes": 9}
 
 
 def test_file_workspace_storage_ignores_internal_temp_files_for_children(tmp_path):

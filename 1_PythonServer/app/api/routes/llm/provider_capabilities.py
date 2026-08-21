@@ -5,7 +5,11 @@ from typing import Annotated
 import httpx
 from fastapi import APIRouter, Header, HTTPException, status
 
-from app.core.errors import UpstreamProviderError, to_upstream_provider_error
+from app.core.errors import (
+    UpstreamProviderError,
+    local_exception_message,
+    to_upstream_provider_error,
+)
 from app.schemas.llm.provider_capabilities import (
     ProviderWebSearchRequestBody,
     ProviderWebSearchResponse,
@@ -48,7 +52,10 @@ async def run_provider_web_search(
     except httpx.HTTPStatusError as exc:
         raise to_upstream_provider_error(exc) from exc
     except httpx.RequestError as exc:
-        raise UpstreamProviderError(f"上游供应商连接失败：{exc}") from exc
+        raise UpstreamProviderError(
+            local_exception_message(exc),
+            code="upstream_connection_error",
+        ) from exc
     return ProviderWebSearchResponse.from_domain(result)
 
 

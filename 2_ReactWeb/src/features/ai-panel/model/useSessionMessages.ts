@@ -108,6 +108,7 @@ export function useSessionMessages({
     const nextMessages = mapConversationMessages(
       cachedResponse.items,
       cachedResponse.run_outcomes,
+      cachedResponse.run_attempt_failures,
     );
     messageAccessedAtRef.current.set(key, Date.now());
     const currentMessages = sessionMessageSnapshotsRef.current[key] ?? [];
@@ -150,7 +151,11 @@ export function useSessionMessages({
       );
       if (options.shouldApply && !options.shouldApply()) return false;
       if (reloadRequestIdsRef.current.get(key) !== requestId) return false;
-      const nextMessages = mapConversationMessages(response.items, response.run_outcomes);
+      const nextMessages = mapConversationMessages(
+        response.items,
+        response.run_outcomes,
+        response.run_attempt_failures,
+      );
       messageAccessedAtRef.current.set(key, Date.now());
       const currentMessages = sessionMessageSnapshotsRef.current[key] ?? [];
       if (options.shouldPreserveLocal?.() && currentMessages.length > 0) {

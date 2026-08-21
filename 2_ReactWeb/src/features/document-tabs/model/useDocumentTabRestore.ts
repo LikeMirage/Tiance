@@ -12,6 +12,7 @@ import {
 import { buildWorkspaceFileTab, hydrateWorkspaceFileTab } from "./documentFileTabs";
 import { resolveDocumentPreview } from "./documentPreviewResolver";
 import { getPathName, makeTabId, normalizeWorkspacePath } from "./documentTabUtils";
+import { getTextContentUnavailable } from "./documentTextLoadError";
 
 type UseDocumentTabRestoreOptions = {
   registerFileSource: (runtime: DocumentFileSourceRuntime) => DocumentFileSourceRuntime;
@@ -66,6 +67,11 @@ export function useDocumentTabRestore({
       } catch (err) {
         if (restoreRequestIdRef.current !== restoreRequestId) return;
         if (err instanceof HttpRequestError && err.status === 404) {
+          continue;
+        }
+        const unavailable = getTextContentUnavailable(err);
+        if (unavailable) {
+          loadedTabs.push({ ...tab, textContentUnavailable: unavailable });
           continue;
         }
         loadedTabs.push({

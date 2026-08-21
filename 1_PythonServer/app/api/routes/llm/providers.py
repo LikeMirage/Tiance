@@ -4,7 +4,12 @@
 import httpx
 from fastapi import APIRouter, Response, status
 
-from app.core.errors import NotFoundError, UpstreamProviderError, to_upstream_provider_error
+from app.core.errors import (
+    NotFoundError,
+    UpstreamProviderError,
+    local_exception_message,
+    to_upstream_provider_error,
+)
 from app.domain.llm.provider_catalog import ProviderCatalogEntry
 from app.schemas.llm.provider_catalog import (
     ProviderCatalogCreateRequest,
@@ -173,7 +178,10 @@ async def discover_provider_models(
     except httpx.HTTPStatusError as exc:
         raise to_upstream_provider_error(exc) from exc
     except httpx.RequestError as exc:
-        raise UpstreamProviderError(f"上游供应商连接失败：{exc}") from exc
+        raise UpstreamProviderError(
+            local_exception_message(exc),
+            code="upstream_connection_error",
+        ) from exc
 
     items = [DiscoveredModelResponse.from_domain(model) for model in models]
     return DiscoveredModelListResponse(count=len(items), items=items)

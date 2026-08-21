@@ -3,7 +3,28 @@ import { useState } from "react";
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import { createDocumentExternalFileActions } from "../model/documentExternalFileActions";
 
+type DocumentOpenFallbackContentProps = {
+  activeTab: DocumentTab;
+  detail?: string | null;
+  heading: string;
+};
+
+
 export function UnsupportedDocumentContent({ activeTab }: { activeTab: DocumentTab }) {
+  return (
+    <DocumentOpenFallbackContent
+      activeTab={activeTab}
+      heading="不支持展示此类文件"
+    />
+  );
+}
+
+
+export function DocumentOpenFallbackContent({
+  activeTab,
+  detail = null,
+  heading,
+}: DocumentOpenFallbackContentProps) {
   const [actionError, setActionError] = useState<string | null>(null);
   const externalFileActions = createDocumentExternalFileActions(activeTab);
 
@@ -20,7 +41,8 @@ export function UnsupportedDocumentContent({ activeTab }: { activeTab: DocumentT
   return (
     <div className="doc-editor__unsupported" role="status">
       <div className="doc-editor__unsupported-card">
-        <strong>不支持展示此类文件</strong>
+        <strong>{heading}</strong>
+        {detail ? <span>{detail}</span> : null}
         <span className="doc-editor__unsupported-name">{activeTab.title}</span>
         <span className="doc-editor__unsupported-path" title={activeTab.displayPath}>
           {activeTab.displayPath}
@@ -28,19 +50,19 @@ export function UnsupportedDocumentContent({ activeTab }: { activeTab: DocumentT
         <div className="doc-editor__unsupported-actions">
           <button
             className="doc-editor__unsupported-button"
-            disabled={!externalFileActions.openNativeFile}
-            type="button"
-            onClick={() => { void runAction(externalFileActions.openNativeFile); }}
-          >
-            用系统默认程序打开
-          </button>
-          <button
-            className="doc-editor__unsupported-button"
             disabled={!externalFileActions.revealFile}
             type="button"
             onClick={() => { void runAction(externalFileActions.revealFile); }}
           >
-            在资源管理器中显示
+            在文件夹中显示
+          </button>
+          <button
+            className="doc-editor__unsupported-button"
+            disabled={!externalFileActions.openNativeFile}
+            type="button"
+            onClick={() => { void runAction(externalFileActions.openNativeFile); }}
+          >
+            用默认应用打开
           </button>
         </div>
         {actionError ? (

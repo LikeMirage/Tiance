@@ -21,6 +21,13 @@ const { buildChatDisplayMessages } = await vite.ssrLoadModule(
 const { createChatStreamAccumulator } = await vite.ssrLoadModule(
   "/src/features/ai-panel/model/chatStreamAccumulator.ts",
 );
+const {
+  formatChatRetryNotice,
+  formatChatRunFailureNotice,
+  mapConversationMessages,
+} = await vite.ssrLoadModule(
+  "/src/features/ai-panel/model/chatMessage.ts",
+);
 const { processSequencedChatStreamEvent } = await vite.ssrLoadModule(
   "/src/features/ai-panel/model/chatStreamEventSequence.ts",
 );
@@ -95,6 +102,82 @@ test("只有用户消息尚未产生持久化轮次时从流开头恢复", () =>
   assert.equal(snapshot.checkpointMessageId, null);
   assert.equal(snapshot.messages.length, 2);
   assert.equal(snapshot.assistantMessage.id, "assistant-new");
+});
+
+test("重连时继续追加尚未跨过正文或工具边界的同一段思考", () => {
+  const snapshot = prepareConversationStreamResume([
+    message({ id: "user-thinking", role: "user", content: "继续分析" }),
+    message({
+      id: "assistant-thinking",
+      thinkingContent: "搜索语",
+      processItems: [{
+        id: "thinking-partial",
+        type: "thinking",
+        content: "搜索语",
+        status: "done",
+        startedAt: 1000,
+        finishedAt: 1100,
+      }],
+    }),
+  ], "assistant-thinking-resumed", 2000);
+
+  assert.equal(snapshot.assistantMessage.processItems.length, 1);
+  assert.equal(snapshot.assistantMessage.processItems[0].type, "thinking");
+  assert.equal(snapshot.assistantMessage.processItems[0].status, "running");
+  assert.equal(snapshot.assistantMessage.processItems[0].finishedAt, null);
+
+  let messages = snapshot.messages;
+  const accumulator = createChatStreamAccumulator({
+    assistantId: snapshot.assistantMessage.id,
+    initialMessage: snapshot.assistantMessage,
+    isSessionPresented: () => false,
+    isThinkingStuckToBottom: () => false,
+    onUsage: () => undefined,
+    scrollThinkingContentToBottom: () => undefined,
+    sessionId: "session-thinking-resume",
+    streamProjectId: "project-thinking-resume",
+    streamingEnabled: false,
+    updateSessionMessages: (_projectId, _sessionId, updater) => {
+      messages = updater(messages);
+    },
+  });
+
+  accumulator.handleEvent({ kind: "thinking_delta", content: "句和结果" });
+  accumulator.flushNow();
+
+  const thinkingItems = messages.at(-1).processItems.filter(
+    (item) => item.type === "thinking",
+  );
+  assert.equal(thinkingItems.length, 1);
+  assert.equal(thinkingItems[0].content, "搜索语句和结果");
+});
+
+test("重连不会跨过正文或工具边界合并原本独立的思考", () => {
+  const snapshot = prepareConversationStreamResume([
+    message({ id: "user-boundary", role: "user", content: "继续执行" }),
+    message({
+      id: "assistant-boundary",
+      content: "准备调用工具",
+      processItems: [
+        {
+          id: "thinking-before-tool",
+          type: "thinking",
+          content: "先分析",
+          status: "done",
+          startedAt: 1000,
+          finishedAt: 1100,
+        },
+        { id: "content-before-tool", type: "content", content: "准备调用工具" },
+        { id: "tool-boundary", type: "tool", tool: tool({ status: "done" }) },
+      ],
+      toolCalls: [tool({ status: "done" })],
+    }),
+  ], "assistant-boundary-resumed", 2000);
+
+  const thinking = snapshot.assistantMessage.processItems.find(
+    (item) => item.type === "thinking",
+  );
+  assert.equal(thinking.status, "done");
 });
 
 test("保存点失效改为完整重放时以本轮已保存进度为基线", () => {
@@ -272,19 +355,142 @@ test("上游重试只撤销未提交片段并保留已经完成的工具轮次",
   });
   accumulator.handleEvent({ kind: "delta", content: "断流前残片" });
   accumulator.handleEvent({ kind: "thinking_delta", content: "未提交思考" });
-  accumulator.handleEvent({ kind: "retry_reset", attempt_index: 2, attempt_count: 2 });
+  accumulator.handleEvent({
+    kind: "retry_reset",
+    error: "上游请求失败",
+    attempt_index: 2,
+    attempt_count: 2,
+  });
 
-  assert.equal(messages[0].content, "");
-  assert.equal(messages[0].thinkingContent, "");
+  assert.equal(messages[0].role, "error");
+  assert.equal(messages[0].content, "上游请求失败");
+  assert.equal(messages[0].runAttemptFailure.attempt_index, 1);
+  assert.equal(messages[0].runAttemptFailure.attempt_count, 2);
+  assert.equal(messages[1].content, "");
+  assert.equal(messages[1].thinkingContent, "");
   assert.deepEqual(
-    messages[0].processItems
+    messages[1].processItems
       .filter((item) => item.type === "content")
       .map((item) => item.content),
     ["已提交工具前正文"],
   );
-  assert.equal(messages[0].toolCalls.length, 1);
-  assert.equal(messages[0].toolCalls[0].callId, "call-committed");
-  assert.equal(messages[0].toolCalls[0].status, "done");
+  assert.equal(messages[1].toolCalls.length, 1);
+  assert.equal(messages[1].toolCalls[0].callId, "call-committed");
+  assert.equal(messages[1].toolCalls[0].status, "done");
+  assert.deepEqual(messages[1].retryStatus, {
+    error: "上游请求失败",
+    errorCode: null,
+    attemptIndex: 2,
+    attemptCount: 2,
+  });
+
+  accumulator.handleEvent({ kind: "thinking_delta", content: "第二次尝试开始输出" });
+  assert.equal(messages[1].retryStatus, null);
+});
+
+test("上游重试和刷新后的最终失败使用同一尝试次数语义", () => {
+  assert.equal(
+    formatChatRetryNotice({
+      error: "上游供应商返回 402：Insufficient Balance",
+      errorCode: "upstream_insufficient_balance",
+      attemptIndex: 2,
+      attemptCount: 2,
+    }),
+    "上游请求失败，正在进行第 2/2 次尝试",
+  );
+
+  const [failureMessage] = mapConversationMessages([], [{
+    run_id: "run-retry-failure",
+    session_id: "session-retry",
+    user_message_id: "user-retry",
+    status: "error",
+    error_code: "upstream_insufficient_balance",
+    error_message: "上游供应商返回 402：Insufficient Balance",
+    attempt_count: 2,
+    started_at: "2026-08-20T02:27:03Z",
+    settled_at: "2026-08-20T02:27:05Z",
+  }]);
+
+  assert.equal(failureMessage.role, "error");
+  assert.equal(failureMessage.runOutcome.attempt_count, 2);
+  assert.equal(
+    formatChatRunFailureNotice(failureMessage),
+    "请求失败（共尝试 2 次）：上游供应商返回 402：Insufficient Balance",
+  );
+
+  const attemptMessages = mapConversationMessages([], [failureMessage.runOutcome], [
+    {
+      event_id: 11,
+      run_id: "run-retry-failure",
+      session_id: "session-retry",
+      user_message_id: "user-retry",
+      error_code: "connection_failed",
+      error_message: "第一次连接失败",
+      attempt_index: 1,
+      attempt_count: 2,
+      occurred_at: "2026-08-20T02:27:04Z",
+    },
+    {
+      event_id: 12,
+      run_id: "run-retry-failure",
+      session_id: "session-retry",
+      user_message_id: "user-retry",
+      error_code: "upstream_insufficient_balance",
+      error_message: "余额不足",
+      attempt_index: 2,
+      attempt_count: 2,
+      occurred_at: "2026-08-20T02:27:05Z",
+    },
+  ]);
+  assert.equal(attemptMessages.length, 2);
+  assert.deepEqual(
+    attemptMessages.map(formatChatRunFailureNotice),
+    [
+      "第 1/2 次请求失败：第一次连接失败",
+      "第 2/2 次请求失败：余额不足",
+    ],
+  );
+  assert.equal(buildChatDisplayMessages(attemptMessages).length, 2);
+  assert.equal(attemptMessages[0].runOutcome, undefined);
+  assert.equal(attemptMessages[1].runOutcome.run_id, "run-retry-failure");
+});
+
+test("重试期间取消或最终失败都会结束活动重试提示", () => {
+  for (const terminal of ["cancelled", "error"]) {
+    let messages = [message({
+      id: `assistant-retry-${terminal}`,
+      role: "assistant",
+      status: "running",
+    })];
+    const accumulator = createChatStreamAccumulator({
+      assistantId: messages[0].id,
+      isSessionPresented: () => false,
+      isThinkingStuckToBottom: () => false,
+      onUsage: () => undefined,
+      scrollThinkingContentToBottom: () => undefined,
+      sessionId: `session-retry-${terminal}`,
+      streamProjectId: "project-retry-terminal",
+      streamingEnabled: false,
+      updateSessionMessages: (_projectId, _sessionId, updater) => {
+        messages = updater(messages);
+      },
+    });
+
+    accumulator.handleEvent({
+      kind: "retry_reset",
+      attempt_index: 2,
+      attempt_count: 2,
+    });
+    assert.notEqual(messages[1].retryStatus, null);
+
+    if (terminal === "cancelled") {
+      accumulator.finalizeCancelled();
+    } else {
+      accumulator.handleEvent({ kind: "error", error: "仍然失败" });
+    }
+    const activeAssistant = messages.find((item) => item.role === "assistant");
+    assert.equal(activeAssistant?.retryStatus ?? null, null);
+  }
 });
 
 test("运行中的已保存工具轮次不会因为普通 done 消息被误判失败", () => {
@@ -478,7 +684,7 @@ test("下一条用户消息已开始时会合并前一轮没有独立取消终�
   );
 });
 
-test("流式错误会立即结束仍在运行的工具计时", () => {
+test("流式错误会移除未提交的工具过程并显示本次失败", () => {
   let messages = [message({
     id: "assistant-error-tool",
     status: "running",
@@ -507,8 +713,10 @@ test("流式错误会立即结束仍在运行的工具计时", () => {
   });
   accumulator.handleEvent({ kind: "error", error: "工具执行中断" });
 
-  assert.equal(messages[0].toolCalls[0].status, "error");
-  assert.notEqual(messages[0].toolCalls[0].finishedAt, null);
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].role, "error");
+  assert.equal(messages[0].content, "工具执行中断");
+  assert.equal(messages[0].runAttemptFailure.attempt_index, 1);
 });
 
 test("主动暂停会结束思考和工具计时并保留已取得的统计", () => {

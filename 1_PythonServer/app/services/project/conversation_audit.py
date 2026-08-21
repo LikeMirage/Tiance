@@ -12,6 +12,7 @@ from app.domain.llm.chat import ChatCompletionRequest
 from app.domain.llm.chat_http_exchange import ChatHttpExchange, exchange_to_payload
 from app.repositories.project.conversation_database import (
     append_journal_event,
+    find_model_exchange_artifact_id,
     transaction_for_conversations,
     write_artifact_record,
 )
@@ -84,7 +85,7 @@ class ConversationAuditService:
                     workspace_dir,
                     session_id=request.session_id,
                     run_id=request.run_id,
-                    turn_id=_last_user_message_id(request),
+                    turn_id=request.user_message_id,
                     tool_call_id=None,
                     event_type=(
                         "model.http_exchange.failed"
@@ -122,6 +123,7 @@ class ConversationAuditService:
                 "error_code": error_code,
                 "error_message": error_message,
             },
+            attach_model_exchange=status == "failed",
         )
 
     def record_event(
@@ -132,6 +134,7 @@ class ConversationAuditService:
         payload: dict[str, object],
         tool_call_id: str | None = None,
         occurred_at: str | None = None,
+        attach_model_exchange: bool = False,
     ) -> None:
         if not request.project_id or not request.session_id:
             return
@@ -144,23 +147,27 @@ class ConversationAuditService:
         )
         conversations_dir = workspace_dir / "conversations"
         with conversation_write_lock(conversations_dir):
+            artifact_id = (
+                find_model_exchange_artifact_id(
+                    workspace_dir,
+                    session_id=request.session_id,
+                    run_id=request.run_id,
+                    attempt_index=request.upstream_attempt_index,
+                )
+                if attach_model_exchange and request.run_id
+                else None
+            )
             append_journal_event(
                 workspace_dir,
                 session_id=request.session_id,
                 run_id=request.run_id,
-                turn_id=_last_user_message_id(request),
+                turn_id=request.user_message_id,
                 tool_call_id=tool_call_id,
                 event_type=event_type,
                 occurred_at=occurred_at or datetime.now(UTC).isoformat(),
                 payload=payload,
+                artifact_id=artifact_id,
             )
-
-
-def _last_user_message_id(request: ChatCompletionRequest) -> str | None:
-    for message in reversed(request.messages):
-        if message.role.value == "user":
-            return message.message_id
-    return None
 
 
 @lru_cache

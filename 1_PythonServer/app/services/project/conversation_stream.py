@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from app.core.errors import AppError, normalize_upstream_http_error
+from app.core.errors import AppError, local_exception_message, upstream_http_error_message
 from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatMessageContentPart,
@@ -378,8 +378,12 @@ class ProjectConversationStreamService:
                     self._persistence.current_user_message,
                     request,
                 )
-            if run_user_message is not None and request.run_id is None:
-                request = replace(request, run_id=f"run_{run_user_message.message_id}")
+            if run_user_message is not None:
+                request = replace(
+                    request,
+                    run_id=request.run_id or f"run_{run_user_message.message_id}",
+                    user_message_id=run_user_message.message_id,
+                )
             existing_run = await asyncio.to_thread(
                 self._persistence.run_outcome,
                 request,
@@ -398,7 +402,7 @@ class ProjectConversationStreamService:
                 if existing_run.status == "error":
                     yield {
                         "kind": "error",
-                        "error": existing_run.error_message or "上游请求失败。",
+                        "error": existing_run.error_message or existing_run.error_code or "",
                         "error_code": existing_run.error_code or "upstream_response_failed",
                     }
                 else:
@@ -558,6 +562,11 @@ class ProjectConversationStreamService:
                         "kind": "error",
                         "error": error,
                         "error_code": event.error_code or "upstream_response_failed",
+                        "attempt_index": upstream_attempt_index,
+                        "attempt_count": max(
+                            upstream_attempt_index,
+                            request.upstream_attempt_count,
+                        ),
                     }
                     return
                 if event.kind == ChatStreamEventKind.DELTA and event.content:
@@ -780,13 +789,13 @@ class ProjectConversationStreamService:
                     run_started_at=run_started_at,
                 )
                 return
-            upstream_error = normalize_upstream_http_error(exc)
+            error = upstream_http_error_message(exc)
             failed_message, settled_payload = await self._settlement.settle_failed(
                 request,
                 run_user_message,
                 run_started_at=run_started_at,
-                content=upstream_error.message,
-                error_code=upstream_error.code,
+                content=error,
+                error_code="upstream_http_error",
                 attempt_count=upstream_attempt_index,
                 usage=usage,
                 usage_payload=usage_payload,
@@ -805,8 +814,8 @@ class ProjectConversationStreamService:
                 yield settled_payload
             yield {
                 "kind": "error",
-                "error": upstream_error.message,
-                "error_code": upstream_error.code,
+                "error": error,
+                "error_code": "upstream_http_error",
             }
         except httpx.RequestError as exc:
             if await self._discard_removed_conversation(request):
@@ -816,13 +825,13 @@ class ProjectConversationStreamService:
                     run_started_at=run_started_at,
                 )
                 return
-            error = f"上游供应商连接失败：{exc}"
+            error = local_exception_message(exc)
             failed_message, settled_payload = await self._settlement.settle_failed(
                 request,
                 run_user_message,
                 run_started_at=run_started_at,
                 content=error,
-                error_code="upstream_connection_failed",
+                error_code="upstream_connection_error",
                 attempt_count=upstream_attempt_index,
                 usage=usage,
                 usage_payload=usage_payload,
@@ -839,7 +848,11 @@ class ProjectConversationStreamService:
                 )
             if settled_payload is not None:
                 yield settled_payload
-            yield {"kind": "error", "error": error}
+            yield {
+                "kind": "error",
+                "error": error,
+                "error_code": "upstream_connection_error",
+            }
         except AppError as exc:
             if await self._discard_removed_conversation(request):
                 await self._settlement.record_ai_run_elapsed(

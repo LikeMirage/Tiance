@@ -193,7 +193,7 @@ def read_tool_folder_file_content(
     path: str = Query(..., description="文件路径"),
 ) -> ToolFolderFileContentResponse:
     service = get_tool_folder_file_service()
-    content, mtime_ms = service.read_text_file(category_id, project_id, target_path=path)
+    content, mtime_ms = service.read_editor_text_file(category_id, project_id, target_path=path)
     return ToolFolderFileContentResponse(
         category_id=category_id,
         project_id=project_id,

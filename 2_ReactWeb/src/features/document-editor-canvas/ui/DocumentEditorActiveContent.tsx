@@ -21,7 +21,10 @@ import {
 import { DocumentTextContent } from "./DocumentTextContent";
 import { useDocumentTextReferenceMenu } from "./DocumentTextReferenceMenu";
 import { ToolDashboardContent, type ToolDashboardView, type ToolFolderTarget } from "./ToolDashboardContent";
-import { UnsupportedDocumentContent } from "./UnsupportedDocumentContent";
+import {
+  DocumentOpenFallbackContent,
+  UnsupportedDocumentContent,
+} from "./UnsupportedDocumentContent";
 
 const ProjectMemoryPreview = lazy(() =>
   import("../../project-memory-preview/ui/ProjectMemoryPreview").then((module) => ({
@@ -157,6 +160,16 @@ export function DocumentEditorActiveContent({
 
   if (activeTab.isMissing && !activeTab.isDirty) {
     return <div className="doc-editor__empty">文件已被删除。</div>;
+  }
+
+  if (activeTab.kind === "text" && activeTab.textContentUnavailable?.reason === "too_large") {
+    return (
+      <DocumentOpenFallbackContent
+        activeTab={activeTab}
+        detail={`文件大小 ${formatFileSize(activeTab.textContentUnavailable.sizeBytes)}，编辑器上限 ${formatFileSize(activeTab.textContentUnavailable.limitBytes)}。`}
+        heading="文件过大，暂不支持打开"
+      />
+    );
   }
 
   if (activeTab.kind === "text" && !activeTab.textContentLoaded) {
@@ -299,4 +312,13 @@ export function DocumentEditorActiveContent({
       setPreviewOpen={setPreviewOpen}
     />,
   );
+}
+
+
+function formatFileSize(sizeBytes: number) {
+  if (sizeBytes < 1024) return `${sizeBytes} B`;
+  const sizeKb = sizeBytes / 1024;
+  if (sizeKb < 1024) return `${sizeKb.toFixed(sizeKb >= 100 ? 0 : 1)} KB`;
+  const sizeMb = sizeKb / 1024;
+  return `${sizeMb.toFixed(sizeMb >= 100 ? 0 : 1)} MB`;
 }

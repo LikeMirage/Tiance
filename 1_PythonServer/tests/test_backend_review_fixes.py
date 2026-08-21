@@ -6,7 +6,7 @@ import pytest
 from watchfiles import Change
 
 from app.core.config import Settings
-from app.core.errors import BadRequestError, normalize_upstream_http_error
+from app.core.errors import BadRequestError, local_exception_message, upstream_http_error_message
 from app.domain.llm.chat import ChatStreamEventKind
 from app.domain.llm.discovered_model import DiscoveredModel
 from app.domain.llm.provider_catalog import (
@@ -152,7 +152,7 @@ def test_stream_body_reads_error_response_before_raising(monkeypatch):
     assert fake_response.was_read is True
 
 
-def test_normalize_upstream_http_error_handles_unread_streaming_response():
+def test_upstream_http_error_uses_local_exception_when_response_was_not_read():
     request = httpx.Request("POST", "https://example.test/chat/completions")
     response = httpx.Response(
         400,
@@ -163,10 +163,18 @@ def test_normalize_upstream_http_error_handles_unread_streaming_response():
     with pytest.raises(httpx.HTTPStatusError) as exc_info:
         response.raise_for_status()
 
-    normalized = normalize_upstream_http_error(exc_info.value)
+    message = upstream_http_error_message(exc_info.value)
 
-    assert normalized.code == "upstream_invalid_request"
-    assert normalized.message == "上游供应商返回 400。"
+    assert message == str(exc_info.value)
+
+
+def test_local_exception_message_uses_concrete_type_when_exception_text_is_empty():
+    error = httpx.ConnectError(
+        "",
+        request=httpx.Request("POST", "https://example.test/chat/completions"),
+    )
+
+    assert local_exception_message(error) == "ConnectError"
 
 
 def test_cors_defaults_are_explicit_and_do_not_allow_null_or_any_localhost():

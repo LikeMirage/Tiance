@@ -1,7 +1,6 @@
 # 异常处理模块
 # 定义应用级异常层次结构和 FastAPI 异常处理器，统一 JSON 错误响应格式
 
-from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -85,110 +84,38 @@ class UpstreamProviderError(AppError):
         )
 
 
-@dataclass(frozen=True, slots=True)
-class NormalizedUpstreamHttpError:
-    code: str
-    message: str
-    details: dict[str, Any]
+def upstream_http_error_message(error: httpx.HTTPStatusError) -> str:
+    """Return the provider response body unchanged, or the local HTTP exception."""
+
+    response_text = _safe_response_text(error.response)
+    return response_text if response_text else local_exception_message(error)
 
 
-_UPSTREAM_HTTP_ERROR_CODES = {
-    400: "upstream_invalid_request",
-    401: "upstream_authentication_failed",
-    402: "upstream_insufficient_balance",
-    422: "upstream_invalid_parameters",
-    429: "upstream_rate_limited",
-    500: "upstream_server_error",
-    503: "upstream_overloaded",
-}
+def local_exception_message(error: Exception) -> str:
+    """Preserve the local exception text, or its concrete type when text is empty."""
 
-
-def normalize_upstream_http_error(error: httpx.HTTPStatusError) -> NormalizedUpstreamHttpError:
-    """Normalize provider HTTP errors into stable internal error codes."""
-
-    response = error.response
-    payload = _parse_response_json(response)
-    detail = _extract_upstream_error_detail(payload)
-
-    if not detail:
-        response_text = _safe_response_text(response)
-        if response_text:
-            detail = response_text
-
-    message = (
-        f"上游供应商返回 {response.status_code}：{detail}"
-        if detail
-        else f"上游供应商返回 {response.status_code}。"
-    )
-    details: dict[str, Any] = {
-        "upstream_status_code": response.status_code,
-    }
-    if isinstance(payload, dict):
-        error_payload = payload.get("error")
-        if isinstance(error_payload, dict):
-            error_type = error_payload.get("type")
-            error_code = error_payload.get("code")
-            if isinstance(error_type, str) and error_type:
-                details["upstream_error_type"] = error_type
-            if isinstance(error_code, str) and error_code:
-                details["upstream_error_code"] = error_code
-
-    return NormalizedUpstreamHttpError(
-        code=_UPSTREAM_HTTP_ERROR_CODES.get(
-            response.status_code,
-            "upstream_provider_error",
-        ),
-        message=message,
-        details=details,
-    )
+    return str(error) or type(error).__name__
 
 
 def to_upstream_provider_error(error: httpx.HTTPStatusError) -> UpstreamProviderError:
-    normalized_error = normalize_upstream_http_error(error)
     return UpstreamProviderError(
-        normalized_error.message,
-        code=normalized_error.code,
-        details=normalized_error.details,
+        upstream_http_error_message(error),
+        code="upstream_http_error",
+        details={"upstream_status_code": error.response.status_code},
     )
 
 
 def format_upstream_http_error(error: httpx.HTTPStatusError) -> str:
-    """从上游 HTTP 错误响应中提取详情文本（优先取 JSON body 中的 detail/message/error.message）"""
+    """Return the original provider response body without business interpretation."""
 
-    return normalize_upstream_http_error(error).message
-
-
-def _parse_response_json(response: httpx.Response) -> Any:
-    try:
-        return response.json()
-    except (ValueError, httpx.ResponseNotRead):
-        return None
+    return upstream_http_error_message(error)
 
 
 def _safe_response_text(response: httpx.Response) -> str:
     try:
-        return response.text.strip()
+        return response.text
     except httpx.ResponseNotRead:
         return ""
-
-
-def _extract_upstream_error_detail(payload: Any) -> str:
-    detail = ""
-
-    if isinstance(payload, dict):
-        response_detail = payload.get("detail")
-        if isinstance(response_detail, str) and response_detail.strip():
-            detail = response_detail.strip()
-        elif isinstance(payload.get("message"), str) and payload["message"].strip():
-            detail = payload["message"].strip()
-        else:
-            error_payload = payload.get("error")
-            if isinstance(error_payload, dict):
-                message = error_payload.get("message")
-                if isinstance(message, str) and message.strip():
-                    detail = message.strip()
-
-    return detail
 
 
 def register_exception_handlers(application) -> None:

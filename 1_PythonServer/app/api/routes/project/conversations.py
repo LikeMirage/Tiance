@@ -24,6 +24,7 @@ from app.schemas.project import (
     ProjectConversationMessageListResponse,
     ProjectConversationMessageResponse,
     ProjectConversationMessageTurnResponse,
+    ProjectConversationRunAttemptFailureResponse,
     ProjectConversationRunOutcomeResponse,
     ProjectConversationBranchNodeResponse,
     ProjectConversationMessageVariantResponse,
@@ -558,6 +559,10 @@ def list_project_conversation_messages(
             ProjectConversationRunOutcomeResponse.from_domain(outcome)
             for outcome in page.run_outcomes
         ],
+        run_attempt_failures=[
+            ProjectConversationRunAttemptFailureResponse.from_domain(failure)
+            for failure in page.run_attempt_failures
+        ],
     )
 
 
@@ -589,5 +594,9 @@ def get_project_conversation_message_turn(
         run_outcomes=[
             ProjectConversationRunOutcomeResponse.from_domain(outcome)
             for outcome in turn.run_outcomes
+        ],
+        run_attempt_failures=[
+            ProjectConversationRunAttemptFailureResponse.from_domain(failure)
+            for failure in turn.run_attempt_failures
         ],
     )

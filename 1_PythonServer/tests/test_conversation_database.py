@@ -628,7 +628,8 @@ def test_http_exchange_is_stored_in_database_and_linked_from_journal(tmp_path: P
         ),
     )
 
-    ConversationAuditService(projects).record_http_exchange(
+    audit = ConversationAuditService(projects)
+    audit.record_http_exchange(
         request,
         ChatHttpExchange(
             started_at="2026-08-18T00:00:00+00:00",
@@ -640,6 +641,12 @@ def test_http_exchange_is_stored_in_database_and_linked_from_journal(tmp_path: P
             response_headers={"content-type": "application/json"},
             response_body=b'{"output":"answer"}',
         ),
+    )
+    audit.record_attempt_outcome(
+        request,
+        status="failed",
+        error_code="upstream_http_error",
+        error_message='{"error":{"message":"raw provider error"}}',
     )
 
     events = list_journal_events_range(
@@ -653,6 +660,11 @@ def test_http_exchange_is_stored_in_database_and_linked_from_journal(tmp_path: P
         for event in events
         if event["event_type"] == "model.http_exchange.completed"
     )
+    attempt_event = next(
+        event
+        for event in events
+        if event["event_type"] == "model.request_attempt.failed"
+    )
     artifacts = list_embedded_artifacts_range(
         tmp_path / ".Tiance",
         session_id=session.session_id,
@@ -662,6 +674,10 @@ def test_http_exchange_is_stored_in_database_and_linked_from_journal(tmp_path: P
     )
 
     assert exchange_event["artifact_id"] is not None
+    assert attempt_event["artifact_id"] == exchange_event["artifact_id"]
+    assert attempt_event["payload"]["error_message"] == (
+        '{"error":{"message":"raw provider error"}}'
+    )
     assert count_embedded_artifacts(
         tmp_path / ".Tiance",
         session_id=session.session_id,

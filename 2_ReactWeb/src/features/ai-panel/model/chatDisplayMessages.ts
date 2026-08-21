@@ -75,6 +75,7 @@ function groupToolMessagesWithAssistant(messages: ChatMessage[]) {
       if (
         previousMessage &&
         (previousMessage.role === "assistant" || previousMessage.role === "error") &&
+        !previousMessage.runAttemptFailure &&
         hasMatchingToolCall(previousMessage, item.callId, item.name)
       ) {
         grouped[grouped.length - 1] = upsertToolResultIntoAssistant(
@@ -92,7 +93,8 @@ function groupToolMessagesWithAssistant(messages: ChatMessage[]) {
 
     if (
       pendingItems.length > 0 &&
-      (message.role === "assistant" || message.role === "error")
+      (message.role === "assistant" || message.role === "error") &&
+      !message.runAttemptFailure
     ) {
       const nextToolCalls = pendingItems.reduce(
         (items, item) => upsertToolProcessItem(items, item),
@@ -137,6 +139,11 @@ function coalesceAssistantTurnProcesses(
   };
 
   messages.forEach((message) => {
+    if (message.runAttemptFailure) {
+      flushAssistantTurn(false);
+      result.push(message);
+      return;
+    }
     if (message.role === "assistant" || message.role === "error" || message.role === "tool") {
       assistantTurnMessages.push(message);
       return;

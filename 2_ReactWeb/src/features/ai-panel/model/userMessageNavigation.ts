@@ -61,6 +61,7 @@ function findFinalReply(
     const message = messages[index];
     if (index < lastToolIndex) return null;
     if (message.role !== "assistant" && message.role !== "error") continue;
+    if (message.runAttemptFailure && !message.runOutcome) continue;
     if (message.status === "running" || !message.content.trim()) continue;
     return message;
   }

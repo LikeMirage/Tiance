@@ -35,6 +35,12 @@ class ExternalOpenResult:
     used_default_app: bool
 
 
+@dataclass(slots=True)
+class TextFileReadLimitExceededError(Exception):
+    size_bytes: int
+    limit_bytes: int
+
+
 class FileWorkspaceStorage:
     """受控文件工作区存储：无状态，每次操作接收 workspace_root"""
 
@@ -241,10 +247,26 @@ class FileWorkspaceStorage:
 
     def read_text_file(self, workspace_root: str, target_path: str) -> tuple[str, int]:
         """读取文本文件内容及修改时间（毫秒）"""
+        return self.read_text_file_limited(workspace_root, target_path, max_size_bytes=None)
+
+    def read_text_file_limited(
+        self,
+        workspace_root: str,
+        target_path: str,
+        *,
+        max_size_bytes: int | None,
+    ) -> tuple[str, int]:
+        """读取文本文件，并在解码前执行可选的字节数限制。"""
         root = Path(workspace_root).resolve()
         file_path = _resolve_within_root(root, target_path)
         if not file_path.is_file():
             raise FileNotFoundError("文件不存在。")
+        file_stat = file_path.stat()
+        if max_size_bytes is not None and file_stat.st_size > max_size_bytes:
+            raise TextFileReadLimitExceededError(
+                size_bytes=file_stat.st_size,
+                limit_bytes=max_size_bytes,
+            )
         try:
             content = file_path.read_text(encoding="utf-8")
         except UnicodeDecodeError:

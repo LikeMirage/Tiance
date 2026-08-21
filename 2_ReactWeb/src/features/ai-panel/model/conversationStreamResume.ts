@@ -3,6 +3,7 @@ import {
   appendAssistantContentProcess,
   getLastMessageContextMeasurement,
   readToolProcessItemFromMessage,
+  reopenTrailingThinkingProcess,
   upsertToolProcessItem,
   upsertToolProcessItemInTimeline,
   type ChatAssistantProcessItem,
@@ -78,7 +79,10 @@ function buildResumedAssistantMessage(
 ): ChatMessage {
   const displayMessages = buildChatDisplayMessages(messages);
   const assistantMessages = displayMessages.filter(
-    (message) => message.role === "assistant" || message.role === "error",
+    (message) => (
+      (message.role === "assistant" || message.role === "error")
+      && !message.runAttemptFailure
+    ),
   );
   const baseMessage = assistantMessages[assistantMessages.length - 1] ?? null;
   let processItems: ChatAssistantProcessItem[] = [];
@@ -93,7 +97,10 @@ function buildResumedAssistantMessage(
       }
       return;
     }
-    if (message.role !== "assistant" && message.role !== "error") return;
+    if (
+      (message.role !== "assistant" && message.role !== "error")
+      || message.runAttemptFailure
+    ) return;
 
     for (const item of message.processItems ?? []) {
       processItems = item.type === "tool"
@@ -110,6 +117,7 @@ function buildResumedAssistantMessage(
   });
 
   const contextMeasurement = getLastMessageContextMeasurement(assistantMessages);
+  processItems = reopenTrailingThinkingProcess(processItems);
   return {
     id: baseMessage?.id ?? fallbackAssistantId,
     role: "assistant",

@@ -12,6 +12,7 @@ from app.domain.project.project_conversation import (
     ProjectConversationMessageStatus,
     ProjectConversationSession,
     ProjectConversationSessionState,
+    ProjectConversationRunAttemptFailure,
     ProjectConversationRunOutcome,
 )
 from app.domain.project.conversation_branch_overview import (
@@ -501,6 +502,9 @@ class ProjectConversationMessageListResponse(BaseModel):
     next_before_message_id: str | None = None
     items: list[ProjectConversationMessageResponse]
     run_outcomes: list["ProjectConversationRunOutcomeResponse"] = Field(default_factory=list)
+    run_attempt_failures: list["ProjectConversationRunAttemptFailureResponse"] = Field(
+        default_factory=list,
+    )
 
 
 class ProjectConversationDataViewResponse(BaseModel):
@@ -524,6 +528,9 @@ class ProjectConversationMessageTurnResponse(BaseModel):
     count: int
     items: list[ProjectConversationMessageResponse]
     run_outcomes: list["ProjectConversationRunOutcomeResponse"] = Field(default_factory=list)
+    run_attempt_failures: list["ProjectConversationRunAttemptFailureResponse"] = Field(
+        default_factory=list,
+    )
 
 
 class ProjectConversationRunOutcomeResponse(BaseModel):
@@ -543,3 +550,22 @@ class ProjectConversationRunOutcomeResponse(BaseModel):
         outcome: ProjectConversationRunOutcome,
     ) -> "ProjectConversationRunOutcomeResponse":
         return cls(**{field: getattr(outcome, field) for field in cls.model_fields})
+
+
+class ProjectConversationRunAttemptFailureResponse(BaseModel):
+    event_id: int
+    run_id: str
+    session_id: str
+    user_message_id: str
+    error_code: str | None = None
+    error_message: str
+    attempt_index: int
+    attempt_count: int
+    occurred_at: str
+
+    @classmethod
+    def from_domain(
+        cls,
+        failure: ProjectConversationRunAttemptFailure,
+    ) -> "ProjectConversationRunAttemptFailureResponse":
+        return cls(**{field: getattr(failure, field) for field in cls.model_fields})

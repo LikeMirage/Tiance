@@ -35,18 +35,27 @@
       "title": "分析图片",
       "type": "boolean"
     },
-    "max_images": {
-      "default": 50,
-      "description": "最多分析多少张图片。",
-      "maximum": 200,
-      "minimum": 0,
-      "title": "最大图片数",
-      "type": "integer"
+    "analyze_full_page_images": {
+      "default": false,
+      "description": "是否允许 DMXAPI 分析批量出现的整页图片。默认关闭，避免扫描型 PDF 的整页底图被当作普通插图重复分析。",
+      "title": "分析整页图片",
+      "type": "boolean"
+    },
+    "ocr_mode": {
+      "default": "auto",
+      "description": "MinerU OCR 策略。auto 自动检查 PDF 文字层并在疑似漏识别时重跑一次；always 强制开启；never 强制关闭。",
+      "enum": [
+        "auto",
+        "always",
+        "never"
+      ],
+      "title": "OCR 模式",
+      "type": "string"
     },
     "image_concurrency": {
-      "default": 4,
-      "description": "图片并发分析数量。",
-      "maximum": 12,
+      "default": 50,
+      "description": "DMXAPI 图片分析的最大同时请求数。总图片数量不受限制。",
+      "maximum": 50,
       "minimum": 1,
       "title": "图片并发数",
       "type": "integer"

@@ -4,7 +4,13 @@
 import httpx
 from fastapi import APIRouter
 
-from app.core.errors import AppError, NotFoundError, UpstreamProviderError, to_upstream_provider_error
+from app.core.errors import (
+    AppError,
+    NotFoundError,
+    UpstreamProviderError,
+    local_exception_message,
+    to_upstream_provider_error,
+)
 from app.schemas.llm.discovered_models import (
     DiscoveredModelListResponse,
     DiscoveredModelResponse,
@@ -125,7 +131,10 @@ async def check_provider_config_model(
     except httpx.HTTPStatusError as exc:
         raise to_upstream_provider_error(exc) from exc
     except httpx.RequestError as exc:
-        raise UpstreamProviderError(f"上游供应商连接失败：{exc}") from exc
+        raise UpstreamProviderError(
+            local_exception_message(exc),
+            code="upstream_connection_error",
+        ) from exc
 
     if result is None:
         raise AppError("先保存 API KEY 后再测试模型。")
@@ -152,7 +161,10 @@ async def discover_provider_config_models(provider_id: str) -> DiscoveredModelLi
     except httpx.HTTPStatusError as exc:
         raise to_upstream_provider_error(exc) from exc
     except httpx.RequestError as exc:
-        raise UpstreamProviderError(f"上游供应商连接失败：{exc}") from exc
+        raise UpstreamProviderError(
+            local_exception_message(exc),
+            code="upstream_connection_error",
+        ) from exc
 
     if models is None:
         raise AppError(f"Provider config '{provider_id}' has no saved API key.")
@@ -183,7 +195,10 @@ async def refresh_provider_cloud_models(provider_id: str) -> ProviderCloudModelC
     except httpx.HTTPStatusError as exc:
         raise to_upstream_provider_error(exc) from exc
     except httpx.RequestError as exc:
-        raise UpstreamProviderError(f"上游供应商连接失败：{exc}") from exc
+        raise UpstreamProviderError(
+            local_exception_message(exc),
+            code="upstream_connection_error",
+        ) from exc
 
     if cache is None:
         raise AppError("先保存 API KEY 后再同步云模型。")

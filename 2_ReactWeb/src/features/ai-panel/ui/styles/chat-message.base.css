@@ -157,6 +157,52 @@
   color: var(--color-danger);
 }
 
+.chat-msg__upstream-retry .chat-msg__event-label > svg {
+  color: var(--color-accent);
+  animation: chat-event-spin 1.1s linear infinite;
+}
+
+.chat-msg__run-failure::before,
+.chat-msg__run-failure::after {
+  flex: 1 1 16px;
+  min-width: 16px;
+  background: color-mix(in srgb, var(--color-danger) 28%, transparent);
+}
+
+.chat-msg__run-failure {
+  display: flex;
+  align-items: center;
+}
+
+.chat-msg__run-failure .chat-msg__event-label {
+  box-sizing: border-box;
+  flex: 0 1 520px;
+  align-items: flex-start;
+  width: auto;
+  max-width: calc(100% - 48px);
+  padding: 6px 9px;
+  border-color: color-mix(in srgb, var(--color-danger) 34%, transparent);
+  line-height: 1.5;
+}
+
+.chat-msg__run-failure .chat-msg__event-label > svg {
+  margin-top: 1px;
+  color: var(--color-danger);
+}
+
+.chat-msg__run-failure .chat-msg__event-label > span {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: pre-wrap;
+}
+
+@keyframes chat-event-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .chat-msg__user-actions {
   display: flex;
   align-items: center;

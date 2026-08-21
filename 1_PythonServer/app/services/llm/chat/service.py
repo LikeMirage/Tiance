@@ -4,7 +4,15 @@ from dataclasses import replace
 from functools import lru_cache
 import logging
 
-from app.core.errors import BadRequestError, NotFoundError
+import httpx
+
+from app.core.errors import (
+    AppError,
+    BadRequestError,
+    NotFoundError,
+    local_exception_message,
+    upstream_http_error_message,
+)
 from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatCompletionResult,
@@ -125,11 +133,12 @@ class ChatCompletionService:
                 )
                 raise
             except Exception as exc:
+                error_code, error_message = _attempt_error(exc)
                 await self._record_attempt_outcome(
                     attempt_request,
                     status="failed",
-                    error_code=type(exc).__name__,
-                    error_message=str(exc),
+                    error_code=error_code,
+                    error_message=error_message,
                 )
                 if attempt_index >= attempt_count:
                     raise
@@ -240,17 +249,18 @@ class ChatCompletionService:
                 )
                 raise
             except Exception as exc:
+                error_code, error_message = _attempt_error(exc)
                 await self._record_attempt_outcome(
                     attempt_request,
                     status="failed",
-                    error_code=type(exc).__name__,
-                    error_message=str(exc),
+                    error_code=error_code,
+                    error_message=error_message,
                 )
                 if attempt_index < attempt_count:
                     yield ChatStreamEvent(
                         kind=ChatStreamEventKind.RETRY_RESET,
-                        error=str(exc),
-                        error_code=type(exc).__name__,
+                        error=error_message,
+                        error_code=error_code,
                         attempt_index=attempt_index + 1,
                         attempt_count=attempt_count,
                     )
@@ -384,6 +394,16 @@ class ChatCompletionService:
         ):
             return DEFAULT_TOKEN_ESTIMATION_SETTINGS
         return self._token_estimation_settings_service.get_settings()
+
+
+def _attempt_error(error: Exception) -> tuple[str, str]:
+    if isinstance(error, httpx.HTTPStatusError):
+        return "upstream_http_error", upstream_http_error_message(error)
+    if isinstance(error, httpx.RequestError):
+        return "upstream_connection_error", local_exception_message(error)
+    if isinstance(error, AppError):
+        return error.code, error.message
+    return type(error).__name__, local_exception_message(error)
 
 
 def _overlay_usage(current: ChatUsage | None, incoming: ChatUsage) -> ChatUsage:

@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import replace
 
+import httpx
 import pytest
 
 from app.domain.llm.chat import (
@@ -257,6 +258,46 @@ def test_stream_retries_same_logical_request_after_incomplete_upstream_attempt()
     ]
     assert [item["status"] for item in recorder.attempts] == ["failed", "completed"]
     assert recorder.attempts[0]["error_code"] == "upstream_stream_incomplete"
+
+
+def test_stream_retry_preserves_provider_http_error_body():
+    recorder = _FakeExchangeRecorder()
+    upstream_request = httpx.Request("POST", "https://api.deepseek.com/chat/completions")
+    upstream_response = httpx.Response(
+        402,
+        request=upstream_request,
+        json={"error": {"message": "Insufficient Balance"}},
+    )
+    remote_client = _SequencedRemoteClient(
+        stream_attempts=(
+            httpx.HTTPStatusError(
+                "402 Payment Required",
+                request=upstream_request,
+                response=upstream_response,
+            ),
+            (
+                ChatStreamEvent(kind=ChatStreamEventKind.DELTA, content="ok"),
+                ChatStreamEvent(kind=ChatStreamEventKind.DONE),
+            ),
+        )
+    )
+    service = _build_service(
+        remote_client=remote_client,
+        usage_service=_FakeUsageService(),
+        http_exchange_recorder=recorder,
+    )
+    request = replace(
+        _request(project_id="p1", session_id="s1"),
+        upstream_retry_count=1,
+    )
+
+    events = asyncio.run(_collect_stream(service, request))
+
+    retry_event = next(event for event in events if event.kind == ChatStreamEventKind.RETRY_RESET)
+    assert retry_event.error_code == "upstream_http_error"
+    assert retry_event.error == '{"error":{"message":"Insufficient Balance"}}'
+    assert recorder.attempts[0]["error_code"] == retry_event.error_code
+    assert recorder.attempts[0]["error_message"] == retry_event.error
 
 
 def test_complete_retries_transport_failure_without_changing_logical_messages():

@@ -133,6 +133,7 @@ class ChatCompletionRequest:
     project_id: str | None = None
     session_id: str | None = None
     run_id: str | None = None
+    user_message_id: str | None = None
     cache_affinity_id: str | None = None
     tools: tuple[ChatToolDefinition, ...] = ()
     generation: LlmGenerationParams = field(default_factory=LlmGenerationParams)

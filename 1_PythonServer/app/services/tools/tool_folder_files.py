@@ -4,6 +4,7 @@ from json import loads
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.domain.file_workspace import FileEntryKind, FileEntryNode, FileEntryTree
 from app.infra.file_workspace import FileWorkspaceStorage, get_file_workspace_storage
+from app.services.file_workspace_text import read_editor_text_file
 from app.infra.tools import ToolProjectConfigStorage, get_tool_project_config_storage
 from app.infra.tools.tool_project_config_constants import (
     TOOL_EXAMPLES_FILE,
@@ -165,6 +166,21 @@ class ToolFolderFileService:
         if _is_tool_standard_file_path(target_path):
             self._rebuild_registry()
         return node
+
+    def read_editor_text_file(
+        self,
+        category_id: str,
+        project_id: str,
+        target_path: str,
+    ) -> tuple[str, int]:
+        """读取供编辑器展示的工具目录文本，并执行编辑器体积限制。"""
+        folder_root = self._require_project_root(category_id, project_id)
+        try:
+            return read_editor_text_file(self._file_storage, folder_root, target_path)
+        except FileNotFoundError as exc:
+            raise NotFoundError(str(exc)) from exc
+        except ValueError as exc:
+            raise BadRequestError(str(exc)) from exc
 
     def delete_entry(self, category_id: str, project_id: str, target_path: str) -> None:
         folder_root = self._require_writable_project_root(category_id, project_id)

@@ -19,6 +19,7 @@ from app.domain.project.project_conversation import (
     ProjectConversationMessageStatus,
     ProjectConversationMessagePage,
     ProjectConversationMessageTurn,
+    ProjectConversationRunAttemptFailure,
     ProjectConversationRunOutcome,
     ProjectConversationNamingCallRecord,
     ProjectConversationSession,
@@ -57,6 +58,7 @@ from app.repositories.project.conversation_database import (
     append_journal_event,
     begin_conversation_run,
     latest_user_message_id,
+    list_conversation_run_attempt_failures,
     list_conversation_run_outcomes,
     read_conversation_run,
     settle_conversation_run,
@@ -705,6 +707,10 @@ class ProjectConversationRepository:
                 session_dir,
                 page.items,
             ),
+            run_attempt_failures=self._run_attempt_failures_for_messages(
+                session_dir,
+                page.items,
+            ),
         )
 
     def get_message_turn(
@@ -718,6 +724,10 @@ class ProjectConversationRepository:
         return replace(
             turn,
             run_outcomes=self._run_outcomes_for_messages(session_dir, turn.items),
+            run_attempt_failures=self._run_attempt_failures_for_messages(
+                session_dir,
+                turn.items,
+            ),
         )
 
     def begin_run(
@@ -787,6 +797,23 @@ class ProjectConversationRepository:
         return tuple(
             _run_outcome_from_payload(payload)
             for payload in list_conversation_run_outcomes(
+                session_dir.parent.parent.parent,
+                session_id=session_dir.name,
+                user_message_ids=user_message_ids,
+            )
+        )
+
+    @staticmethod
+    def _run_attempt_failures_for_messages(
+        session_dir: Path,
+        messages: tuple[ProjectConversationMessage, ...],
+    ) -> tuple[ProjectConversationRunAttemptFailure, ...]:
+        user_message_ids = tuple(
+            message.message_id for message in messages if message.role == "user"
+        )
+        return tuple(
+            _run_attempt_failure_from_payload(payload)
+            for payload in list_conversation_run_attempt_failures(
                 session_dir.parent.parent.parent,
                 session_id=session_dir.name,
                 user_message_ids=user_message_ids,
@@ -1164,6 +1191,23 @@ def _run_outcome_from_payload(payload: dict) -> ProjectConversationRunOutcome:
         attempt_count=max(0, int(payload.get("attempt_count") or 0)),
         started_at=str(payload["started_at"]),
         settled_at=(str(payload["settled_at"]) if payload.get("settled_at") else None),
+    )
+
+
+def _run_attempt_failure_from_payload(
+    payload: dict,
+) -> ProjectConversationRunAttemptFailure:
+    attempt_index = max(1, int(payload.get("attempt_index") or 1))
+    return ProjectConversationRunAttemptFailure(
+        event_id=int(payload["event_id"]),
+        run_id=str(payload["run_id"]),
+        session_id=str(payload["session_id"]),
+        user_message_id=str(payload["user_message_id"]),
+        error_code=payload.get("error_code"),
+        error_message=str(payload.get("error_message") or ""),
+        attempt_index=attempt_index,
+        attempt_count=max(attempt_index, int(payload.get("attempt_count") or attempt_index)),
+        occurred_at=str(payload["occurred_at"]),
     )
 
 

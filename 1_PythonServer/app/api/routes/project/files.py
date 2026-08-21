@@ -202,7 +202,7 @@ def read_project_file_content(
     path: str = Query(..., description="文件路径"),
 ) -> ProjectFileContentResponse:
     service = get_project_file_service()
-    content, mtime_ms = service.read_text_file(project_id, target_path=path)
+    content, mtime_ms = service.read_editor_text_file(project_id, target_path=path)
     return ProjectFileContentResponse(project_id=project_id, path=path, content=content, mtime_ms=mtime_ms)
 
 
