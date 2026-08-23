@@ -14,6 +14,7 @@ from app.domain.tools import (
     ToolRegistryEntry,
     ToolSummary,
 )
+from app.domain.tools.parameter_permissions import schema_without_parameter_permission_types
 from app.infra.tools.tool_project_config_constants import TOOL_FOLDER_MANIFEST_FILE
 from app.services.tools.tool_metadata import (
     build_summary,
@@ -224,7 +225,7 @@ def _full_injection_char_count(
     payload = {
         "name": summary.name,
         "description": standard_tool_description(summary.description, examples),
-        "parameters": input_schema,
+        "parameters": schema_without_parameter_permission_types(input_schema),
     }
     return len(dumps(payload, ensure_ascii=False, sort_keys=True))
 

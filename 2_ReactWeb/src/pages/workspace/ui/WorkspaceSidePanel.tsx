@@ -52,8 +52,10 @@ type WorkspaceSidePanelProps = {
   onReferenceProjectFile?: (file: ProjectFileDragData) => void;
   onSelectFunctionalModelSection: (sectionId: FunctionalModelSettingsSectionId) => void;
   onSelectGithubSettings: () => void;
+  onSelectGlobalMemorySettings: () => void;
   onSelectLanguageSettings: () => void;
   onSelectSoftwareUpdateSettings: () => void;
+  onSelectAnnouncementSettings: () => void;
   onSelectNetworkSettings: () => void;
   onSelectTokenEstimationSettings: () => void;
   onToggleFunctionalModelGroup: () => void;
@@ -96,8 +98,10 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
   onReferenceProjectFile,
   onSelectFunctionalModelSection,
   onSelectGithubSettings,
+  onSelectGlobalMemorySettings,
   onSelectLanguageSettings,
   onSelectSoftwareUpdateSettings,
+  onSelectAnnouncementSettings,
   onSelectNetworkSettings,
   onSelectTokenEstimationSettings,
   onToggleFunctionalModelGroup,
@@ -116,7 +120,9 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
     activeSettingsSectionId === "token-estimation";
   const isLanguageSettingsActive = activeSettingsSectionId === "language";
   const isSoftwareUpdateSettingsActive = activeSettingsSectionId === "software-update";
+  const isAnnouncementSettingsActive = activeSettingsSectionId === "announcements";
   const isGithubSettingsActive = activeSettingsSectionId === "github";
+  const isGlobalMemorySettingsActive = activeSettingsSectionId === "global-memory";
   const isNetworkSettingsActive = activeSettingsSectionId === "network";
   const isFunctionalModelGroupActive =
     isFunctionalModelSettingsSection(activeSettingsSectionId);
@@ -144,6 +150,16 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
     !isSearchingSettings
     || normalizeSettingsSearchText(
       `${t("workspace.settings.github")} github login repository private`,
+    ).includes(normalizedSettingsSearchKeyword);
+  const shouldShowAnnouncementSearchResult =
+    !isSearchingSettings
+    || normalizeSettingsSearchText(
+      `${t("workspace.settings.announcements")} announcement notice 公告 通知`,
+    ).includes(normalizedSettingsSearchKeyword);
+  const shouldShowGlobalMemorySettingsSearchResult =
+    !isSearchingSettings
+    || normalizeSettingsSearchText(
+      `${t("workspace.settings.globalMemory")} memory long-term history deleted 全局记忆 长期记忆`,
     ).includes(normalizedSettingsSearchKeyword);
   const filteredFunctionalModelSections = useMemo(
     () =>
@@ -279,6 +295,38 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
                 </span>
               </button>
             ) : null}
+            {shouldShowAnnouncementSearchResult ? (
+              <button
+                className={isAnnouncementSettingsActive
+                  ? "workspace-settings-panel__search-result workspace-settings-panel__search-result--active"
+                  : "workspace-settings-panel__search-result"}
+                type="button"
+                aria-current={isAnnouncementSettingsActive ? "page" : undefined}
+                onClick={onSelectAnnouncementSettings}
+              >
+                <span className="workspace-settings-panel__search-result-title">{t("workspace.settings.announcements")}</span>
+                <span className="workspace-settings-panel__search-result-meta">{t("announcements.history")}</span>
+              </button>
+            ) : null}
+            {shouldShowGlobalMemorySettingsSearchResult ? (
+              <button
+                className={
+                  isGlobalMemorySettingsActive
+                    ? "workspace-settings-panel__search-result workspace-settings-panel__search-result--active"
+                    : "workspace-settings-panel__search-result"
+                }
+                type="button"
+                aria-current={isGlobalMemorySettingsActive ? "page" : undefined}
+                onClick={onSelectGlobalMemorySettings}
+              >
+                <span className="workspace-settings-panel__search-result-title">
+                  {t("workspace.settings.globalMemory")}
+                </span>
+                <span className="workspace-settings-panel__search-result-meta">
+                  {t("globalMemoryManager.eventLog")}
+                </span>
+              </button>
+            ) : null}
             {shouldShowTokenEstimationSearchResult ? (
               <button
                 className={
@@ -325,8 +373,10 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
               ))
             ) : null}
             {!shouldShowSoftwareUpdateSearchResult
+              && !shouldShowAnnouncementSearchResult
               && !shouldShowLanguageSettingsSearchResult
               && !shouldShowGithubSettingsSearchResult
+              && !shouldShowGlobalMemorySettingsSearchResult
               && !shouldShowNetworkSettingsSearchResult
               && !shouldShowTokenEstimationSearchResult
               && filteredFunctionalModelSections.length === 0 ? (
@@ -348,6 +398,16 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
               {t("workspace.settings.softwareUpdate")}
             </button>
             <button
+              className={isAnnouncementSettingsActive
+                ? "workspace-settings-panel__standalone workspace-settings-panel__standalone--active"
+                : "workspace-settings-panel__standalone"}
+              type="button"
+              aria-current={isAnnouncementSettingsActive ? "page" : undefined}
+              onClick={onSelectAnnouncementSettings}
+            >
+              {t("workspace.settings.announcements")}
+            </button>
+            <button
               className={
                 isGithubSettingsActive
                   ? "workspace-settings-panel__standalone workspace-settings-panel__standalone--active"
@@ -358,6 +418,18 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
               onClick={onSelectGithubSettings}
             >
               {t("workspace.settings.github")}
+            </button>
+            <button
+              className={
+                isGlobalMemorySettingsActive
+                  ? "workspace-settings-panel__standalone workspace-settings-panel__standalone--active"
+                  : "workspace-settings-panel__standalone"
+              }
+              type="button"
+              aria-current={isGlobalMemorySettingsActive ? "page" : undefined}
+              onClick={onSelectGlobalMemorySettings}
+            >
+              {t("workspace.settings.globalMemory")}
             </button>
             <button
               className={

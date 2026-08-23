@@ -3,6 +3,7 @@
   "description": "只管理 run_python_script 登记的天策内置 Python 后台进程。list 支持显式分页并标记确认失联的 orphaned 记录；get 只查看状态；read_logs 一次返回最新状态和日志末尾；stop 通过专属控制通道请求停止；cleanup 清理单条已结束或确认失联记录；prune 批量清理超过保护时间的安全候选。",
   "properties": {
     "operation": {
+      "permission_type": "process_control",
       "description": "进程管理操作。",
       "enum": [
         "list",
@@ -42,12 +43,14 @@
       "type": "string"
     },
     "execution_id": {
+      "permission_type": "process_control",
       "description": "run_python_script 返回的 execution_id。get、read_logs、stop、cleanup 必填；list、prune 不需要。",
       "pattern": "^[0-9a-f]{32}$",
       "title": "执行 ID",
       "type": "string"
     },
     "stream": {
+      "permission_type": "process_control",
       "default": "both",
       "description": "read_logs 要读取的日志流；结果同时包含最新进程状态。",
       "enum": [
@@ -59,6 +62,7 @@
       "type": "string"
     },
     "tail_chars": {
+      "permission_type": "none",
       "default": 20000,
       "description": "read_logs 每个日志流最多返回末尾字符数。",
       "maximum": 200000,
@@ -67,6 +71,7 @@
       "type": "integer"
     },
     "timeout_seconds": {
+      "permission_type": "none",
       "default": 10,
       "description": "stop 等待目标进程确认结束的时间。超时只表示未确认，不会转而按 PID 强制终止其他进程。",
       "maximum": 60,
@@ -75,6 +80,7 @@
       "type": "integer"
     },
     "offset": {
+      "permission_type": "none",
       "default": 0,
       "description": "list 分页起始位置。",
       "minimum": 0,
@@ -82,6 +88,7 @@
       "type": "integer"
     },
     "limit": {
+      "permission_type": "none",
       "default": 100,
       "description": "list 单次返回数量，结果会同时返回 total 和 has_more。",
       "maximum": 500,
@@ -90,6 +97,7 @@
       "type": "integer"
     },
     "older_than_seconds": {
+      "permission_type": "process_control",
       "default": 60,
       "description": "prune 只处理最后更新时间早于该秒数的安全候选，避免清理刚结束或刚失联的记录。",
       "minimum": 10,
@@ -97,6 +105,7 @@
       "type": "integer"
     },
     "dry_run": {
+      "permission_type": "none",
       "default": false,
       "description": "prune 是否只预览候选而不删除。默认 false，实际清理时仍会在删除前重新确认每条记录。",
       "title": "仅预览",

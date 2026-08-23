@@ -11,18 +11,12 @@ import { useI18n } from "../../../shared/i18n";
 import {
   useProviderModelManagement,
   type ModelManagementMode,
-  type ModelManagementTransitionDirection,
 } from "../../provider-model-management/model/useProviderModelManagement";
 import type { ModelCheckState } from "../../provider-model-management/model/modelCheckState";
 
 type ProviderModelModeTab = {
   id: ModelManagementMode;
   onClick: () => void;
-};
-
-export type ModelModeTransitionState = {
-  direction: Exclude<ModelManagementTransitionDirection, "none">;
-  leavingMode: ModelManagementMode;
 };
 
 export type ProviderCanvasControllerInput = {
@@ -47,8 +41,6 @@ export function useProviderCanvasController({
   const modelCheckResetTimersRef = useRef(new Map<string, number>());
   const selectedProviderDraft = providerConfigState.selectedDraft;
   const modelManagementPanel = useProviderModelManagement(selectedProvider.provider_id, { isActive });
-  const previousModelModeRef = useRef<ModelManagementMode>(modelManagementPanel.activeMode);
-  const modelModeTransitionTimerRef = useRef<number | null>(null);
   const apiKeyInputRefs = useRef(new Map<string, HTMLInputElement>());
   const apiKeyFocusSnapshotRef = useRef<{
     ids: string[];
@@ -57,8 +49,6 @@ export function useProviderCanvasController({
     ids: [],
     providerId: null,
   });
-  const [modelModeTransitionState, setModelModeTransitionState] =
-    useState<ModelModeTransitionState | null>(null);
   const [testingModelIds, setTestingModelIds] = useState<string[]>([]);
   const [modelCheckStates, setModelCheckStates] = useState<Record<string, ModelCheckState>>({});
   const [providerProtocolError, setProviderProtocolError] = useState<string | null>(null);
@@ -138,43 +128,6 @@ export function useProviderCanvasController({
 
     return () => window.cancelAnimationFrame(animationFrameId);
   }, [selectedProvider.provider_id, selectedProviderDraft?.apiKeys]);
-
-  useLayoutEffect(() => {
-    const activeMode = modelManagementPanel.activeMode;
-
-    if (previousModelModeRef.current === activeMode) {
-      return;
-    }
-
-    if (modelModeTransitionTimerRef.current !== null) {
-      window.clearTimeout(modelModeTransitionTimerRef.current);
-      modelModeTransitionTimerRef.current = null;
-    }
-
-    if (modelManagementPanel.transitionDirection === "none") {
-      previousModelModeRef.current = activeMode;
-      setModelModeTransitionState(null);
-      return;
-    }
-
-    setModelModeTransitionState({
-      direction: modelManagementPanel.transitionDirection,
-      leavingMode: previousModelModeRef.current,
-    });
-    previousModelModeRef.current = activeMode;
-
-    modelModeTransitionTimerRef.current = window.setTimeout(() => {
-      setModelModeTransitionState(null);
-      modelModeTransitionTimerRef.current = null;
-    }, 320);
-
-    return () => {
-      if (modelModeTransitionTimerRef.current !== null) {
-        window.clearTimeout(modelModeTransitionTimerRef.current);
-        modelModeTransitionTimerRef.current = null;
-      }
-    };
-  }, [modelManagementPanel.activeMode, modelManagementPanel.transitionDirection]);
 
   const showCloudModelCatalog = () => {
     modelManagementPanel.selectCloudMode();
@@ -289,19 +242,14 @@ export function useProviderCanvasController({
       onClick: showCloudModelCatalog,
     },
   ];
-  const shouldRenderModelModeLeavingLayer =
-    modelModeTransitionState !== null &&
-    modelModeTransitionState.leavingMode !== "cloud";
   return {
     apiKeyInputRefs,
     hasAnyProviderApiKey,
     modelCheckStates,
     modelManagementPanel,
     modelModeTabs,
-    modelModeTransitionState,
     providerProtocolError,
     selectedProviderDraft,
-    shouldRenderModelModeLeavingLayer,
     testModelConnection,
     testingModelIds,
     updateSelectedProviderProtocol,

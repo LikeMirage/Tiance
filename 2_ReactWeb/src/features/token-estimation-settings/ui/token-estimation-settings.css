@@ -1,5 +1,5 @@
 .token-estimation-settings {
-  width: min(100%, 760px);
+  width: calc(100% - 44px);
   min-height: calc(100% - 44px);
   margin: 22px;
 }

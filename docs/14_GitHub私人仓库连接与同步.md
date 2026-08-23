@@ -243,7 +243,7 @@ theme-settings.json
 └─ .Tiance/
 ```
 
-`theme-settings.json` 保存当前主题选择等本地设置。集合同步会保留整个主题目录；主题市场包则要求至少包含 `theme.json`、`manifest.json` 和合法预览图，背景图片放在 `assets/`。
+`theme-settings.json` 保存当前主题选择等本地设置。集合同步会保留整个主题目录；主题市场包则要求至少包含 `theme.json`、`manifest.json` 和合法预览图，背景图片放在 `assets/`。市场更新只替换主题定义、主题图片和 `assets/` 资源；`.Tiance/`、本地分类、项目名称及其他非主题文件会迁回新版目录。旧主题目录只作为更新过程中的临时回滚快照，成功后立即清理，不进入回收目录。
 
 ### 6.5 工具集
 

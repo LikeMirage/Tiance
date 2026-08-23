@@ -6,6 +6,7 @@ import { useAppTheme } from "./model/useAppTheme";
 import { useBrowserShellGuards } from "./model/useBrowserShellGuards";
 import { DesktopShellProvider } from "../features/desktop-shell/model/useDesktopShell";
 import { StartupSoftwareUpdatePrompt } from "../features/software-update/ui/StartupSoftwareUpdatePrompt";
+import { StartupAnnouncementPrompt } from "../features/announcements/ui/StartupAnnouncementPrompt";
 import { revealDesktopShellWindow } from "../features/desktop-shell/model/desktopShellStore";
 import { WorkspacePage } from "../pages/workspace/ui/WorkspacePage";
 import { markFrontendStartup } from "../shared/model/startup-timing/startupTiming";
@@ -126,6 +127,7 @@ export function App({
             onInitialWorkspaceSettled={handleInitialWorkspaceSettled}
             themeControl={themeControl}
           />
+          <StartupAnnouncementPrompt />
           <StartupSoftwareUpdatePrompt />
         </AppFrame>
       </DesktopShellProvider>

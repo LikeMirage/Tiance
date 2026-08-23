@@ -11,7 +11,7 @@ type FilterGroup = "authors" | "protocols" | "statuses";
 
 const FILTER_GROUPS: readonly FilterGroup[] = ["authors", "protocols", "statuses"];
 const STATUSES: readonly ProviderMarketInstallationStatus[] = [
-  "not-installed", "installed", "update-available", "local-conflict",
+  "not-installed", "installed", "update-available",
 ];
 const GROUP_LABELS: Record<FilterGroup, TranslationKey> = {
   authors: "providerMarket.filterGroups.authors",
@@ -22,7 +22,6 @@ const STATUS_LABELS: Record<ProviderMarketInstallationStatus, TranslationKey> = 
   "not-installed": "providerMarket.statuses.not-installed",
   installed: "providerMarket.statuses.installed",
   "update-available": "providerMarket.statuses.update-available",
-  "local-conflict": "providerMarket.statuses.local-conflict",
 };
 
 export function ProviderMarketFilterPanel({

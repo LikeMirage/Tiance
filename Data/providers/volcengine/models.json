@@ -1,4 +1,62 @@
 {
   "schemaVersion": 1,
-  "items": []
+  "items": [
+    {
+      "modelId": "doubao-seed-1-6-flash-250828",
+      "displayName": "doubao-seed-1-6-flash",
+      "familyGroup": "doubao-seed",
+      "capabilityTags": [
+        "vision",
+        "function_calling"
+      ],
+      "note": "",
+      "priceCurrency": "CNY",
+      "inputPricePerMillion": null,
+      "cacheHitPricePerMillion": null,
+      "outputPricePerMillion": null,
+      "createdAt": "2026-07-12T11:09:39.635384+00:00",
+      "updatedAt": "2026-07-12T11:09:39.635384+00:00"
+    },
+    {
+      "modelId": "doubao-seed-2-1-turbo-260628",
+      "displayName": "doubao-seed-2-1-turbo",
+      "familyGroup": "doubao-seed",
+      "capabilityTags": [],
+      "note": "",
+      "priceCurrency": "CNY",
+      "inputPricePerMillion": null,
+      "cacheHitPricePerMillion": null,
+      "outputPricePerMillion": null,
+      "createdAt": "2026-07-19T14:13:44.603560+00:00",
+      "updatedAt": "2026-07-19T14:13:44.603560+00:00"
+    },
+    {
+      "modelId": "doubao-seed-2-1-pro-260628",
+      "displayName": "doubao-seed-2-1-pro",
+      "familyGroup": "doubao-seed",
+      "capabilityTags": [],
+      "note": "",
+      "priceCurrency": "CNY",
+      "inputPricePerMillion": null,
+      "cacheHitPricePerMillion": null,
+      "outputPricePerMillion": null,
+      "createdAt": "2026-07-19T14:13:47.449330+00:00",
+      "updatedAt": "2026-07-19T14:13:47.449330+00:00"
+    },
+    {
+      "modelId": "doubao-seed-2-0-pro-260215",
+      "displayName": "doubao-seed-2-0-pro",
+      "familyGroup": "doubao-seed",
+      "capabilityTags": [
+        "vision"
+      ],
+      "note": "",
+      "priceCurrency": "CNY",
+      "inputPricePerMillion": null,
+      "cacheHitPricePerMillion": null,
+      "outputPricePerMillion": null,
+      "createdAt": "2026-07-19T14:13:50.280440+00:00",
+      "updatedAt": "2026-07-19T14:13:50.280440+00:00"
+    }
+  ]
 }

@@ -4,10 +4,10 @@
   "displayName": "SiliconFlow",
   "profileId": "generic",
   "protocolFamily": "openai_compatible",
-  "enabled": false,
+  "enabled": true,
   "reasoningReplayMode": "tool_call_rounds",
-  "createdAt": "2026-07-19T12:22:43.557643+00:00",
-  "updatedAt": "2026-08-02T00:00:00+00:00",
+  "createdAt": "2026-08-22T13:27:32.298537+00:00",
+  "updatedAt": "2026-08-22T13:27:42.699429+00:00",
   "modelDiscoveryUrl": "https://api.siliconflow.cn/v1/models",
   "generationUrls": {
     "openai_compatible": "https://api.siliconflow.cn/v1/chat/completions"

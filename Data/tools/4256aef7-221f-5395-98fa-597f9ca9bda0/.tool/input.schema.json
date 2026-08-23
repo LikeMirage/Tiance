@@ -3,6 +3,7 @@
   "description": "管理天策内置 Python 依赖。默认目标是 Python 脚本执行工具；也可用 target_tool 按工具名、显示名称、市场 ID 或文件夹 ID 定位工具，或用 target_path 指定其他安装目录。install 主动安装 packages，不与 requirements.txt 校对；install_requirements 一键安装目标工具 program/requirements.txt 中的全部声明。",
   "properties": {
     "operation": {
+      "permission_type": "runtime_modify",
       "description": "要执行的依赖管理操作。",
       "enum": ["check", "install", "install_requirements", "list", "repair", "show", "uninstall"],
       "options": [
@@ -18,6 +19,7 @@
       "type": "string"
     },
     "target_tool": {
+      "permission_type": "runtime_modify",
       "description": "目标工具名称、显示名称、市场 ID 或工具文件夹 ID。与 target_path 二选一；两者都不填时默认 Python 脚本执行工具。",
       "maxLength": 500,
       "minLength": 1,
@@ -25,6 +27,7 @@
       "type": "string"
     },
     "target_path": {
+      "permission_type": "runtime_modify",
       "description": "显式指定其他依赖安装目录，支持绝对路径或相对当前工作目录的路径。不能与 target_tool 同时填写；install_requirements 和 repair 不支持路径目标。",
       "maxLength": 500,
       "minLength": 1,
@@ -32,6 +35,7 @@
       "type": "string"
     },
     "packages": {
+      "permission_type": "runtime_modify",
       "default": [],
       "description": "install 支持普通 PyPI 包名和版本范围；show、uninstall 只填写包名；其他操作留空。主动安装不要求依赖已写入 requirements.txt。",
       "items": {"maxLength": 200, "minLength": 1, "type": "string"},
@@ -41,12 +45,14 @@
       "uniqueItems": true
     },
     "index_url": {
+      "permission_type": "runtime_modify",
       "default": "https://mirrors.aliyun.com/pypi/simple/",
       "description": "install 和 install_requirements 使用的 PyPI 镜像地址。",
       "title": "PyPI 镜像",
       "type": "string"
     },
     "timeout_seconds": {
+      "permission_type": "none",
       "default": 300,
       "description": "安装命令超时时间，范围 10-600 秒。",
       "maximum": 600,

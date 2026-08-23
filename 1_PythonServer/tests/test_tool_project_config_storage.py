@@ -8,6 +8,8 @@ from app.infra.file_workspace import FileWorkspaceStorage
 from app.infra.tools.tool_project_config_storage import ToolProjectConfigStorage
 from app.infra.tools.tool_project_config_constants import (
     TOOL_FOLDER_MANIFEST_FILE,
+    TOOL_INPUT_SCHEMA_FILE,
+    TOOL_PERMISSIONS_FILE,
 )
 from app.services.tools.tool_folder_files import ToolFolderFileService
 from app.services.tools.tool_registry import ToolRegistryService
@@ -104,4 +106,82 @@ def test_tool_project_manifest_rejects_duplicate_identity(tmp_path):
             editing.project_id,
             TOOL_FOLDER_MANIFEST_FILE,
             dumps(payload, ensure_ascii=False),
+        )
+
+
+def test_input_schema_save_preserves_valid_parameter_permission_type():
+    storage = ToolProjectConfigStorage()
+    content = storage.normalize_standard_file_content(
+        TOOL_INPUT_SCHEMA_FILE,
+        dumps({
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "permission_type": "filesystem_read",
+                },
+                "encoding": {"type": "string"},
+            },
+            "required": ["file_path"],
+        }),
+    )
+
+    saved = loads(content)
+    assert saved["properties"]["file_path"]["permission_type"] == "filesystem_read"
+    assert "permission_type" not in saved["properties"]["encoding"]
+
+
+def test_input_schema_save_rejects_invalid_parameter_permission_type():
+    storage = ToolProjectConfigStorage()
+
+    with pytest.raises(BadRequestError, match="permission_type"):
+        storage.normalize_standard_file_content(
+            TOOL_INPUT_SCHEMA_FILE,
+            dumps({
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "permission_type": "read_everything",
+                    },
+                },
+                "required": [],
+            }),
+        )
+
+
+def test_permissions_save_completes_missing_policy_cells():
+    storage = ToolProjectConfigStorage()
+    content = storage.normalize_standard_file_content(
+        TOOL_PERMISSIONS_FILE,
+        dumps({
+            "version": 1,
+            "fallback": "ask",
+            "policies": {
+                "filesystem_read": {"workspace_inside": "allow"},
+            },
+        }),
+    )
+
+    saved = loads(content)
+    assert saved["policies"]["filesystem_read"] == {
+        "workspace_inside": "allow",
+        "workspace_outside": "ask",
+        "unresolved": "ask",
+    }
+    assert saved["policies"]["network_access"]["public_network"] == "ask"
+    assert saved["policies"]["unknown"] == {"all": "ask"}
+
+
+def test_permissions_save_rejects_invalid_decision():
+    storage = ToolProjectConfigStorage()
+
+    with pytest.raises(BadRequestError, match="deny、ask 或 allow"):
+        storage.normalize_standard_file_content(
+            TOOL_PERMISSIONS_FILE,
+            dumps({
+                "version": 1,
+                "fallback": "sometimes",
+                "policies": {},
+            }),
         )

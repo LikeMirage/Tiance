@@ -23,7 +23,9 @@ import { TokenEstimationSettingsPanel } from "../../../features/token-estimation
 import { NetworkSettingsPanel } from "../../../features/network-settings/ui/NetworkSettingsPanel";
 import { LanguageSettingsPanel } from "../../../features/locale-settings/ui/LanguageSettingsPanel";
 import { GithubSettingsPanel } from "../../../features/github-settings/ui/GithubSettingsPanel";
+import { GlobalMemorySettingsPanel } from "../../../features/global-memory-settings/ui/GlobalMemorySettingsPanel";
 import { SoftwareUpdatePanel } from "../../../features/software-update/ui/SoftwareUpdatePanel";
+import { AnnouncementSettingsPanel } from "../../../features/announcements/ui/AnnouncementSettingsPanel";
 import type { UseProviderModelDiscoveryResult } from "../../../features/provider-model-discovery/model/useProviderModelDiscovery";
 import type { HoverSidebarSectionId } from "../../../widgets/hover-sidebar/model/sidebarSections";
 import type { UseProviderConfigStateResult } from "../../../features/provider-config/model/useProviderConfigState";
@@ -279,8 +281,14 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
   const markGithubSettingsReady = useCallback(() => {
     markSettingsSectionReady("github");
   }, [markSettingsSectionReady]);
+  const markGlobalMemorySettingsReady = useCallback(() => {
+    markSettingsSectionReady("global-memory");
+  }, [markSettingsSectionReady]);
   const markSoftwareUpdateSettingsReady = useCallback(() => {
     markSettingsSectionReady("software-update");
+  }, [markSettingsSectionReady]);
+  const markAnnouncementSettingsReady = useCallback(() => {
+    markSettingsSectionReady("announcements");
   }, [markSettingsSectionReady]);
 
   useLayoutEffect(() => {
@@ -361,6 +369,7 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
             expandedProjectId={knowledgeExpandedProjectId}
             documentTabs={projectDocumentTabs}
             isActive={isSectionActive}
+            isKnowledgeWorkspace
             layoutPreferences={layoutPreferences}
             onExpandProject={onExpandProject}
             onCreateProject={onCreateKnowledgeProject}
@@ -478,7 +487,7 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
             selectedProject={providerSelectedProject}
             selectedSessionId={providerSelectedSessionId}
             providerConfigurationContent={
-              selectedProvider && providerConfigState.selectedDraft ? (
+              selectedProvider ? (
                 <WorkspaceProviderCanvasPanel
                   isActive={isSectionActive && !providerExpandedProjectId}
                   isRenamingProvider={isRenamingProvider}
@@ -500,7 +509,9 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
             displayedSettingsSectionId={displayedSettingsSectionId}
             onFunctionalModelSettingsReady={markFunctionalModelSettingsReady}
             onGithubSettingsReady={markGithubSettingsReady}
+            onGlobalMemorySettingsReady={markGlobalMemorySettingsReady}
             onSoftwareUpdateSettingsReady={markSoftwareUpdateSettingsReady}
+            onAnnouncementSettingsReady={markAnnouncementSettingsReady}
             onLanguageSettingsReady={markLanguageSettingsReady}
             onNetworkSettingsReady={markNetworkSettingsReady}
             onSelectFunctionalModelSection={onSelectFunctionalModelSection}
@@ -581,7 +592,9 @@ function WorkspaceSettingsCanvas({
   displayedSettingsSectionId,
   onFunctionalModelSettingsReady,
   onGithubSettingsReady,
+  onGlobalMemorySettingsReady,
   onSoftwareUpdateSettingsReady,
+  onAnnouncementSettingsReady,
   onLanguageSettingsReady,
   onNetworkSettingsReady,
   onSelectFunctionalModelSection,
@@ -591,7 +604,9 @@ function WorkspaceSettingsCanvas({
   displayedSettingsSectionId: WorkspaceSettingsSectionId;
   onFunctionalModelSettingsReady: () => void;
   onGithubSettingsReady: () => void;
+  onGlobalMemorySettingsReady: () => void;
   onSoftwareUpdateSettingsReady: () => void;
+  onAnnouncementSettingsReady: () => void;
   onLanguageSettingsReady: () => void;
   onNetworkSettingsReady: () => void;
   onSelectFunctionalModelSection: (sectionId: FunctionalModelSettingsSectionId) => void;
@@ -601,13 +616,26 @@ function WorkspaceSettingsCanvas({
     displayedSettingsSectionId === "token-estimation";
   const isLanguageDisplayed = displayedSettingsSectionId === "language";
   const isGithubDisplayed = displayedSettingsSectionId === "github";
+  const isGlobalMemoryDisplayed = displayedSettingsSectionId === "global-memory";
   const isSoftwareUpdateDisplayed = displayedSettingsSectionId === "software-update";
+  const isAnnouncementDisplayed = displayedSettingsSectionId === "announcements";
   const isNetworkDisplayed = displayedSettingsSectionId === "network";
   const isFunctionalModelDisplayed =
-    !isGithubDisplayed && !isSoftwareUpdateDisplayed && !isLanguageDisplayed && !isTokenEstimationDisplayed && !isNetworkDisplayed;
+    !isGithubDisplayed && !isGlobalMemoryDisplayed && !isSoftwareUpdateDisplayed && !isAnnouncementDisplayed && !isLanguageDisplayed && !isTokenEstimationDisplayed && !isNetworkDisplayed;
 
   return (
     <div className="workspace-page__settings-canvas">
+      <div
+        className={isAnnouncementDisplayed
+          ? "workspace-page__settings-view"
+          : "workspace-page__settings-view workspace-page__settings-view--hidden"}
+        aria-hidden={isAnnouncementDisplayed ? undefined : "true"}
+      >
+        <AnnouncementSettingsPanel
+          active={isAnnouncementDisplayed}
+          onReady={onAnnouncementSettingsReady}
+        />
+      </div>
       <div
         className={isSoftwareUpdateDisplayed
           ? "workspace-page__settings-view"
@@ -625,6 +653,16 @@ function WorkspaceSettingsCanvas({
         aria-hidden={isGithubDisplayed ? undefined : "true"}
       >
         <GithubSettingsPanel onReady={onGithubSettingsReady} />
+      </div>
+      <div
+        className={
+          isGlobalMemoryDisplayed
+            ? "workspace-page__settings-view"
+            : "workspace-page__settings-view workspace-page__settings-view--hidden"
+        }
+        aria-hidden={isGlobalMemoryDisplayed ? undefined : "true"}
+      >
+        <GlobalMemorySettingsPanel onReady={onGlobalMemorySettingsReady} />
       </div>
       <div
         className={

@@ -3,6 +3,7 @@
   "additionalProperties": false,
   "properties": {
     "action": {
+      "permission_type": "ui_control",
       "description": "要执行的标签页操作。内容生成或修改完成后，需要给用户展示结果文件时使用 open_file；目标文件已经打开时可用 focus_file。",
       "enum": [
         "list_tabs",
@@ -14,11 +15,13 @@
       "type": "string"
     },
     "path": {
+      "permission_type": "ui_control",
       "description": "当前项目内的相对文件路径。open_file、focus_file、close_others_clean 可使用。支持文本、Markdown、代码、图片、PDF、Word、Excel、PPT 等项目文件；编辑器会按文件类型预览或编辑，不需要把 Office/PDF 当文本读取。",
       "minLength": 1,
       "type": "string"
     },
     "paths": {
+      "permission_type": "ui_control",
       "description": "当前项目内的相对文件路径列表。close_clean_tabs 可选；不传时处理当前项目全部已打开标签。",
       "items": {
         "minLength": 1,

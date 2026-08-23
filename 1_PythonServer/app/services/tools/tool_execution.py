@@ -39,6 +39,10 @@ from app.services.tools.tool_execution_runtime import (
     ToolExecutionCancellation,
 )
 from app.services.tools.tool_metadata import is_enabled, normalize_tool_name
+from app.services.tools.tool_permissions import (
+    ToolPermissionEvaluation,
+    evaluate_tool_permissions,
+)
 from app.services.tools.tool_registry import ToolRegistryService, get_tool_registry_service
 
 
@@ -117,6 +121,25 @@ class ToolExecutionService:
         if not isinstance(runtime, dict):
             return False
         return str(runtime.get("type") or "").strip().lower() == "client"
+
+    def evaluate_permissions(
+        self,
+        tool_call: ChatToolCall,
+        *,
+        context: ToolExecutionContext,
+    ) -> ToolPermissionEvaluation | ChatToolResult:
+        """Evaluate one concrete invocation without knowing how it was produced."""
+        resolved = self._resolve_tool_call(tool_call)
+        if isinstance(resolved, ChatToolResult):
+            return resolved
+        return evaluate_tool_permissions(
+            tool_name=resolved.metadata.name,
+            arguments=resolved.arguments,
+            input_schema=resolved.metadata.input_schema,
+            tool_root=resolved.entry.root_path,
+            workspace_root=context.workspace_root,
+            project_id=context.project_id,
+        )
 
     def prepare_dynamic_tool_execution(
         self,

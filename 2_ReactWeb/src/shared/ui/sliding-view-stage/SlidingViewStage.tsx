@@ -17,6 +17,7 @@ type SlidingViewStageProps = {
   direction: SlidingViewStageDirection;
   durationMs?: number;
   keepLeavingView?: boolean;
+  layout?: "content" | "fill";
   viewKey: string;
 };
 
@@ -26,6 +27,7 @@ export function SlidingViewStage({
   direction,
   durationMs = 320,
   keepLeavingView = true,
+  layout = "fill",
   viewKey,
 }: SlidingViewStageProps) {
   const previousViewKeyRef = useRef(viewKey);
@@ -57,9 +59,11 @@ export function SlidingViewStage({
     latestChildrenRef.current = children;
   });
 
-  const rootClassName = className
-    ? `sliding-view-stage ${className}`
-    : "sliding-view-stage";
+  const rootClassName = [
+    "sliding-view-stage",
+    layout === "content" ? "sliding-view-stage--content" : "",
+    className ?? "",
+  ].filter(Boolean).join(" ");
   const currentClassName = transition
     ? transition.direction === "forward"
       ? "sliding-view-stage__view sliding-view-stage__view--static sliding-view-stage__view--enter-from-right"

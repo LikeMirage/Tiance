@@ -3,22 +3,26 @@
   "description": "执行 Python 脚本。script_text 和 script_path 二选一；运行时会自动加载 pip_package_manager 安装到本工具 dependencies 目录的独立依赖。默认使用 wait 并等待脚本结束；需要后台运行时显式选择 detached 或 auto_detach。默认工作目录是工作区根目录，脚本和工作目录默认不能越出工作区。",
   "properties": {
     "script_text": {
+      "permission_type": "program_execute",
       "description": "要执行的 Python 脚本文本。适合多行脚本、复杂引号和临时验证脚本。与 script_path 二选一。",
       "title": "脚本文本",
       "type": "string"
     },
     "script_path": {
+      "permission_type": "program_execute",
       "description": "工作区内已有 .py 文件路径。相对路径按工作区根目录解析。与 script_text 二选一。",
       "title": "脚本文件路径",
       "type": "string"
     },
     "script_filename": {
+      "permission_type": "program_execute",
       "default": "script.py",
       "description": "script_text 临时落盘时使用的文件名，仅用于 traceback 可读性。必须是简单 .py 文件名，不允许包含路径。",
       "title": "临时脚本文件名",
       "type": "string"
     },
     "args": {
+      "permission_type": "program_execute",
       "default": [],
       "description": "传给脚本的命令行参数数组，对应 sys.argv[1:]。",
       "items": {
@@ -28,16 +32,19 @@
       "type": "array"
     },
     "stdin": {
+      "permission_type": "program_execute",
       "description": "传给脚本标准输入的文本。",
       "title": "标准输入",
       "type": "string"
     },
     "workdir": {
+      "permission_type": "filesystem_read",
       "description": "执行工作目录。相对路径按工作区根目录解析，默认工作区根目录。",
       "title": "工作目录",
       "type": "string"
     },
     "run_mode": {
+      "permission_type": "none",
       "default": "wait",
       "description": "运行模式。auto_detach：先等待 detach_after_seconds，未结束则转为后台运行；wait：等待结束，超过 timeout_seconds 后终止；detached：启动后立即返回，不检查后续状态。",
       "enum": [
@@ -49,6 +56,7 @@
       "type": "string"
     },
     "expected_exit_codes": {
+      "permission_type": "none",
       "default": [
         0
       ],
@@ -62,6 +70,7 @@
       "uniqueItems": true
     },
     "timeout_seconds": {
+      "permission_type": "none",
       "default": 60,
       "description": "wait 模式的终止超时时间，默认 60 秒，范围 1-600 秒。其他模式不使用此参数。",
       "maximum": 600,
@@ -70,6 +79,7 @@
       "type": "integer"
     },
     "detach_after_seconds": {
+      "permission_type": "none",
       "default": 10,
       "description": "auto_detach 模式的自动分离等待时间，默认 10 秒，范围 1-600 秒。程序在此时间内结束则直接返回结果，超过后继续在后台运行。其他模式不使用此参数。",
       "maximum": 600,
@@ -78,6 +88,7 @@
       "type": "integer"
     },
     "max_output_chars": {
+      "permission_type": "none",
       "default": 20000,
       "description": "stdout 和 stderr 各自最多返回字符数。",
       "maximum": 200000,
@@ -86,6 +97,7 @@
       "type": "integer"
     },
     "extra_env": {
+      "permission_type": "program_execute",
       "additionalProperties": {
         "type": "string"
       },
@@ -94,12 +106,14 @@
       "type": "object"
     },
     "allow_source_outside_workspace": {
+      "permission_type": "none",
       "default": false,
       "description": "是否允许 script_path 指向工作区外文件。默认 false。",
       "title": "允许脚本在工作区外",
       "type": "boolean"
     },
     "allow_workdir_outside_workspace": {
+      "permission_type": "none",
       "default": false,
       "description": "是否允许工作目录位于工作区外。默认 false。",
       "title": "允许工作目录在工作区外",

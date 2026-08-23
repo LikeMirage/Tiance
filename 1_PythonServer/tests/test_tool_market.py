@@ -28,6 +28,12 @@ class _Registry:
         self.rebuild_count += 1
 
 
+class _FailingRegistry(_Registry):
+    def rebuild_registry(self) -> None:
+        super().rebuild_registry()
+        raise RuntimeError("simulated registry failure")
+
+
 class _ToolProjects:
     def __init__(self, projects: tuple[Project, ...]) -> None:
         self.projects = {project.project_id: project for project in projects}
@@ -225,6 +231,7 @@ def test_tool_market_update_preserves_local_identity_config_and_dependencies(tmp
     (tool_root / "dependencies/local.txt").write_text("keep", encoding="utf-8")
     (tool_root / ".Tiance").mkdir()
     _write_json(tool_root / ".Tiance/local.json", {"keep": True})
+    _write_json(tool_root / ".Tiance/tool-market.json", {"obsolete": True})
 
     package_root = tmp_path / "download" / "sample-tool"
     _write_package(package_root, version="1.1.0")
@@ -257,8 +264,6 @@ def test_tool_market_update_preserves_local_identity_config_and_dependencies(tmp
     service._update_installed_tool(
         project=project,
         package_root=package_root,
-        source=DEFAULT_TOOL_MARKET_SOURCE,
-        entry=_entry(version="1.1.0"),
         call_name="my_sample_tool",
         backup_root=tmp_path / "backup",
     )
@@ -270,9 +275,62 @@ def test_tool_market_update_preserves_local_identity_config_and_dependencies(tmp
     assert _read_json(tool_root / "program/config.json") == {"apiKey": "local-secret"}
     assert (tool_root / "dependencies/local.txt").read_text(encoding="utf-8") == "keep"
     assert _read_json(tool_root / ".Tiance/local.json") == {"keep": True}
-    assert _read_json(tool_root / ".Tiance/tool-market.json")["version"] == "1.1.0"
+    assert not (tool_root / ".Tiance/tool-market.json").exists()
     assert (tool_root / "program/main.py").read_text(encoding="utf-8") == "print('new')\n"
     assert registry.rebuild_count == 1
+
+
+def test_tool_market_update_restores_local_state_and_old_snapshot_on_failure(
+    tmp_path,
+) -> None:
+    tool_root = tmp_path / "tools" / "local-project"
+    _write_package(tool_root, version="1.0.0")
+    local_manifest = _read_json(tool_root / ".tool/tool.json")
+    local_manifest["name"] = "my_sample_tool"
+    local_manifest["loading"] = {"dynamic": True}
+    local_manifest["state"] = {"enabled": False}
+    _write_json(tool_root / ".tool/tool.json", local_manifest)
+    _write_json(tool_root / "program/config.json", {"apiKey": "local-secret"})
+    (tool_root / "dependencies").mkdir()
+    (tool_root / "dependencies/local.txt").write_text("keep", encoding="utf-8")
+    _write_json(tool_root / ".Tiance/local.json", {"keep": True})
+    _write_json(tool_root / ".Tiance/tool-market.json", {"obsolete": True})
+
+    package_root = tmp_path / "download" / "sample-tool"
+    _write_package(package_root, version="1.1.0")
+    (package_root / "program/main.py").write_text("print('new')\n", encoding="utf-8")
+    registry = _FailingRegistry()
+    service = ToolMarketApplicationService(
+        app_version="0.1.0",
+        settings_repository=ToolMarketSettingsRepository(tmp_path / "market-settings.json"),
+        cache_repository=ToolMarketCacheRepository(tmp_path / ".market-cache"),
+        remote_client=object(),
+        archive=ToolPackageArchive(),
+        project_service=object(),
+        creation_service=object(),
+        tool_projects=object(),
+        registry=registry,
+    )
+
+    with pytest.raises(RuntimeError, match="simulated registry failure"):
+        service._update_installed_tool(
+            project=_project(tool_root, "00000000-0000-0000-0000-000000000123"),
+            package_root=package_root,
+            call_name="my_sample_tool",
+            backup_root=tmp_path / "backup",
+        )
+
+    restored_manifest = _read_json(tool_root / ".tool/tool.json")
+    assert restored_manifest["name"] == "my_sample_tool"
+    assert restored_manifest["loading"] == {"dynamic": True}
+    assert restored_manifest["state"] == {"enabled": False}
+    assert _read_json(tool_root / "program/config.json") == {"apiKey": "local-secret"}
+    assert (tool_root / "dependencies/local.txt").read_text(encoding="utf-8") == "keep"
+    assert _read_json(tool_root / ".Tiance/local.json") == {"keep": True}
+    assert not (tool_root / ".Tiance/tool-market.json").exists()
+    assert (tool_root / "program/main.py").read_text(encoding="utf-8") == "print('old')\n"
+    assert _read_json(tool_root / "manifest.json")["version"] == "1.0.0"
+    assert registry.rebuild_count == 2
 
 
 def test_tool_market_install_reports_declared_python_dependencies(tmp_path) -> None:

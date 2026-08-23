@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     themes_data_dir: str = "Data/themes"
     providers_data_dir: str = "Data/providers"
     locales_data_dir: str = "Data/locales"
+    announcements_data_dir: str = "Data/announcements"
+    cache_data_dir: str = "Data/cache"
     runtime_env_dir: str = "runtime"
     frontend_dist_dir: str = "2_ReactWeb/dist"
     github_client_id: str = "Iv23liNTtDOlpz60vMVw"
@@ -113,6 +115,14 @@ class Settings(BaseSettings):
     @property
     def locales_data_path(self) -> Path:
         return self._resolve_project_path(self.locales_data_dir)
+
+    @property
+    def announcements_data_path(self) -> Path:
+        return self._resolve_project_path(self.announcements_data_dir)
+
+    @property
+    def cache_data_path(self) -> Path:
+        return self._resolve_project_path(self.cache_data_dir)
 
     @property
     def runtime_env_path(self) -> Path:

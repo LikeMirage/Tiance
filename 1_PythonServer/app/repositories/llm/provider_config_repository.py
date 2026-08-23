@@ -1,4 +1,5 @@
 from functools import lru_cache
+from dataclasses import dataclass
 from typing import Any
 
 from app.domain.llm.provider_config import ProviderApiKeyConfig, ProviderConfig
@@ -27,11 +28,28 @@ class ProviderConfigRepository:
         self._store = store
 
     def list_configs(self) -> tuple[ProviderConfig, ...]:
-        return tuple(
-            config
-            for provider_id in self._store.list_provider_ids()
-            if (config := self.get_config(provider_id)) is not None
-        )
+        configs, _ = self.list_config_results()
+        return configs
+
+    def list_config_results(
+        self,
+    ) -> tuple[tuple[ProviderConfig, ...], tuple["ProviderConfigLoadFailure", ...]]:
+        configs: list[ProviderConfig] = []
+        failures: list[ProviderConfigLoadFailure] = []
+        for provider_id in self._store.list_provider_ids():
+            try:
+                config = self.get_config(provider_id)
+            except (ProviderFileStoreError, ValueError) as exc:
+                failures.append(
+                    ProviderConfigLoadFailure(
+                        provider_id=provider_id,
+                        message=str(exc),
+                    )
+                )
+                continue
+            if config is not None:
+                configs.append(config)
+        return tuple(configs), tuple(failures)
 
     def get_config(self, provider_id: str) -> ProviderConfig | None:
         manifest = self._store.read_provider_file(
@@ -258,6 +276,12 @@ def _read_optional_generation_auth_schemes(
     if raw_value is None:
         return {}
     return _read_generation_auth_schemes(manifest)
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderConfigLoadFailure:
+    provider_id: str
+    message: str
 
 
 @lru_cache

@@ -189,8 +189,7 @@ function ProviderMarketCard({
   const { t } = useI18n();
   const isInstalling = installState?.phase === "installing";
   const isInstalled = provider.installationStatus === "installed";
-  const isConflict = provider.installationStatus === "local-conflict";
-  const disabled = isInstalling || isInstalled || isConflict;
+  const disabled = isInstalling || isInstalled;
   const errorMessage = installState?.phase === "error"
     ? installState.error ?? t("providerMarket.install.failed")
     : null;
@@ -219,9 +218,7 @@ function ProviderMarketCard({
             ? t("providerMarket.install.installingShort")
             : isInstalled
               ? t("providerMarket.install.installed")
-              : isConflict
-                ? t("providerMarket.install.localConflict")
-                : provider.installationStatus === "update-available"
+              : provider.installationStatus === "update-available"
                   ? t("providerMarket.install.update")
                   : errorMessage
                     ? t("common.actions.retry")
@@ -235,7 +232,6 @@ function ProviderMarketCard({
 function statusLabel(status: ProviderMarketProvider["installationStatus"], t: ReturnType<typeof useI18n>["t"]) {
   if (status === "installed") return t("providerMarket.statuses.installed");
   if (status === "update-available") return t("providerMarket.statuses.update-available");
-  if (status === "local-conflict") return t("providerMarket.statuses.local-conflict");
   return t("providerMarket.statuses.not-installed");
 }
 

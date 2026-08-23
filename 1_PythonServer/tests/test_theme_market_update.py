@@ -61,6 +61,8 @@ class FakeArchive:
             json.dumps({"version": market_entry.version}),
             encoding="utf-8",
         )
+        (root / "assets").mkdir()
+        (root / "assets/new.png").write_bytes(b"new")
         return root
 
 
@@ -83,7 +85,7 @@ class FakeReconciliationService:
             raise RuntimeError("同步失败")
 
 
-def test_theme_update_preserves_catalog_and_archives_previous_version(tmp_path) -> None:
+def test_theme_update_preserves_project_data_without_archiving_previous_version(tmp_path) -> None:
     service, themes_root, catalog, project = _create_service(tmp_path)
 
     response = asyncio.run(service.install_theme(
@@ -96,9 +98,11 @@ def test_theme_update_preserves_catalog_and_archives_previous_version(tmp_path) 
     assert response.category_id == project.category_id
     assert _version(themes_root / "sample-theme") == "1.1.0"
     assert catalog.get_project(project.project_id) == project
-    backups = list((themes_root / ".trash").glob("sample-theme-before-1.1.0-*"))
-    assert len(backups) == 1
-    assert _version(backups[0]) == "1.0.0"
+    assert (themes_root / "sample-theme/.Tiance/local.json").read_text(encoding="utf-8") == "keep"
+    assert (themes_root / "sample-theme/notes.md").read_text(encoding="utf-8") == "keep"
+    assert not (themes_root / "sample-theme/assets/old.png").exists()
+    assert (themes_root / "sample-theme/assets/new.png").read_bytes() == b"new"
+    assert not (themes_root / ".trash").exists()
 
 
 def test_theme_update_restores_previous_version_when_sync_fails(tmp_path) -> None:
@@ -112,6 +116,9 @@ def test_theme_update_restores_previous_version_when_sync_fails(tmp_path) -> Non
         ))
 
     assert _version(themes_root / "sample-theme") == "1.0.0"
+    assert (themes_root / "sample-theme/.Tiance/local.json").read_text(encoding="utf-8") == "keep"
+    assert (themes_root / "sample-theme/notes.md").read_text(encoding="utf-8") == "keep"
+    assert (themes_root / "sample-theme/assets/old.png").read_bytes() == b"old"
 
 
 def _create_service(tmp_path, *, fail_once: bool = False):
@@ -126,6 +133,11 @@ def _create_service(tmp_path, *, fail_once: bool = False):
         json.dumps({"version": "1.0.0"}),
         encoding="utf-8",
     )
+    (theme_root / ".Tiance").mkdir()
+    (theme_root / ".Tiance/local.json").write_text("keep", encoding="utf-8")
+    (theme_root / "notes.md").write_text("keep", encoding="utf-8")
+    (theme_root / "assets").mkdir()
+    (theme_root / "assets/old.png").write_bytes(b"old")
     catalog = FileProjectCatalog(themes_root, project_kind=ProjectKind.THEME)
     now = datetime.now(UTC).isoformat()
     category = catalog.save_project_category(ProjectCategory(

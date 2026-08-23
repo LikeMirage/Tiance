@@ -21,6 +21,13 @@ export interface ProviderCatalogEntry {
 export interface ProviderCatalogResponse {
   count: number;
   items: ProviderCatalogEntry[];
+  errors: ProviderCatalogLoadError[];
+}
+
+export interface ProviderCatalogLoadError {
+  provider_id: string;
+  code: "invalid_provider_package";
+  message: string;
 }
 
 export interface ProviderCatalogOrderResponse {

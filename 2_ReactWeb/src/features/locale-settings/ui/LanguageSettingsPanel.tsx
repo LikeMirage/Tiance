@@ -49,7 +49,6 @@ export function LanguageSettingsPanel({ onReady }: LanguageSettingsPanelProps) {
     <div className="language-settings">
       <header className="language-settings__head">
         <h2>{t("languageSettings.title")}</h2>
-        <p>{t("languageSettings.description")}</p>
       </header>
 
       {localeSettings.error ? (

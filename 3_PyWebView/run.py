@@ -145,6 +145,11 @@ if __name__ == "__main__":
     with timed_stage("activate desktop shell dependencies"):
         _activate_desktop_shell_dependencies()
 
+    with timed_stage("configure Windows application identity"):
+        from app.windows_app_identity import configure_windows_process_app_identity
+
+        configure_windows_process_app_identity()
+
     with timed_stage("acquire single instance lock"):
         from app.single_instance import acquire_single_instance_lock, notify_existing_instance
 

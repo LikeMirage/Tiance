@@ -4,6 +4,7 @@
   "additionalProperties": false,
   "properties": {
     "action": {
+      "permission_type": "none",
       "type": "string",
       "title": "操作",
       "description": "convert 转换 Markdown；extract_template 从 .docx 样本提取模板；list_templates 列出内置默认样式和已提取模板。省略时为 convert。",
@@ -15,38 +16,45 @@
       "default": "convert"
     },
     "input_path": {
+      "permission_type": "filesystem_read",
       "type": "string",
       "title": "Markdown 文件路径",
       "description": "convert 操作必填。.md 或 .markdown 文件路径；支持绝对路径和相对当前项目的路径。"
     },
     "template_source_path": {
+      "permission_type": "filesystem_read",
       "type": "string",
       "title": "Word 模板样本路径",
       "description": "extract_template 操作必填。用于提取页面、样式、字体、段落、表格等模板信息的 .docx 文件路径。"
     },
     "template_name": {
+      "permission_type": "tiance_data_read",
       "type": "string",
       "title": "模板名称",
       "description": "extract_template 操作可选。省略时使用 Word 样本文件名；名称必须唯一。",
       "maxLength": 100
     },
     "template_id": {
+      "permission_type": "tiance_data_read",
       "type": "string",
       "title": "转换模板",
       "description": "convert 操作可选。使用 list_templates 返回的 template_id；省略或设为 builtin-default 时保持当前内置默认排版。"
     },
     "output_path": {
+      "permission_type": "filesystem_write",
       "type": "string",
       "title": "输出文件路径",
       "description": "输出 .docx 文件路径。可省略，默认输出到输入文件同目录同名 .docx。"
     },
     "overwrite": {
+      "permission_type": "none",
       "type": "boolean",
       "title": "覆盖已有文件",
       "description": "目标文件已存在时是否覆盖。",
       "default": false
     },
     "page_orientation": {
+      "permission_type": "none",
       "type": "string",
       "title": "页面方向",
       "description": "未选择自定义模板时使用的页面方向。portrait 为纵向，landscape 为横向；选择模板后使用模板提取的精确页面设置。",
@@ -57,6 +65,7 @@
       "default": "portrait"
     },
     "page_size": {
+      "permission_type": "none",
       "type": "string",
       "title": "纸张规格",
       "description": "未选择自定义模板时使用的纸张规格。letter 保持当前默认行为，a4 使用 A4；选择模板后使用模板提取的精确纸张尺寸。",
@@ -67,18 +76,21 @@
       "default": "letter"
     },
     "chinese_font": {
+      "permission_type": "none",
       "type": "string",
       "title": "中文字体",
       "description": "正文、标题、表格等中文内容使用的字体。默认微软雅黑；空值会回到默认值。",
       "default": "微软雅黑"
     },
     "english_font": {
+      "permission_type": "none",
       "type": "string",
       "title": "英文字体",
       "description": "英文、数字和普通西文内容使用的字体。默认 Times New Roman；空值会回到默认值。",
       "default": "Times New Roman"
     },
     "math_font": {
+      "permission_type": "none",
       "type": "string",
       "title": "公式字体",
       "description": "Word 原生公式和公式文本降级时使用的字体。默认 Cambria Math；空值会回到默认值。",

@@ -7,9 +7,11 @@ export type WorkspaceStateResponse = {
   active_file_path: string | null;
   active_dashboard:
     | "conversation_overview"
+    | "knowledge_content"
     | "role_configuration"
     | "theme_configuration"
     | "basics"
+    | "permissions"
     | "examples"
     | "dependencies"
     | "callRecords"

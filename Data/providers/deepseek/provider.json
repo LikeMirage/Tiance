@@ -19,6 +19,6 @@
   "modelDiscoveryUrl": "https://api.deepseek.com/v1/models",
   "enabled": true,
   "reasoningReplayMode": "tool_call_rounds",
-  "createdAt": "2026-07-03T18:02:57.549257+00:00",
-  "updatedAt": "2026-08-17T00:54:20.185903+00:00"
+  "createdAt": "2026-08-21T16:16:51.681401+00:00",
+  "updatedAt": "2026-08-21T16:17:57.560784+00:00"
 }

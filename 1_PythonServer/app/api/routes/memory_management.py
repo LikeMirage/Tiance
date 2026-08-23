@@ -48,6 +48,10 @@ def run_memory_management_tool(
         content=payload.content,
         keywords=payload.keywords,
         reason=payload.reason,
+        source_operation_id=_ai_memory_source_id(
+            session_id=grant.session_id,
+            tool_call_id=grant.tool_call_id,
+        ),
     )
     return {
         "ok": True,
@@ -106,3 +110,9 @@ def _bearer_token(authorization: str | None) -> str:
     if not separator or scheme.casefold() != "bearer":
         return ""
     return token.strip()
+
+
+def _ai_memory_source_id(*, session_id: str | None, tool_call_id: str) -> str:
+    if session_id:
+        return f"ai_session_{session_id}_tool_call_{tool_call_id}"
+    return f"ai_tool_call_{tool_call_id}"

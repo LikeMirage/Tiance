@@ -122,6 +122,28 @@ export type ChatClientCapability = {
   version: number;
 };
 
+export type ChatToolPermissionFactEvent = {
+  tool_name: string;
+  parameter_name: string;
+  permission_type: string;
+  scope: string;
+};
+
+export type ChatToolPermissionRequestEvent = {
+  request_id: string;
+  call_id: string;
+  name: string;
+  project_id?: string | null;
+  session_id?: string | null;
+  facts: ChatToolPermissionFactEvent[];
+};
+
+export type ChatToolPermissionResolutionEvent = {
+  request_id: string;
+  call_id: string;
+  decision: "allow" | "deny";
+};
+
 export type ChatCompletionResponse = {
   provider_id: string;
   model_id: string;
@@ -188,6 +210,18 @@ export type ChatStreamEvent = (
   }
   | {
     kind: "client_tool_request_cancelled";
+    request_id: string;
+  }
+  | {
+    kind: "tool_permission_request";
+    tool_permission_request: ChatToolPermissionRequestEvent;
+  }
+  | {
+    kind: "tool_permission_resolved";
+    tool_permission_resolution: ChatToolPermissionResolutionEvent;
+  }
+  | {
+    kind: "tool_permission_request_cancelled";
     request_id: string;
   }
   | {

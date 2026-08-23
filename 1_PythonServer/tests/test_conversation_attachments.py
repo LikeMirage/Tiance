@@ -1,5 +1,8 @@
 from datetime import UTC, datetime
 
+import pytest
+
+from app.core.errors import BadRequestError
 from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatImageRef,
@@ -74,6 +77,92 @@ def test_image_is_copied_to_session_and_remains_readable_after_source_delete(tmp
     assert attachment_uri.startswith("tiance-attachment://att_")
     assert resolved.messages[0].content_parts[0].type == ChatMessageContentPartType.IMAGE_URL
     assert (tmp_path / ".Tiance" / "conversations" / "sessions" / session.session_id / ATTACHMENTS_DIR).is_dir()
+
+
+def test_explicit_external_image_reference_is_copied_to_session(tmp_path):
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    external_source = tmp_path / "downloads" / "external.png"
+    external_source.parent.mkdir()
+    external_source.write_bytes(b"\x89PNG\r\n\x1a\nexternal")
+    repository = ProjectConversationRepository(_ProjectRepository(str(project_root)))
+    session = repository.create_session(
+        PROJECT_ID,
+        title="外部附件测试",
+        provider_id="provider",
+        model_id="model",
+        reasoning_mode="balanced",
+    )
+    attachment_repository = ConversationAttachmentRepository(
+        _ProjectRepository(str(project_root))
+    )
+    resolver = ConversationImageReferenceResolver(
+        _ProjectService(str(project_root)),
+        FileWorkspaceStorage(),
+        attachment_service=ConversationAttachmentService(
+            attachment_repository,
+            _ProjectService(str(project_root)),
+            FileWorkspaceStorage(),
+        ),
+    )
+    external_path = str(external_source)
+    request = _image_request(
+        session.session_id,
+        image_path=external_path,
+        references=[{
+            "type": "file",
+            "reference": {
+                "displayPath": external_source.name,
+                "fileName": external_source.name,
+                "filePath": external_path,
+                "id": "external-reference",
+                "kind": "file",
+                "projectId": None,
+                "source": "external_path",
+            },
+        }],
+    )
+
+    prepared = resolver.prepare(request)
+    prepared_ref = prepared.messages[0].content_parts[0].image_ref
+
+    assert prepared_ref is not None
+    assert prepared_ref.path.startswith("tiance-attachment://att_")
+    assert prepared_ref.source_kind == "external_file"
+    assert prepared_ref.source_path == external_path
+
+
+def test_unreferenced_absolute_image_path_is_rejected(tmp_path):
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    external_source = tmp_path / "external.png"
+    external_source.write_bytes(b"\x89PNG\r\n\x1a\nexternal")
+    repository = ProjectConversationRepository(_ProjectRepository(str(project_root)))
+    session = repository.create_session(
+        PROJECT_ID,
+        title="未授权外部附件测试",
+        provider_id="provider",
+        model_id="model",
+        reasoning_mode="balanced",
+    )
+    resolver = ConversationImageReferenceResolver(
+        _ProjectService(str(project_root)),
+        FileWorkspaceStorage(),
+        attachment_service=ConversationAttachmentService(
+            ConversationAttachmentRepository(_ProjectRepository(str(project_root))),
+            _ProjectService(str(project_root)),
+            FileWorkspaceStorage(),
+        ),
+    )
+
+    with pytest.raises(BadRequestError, match="不是本消息明确引用的外部文件"):
+        resolver.prepare(
+            _image_request(
+                session.session_id,
+                image_path=str(external_source),
+                references=[],
+            )
+        )
 
 
 def test_fork_copies_inherited_session_attachment(tmp_path):
@@ -174,3 +263,33 @@ class _ProjectService:
 
     def get_project(self, project_id: str):
         return self._project if project_id == PROJECT_ID else None
+
+
+def _image_request(
+    session_id: str,
+    *,
+    image_path: str,
+    references: list[dict],
+) -> ChatCompletionRequest:
+    return ChatCompletionRequest(
+        provider_id="provider",
+        model_id="vision",
+        project_id=PROJECT_ID,
+        session_id=session_id,
+        messages=(
+            ChatMessage(
+                role=ChatMessageRole.USER,
+                content="看图",
+                content_parts=(
+                    ChatMessageContentPart(
+                        type=ChatMessageContentPartType.IMAGE_REF,
+                        image_ref=ChatImageRef(
+                            path=image_path,
+                            mime_type="image/png",
+                        ),
+                    ),
+                ),
+                internal_metadata={"conversation_references": references},
+            ),
+        ),
+    )

@@ -3,23 +3,27 @@
   "description": "使用内置 ripgrep 搜索工作区文件内容。默认遵守 ignore 文件，跳过隐藏文件、二进制文件、.git、node_modules、缓存和构建目录。",
   "properties": {
     "query": {
+      "permission_type": "filesystem_read",
       "description": "要搜索的文本或正则表达式。",
       "title": "查询",
       "type": "string"
     },
     "regex": {
+      "permission_type": "none",
       "default": false,
       "description": "是否按正则表达式搜索。",
       "title": "正则模式",
       "type": "boolean"
     },
     "case_sensitive": {
+      "permission_type": "none",
       "default": false,
       "description": "是否大小写敏感。",
       "title": "大小写敏感",
       "type": "boolean"
     },
     "encoding": {
+      "permission_type": "none",
       "default": "auto",
       "description": "搜索文件使用的编码。auto 仅自动识别带 BOM 的 UTF-8/UTF-16；搜索普通 GBK 文件时请显式选择 gbk 或 gb18030。",
       "enum": [
@@ -34,11 +38,13 @@
       "type": "string"
     },
     "base_path": {
+      "permission_type": "filesystem_read",
       "description": "搜索起点目录，默认工作区根目录。",
       "title": "起点目录",
       "type": "string"
     },
     "include_globs": {
+      "permission_type": "filesystem_read",
       "description": "包含的路径模式数组，如 [\"**/*.py\"]。",
       "items": {
         "type": "string"
@@ -47,6 +53,7 @@
       "type": "array"
     },
     "exclude_globs": {
+      "permission_type": "filesystem_read",
       "description": "排除的路径模式数组。",
       "items": {
         "type": "string"
@@ -55,6 +62,7 @@
       "type": "array"
     },
     "exclude_dirs": {
+      "permission_type": "filesystem_read",
       "description": "额外排除目录名数组。",
       "items": {
         "type": "string"
@@ -63,6 +71,7 @@
       "type": "array"
     },
     "context_lines": {
+      "permission_type": "none",
       "default": 0,
       "description": "每个匹配前后返回的上下文行数。",
       "maximum": 10,
@@ -71,6 +80,7 @@
       "type": "integer"
     },
     "max_matches": {
+      "permission_type": "none",
       "default": 200,
       "description": "最多返回匹配条数。",
       "maximum": 5000,
@@ -79,6 +89,7 @@
       "type": "integer"
     },
     "max_file_size_bytes": {
+      "permission_type": "none",
       "default": 2000000,
       "description": "跳过超过该大小的文件。",
       "maximum": 20000000,
@@ -87,6 +98,7 @@
       "type": "integer"
     },
     "timeout_seconds": {
+      "permission_type": "none",
       "default": 30,
       "description": "搜索超时时间，范围 1-60 秒。",
       "maximum": 60,

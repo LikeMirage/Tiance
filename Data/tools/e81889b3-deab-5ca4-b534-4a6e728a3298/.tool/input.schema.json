@@ -3,6 +3,7 @@
   "description": "按 glob 模式查找文件。patterns 可以是字符串或字符串数组，如 **/*.py、**/package.json。",
   "properties": {
     "patterns": {
+      "permission_type": "filesystem_read",
       "description": "glob 模式或模式数组。",
       "title": "匹配模式",
       "type": [
@@ -11,23 +12,27 @@
       ]
     },
     "base_path": {
+      "permission_type": "filesystem_read",
       "description": "搜索起点目录，默认工作区根目录。",
       "title": "起点目录",
       "type": "string"
     },
     "include_hidden": {
+      "permission_type": "none",
       "default": false,
       "description": "是否包含隐藏文件和隐藏目录。",
       "title": "包含隐藏项",
       "type": "boolean"
     },
     "match_directories": {
+      "permission_type": "none",
       "default": false,
       "description": "是否返回目录匹配。默认只返回文件。",
       "title": "匹配目录",
       "type": "boolean"
     },
     "max_results": {
+      "permission_type": "none",
       "default": 500,
       "description": "最多返回结果数。",
       "maximum": 10000,
@@ -36,6 +41,7 @@
       "type": "integer"
     },
     "exclude_dirs": {
+      "permission_type": "filesystem_read",
       "description": "额外排除的目录名数组。",
       "items": {
         "type": "string"

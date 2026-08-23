@@ -3,6 +3,7 @@
   "description": "解析一张或多张图片。默认直接返回 Markdown 结果；save_results=true 时把每张图片结果保存为同名 .md 文件。",
   "properties": {
     "image_paths": {
+      "permission_type": "filesystem_read",
       "description": "要解析的图片路径数组。相对路径按工作区根目录解析，默认要求图片在工作区内。",
       "items": {
         "type": "string"
@@ -13,29 +14,34 @@
       "type": "array"
     },
     "user_prompt": {
+      "permission_type": "none",
       "default": "请提取并还原这张图片中的可见内容，使用 Markdown 输出。",
       "description": "追加给视觉模型的用户要求。系统识别规则固定，不可通过参数修改。",
       "title": "用户提示词",
       "type": "string"
     },
     "save_results": {
+      "permission_type": "none",
       "default": false,
       "description": "是否保存每张图片的解析结果。false 时只返回内容。",
       "title": "保存结果",
       "type": "boolean"
     },
     "output_dir": {
+      "permission_type": "filesystem_write",
       "description": "保存目录。相对路径按工作区根目录解析，必须位于工作区内；不填时保存到图片同级目录。",
       "title": "保存目录",
       "type": "string"
     },
     "overwrite": {
+      "permission_type": "none",
       "default": false,
       "description": "保存文件已存在时是否覆盖。false 时自动追加序号避免覆盖。",
       "title": "覆盖同名文件",
       "type": "boolean"
     },
     "concurrency": {
+      "permission_type": "none",
       "default": 8,
       "description": "并发调用数量，最大 100。",
       "maximum": 100,
@@ -44,6 +50,7 @@
       "type": "integer"
     },
     "thinking_type": {
+      "permission_type": "none",
       "default": "disabled",
       "description": "豆包 thinking 模式。默认 disabled。",
       "enum": [
@@ -69,6 +76,7 @@
       "type": "string"
     },
     "temperature": {
+      "permission_type": "none",
       "default": 0.1,
       "description": "采样温度。",
       "maximum": 2,
@@ -77,6 +85,7 @@
       "type": "number"
     },
     "top_p": {
+      "permission_type": "none",
       "default": 1,
       "description": "Top P 采样参数。",
       "maximum": 1,
@@ -85,6 +94,7 @@
       "type": "number"
     },
     "max_output_tokens": {
+      "permission_type": "none",
       "default": 4096,
       "description": "单张图片最大输出 token。",
       "maximum": 32768,
@@ -93,6 +103,7 @@
       "type": "integer"
     },
     "timeout_seconds": {
+      "permission_type": "none",
       "default": 120,
       "description": "单张图片请求超时时间。",
       "maximum": 600,
@@ -101,6 +112,7 @@
       "type": "integer"
     },
     "max_image_bytes": {
+      "permission_type": "none",
       "default": 20971520,
       "description": "单张图片最大字节数。",
       "maximum": 104857600,
@@ -109,6 +121,7 @@
       "type": "integer"
     },
     "max_return_chars_per_image": {
+      "permission_type": "none",
       "default": 20000,
       "description": "每张图片返回内容的最大字符数，0 表示不截断。保存文件不受此限制。",
       "maximum": 200000,
@@ -117,6 +130,7 @@
       "type": "integer"
     },
     "allow_source_outside_workspace": {
+      "permission_type": "none",
       "default": false,
       "description": "是否允许图片位于工作区外。保存目录仍然必须在工作区内。",
       "title": "允许外部图片",

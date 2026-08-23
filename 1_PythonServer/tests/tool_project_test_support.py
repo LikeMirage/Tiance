@@ -15,6 +15,7 @@ from app.infra.tools.tool_project_config_constants import (
     TOOL_FOLDER_MANIFEST_FILE,
     TOOL_INPUT_SCHEMA_FILE,
     TOOL_OUTPUT_SCHEMA_FILE,
+    TOOL_PERMISSIONS_FILE,
     TOOL_REQUIREMENTS_FILE,
 )
 
@@ -138,6 +139,7 @@ def _write_tool_files(
             "input_schema": TOOL_INPUT_SCHEMA_FILE,
             "output_schema": TOOL_OUTPUT_SCHEMA_FILE,
             "examples": TOOL_EXAMPLES_FILE,
+            "permissions": TOOL_PERMISSIONS_FILE,
         },
         "runtime": {"type": "python", "entry": TOOL_DEFAULT_ENTRY_FILE, "timeout_seconds": 60},
         "io": {"input": "stdin_json", "output": "stdout_json"},
@@ -147,6 +149,11 @@ def _write_tool_files(
     _write_json(root / TOOL_INPUT_SCHEMA_FILE, {"type": "object", "properties": {}})
     _write_json(root / TOOL_OUTPUT_SCHEMA_FILE, {"type": "object", "properties": {}})
     _write_json(root / TOOL_EXAMPLES_FILE, [])
+    _write_json(root / TOOL_PERMISSIONS_FILE, {
+        "version": 1,
+        "fallback": "ask",
+        "policies": {},
+    })
     (root / TOOL_DEFAULT_ENTRY_FILE).parent.mkdir(parents=True, exist_ok=True)
     (root / TOOL_DEFAULT_ENTRY_FILE).write_text("", encoding="utf-8")
     (root / TOOL_REQUIREMENTS_FILE).write_text("", encoding="utf-8")

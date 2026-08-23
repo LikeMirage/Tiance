@@ -10,7 +10,6 @@ ProviderMarketInstallationStatus = Literal[
     "not-installed",
     "installed",
     "update-available",
-    "local-conflict",
 ]
 
 

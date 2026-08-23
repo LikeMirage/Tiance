@@ -7,6 +7,7 @@ export type ConfirmModalProps = {
   children?: ReactNode;
   confirmDisabled?: boolean;
   confirmLabel?: string;
+  closeOnBackdrop?: boolean;
   contained?: boolean;
   danger?: boolean;
   dialogClassName?: string;
@@ -19,6 +20,7 @@ export type ConfirmModalProps = {
   secondaryDisabled?: boolean;
   secondaryLabel?: string;
   showCancel?: boolean;
+  showHeader?: boolean;
   title: string;
 };
 
@@ -27,6 +29,7 @@ export function ConfirmModal({
   children = null,
   confirmDisabled = false,
   confirmLabel = "确认",
+  closeOnBackdrop = true,
   contained = false,
   danger = false,
   dialogClassName,
@@ -39,6 +42,7 @@ export function ConfirmModal({
   secondaryDisabled = false,
   secondaryLabel,
   showCancel = true,
+  showHeader = true,
   title,
 }: ConfirmModalProps) {
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -74,16 +78,21 @@ export function ConfirmModal({
           : "confirm-modal-backdrop"
       }
       role="presentation"
-      onClick={handleCancel}
+      onClick={closeOnBackdrop ? handleCancel : undefined}
     >
       <div
         className={["confirm-modal", dialogClassName].filter(Boolean).join(" ")}
         role="dialog"
         aria-modal="true"
+        aria-label={showHeader ? undefined : title}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="confirm-modal__title">{title}</h3>
-        <p className="confirm-modal__message">{message}</p>
+        {showHeader ? (
+          <>
+            <h3 className="confirm-modal__title">{title}</h3>
+            <p className="confirm-modal__message">{message}</p>
+          </>
+        ) : null}
         {children}
         <div className="confirm-modal__actions">
           {showCancel ? (

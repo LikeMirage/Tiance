@@ -103,6 +103,23 @@ class ChatClientToolRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class ChatToolPermissionRequest:
+    request_id: str
+    call_id: str
+    name: str
+    project_id: str | None = None
+    session_id: str | None = None
+    facts: tuple[dict[str, str], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ChatToolPermissionResolution:
+    request_id: str
+    call_id: str
+    decision: str
+
+
+@dataclass(frozen=True, slots=True)
 class ChatToolDefinition:
     name: str
     description: str
@@ -182,6 +199,8 @@ class ChatStreamEventKind(StrEnum):
     TOOL_CALL_DELTA = "tool_call_delta"
     TOOL_CALL = "tool_call"
     CLIENT_TOOL_REQUEST = "client_tool_request"
+    TOOL_PERMISSION_REQUEST = "tool_permission_request"
+    TOOL_PERMISSION_RESOLVED = "tool_permission_resolved"
     TOOL_RESULT = "tool_result"
     PROTOCOL_CONTINUATION = "protocol_continuation"
     DONE = "done"
@@ -199,6 +218,8 @@ class ChatStreamEvent:
     usage: ChatUsage | None = None
     tool_call: ChatToolCall | None = None
     client_tool_request: ChatClientToolRequest | None = None
+    tool_permission_request: ChatToolPermissionRequest | None = None
+    tool_permission_resolution: ChatToolPermissionResolution | None = None
     tool_result: ChatToolResult | None = None
     protocol_continuation: ChatProtocolContinuation | None = None
     attempt_index: int | None = None

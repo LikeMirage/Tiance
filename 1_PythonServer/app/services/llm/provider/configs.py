@@ -32,6 +32,7 @@ from app.repositories.llm.provider_cloud_model_repository import (
     get_provider_cloud_model_repository,
 )
 from app.repositories.llm.provider_config_repository import (
+    ProviderConfigLoadFailure,
     ProviderConfigRepository,
     get_provider_config_repository,
 )
@@ -82,6 +83,11 @@ class ProviderConfigService:
 
     def list_configs(self) -> tuple[ProviderConfig, ...]:
         return self._config_repository.list_configs()
+
+    def list_config_results(
+        self,
+    ) -> tuple[tuple[ProviderConfig, ...], tuple[ProviderConfigLoadFailure, ...]]:
+        return self._config_repository.list_config_results()
 
     def get_config(self, provider_id: str) -> ProviderConfig | None:
         return self._config_repository.get_config(provider_id)

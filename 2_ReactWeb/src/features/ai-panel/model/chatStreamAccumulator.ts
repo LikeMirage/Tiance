@@ -5,8 +5,10 @@ import {
   appendToolPreparingProcess,
   createFinishedToolProcessItem,
   createRunningToolProcessItem,
+  createWaitingPermissionToolProcessItem,
   finishOpenThinkingProcess,
   removeToolPreparingProcess,
+  resolveWaitingPermissionToolProcessItem,
   upsertPreparingToolProcessDeltaInTimeline,
   upsertToolProcessItem,
   upsertToolProcessItemInTimeline,
@@ -330,6 +332,58 @@ export function createChatStreamAccumulator({
       updateSessionMessages(streamProjectId, sessionId, (prev) =>
         upsertAssistantToolProcessItem(prev, assistantId, toolItem, processItems, contentBuffer),
       );
+    }
+
+    if (event.kind === "tool_permission_request" && event.tool_permission_request) {
+      const request = event.tool_permission_request;
+      const current = processItems.find(
+        (item): item is Extract<ChatAssistantProcessItem, { type: "tool" }> =>
+          item.type === "tool" && item.tool.callId === request.call_id,
+      )?.tool ?? null;
+      const toolItem = createWaitingPermissionToolProcessItem(request, current);
+      processItems = upsertToolProcessItemInTimeline(processItems, toolItem);
+      updateSessionMessages(streamProjectId, sessionId, (prev) =>
+        upsertAssistantToolProcessItem(prev, assistantId, toolItem, processItems, contentBuffer),
+      );
+    }
+
+    if (event.kind === "tool_permission_resolved" && event.tool_permission_resolution) {
+      const resolution = event.tool_permission_resolution;
+      const current = processItems.find(
+        (item): item is Extract<ChatAssistantProcessItem, { type: "tool" }> =>
+          item.type === "tool"
+          && item.tool.permissionRequest?.request_id === resolution.request_id,
+      )?.tool;
+      if (current) {
+        const toolItem = resolveWaitingPermissionToolProcessItem(
+          current,
+          resolution.request_id,
+        );
+        processItems = upsertToolProcessItemInTimeline(processItems, toolItem);
+        updateSessionMessages(streamProjectId, sessionId, (prev) =>
+          upsertAssistantToolProcessItem(prev, assistantId, toolItem, processItems, contentBuffer),
+        );
+      }
+    }
+
+    if (event.kind === "tool_permission_request_cancelled") {
+      const current = processItems.find(
+        (item): item is Extract<ChatAssistantProcessItem, { type: "tool" }> =>
+          item.type === "tool"
+          && item.tool.permissionRequest?.request_id === event.request_id,
+      )?.tool;
+      if (current) {
+        const toolItem: ChatToolProcessItem = {
+          ...current,
+          status: "cancelled",
+          finishedAt: Date.now(),
+          permissionRequest: null,
+        };
+        processItems = upsertToolProcessItemInTimeline(processItems, toolItem);
+        updateSessionMessages(streamProjectId, sessionId, (prev) =>
+          upsertAssistantToolProcessItem(prev, assistantId, toolItem, processItems, contentBuffer),
+        );
+      }
     }
 
     if (event.kind === "tool_result" && event.tool_result) {

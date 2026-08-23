@@ -30,17 +30,32 @@
       "updatedAt": "2026-08-18T01:16:50.933090+00:00"
     },
     {
-      "modelId": "muse-spark-1.2-contributor",
-      "displayName": "muse-spark-1.2-contributor",
-      "familyGroup": "muse-spark",
+      "modelId": "deepseek-v4-flash-vision-exp",
+      "displayName": "deepseek-v4-flash-vision-exp",
+      "familyGroup": "deepseek-v4",
+      "capabilityTags": [
+        "vision"
+      ],
+      "note": "",
+      "priceCurrency": "CNY",
+      "inputPricePerMillion": null,
+      "cacheHitPricePerMillion": null,
+      "outputPricePerMillion": null,
+      "createdAt": "2026-08-21T23:58:26.969652+00:00",
+      "updatedAt": "2026-08-21T23:58:26.969652+00:00"
+    },
+    {
+      "modelId": "ox-alpha-free",
+      "displayName": "ox-alpha-free",
+      "familyGroup": "ox-alpha",
       "capabilityTags": [],
       "note": "",
       "priceCurrency": "CNY",
       "inputPricePerMillion": null,
       "cacheHitPricePerMillion": null,
       "outputPricePerMillion": null,
-      "createdAt": "2026-08-19T09:57:35.089969+00:00",
-      "updatedAt": "2026-08-19T09:57:35.089969+00:00"
+      "createdAt": "2026-08-22T12:41:22.357795+00:00",
+      "updatedAt": "2026-08-22T12:41:22.357795+00:00"
     }
   ]
 }

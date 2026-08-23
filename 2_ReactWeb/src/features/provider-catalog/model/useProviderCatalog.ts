@@ -240,6 +240,13 @@ export function useProviderCatalog(): UseProviderCatalogResult {
 
           return orderedItems[0]?.provider_id ?? null;
         });
+        setError(
+          (catalogResponse.errors ?? []).length > 0
+            ? catalogResponse.errors.map(
+              (item) => `${item.provider_id}: ${item.message}`,
+            ).join("；")
+            : null,
+        );
         setState("ready");
       } catch (loadError) {
         if (cancelled) {

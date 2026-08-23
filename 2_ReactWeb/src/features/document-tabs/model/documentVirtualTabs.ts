@@ -37,6 +37,8 @@ type BuildVirtualConversationDataTabOptions = {
 
 export const PROJECT_CONVERSATION_OVERVIEW_TAB_PREFIX =
   "project-conversation-overview:";
+export const PROJECT_KNOWLEDGE_CONTENT_TAB_PREFIX =
+  "project-knowledge-content:";
 export const PROJECT_ROLE_CONFIGURATION_TAB_PREFIX =
   "project-role-configuration:";
 export const PROJECT_THEME_CONFIGURATION_TAB_PREFIX =
@@ -51,6 +53,35 @@ export function buildVirtualProjectConversationOverviewTab(
     id: `${PROJECT_CONVERSATION_OVERVIEW_TAB_PREFIX}${projectId}`,
     title: "会话总览",
     displayPath: "项目 / 会话总览",
+    kind: "text",
+    languageId: "json",
+    content,
+    savedContent: content,
+    textContentAccessedAt: now,
+    textContentLoaded: true,
+    isDirty: false,
+    isMissing: false,
+    saveState: "idle",
+    saveError: null,
+    fileSource: null,
+    filePath: null,
+    projectId,
+    projectFilePath: null,
+    assetVersion: null,
+    mtimeMs: null,
+    externalChange: null,
+  };
+}
+
+export function buildVirtualProjectKnowledgeContentTab(
+  projectId: string,
+): DocumentTab {
+  const content = JSON.stringify({ project_id: projectId }, null, 2);
+  const now = Date.now();
+  return {
+    id: `${PROJECT_KNOWLEDGE_CONTENT_TAB_PREFIX}${projectId}`,
+    title: "知识内容",
+    displayPath: "知识 / 内容看板",
     kind: "text",
     languageId: "json",
     content,

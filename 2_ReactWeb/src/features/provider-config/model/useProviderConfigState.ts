@@ -31,6 +31,7 @@ export interface UseProviderConfigStateResult {
   clearSelectedApiKey: (apiKeyId: string) => void;
   error: string | null;
   isLoading: boolean;
+  reloadProviderConfigs: () => void;
   isSelectedApiBaseUrlDirty: boolean;
   isSelectedModelDiscoveryUrlDirty: boolean;
   removeSelectedApiKeyIfEmpty: (apiKeyId: string) => void;
@@ -39,6 +40,7 @@ export interface UseProviderConfigStateResult {
   saveSelectedProviderConfig: () => Promise<boolean>;
   saveSelectedPromptCachePolicy: () => Promise<boolean>;
   selectedDraft: ProviderConfigDraft | null;
+  selectedLoadError: string | null;
   savingProviderId: string | null;
   toggleSelectedEnabled: () => void;
   updateSelectedApiBaseUrl: (value: string) => void;
@@ -62,6 +64,9 @@ export function useProviderConfigState(
   const [drafts, setDrafts] = useState<Record<string, ProviderConfigDraft>>({});
   const [persistedConfigs, setPersistedConfigs] = useState<Record<string, ProviderConfig>>({});
   const [hasLoadedProviderConfigs, setHasLoadedProviderConfigs] = useState(false);
+  const [isLoadingProviderConfigs, setIsLoadingProviderConfigs] = useState(true);
+  const [providerLoadErrors, setProviderLoadErrors] = useState<Record<string, string>>({});
+  const [reloadToken, setReloadToken] = useState(0);
   const [savingProviderId, setSavingProviderId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +74,7 @@ export function useProviderConfigState(
     let isCancelled = false;
 
     const loadProviderConfigs = async () => {
+      setIsLoadingProviderConfigs(true);
       try {
         const response = await getProviderConfigs();
         if (isCancelled) {
@@ -77,6 +83,11 @@ export function useProviderConfigState(
 
         setPersistedConfigs(
           Object.fromEntries(response.items.map((item) => [item.provider_id, item])),
+        );
+        setProviderLoadErrors(
+          Object.fromEntries((response.errors ?? []).map(
+            (item) => [item.provider_id, item.message],
+          )),
         );
         setHasLoadedProviderConfigs(true);
         setError(null);
@@ -88,6 +99,10 @@ export function useProviderConfigState(
         setError(
           loadError instanceof Error ? loadError.message : "供应商配置载入失败。",
         );
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingProviderConfigs(false);
+        }
       }
     };
 
@@ -96,7 +111,7 @@ export function useProviderConfigState(
     return () => {
       isCancelled = true;
     };
-  }, []);
+  }, [reloadToken]);
 
   useEffect(() => {
     if (!selectedProviderId) {
@@ -115,6 +130,11 @@ export function useProviderConfigState(
           ...current,
           ...Object.fromEntries(response.items.map((item) => [item.provider_id, item])),
         }));
+        setProviderLoadErrors(
+          Object.fromEntries((response.errors ?? []).map(
+            (item) => [item.provider_id, item.message],
+          )),
+        );
       } catch {
         return;
       }
@@ -136,8 +156,11 @@ export function useProviderConfigState(
       return;
     }
 
-    setDrafts((current) => syncProviderDrafts(current, providers, persistedConfigs));
-  }, [hasLoadedProviderConfigs, persistedConfigs, providers]);
+    const validProviders = providers.filter(
+      (provider) => !providerLoadErrors[provider.provider_id],
+    );
+    setDrafts((current) => syncProviderDrafts(current, validProviders, persistedConfigs));
+  }, [hasLoadedProviderConfigs, persistedConfigs, providerLoadErrors, providers]);
 
   const selectedDraft = useMemo(() => {
     if (!selectedProviderId) {
@@ -146,6 +169,9 @@ export function useProviderConfigState(
 
     return drafts[selectedProviderId] ?? null;
   }, [drafts, selectedProviderId]);
+  const selectedLoadError = selectedProviderId
+    ? providerLoadErrors[selectedProviderId] ?? null
+    : null;
 
   const updateSelectedApiKey = (apiKeyId: string, value: string) => {
     if (!selectedProviderId) {
@@ -650,7 +676,8 @@ export function useProviderConfigState(
     addSelectedApiKey,
     clearSelectedApiKey,
     error,
-    isLoading: !hasLoadedProviderConfigs,
+    isLoading: isLoadingProviderConfigs,
+    reloadProviderConfigs: () => setReloadToken((current) => current + 1),
     isSelectedApiBaseUrlDirty:
       selectedDraft !== null && selectedDraft.apiBaseUrl !== selectedDraft.presetApiBaseUrl,
     isSelectedModelDiscoveryUrlDirty:
@@ -661,6 +688,7 @@ export function useProviderConfigState(
     saveSelectedProviderConfig,
     saveSelectedPromptCachePolicy,
     selectedDraft,
+    selectedLoadError,
     savingProviderId,
     toggleSelectedEnabled,
     updateSelectedApiBaseUrl,

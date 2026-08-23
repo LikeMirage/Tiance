@@ -6,8 +6,8 @@
   "protocolFamily": "openai_compatible",
   "enabled": false,
   "reasoningReplayMode": "tool_call_rounds",
-  "createdAt": "2026-07-19T12:22:43.557643+00:00",
-  "updatedAt": "2026-08-02T00:00:00+00:00",
+  "createdAt": "2026-08-23T17:49:34.220468+00:00",
+  "updatedAt": "2026-08-23T17:49:34.220468+00:00",
   "modelDiscoveryUrl": "https://api.minimaxi.com/v1/models",
   "generationUrls": {
     "anthropic_messages": "https://api.minimaxi.com/anthropic/v1/messages",

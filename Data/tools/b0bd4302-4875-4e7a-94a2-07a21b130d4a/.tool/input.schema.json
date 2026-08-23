@@ -4,6 +4,7 @@
   "required": ["action"],
   "properties": {
     "action": {
+      "permission_type": "program_execute",
       "type": "string",
       "enum": [
         "overview", "status", "diff", "log", "show_commit", "clone", "fetch", "init",
@@ -14,45 +15,52 @@
       ]
     },
     "dry_run": {
+      "permission_type": "none",
       "type": "boolean",
       "default": false,
       "description": "写操作设为 true 时只校验并返回预演结果，不修改工作区或远端。"
     },
-    "remote": {"type": "string", "default": "origin", "maxLength": 80},
+    "remote": {"permission_type": "external_data_modify", "type": "string", "default": "origin", "maxLength": 80},
     "repository": {
+      "permission_type": "external_data_modify",
       "type": "string",
       "maxLength": 1000,
       "description": "HTTPS、SSH、file URL 或现有本地 Git 仓库路径。"
     },
     "target_path": {
+      "permission_type": "filesystem_write",
       "type": "string",
       "maxLength": 500,
       "description": "clone 的工作区内目标子目录；省略时根据仓库名生成。"
     },
-    "branch": {"type": "string", "maxLength": 250},
-    "revision": {"type": "string", "maxLength": 100},
-    "paths": {"type": "array", "items": {"type": "string"}, "maxItems": 5000},
-    "staged": {"type": "boolean", "default": false},
+    "branch": {"permission_type": "external_data_modify", "type": "string", "maxLength": 250},
+    "revision": {"permission_type": "external_data_modify", "type": "string", "maxLength": 100},
+    "paths": {"permission_type": "filesystem_write", "type": "array", "items": {"type": "string"}, "maxItems": 5000},
+    "staged": {"permission_type": "none", "type": "boolean", "default": false},
     "force": {
+      "permission_type": "none",
       "type": "boolean",
       "default": false,
       "description": "push 时强制推送；reset 时硬重置；子模块更新时强制。"
     },
-    "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 30},
-    "message": {"type": "string", "maxLength": 500},
-    "tag": {"type": "string", "maxLength": 250},
-    "submodule_path": {"type": "string", "maxLength": 500},
+    "limit": {"permission_type": "none", "type": "integer", "minimum": 1, "maximum": 100, "default": 30},
+    "message": {"permission_type": "external_data_modify", "type": "string", "maxLength": 500},
+    "tag": {"permission_type": "external_data_modify", "type": "string", "maxLength": 250},
+    "submodule_path": {"permission_type": "external_data_modify", "type": "string", "maxLength": 500},
     "author_name": {
+      "permission_type": "external_data_modify",
       "type": "string",
       "maxLength": 200,
       "description": "本次提交身份或 configure_identity 要保存的作者姓名，必须与 author_email 同时提供。"
     },
     "author_email": {
+      "permission_type": "external_data_modify",
       "type": "string",
       "maxLength": 320,
       "description": "本次提交身份或 configure_identity 要保存的作者邮箱，必须与 author_name 同时提供。"
     },
     "identity_scope": {
+      "permission_type": "external_data_modify",
       "type": "string",
       "enum": ["repository", "tool"],
       "default": "repository",

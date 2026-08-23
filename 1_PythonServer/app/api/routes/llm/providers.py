@@ -15,6 +15,7 @@ from app.schemas.llm.provider_catalog import (
     ProviderCatalogCreateRequest,
     ProviderCatalogEntryResponse,
     ProviderCatalogListResponse,
+    ProviderCatalogLoadErrorResponse,
     ProviderCatalogOrderResponse,
     ProviderCatalogOrderSaveRequest,
     ProviderCatalogUpdateRequest,
@@ -57,8 +58,16 @@ def _provider_response(entry: ProviderCatalogEntry) -> ProviderCatalogEntryRespo
 @router.get("", response_model=ProviderCatalogListResponse, summary="List supported LLM providers")
 def list_llm_providers() -> ProviderCatalogListResponse:
     service = get_provider_catalog_service()
-    items = [_provider_response(entry) for entry in service.list_provider_templates()]
-    return ProviderCatalogListResponse(count=len(items), items=items)
+    entries, failures = service.list_provider_template_results()
+    items = [_provider_response(entry) for entry in entries]
+    errors = [
+        ProviderCatalogLoadErrorResponse(
+            provider_id=failure.provider_id,
+            message=failure.message,
+        )
+        for failure in failures
+    ]
+    return ProviderCatalogListResponse(count=len(items), items=items, errors=errors)
 
 
 @router.post(

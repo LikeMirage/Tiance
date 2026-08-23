@@ -1,4 +1,21 @@
 {
   "schemaVersion": 1,
-  "items": []
+  "items": [
+    {
+      "modelId": "Qwen/Qwen3-VL-30B-A3B-Thinking",
+      "displayName": "Qwen/Qwen3-VL-30B-A3B-Thinking",
+      "familyGroup": "qwen",
+      "capabilityTags": [
+        "reasoning",
+        "vision"
+      ],
+      "note": "",
+      "priceCurrency": "CNY",
+      "inputPricePerMillion": null,
+      "cacheHitPricePerMillion": null,
+      "outputPricePerMillion": null,
+      "createdAt": "2026-08-22T13:29:09.050427+00:00",
+      "updatedAt": "2026-08-22T13:29:09.050427+00:00"
+    }
+  ]
 }

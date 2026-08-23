@@ -49,6 +49,7 @@ export type JsonSchemaProperty = {
   minLength?: unknown;
   multipleOf?: unknown;
   options?: unknown;
+  permission_type?: unknown;
   title?: unknown;
   type?: unknown;
   uniqueItems?: unknown;

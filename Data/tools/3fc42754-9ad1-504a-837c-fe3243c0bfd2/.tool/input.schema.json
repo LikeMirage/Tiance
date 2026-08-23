@@ -3,6 +3,7 @@
   "description": "按多个字面关键词筛选项目文件，返回文件级排名、命中原因、内容预览、目录概览和可选 Git 状态。不是语义检索；需要精确命中行时使用 workspace_grep。",
   "properties": {
     "keywords": {
+      "permission_type": "filesystem_read",
       "description": "用于匹配文件路径和文本内容的字面关键词数组。各项独立匹配，不做分词、语义扩展、同义词匹配或中英文翻译。",
       "items": {
         "minLength": 1,
@@ -14,11 +15,13 @@
       "type": "array"
     },
     "base_path": {
+      "permission_type": "filesystem_read",
       "description": "搜索和目录概览的起点目录，默认工作区根目录。相对路径按工作区根目录解析。",
       "title": "起点目录",
       "type": "string"
     },
     "paths": {
+      "permission_type": "filesystem_read",
       "description": "不经过关键词筛选、必须纳入结果的文件或目录路径。可用于显式包含隐藏路径；相对路径按工作区根目录解析。",
       "items": {
         "type": "string"
@@ -27,6 +30,7 @@
       "type": "array"
     },
     "include_globs": {
+      "permission_type": "filesystem_read",
       "description": "关键词搜索阶段只扫描匹配的路径模式，如 [\"1_PythonServer/**/*.py\", \"2_ReactWeb/src/**/*.ts*\"]。",
       "items": {
         "type": "string"
@@ -35,6 +39,7 @@
       "type": "array"
     },
     "exclude_dirs": {
+      "permission_type": "filesystem_read",
       "description": "关键词搜索和目录概览阶段额外排除的目录名；名称以 . 开头的隐藏子目录默认跳过。",
       "items": {
         "type": "string"
@@ -43,6 +48,7 @@
       "type": "array"
     },
     "max_depth": {
+      "permission_type": "none",
       "default": 2,
       "description": "目录概览最大深度。",
       "maximum": 6,
@@ -51,6 +57,7 @@
       "type": "integer"
     },
     "max_files": {
+      "permission_type": "none",
       "default": 12,
       "description": "按匹配分数排序后最多返回内容预览的文件数。",
       "maximum": 40,
@@ -59,6 +66,7 @@
       "type": "integer"
     },
     "max_matches_per_file": {
+      "permission_type": "none",
       "default": 4,
       "description": "每个文件最多返回的字面匹配片段数。",
       "maximum": 12,
@@ -67,6 +75,7 @@
       "type": "integer"
     },
     "max_file_chars": {
+      "permission_type": "none",
       "default": 3000,
       "description": "每个文件内容预览最多返回的字符数。",
       "maximum": 12000,
@@ -75,6 +84,7 @@
       "type": "integer"
     },
     "max_total_chars": {
+      "permission_type": "none",
       "default": 24000,
       "description": "全部搜索结果文本的总字符上限。",
       "maximum": 80000,
@@ -83,6 +93,7 @@
       "type": "integer"
     },
     "include_git_status": {
+      "permission_type": "none",
       "default": true,
       "description": "是否包含 git status --short 摘要。",
       "title": "包含 Git 状态",

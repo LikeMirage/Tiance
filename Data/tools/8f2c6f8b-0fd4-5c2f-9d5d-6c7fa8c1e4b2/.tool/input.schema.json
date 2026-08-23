@@ -3,21 +3,25 @@
   "additionalProperties": false,
   "properties": {
     "query": {
+      "permission_type": "tiance_data_read",
       "type": "string",
       "minLength": 1,
       "description": "要在所选会话记录来源中查找的文字。"
     },
     "session_id": {
+      "permission_type": "tiance_data_read",
       "type": "string",
       "description": "可选会话 ID；省略时检索当前会话。"
     },
     "mode": {
+      "permission_type": "tiance_data_read",
       "type": "string",
       "enum": ["contains", "all_terms", "exact_content"],
       "default": "contains",
       "description": "contains 查找完整连续文字；all_terms 要求空白分隔的每个词都出现；exact_content 要求消息正文完全相同。"
     },
     "roles": {
+      "permission_type": "tiance_data_read",
       "type": "array",
       "items": {"type": "string", "enum": ["user", "assistant", "tool", "system", "error"]},
       "uniqueItems": true,
@@ -25,6 +29,7 @@
       "description": "只过滤 messages 来源中的指定消息角色；省略时检索全部消息角色。"
     },
     "sources": {
+      "permission_type": "tiance_data_read",
       "type": "array",
       "items": {
         "type": "string",
@@ -36,14 +41,16 @@
       "default": ["messages"],
       "description": "记录来源。messages 是正式会话消息；model_exchanges 是会话级模型交换记录；journal 是运行事件总账；artifacts 包含可完整还原的模型原始 HTTP 请求和响应等工件。"
     },
-    "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
-    "offset": {"type": "integer", "minimum": 0, "maximum": 1000000, "default": 0},
+    "limit": {"permission_type": "none", "type": "integer", "minimum": 1, "maximum": 100, "default": 20},
+    "offset": {"permission_type": "none", "type": "integer", "minimum": 0, "maximum": 1000000, "default": 0},
     "include_raw": {
+      "permission_type": "tiance_data_read",
       "type": "boolean",
       "default": true,
       "description": "是否在每条结果中返回数据库保存的完整原始对象；artifacts 来源会解压并返回完整工件内容。"
     },
     "context_chars": {
+      "permission_type": "none",
       "type": "integer",
       "minimum": 40,
       "maximum": 1000,

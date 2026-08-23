@@ -447,6 +447,7 @@ function keywordsFromDraft(value: string): string[] {
 function formatMemorySource(value: string, t: (key: TranslationKey) => string): string {
   if (!value) return t("aiPanel.memoryDashboard.source.none");
   if (value.startsWith("manual_")) return t("aiPanel.memoryDashboard.source.manual");
+  if (value.startsWith("ai_")) return t("aiPanel.memoryDashboard.source.aiManagement");
   if (value.startsWith("cmp_")) return t("aiPanel.memoryDashboard.source.compression");
   return value;
 }

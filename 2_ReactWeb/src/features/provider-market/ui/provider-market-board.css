@@ -1,7 +1,3 @@
 .provider-market-board .theme-market-board__grid {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
 }
-
-.provider-market-card .role-market-card__status--local-conflict {
-  color: var(--color-danger-text);
-}

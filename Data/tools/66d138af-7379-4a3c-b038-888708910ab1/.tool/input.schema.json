@@ -1,8 +1,8 @@
 {
   "type":"object","additionalProperties":false,"required":["action"],
   "properties":{
-    "action":{"type":"string","enum":["list_repositories","get_repository","create_repository","update_repository","fork_repository","delete_repository"]},
-    "dry_run":{"type":"boolean","default":false,"description":"写操作设为 true 时只校验并模拟。"},
-    "parameters":{"type":"object","description":"操作参数。repository 使用 owner/name 或 GitHub URL。创建常用 name、organization、description、private、auto_init；更新和删除需 repository；Fork 需 repository，可选 organization、name、default_branch_only。"}
+    "action":{"permission_type": "external_data_modify", "type":"string","enum":["list_repositories","get_repository","create_repository","update_repository","fork_repository","delete_repository"]},
+    "dry_run":{"permission_type": "none", "type":"boolean","default":false,"description":"写操作设为 true 时只校验并模拟。"},
+    "parameters":{"permission_type": "external_data_modify", "type":"object","description":"操作参数。repository 使用 owner/name 或 GitHub URL。创建常用 name、organization、description、private、auto_init；更新和删除需 repository；Fork 需 repository，可选 organization、name、default_branch_only。"}
   }
 }

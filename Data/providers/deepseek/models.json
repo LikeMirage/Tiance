@@ -30,6 +30,21 @@
       "outputPricePerMillion": null,
       "createdAt": "2026-07-03T18:03:03.731956+00:00",
       "updatedAt": "2026-07-03T18:03:03.731956+00:00"
+    },
+    {
+      "modelId": "deepseek-v4-flash-vision-exp",
+      "displayName": "deepseek-v4-flash-vision-exp",
+      "familyGroup": "deepseek-v4",
+      "capabilityTags": [
+        "vision"
+      ],
+      "note": "",
+      "priceCurrency": "CNY",
+      "inputPricePerMillion": null,
+      "cacheHitPricePerMillion": null,
+      "outputPricePerMillion": null,
+      "createdAt": "2026-08-21T16:18:00.140262+00:00",
+      "updatedAt": "2026-08-21T16:18:00.140262+00:00"
     }
   ]
 }

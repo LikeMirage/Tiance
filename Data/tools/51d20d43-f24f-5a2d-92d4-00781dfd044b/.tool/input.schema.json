@@ -3,22 +3,26 @@
   "description": "默认检查宿主提供的真实工具数据根目录。指定 tool_name 时只检查该调用名。",
   "properties": {
     "tools_root": {
+      "permission_type": "filesystem_read",
       "description": "工具数据根目录。为空时使用宿主提供的真实工具数据根目录；仅在需要检查其他目录时显式传入。",
       "title": "工具根目录",
       "type": "string"
     },
     "tool_name": {
+      "permission_type": "filesystem_read",
       "description": "只检查指定工具调用名。为空时检查全部工具。",
       "title": "工具调用名",
       "type": "string"
     },
     "include_disabled": {
+      "permission_type": "none",
       "default": true,
       "description": "是否检查已关闭工具。",
       "title": "包含关闭工具",
       "type": "boolean"
     },
     "max_issues": {
+      "permission_type": "none",
       "default": 200,
       "description": "最多返回的问题数量。",
       "maximum": 1000,

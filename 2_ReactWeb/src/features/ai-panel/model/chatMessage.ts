@@ -3,6 +3,7 @@ import type {
   ChatCompletionMessageContentPart,
   ConversationMessageReferences,
   ChatToolCallEvent,
+  ChatToolPermissionRequestEvent,
   ChatToolResultEvent,
 } from "../../../entities/llm-chat/model/chatCompletion";
 import type {
@@ -14,6 +15,7 @@ import type {
 export type ChatToolProcessStatus =
   | "preparing"
   | "running"
+  | "waiting_permission"
   | "done"
   | "error"
   | "cancelled";
@@ -36,6 +38,7 @@ export type ChatToolProcessItem = {
   status: ChatToolProcessStatus;
   startedAt: number | null;
   finishedAt: number | null;
+  permissionRequest?: ChatToolPermissionRequestEvent | null;
 };
 
 export type ChatAssistantProcessItem =
@@ -419,6 +422,38 @@ export function createFinishedToolProcessItem(
   };
 }
 
+export function createWaitingPermissionToolProcessItem(
+  request: ChatToolPermissionRequestEvent,
+  current: ChatToolProcessItem | null,
+  now = Date.now(),
+): ChatToolProcessItem {
+  return {
+    id: current?.id ?? toolProcessId(request.call_id, request.name),
+    callId: request.call_id,
+    name: current?.name || request.name,
+    arguments: current?.arguments ?? "",
+    result: current?.result ?? "",
+    error: current?.error ?? "",
+    ok: null,
+    status: "waiting_permission",
+    startedAt: current?.startedAt ?? now,
+    finishedAt: null,
+    permissionRequest: request,
+  };
+}
+
+export function resolveWaitingPermissionToolProcessItem(
+  current: ChatToolProcessItem,
+  requestId: string,
+): ChatToolProcessItem {
+  if (current.permissionRequest?.request_id !== requestId) return current;
+  return {
+    ...current,
+    status: "running",
+    permissionRequest: null,
+  };
+}
+
 const toolProcessItemByMessageCache = new WeakMap<ChatMessage, { item: ChatToolProcessItem | null }>();
 
 export function readToolProcessItemFromMessage(
@@ -691,6 +726,7 @@ function mergeToolProcessItem(
     ...next,
     startedAt: current.startedAt ?? next.startedAt,
     finishedAt: next.finishedAt ?? current.finishedAt,
+    permissionRequest: next.permissionRequest,
   };
 }
 

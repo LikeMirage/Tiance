@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.domain.file_workspace import ContentFileEntry
 from app.domain.project.project_file import ProjectFileKind, ProjectFileNode
 
 
@@ -38,6 +39,26 @@ class ProjectFileTreeResponse(BaseModel):
     project_id: str
     parent_path: str | None = None
     items: list[ProjectFileNodeResponse] = Field(default_factory=list)
+
+
+class ProjectContentFileResponse(BaseModel):
+    """项目内容范围内的文件元数据。"""
+
+    name: str
+    path: str
+    mtime_ms: int
+
+    @classmethod
+    def from_domain(cls, entry: ContentFileEntry) -> "ProjectContentFileResponse":
+        return cls(name=entry.name, path=entry.path, mtime_ms=entry.mtime_ms)
+
+
+class ProjectContentFileSnapshotResponse(BaseModel):
+    """项目内容文件的完整读取快照。"""
+
+    project_id: str
+    items: list[ProjectContentFileResponse] = Field(default_factory=list)
+    unreadable_paths: list[str] = Field(default_factory=list)
 
 
 class ProjectFileCreateRequest(BaseModel):
@@ -178,9 +199,11 @@ class ProjectUserFileUploadResponse(BaseModel):
 
 WorkspaceDashboardName = Literal[
     "conversation_overview",
+    "knowledge_content",
     "role_configuration",
     "theme_configuration",
     "basics",
+    "permissions",
     "examples",
     "dependencies",
     "callRecords",

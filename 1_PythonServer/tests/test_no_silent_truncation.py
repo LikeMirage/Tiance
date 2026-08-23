@@ -6,6 +6,10 @@ from app.api.routes.project.conversations import (
     read_conversation_data_view,
 )
 from app.api.routes.project.memory import list_project_memory
+from app.api.routes.global_memory import (
+    list_global_memory_events,
+    list_global_memory_records,
+)
 from app.domain.project import Project
 from app.domain.project.project_conversation import ProjectConversationSessionSettings
 from app.infra.llm.chat_adapters.common import _optional_int
@@ -151,11 +155,17 @@ def test_conversation_message_list_limit_has_no_hidden_ceiling():
 def test_dashboard_page_sizes_have_no_hidden_ceiling():
     conversation_page_size = signature(read_conversation_data_view).parameters["page_size"]
     memory_page_size = signature(list_project_memory).parameters["page_size"]
+    global_records_page_size = signature(list_global_memory_records).parameters["page_size"]
+    global_events_page_size = signature(list_global_memory_events).parameters["page_size"]
 
     assert "Ge(ge=1)" in repr(conversation_page_size.default.metadata)
     assert "Le(" not in repr(conversation_page_size.default.metadata)
     assert "Ge(ge=1)" in repr(memory_page_size.default.metadata)
     assert "Le(" not in repr(memory_page_size.default.metadata)
+    assert "Ge(ge=1)" in repr(global_records_page_size.default.metadata)
+    assert "Le(" not in repr(global_records_page_size.default.metadata)
+    assert "Ge(ge=1)" in repr(global_events_page_size.default.metadata)
+    assert "Le(" not in repr(global_events_page_size.default.metadata)
 
 
 def test_memory_dashboard_pages_keep_every_record_reachable(tmp_path):

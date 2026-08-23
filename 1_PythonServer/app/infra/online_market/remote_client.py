@@ -63,7 +63,8 @@ class OnlineMarketRemoteClient:
                 )
             except GithubApiError as exc:
                 raise self._connection_error_type(
-                    f"无法连接在线{self._resource_label}仓库：{exc}"
+                    f"无法连接在线{self._resource_label}仓库：{exc}",
+                    details={"upstreamStatus": exc.status_code},
                 ) from exc
         else:
             content = await self._fetch_bytes(
@@ -166,8 +167,9 @@ class OnlineMarketRemoteClient:
                     maximum_bytes=maximum_bytes,
                 )
             except GithubApiError as exc:
-                raise BadRequestError(
-                    f"在线{self._resource_label}资源下载失败：{exc}"
+                raise self._connection_error_type(
+                    f"在线{self._resource_label}资源下载失败：{exc}",
+                    details={"upstreamStatus": exc.status_code},
                 ) from exc
         return await self._fetch_bytes(
             source=source,

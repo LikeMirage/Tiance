@@ -11,6 +11,8 @@ import { useI18n } from "../../../shared/i18n";
 import type { TranslationKey } from "../../../shared/i18n/locales";
 import { useGithubConnection } from "../model/useGithubConnection";
 import type { GithubGuideTab, GithubSettingsTab } from "../model/githubGuideContent";
+import { SettingsViewStage } from "../../../shared/ui/settings-view-tabs/SettingsViewStage";
+import { SettingsViewTabs } from "../../../shared/ui/settings-view-tabs/SettingsViewTabs";
 import { GithubSettingsGuide } from "./GithubSettingsGuide";
 import "./github-settings.css";
 
@@ -65,7 +67,6 @@ export function GithubSettingsPanel({ onReady }: GithubSettingsPanelProps) {
       <header className="github-settings__head">
         <div>
           <h2>{t("githubSettings.title")}</h2>
-          <p>{t("githubSettings.description")}</p>
         </div>
         {connection?.connected ? (
           <button
@@ -80,31 +81,31 @@ export function GithubSettingsPanel({ onReady }: GithubSettingsPanelProps) {
         ) : null}
       </header>
 
-      <div className="github-settings__tabs" role="tablist" aria-label={t("githubSettings.tabs.aria")}>
-        {githubSettingsTabs.map((tab) => (
-          <button
-            className={activeTab === tab.id
-              ? "github-settings__tab github-settings__tab--active"
-              : "github-settings__tab"}
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {t(tab.labelKey)}
-          </button>
-        ))}
-      </div>
+      <SettingsViewTabs
+        activeView={activeTab}
+        ariaLabel={t("githubSettings.tabs.aria")}
+        onChange={setActiveTab}
+        tabs={githubSettingsTabs.map((tab) => ({
+          id: tab.id,
+          label: t(tab.labelKey),
+        }))}
+      />
 
-      {activeTab === "login" && github.error ? (
-        <div className="github-settings__error" role="alert">{github.error}</div>
-      ) : null}
+      <SettingsViewStage
+        activeView={activeTab}
+        className="github-settings__view-stage"
+        keepLeavingView
+        layout="fill"
+        orderedViews={githubSettingsViewOrder}
+      >
+        {activeTab === "login" && github.error ? (
+          <div className="github-settings__error" role="alert">{github.error}</div>
+        ) : null}
 
-      {activeTab !== "login" ? (
-        <GithubSettingsGuide language={language} tab={activeTab as GithubGuideTab} />
-      ) : connection?.connected && account ? (
-        <>
+        {activeTab !== "login" ? (
+          <GithubSettingsGuide language={language} tab={activeTab as GithubGuideTab} />
+        ) : connection?.connected && account ? (
+          <>
           <section className="github-settings__account">
             <img src={account.avatarUrl} alt="" />
             <div className="github-settings__account-copy">
@@ -203,9 +204,9 @@ export function GithubSettingsPanel({ onReady }: GithubSettingsPanelProps) {
               <div className="github-settings__empty">{t("githubSettings.repositories.empty")}</div>
             )}
           </section>
-        </>
-      ) : (
-        <section className="github-settings__login">
+          </>
+        ) : (
+          <section className="github-settings__login">
           <GithubLogo className="github-settings__login-mark" size={96} weight="duotone" aria-hidden="true" />
           <div className="github-settings__login-intro">
             <h3>{t("githubSettings.login.title")}</h3>
@@ -238,8 +239,9 @@ export function GithubSettingsPanel({ onReady }: GithubSettingsPanelProps) {
               {github.isStarting ? t("githubSettings.login.starting") : t("githubSettings.login.action")}
             </button>
           )}
-        </section>
-      )}
+          </section>
+        )}
+      </SettingsViewStage>
     </div>
   );
 }
@@ -253,4 +255,12 @@ const githubSettingsTabs: ReadonlyArray<{
   { id: "capabilities", labelKey: "githubSettings.tabs.capabilities" },
   { id: "repository-sync", labelKey: "githubSettings.tabs.repositorySync" },
   { id: "faq", labelKey: "githubSettings.tabs.faq" },
+];
+
+const githubSettingsViewOrder: readonly GithubSettingsTab[] = [
+  "login",
+  "quick-start",
+  "capabilities",
+  "repository-sync",
+  "faq",
 ];

@@ -1,7 +1,6 @@
 import type { CustomModelCapabilityTag } from "./customModelCapabilities";
 
 export type ModelManagementMode = "added" | "cloud" | "custom";
-export type ModelManagementTransitionDirection = "backward" | "forward" | "none";
 export type { CustomModelCapabilityTag } from "./customModelCapabilities";
 export type AddedModelCategoryFilter = "all" | CustomModelCapabilityTag;
 

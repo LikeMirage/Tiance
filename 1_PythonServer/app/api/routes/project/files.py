@@ -6,6 +6,8 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from app.core.errors import BadRequestError
 from app.schemas.project import (
+    ProjectContentFileResponse,
+    ProjectContentFileSnapshotResponse,
     ProjectFileCopyRequest,
     ProjectFileContentResponse,
     ProjectFileContentSaveRequest,
@@ -46,6 +48,21 @@ def list_project_files(
         project_id=project_id,
         parent_path=parent_path,
         items=items,
+    )
+
+
+@router.get(
+    "/{project_id}/files/snapshot",
+    response_model=ProjectContentFileSnapshotResponse,
+    summary="List project content files",
+)
+def list_project_content_files(project_id: str) -> ProjectContentFileSnapshotResponse:
+    service = get_project_file_service()
+    snapshot = service.list_content_files(project_id)
+    return ProjectContentFileSnapshotResponse(
+        project_id=project_id,
+        items=[ProjectContentFileResponse.from_domain(item) for item in snapshot.items],
+        unreadable_paths=list(snapshot.unreadable_paths),
     )
 
 

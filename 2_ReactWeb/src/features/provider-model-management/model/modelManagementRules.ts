@@ -15,11 +15,7 @@ import type {
   AddedModelCategoryFilter,
   CustomModelCapabilityOverrides,
   CustomModelDraft,
-  ModelManagementMode,
-  ModelManagementTransitionDirection,
 } from "./modelManagementTypes";
-
-const MODEL_MODE_ORDER: ModelManagementMode[] = ["added", "custom", "cloud"];
 
 export const EMPTY_CUSTOM_MODEL_DRAFT: CustomModelDraft = {
   capabilityTags: [],
@@ -33,20 +29,6 @@ export const EMPTY_CUSTOM_MODEL_DRAFT: CustomModelDraft = {
   outputPricePerMillion: "",
   priceCurrency: DEFAULT_CUSTOM_MODEL_PRICE_CURRENCY,
 };
-
-export function resolveTransitionDirection(
-  currentMode: ModelManagementMode,
-  nextMode: ModelManagementMode,
-): ModelManagementTransitionDirection {
-  const currentIndex = MODEL_MODE_ORDER.indexOf(currentMode);
-  const nextIndex = MODEL_MODE_ORDER.indexOf(nextMode);
-
-  if (currentIndex === -1 || nextIndex === -1 || currentIndex === nextIndex) {
-    return "none";
-  }
-
-  return nextIndex > currentIndex ? "forward" : "backward";
-}
 
 export function isCustomModelDraftEmpty(draft: CustomModelDraft) {
   return (

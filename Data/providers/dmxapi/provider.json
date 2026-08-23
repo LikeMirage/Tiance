@@ -6,8 +6,8 @@
   "protocolFamily": "openai_compatible",
   "enabled": false,
   "reasoningReplayMode": "tool_call_rounds",
-  "createdAt": "2026-07-19T12:22:43.557643+00:00",
-  "updatedAt": "2026-08-06T09:10:57.809478+00:00",
+  "createdAt": "2026-08-23T17:49:45.486197+00:00",
+  "updatedAt": "2026-08-23T17:49:45.486197+00:00",
   "modelDiscoveryUrl": "https://www.dmxapi.cn/v1/models",
   "generationUrls": {
     "openai_compatible": "https://www.dmxapi.cn/v1/chat/completions"

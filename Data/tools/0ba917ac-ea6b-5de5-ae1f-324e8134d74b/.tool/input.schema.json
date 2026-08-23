@@ -3,23 +3,27 @@
   "description": "应用 unified diff 补丁。支持 ---/+++ 文件头和 @@ hunk。默认直接应用；dry_run=true 时只验证和返回摘要。",
   "properties": {
     "patch_text": {
+      "permission_type": "filesystem_write",
       "description": "完整 unified diff 补丁文本。",
       "title": "补丁文本",
       "type": "string"
     },
     "dry_run": {
+      "permission_type": "none",
       "default": false,
       "description": "为 true 时只验证补丁，不写入文件。",
       "title": "只预览",
       "type": "boolean"
     },
     "backup": {
+      "permission_type": "none",
       "default": false,
       "description": "写入、删除已有文件前是否创建 .bak 备份。",
       "title": "备份",
       "type": "boolean"
     },
     "encoding": {
+      "permission_type": "none",
       "default": "utf-8",
       "description": "补丁内所有已有目标文件使用的编码。读取失败时拒绝写入；UTF-8 BOM 会自动保留。",
       "enum": [
@@ -32,18 +36,21 @@
       "type": "string"
     },
     "create_parent_dirs": {
+      "permission_type": "none",
       "default": true,
       "description": "新增文件父目录不存在时是否自动创建。",
       "title": "创建父目录",
       "type": "boolean"
     },
     "strip_ab_prefix": {
+      "permission_type": "none",
       "default": true,
       "description": "是否自动去掉 a/ 和 b/ 前缀。",
       "title": "去掉 a/b 前缀",
       "type": "boolean"
     },
     "expected_sha256_map": {
+      "permission_type": "filesystem_write",
       "additionalProperties": {
         "type": "string"
       },

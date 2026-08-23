@@ -3,6 +3,7 @@ import type { DocumentTab, EditorTabId } from "../../../entities/editor/model/ed
 import { getProjectDocumentSourceKey } from "./documentFileSources";
 import {
   PROJECT_CONVERSATION_OVERVIEW_TAB_PREFIX,
+  PROJECT_KNOWLEDGE_CONTENT_TAB_PREFIX,
   PROJECT_ROLE_CONFIGURATION_TAB_PREFIX,
   PROJECT_THEME_CONFIGURATION_TAB_PREFIX,
 } from "./documentVirtualTabs";
@@ -40,6 +41,7 @@ export function getTabFilePath(tab: DocumentTab | null | undefined): string | nu
 export function isPinnedDocumentTab(tab: DocumentTab | null | undefined): boolean {
   return tab?.fileSource?.kind === "tool-dashboard"
     || isProjectConversationOverviewTab(tab)
+    || isProjectKnowledgeContentTab(tab)
     || isProjectRoleConfigurationTab(tab)
     || isProjectThemeConfigurationTab(tab);
 }
@@ -48,6 +50,12 @@ export function isProjectConversationOverviewTab(
   tab: DocumentTab | null | undefined,
 ): boolean {
   return tab?.id.startsWith(PROJECT_CONVERSATION_OVERVIEW_TAB_PREFIX) ?? false;
+}
+
+export function isProjectKnowledgeContentTab(
+  tab: DocumentTab | null | undefined,
+): boolean {
+  return tab?.id.startsWith(PROJECT_KNOWLEDGE_CONTENT_TAB_PREFIX) ?? false;
 }
 
 export function isProjectRoleConfigurationTab(

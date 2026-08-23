@@ -3,6 +3,7 @@
   "description": "管理当前集合与 GitHub 仓库的绑定和同步。当前工作区能确定集合类型时可省略 collection；跨集合操作必须明确指定。push 和 pull 必须使用对应预览操作刚返回的 planId。",
   "properties": {
     "action": {
+      "permission_type": "external_data_modify",
       "enum": [
         "overview",
         "list_repositories",
@@ -17,6 +18,7 @@
       "type": "string"
     },
     "collection": {
+      "permission_type": "tiance_data_write",
       "enum": [
         "project",
         "knowledge",
@@ -29,26 +31,31 @@
       "type": "string"
     },
     "repository": {
+      "permission_type": "external_data_modify",
       "description": "bind 使用的 owner/repository 或完整 GitHub 仓库地址。",
       "maxLength": 220,
       "type": "string"
     },
     "branch": {
+      "permission_type": "external_data_modify",
       "default": "main",
       "maxLength": 250,
       "type": "string"
     },
     "remotePath": {
+      "permission_type": "external_data_modify",
       "description": "集合在仓库内的相对目录，留空表示仓库根目录。",
       "maxLength": 500,
       "type": "string"
     },
     "planId": {
+      "permission_type": "external_data_modify",
       "description": "plan_push 或 plan_pull 返回的计划号。",
       "maxLength": 80,
       "type": "string"
     },
     "commitMessage": {
+      "permission_type": "external_data_modify",
       "description": "push 使用的提交说明。",
       "maxLength": 200,
       "type": "string"

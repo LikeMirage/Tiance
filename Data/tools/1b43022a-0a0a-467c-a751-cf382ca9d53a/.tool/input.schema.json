@@ -15,6 +15,7 @@
   "description": "批量搜索或保存具体网址，至少填写 queries 或 urls 之一。搜索引擎默认百度，也可指定 Bing、DuckDuckGo 或搜狗；工具把完整查询原样提交给所选引擎，不自行分词、改写、比较或切换引擎。mode=search 只保存搜索结果，mode=content 继续读取搜索结果正文。urls 表示明确要读取并保存的网址，不受 mode 限制。所有文件自动保存到当前工作区 web_searches 目录。",
   "properties": {
     "engine": {
+      "permission_type": "none",
       "default": "baidu",
       "description": "免费搜索引擎。省略时使用百度；填写后严格使用指定引擎，不会自动比较或切换。",
       "enum": [
@@ -45,6 +46,7 @@
       "type": "string"
     },
     "queries": {
+      "permission_type": "network_access",
       "description": "一个或多个完整搜索词或问题。单次搜索也使用数组。",
       "items": {
         "minLength": 1,
@@ -57,6 +59,7 @@
       "uniqueItems": true
     },
     "urls": {
+      "permission_type": "network_access",
       "description": "需要直接访问、提取并保存的一个或多个公开 HTTP/HTTPS 网址。拒绝本机、内网和带账号密码的网址。",
       "items": {
         "minLength": 1,
@@ -69,6 +72,7 @@
       "uniqueItems": true
     },
     "mode": {
+      "permission_type": "none",
       "default": "search",
       "description": "search 只保存所选搜索引擎返回的结果；content 还会访问搜索结果并保存正文。明确传入的 urls 在两种模式下都会读取和保存。单批实际读取的正文网页总数最多为 100，超过时明确报错。",
       "enum": [
@@ -89,6 +93,7 @@
       "type": "string"
     },
     "max_results_per_query": {
+      "permission_type": "none",
       "default": 10,
       "description": "每个搜索问题最多保存多少条结果。content 模式下，查询数乘以此数量再加 urls 数量不得超过 100；工具不会静默截断。",
       "maximum": 50,

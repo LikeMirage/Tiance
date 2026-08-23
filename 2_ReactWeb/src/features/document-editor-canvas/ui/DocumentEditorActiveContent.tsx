@@ -60,6 +60,7 @@ type DocumentEditorActiveContentProps = {
   isPreviewable: boolean;
   isProjectMemory: boolean;
   isProjectConversationOverview: boolean;
+  isProjectKnowledgeContent: boolean;
   isProjectRoleConfiguration: boolean;
   isProjectThemeConfiguration: boolean;
   isReferenceViewer: boolean;
@@ -84,6 +85,7 @@ type DocumentEditorActiveContentProps = {
   onUpdateContent: (id: string, content: string) => void;
   previewOpen: boolean;
   projectConversationOverviewContent: ReactNode;
+  projectKnowledgeContent: ReactNode;
   roleConfigurationContent: ReactNode;
   themeConfigurationContent: ReactNode;
   projectRootPath: string;
@@ -113,6 +115,7 @@ export function DocumentEditorActiveContent({
   isPreviewable,
   isProjectMemory,
   isProjectConversationOverview,
+  isProjectKnowledgeContent,
   isProjectRoleConfiguration,
   isProjectThemeConfiguration,
   isReferenceViewer,
@@ -137,6 +140,7 @@ export function DocumentEditorActiveContent({
   onUpdateContent,
   previewOpen,
   projectConversationOverviewContent,
+  projectKnowledgeContent,
   roleConfigurationContent,
   themeConfigurationContent,
   projectRootPath,
@@ -180,6 +184,10 @@ export function DocumentEditorActiveContent({
 
   if (isProjectConversationOverview) {
     return projectConversationOverviewContent;
+  }
+
+  if (isProjectKnowledgeContent) {
+    return projectKnowledgeContent;
   }
 
   if (isProjectRoleConfiguration) {

@@ -65,9 +65,10 @@ class ConversationAttachmentService:
         project = self._project_service.get_project(project_id)
         if project is None:
             raise NotFoundError(f"项目 '{project_id}' 不存在。")
-        source_file = (
-            local_absolute_path(image_ref.path)
-            or self._file_storage.resolve_file_path(project.root_path, image_ref.path)
+        source_file = self._resolve_source_file(
+            project.root_path,
+            image_ref.path,
+            source_kind=source_kind,
         )
         if not source_file.is_file():
             raise NotFoundError("图片文件不存在。")
@@ -99,6 +100,26 @@ class ConversationAttachmentService:
             source_path=attachment.source_path,
             source_kind=attachment.source_kind,
         )
+
+    def _resolve_source_file(
+        self,
+        project_root: str,
+        path: str,
+        *,
+        source_kind: str | None,
+    ) -> Path:
+        local_path = local_absolute_path(path)
+        if local_path is not None:
+            return local_path
+        if source_kind == "external_file":
+            external_path = Path(path)
+            if not external_path.is_absolute():
+                raise BadRequestError("外部图片引用必须使用绝对路径。")
+            return external_path.resolve(strict=False)
+        try:
+            return self._file_storage.resolve_file_path(project_root, path)
+        except ValueError as exc:
+            raise BadRequestError("图片路径不属于当前工作区，也不是本消息明确引用的外部文件。") from exc
 
     def read_image(
         self,

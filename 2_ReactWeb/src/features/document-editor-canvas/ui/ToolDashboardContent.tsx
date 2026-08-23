@@ -2,7 +2,7 @@ import { lazy } from "react";
 
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 
-export type ToolDashboardView = "basics" | "examples" | "dependencies" | "callRecords";
+export type ToolDashboardView = "basics" | "permissions" | "examples" | "dependencies" | "callRecords";
 
 export type ToolFolderTarget = {
   folderId: string;
@@ -22,6 +22,11 @@ const ToolDependenciesDashboard = lazy(() =>
 const ToolManifestDashboard = lazy(() =>
   import("../../tool-manifest-dashboard/ui/ToolManifestDashboard").then((module) => ({
     default: module.ToolManifestDashboard,
+  })),
+);
+const ToolPermissionDashboard = lazy(() =>
+  import("../../tool-permission-dashboard/ui/ToolPermissionDashboard").then((module) => ({
+    default: module.ToolPermissionDashboard,
   })),
 );
 
@@ -61,6 +66,19 @@ export function ToolDashboardContent({
       />
     ) : (
       <div className="doc-editor__empty">无法识别当前工具调用记录目标。</div>
+    );
+  }
+
+  if (toolDashboardView === "permissions") {
+    return (
+      <ToolPermissionDashboard
+        content={activeTab.content}
+        isDirty={activeTab.isDirty}
+        saveError={activeTab.saveError}
+        saveState={activeTab.saveState}
+        onChange={(content) => onUpdateContent(activeTab.id, content)}
+        onSave={(content) => onSaveTab(activeTab.id, content)}
+      />
     );
   }
 

@@ -4,18 +4,22 @@ import type {
   EditorTabId,
 } from "../../../entities/editor/model/editorDocument";
 import type { FileWorkspaceNode } from "../../../entities/file-workspace/model/fileWorkspace";
+import type { FileWorkspaceApi } from "../../../entities/file-workspace/model/fileWorkspaceApi";
 import { publishToolCatalogChange } from "../../../entities/tool/model/toolCatalogEvents";
 import { parseToolFolderWorkspaceKey } from "../../../entities/tool/model/toolFolderFileMutation";
+import { buildDefaultToolPermissionPolicy } from "../../../entities/tool/model/toolPermissions";
+import { HttpRequestError } from "../../../services/http/httpClient";
 
 import type { DocumentFileSourceRuntime } from "./documentFileSources";
 import { normalizeWorkspacePath } from "./documentTabUtils";
 
-export type ToolDashboardView = "basics" | "examples" | "dependencies" | "callRecords";
+export type ToolDashboardView = "basics" | "permissions" | "examples" | "dependencies" | "callRecords";
 
 export const TOOL_MANIFEST_FILE = ".tool/tool.json";
 const TOOL_INPUT_SCHEMA_FILE = ".tool/input.schema.json";
 const TOOL_OUTPUT_SCHEMA_FILE = ".tool/output.schema.json";
 const TOOL_EXAMPLES_FILE = ".tool/examples.json";
+const TOOL_PERMISSIONS_FILE = ".tool/permissions.json";
 
 export function makeToolDashboardTabId(sourceKey: string, view: ToolDashboardView): EditorTabId {
   return `${sourceKey}:__tool_dashboard_${view}__`;
@@ -62,6 +66,7 @@ export function buildToolDashboardTab(
 function getToolDashboardTitle(view: ToolDashboardView) {
   if (view === "dependencies") return "工具依赖";
   if (view === "callRecords") return "调用记录";
+  if (view === "permissions") return "权限配置";
   if (view === "examples") return "应用场景";
   return "基础设置";
 }
@@ -95,6 +100,19 @@ export async function readToolDashboardContent(
     });
   }
 
+  if (view === "permissions") {
+    const [manifest, inputSchema, permissions] = await Promise.all([
+      api.readTextFile(TOOL_MANIFEST_FILE),
+      api.readTextFile(TOOL_INPUT_SCHEMA_FILE),
+      readToolPermissionsOrDefault(api),
+    ]);
+    return formatDashboardJson({
+      registration_name: parseJsonObject(manifest.content, TOOL_MANIFEST_FILE).registration_name,
+      input_schema: parseJsonObject(inputSchema.content, TOOL_INPUT_SCHEMA_FILE),
+      permissions,
+    });
+  }
+
   return formatDashboardJson({});
 }
 
@@ -105,12 +123,17 @@ export async function saveToolDashboardContent(
 ): Promise<FileWorkspaceNode[]> {
   const api = runtime.getApi();
   const payload = parseJsonObject(content, "工具看板内容");
+  if (view === "permissions") {
+    const permissions = expectJsonObjectValue(payload.permissions, TOOL_PERMISSIONS_FILE);
+    return [await api.saveTextFile(TOOL_PERMISSIONS_FILE, formatDashboardJson(permissions))];
+  }
   const manifest: Record<string, unknown> = {
     ...payload,
     files: {
       input_schema: TOOL_INPUT_SCHEMA_FILE,
       output_schema: TOOL_OUTPUT_SCHEMA_FILE,
       examples: TOOL_EXAMPLES_FILE,
+      permissions: TOOL_PERMISSIONS_FILE,
     },
   };
   delete manifest.input_schema;
@@ -131,7 +154,7 @@ export async function saveToolDashboardContent(
 }
 
 export function doesToolDashboardViewNeedContent(view: ToolDashboardView) {
-  return view === "basics" || view === "examples";
+  return view === "basics" || view === "permissions" || view === "examples";
 }
 
 export function getToolDashboardViewFromTab(tab: DocumentTab | null | undefined): ToolDashboardView {
@@ -140,6 +163,9 @@ export function getToolDashboardViewFromTab(tab: DocumentTab | null | undefined)
   }
   if (tab?.id.includes("__tool_dashboard_callRecords__")) {
     return "callRecords";
+  }
+  if (tab?.id.includes("__tool_dashboard_permissions__")) {
+    return "permissions";
   }
   return tab?.id.includes("__tool_dashboard_examples__") ? "examples" : "basics";
 }
@@ -168,7 +194,8 @@ export function isToolCatalogMetadataPath(path: string) {
     normalizedPath === TOOL_MANIFEST_FILE ||
     normalizedPath === TOOL_INPUT_SCHEMA_FILE ||
     normalizedPath === TOOL_OUTPUT_SCHEMA_FILE ||
-    normalizedPath === TOOL_EXAMPLES_FILE
+    normalizedPath === TOOL_EXAMPLES_FILE ||
+    normalizedPath === TOOL_PERMISSIONS_FILE
   );
 }
 
@@ -199,7 +226,32 @@ function buildToolDashboardPlaceholder(title: string, view: ToolDashboardView): 
       examples: [],
     };
   }
+  if (view === "permissions") {
+    return {
+      registration_name: title,
+      input_schema: {
+        properties: {},
+        required: [],
+        type: "object",
+      },
+      permissions: buildDefaultToolPermissionPolicy(),
+    };
+  }
   return {};
+}
+
+async function readToolPermissionsOrDefault(
+  api: FileWorkspaceApi,
+): Promise<Record<string, unknown>> {
+  try {
+    const file = await api.readTextFile(TOOL_PERMISSIONS_FILE);
+    return parseJsonObject(file.content, TOOL_PERMISSIONS_FILE);
+  } catch (error) {
+    if (error instanceof HttpRequestError && error.status === 404) {
+      return buildDefaultToolPermissionPolicy();
+    }
+    throw error;
+  }
 }
 
 function parseJsonObject(content: string, filename: string): Record<string, unknown> {

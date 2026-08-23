@@ -6,6 +6,7 @@ from functools import lru_cache
 import json
 from pathlib import Path
 import re
+import shutil
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -42,6 +43,8 @@ from app.services.project import ProjectService, get_project_service
 
 
 _SEMVER_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?$")
+_MARKET_THEME_ROOT_FILES = frozenset(("theme.json", "manifest.json"))
+_MARKET_THEME_IMAGE_SUFFIXES = frozenset((".avif", ".jpeg", ".jpg", ".png", ".webp"))
 
 
 class ThemeMarketApplicationService:
@@ -208,16 +211,23 @@ class ThemeMarketApplicationService:
         )
         previous_root: Path | None = None
         if is_installed:
-            trash_root = self._themes_root / ".trash"
-            trash_root.mkdir(parents=True, exist_ok=True)
-            previous_root = trash_root / f"{entry.id}-before-{entry.version}-{uuid4().hex}"
+            previous_root = staging_root.parent / "rollback"
+            if previous_root.exists():
+                shutil.rmtree(previous_root)
             target_root.replace(previous_root)
         elif target_root.exists():
             raise ConflictError("此主题已经安装。")
+        activated = False
         try:
             staged_theme_root.replace(target_root)
+            activated = True
+            if previous_root is not None:
+                _move_local_theme_entries(previous_root, target_root)
         except Exception:
             if previous_root is not None and previous_root.exists():
+                if activated and target_root.exists():
+                    _restore_local_theme_entries(target_root, previous_root)
+                    target_root.replace(staged_theme_root)
                 previous_root.replace(target_root)
             raise
         try:
@@ -231,12 +241,17 @@ class ThemeMarketApplicationService:
                     category_id=category_id,
                 )
         except Exception:
-            if target_root.exists() and not staged_theme_root.exists():
+            if activated and target_root.exists():
+                if previous_root is not None and previous_root.exists():
+                    _restore_local_theme_entries(target_root, previous_root)
                 target_root.replace(staged_theme_root)
             if previous_root is not None and previous_root.exists():
                 previous_root.replace(target_root)
             self._reconciliation_service.synchronize()
             raise
+        if previous_root is not None:
+            with suppress(OSError):
+                shutil.rmtree(previous_root)
         return ThemeMarketInstallResponse(
             themeId=entry.id,
             projectId=project.project_id,
@@ -349,6 +364,33 @@ def _normalize_filters(filters: ThemeMarketFilterSettings) -> ThemeMarketFilterS
         authors=sorted({value.strip() for value in filters.authors if value.strip()}),
         baseColors=sorted({value.strip() for value in filters.base_colors if value.strip()}),
         statuses=sorted(set(filters.statuses)),
+    )
+
+
+def _move_local_theme_entries(source_root: Path, target_root: Path) -> None:
+    for source in source_root.iterdir():
+        if _is_market_owned_theme_entry(source):
+            continue
+        target = target_root / source.name
+        if target.exists():
+            raise ConflictError(f"新版主题包与本地文件冲突：{source.name}")
+        source.replace(target)
+
+
+def _restore_local_theme_entries(source_root: Path, target_root: Path) -> None:
+    for source in source_root.iterdir():
+        if _is_market_owned_theme_entry(source):
+            continue
+        target = target_root / source.name
+        if not target.exists():
+            source.replace(target)
+
+
+def _is_market_owned_theme_entry(path: Path) -> bool:
+    return (
+        path.name in _MARKET_THEME_ROOT_FILES
+        or path.name == "assets"
+        or (path.is_file() and path.suffix.lower() in _MARKET_THEME_IMAGE_SUFFIXES)
     )
 
 

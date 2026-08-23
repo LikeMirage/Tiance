@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from app.core.errors import BadRequestError, NotFoundError
 from app.domain.llm.provider_catalog import ProviderCatalogEntry
 from app.repositories.llm.provider_catalog_repository import (
+    ProviderCatalogLoadFailure,
     ProviderCatalogRepository,
     get_provider_catalog_repository,
 )
@@ -21,6 +22,11 @@ class ProviderCatalogService:
 
     def list_provider_templates(self) -> tuple[ProviderCatalogEntry, ...]:
         return tuple(self._repository.list_entries())
+
+    def list_provider_template_results(
+        self,
+    ) -> tuple[tuple[ProviderCatalogEntry, ...], tuple[ProviderCatalogLoadFailure, ...]]:
+        return self._repository.list_entry_results()
 
     def get_provider_template(self, provider_id: str) -> ProviderCatalogEntry | None:
         return self._repository.get_entry(provider_id)

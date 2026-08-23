@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from datetime import UTC, datetime
 from functools import lru_cache
 import json
 import platform
@@ -23,7 +22,10 @@ from app.infra.tool_market import (
     remove_tool_market_staging_path,
     resolve_tool_market_asset_url,
 )
-from app.infra.tools.tool_project_config_constants import TOOL_REQUIREMENTS_FILE
+from app.infra.tools.tool_project_config_constants import (
+    TOOL_PERMISSIONS_FILE,
+    TOOL_REQUIREMENTS_FILE,
+)
 from app.repositories.tools.tool_market_cache_repository import ToolMarketCacheRepository
 from app.repositories.tools.tool_market_settings_repository import (
     ToolMarketSettingsRepository,
@@ -68,8 +70,9 @@ _PLATFORMS = frozenset(
 )
 _LOCAL_PRESERVED_DIRS = (".Tiance", "dependencies")
 _LOCAL_CONFIG_FILE = Path("program") / "config.json"
+_LOCAL_PERMISSIONS_FILE = Path(TOOL_PERMISSIONS_FILE)
 _TOOL_MANIFEST_FILE = Path(".tool") / "tool.json"
-_TOOL_MARKET_RECEIPT_FILE = Path(".Tiance") / "tool-market.json"
+_OBSOLETE_TOOL_MARKET_RECEIPT_FILE = Path(".Tiance") / "tool-market.json"
 
 
 class ToolMarketApplicationService:
@@ -194,8 +197,6 @@ class ToolMarketApplicationService:
                     self._update_installed_tool,
                     project=existing,
                     package_root=package_root,
-                    source=source,
-                    entry=entry,
                     call_name=selected_call_name,
                     backup_root=operation_root / "backup",
                 )
@@ -205,8 +206,6 @@ class ToolMarketApplicationService:
                     self._install_new_tool,
                     package_root=package_root,
                     category_id=category_id or "",
-                    source=source,
-                    entry=entry,
                     call_name=selected_call_name,
                 )
                 updated = False
@@ -231,8 +230,6 @@ class ToolMarketApplicationService:
         *,
         package_root: Path,
         category_id: str,
-        source: str,
-        entry: ToolMarketEntry,
         call_name: str,
     ) -> Project:
         _write_tool_call_name(package_root, call_name)
@@ -247,12 +244,6 @@ class ToolMarketApplicationService:
         )
         try:
             self._creation_service.ensure_initial_conversation(project.project_id)
-            _write_market_receipt(
-                Path(project.root_path),
-                source=source,
-                entry=entry,
-                local_call_name=call_name,
-            )
             self._registry.rebuild_registry()
         except Exception:
             self._project_service.rollback_managed_project_snapshot(
@@ -268,29 +259,28 @@ class ToolMarketApplicationService:
         *,
         project: Project,
         package_root: Path,
-        source: str,
-        entry: ToolMarketEntry,
         call_name: str,
         backup_root: Path,
     ) -> Project:
         target_root = Path(project.root_path).resolve()
-        _preserve_local_tool_state(target_root, package_root, call_name=call_name)
-        _write_market_receipt(
-            package_root,
-            source=source,
-            entry=entry,
-            local_call_name=call_name,
-        )
+        _prepare_updated_tool_manifest(target_root, package_root, call_name=call_name)
         if backup_root.exists():
             shutil.rmtree(backup_root)
         target_root.replace(backup_root)
+        activated = False
         try:
             package_root.replace(target_root)
+            activated = True
+            _remove_obsolete_tool_market_receipt(backup_root)
+            _move_local_tool_state(backup_root, target_root)
             self._registry.rebuild_registry()
         except Exception:
-            with suppress(OSError):
-                if target_root.exists():
-                    target_root.replace(package_root)
+            if activated:
+                with suppress(OSError):
+                    _restore_local_tool_state(target_root, backup_root)
+                with suppress(OSError):
+                    if target_root.exists():
+                        target_root.replace(package_root)
             if backup_root.exists():
                 backup_root.replace(target_root)
             with suppress(Exception):
@@ -474,17 +464,12 @@ def _validate_market_entry(source: str, entry: ToolMarketEntry) -> None:
     resolve_tool_market_asset_url(source, entry.package_url)
 
 
-def _preserve_local_tool_state(source_root: Path, target_root: Path, *, call_name: str) -> None:
-    for directory_name in _LOCAL_PRESERVED_DIRS:
-        source = source_root / directory_name
-        if source.is_dir():
-            shutil.copytree(source, target_root / directory_name, dirs_exist_ok=True, symlinks=True)
-    local_config = source_root / _LOCAL_CONFIG_FILE
-    if local_config.is_file():
-        target_config = target_root / _LOCAL_CONFIG_FILE
-        target_config.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(local_config, target_config)
-
+def _prepare_updated_tool_manifest(
+    source_root: Path,
+    target_root: Path,
+    *,
+    call_name: str,
+) -> None:
     source_manifest = _read_json_object(source_root / _TOOL_MANIFEST_FILE)
     target_manifest = _read_json_object(target_root / _TOOL_MANIFEST_FILE)
     target_manifest["name"] = call_name
@@ -494,33 +479,61 @@ def _preserve_local_tool_state(source_root: Path, target_root: Path, *, call_nam
     _write_json_atomic(target_root / _TOOL_MANIFEST_FILE, target_manifest)
 
 
+def _move_local_tool_state(source_root: Path, target_root: Path) -> None:
+    for directory_name in _LOCAL_PRESERVED_DIRS:
+        source = source_root / directory_name
+        if not source.exists():
+            continue
+        target = target_root / directory_name
+        if target.exists():
+            raise RuntimeError(f"新版工具包包含本地专用目录：{directory_name}")
+        source.replace(target)
+
+    source_config = source_root / _LOCAL_CONFIG_FILE
+    if source_config.is_file():
+        target_config = target_root / _LOCAL_CONFIG_FILE
+        target_config.parent.mkdir(parents=True, exist_ok=True)
+        target_config.unlink(missing_ok=True)
+        source_config.replace(target_config)
+
+    source_permissions = source_root / _LOCAL_PERMISSIONS_FILE
+    if source_permissions.is_file():
+        target_permissions = target_root / _LOCAL_PERMISSIONS_FILE
+        target_permissions.parent.mkdir(parents=True, exist_ok=True)
+        target_permissions.unlink(missing_ok=True)
+        source_permissions.replace(target_permissions)
+
+
+def _restore_local_tool_state(source_root: Path, target_root: Path) -> None:
+    for directory_name in _LOCAL_PRESERVED_DIRS:
+        source = source_root / directory_name
+        target = target_root / directory_name
+        if source.exists() and not target.exists():
+            source.replace(target)
+
+    source_config = source_root / _LOCAL_CONFIG_FILE
+    target_config = target_root / _LOCAL_CONFIG_FILE
+    if source_config.is_file() and not target_config.exists():
+        target_config.parent.mkdir(parents=True, exist_ok=True)
+        source_config.replace(target_config)
+
+    source_permissions = source_root / _LOCAL_PERMISSIONS_FILE
+    target_permissions = target_root / _LOCAL_PERMISSIONS_FILE
+    if source_permissions.is_file() and not target_permissions.exists():
+        target_permissions.parent.mkdir(parents=True, exist_ok=True)
+        source_permissions.replace(target_permissions)
+
+
+def _remove_obsolete_tool_market_receipt(tool_root: Path) -> None:
+    with suppress(OSError):
+        (tool_root / _OBSOLETE_TOOL_MARKET_RECEIPT_FILE).unlink(missing_ok=True)
+
+
 def _write_tool_call_name(tool_root: Path, call_name: str) -> None:
     manifest_path = tool_root / _TOOL_MANIFEST_FILE
     payload = _read_json_object(manifest_path)
     payload["name"] = call_name
     _write_json_atomic(manifest_path, payload)
-
-
-def _write_market_receipt(
-    tool_root: Path,
-    *,
-    source: str,
-    entry: ToolMarketEntry,
-    local_call_name: str,
-) -> None:
-    _write_json_atomic(
-        tool_root / _TOOL_MARKET_RECEIPT_FILE,
-        {
-            "schemaVersion": 1,
-            "kind": "tiance-tool-market-installation",
-            "source": source,
-            "toolId": entry.id,
-            "version": entry.version,
-            "publishedCallName": entry.call_name,
-            "localCallName": local_call_name,
-            "updatedAt": datetime.now(UTC).isoformat(),
-        },
-    )
 
 
 def _read_local_market_manifest(project: Project) -> ToolPackageManifest:

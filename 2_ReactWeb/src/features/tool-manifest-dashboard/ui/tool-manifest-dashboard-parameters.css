@@ -223,3 +223,131 @@
 .tool-dashboard__param-required-toggle input {
   accent-color: var(--tool-dashboard-accent);
 }
+
+.tool-dashboard__permission-trigger {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 7px 9px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tool-dashboard__permission-trigger:hover,
+.tool-dashboard__permission-trigger[aria-expanded="true"] {
+  border-color: rgba(var(--color-accent-rgb), 0.72);
+}
+
+.tool-dashboard__permission-trigger > span,
+.tool-dashboard__permission-options button > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tool-dashboard__permission-trigger strong,
+.tool-dashboard__permission-options strong {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.tool-dashboard__permission-trigger small,
+.tool-dashboard__permission-options small {
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.tool-dashboard__permission-panel {
+  position: fixed;
+  z-index: 3000;
+  display: grid;
+  grid-template-columns: 142px minmax(0, 1fr);
+  height: 300px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 6px;
+  background: var(--color-surface-elevated);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.28);
+}
+
+.tool-dashboard__permission-groups {
+  padding: 6px 0;
+  border-right: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-input);
+}
+
+.tool-dashboard__permission-groups button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 0;
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.76rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tool-dashboard__permission-groups button:hover {
+  background: var(--color-surface-item-hover);
+}
+
+.tool-dashboard__permission-groups button.is-active {
+  border-left-color: var(--tool-dashboard-accent);
+  background: rgba(var(--color-accent-rgb), 0.1);
+  color: var(--color-text-primary);
+}
+
+.tool-dashboard__permission-groups small {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+}
+
+.tool-dashboard__permission-options {
+  overflow-y: auto;
+  padding: 7px;
+}
+
+.tool-dashboard__permission-options button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tool-dashboard__permission-options button:hover {
+  background: var(--color-surface-item-hover);
+}
+
+.tool-dashboard__permission-options button.is-selected {
+  border-color: rgba(var(--color-accent-rgb), 0.32);
+  background: rgba(var(--color-accent-rgb), 0.09);
+  color: var(--tool-dashboard-accent);
+}
+
+@media (max-width: 520px) {
+  .tool-dashboard__permission-panel {
+    grid-template-columns: 118px minmax(0, 1fr);
+  }
+}

@@ -36,6 +36,7 @@ export interface DesktopShellCapabilities {
   nativeWindowResizeSupported: boolean;
   pageZoomSupported: boolean;
   platform: string;
+  systemTraySupported: boolean;
 }
 
 export type NativeWindowResizeMode = "none" | "api" | "system-edge";
@@ -97,6 +98,7 @@ export interface SystemMetricsSnapshot {
 export interface DesktopShellApi {
   reveal_window?: () => Promise<boolean> | boolean;
   minimize_window: () => Promise<void>;
+  hide_window_to_tray?: () => Promise<boolean> | boolean;
   toggle_maximize_window: () => Promise<WindowStateSnapshot>;
   close_window: () => Promise<void>;
   install_software_update?: (stagePath: string) => Promise<{
@@ -155,6 +157,7 @@ export interface DesktopShellContextValue {
   canStartNativeDrag: boolean;
   canStartNativeResize: boolean;
   nativeResizeMode: NativeWindowResizeMode;
+  canHideToTray: boolean;
   startNativeDrag: (
     cursorScreenX: number,
     cursorScreenY: number,
@@ -189,6 +192,7 @@ export const defaultDesktopShellCapabilities: DesktopShellCapabilities = {
   nativeWindowResizeSupported: false,
   pageZoomSupported: false,
   platform: "unknown",
+  systemTraySupported: false,
 };
 
 export const emptyWindowBounds: WindowBounds = {

@@ -3,6 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import "./workspace-layout.css";
 
 import { useDocumentTabs } from "../../../features/document-tabs/model/useDocumentTabs";
+import {
+  closeDesktopShell,
+  hideDesktopShellToTray,
+} from "../../../features/desktop-shell/model/desktopShellStore";
+import { useDesktopShell } from "../../../features/desktop-shell/model/useDesktopShell";
 import { useProviderCatalog } from "../../../features/provider-catalog/model/useProviderCatalog";
 import { emitLlmModelCatalogChanged } from "../../../entities/llm-provider/model/modelCatalogEvents";
 import { useToolCatalog } from "../../../features/tool-catalog/model/useToolCatalog";
@@ -51,6 +56,7 @@ import {
 } from "../model/workspaceProjectCatalogAdapters";
 import type { WorkspaceSettingsSectionId } from "../model/workspaceSettingsSections";
 import { markFrontendStartup } from "../../../shared/model/startup-timing/startupTiming";
+import { useI18n } from "../../../shared/i18n";
 import { WorkspaceNavigationProvider } from "../../../shared/model/workspaceNavigation";
 import type { AppThemeControl } from "../../../shared/theme";
 import { revealProjectFile } from "../../../services/project/revealProjectFile";
@@ -60,6 +66,7 @@ import { WorkspaceCanvasPanel } from "./WorkspaceCanvasPanel";
 import { WorkspaceSidePanel } from "./WorkspaceSidePanel";
 import { WorkspaceStatusPath } from "./WorkspaceStatusPath";
 import { WorkspaceUnsavedChangesModal } from "./WorkspaceUnsavedChangesModal";
+import { WorkspaceWindowCloseModal } from "./WorkspaceWindowCloseModal";
 
 const PRIMARY_SIDEBAR_COLLAPSED_WIDTH = 52;
 const APP_STATUS_BAR_INLINE_PADDING = 12;
@@ -75,8 +82,13 @@ export function WorkspacePage({
   onInitialWorkspaceSettled,
   themeControl,
 }: WorkspacePageProps) {
+  const { t } = useI18n();
+  const { canHideToTray } = useDesktopShell();
   const [activeSection, setActiveSection] =
     useState<HoverSidebarSectionId>("overview");
+  const [isWindowClosePromptOpen, setIsWindowClosePromptOpen] = useState(false);
+  const [isWindowCloseActionPending, setIsWindowCloseActionPending] = useState(false);
+  const [windowCloseError, setWindowCloseError] = useState<string | null>(null);
   const [layoutPreferences, setLayoutPreferences] = useState(() =>
     normalizeWorkspaceLayoutPreferences(initialLayoutPreferences),
   );
@@ -372,13 +384,62 @@ export function WorkspacePage({
     projectDocumentTabs,
     requestUnsavedTransition,
   ]);
-  const handleRequestCloseWindow = useCallback((closeWindow: () => Promise<void>) => {
+  const requestApplicationExit = useCallback(() => {
     void requestUnsavedTransition(
       [projectDocumentTabs, toolDocumentTabs],
       "exit",
-      closeWindow,
+      closeDesktopShell,
     );
   }, [projectDocumentTabs, requestUnsavedTransition, toolDocumentTabs]);
+  const handleRequestCloseWindow = useCallback(() => {
+    if (unsavedChangesModal) return;
+    if (!canHideToTray) {
+      requestApplicationExit();
+      return;
+    }
+    setWindowCloseError(null);
+    setIsWindowClosePromptOpen(true);
+  }, [canHideToTray, requestApplicationExit, unsavedChangesModal]);
+  useEffect(() => {
+    const handleNativeCloseRequest = () => handleRequestCloseWindow();
+    window.addEventListener("tiance:window-close-requested", handleNativeCloseRequest);
+    return () => {
+      window.removeEventListener("tiance:window-close-requested", handleNativeCloseRequest);
+    };
+  }, [handleRequestCloseWindow]);
+  const handleCancelWindowClose = useCallback(() => {
+    if (isWindowCloseActionPending) return;
+    setIsWindowClosePromptOpen(false);
+    setWindowCloseError(null);
+  }, [isWindowCloseActionPending]);
+  const handleHideWindowToTray = useCallback(() => {
+    if (isWindowCloseActionPending) return;
+    setIsWindowCloseActionPending(true);
+    setWindowCloseError(null);
+    void hideDesktopShellToTray()
+      .then((didHide) => {
+        if (didHide) {
+          setIsWindowClosePromptOpen(false);
+          return;
+        }
+        setWindowCloseError(t("common.windowClosePrompt.trayUnavailable"));
+      })
+      .catch(() => {
+        setWindowCloseError(t("common.windowClosePrompt.trayUnavailable"));
+      })
+      .finally(() => {
+        setIsWindowCloseActionPending(false);
+      });
+  }, [isWindowCloseActionPending, t]);
+  const handleExitWindow = useCallback(() => {
+    if (isWindowCloseActionPending) return;
+    setIsWindowClosePromptOpen(false);
+    setWindowCloseError(null);
+    requestApplicationExit();
+  }, [
+    isWindowCloseActionPending,
+    requestApplicationExit,
+  ]);
   const handleCollapseToolFolder = useCallback(() => {
     return requestUnsavedTransition(
       [toolDocumentTabs],
@@ -723,6 +784,7 @@ export function WorkspacePage({
   const activeToolsetId = toolFolders.displayedToolsetId;
   const projectWorkspaceTabs = useProjectWorkspaceTabsPersistence({
     documentTabs: projectDocumentTabs,
+    isKnowledgeProject: projectCatalog.selectedProject?.project_kind === "knowledge",
     isRoleProject: projectCatalog.selectedProject?.project_kind === "role",
     isThemeProject: projectCatalog.selectedProject?.project_kind === "theme",
     projectId: activeSectionPid,
@@ -804,8 +866,14 @@ export function WorkspacePage({
   const handleSelectSoftwareUpdateSettings = useCallback(() => {
     setActiveSettingsSectionId("software-update");
   }, []);
+  const handleSelectAnnouncementSettings = useCallback(() => {
+    setActiveSettingsSectionId("announcements");
+  }, []);
   const handleSelectGithubSettings = useCallback(() => {
     setActiveSettingsSectionId("github");
+  }, []);
+  const handleSelectGlobalMemorySettings = useCallback(() => {
+    setActiveSettingsSectionId("global-memory");
   }, []);
   const handleOpenGithubSettings = useCallback(() => {
     setActiveSettingsSectionId("github");
@@ -911,8 +979,10 @@ export function WorkspacePage({
           onReferenceProjectFile={handleReferenceProjectFile}
           onSelectFunctionalModelSection={handleSelectFunctionalModelSection}
           onSelectGithubSettings={handleSelectGithubSettings}
+          onSelectGlobalMemorySettings={handleSelectGlobalMemorySettings}
           onSelectLanguageSettings={handleSelectLanguageSettings}
           onSelectSoftwareUpdateSettings={handleSelectSoftwareUpdateSettings}
+          onSelectAnnouncementSettings={handleSelectAnnouncementSettings}
           onSelectNetworkSettings={handleSelectNetworkSettings}
           onSelectTokenEstimationSettings={handleSelectTokenEstimationSettings}
           onToggleFunctionalModelGroup={functionalModelSectionSelection.toggleSectionGroup}
@@ -1023,6 +1093,14 @@ export function WorkspacePage({
         />
       </section>
       <WorkspaceUnsavedChangesModal modal={unsavedChangesModal} />
+      <WorkspaceWindowCloseModal
+        error={windowCloseError}
+        isBusy={isWindowCloseActionPending}
+        isOpen={isWindowClosePromptOpen}
+        onCancel={handleCancelWindowClose}
+        onExit={handleExitWindow}
+        onHideToTray={handleHideWindowToTray}
+      />
       </main>
     </WorkspaceNavigationProvider>
   );

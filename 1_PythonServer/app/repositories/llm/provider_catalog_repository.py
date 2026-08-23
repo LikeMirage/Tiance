@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any
@@ -27,7 +28,22 @@ class ProviderCatalogRepository:
         self._store = store
 
     def list_entries(self) -> Sequence[ProviderCatalogEntry]:
-        return tuple(self._load_entry(provider_id) for provider_id in self._store.list_provider_ids())
+        entries, _ = self.list_entry_results()
+        return entries
+
+    def list_entry_results(
+        self,
+    ) -> tuple[tuple[ProviderCatalogEntry, ...], tuple["ProviderCatalogLoadFailure", ...]]:
+        entries: list[ProviderCatalogEntry] = []
+        failures: list[ProviderCatalogLoadFailure] = []
+        for provider_id in self._store.list_provider_ids():
+            try:
+                entries.append(self._load_entry(provider_id))
+            except (ProviderFileStoreError, ValueError) as exc:
+                failures.append(
+                    ProviderCatalogLoadFailure(provider_id=provider_id, message=str(exc))
+                )
+        return tuple(entries), tuple(failures)
 
     def get_entry(self, provider_id: str) -> ProviderCatalogEntry | None:
         if not self._store.has_provider(provider_id):
@@ -126,6 +142,9 @@ class ProviderCatalogRepository:
         )
         return True
 
+    def has_provider_directory(self, provider_id: str) -> bool:
+        return self._store.has_provider_directory(provider_id)
+
     def _load_entry(self, provider_id: str) -> ProviderCatalogEntry:
         payload = self._store.read_provider_file(provider_id, PROVIDER_MANIFEST_FILE)
         if payload is None:
@@ -194,6 +213,12 @@ def _read_text(payload: dict[str, Any] | None, key: str) -> str | None:
 
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderCatalogLoadFailure:
+    provider_id: str
+    message: str
 
 
 @lru_cache

@@ -2,6 +2,11 @@ import { CaretDown, CaretRight } from "@phosphor-icons/react";
 
 import { OptionSelect, type OptionSelectItem } from "../../../shared/ui/option-select/OptionSelect";
 import {
+  getToolParameterPermissionOption,
+  getToolParameterPermissionType,
+  setToolParameterPermissionType,
+} from "../../../entities/tool/model/toolPermissions";
+import {
   asString,
   type JsonSchemaProperty,
 } from "../model/toolManifest";
@@ -27,6 +32,7 @@ import {
   Field,
   ReadonlyValue,
 } from "./ToolManifestFields";
+import { ToolParameterPermissionPicker } from "./ToolParameterPermissionPicker";
 
 type ToolManifestParametersSectionProps = {
   expandedParameterNames: Set<string>;
@@ -381,6 +387,8 @@ function EditableParameterItem({
   const description = asString(schema.description, asString(schema.title));
   const enumCount = options.length;
   const defaultValue = formatDefaultValue(schema.default);
+  const permissionType = getToolParameterPermissionType(schema.permission_type);
+  const permissionOption = getToolParameterPermissionOption(permissionType);
 
   return (
     <div className={["tool-dashboard__param-card", isExpanded ? "tool-dashboard__param-card--expanded" : ""].filter(Boolean).join(" ")}>
@@ -399,6 +407,7 @@ function EditableParameterItem({
         </span>
         <span className="tool-dashboard__param-badges">
           <span>{parameterType}</span>
+          <span>{permissionOption.label}</span>
           {isRequired ? <strong>必填</strong> : <span>可选</span>}
           {enumCount > 0 ? <span>{enumCount} 个可选值</span> : null}
           {defaultValue ? <span>默认 {defaultValue}</span> : null}
@@ -423,6 +432,14 @@ function EditableParameterItem({
                 />
                 <span>必填参数</span>
               </label>
+            </Field>
+            <Field label="权限类型">
+              <ToolParameterPermissionPicker
+                value={permissionType}
+                onChange={(value) => onSchemaChange((draft) =>
+                  setToolParameterPermissionType(draft, value),
+                )}
+              />
             </Field>
             <Field label="默认值">
               {options.length > 0 ? (

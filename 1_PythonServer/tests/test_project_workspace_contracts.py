@@ -66,10 +66,24 @@ def test_workspace_state_accepts_theme_configuration_dashboard():
     assert request.active_dashboard == "theme_configuration"
 
 
+def test_workspace_state_accepts_knowledge_content_dashboard():
+    request = ProjectWorkspaceStatePatchRequest(
+        active_dashboard="knowledge_content",
+    )
+
+    assert request.active_dashboard == "knowledge_content"
+
+
 def test_workspace_state_accepts_tool_dashboard():
     request = ProjectWorkspaceStatePatchRequest(active_dashboard="dependencies")
 
     assert request.active_dashboard == "dependencies"
+
+
+def test_workspace_state_accepts_tool_permissions_dashboard():
+    request = ProjectWorkspaceStatePatchRequest(active_dashboard="permissions")
+
+    assert request.active_dashboard == "permissions"
 
 
 def test_save_text_file_rejects_stale_mtime_without_overwriting(tmp_path):

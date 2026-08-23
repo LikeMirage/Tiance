@@ -3,6 +3,7 @@
   "description": "主题设计工具。action=list 精简列出可用主题；action=get_current 查看当前主题核心信息；action=create 通过完整参数创建新主题包；action=clone 完整复制已有主题包并允许覆盖指定主题参数；action=derive_palette 从四个基础色确定性生成并应用完整配色 Token；action=edit 通过独立参数编辑已有主题；action=switch 切换当前主题；action=restore 恢复内置主题备份；action=delete 删除未激活主题包及包内资源。主题内容保存在 Data/themes/<theme_id>/theme.json，主题资源保存在 Data/themes/<theme_id>/assets/，当前选中主题 ID 保存在 Data/themes/theme-settings.json。",
   "properties": {
     "action": {
+      "permission_type": "tiance_data_write",
       "description": "要执行的主题操作。create 需要 theme_id、theme_name、theme_mode 和全部主题参数；clone 需要 source_theme_id、新 theme_id 和新 theme_name，可选提供要覆盖的主题参数；derive_palette 需要 theme_id 和 palette；edit 只需要提供要修改的参数；delete 需要 theme_id 且不能删除当前激活主题；背景图使用 background_* 专用参数。",
       "enum": [
         "list",
@@ -57,23 +58,27 @@
       "type": "string"
     },
     "theme_id": {
+      "permission_type": "tiance_data_write",
       "description": "目标主题 ID。必须是小写字母、数字和短横线，且等于 Data/themes/<theme_id>/ 主题包目录名。create、clone、derive_palette、edit、switch、delete 需要提供；clone 必须使用尚不存在的新 ID；list、get_current 不需要。",
       "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
       "title": "主题 ID",
       "type": "string"
     },
     "source_theme_id": {
+      "permission_type": "tiance_data_write",
       "description": "clone 必填。要复制的现有主题 ID；源主题配置和包内资源会完整复制，源主题本身不会被修改。",
       "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
       "title": "源主题 ID",
       "type": "string"
     },
     "theme_name": {
+      "permission_type": "tiance_data_write",
       "description": "create 和 clone 时作为包内注册名称及首次登记的显示名称；edit 时只修改本地当前显示名称，不改包内注册名称。名称允许重复，但建议能区分。",
       "title": "主题名称",
       "type": "string"
     },
     "theme_mode": {
+      "permission_type": "none",
       "description": "浏览器和编辑器兼容用模式。只能是 dark 或 light；它不是主题分类，也不表示系统只有两种主题。create 必填；edit 不允许修改。",
       "enum": [
         "dark",
@@ -83,6 +88,7 @@
       "type": "string"
     },
     "palette": {
+      "permission_type": "tiance_data_write",
       "additionalProperties": false,
       "description": "derive_palette 必填。四个基础色必须使用 #RRGGBB 格式；相同主题模式和相同输入始终生成相同 Token。background 对应主背景，panel 对应主要面板，text 对应正文，accent 对应强调色。",
       "properties": {
@@ -116,151 +122,181 @@
       "type": "object"
     },
     "surface_base": {
+      "permission_type": "none",
       "description": "应用主背景色。create 必填；clone 或 edit 可选。对应 tokens.color.surface.base。",
       "title": "主背景色",
       "type": "string"
     },
     "surface_panel": {
+      "permission_type": "none",
       "description": "普通面板、项目卡片、设置面板主体背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.panel。",
       "title": "面板背景",
       "type": "string"
     },
     "surface_panel_alt": {
+      "permission_type": "none",
       "description": "次级面板、卡片内部内容区背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.panelAlt。",
       "title": "次级面板背景",
       "type": "string"
     },
     "surface_toolbar": {
+      "permission_type": "none",
       "description": "工具栏、标签栏等横向操作区背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.toolbar。",
       "title": "工具栏背景",
       "type": "string"
     },
     "surface_titlebar": {
+      "permission_type": "none",
       "description": "窗口顶边栏背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.titlebar。",
       "title": "顶边栏背景",
       "type": "string"
     },
     "surface_statusbar": {
+      "permission_type": "none",
       "description": "底部状态栏背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.statusbar。",
       "title": "状态栏背景",
       "type": "string"
     },
     "surface_sidebar": {
+      "permission_type": "none",
       "description": "左侧侧边栏、列表栏背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.sidebar。",
       "title": "侧边栏背景",
       "type": "string"
     },
     "surface_canvas": {
+      "permission_type": "none",
       "description": "主工作区画布背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.canvas。",
       "title": "画布背景",
       "type": "string"
     },
     "surface_elevated": {
+      "permission_type": "none",
       "description": "浮层、弹出面板、悬浮卡片背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.elevated。",
       "title": "浮层背景",
       "type": "string"
     },
     "surface_muted": {
+      "permission_type": "none",
       "description": "弱化区块、非重点区域背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.muted。",
       "title": "弱化背景",
       "type": "string"
     },
     "surface_overlay": {
+      "permission_type": "none",
       "description": "覆盖层、轻遮罩背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.overlay。",
       "title": "覆盖层背景",
       "type": "string"
     },
     "surface_menu": {
+      "permission_type": "none",
       "description": "右键菜单、下拉菜单背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.menu。",
       "title": "菜单背景",
       "type": "string"
     },
     "surface_input": {
+      "permission_type": "none",
       "description": "输入框、搜索框默认背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.input。",
       "title": "输入框背景",
       "type": "string"
     },
     "surface_input_hover": {
+      "permission_type": "none",
       "description": "输入框悬浮或聚焦前背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.inputHover。",
       "title": "输入框悬浮背景",
       "type": "string"
     },
     "surface_item_hover": {
+      "permission_type": "none",
       "description": "列表项、菜单项普通悬浮背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.itemHover。",
       "title": "列表项悬浮背景",
       "type": "string"
     },
     "surface_item_hover_strong": {
+      "permission_type": "none",
       "description": "列表项、菜单项强悬浮或激活背景。create 必填；clone 或 edit 可选。对应 tokens.color.surface.itemHoverStrong。",
       "title": "强悬浮背景",
       "type": "string"
     },
     "text_primary": {
+      "permission_type": "none",
       "description": "主文字颜色。create 必填；clone 或 edit 可选。对应 tokens.color.text.primary。",
       "title": "主文字",
       "type": "string"
     },
     "text_secondary": {
+      "permission_type": "none",
       "description": "次级文字颜色。create 必填；clone 或 edit 可选。对应 tokens.color.text.secondary。",
       "title": "次级文字",
       "type": "string"
     },
     "text_muted": {
+      "permission_type": "none",
       "description": "弱化说明、时间、次要计数文字颜色。create 必填；clone 或 edit 可选。对应 tokens.color.text.muted。",
       "title": "弱化文字",
       "type": "string"
     },
     "text_heading": {
+      "permission_type": "none",
       "description": "标题文字颜色。create 必填；clone 或 edit 可选。对应 tokens.color.text.heading。",
       "title": "标题文字",
       "type": "string"
     },
     "text_heading_accent": {
+      "permission_type": "none",
       "description": "带主题强调的标题文字颜色。create 必填；clone 或 edit 可选。对应 tokens.color.text.headingAccent。",
       "title": "强调标题文字",
       "type": "string"
     },
     "text_inverse": {
+      "permission_type": "none",
       "description": "反色文字，用于深浅反差按钮或选中块。create 必填；clone 或 edit 可选。对应 tokens.color.text.inverse。",
       "title": "反色文字",
       "type": "string"
     },
     "text_selection_text": {
+      "permission_type": "none",
       "description": "文字被系统选中后的前景色。create 必填；clone 或 edit 可选。对应 tokens.color.text.selectionText。",
       "title": "选区文字",
       "type": "string"
     },
     "border_soft": {
+      "permission_type": "none",
       "description": "普通卡片、输入框、面板的柔和边框。create 必填；clone 或 edit 可选。对应 tokens.color.border.soft。",
       "title": "柔和边框",
       "type": "string"
     },
     "border_subtle": {
+      "permission_type": "none",
       "description": "更弱的分割边框。create 必填；clone 或 edit 可选。对应 tokens.color.border.subtle。",
       "title": "弱边框",
       "type": "string"
     },
     "border_strong": {
+      "permission_type": "none",
       "description": "强调边框、重要区域边框。create 必填；clone 或 edit 可选。对应 tokens.color.border.strong。",
       "title": "强边框",
       "type": "string"
     },
     "border_focus": {
+      "permission_type": "none",
       "description": "输入框、按钮、控件聚焦边框。create 必填；clone 或 edit 可选。对应 tokens.color.border.focus。",
       "title": "焦点边框",
       "type": "string"
     },
     "border_separator": {
+      "permission_type": "none",
       "description": "组件内部的普通分割线。create 必填；clone 或 edit 可选。对应 tokens.color.border.separator。",
       "title": "分割线",
       "type": "string"
     },
     "structure_enabled": {
+      "permission_type": "none",
       "description": "是否显示该主题的全部结构线。create 必填；clone 或 edit 可选。对应 tokens.structure.enabled。",
       "title": "启用结构线",
       "type": "boolean"
     },
     "structure_width": {
+      "permission_type": "none",
       "description": "结构线宽度，单位为像素。create 必填；clone 或 edit 可选。对应 tokens.structure.width。",
       "maximum": 2,
       "minimum": 1,
@@ -268,261 +304,313 @@
       "type": "integer"
     },
     "structure_color": {
+      "permission_type": "none",
       "description": "界面主要结构线的默认颜色。create 必填；clone 或 edit 可选。对应 tokens.structure.color。",
       "title": "结构线颜色",
       "type": "string"
     },
     "structure_hover_color": {
+      "permission_type": "none",
       "description": "可拖拽结构线悬浮时的颜色。create 必填；clone 或 edit 可选。对应 tokens.structure.hoverColor。",
       "title": "结构线悬浮颜色",
       "type": "string"
     },
     "structure_active_color": {
+      "permission_type": "none",
       "description": "可拖拽结构线按下时的颜色。create 必填；clone 或 edit 可选。对应 tokens.structure.activeColor。",
       "title": "结构线按下颜色",
       "type": "string"
     },
     "structure_titlebar_bottom": {
+      "permission_type": "none",
       "description": "是否显示顶边栏底部结构线。create 必填；clone 或 edit 可选。对应 tokens.structure.lines.titlebarBottom。",
       "title": "顶边栏底部结构线",
       "type": "boolean"
     },
     "structure_statusbar_top": {
+      "permission_type": "none",
       "description": "是否显示底边栏顶部结构线。create 必填；clone 或 edit 可选。对应 tokens.structure.lines.statusbarTop。",
       "title": "底边栏顶部结构线",
       "type": "boolean"
     },
     "structure_navigation_right": {
+      "permission_type": "none",
       "description": "是否显示左侧导航右侧结构线。create 必填；clone 或 edit 可选。对应 tokens.structure.lines.navigationRight。",
       "title": "左侧导航右侧结构线",
       "type": "boolean"
     },
     "structure_side_panel_right": {
+      "permission_type": "none",
       "description": "是否显示左侧面板右侧结构线。create 必填；clone 或 edit 可选。对应 tokens.structure.lines.sidePanelRight。",
       "title": "左侧面板右侧结构线",
       "type": "boolean"
     },
     "structure_assistant_panel_left": {
+      "permission_type": "none",
       "description": "是否显示右侧对话面板左侧结构线。create 必填；clone 或 edit 可选。对应 tokens.structure.lines.assistantPanelLeft。",
       "title": "对话面板左侧结构线",
       "type": "boolean"
     },
     "structure_content_split": {
+      "permission_type": "none",
       "description": "是否显示编辑预览、工具区等内容分栏结构线。create 必填；clone 或 edit 可选。对应 tokens.structure.lines.contentSplit。",
       "title": "内容分栏结构线",
       "type": "boolean"
     },
     "accent_base": {
+      "permission_type": "none",
       "description": "主题主强调色，按钮、图标、重点文字常用。create 必填；clone 或 edit 可选。对应 tokens.color.accent.base。",
       "title": "主题强调色",
       "type": "string"
     },
     "accent_rgb": {
+      "permission_type": "none",
       "description": "主题主强调色 RGB 三段数字，例如 222, 160, 89。create 必填；clone 或 edit 可选。对应 tokens.color.accent.rgb。",
       "title": "强调色 RGB",
       "type": "string"
     },
     "accent_hover": {
+      "permission_type": "none",
       "description": "强调元素悬浮颜色。create 必填；clone 或 edit 可选。对应 tokens.color.accent.hover。",
       "title": "强调悬浮色",
       "type": "string"
     },
     "accent_text": {
+      "permission_type": "none",
       "description": "普通强调文字颜色。create 必填；clone 或 edit 可选。对应 tokens.color.accent.text。",
       "title": "强调文字",
       "type": "string"
     },
     "accent_soft_text": {
+      "permission_type": "none",
       "description": "弱化强调文字颜色。create 必填；clone 或 edit 可选。对应 tokens.color.accent.softText。",
       "title": "弱强调文字",
       "type": "string"
     },
     "accent_selection_text": {
+      "permission_type": "none",
       "description": "主题选中态文字颜色。create 必填；clone 或 edit 可选。对应 tokens.color.accent.selectionText。",
       "title": "选中态文字",
       "type": "string"
     },
     "accent_selection_bg_subtle": {
+      "permission_type": "none",
       "description": "轻选中背景。create 必填；clone 或 edit 可选。对应 tokens.color.accent.selectionBgSubtle。",
       "title": "轻选中背景",
       "type": "string"
     },
     "accent_selection_bg": {
+      "permission_type": "none",
       "description": "标准选中背景。create 必填；clone 或 edit 可选。对应 tokens.color.accent.selectionBg。",
       "title": "选中背景",
       "type": "string"
     },
     "accent_selection_bg_hover": {
+      "permission_type": "none",
       "description": "选中项悬浮背景。create 必填；clone 或 edit 可选。对应 tokens.color.accent.selectionBgHover。",
       "title": "选中悬浮背景",
       "type": "string"
     },
     "accent_selection_border": {
+      "permission_type": "none",
       "description": "选中卡片、选中会话、重点项边框。create 必填；clone 或 edit 可选。对应 tokens.color.accent.selectionBorder。",
       "title": "选中边框",
       "type": "string"
     },
     "accent_text_selection_bg": {
+      "permission_type": "none",
       "description": "系统文字选区背景。create 必填；clone 或 edit 可选。对应 tokens.color.accent.textSelectionBg。",
       "title": "文字选区背景",
       "type": "string"
     },
     "state_danger": {
+      "permission_type": "none",
       "description": "危险状态主色。create 必填；clone 或 edit 可选。对应 tokens.color.state.danger。",
       "title": "危险主色",
       "type": "string"
     },
     "state_danger_text": {
+      "permission_type": "none",
       "description": "危险操作文字颜色。create 必填；clone 或 edit 可选。对应 tokens.color.state.dangerText。",
       "title": "危险文字",
       "type": "string"
     },
     "state_danger_soft_text": {
+      "permission_type": "none",
       "description": "弱化危险提示文字颜色。create 必填；clone 或 edit 可选。对应 tokens.color.state.dangerSoftText。",
       "title": "弱危险文字",
       "type": "string"
     },
     "state_danger_bg": {
+      "permission_type": "none",
       "description": "危险提示背景。create 必填；clone 或 edit 可选。对应 tokens.color.state.dangerBg。",
       "title": "危险背景",
       "type": "string"
     },
     "state_danger_border": {
+      "permission_type": "none",
       "description": "危险提示边框。create 必填；clone 或 edit 可选。对应 tokens.color.state.dangerBorder。",
       "title": "危险边框",
       "type": "string"
     },
     "state_warning": {
+      "permission_type": "none",
       "description": "警告状态主色。create 必填；clone 或 edit 可选。对应 tokens.color.state.warning。",
       "title": "警告主色",
       "type": "string"
     },
     "state_warning_text": {
+      "permission_type": "none",
       "description": "警告文字颜色。create 必填；clone 或 edit 可选。对应 tokens.color.state.warningText。",
       "title": "警告文字",
       "type": "string"
     },
     "state_success": {
+      "permission_type": "none",
       "description": "成功状态主色。create 必填；clone 或 edit 可选。对应 tokens.color.state.success。",
       "title": "成功主色",
       "type": "string"
     },
     "state_success_text": {
+      "permission_type": "none",
       "description": "成功文字颜色。create 必填；clone 或 edit 可选。对应 tokens.color.state.successText。",
       "title": "成功文字",
       "type": "string"
     },
     "collapse_fade_start": {
+      "permission_type": "none",
       "description": "折叠渐隐起始颜色。create 必填；clone 或 edit 可选。对应 tokens.color.collapse.fadeStart。",
       "title": "折叠渐隐起点",
       "type": "string"
     },
     "collapse_fade_mid": {
+      "permission_type": "none",
       "description": "折叠渐隐中段颜色。create 必填；clone 或 edit 可选。对应 tokens.color.collapse.fadeMid。",
       "title": "折叠渐隐中段",
       "type": "string"
     },
     "collapse_fade_end": {
+      "permission_type": "none",
       "description": "折叠渐隐结束颜色。create 必填；clone 或 edit 可选。对应 tokens.color.collapse.fadeEnd。",
       "title": "折叠渐隐终点",
       "type": "string"
     },
     "collapse_caret": {
+      "permission_type": "none",
       "description": "折叠展开箭头颜色。create 必填；clone 或 edit 可选。对应 tokens.color.collapse.caret。",
       "title": "折叠箭头",
       "type": "string"
     },
     "scrollbar_track": {
+      "permission_type": "none",
       "description": "滚动条轨道颜色。create 必填；clone 或 edit 可选。对应 tokens.color.scrollbar.track。",
       "title": "滚动条轨道",
       "type": "string"
     },
     "scrollbar_thumb": {
+      "permission_type": "none",
       "description": "滚动条滑块颜色。create 必填；clone 或 edit 可选。对应 tokens.color.scrollbar.thumb。",
       "title": "滚动条滑块",
       "type": "string"
     },
     "scrollbar_thumb_hover": {
+      "permission_type": "none",
       "description": "滚动条滑块悬浮颜色。create 必填；clone 或 edit 可选。对应 tokens.color.scrollbar.thumbHover。",
       "title": "滚动条悬浮",
       "type": "string"
     },
     "shadow_floating": {
+      "permission_type": "none",
       "description": "浮层阴影。create 必填；clone 或 edit 可选。对应 tokens.shadow.floating。",
       "title": "浮层阴影",
       "type": "string"
     },
     "shadow_panel": {
+      "permission_type": "none",
       "description": "面板阴影。create 必填；clone 或 edit 可选。对应 tokens.shadow.panel。",
       "title": "面板阴影",
       "type": "string"
     },
     "editor_background": {
+      "permission_type": "none",
       "description": "代码编辑器背景。create 必填；clone 或 edit 可选。对应 tokens.editor.background。",
       "title": "编辑器背景",
       "type": "string"
     },
     "editor_foreground": {
+      "permission_type": "none",
       "description": "代码编辑器正文颜色。create 必填；clone 或 edit 可选。对应 tokens.editor.foreground。",
       "title": "编辑器文字",
       "type": "string"
     },
     "editor_gutter_background": {
+      "permission_type": "none",
       "description": "代码编辑器行号栏背景。create 必填；clone 或 edit 可选。对应 tokens.editor.gutterBackground。",
       "title": "编辑器行号栏背景",
       "type": "string"
     },
     "editor_gutter_foreground": {
+      "permission_type": "none",
       "description": "代码编辑器行号文字颜色。create 必填；clone 或 edit 可选。对应 tokens.editor.gutterForeground。",
       "title": "编辑器行号文字",
       "type": "string"
     },
     "editor_active_line": {
+      "permission_type": "none",
       "description": "代码编辑器当前行背景。create 必填；clone 或 edit 可选。对应 tokens.editor.activeLine。",
       "title": "编辑器当前行",
       "type": "string"
     },
     "editor_selection_match": {
+      "permission_type": "none",
       "description": "代码编辑器搜索匹配或选区匹配背景。create 必填；clone 或 edit 可选。对应 tokens.editor.selectionMatch。",
       "title": "编辑器匹配背景",
       "type": "string"
     },
     "editor_tooltip_background": {
+      "permission_type": "none",
       "description": "代码编辑器提示浮层背景。create 必填；clone 或 edit 可选。对应 tokens.editor.tooltipBackground。",
       "title": "编辑器提示背景",
       "type": "string"
     },
     "integration_code_mirror": {
+      "permission_type": "none",
       "description": "CodeMirror 主题模式，例如 dark 或 light。create 必填；clone 或 edit 可选。对应 integrations.codeMirror。",
       "title": "CodeMirror 主题",
       "type": "string"
     },
     "integration_shiki": {
+      "permission_type": "none",
       "description": "Shiki 代码高亮主题名，例如 github-dark-default。create 必填；clone 或 edit 可选。对应 integrations.shiki。",
       "title": "Shiki 主题",
       "type": "string"
     },
     "integration_mermaid": {
+      "permission_type": "none",
       "description": "Mermaid 图表主题名，例如 dark、default、neutral。create 必填；clone 或 edit 可选。对应 integrations.mermaid。",
       "title": "Mermaid 主题",
       "type": "string"
     },
     "integration_milkdown": {
+      "permission_type": "none",
       "description": "Milkdown Markdown 编辑器主题名，例如 dark 或 light。create 必填；clone 或 edit 可选。对应 integrations.milkdown。",
       "title": "Milkdown 主题",
       "type": "string"
     },
     "background_image_path": {
+      "permission_type": "filesystem_read",
       "description": "create、clone 或 edit 使用。要设为背景的本地图片文件路径，支持绝对路径或相对项目根目录路径。工具会复制到 Data/themes/<theme_id>/assets，并使用 源文件名-内容指纹.扩展名 命名；背景图配置保存在对应主题包 theme.json 的 tokens.background 中，JSON 内写入 assets/<文件名>。支持 avif、gif、jpeg、jpg、png、webp。设置背景图且 background_opacity 大于 0 时会启用背景透出模式，主要面板、侧栏、画布和编辑器背景将透明显示背景图。",
       "title": "背景图源文件路径",
       "type": "string"
     },
     "clear_background_image": {
+      "permission_type": "none",
       "description": "clone 或 edit 使用。设为 true 时清空克隆结果或当前主题的背景图；可同时设置其他背景参数。create 不需要传。",
       "title": "清空背景图",
       "type": "boolean"
     },
     "background_opacity": {
+      "permission_type": "none",
       "description": "create、clone 或 edit 使用。背景图透明度，0 到 1。存在背景图时，大于 0 会启用背景透出模式，主要面板、侧栏、画布和编辑器背景将透明显示背景图；设为 0 时不显示背景图，并恢复主题定义的各区域背景色。1 表示完全显示背景图。",
       "maximum": 1,
       "minimum": 0,
@@ -530,6 +618,7 @@
       "type": "number"
     },
     "background_blur": {
+      "permission_type": "none",
       "description": "create、clone 或 edit 使用。背景图高斯模糊像素，0 到 80。",
       "maximum": 80,
       "minimum": 0,
@@ -537,21 +626,25 @@
       "type": "integer"
     },
     "background_overlay": {
+      "permission_type": "none",
       "description": "create、clone 或 edit 使用。背景图上方遮罩颜色，例如 transparent、rgba(0, 0, 0, 0.18) 或 rgba(255, 255, 255, 0.12)。",
       "title": "背景图遮罩",
       "type": "string"
     },
     "background_position": {
+      "permission_type": "none",
       "description": "create、clone 或 edit 使用。背景图位置，例如 center、top center、left center。",
       "title": "背景图位置",
       "type": "string"
     },
     "background_size": {
+      "permission_type": "none",
       "description": "create、clone 或 edit 使用。背景图尺寸策略，例如 cover、contain、auto、100% 100%。",
       "title": "背景图尺寸",
       "type": "string"
     },
     "background_repeat": {
+      "permission_type": "none",
       "description": "create、clone 或 edit 使用。背景图重复方式。",
       "enum": [
         "no-repeat",
@@ -563,6 +656,7 @@
       "type": "string"
     },
     "restore_theme_ids": {
+      "permission_type": "tiance_data_write",
       "description": "restore 使用。要恢复的内置主题 ID；不填或空数组表示恢复 dark-gold 和 light 两个备份。",
       "items": {
         "enum": [

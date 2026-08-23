@@ -135,6 +135,7 @@ export function DesktopShellProvider({ children }: PropsWithChildren) {
         capabilities.nativeWindowResizeSupported &&
         canStartDesktopShellNativeResize(),
       nativeResizeMode: state.available ? capabilities.nativeWindowResizeMode : "none",
+      canHideToTray: state.available && capabilities.systemTraySupported,
       persistWindowSizePreferences,
       selectProjectFolder: selectDesktopShellProjectFolder,
       setBounds,

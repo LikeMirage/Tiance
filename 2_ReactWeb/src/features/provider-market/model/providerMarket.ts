@@ -1,8 +1,7 @@
 export type ProviderMarketInstallationStatus =
   | "not-installed"
   | "installed"
-  | "update-available"
-  | "local-conflict";
+  | "update-available";
 
 export type ProviderMarketProvider = {
   author: string;

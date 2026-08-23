@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "kind": "tiance-provider-package",
+  "id": "moonshot",
+  "name": "Moonshot",
+  "version": "1.0.1",
+  "author": {
+    "name": "LikeMirage"
+  },
+  "summary": "Moonshot 的天策供应商定义、协议端点与声明式模型适配。",
+  "license": "CC0-1.0",
+  "compatibility": {
+    "minTianceVersion": "0.3.18"
+  },
+  "managedModelIds": []
+}

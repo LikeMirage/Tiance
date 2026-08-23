@@ -3,6 +3,7 @@
   "description": "管理工具调用上下文所属项目的 AI 会话。list_sessions 默认只返回调用会话的父级链和自己的下级树，可选择查看项目全部会话，并只提供用于定位会话的实时标题、ID、状态和聊天面板当前显示的 active_session_id；get_session_info 查看配置及分支、子会话来源等属性；get_session 读取最近消息和用量。需要检索完整原始历史时使用结果中的 history_locator。create_session 的继承来源固定为工具调用上下文中的会话。取得会话 ID 后可交给 interact_ai_conversation 发送消息，并要求目标 AI 通过来源会话 ID 直接汇报。",
   "properties": {
     "action": {
+      "permission_type": "tiance_data_delete",
       "description": "要执行的会话管理动作。",
       "enum": [
         "query_models",
@@ -62,6 +63,7 @@
       "type": "string"
     },
     "scope": {
+      "permission_type": "tiance_data_read",
       "default": "related",
       "description": "list_sessions 的查看范围。related 只返回调用会话的父级链和自己的下级树，不包含调用会话本身及同级会话；all 返回当前项目全部会话。",
       "enum": [
@@ -82,38 +84,45 @@
       "type": "string"
     },
     "relation_depth": {
+      "permission_type": "tiance_data_read",
       "description": "scope=related 时向上和向下各自最多查看多少级。1 表示直接父级与直接下级；省略表示不限层级。scope=all 时不要传。",
       "minimum": 1,
       "title": "关系深度",
       "type": "integer"
     },
     "session_id": {
+      "permission_type": "tiance_data_read",
       "description": "目标会话 ID。get_session_info、get_session、configure_session、stop_session、delete_session 和 show_session 必填；create_session 和 name_parent_session 不使用此参数。",
       "title": "会话 ID",
       "type": "string"
     },
     "title": {
+      "permission_type": "tiance_data_write",
       "description": "name_parent_session 要提交的最终父会话标题。",
       "minLength": 1,
       "title": "会话标题",
       "type": "string"
     },
     "query": {
+      "permission_type": "tiance_data_read",
       "description": "query_models 的搜索词。按模型选择器现有规则匹配供应商、模型、模型族、来源和能力标签。",
       "title": "模型搜索词",
       "type": "string"
     },
     "provider_id": {
+      "permission_type": "tiance_data_write",
       "description": "query_models 的供应商筛选。只传此项时返回该供应商下可用于对话的模型。",
       "title": "供应商 ID",
       "type": "string"
     },
     "model_id": {
+      "permission_type": "tiance_data_write",
       "description": "query_models 的模型筛选。与 provider_id 一起精确指定模型时，返回该模型的运行能力和实际可选推理模式。",
       "title": "模型 ID",
       "type": "string"
     },
     "configuration": {
+      "permission_type": "tiance_data_write",
       "additionalProperties": false,
       "description": "create_session 和 configure_session 共用的局部配置。create_session 先完整继承调用会话配置，再应用这里明确给出的字段；configure_session 只修改明确给出的字段。推理模式、采样参数支持性和最大输出长度会按目标模型的运行能力校验。",
       "properties": {
@@ -265,6 +274,7 @@
       "type": "object"
     },
     "message_depth": {
+      "permission_type": "tiance_data_read",
       "default": 1,
       "description": "get_session 返回最近多少个已完成对话轮次。按轮次向前读取直到满足请求深度，默认 1；不是原始消息条数。",
       "minimum": 1,
@@ -272,6 +282,7 @@
       "type": "integer"
     },
     "message_format": {
+      "permission_type": "tiance_data_read",
       "default": "content_only",
       "description": "get_session 的消息返回形式。content_only 只返回所选轮次的用户正文和最终回复正文（assistant 或 error）；full 返回所选轮次完整结构，包括工具调用、工具结果、思考、状态和用量。",
       "enum": [
@@ -292,6 +303,7 @@
       "type": "string"
     },
     "confirm": {
+      "permission_type": "tiance_data_write",
       "default": false,
       "description": "delete_session 的显式删除确认，必须为 true。",
       "title": "确认删除",

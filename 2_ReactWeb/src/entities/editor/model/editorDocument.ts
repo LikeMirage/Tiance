@@ -62,12 +62,12 @@ export type WorkspaceState = {
   expanded_paths: string[];
   open_file_paths: string[];
   active_file_path: string | null;
-  active_dashboard: "conversation_overview" | "role_configuration" | "theme_configuration" | null;
+  active_dashboard: "conversation_overview" | "knowledge_content" | "role_configuration" | "theme_configuration" | null;
 };
 
 export type WorkspaceStateSaveRequest = {
   expanded_paths: string[];
   open_file_paths: string[];
   active_file_path: string | null;
-  active_dashboard: "conversation_overview" | "role_configuration" | "theme_configuration" | null;
+  active_dashboard: "conversation_overview" | "knowledge_content" | "role_configuration" | "theme_configuration" | null;
 };

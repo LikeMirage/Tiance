@@ -26,15 +26,9 @@ from app.repositories.llm.provider_catalog_repository import (
     ProviderCatalogRepository,
     get_provider_catalog_repository,
 )
-from app.repositories.llm.provider_cloud_model_repository import (
-    ProviderCloudModelRepository,
-    get_provider_cloud_model_repository,
-)
 from app.repositories.llm.provider_file_store import (
-    PROVIDER_CLOUD_CACHE_FILE,
     PROVIDER_MANIFEST_FILE,
     PROVIDER_MODEL_RULES_FILE,
-    PROVIDER_MODELS_FILE,
     PROVIDER_RULES_FILE,
     ProviderFileStore,
     get_provider_file_store,
@@ -64,13 +58,11 @@ from app.services.project import ProjectService, get_project_service
 
 
 MARKET_MANIFEST_FILE = "manifest.json"
-MARKET_MANAGED_FILES = {
+PROVIDER_COMPATIBLE_UPDATE_FILES = (
     MARKET_MANIFEST_FILE,
-    PROVIDER_MANIFEST_FILE,
     PROVIDER_RULES_FILE,
     PROVIDER_MODEL_RULES_FILE,
-    PROVIDER_MODELS_FILE,
-}
+)
 _PROVIDER_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
 _SEMVER_PATTERN = re.compile(
     r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$"
@@ -89,7 +81,6 @@ class ProviderMarketApplicationService:
         archive: ProviderPackageArchive,
         file_store: ProviderFileStore,
         catalog_repository: ProviderCatalogRepository,
-        cloud_model_repository: ProviderCloudModelRepository,
         workspace_registry: ProviderWorkspaceRegistryService,
         project_service: ProjectService,
     ) -> None:
@@ -101,7 +92,6 @@ class ProviderMarketApplicationService:
         self._archive = archive
         self._file_store = file_store
         self._catalog_repository = catalog_repository
-        self._cloud_model_repository = cloud_model_repository
         self._workspace_registry = workspace_registry
         self._project_service = project_service
         self._downloads_root = self._providers_root / ".downloads"
@@ -141,13 +131,8 @@ class ProviderMarketApplicationService:
         if _PROVIDER_ID_PATTERN.fullmatch(provider_id) is None:
             raise BadRequestError("在线供应商 ID 无效。")
 
-        local_exists = self._file_store.has_provider(provider_id)
+        local_exists = self._file_store.has_provider_directory(provider_id)
         local_manifest = self._read_local_market_manifest(provider_id) if local_exists else None
-        if local_exists and local_manifest is None:
-            raise ConflictError(
-                "本地已有同名供应商，市场不会自动覆盖它。",
-                details={"reason": "provider_local_conflict", "provider_id": provider_id},
-            )
         if local_exists and not replace_existing:
             raise ConflictError(
                 "此供应商已经安装。",
@@ -189,7 +174,6 @@ class ProviderMarketApplicationService:
                     self._update_installed_provider,
                     provider_id=provider_id,
                     package_root=package_root,
-                    previous_manifest=local_manifest,
                     backup_root=operation_root / "backup",
                 )
                 updated = True
@@ -229,7 +213,7 @@ class ProviderMarketApplicationService:
         if target_root.exists():
             raise ConflictError("本地已有同名供应商。")
         old_order = self._catalog_repository.list_ordered_provider_ids()
-        self._prepare_runtime_manifest(package_root, previous=None)
+        self._prepare_new_provider_definition(package_root)
         try:
             target_root.parent.mkdir(parents=True, exist_ok=True)
             atomic_replace_path(package_root, target_root)
@@ -254,30 +238,26 @@ class ProviderMarketApplicationService:
         *,
         provider_id: str,
         package_root: Path,
-        previous_manifest: ProviderPackageManifest,
         backup_root: Path,
     ) -> None:
         target_root = self._file_store.provider_dir(provider_id)
+        self._require_compatible_update(
+            provider_id=provider_id,
+            target_root=target_root,
+            package_root=package_root,
+        )
         backup_root.mkdir(parents=True, exist_ok=True)
         backed_up: set[str] = set()
-        for file_name in MARKET_MANAGED_FILES:
-            source = target_root / file_name
-            if source.is_file():
-                shutil.copy2(source, backup_root / file_name)
+        for file_name in PROVIDER_COMPATIBLE_UPDATE_FILES:
+            source_path = target_root / file_name
+            if source_path.is_file():
+                shutil.copy2(source_path, backup_root / file_name)
                 backed_up.add(file_name)
-        self._prepare_runtime_manifest(package_root, previous=target_root / PROVIDER_MANIFEST_FILE)
-        self._merge_local_models(
-            provider_id=provider_id,
-            package_root=package_root,
-            previous_manifest=previous_manifest,
-        )
         try:
-            for file_name in sorted(MARKET_MANAGED_FILES):
+            for file_name in PROVIDER_COMPATIBLE_UPDATE_FILES:
                 _atomic_copy(package_root / file_name, target_root / file_name)
-            self._cloud_model_repository.delete_provider_cache(provider_id)
-            self._workspace_registry.synchronize()
         except Exception:
-            for file_name in MARKET_MANAGED_FILES:
+            for file_name in PROVIDER_COMPATIBLE_UPDATE_FILES:
                 target = target_root / file_name
                 backup = backup_root / file_name
                 if file_name in backed_up:
@@ -285,51 +265,49 @@ class ProviderMarketApplicationService:
                 else:
                     with suppress(OSError):
                         target.unlink(missing_ok=True)
-            with suppress(Exception):
-                self._workspace_registry.synchronize()
             raise
 
     @staticmethod
-    def _prepare_runtime_manifest(package_root: Path, previous: Path | None) -> None:
+    def _prepare_new_provider_definition(package_root: Path) -> None:
         package_path = package_root / PROVIDER_MANIFEST_FILE
         payload = _read_json_object(package_path)
-        previous_payload = _read_json_object(previous) if previous is not None else {}
+        now = _utc_now()
         payload.update(
             {
-                "enabled": bool(previous_payload.get("enabled", False)),
-                "createdAt": previous_payload.get("createdAt") or _utc_now(),
-                "updatedAt": _utc_now(),
+                "enabled": False,
+                "createdAt": now,
+                "updatedAt": now,
             }
         )
         _write_json(package_path, payload)
 
-    def _merge_local_models(
-        self,
+    @staticmethod
+    def _require_compatible_update(
         *,
         provider_id: str,
+        target_root: Path,
         package_root: Path,
-        previous_manifest: ProviderPackageManifest,
     ) -> None:
-        local_payload = self._file_store.read_provider_file(
-            provider_id,
-            PROVIDER_MODELS_FILE,
-            required=False,
-        ) or {"schemaVersion": 1, "items": []}
-        package_path = package_root / PROVIDER_MODELS_FILE
-        package_payload = _read_json_object(package_path)
-        old_managed_ids = set(previous_manifest.managed_model_ids)
-        new_items = package_payload.get("items")
-        local_items = local_payload.get("items")
-        if not isinstance(new_items, list) or not isinstance(local_items, list):
-            raise BadRequestError("供应商模型目录格式无效。")
-        merged = [item for item in new_items if isinstance(item, dict)]
-        merged.extend(
-            item
-            for item in local_items
-            if isinstance(item, dict) and item.get("modelId") not in old_managed_ids
-        )
-        package_payload["items"] = merged
-        _write_json(package_path, package_payload)
+        try:
+            local_definition = _read_json_object(target_root / PROVIDER_MANIFEST_FILE)
+            incoming_definition = _read_json_object(package_root / PROVIDER_MANIFEST_FILE)
+        except (OSError, ValueError) as exc:
+            raise BadRequestError(
+                "本地供应商定义无效，无法执行只更新适配规则。"
+            ) from exc
+        if local_definition.get("id") != provider_id:
+            raise BadRequestError("本地供应商 ID 与目录不一致，无法更新。")
+        if (
+            local_definition.get("schemaVersion") != incoming_definition.get("schemaVersion")
+            or local_definition.get("profileId") != incoming_definition.get("profileId")
+        ):
+            raise ConflictError(
+                "此版本改变了供应商适配身份，不能作为兼容更新；请使用新的供应商 ID 发布。",
+                details={
+                    "reason": "provider_incompatible_update",
+                    "provider_id": provider_id,
+                },
+            )
 
     @staticmethod
     def _validate_index_payload(
@@ -355,10 +333,10 @@ class ProviderMarketApplicationService:
     ) -> ProviderMarketIndexResponse:
         providers: list[ProviderMarketProviderResponse] = []
         for entry in index.providers:
-            local_exists = self._file_store.has_provider(entry.id)
+            local_exists = self._file_store.has_provider_directory(entry.id)
             manifest = self._read_local_market_manifest(entry.id) if local_exists else None
             if manifest is None:
-                status = "local-conflict" if local_exists else "not-installed"
+                status = "update-available" if local_exists else "not-installed"
                 local_version = None
             else:
                 local_version = manifest.version
@@ -490,7 +468,6 @@ def get_provider_market_application_service() -> ProviderMarketApplicationServic
         archive=ProviderPackageArchive(),
         file_store=get_provider_file_store(),
         catalog_repository=get_provider_catalog_repository(),
-        cloud_model_repository=get_provider_cloud_model_repository(),
         workspace_registry=get_provider_workspace_registry_service(),
         project_service=get_project_service(),
     )

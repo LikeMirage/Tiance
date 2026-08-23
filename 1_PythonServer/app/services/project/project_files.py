@@ -9,7 +9,7 @@ from pathlib import PurePosixPath
 from secrets import token_hex
 
 from app.core.errors import BadRequestError, NotFoundError
-from app.domain.file_workspace import FileEntryTree
+from app.domain.file_workspace import ContentFileSnapshot, FileEntryTree
 from app.domain.project.project_file import ProjectFileKind, ProjectFileNode
 from app.infra.file_workspace import FileWorkspaceStorage, get_file_workspace_storage
 from app.infra.projects import require_existing_project_root, watch_project_file_changes
@@ -85,6 +85,11 @@ class ProjectFileService:
     def get_project_root(self, project_id: str) -> str:
         """返回项目根目录，用于文件监听等跨请求能力。"""
         return self._require_project_root(project_id)
+
+    def list_content_files(self, project_id: str) -> ContentFileSnapshot:
+        """返回项目内容文件快照，不包含根级会话数据目录。"""
+        project_root = self._require_project_root(project_id)
+        return self._storage.list_content_files(project_root)
 
     def watch_file_changes(self, project_id: str):
         """监听项目文件变化，返回隔离后的状态与项目相对路径事件。"""

@@ -51,6 +51,12 @@ class ProviderFileStore:
         except ProviderFileStoreError:
             return False
 
+    def has_provider_directory(self, provider_id: str) -> bool:
+        try:
+            return self.provider_dir(provider_id).is_dir()
+        except ProviderFileStoreError:
+            return False
+
     def read_provider_file(
         self,
         provider_id: str,

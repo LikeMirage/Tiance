@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -140,3 +141,45 @@ def test_file_workspace_storage_lists_file_mtime_for_external_change_detection(t
 
     assert isinstance(listed.mtime_ms, int)
     assert searched.mtime_ms == listed.mtime_ms
+
+
+def test_content_file_snapshot_lists_all_regular_files_except_root_session_data(tmp_path):
+    storage = FileWorkspaceStorage()
+    (tmp_path / ".Tiance" / "conversations").mkdir(parents=True)
+    (tmp_path / ".Tiance" / "conversations" / "messages.jsonl").write_text(
+        "session",
+        encoding="utf-8",
+    )
+    (tmp_path / "node_modules").mkdir()
+    (tmp_path / "node_modules" / "package.js").write_text("content", encoding="utf-8")
+    (tmp_path / "notes" / ".Tiance").mkdir(parents=True)
+    (tmp_path / "notes" / ".Tiance" / "user-note.md").write_text("note", encoding="utf-8")
+    (tmp_path / "root.txt").write_text("root", encoding="utf-8")
+
+    snapshot = storage.list_content_files(str(tmp_path))
+
+    assert {item.path for item in snapshot.items} == {
+        "node_modules/package.js",
+        "notes/.Tiance/user-note.md",
+        "root.txt",
+    }
+    assert snapshot.unreadable_paths == ()
+
+
+def test_content_file_snapshot_is_sorted_by_mtime_then_path_without_truncation(tmp_path):
+    storage = FileWorkspaceStorage()
+    for index in range(360):
+        target = tmp_path / f"item-{index:03}.txt"
+        target.write_text("content", encoding="utf-8")
+        os.utime(target, (1_700_000_000, 1_700_000_000))
+    newest = tmp_path / "newest.txt"
+    newest.write_text("newest", encoding="utf-8")
+    os.utime(newest, (1_800_000_000, 1_800_000_000))
+
+    snapshot = storage.list_content_files(str(tmp_path))
+
+    assert len(snapshot.items) == 361
+    assert snapshot.items[0].path == "newest.txt"
+    assert [item.path for item in snapshot.items[1:]] == [
+        f"item-{index:03}.txt" for index in range(360)
+    ]

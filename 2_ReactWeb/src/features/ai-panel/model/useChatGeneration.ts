@@ -84,6 +84,7 @@ type UseChatGenerationOptions = {
   clientToolExecutor?: ClientToolExecutor | null;
   clientToolCapabilities: readonly ChatClientCapability[];
   clearReferences: () => void;
+  restoreReferences: (references: ConversationMessageReferences) => void;
   createSessionStreamController: (sessionKey: string) => AbortController;
   draft: string;
   references: ConversationMessageReferences;
@@ -126,6 +127,7 @@ export function useChatGeneration({
   clientToolExecutor,
   clientToolCapabilities,
   clearReferences,
+  restoreReferences,
   createSessionStreamController,
   draft,
   references,
@@ -354,6 +356,7 @@ export function useChatGeneration({
     });
     let shouldClearEventSequence = false;
     let publishedRunningContent = false;
+    let runAccepted = false;
     let streamWasCancelled = false;
 
     try {
@@ -368,6 +371,9 @@ export function useChatGeneration({
         clientCapabilities: clientToolCapabilities,
       }), {
         onEvent: async (event) => {
+          if (event.kind === "conversation_run_started") {
+            runAccepted = true;
+          }
           if (!publishedRunningContent) {
             publishedRunningContent = true;
             dispatchProjectConversationUpdated({
@@ -453,6 +459,16 @@ export function useChatGeneration({
       }
     } catch (err) {
       streamAccumulator.clearFlushTimer();
+      if (!runAccepted && !isAbortError(err)) {
+        updateSessionMessages(streamProjectId, sessionId, (prev) =>
+          prev.filter((message) => message.id !== userMessageId));
+        if (canApplyStreamUpdate()) {
+          setDraft((currentDraft) => currentDraft || draft);
+          if (hasReferences) {
+            restoreReferences(requestReferences);
+          }
+        }
+      }
       if (isAbortError(err)) {
         shouldClearEventSequence = true;
         streamAccumulator.finalizeCancelled();
@@ -544,6 +560,7 @@ export function useChatGeneration({
     clientToolExecutor,
     clientToolCapabilities,
     clearReferences,
+    restoreReferences,
     createSessionStreamController,
     draft,
     ensureSession,

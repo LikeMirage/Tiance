@@ -11,7 +11,6 @@ import type {
   CustomModelDraft,
   CustomModelDraftField,
   ModelManagementMode,
-  ModelManagementTransitionDirection,
   CustomModelCapabilityTag,
 } from "./modelManagementTypes";
 import { useAddedCustomModelFilters } from "./useAddedCustomModelFilters";
@@ -29,7 +28,6 @@ export type {
   CustomModelDraft,
   CustomModelDraftField,
   ModelManagementMode,
-  ModelManagementTransitionDirection,
 } from "./modelManagementTypes";
 
 export interface UseProviderModelManagementResult {
@@ -59,7 +57,6 @@ export interface UseProviderModelManagementResult {
   selectCustomMode: () => void;
   startEditingCustomModel: (modelId: string) => void;
   toggleCustomModelCapability: (tag: CustomModelCapabilityTag) => void;
-  transitionDirection: ModelManagementTransitionDirection;
   updateAddedModelSearchQuery: (value: string) => void;
   updateCustomModelDraft: (field: CustomModelDraftField, value: string) => void;
 }
@@ -151,7 +148,6 @@ export function useProviderModelManagement(
     selectCustomMode: modelManagementMode.selectCustomMode,
     startEditingCustomModel: customModelDraft.startEditingCustomModel,
     toggleCustomModelCapability: customModelDraft.toggleCustomModelCapability,
-    transitionDirection: modelManagementMode.transitionDirection,
     updateAddedModelSearchQuery: addedModelFilters.updateAddedModelSearchQuery,
     updateCustomModelDraft: customModelDraft.updateCustomModelDraft,
   };

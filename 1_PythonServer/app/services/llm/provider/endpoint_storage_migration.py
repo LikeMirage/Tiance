@@ -13,6 +13,7 @@ from app.domain.llm.provider_catalog import (
 from app.domain.llm.provider_endpoint_templates import (
     derive_model_discovery_url,
 )
+from app.domain.llm.reasoning_replay import ReasoningReplayMode
 from app.repositories.llm.provider_file_store import (
     PROVIDER_MANIFEST_FILE,
     PROVIDER_SCHEMA_VERSION,
@@ -33,6 +34,8 @@ _MODEL_DISCOVERY_STRATEGY_VERSION = 1
 _MODEL_DISCOVERY_STRATEGY_VERSION_KEY = "modelDiscoveryStrategyVersion"
 _PROVIDER_AUTH_CONTRACT_VERSION = 1
 _PROVIDER_AUTH_CONTRACT_VERSION_KEY = "providerAuthContractVersion"
+_REASONING_REPLAY_MODE_VERSION = 1
+_REASONING_REPLAY_MODE_VERSION_KEY = "reasoningReplayModeVersion"
 _PROTOCOL_VALUES = frozenset(item.value for item in ProviderProtocolFamily)
 
 
@@ -47,6 +50,7 @@ def provider_endpoint_storage_version_fields() -> dict[str, int]:
         ),
         _MODEL_DISCOVERY_STRATEGY_VERSION_KEY: _MODEL_DISCOVERY_STRATEGY_VERSION,
         _PROVIDER_AUTH_CONTRACT_VERSION_KEY: _PROVIDER_AUTH_CONTRACT_VERSION,
+        _REASONING_REPLAY_MODE_VERSION_KEY: _REASONING_REPLAY_MODE_VERSION,
     }
 
 
@@ -102,12 +106,18 @@ def migrate_provider_endpoint_storage(
         _PROVIDER_AUTH_CONTRACT_VERSION_KEY,
         _PROVIDER_AUTH_CONTRACT_VERSION,
     )
+    reasoning_replay_mode_current = _version_is_current(
+        settings,
+        _REASONING_REPLAY_MODE_VERSION_KEY,
+        _REASONING_REPLAY_MODE_VERSION,
+    )
     all_versions_current = (
         model_urls_current
         and generation_url_storage_current
         and preset_generation_url_defaults_current
         and model_discovery_strategy_current
         and auth_contract_current
+        and reasoning_replay_mode_current
     )
 
     for provider_id in store.list_provider_ids():
@@ -141,6 +151,11 @@ def migrate_provider_endpoint_storage(
             preset_manifest=preset_manifests.get(provider_id),
             updated_at=updated_at,
         ) or changed
+        if not reasoning_replay_mode_current:
+            changed = _fill_reasoning_replay_mode(
+                manifest,
+                updated_at=updated_at,
+            ) or changed
         if changed:
             store.write_provider_file(provider_id, PROVIDER_MANIFEST_FILE, manifest)
 
@@ -155,6 +170,21 @@ def migrate_provider_endpoint_storage(
         }
     )
     store.write_settings(settings)
+
+
+def _fill_reasoning_replay_mode(
+    manifest: dict[str, Any],
+    *,
+    updated_at: str,
+) -> bool:
+    """Add the field introduced after the original file contract without touching user data."""
+    current = _optional_text(manifest, "reasoningReplayMode")
+    if current is not None:
+        ReasoningReplayMode(current)
+        return False
+    manifest["reasoningReplayMode"] = ReasoningReplayMode.TOOL_CALL_ROUNDS.value
+    manifest["updatedAt"] = updated_at
+    return True
 
 
 def _migrate_generation_url_storage(

@@ -81,6 +81,7 @@
 
 .chat-msg__tools-timer {
   color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .chat-msg__tools-status--running {
@@ -89,6 +90,10 @@
 
 .chat-msg__tools-status--error {
   color: var(--color-danger-soft-text);
+}
+
+.chat-msg__tools-status--waiting {
+  color: var(--color-accent);
 }
 
 .chat-msg__tools-list {
@@ -128,7 +133,6 @@
   border: 0;
   background: transparent;
   color: inherit;
-  cursor: pointer;
   text-align: left;
 }
 
@@ -139,6 +143,20 @@
 
 .chat-msg__tool-head--button:hover {
   background: var(--color-surface-item-hover);
+}
+
+.chat-msg__tool-head-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
 }
 
 .chat-msg__tool-caret {
@@ -177,11 +195,60 @@
   white-space: nowrap;
 }
 
+.chat-msg__tool-permission-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-msg__tool-permission-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-elevated);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.chat-msg__tool-permission-action:hover:not(:disabled) {
+  border-color: rgba(var(--color-accent-rgb), 0.62);
+  background: var(--color-surface-item-hover);
+}
+
+.chat-msg__tool-permission-action--allow {
+  color: var(--color-success, #52c878);
+}
+
+.chat-msg__tool-permission-action--deny {
+  color: var(--color-danger-soft-text);
+}
+
+.chat-msg__tool-permission-action:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .chat-msg__tool-timer {
   flex: 0 0 auto;
   color: var(--color-text-muted);
   font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
+}
+
+.chat-msg__tool-waiting-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--color-accent);
+  animation: tool-status-pulse 1s ease-in-out infinite;
 }
 
 .chat-msg__tool-status--running {

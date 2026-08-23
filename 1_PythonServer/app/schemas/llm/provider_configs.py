@@ -142,9 +142,16 @@ class ProviderConfigResponse(BaseModel):
         )
 
 
+class ProviderConfigLoadErrorResponse(BaseModel):
+    provider_id: str
+    code: str = "invalid_provider_config"
+    message: str
+
+
 class ProviderConfigListResponse(BaseModel):
     count: int
     items: list[ProviderConfigResponse]
+    errors: list[ProviderConfigLoadErrorResponse] = Field(default_factory=list)
 
 
 class ProviderPromptCachePolicySaveRequest(BaseModel):

@@ -101,6 +101,7 @@ class ConversationImageReferenceResolver:
         if not message.content_parts:
             return message
         assert self._attachment_service is not None
+        external_file_paths = _external_file_reference_paths(message)
         return replace(
             message,
             content_parts=tuple(
@@ -110,6 +111,11 @@ class ConversationImageReferenceResolver:
                         project_id,
                         session_id,
                         part.image_ref,
+                        source_kind=(
+                            "external_file"
+                            if part.image_ref.path in external_file_paths
+                            else None
+                        ),
                     ),
                 )
                 if part.type == ChatMessageContentPartType.IMAGE_REF
@@ -210,6 +216,25 @@ def _drop_image_ref_parts(request: ChatCompletionRequest) -> ChatCompletionReque
             for message in request.messages
         ),
     )
+
+
+def _external_file_reference_paths(message: ChatMessage) -> set[str]:
+    references = message.internal_metadata.get("conversation_references")
+    if not isinstance(references, list):
+        return set()
+    paths: set[str] = set()
+    for item in references:
+        if not isinstance(item, dict) or item.get("type") != "file":
+            continue
+        reference = item.get("reference")
+        if not isinstance(reference, dict):
+            continue
+        if reference.get("source") != "external_path" or reference.get("kind") != "file":
+            continue
+        file_path = reference.get("filePath")
+        if isinstance(file_path, str) and file_path:
+            paths.add(file_path)
+    return paths
 
 
 @lru_cache

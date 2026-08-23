@@ -4,14 +4,17 @@
 from fastapi import APIRouter
 
 from app.api.routes.desktop import router as desktop_router
+from app.api.routes.announcements import router as announcements_router
 from app.api.routes.health import router as health_router
 from app.api.routes.github_connection import router as github_connection_router
 from app.api.routes.github_sync import router as github_sync_router
 from app.api.routes.github_platform import router as github_platform_router
 from app.api.routes.git_repository import router as git_repository_router
+from app.api.routes.global_memory import router as global_memory_router
 from app.api.routes.locales import router as locales_router
 from app.api.routes.memory_management import router as memory_management_router
 from app.api.routes.llm.client_tools import router as llm_client_tools_router
+from app.api.routes.llm.tool_permissions import router as llm_tool_permissions_router
 from app.api.routes.llm.chat import router as llm_chat_router
 from app.api.routes.llm.chat_socket import router as llm_chat_socket_router
 from app.api.routes.llm.functional_model_settings import (
@@ -41,6 +44,7 @@ from app.core.config import get_settings
 settings = get_settings()
 
 api_router = APIRouter(prefix=settings.api_prefix)
+api_router.include_router(announcements_router)
 api_router.include_router(health_router)
 api_router.include_router(github_connection_router)
 api_router.include_router(github_sync_router)
@@ -53,10 +57,12 @@ api_router.include_router(workspace_router)
 api_router.include_router(tools_router)
 api_router.include_router(themes_router)
 api_router.include_router(locales_router)
+api_router.include_router(global_memory_router)
 api_router.include_router(memory_management_router)
 api_router.include_router(llm_chat_router)
 api_router.include_router(llm_chat_socket_router)
 api_router.include_router(llm_client_tools_router)
+api_router.include_router(llm_tool_permissions_router)
 api_router.include_router(llm_provider_router)
 api_router.include_router(llm_provider_market_router)
 api_router.include_router(llm_provider_config_router)

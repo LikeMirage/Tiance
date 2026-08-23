@@ -141,6 +141,8 @@ export function ChatPanelController({
 }: Props) {
   const [activeView, setActiveView] = useState<ChatPanelView>("chat");
   const [localFileActionError, setLocalFileActionError] = useState<string | null>(null);
+  const latestReferencesRef = useRef(references);
+  latestReferencesRef.current = references;
   const [exportRequest, setExportRequest] = useState<ConversationExportRequest | null>(null);
   const isChatPresentationVisibleRef = useRef(isActive);
   isChatPresentationVisibleRef.current = isActive && activeView === "chat";
@@ -153,6 +155,19 @@ export function ChatPanelController({
     sessionKey: string;
   } | null>(null);
   const showChatView = useCallback(() => setActiveView("chat"), []);
+  const restoreRejectedReferences = useCallback((rejectedReferences: ConversationMessageReferences) => {
+    if (!onDraftReferencesChange) return;
+    const currentReferences = latestReferencesRef.current;
+    const currentIds = new Set(currentReferences.map((item) => `${item.type}:${item.reference.id}`));
+    const restoredReferences = [
+      ...rejectedReferences.filter(
+        (item) => !currentIds.has(`${item.type}:${item.reference.id}`),
+      ),
+      ...currentReferences,
+    ];
+    latestReferencesRef.current = restoredReferences;
+    onDraftReferencesChange(restoredReferences);
+  }, [onDraftReferencesChange]);
   const queueMessageNavigation = useCallback((sessionId: string, messageId: string) => {
     if (!projectId) return;
     variantNavigationRequestIdRef.current += 1;
@@ -657,6 +672,7 @@ export function ChatPanelController({
     clientToolExecutor: combinedClientToolExecutor,
     clientToolCapabilities,
     clearReferences: onClearReferences ?? (() => undefined),
+    restoreReferences: restoreRejectedReferences,
     createSessionStreamController,
     draft,
     references,

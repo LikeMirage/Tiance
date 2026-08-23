@@ -20,7 +20,7 @@ after(async () => {
   await vite.close();
 });
 
-test("内置供应商使用明确配置的模型列表地址", () => {
+test("供应商使用明确配置的模型列表地址", () => {
   assert.equal(
     deriveProviderModelDiscoveryUrl(
       "https://api.deepseek.com/chat/completions",

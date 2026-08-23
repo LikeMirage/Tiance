@@ -6,6 +6,8 @@ from .conversation_attachments import (
 )
 
 from .project_files import (
+    ProjectContentFileResponse,
+    ProjectContentFileSnapshotResponse,
     ProjectFileCopyRequest,
     ProjectFileContentResponse,
     ProjectFileContentSaveRequest,
@@ -167,6 +169,8 @@ __all__ = [
     "ProjectMemoryListResponse",
     "ProjectMemoryOperationRequest",
     "ProjectMemoryOperationResponse",
+    "ProjectContentFileResponse",
+    "ProjectContentFileSnapshotResponse",
     "ProjectFileCopyRequest",
     "ProjectFileContentResponse",
     "ProjectFileContentSaveRequest",

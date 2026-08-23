@@ -11,6 +11,7 @@
   "files": {
     "input_schema": ".tool/input.schema.json",
     "output_schema": ".tool/output.schema.json",
-    "examples": ".tool/examples.json"
+    "examples": ".tool/examples.json",
+    "permissions": ".tool/permissions.json"
   }
 }

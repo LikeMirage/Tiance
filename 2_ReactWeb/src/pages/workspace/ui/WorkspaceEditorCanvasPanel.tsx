@@ -28,6 +28,7 @@ import { ThemeSettingsPanel } from "../../../features/theme-settings/ui/ThemeSet
 import { ThemeMarketBoard } from "../../../features/theme-market/ui/ThemeMarketBoard";
 import { RoleMarketBoard } from "../../../features/role-market/ui/RoleMarketBoard";
 import { ProviderMarketBoard } from "../../../features/provider-market/ui/ProviderMarketBoard";
+import { KnowledgeContentDashboard } from "../../../features/knowledge-content-dashboard/ui/KnowledgeContentDashboard";
 import { useCollectionOverviewNavigation } from "../model/useCollectionOverviewNavigation";
 import "../../../shared/ui/specialized-collection-overview/specialized-collection-overview.css";
 
@@ -36,6 +37,7 @@ type WorkspaceEditorCanvasPanelProps = {
   expandedProjectId: string | null;
   documentTabs: ReturnType<typeof useDocumentTabs>;
   isActive?: boolean;
+  isKnowledgeWorkspace?: boolean;
   isRoleWorkspace?: boolean;
   isThemeWorkspace?: boolean;
   isProviderWorkspace?: boolean;
@@ -73,6 +75,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
   expandedProjectId,
   documentTabs,
   isActive = true,
+  isKnowledgeWorkspace = false,
   isRoleWorkspace = false,
   isThemeWorkspace = false,
   isProviderWorkspace = false,
@@ -324,6 +327,12 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       visibleSession={visibleChatSession}
     />
   );
+  const projectKnowledgeContent = isKnowledgeWorkspace && projectId ? (
+    <KnowledgeContentDashboard
+      projectId={projectId}
+      projectName={selectedProject?.name ?? "知识内容"}
+    />
+  ) : null;
   const roleConfigurationContent = isRoleWorkspace && projectId ? (
     <RoleConfigurationDashboard
       editor={roleConfigurationEditor}
@@ -558,6 +567,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       persistentEmptyContent={overviewContent}
       persistentEmptyContentVisible={shouldShowCategoryOverview}
       projectConversationOverviewContent={projectConversationOverviewContent}
+      projectKnowledgeContent={projectKnowledgeContent}
       roleConfigurationContent={roleConfigurationContent}
       themeConfigurationContent={themeConfigurationContent}
       projectRootPath={selectedProject?.root_path ?? ""}

@@ -11,6 +11,7 @@ from app.infra.tools.tool_project_config_constants import (
     TOOL_FOLDER_MANIFEST_FILE,
     TOOL_INPUT_SCHEMA_FILE,
     TOOL_OUTPUT_SCHEMA_FILE,
+    TOOL_PERMISSIONS_FILE,
 )
 from app.services.tools.tool_registry import ToolRegistryService, get_tool_registry_service
 from app.services.tools.tool_projects import ToolProjectService, get_tool_project_service
@@ -105,7 +106,7 @@ class ToolFolderFileService:
             raise BadRequestError(str(exc)) from exc
         except ValueError as exc:
             raise BadRequestError(str(exc)) from exc
-        if _is_tool_standard_file_path(target_path):
+        if _is_tool_registry_metadata_file_path(target_path):
             self._rebuild_registry()
         return node
 
@@ -163,7 +164,7 @@ class ToolFolderFileService:
             )
         except ValueError as exc:
             raise BadRequestError(str(exc)) from exc
-        if _is_tool_standard_file_path(target_path):
+        if _is_tool_registry_metadata_file_path(target_path):
             self._rebuild_registry()
         return node
 
@@ -188,7 +189,7 @@ class ToolFolderFileService:
             self._file_storage.delete_entry(folder_root, target_path)
         except ValueError as exc:
             raise BadRequestError(str(exc)) from exc
-        if _is_tool_standard_file_path(target_path):
+        if _is_tool_registry_metadata_file_path(target_path):
             self._rebuild_registry()
 
     def move_entry(
@@ -210,7 +211,7 @@ class ToolFolderFileService:
             raise BadRequestError(str(exc)) from exc
         except ValueError as exc:
             raise BadRequestError(str(exc)) from exc
-        if _is_tool_standard_file_path(target_path):
+        if _is_tool_registry_metadata_file_path(target_path):
             self._rebuild_registry()
         return node
 
@@ -233,7 +234,7 @@ class ToolFolderFileService:
             raise BadRequestError(str(exc)) from exc
         except ValueError as exc:
             raise BadRequestError(str(exc)) from exc
-        if _is_tool_standard_file_path(target_path):
+        if _is_tool_registry_metadata_file_path(target_path):
             self._rebuild_registry()
         return node
 
@@ -280,6 +281,17 @@ class ToolFolderFileService:
 
 
 def _is_tool_standard_file_path(target_path: str) -> bool:
+    normalized = target_path.strip().replace("\\", "/").strip("/")
+    return normalized in {
+        TOOL_FOLDER_MANIFEST_FILE,
+        TOOL_INPUT_SCHEMA_FILE,
+        TOOL_OUTPUT_SCHEMA_FILE,
+        TOOL_EXAMPLES_FILE,
+        TOOL_PERMISSIONS_FILE,
+    }
+
+
+def _is_tool_registry_metadata_file_path(target_path: str) -> bool:
     normalized = target_path.strip().replace("\\", "/").strip("/")
     return normalized in {
         TOOL_FOLDER_MANIFEST_FILE,

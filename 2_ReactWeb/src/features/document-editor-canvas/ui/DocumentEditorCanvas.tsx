@@ -23,6 +23,7 @@ import {
   isConversationSessionTab,
   isGlobalMemoryTab,
   isProjectConversationOverviewTab,
+  isProjectKnowledgeContentTab,
   isProjectRoleConfigurationTab,
   isProjectThemeConfigurationTab,
   isProjectMemoryTab,
@@ -46,6 +47,7 @@ type Props = {
   persistentEmptyContent?: ReactNode;
   persistentEmptyContentVisible?: boolean;
   projectConversationOverviewContent?: ReactNode;
+  projectKnowledgeContent?: ReactNode;
   roleConfigurationContent?: ReactNode;
   themeConfigurationContent?: ReactNode;
   projectRootPath?: string;
@@ -80,7 +82,7 @@ type PendingCloseAction =
   | { mode: "others"; tabId: string }
   | { mode: "all" };
 
-type ToolDashboardView = "basics" | "examples" | "dependencies" | "callRecords";
+type ToolDashboardView = "basics" | "permissions" | "examples" | "dependencies" | "callRecords";
 type MarkdownEditorMode = "source" | "preview" | "visual";
 type MarkdownDocxGenerationResult = {
   outputPath: string;
@@ -88,7 +90,7 @@ type MarkdownDocxGenerationResult = {
 };
 
 export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
-  activeConversationMessageId = null, activeConversationSessionId = null, activeTab, activeTabId, aiPanelInitialWidth, assistantPanel = null, emptyContent = null, emptyMessage = "点击左侧文件树中的文件以打开", persistentEmptyContent = null, persistentEmptyContentVisible = false, projectConversationOverviewContent = null, roleConfigurationContent = null, themeConfigurationContent = null, projectRootPath = "", onSaveCodeBlock, statusMessage = null, tabs, toolEntryCandidates = [],
+  activeConversationMessageId = null, activeConversationSessionId = null, activeTab, activeTabId, aiPanelInitialWidth, assistantPanel = null, emptyContent = null, emptyMessage = "点击左侧文件树中的文件以打开", persistentEmptyContent = null, persistentEmptyContentVisible = false, projectConversationOverviewContent = null, projectKnowledgeContent = null, roleConfigurationContent = null, themeConfigurationContent = null, projectRootPath = "", onSaveCodeBlock, statusMessage = null, tabs, toolEntryCandidates = [],
   onCloseTab, onCloseOtherTabs, onCloseAllTabs,
   onAiPanelWidthCommit,
   onOverwriteExternalChange,
@@ -147,6 +149,7 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
   const isConversationSession = isConversationSessionTab(activeTab);
   const isProjectMemory = isProjectMemoryTab(activeTab);
   const isProjectConversationOverview = isProjectConversationOverviewTab(activeTab);
+  const isProjectKnowledgeContent = isProjectKnowledgeContentTab(activeTab);
   const isProjectRoleConfiguration = isProjectRoleConfigurationTab(activeTab);
   const isProjectThemeConfiguration = isProjectThemeConfigurationTab(activeTab);
   const isGlobalMemory = isGlobalMemoryTab(activeTab);
@@ -478,6 +481,7 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
                 isPreviewable={isPreviewable}
                 isProjectMemory={isProjectMemory}
                 isProjectConversationOverview={isProjectConversationOverview}
+                isProjectKnowledgeContent={isProjectKnowledgeContent}
                 isProjectRoleConfiguration={isProjectRoleConfiguration}
                 isProjectThemeConfiguration={isProjectThemeConfiguration}
                 isReferenceViewer={isReferenceViewer}
@@ -502,6 +506,7 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
                 onUpdateContent={onUpdateContent}
                 previewOpen={previewOpen}
                 projectConversationOverviewContent={projectConversationOverviewContent}
+                projectKnowledgeContent={projectKnowledgeContent}
                 roleConfigurationContent={roleConfigurationContent}
                 themeConfigurationContent={themeConfigurationContent}
                 projectRootPath={projectRootPath}
@@ -613,6 +618,9 @@ function getToolDashboardView(tab: DocumentTab | null): ToolDashboardView {
   }
   if (tab?.id.includes("__tool_dashboard_callRecords__")) {
     return "callRecords";
+  }
+  if (tab?.id.includes("__tool_dashboard_permissions__")) {
+    return "permissions";
   }
   return tab?.id.includes("__tool_dashboard_examples__") ? "examples" : "basics";
 }

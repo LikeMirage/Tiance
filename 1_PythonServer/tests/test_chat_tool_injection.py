@@ -25,6 +25,7 @@ def test_chat_tool_injection_builds_all_catalog_tools_without_session_allowlist(
     ]
     assert tools[0].parameters["required"] == ["file_path"]
     assert tools[1].parameters["properties"]["mode"]["enum"] == ["summary", "tree", "find"]
+    assert "permission_type" not in tools[1].parameters["properties"]["mode"]
 
 
 def test_standard_tool_description_includes_example_titles_without_content_by_default():
@@ -293,6 +294,7 @@ class _FakeCatalog:
                         "mode": {
                             "type": "string",
                             "enum": ["summary", "tree", "find"],
+                            "permission_type": "filesystem_read",
                         },
                     },
                 },

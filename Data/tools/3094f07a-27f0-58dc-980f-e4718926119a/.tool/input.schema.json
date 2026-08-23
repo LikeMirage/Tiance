@@ -3,6 +3,7 @@
   "description": "向工具调用上下文所属项目中已经存在的 AI 会话发送普通用户消息。工具自行校验目标会话是否可启动；同一会话不允许同时生成两轮回复，新消息不会静默排队。工具会在消息正文末尾追加实时来源会话名称和 ID。",
   "properties": {
     "action": {
+      "permission_type": "tiance_data_write",
       "description": "要执行的会话交互动作。",
       "enum": [
         "send"
@@ -17,17 +18,20 @@
       "type": "string"
     },
     "session_id": {
+      "permission_type": "tiance_data_write",
       "description": "send 的目标会话 ID，必须属于当前项目。目标正在运行时，工具会明确返回状态冲突。",
       "title": "会话 ID",
       "type": "string"
     },
     "message": {
+      "permission_type": "tiance_data_write",
       "description": "send 要作为一条新用户消息发送给目标会话的正文。工具会自动在正文末尾追加本条消息实时取得的来源会话名称和 ID，不需要手工重复填写；可要求目标 AI 完成后通过该来源会话 ID 汇报。需要读取文件或图片时，直接在正文中写入目标可访问的完整路径并明确要求读取。",
       "minLength": 1,
       "title": "消息正文",
       "type": "string"
     },
     "wait_for_reply": {
+      "permission_type": "none",
       "default": true,
       "description": "send 是否等待这次发送对应的回复完成。true 等待并返回本次精确终态回复；false 在消息已经持久化并开始运行后立即返回，目标会话独立继续。所有结果都返回原始历史定位信息。",
       "title": "等待回复",

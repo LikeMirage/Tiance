@@ -2,6 +2,7 @@ import type { DocumentTab } from "../../../entities/editor/model/editorDocument"
 import {
   isPinnedDocumentTab,
   isProjectConversationOverviewTab as isProjectConversationOverviewDocumentTab,
+  isProjectKnowledgeContentTab as isProjectKnowledgeContentDocumentTab,
   isProjectRoleConfigurationTab as isProjectRoleConfigurationDocumentTab,
   isProjectThemeConfigurationTab as isProjectThemeConfigurationDocumentTab,
 } from "../../document-tabs/model/documentTabUtils";
@@ -58,6 +59,10 @@ export function isFixedDocumentTab(tab: DocumentTab) {
 
 export function isProjectConversationOverviewTab(tab: DocumentTab | null) {
   return isProjectConversationOverviewDocumentTab(tab);
+}
+
+export function isProjectKnowledgeContentTab(tab: DocumentTab | null) {
+  return isProjectKnowledgeContentDocumentTab(tab);
 }
 
 export function isProjectRoleConfigurationTab(tab: DocumentTab | null) {

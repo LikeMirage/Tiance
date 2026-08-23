@@ -218,6 +218,7 @@ function formatToolWorkspaceError(prefix: string, error: unknown) {
 function isToolDashboardView(value: unknown): value is ToolDashboardView {
   return (
     value === "basics"
+    || value === "permissions"
     || value === "examples"
     || value === "dependencies"
     || value === "callRecords"

@@ -13,6 +13,9 @@ class ProviderCatalogDeletionRepository:
     def delete_provider_package(self, provider_id: str) -> bool:
         return self._catalog_repository.delete_entry(provider_id)
 
+    def provider_package_exists(self, provider_id: str) -> bool:
+        return self._catalog_repository.has_provider_directory(provider_id)
+
 
 @lru_cache
 def get_provider_catalog_deletion_repository() -> ProviderCatalogDeletionRepository:

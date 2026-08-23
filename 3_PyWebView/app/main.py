@@ -19,6 +19,7 @@ def main() -> None:
     mark("main: entered")
     release_installation_lock = acquire_installation_lock(PROJECT_ROOT)
     backend_manager: BackendProcessManager | None = None
+    shell_api: ShellApi | None = None
 
     try:
         with timed_stage("cleanup orphaned managed backend"):
@@ -74,7 +75,7 @@ def main() -> None:
             window = webview.create_window(**create_window_options)
 
         backend_manager.set_backend_unavailable_callback(
-            lambda reason: _close_window_after_backend_loss(window, reason)
+            shell_api.close_after_backend_loss
         )
 
         if target.shell_api_allowed:
@@ -101,6 +102,8 @@ def main() -> None:
         )
         mark("pywebview.start: returned")
     finally:
+        if shell_api is not None:
+            shell_api.dispose()
         if backend_manager is not None:
             backend_manager.stop()
         release_installation_lock()
@@ -124,15 +127,6 @@ def _configure_webview_runtime(webview_module, settings) -> None:
         mode=settings.webview2_runtime_mode,
         path=runtime_path,
     )
-
-
-def _close_window_after_backend_loss(window, reason: str) -> None:
-    mark("backend unavailable: closing shell", reason=reason)
-    try:
-        window.destroy()
-    except Exception as exc:  # pragma: no cover - native runtime defensive path
-        mark("backend unavailable: shell close failed", error=type(exc).__name__)
-
 
 if __name__ == "__main__":
     main()

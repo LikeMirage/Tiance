@@ -6,8 +6,7 @@
   "protocolFamily": "openai_compatible",
   "generationAuthSchemes": {
     "openai_compatible": "bearer_token",
-    "openai_responses": "bearer_token",
-    "anthropic_messages": "x_api_key"
+    "openai_responses": "bearer_token"
   },
   "modelDiscoveryStrategy": "openai_models",
   "modelDiscoveryAuthScheme": "bearer_token",
@@ -18,6 +17,6 @@
   "modelDiscoveryUrl": "https://opencode.ai/zen/go/v1/models",
   "enabled": true,
   "reasoningReplayMode": "tool_call_rounds",
-  "createdAt": "2026-08-12T01:39:44.798345+00:00",
-  "updatedAt": "2026-08-19T11:22:58.879881+00:00"
+  "createdAt": "2026-08-21T23:58:10.900079+00:00",
+  "updatedAt": "2026-08-22T12:41:13.825907+00:00"
 }

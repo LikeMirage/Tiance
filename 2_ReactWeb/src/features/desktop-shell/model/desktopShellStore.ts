@@ -89,6 +89,16 @@ export async function minimizeDesktopShell() {
   await api.minimize_window();
 }
 
+export async function hideDesktopShellToTray() {
+  const api = getDesktopShellApi();
+  if (!api?.hide_window_to_tray) {
+    return false;
+  }
+
+  await persistDesktopShellWindowSizePreferences();
+  return api.hide_window_to_tray();
+}
+
 export async function toggleMaximizeDesktopShell() {
   const api = getDesktopShellApi();
   if (!api) {
@@ -371,7 +381,8 @@ function setDesktopShellCapabilities(nextCapabilities: DesktopShellCapabilities)
     desktopShellCapabilities.nativeWindowResizeSupported ===
       nextCapabilities.nativeWindowResizeSupported &&
     desktopShellCapabilities.pageZoomSupported === nextCapabilities.pageZoomSupported &&
-    desktopShellCapabilities.platform === nextCapabilities.platform
+    desktopShellCapabilities.platform === nextCapabilities.platform &&
+    desktopShellCapabilities.systemTraySupported === nextCapabilities.systemTraySupported
   ) {
     return;
   }
@@ -406,6 +417,7 @@ function normalizeDesktopShellCapabilities(
       typeof capabilities.platform === "string" && capabilities.platform.trim()
         ? capabilities.platform
         : defaultDesktopShellCapabilities.platform,
+    systemTraySupported: capabilities.systemTraySupported === true,
   };
 }
 

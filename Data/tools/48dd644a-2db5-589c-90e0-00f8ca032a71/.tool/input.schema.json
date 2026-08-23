@@ -27,6 +27,7 @@
   "description": "管理长期记忆。list/search 自动返回全部当前有效的全局记忆和项目记忆；写入操作使用 scope 指定范围。",
   "properties": {
     "scope": {
+      "permission_type": "tiance_data_read",
       "description": "仅 add/update/delete 使用。project=当前项目长期记忆；global=跨项目全局记忆。",
       "enum": [
         "project",
@@ -46,6 +47,7 @@
       "type": "string"
     },
     "operation": {
+      "permission_type": "tiance_data_delete",
       "description": "要执行的操作。list/search 一次读取全部当前有效的全局记忆和项目记忆；add/update/delete 会写入标准记忆事件。",
       "enum": [
         "list",
@@ -80,16 +82,19 @@
       "type": "string"
     },
     "memory_id": {
+      "permission_type": "tiance_data_read",
       "description": "update/delete 时填写目标记忆 ID，例如 pm_xxx 或 gm_xxx。",
       "title": "记忆 ID",
       "type": "string"
     },
     "content": {
+      "permission_type": "tiance_data_write",
       "description": "add/update 时填写记忆内容。update 时不填写 content 则保留原内容，仅更新关键词。",
       "title": "记忆内容",
       "type": "string"
     },
     "keywords": {
+      "permission_type": "tiance_data_write",
       "default": [],
       "description": "add/update 时填写关键词数组，用于后续检索和识别。",
       "items": {
@@ -99,12 +104,14 @@
       "type": "array"
     },
     "reason": {
+      "permission_type": "tiance_data_write",
       "description": "add/update/delete 时填写本次变更所依据的明确事实；不要推测用户动机。",
       "minLength": 1,
       "title": "变更依据",
       "type": "string"
     },
     "query": {
+      "permission_type": "tiance_data_read",
       "description": "search 时填写搜索词，同时搜索全局记忆和项目记忆。",
       "title": "搜索词",
       "type": "string"

@@ -35,6 +35,13 @@ export interface ProviderConfig {
 export interface ProviderConfigListResponse {
   count: number;
   items: ProviderConfig[];
+  errors: ProviderConfigLoadError[];
+}
+
+export interface ProviderConfigLoadError {
+  provider_id: string;
+  code: "invalid_provider_config";
+  message: string;
 }
 
 export interface ProviderModelCheckResult {

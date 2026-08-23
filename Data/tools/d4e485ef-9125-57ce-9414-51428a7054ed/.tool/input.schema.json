@@ -5,10 +5,12 @@
     "arguments": {
       "additionalProperties": true,
       "description": "目标动态工具需要的真实参数对象。",
+      "permission_type": "none",
       "title": "目标工具参数",
       "type": "object"
     },
     "tool_name": {
+      "permission_type": "none",
       "description": "目标动态工具调用名。使用动态工具目录中的准确名称。",
       "title": "目标工具",
       "type": "string"

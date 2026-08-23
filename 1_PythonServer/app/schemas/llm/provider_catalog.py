@@ -74,9 +74,16 @@ class ProviderCatalogEntryResponse(BaseModel):
         )
 
 
+class ProviderCatalogLoadErrorResponse(BaseModel):
+    provider_id: str
+    code: str = "invalid_provider_package"
+    message: str
+
+
 class ProviderCatalogListResponse(BaseModel):
     count: int
     items: list[ProviderCatalogEntryResponse]
+    errors: list[ProviderCatalogLoadErrorResponse] = Field(default_factory=list)
 
 
 class ProviderCatalogOrderResponse(BaseModel):

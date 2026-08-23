@@ -173,3 +173,50 @@ def test_windows_uses_borderless_manual_resize(monkeypatch) -> None:
     monkeypatch.setattr(api_module.sys, "platform", "win32")
 
     assert api_module._get_native_window_resize_mode(SimpleNamespace()) == "none"
+
+
+def test_native_close_is_cancelled_until_frontend_confirms_exit(monkeypatch) -> None:
+    shell_api = ShellApi(SimpleNamespace(), SimpleNamespace())
+    close_requests: list[bool] = []
+    monkeypatch.setattr(api_module.sys, "platform", "win32")
+    monkeypatch.setattr(
+        shell_api,
+        "_schedule_frontend_close_request",
+        lambda: close_requests.append(True),
+    )
+
+    assert shell_api._handle_window_closing() is False
+    assert close_requests == [True]
+
+
+def test_explicit_close_bypasses_native_close_interception() -> None:
+    destroyed: list[bool] = []
+    shell_api = ShellApi(
+        SimpleNamespace(allow_remote_shell_api=False),
+        SimpleNamespace(),
+    )
+    shell_api._window = SimpleNamespace(
+        destroy=lambda: destroyed.append(True),
+        url="http://127.0.0.1:18100",
+    )
+
+    shell_api.close_window()
+
+    assert destroyed == [True]
+    assert shell_api._handle_window_closing() is None
+
+
+def test_window_is_hidden_only_when_tray_icon_is_installed() -> None:
+    hidden: list[bool] = []
+    shell_api = ShellApi(
+        SimpleNamespace(allow_remote_shell_api=False),
+        SimpleNamespace(),
+    )
+    shell_api._window = SimpleNamespace(
+        hide=lambda: hidden.append(True),
+        url="http://127.0.0.1:18100",
+    )
+    shell_api._windows_tray = SimpleNamespace(installed=True)
+
+    assert shell_api.hide_window_to_tray() is True
+    assert hidden == [True]

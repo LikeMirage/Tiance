@@ -4,6 +4,7 @@
   "additionalProperties": false,
   "properties": {
     "action": {
+      "permission_type": "filesystem_write",
       "type": "string",
       "enum": [
         "inspect",
@@ -15,6 +16,7 @@
       "description": "要执行的动作。"
     },
     "target_action": {
+      "permission_type": "filesystem_write",
       "type": "string",
       "enum": [
         "create",
@@ -23,11 +25,13 @@
       "description": "action=validate 时可指定要预检 create 还是 edit。"
     },
     "validate_only": {
+      "permission_type": "none",
       "type": "boolean",
       "default": false,
       "description": "用于 create/edit：只预检输入，不写入输出文件。"
     },
     "mode": {
+      "permission_type": "none",
       "type": "string",
       "enum": [
         "advanced",
@@ -36,27 +40,33 @@
       "description": "action=create 时可用。simple_table 用 columns 和 rows 快速创建普通表格；advanced 使用 sheets 完整结构。"
     },
     "input_path": {
+      "permission_type": "filesystem_read",
       "type": "string",
       "title": "输入 Excel 路径",
       "description": "action=inspect/edit/export_markdown 时必填，必须是工作区内 Excel 文件。"
     },
     "content_path": {
+      "permission_type": "filesystem_read",
       "type": "string",
       "description": "action=export_markdown 时的内容 Markdown 输出路径。"
     },
     "format_path": {
+      "permission_type": "filesystem_read",
       "type": "string",
       "description": "action=export_markdown 时的格式 Markdown 输出路径。"
     },
     "assets_dir": {
+      "permission_type": "filesystem_read",
       "type": "string",
       "description": "action=export_markdown 时的图片资源目录；省略时使用内容文件名_assets。"
     },
     "report_path": {
+      "permission_type": "none",
       "type": "string",
       "description": "action=export_markdown 时的 AI 读取规则和未映射对象报告路径。"
     },
     "include_empty_rows": {
+      "permission_type": "none",
       "type": "boolean",
       "default": false,
       "description": "是否保留末尾完全空白行。"
@@ -67,25 +77,30 @@
       "description": "action=export_markdown 时只提取指定 Sheet；省略时提取全部。"
     },
     "output_path": {
+      "permission_type": "filesystem_write",
       "type": "string",
       "title": "输出 Excel 路径",
       "description": "action=create 时必填；action=edit 时可省略，默认另存为 原文件名_edited.xlsx。"
     },
     "overwrite": {
+      "permission_type": "none",
       "type": "boolean",
       "default": false,
       "description": "目标文件已存在时是否覆盖。编辑已有文件默认不覆盖原文件。"
     },
     "create_parent_dirs": {
+      "permission_type": "none",
       "type": "boolean",
       "default": true,
       "description": "输出目录不存在时是否创建。"
     },
     "sheet_name": {
+      "permission_type": "none",
       "type": "string",
       "description": "mode=simple_table 时的 Sheet 名称。"
     },
     "columns": {
+      "permission_type": "none",
       "type": "array",
       "description": "mode=simple_table 时的表头。",
       "items": {
@@ -93,6 +108,7 @@
       }
     },
     "rows": {
+      "permission_type": "none",
       "type": "array",
       "description": "mode=simple_table 时的数据行，或部分 edit 操作里的二维数据。",
       "items": {
@@ -101,15 +117,18 @@
       }
     },
     "active_sheet": {
+      "permission_type": "none",
       "type": "string",
       "description": "打开文件时默认激活的 Sheet 名称。"
     },
     "properties": {
+      "permission_type": "none",
       "type": "object",
       "additionalProperties": true,
       "description": "工作簿属性，例如 title、subject、creator、company、category、keywords、description。"
     },
     "sheets": {
+      "permission_type": "none",
       "type": "array",
       "minItems": 1,
       "description": "action=create 的完整工作表定义。mode=advanced 或未提供 mode 时使用。",
@@ -425,6 +444,7 @@
       }
     },
     "operations": {
+      "permission_type": "filesystem_write",
       "type": "array",
       "description": "action=edit 时的编辑操作列表。支持 set_cells、append_rows、write_block、add_sheet、delete_sheet、rename_sheet、copy_sheet、merge_cells、unmerge_cells、set_style、set_dimensions、insert_rows、delete_rows、insert_columns、delete_columns、clear_range、set_freeze_panes、set_auto_filter、add_table、remove_table、add_data_validation、add_conditional_format、add_chart、set_page。",
       "items": {

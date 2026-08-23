@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { useDocumentTabs } from "../../../features/document-tabs/model/useDocumentTabs";
 import {
   isProjectConversationOverviewTab,
+  isProjectKnowledgeContentTab,
   isProjectRoleConfigurationTab,
   isProjectThemeConfigurationTab,
 } from "../../../features/document-tabs/model/documentTabUtils";
@@ -12,6 +13,7 @@ import { patchProjectWorkspaceState } from "../../../services/project/saveProjec
 
 type ProjectWorkspaceTabsPersistenceOptions = {
   documentTabs: ReturnType<typeof useDocumentTabs>;
+  isKnowledgeProject: boolean;
   isRoleProject: boolean;
   isThemeProject: boolean;
   projectId: string | null;
@@ -19,6 +21,7 @@ type ProjectWorkspaceTabsPersistenceOptions = {
 
 export function useProjectWorkspaceTabsPersistence({
   documentTabs,
+  isKnowledgeProject,
   isRoleProject,
   isThemeProject,
   projectId,
@@ -40,6 +43,9 @@ export function useProjectWorkspaceTabsPersistence({
       documentTabs.activeTab?.projectId === projectId
       && isProjectConversationOverviewTab(documentTabs.activeTab)
         ? "conversation_overview" as const
+        : documentTabs.activeTab?.projectId === projectId
+          && isProjectKnowledgeContentTab(documentTabs.activeTab)
+          ? "knowledge_content" as const
         : documentTabs.activeTab?.projectId === projectId
           && isProjectRoleConfigurationTab(documentTabs.activeTab)
           ? "role_configuration" as const
@@ -90,8 +96,15 @@ export function useProjectWorkspaceTabsPersistence({
         documentTabs.ensureProjectConversationOverview(projectId, {
           activate:
             state.active_dashboard === "conversation_overview"
-            || (!isRoleProject && state.active_file_path === null),
+            || (!isKnowledgeProject && !isRoleProject && !isThemeProject && state.active_file_path === null),
         });
+        if (isKnowledgeProject) {
+          documentTabs.ensureProjectKnowledgeContent(projectId, {
+            activate:
+              state.active_dashboard === "knowledge_content"
+              || state.active_file_path === null,
+          });
+        }
         if (isRoleProject) {
           documentTabs.ensureProjectRoleConfiguration(projectId, {
             activate:
@@ -130,9 +143,11 @@ export function useProjectWorkspaceTabsPersistence({
   }, [
     documentTabs.closeAllTabs,
     documentTabs.ensureProjectConversationOverview,
+    documentTabs.ensureProjectKnowledgeContent,
     documentTabs.ensureProjectRoleConfiguration,
     documentTabs.ensureProjectThemeConfiguration,
     documentTabs.restoreTabs,
+    isKnowledgeProject,
     isRoleProject,
     isThemeProject,
     projectId,

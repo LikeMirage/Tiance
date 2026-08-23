@@ -17,6 +17,8 @@ import { ProviderModelManagement } from "../../provider-model-management/ui/Prov
 import { getProviderUsageMetricLabels } from "../../provider-model-management/ui/providerModelI18n";
 import type { ModelManagementMode } from "../../provider-model-management/model/useProviderModelManagement";
 import { InlineEditableText } from "../../../shared/ui/inline-editable-text/InlineEditableText";
+import { SettingsViewStage } from "../../../shared/ui/settings-view-tabs/SettingsViewStage";
+import { SettingsViewTabs } from "../../../shared/ui/settings-view-tabs/SettingsViewTabs";
 import { useI18n } from "../../../shared/i18n";
 import { useProviderCanvasController } from "../model/useProviderCanvasController";
 import "./provider-canvas.css";
@@ -60,7 +62,21 @@ export function ProviderCanvasPanel({
   const selectedProviderDraft = controller.selectedProviderDraft;
 
   if (!selectedProviderDraft) {
-    return null;
+    return (
+      <div className="provider-canvas provider-canvas__load-state" role="status">
+        <p>
+          {providerConfigState.isLoading
+            ? t("providerCanvas.loading")
+            : providerConfigState.selectedLoadError ?? providerConfigState.error
+              ?? t("providerCanvas.errors.configLoadFailed")}
+        </p>
+        {!providerConfigState.isLoading ? (
+          <button type="button" onClick={providerConfigState.reloadProviderConfigs}>
+            {t("common.actions.retry")}
+          </button>
+        ) : null}
+      </div>
+    );
   }
 
   const isSavingSelectedProvider =
@@ -173,73 +189,37 @@ export function ProviderCanvasPanel({
           {activeSettingsView === "models" ? (
             <div className="provider-canvas__canvas-group">
               <header className="provider-canvas__api-address-section-head">
-                <div
-                  className="provider-canvas__api-address-tabs"
-                  role="tablist"
-                  aria-label={t("providerCanvas.modelManagement.modeAria")}
-                >
-                  {controller.modelModeTabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      className={
-                        controller.modelManagementPanel.activeMode === tab.id
-                          ? "provider-canvas__api-address-tab provider-canvas__api-address-tab--active"
-                          : "provider-canvas__api-address-tab"
-                      }
-                      type="button"
-                      role="tab"
-                      aria-selected={controller.modelManagementPanel.activeMode === tab.id}
-                      onClick={tab.onClick}
-                    >
-                      {getModelModeLabel(tab.id, t)}
-                    </button>
-                  ))}
-                </div>
+                <SettingsViewTabs
+                  activeView={controller.modelManagementPanel.activeMode}
+                  ariaLabel={t("providerCanvas.modelManagement.modeAria")}
+                  compact
+                  onChange={(mode) => {
+                    controller.modelModeTabs.find((tab) => tab.id === mode)?.onClick();
+                  }}
+                  tabs={controller.modelModeTabs.map((tab) => ({
+                    id: tab.id,
+                    label: getModelModeLabel(tab.id, t),
+                  }))}
+                />
               </header>
 
-              <div className="provider-canvas__model-mode-stage">
-                <div
-                  className={
-                    controller.modelModeTransitionState
-                      ? controller.modelModeTransitionState.direction === "forward"
-                        ? "provider-canvas__model-mode-view provider-canvas__model-mode-view--static provider-canvas__model-mode-view--enter-from-right"
-                        : "provider-canvas__model-mode-view provider-canvas__model-mode-view--static provider-canvas__model-mode-view--enter-from-left"
-                      : "provider-canvas__model-mode-view provider-canvas__model-mode-view--static"
-                  }
-                >
-                  <ProviderModelManagement
-                    hasAnyProviderApiKey={controller.hasAnyProviderApiKey}
-                    mode={controller.modelManagementPanel.activeMode}
-                    modelCheckStates={controller.modelCheckStates}
-                    modelManagementPanel={controller.modelManagementPanel}
-                    onTestModel={controller.testModelConnection}
-                    providerId={selectedProvider.provider_id}
-                    providerModelDiscovery={providerModelDiscovery}
-                    testingModelIds={controller.testingModelIds}
-                  />
-                </div>
-                {controller.shouldRenderModelModeLeavingLayer && controller.modelModeTransitionState ? (
-                  <div
-                    className={
-                      controller.modelModeTransitionState.direction === "forward"
-                        ? "provider-canvas__model-mode-view provider-canvas__model-mode-view--layer provider-canvas__model-mode-view--exit-to-left"
-                        : "provider-canvas__model-mode-view provider-canvas__model-mode-view--layer provider-canvas__model-mode-view--exit-to-right"
-                    }
-                    aria-hidden="true"
-                  >
-                    <ProviderModelManagement
-                      hasAnyProviderApiKey={controller.hasAnyProviderApiKey}
-                      mode={controller.modelModeTransitionState.leavingMode}
-                      modelCheckStates={controller.modelCheckStates}
-                      modelManagementPanel={controller.modelManagementPanel}
-                      onTestModel={controller.testModelConnection}
-                      providerId={selectedProvider.provider_id}
-                      providerModelDiscovery={providerModelDiscovery}
-                      testingModelIds={controller.testingModelIds}
-                    />
-                  </div>
-                ) : null}
-              </div>
+              <SettingsViewStage
+                activeView={controller.modelManagementPanel.activeMode}
+                className="provider-canvas__model-mode-stage"
+                keepLeavingView={(leavingMode) => leavingMode !== "cloud"}
+                orderedViews={MODEL_MODE_ORDER}
+              >
+                <ProviderModelManagement
+                  hasAnyProviderApiKey={controller.hasAnyProviderApiKey}
+                  mode={controller.modelManagementPanel.activeMode}
+                  modelCheckStates={controller.modelCheckStates}
+                  modelManagementPanel={controller.modelManagementPanel}
+                  onTestModel={controller.testModelConnection}
+                  providerId={selectedProvider.provider_id}
+                  providerModelDiscovery={providerModelDiscovery}
+                  testingModelIds={controller.testingModelIds}
+                />
+              </SettingsViewStage>
             </div>
           ) : null}
         </div>
@@ -256,3 +236,5 @@ function getModelModeLabel(
   if (mode === "cloud") return t("providerCanvas.modelManagement.tabs.cloud");
   return t("providerCanvas.modelManagement.tabs.added");
 }
+
+const MODEL_MODE_ORDER: readonly ModelManagementMode[] = ["added", "custom", "cloud"];

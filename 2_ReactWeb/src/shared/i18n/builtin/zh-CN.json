@@ -38,6 +38,13 @@
         "maximize": "最大化窗口",
         "restore": "还原窗口",
         "close": "关闭窗口"
+      },
+      "windowClosePrompt": {
+        "title": "关闭天策",
+        "message": "要退出天策，还是让它继续在系统托盘中运行？",
+        "exit": "退出",
+        "hideToTray": "托盘",
+        "trayUnavailable": "系统托盘暂时不可用，窗口没有关闭。"
       }
     },
     "sidebar": {
@@ -142,6 +149,28 @@
         "usageOperationFailed": "操作失败，请重试"
       }
     },
+    "globalMemoryManager": {
+      "title": "全局记忆管理",
+      "views": "全局记忆视图",
+      "active": "当前记忆",
+      "deleted": "已删除",
+      "eventLog": "变更日志",
+      "search": "搜索内容、关键词、记忆 ID、来源或变更依据",
+      "deletedNote": "这里的记忆已停止进入模型上下文，但内容和全部历史仍保留在事件日志中，没有被物理删除。",
+      "addTitle": "新增全局记忆",
+      "contentPlaceholder": "输入跨项目长期有效的明确事实或偏好",
+      "emptyActive": "暂无当前有效的全局记忆。",
+      "emptyDeleted": "暂无已删除的全局记忆。",
+      "emptyEvents": "暂无全局记忆变更事件。",
+      "deleteMessage": "删除后这条记忆将不再进入模型上下文，但仍会保留在已删除分类和变更日志中。",
+      "createdAt": "创建时间",
+      "updatedAt": "更新时间",
+      "deletedAt": "删除时间",
+      "history": "查看这条记忆的完整历史",
+      "before": "变更前",
+      "after": "变更后",
+      "noValue": "无此记忆"
+    },
     "workspace": {
       "settings": {
         "title": "设定集",
@@ -153,9 +182,11 @@
         "connection": "连接",
         "language": "语言",
         "softwareUpdate": "软件更新",
+        "announcements": "通知公告",
         "github": "GitHub 登录",
         "network": "网络设置",
         "tokenEstimation": "Token 估算",
+        "globalMemory": "全局记忆",
         "functionalModel": "默认功能角色",
         "functionalModelCategories": "默认功能角色分类",
         "functionalSections": {
@@ -505,6 +536,7 @@
         "source": {
           "none": "无来源",
           "manual": "手动维护",
+          "aiManagement": "AI 记忆管理",
           "compression": "压缩生成"
         },
         "operation": {
@@ -589,7 +621,6 @@
     "githubSettings": {
       "loading": "正在读取 GitHub 连接状态…",
       "title": "GitHub 登录",
-      "description": "连接 GitHub 后，可浏览已授权的私人市场，并在各在线看板绑定仓库同步本地集合。",
       "tabs": {
         "aria": "GitHub 登录与使用指南",
         "login": "登录",
@@ -655,6 +686,37 @@
         "update": "更新",
         "noNotes": "此版本没有提供更新说明。"
       }
+    },
+    "announcements": {
+      "title": "通知公告",
+      "announcementTab": "查看公告",
+      "history": "历史公告",
+      "checkingTab": "检查设置",
+      "tabsAria": "通知公告页面",
+      "years": "公告年份",
+      "autoCheck": "启动时自动检查最新公告",
+      "autoCheckDescription": "天策启动后检查最新未读公告，并且只弹出一次。",
+      "manualCheck": "手动检查公告",
+      "lastChecked": "上次成功检查",
+      "never": "尚未成功检查",
+      "check": "检查公告",
+      "checking": "正在检查…",
+      "loading": "正在加载…",
+      "select": "请选择一则公告",
+      "empty": "本年度没有公告",
+      "unread": "未读",
+      "withdrawn": "已撤回",
+      "cached": "当前显示离线缓存；上次成功检查时间未改变。",
+      "close": "关闭",
+      "savingRead": "正在保存…",
+      "loadFailed": "公告加载失败。",
+      "checkFailed": "公告检查失败。",
+      "saveFailed": "公告设置保存失败。",
+      "readFailed": "已读状态保存失败，公告尚未关闭。",
+      "emptyRepositoryTitle": "尚未发布公告",
+      "emptyRepositoryDescription": "公告仓库中还没有可用索引，发布首则公告后会在这里显示。",
+      "backendUnavailable": "公告接口尚未加载，请重启天策后再试。",
+      "checkPrompt": "检查后将在这里显示公告历史。"
     },
     "onlineMarketSource": {
       "default": "默认源",
@@ -737,7 +799,6 @@
     },
     "languageSettings": {
       "title": "语言",
-      "description": "选择天策界面使用的语言。语言包统一从本地 Data/locales 读取。",
       "selection": "界面语言",
       "system": "跟随系统",
       "systemDescription": "按照操作系统语言自动选择，当前为 {language}",
@@ -1118,7 +1179,7 @@
         "confirm": "下载并安装", "download": "下载", "update": "更新", "installed": "已安装",
         "installingShort": "安装中", "failed": "工具安装失败",
         "updateTitle": "更新在线工具",
-        "updateMessage": "将“{name}”从 v{current} 更新到 v{next}。本地调用名、启用状态、依赖和 program/config.json 会保留。",
+        "updateMessage": "将“{name}”从 v{current} 更新到 v{next}。程序快照会更新；本地调用名、启用或停用状态、动态加载状态、依赖、program/config.json 和会话数据均保留。",
         "updateConfirm": "确认更新"
       },
       "dependencies": {
@@ -1142,15 +1203,15 @@
       "filterGroups": { "authors": "作者", "protocols": "协议", "statuses": "状态" },
       "statuses": {
         "not-installed": "未安装", "installed": "已安装",
-        "update-available": "待更新", "local-conflict": "本地同名"
+        "update-available": "待更新"
       },
       "install": {
         "title": "下载在线供应商", "message": "选择“{name}”要保存到的本地供应商分类。",
         "category": "本地分类", "confirm": "下载并安装", "download": "下载",
-        "update": "更新", "installed": "已安装", "localConflict": "本地同名",
+        "update": "更新", "installed": "已安装",
         "installingShort": "安装中", "failed": "供应商安装失败",
         "updateTitle": "更新在线供应商",
-        "updateMessage": "将“{name}”从 v{current} 更新到 v{next}。供应商定义和市场管理的适配规则会更新；API Key、本地分类、启用状态和用户自建模型会保留。",
+        "updateMessage": "将“{name}”从 v{current} 更新到 v{next}。本次只更新包清单和协议适配规则；API Key、接口地址、协议选择、启用状态、模型列表、本地分类和会话数据均不修改。",
         "updateConfirm": "确认更新"
       }
     },
@@ -1185,6 +1246,16 @@
         "installed": "已安装",
         "phases": { "queued": "等待中", "downloading": "下载中", "extracting": "解压中", "importing": "导入中" }
       }
+    },
+    "knowledgeContent": {
+      "ariaLabel": "知识内容文件",
+      "fileCount": "{count} 个文件，按修改时间排序",
+      "loading": "正在读取项目文件…",
+      "empty": "这个知识项目还没有内容文件。",
+      "file": "文件",
+      "modifiedAt": "修改时间",
+      "loadError": "读取项目文件失败：{message}",
+      "unreadable": "有 {count} 个路径暂时无法读取，当前列表可能不完整。"
     },
     "knowledgeMarket": {
       "ariaLabel": "在线知识",
@@ -1287,7 +1358,7 @@
         "category": "本地分类", "confirm": "下载并安装", "download": "下载",
         "update": "更新", "installed": "已安装", "installing": "正在下载、校验并安装…",
         "installingShort": "安装中", "failed": "主题安装失败",
-        "updateTitle": "更新在线主题", "updateMessage": "将“{name}”从 v{current} 更新到 v{next}。旧版本会先保留到回收目录。",
+        "updateTitle": "更新在线主题", "updateMessage": "将“{name}”从 v{current} 更新到 v{next}。主题定义和资源会更新；本地分类、项目名称、会话数据和非主题文件均保留。",
         "updateConfirm": "确认更新"
       },
       "errors": {
@@ -1404,6 +1475,7 @@
       }
     },
     "providerCanvas": {
+      "loading": "正在载入供应商配置……",
       "disable": "停用",
       "enable": "启用",
       "renameProvider": "重命名 {provider}",
@@ -1458,6 +1530,7 @@
         "title": "API KEY"
       },
       "errors": {
+        "configLoadFailed": "供应商配置载入失败。",
         "protocolUpdateFailed": "协议更新失败。",
         "providerNameRequired": "供应商名称不能为空。"
       },

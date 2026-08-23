@@ -41,6 +41,7 @@ from app.services.project.conversation_tool_call_recovery import (
 )
 from app.services.tools.client_tool_bridge import ClientToolResultPayload
 from app.services.tools.tool_execution import PreparedClientToolExecution
+from app.services.tools.tool_permissions import ToolPermissionEvaluation
 
 
 def test_stream_close_persists_partial_assistant_without_rebinding_session_model():
@@ -1442,6 +1443,8 @@ def test_stream_preserves_usage_when_provider_emits_error_event():
         "kind": "error",
         "error": "provider failed",
         "error_code": "upstream_response_failed",
+        "attempt_index": 1,
+        "attempt_count": 1,
     }
     assert [item["role"] for item in conversation_service.appended] == ["user"]
     assert next(iter(conversation_service.runs.values())).error_message == "provider failed"
@@ -1475,6 +1478,8 @@ def test_provider_error_usage_record_failure_keeps_original_terminal_events_and_
         "kind": "error",
         "error": "provider failed",
         "error_code": "upstream_response_failed",
+        "attempt_index": 1,
+        "attempt_count": 1,
     }
     assert [item["role"] for item in conversation_service.appended] == ["user"]
     assert conversation_service.runtime_statuses[-1] == (
@@ -2936,6 +2941,9 @@ class _FakeToolExecutionService:
 
     def is_client_tool(self, _tool_name: str) -> bool:
         return False
+
+    def evaluate_permissions(self, _tool_call, *, context):
+        return ToolPermissionEvaluation(decision="allow", facts=())
 
     def execute(self, tool_call, *, context):
         assert context.workspace_root == "C:/work"

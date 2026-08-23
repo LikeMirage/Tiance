@@ -164,6 +164,37 @@ def test_preset_provider_uses_same_update_delete_rules_and_stays_deleted(tmp_pat
     assert "deepseek" not in settings["providerOrder"]
 
 
+@pytest.mark.parametrize("broken_manifest", [None, "{not-json"])
+def test_provider_directory_can_be_deleted_when_manifest_is_missing_or_invalid(
+    tmp_path,
+    broken_manifest,
+):
+    providers_path = tmp_path / "providers"
+    database_path = tmp_path / "tiance.db"
+    ensure_provider_file_storage(providers_path, database_path)
+    store = ProviderFileStore(providers_path)
+    catalog = ProviderCatalogRepository(store)
+    mutation = ProviderCatalogMutationService(
+        catalog,
+        ProviderCloudModelRepository(store),
+        ProviderCatalogDeletionRepository(catalog),
+    )
+    provider_root = providers_path / "deepseek"
+    manifest_path = provider_root / "provider.json"
+    if broken_manifest is None:
+        manifest_path.unlink()
+    else:
+        manifest_path.write_text(broken_manifest, encoding="utf-8")
+
+    mutation.delete_provider("deepseek")
+
+    assert not provider_root.exists()
+    settings = json.loads(
+        (providers_path / "provider-settings.json").read_text(encoding="utf-8")
+    )
+    assert "deepseek" not in settings["providerOrder"]
+
+
 def test_startup_adds_newly_bundled_preset_without_overwriting_existing_settings(tmp_path):
     providers_path = tmp_path / "providers"
     database_path = tmp_path / "tiance.db"
@@ -459,6 +490,67 @@ def test_provider_reasoning_replay_mode_is_persisted(tmp_path):
     assert saved.reasoning_replay_mode == ReasoningReplayMode.ALWAYS
     assert manifest is not None
     assert manifest["reasoningReplayMode"] == ReasoningReplayMode.ALWAYS.value
+
+
+def test_missing_reasoning_replay_mode_is_migrated_without_overwriting_provider(
+    tmp_path,
+):
+    providers_path = tmp_path / "providers"
+    ensure_provider_file_storage(providers_path, tmp_path / "tiance.db")
+    store = ProviderFileStore(providers_path)
+    manifest = store.read_provider_file("deepseek", "provider.json")
+    settings = store.read_settings()
+    assert manifest is not None
+    assert settings is not None
+    manifest.pop("reasoningReplayMode", None)
+    manifest["generationUrls"]["openai_compatible"] = "https://proxy.example/custom"
+    settings.pop("reasoningReplayModeVersion", None)
+    store.write_provider_file("deepseek", "provider.json", manifest)
+    store.write_settings(settings)
+
+    ensure_provider_file_storage(providers_path, tmp_path / "tiance.db")
+
+    migrated = store.read_provider_file("deepseek", "provider.json")
+    migrated_settings = store.read_settings()
+    assert migrated is not None
+    assert migrated_settings is not None
+    assert migrated["reasoningReplayMode"] == "tool_call_rounds"
+    assert migrated["generationUrls"]["openai_compatible"] == (
+        "https://proxy.example/custom"
+    )
+    assert migrated_settings["reasoningReplayModeVersion"] == 1
+
+
+def test_provider_config_list_isolates_one_invalid_provider(tmp_path):
+    providers_path = tmp_path / "providers"
+    ensure_provider_file_storage(providers_path, tmp_path / "tiance.db")
+    store = ProviderFileStore(providers_path)
+    manifest = store.read_provider_file("deepseek", "provider.json")
+    assert manifest is not None
+    manifest.pop("reasoningReplayMode", None)
+    store.write_provider_file("deepseek", "provider.json", manifest)
+
+    configs, failures = ProviderConfigRepository(store).list_config_results()
+
+    assert "deepseek" not in {config.provider_id for config in configs}
+    assert {failure.provider_id for failure in failures} == {"deepseek"}
+    assert "openai" in {config.provider_id for config in configs}
+
+
+def test_provider_catalog_list_isolates_one_invalid_provider(tmp_path):
+    providers_path = tmp_path / "providers"
+    ensure_provider_file_storage(providers_path, tmp_path / "tiance.db")
+    store = ProviderFileStore(providers_path)
+    manifest = store.read_provider_file("deepseek", "provider.json")
+    assert manifest is not None
+    manifest.pop("displayName", None)
+    store.write_provider_file("deepseek", "provider.json", manifest)
+
+    entries, failures = ProviderCatalogRepository(store).list_entry_results()
+
+    assert "deepseek" not in {entry.provider_id for entry in entries}
+    assert {failure.provider_id for failure in failures} == {"deepseek"}
+    assert "openai" in {entry.provider_id for entry in entries}
 
 
 def test_existing_empty_model_discovery_url_is_migrated_without_overwriting_custom_url(

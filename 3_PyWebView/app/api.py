@@ -26,6 +26,7 @@ from app.windows_clipboard import (
     read_clipboard_path_entries,
     write_clipboard_path_entries,
 )
+from app.windows_tray import WindowsTrayIcon
 
 if TYPE_CHECKING:
     from app.backend_process import BackendProcessManager
@@ -87,6 +88,7 @@ class ShellCapabilities:
     native_window_resize_mode: str
     native_window_resize_supported: bool
     page_zoom_supported: bool
+    system_tray_supported: bool
 
 
 class ShellApi:
@@ -100,6 +102,12 @@ class ShellApi:
         self._revealed = False
         self._show_desktop_minimize_timer: threading.Timer | None = None
         self._windows_native_events_installed = False
+        self._allow_window_close = False
+        self._windows_tray = WindowsTrayIcon(
+            icon_path=getattr(settings, "app_icon_path", None),
+            on_request_exit=self._request_exit_from_windows_tray,
+            on_show_window=self._show_window_from_windows_tray,
+        )
         self._system_metrics = SystemMetricsSampler()
 
     def bind_window(self, window: Any) -> None:
@@ -108,6 +116,7 @@ class ShellApi:
         window.events.restored += self._handle_restored
         window.events.shown += self._install_windows_native_window_enhancements
         window.events.loaded += self._install_windows_native_window_enhancements
+        window.events.closing += self._handle_window_closing
         self._install_windows_native_window_enhancements()
 
     def record_startup_mark(
@@ -197,6 +206,18 @@ class ShellApi:
     def minimize_window(self) -> None:
         self._require_allowed_window().minimize()
 
+    def hide_window_to_tray(self) -> bool:
+        window = self._require_allowed_window()
+        if not self._windows_tray.installed:
+            self._install_windows_native_window_enhancements()
+        if not self._windows_tray.installed:
+            mark("windows tray: hide rejected because tray icon is unavailable")
+            return False
+
+        window.hide()
+        mark("windows tray: window hidden")
+        return True
+
     def toggle_maximize_window(self) -> dict[str, bool]:
         window = self._require_allowed_window()
 
@@ -216,7 +237,8 @@ class ShellApi:
         return self._build_window_state_response()
 
     def close_window(self) -> None:
-        self._require_allowed_window().destroy()
+        self._require_allowed_window()
+        self._destroy_window()
 
     def install_software_update(self, stage_path: str) -> dict[str, str | bool]:
         window = self._require_allowed_window()
@@ -253,8 +275,26 @@ class ShellApi:
             }
 
         mark("software update: updater launched", stage=stage_root)
-        threading.Timer(0.2, window.destroy).start()
+        threading.Timer(0.2, self._destroy_window).start()
         return {"ok": True, "errorCode": "", "error": ""}
+
+    def close_after_backend_loss(self, reason: str) -> None:
+        mark("backend unavailable: closing shell", reason=reason)
+        try:
+            self._destroy_window()
+        except Exception as exc:  # pragma: no cover - native runtime defensive path
+            mark("backend unavailable: shell close failed", error=type(exc).__name__)
+
+    def dispose(self) -> None:
+        window = self._window
+        if window is None:
+            self._windows_tray.dispose()
+            return
+
+        try:
+            _run_on_native_window_thread(window, self._windows_tray.dispose)
+        except Exception:
+            self._windows_tray.dispose()
 
     def get_window_state(self) -> dict[str, bool | int]:
         self._require_allowed_window()
@@ -269,6 +309,7 @@ class ShellApi:
             native_window_resize_mode=native_window_resize_mode,
             native_window_resize_supported=native_window_resize_mode != "none",
             page_zoom_supported=_is_webview_page_zoom_supported(window),
+            system_tray_supported=sys.platform == "win32",
         )
         return {
             "platform": capabilities.platform,
@@ -276,6 +317,7 @@ class ShellApi:
             "nativeWindowResizeMode": capabilities.native_window_resize_mode,
             "nativeWindowResizeSupported": capabilities.native_window_resize_supported,
             "pageZoomSupported": capabilities.page_zoom_supported,
+            "systemTraySupported": capabilities.system_tray_supported,
         }
 
     def get_page_zoom_factor(self) -> dict[str, bool | float]:
@@ -542,11 +584,74 @@ class ShellApi:
             except Exception:
                 mark("show desktop guard: native deactivate hook unavailable")
 
+        tray_icon_ready = bool(
+            _run_on_native_window_thread(window, self._windows_tray.install)
+        )
+        if not tray_icon_ready:
+            mark("windows tray: icon unavailable")
+
         mark(
             "windows native window enhancements applied",
             application_window_style=application_window_style_ready,
             deactivate_hook=self._windows_native_events_installed,
+            tray_icon=tray_icon_ready,
         )
+
+    def _handle_window_closing(self, *_: object) -> bool | None:
+        if sys.platform != "win32":
+            return None
+        if self._allow_window_close:
+            return None
+
+        self._schedule_frontend_close_request()
+        return False
+
+    def _schedule_frontend_close_request(self) -> None:
+        request_thread = threading.Thread(
+            target=self._dispatch_frontend_close_request,
+            name="tiance-window-close-request",
+            daemon=True,
+        )
+        request_thread.start()
+
+    def _dispatch_frontend_close_request(self) -> None:
+        window = self._window
+        if window is None:
+            return
+
+        try:
+            window.evaluate_js(
+                "window.dispatchEvent(new CustomEvent('tiance:window-close-requested'))"
+            )
+        except Exception as exc:
+            mark("window close request: frontend dispatch failed", error=type(exc).__name__)
+
+    def _show_window_from_windows_tray(self) -> None:
+        window = self._window
+        if window is None:
+            return
+
+        try:
+            window.show()
+            _bring_window_to_front(window)
+            self._revealed = True
+            mark("windows tray: window restored")
+        except Exception as exc:
+            mark("windows tray: window restore failed", error=type(exc).__name__)
+
+    def _request_exit_from_windows_tray(self) -> None:
+        self._show_window_from_windows_tray()
+        self._schedule_frontend_close_request()
+
+    def _destroy_window(self) -> None:
+        window = self._require_window()
+        self._allow_window_close = True
+        try:
+            self.dispose()
+            window.destroy()
+        except Exception:
+            self._allow_window_close = False
+            raise
 
     def _handle_windows_window_deactivated(self, *_: object) -> None:
         if sys.platform != "win32":

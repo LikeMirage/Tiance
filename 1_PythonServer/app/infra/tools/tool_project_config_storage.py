@@ -9,11 +9,13 @@ from app.infra.tools.tool_project_config_constants import (
     TOOL_FOLDER_MANIFEST_FILE,
     TOOL_INPUT_SCHEMA_FILE,
     TOOL_OUTPUT_SCHEMA_FILE,
+    TOOL_PERMISSIONS_FILE,
 )
 from app.infra.tools.tool_project_config_helpers import (
     _normalize_examples_content,
     _normalize_input_schema_content,
     _normalize_output_schema_content,
+    _normalize_permissions_content,
     _normalize_string_list,
     _normalize_tool_call_name,
     _normalize_tool_execution,
@@ -45,6 +47,8 @@ class ToolProjectConfigStorage:
             return _normalize_output_schema_content(content)
         if normalized_path == TOOL_EXAMPLES_FILE:
             return _normalize_examples_content(content)
+        if normalized_path == TOOL_PERMISSIONS_FILE:
+            return _normalize_permissions_content(content)
         return content
 
     def _normalize_manifest_content(

@@ -24,6 +24,10 @@ from app.services.tools.client_tool_bridge import (
     ClientToolBridgeService,
     get_client_tool_bridge_service,
 )
+from app.services.tools.tool_permission_bridge import (
+    ToolPermissionBridgeService,
+    get_tool_permission_bridge_service,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -75,6 +79,7 @@ class ConversationRunManager:
         self,
         client_tool_bridge_service: ClientToolBridgeService | None = None,
         *,
+        tool_permission_bridge_service: ToolPermissionBridgeService | None = None,
         subscriber_max_events: int = DEFAULT_SUBSCRIBER_MAX_EVENTS,
         subscriber_max_content_units: int = DEFAULT_SUBSCRIBER_MAX_CONTENT_UNITS,
     ) -> None:
@@ -84,6 +89,9 @@ class ConversationRunManager:
         self._lock = asyncio.Lock()
         self._client_tool_bridge_service = (
             client_tool_bridge_service or get_client_tool_bridge_service()
+        )
+        self._tool_permission_bridge_service = (
+            tool_permission_bridge_service or get_tool_permission_bridge_service()
         )
         self._subscriber_max_events = subscriber_max_events
         self._subscriber_max_content_units = subscriber_max_content_units
@@ -176,15 +184,21 @@ class ConversationRunManager:
             await asyncio.sleep(_CHECKPOINT_POLL_SECONDS)
 
     async def _should_replay_event(self, event: dict[str, object | None]) -> bool:
-        if event.get("kind") != "client_tool_request":
+        kind = event.get("kind")
+        if kind == "client_tool_request":
+            request = event.get("client_tool_request")
+            bridge = self._client_tool_bridge_service
+        elif kind == "tool_permission_request":
+            request = event.get("tool_permission_request")
+            bridge = self._tool_permission_bridge_service
+        else:
             return True
-        request = event.get("client_tool_request")
         if not isinstance(request, dict):
             return False
         request_id = request.get("request_id")
         if not isinstance(request_id, str):
             return False
-        return await self._client_tool_bridge_service.should_replay_request(request_id)
+        return await bridge.should_replay_request(request_id)
 
     async def stream(
         self,
@@ -227,6 +241,20 @@ class ConversationRunManager:
                 run,
                 {
                     "kind": "client_tool_request_cancelled",
+                    "request_id": request_id,
+                },
+            )
+        pending_permission_requests = (
+            await self._tool_permission_bridge_service.pending_request_ids(
+                project_id=project_id,
+                session_id=session_id,
+            )
+        )
+        for request_id in pending_permission_requests:
+            await self._publish(
+                run,
+                {
+                    "kind": "tool_permission_request_cancelled",
                     "request_id": request_id,
                 },
             )

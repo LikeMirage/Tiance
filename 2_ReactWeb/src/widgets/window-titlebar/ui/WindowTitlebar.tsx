@@ -13,7 +13,7 @@ import {
 } from "./windowTitlebarIcons";
 
 type WindowTitlebarProps = {
-  onRequestClose?: (closeWindow: () => Promise<void>) => void;
+  onRequestClose?: () => void;
 };
 
 export function WindowTitlebar({ onRequestClose }: WindowTitlebarProps) {
@@ -87,7 +87,7 @@ export function WindowTitlebar({ onRequestClose }: WindowTitlebarProps) {
           onMouseDown={preventWindowControlMouseFocus}
           onClick={() => {
             if (onRequestClose) {
-              onRequestClose(close);
+              onRequestClose();
               return;
             }
             void close();

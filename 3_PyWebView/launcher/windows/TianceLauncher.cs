@@ -7,8 +7,13 @@ using System.Text;
 
 internal static class TianceLauncher
 {
+    private const string AppUserModelId = "LikeMirage.Tiance";
     private const string ChineseShortcutName = "天策.lnk";
     private const string EnglishShortcutName = "Tiance.lnk";
+    private static readonly PROPERTYKEY AppUserModelIdPropertyKey = new PROPERTYKEY(
+        new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"),
+        5
+    );
 
     [STAThread]
     private static int Main(string[] args)
@@ -128,6 +133,7 @@ internal static class TianceLauncher
         startInfo.EnvironmentVariables["PYTHONNOUSERSITE"] = "1";
         startInfo.EnvironmentVariables["TIANCE_SHELL_USE_EMBEDDED_PYTHON"] = "true";
         startInfo.EnvironmentVariables["TIANCE_API_USE_EMBEDDED_PYTHON"] = "true";
+        startInfo.EnvironmentVariables["TIANCE_APP_USER_MODEL_ID"] = AppUserModelId;
 
         Process.Start(startInfo);
     }
@@ -145,7 +151,18 @@ internal static class TianceLauncher
 
             string chineseShortcut = Path.Combine(desktopPath, ChineseShortcutName);
             string englishShortcut = Path.Combine(desktopPath, EnglishShortcutName);
-            if (ShortcutTargets(chineseShortcut, launcherPath) || ShortcutTargets(englishShortcut, launcherPath))
+            bool existingShortcutUpdated = false;
+            if (ShortcutTargets(chineseShortcut, launcherPath))
+            {
+                ApplyShortcutAppUserModelId(chineseShortcut);
+                existingShortcutUpdated = true;
+            }
+            if (ShortcutTargets(englishShortcut, launcherPath))
+            {
+                ApplyShortcutAppUserModelId(englishShortcut);
+                existingShortcutUpdated = true;
+            }
+            if (existingShortcutUpdated)
             {
                 return;
             }
@@ -202,7 +219,33 @@ internal static class TianceLauncher
         link.SetWorkingDirectory(projectRoot);
         link.SetDescription("Tiance");
         link.SetIconLocation(launcherPath, 0);
+        SetShortcutAppUserModelId(link);
         ((IPersistFile)link).Save(shortcutPath, true);
+    }
+
+    private static void ApplyShortcutAppUserModelId(string shortcutPath)
+    {
+        IShellLinkW link = (IShellLinkW)new CShellLink();
+        IPersistFile persistFile = (IPersistFile)link;
+        persistFile.Load(shortcutPath, 2);
+        SetShortcutAppUserModelId(link);
+        persistFile.Save(shortcutPath, true);
+    }
+
+    private static void SetShortcutAppUserModelId(IShellLinkW link)
+    {
+        IPropertyStore propertyStore = (IPropertyStore)link;
+        PROPERTYKEY propertyKey = AppUserModelIdPropertyKey;
+        PROPVARIANT propertyValue = PROPVARIANT.FromString(AppUserModelId);
+        try
+        {
+            propertyStore.SetValue(ref propertyKey, ref propertyValue);
+            propertyStore.Commit();
+        }
+        finally
+        {
+            PropVariantClear(ref propertyValue);
+        }
     }
 
     private static bool PathsEqual(string left, string right)
@@ -263,6 +306,9 @@ internal static class TianceLauncher
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int MessageBoxW(IntPtr hwnd, string text, string caption, uint type);
 
+    [DllImport("ole32.dll")]
+    private static extern int PropVariantClear(ref PROPVARIANT pvar);
+
     [ComImport]
     [Guid("00021401-0000-0000-C000-000000000046")]
     private class CShellLink
@@ -311,6 +357,50 @@ internal static class TianceLauncher
         void Save([MarshalAs(UnmanagedType.LPWStr)] string pszFileName, bool fRemember);
         void SaveCompleted([MarshalAs(UnmanagedType.LPWStr)] string pszFileName);
         void GetCurFile([MarshalAs(UnmanagedType.LPWStr)] out string ppszFileName);
+    }
+
+    [ComImport]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    [Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99")]
+    private interface IPropertyStore
+    {
+        void GetCount(out uint propertyCount);
+        void GetAt(uint propertyIndex, out PROPERTYKEY propertyKey);
+        void GetValue(ref PROPERTYKEY propertyKey, out PROPVARIANT propertyValue);
+        void SetValue(ref PROPERTYKEY propertyKey, ref PROPVARIANT propertyValue);
+        void Commit();
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    private struct PROPERTYKEY
+    {
+        public Guid formatId;
+        public uint propertyId;
+
+        public PROPERTYKEY(Guid formatId, uint propertyId)
+        {
+            this.formatId = formatId;
+            this.propertyId = propertyId;
+        }
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 24)]
+    private struct PROPVARIANT
+    {
+        [FieldOffset(0)]
+        public ushort valueType;
+
+        [FieldOffset(8)]
+        public IntPtr pointerValue;
+
+        public static PROPVARIANT FromString(string value)
+        {
+            return new PROPVARIANT
+            {
+                valueType = 31,
+                pointerValue = Marshal.StringToCoTaskMemUni(value),
+            };
+        }
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

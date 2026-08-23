@@ -13,7 +13,13 @@ from uuid import uuid4
 
 from app.core.atomic_replace import atomic_replace_path
 from app.core.errors import BadRequestError, ConflictError
-from app.domain.file_workspace import FileEntryKind, FileEntryNode, FileEntryTree
+from app.domain.file_workspace import (
+    ContentFileEntry,
+    ContentFileSnapshot,
+    FileEntryKind,
+    FileEntryNode,
+    FileEntryTree,
+)
 from app.infra.file_workspace.file_names import is_internal_write_temp_path
 
 _IGNORED_RECURSIVE_SEARCH_DIR_NAMES = {
@@ -80,6 +86,58 @@ class FileWorkspaceStorage:
         if not scope.is_dir():
             return FileEntryTree(items=())
         return FileEntryTree(items=self._list_one_level(scope, root))
+
+    def list_content_files(self, workspace_root: str) -> ContentFileSnapshot:
+        """递归列出项目内容文件，仅排除根级会话数据目录和内部临时文件。"""
+        root = Path(workspace_root).resolve()
+        if not root.is_dir():
+            return ContentFileSnapshot(items=())
+
+        discovered: list[tuple[int, ContentFileEntry]] = []
+        unreadable_paths: list[str] = []
+
+        def scan(scope: Path) -> None:
+            try:
+                entries = tuple(scope.iterdir())
+            except OSError:
+                unreadable_paths.append(_relative_scan_path(scope, root))
+                return
+
+            for entry in entries:
+                relative_path = entry.relative_to(root).as_posix()
+                if scope == root and entry.name.casefold() == ".tiance":
+                    continue
+                if is_internal_write_temp_path(entry):
+                    continue
+                try:
+                    if entry.is_symlink() or _is_junction(entry):
+                        continue
+                    if entry.is_dir():
+                        scan(entry)
+                        continue
+                    if not entry.is_file():
+                        continue
+                    file_stat = entry.stat()
+                except OSError:
+                    unreadable_paths.append(relative_path)
+                    continue
+
+                mtime_ns = file_stat.st_mtime_ns
+                discovered.append((
+                    mtime_ns,
+                    ContentFileEntry(
+                        name=entry.name,
+                        path=relative_path,
+                        mtime_ms=mtime_ns // 1_000_000,
+                    ),
+                ))
+
+        scan(root)
+        discovered.sort(key=lambda item: (-item[0], item[1].path.casefold(), item[1].path))
+        return ContentFileSnapshot(
+            items=tuple(item for _mtime_ns, item in discovered),
+            unreadable_paths=tuple(sorted(set(unreadable_paths), key=lambda path: (path.casefold(), path))),
+        )
 
     def create_entry(
         self,
@@ -407,6 +465,16 @@ def _resolve_within_root(root: Path, relative: str) -> Path:
     if root not in resolved.parents and resolved != root:
         raise ValueError("Path is outside the workspace directory.")
     return resolved
+
+
+def _relative_scan_path(path: Path, root: Path) -> str:
+    relative = path.relative_to(root).as_posix()
+    return relative or "."
+
+
+def _is_junction(path: Path) -> bool:
+    is_junction = getattr(path, "is_junction", None)
+    return bool(is_junction and is_junction())
 
 
 def _resolve_directory(root: Path, relative: str | None) -> Path:

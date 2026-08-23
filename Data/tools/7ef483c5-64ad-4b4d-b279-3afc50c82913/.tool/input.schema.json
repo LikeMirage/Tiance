@@ -1,7 +1,7 @@
 {
   "type":"object","additionalProperties":false,"required":["action","parameters"],"properties":{
-    "action":{"type":"string","enum":["list","get","compare","create","update","comment","list_reviews","list_comments","list_files","review","merge","update_branch"]},
-    "dry_run":{"type":"boolean","default":false},
-    "parameters":{"type":"object","description":"必须含 repository。详情和修改使用 number；创建使用 title、head、base，可选 body、draft；审查使用 event(APPROVE/REQUEST_CHANGES/COMMENT)；合并可选 merge_method。"}
+    "action":{"permission_type": "external_data_modify", "type":"string","enum":["list","get","compare","create","update","comment","list_reviews","list_comments","list_files","review","merge","update_branch"]},
+    "dry_run":{"permission_type": "none", "type":"boolean","default":false},
+    "parameters":{"permission_type": "external_data_modify", "type":"object","description":"必须含 repository。详情和修改使用 number；创建使用 title、head、base，可选 body、draft；审查使用 event(APPROVE/REQUEST_CHANGES/COMMENT)；合并可选 merge_method。"}
   }
 }

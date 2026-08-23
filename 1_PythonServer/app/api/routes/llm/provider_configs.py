@@ -19,6 +19,7 @@ from app.schemas.llm.provider_configs import (
     ProviderApiKeyConfigInputRequest,
     ProviderCloudModelCacheResponse,
     ProviderConfigListResponse,
+    ProviderConfigLoadErrorResponse,
     ProviderModelCheckRequest,
     ProviderModelCheckResponse,
     ProviderConfigResponse,
@@ -51,8 +52,16 @@ router = APIRouter(prefix="/llm/provider-configs", tags=["llm"])
 )
 def list_provider_configs() -> ProviderConfigListResponse:
     service = get_provider_config_service()
-    items = [_provider_config_response(item, service) for item in service.list_configs()]
-    return ProviderConfigListResponse(count=len(items), items=items)
+    configs, failures = service.list_config_results()
+    items = [_provider_config_response(item, service) for item in configs]
+    errors = [
+        ProviderConfigLoadErrorResponse(
+            provider_id=failure.provider_id,
+            message=failure.message,
+        )
+        for failure in failures
+    ]
+    return ProviderConfigListResponse(count=len(items), items=items, errors=errors)
 
 
 @router.get(

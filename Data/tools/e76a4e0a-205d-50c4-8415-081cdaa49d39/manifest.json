@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "md2docx",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "author": {
     "name": "LikeMirage"
   },
   "license": "CC0-1.0",
   "compatibility": {
-    "minTianceVersion": "0.3.20",
+    "minTianceVersion": "0.3.23",
     "platforms": [
       "windows-x64"
     ]

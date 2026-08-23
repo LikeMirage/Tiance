@@ -1232,3 +1232,97 @@ def test_memory_management_requires_explicit_reason(tmp_path):
             content="无依据记忆",
             reason=" ",
         )
+
+
+def test_global_memory_delete_keeps_tombstone_and_complete_event_log(tmp_path):
+    repository = ProjectConversationMemoryRepository(
+        FakeProjectRepository(str(tmp_path / "project")),
+        global_memory_root=tmp_path / "runtime" / "memory",
+    )
+    service = ProjectMemoryManagementService(repository)
+
+    added = service.apply_operation(
+        scope="global",
+        operation="add",
+        content="用户偏好简洁直接的回答。",
+        keywords=["表达偏好"],
+        reason="用户明确要求保存",
+    )
+    memory_id = added["memory_id"]
+    service.apply_operation(
+        scope="global",
+        operation="update",
+        memory_id=memory_id,
+        content="用户偏好先给结论，再说明必要依据。",
+        keywords=["表达偏好", "结论优先"],
+        reason="用户给出了更准确的表述",
+    )
+    service.apply_operation(
+        scope="global",
+        operation="delete",
+        memory_id=memory_id,
+        reason="用户要求停止使用这项偏好",
+    )
+
+    active = service.list_memory_records(scope="global", status="active")
+    deleted = service.list_memory_records(scope="global", status="deleted")
+    events = service.list_memory_events(scope="global", page=1, page_size=50)
+
+    assert active["items"] == []
+    assert deleted["total_count"] == 1
+    assert deleted["items"][0]["id"] == memory_id
+    assert deleted["items"][0]["status"] == "deleted"
+    assert deleted["items"][0]["content"] == "用户偏好先给结论，再说明必要依据。"
+    assert deleted["items"][0]["keywords"] == ["表达偏好", "结论优先"]
+    assert deleted["items"][0]["event_count"] == 3
+    assert deleted["items"][0]["deleted_at"]
+
+    assert [event["operation"] for event in events["items"]] == [
+        "delete",
+        "update",
+        "add",
+    ]
+    assert [event["event_index"] for event in events["items"]] == [3, 2, 1]
+    assert events["items"][0]["before"] == {
+        "content": "用户偏好先给结论，再说明必要依据。",
+        "keywords": ["表达偏好", "结论优先"],
+    }
+    assert events["items"][0]["after"] is None
+    assert len(repository.list_global_memory_events()) == 3
+
+
+def test_global_memory_latest_committed_update_wins(tmp_path):
+    repository = ProjectConversationMemoryRepository(
+        FakeProjectRepository(str(tmp_path / "project")),
+        global_memory_root=tmp_path / "runtime" / "memory",
+    )
+    service = ProjectMemoryManagementService(repository)
+    memory_id = service.apply_operation(
+        scope="global",
+        operation="add",
+        content="第一版",
+        reason="建立记忆",
+    )["memory_id"]
+
+    service.apply_operation(
+        scope="global",
+        operation="update",
+        memory_id=memory_id,
+        content="第二版",
+        reason="第一次更新",
+    )
+    service.apply_operation(
+        scope="global",
+        operation="update",
+        memory_id=memory_id,
+        content="第三版",
+        reason="最后一次成功提交",
+        source_operation_id="ai_session_function-session_tool_call_call-3",
+    )
+
+    active = service.list_memory_records(scope="global", status="active")
+    assert active["items"][0]["content"] == "第三版"
+    assert active["items"][0]["event_count"] == 3
+    assert active["items"][0]["source"] == (
+        "ai_session_function-session_tool_call_call-3"
+    )

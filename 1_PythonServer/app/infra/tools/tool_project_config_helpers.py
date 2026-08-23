@@ -4,11 +4,18 @@ from datetime import UTC, datetime
 from json import dumps, loads
 
 from app.core.errors import BadRequestError
+from app.domain.tools.parameter_permissions import (
+    TOOL_PARAMETER_PERMISSION_TYPE_KEY,
+    TOOL_PARAMETER_PERMISSION_TYPES,
+)
+from app.domain.tools.permission_policies import normalize_tool_permission_policy
 from app.infra.tools.tool_project_config_constants import (
     TOOL_EXAMPLES_FILE,
     TOOL_INPUT_SCHEMA_FILE,
     TOOL_OUTPUT_SCHEMA_FILE,
+    TOOL_PERMISSIONS_FILE,
 )
+
 
 def _normalize_schema_parameter_options(input_schema: dict[str, object]) -> bool:
     properties = input_schema.get("properties")
@@ -36,11 +43,32 @@ def _normalize_schema_parameter_options(input_schema: dict[str, object]) -> bool
     return changed
 
 
+def _validate_schema_parameter_permission_types(
+    input_schema: dict[str, object],
+) -> None:
+    properties = input_schema.get("properties")
+    if not isinstance(properties, dict):
+        return
+
+    for parameter_name, schema in properties.items():
+        if not isinstance(schema, dict) or TOOL_PARAMETER_PERMISSION_TYPE_KEY not in schema:
+            continue
+        permission_type = schema.get(TOOL_PARAMETER_PERMISSION_TYPE_KEY)
+        if (
+            not isinstance(permission_type, str)
+            or permission_type not in TOOL_PARAMETER_PERMISSION_TYPES
+        ):
+            raise BadRequestError(
+                f"参数 {parameter_name} 的 permission_type 不是受支持的权限类型。"
+            )
+
+
 def _normalize_tool_manifest_files(manifest: dict[str, object]) -> bool:
     next_files = {
         "input_schema": TOOL_INPUT_SCHEMA_FILE,
         "output_schema": TOOL_OUTPUT_SCHEMA_FILE,
         "examples": TOOL_EXAMPLES_FILE,
+        "permissions": TOOL_PERMISSIONS_FILE,
     }
     if manifest.get("files") != next_files:
         manifest["files"] = next_files
@@ -124,6 +152,7 @@ def _normalize_input_schema_content(content: str) -> str:
     if not isinstance(payload.get("required"), list):
         payload["required"] = []
     _normalize_schema_parameter_options(payload)
+    _validate_schema_parameter_permission_types(payload)
     return dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
@@ -147,6 +176,15 @@ def _normalize_examples_content(content: str) -> str:
         raise BadRequestError("examples.json 必须是 JSON 数组。")
     examples = _normalize_tool_examples_value(payload)
     return dumps(examples, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+
+
+def _normalize_permissions_content(content: str) -> str:
+    payload = _load_json_content(content, filename=TOOL_PERMISSIONS_FILE)
+    try:
+        normalized = normalize_tool_permission_policy(payload)
+    except ValueError as exc:
+        raise BadRequestError(str(exc)) from exc
+    return dumps(normalized, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
 def _normalize_parameter_options(

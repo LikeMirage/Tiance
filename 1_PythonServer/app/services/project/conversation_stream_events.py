@@ -2,6 +2,8 @@ from json import dumps
 
 from app.domain.llm.chat import (
     ChatClientToolRequest,
+    ChatToolPermissionRequest,
+    ChatToolPermissionResolution,
     ChatStreamEvent,
     ChatStreamEventKind,
     ChatToolCall,
@@ -31,6 +33,12 @@ def stream_event_to_payload(
         ),
         "tool_call": tool_call_to_payload(event.tool_call),
         "client_tool_request": client_tool_request_to_payload(event.client_tool_request),
+        "tool_permission_request": tool_permission_request_to_payload(
+            event.tool_permission_request
+        ),
+        "tool_permission_resolution": tool_permission_resolution_to_payload(
+            event.tool_permission_resolution
+        ),
         "tool_result": tool_result_to_payload(event.tool_result),
         "attempt_index": event.attempt_index,
         "attempt_count": event.attempt_count,
@@ -58,6 +66,33 @@ def client_tool_request_to_payload(
             "min_version": request.capability.version,
         }
     return payload
+
+
+def tool_permission_request_to_payload(
+    request: ChatToolPermissionRequest | None,
+) -> dict[str, object] | None:
+    if request is None:
+        return None
+    return {
+        "request_id": request.request_id,
+        "call_id": request.call_id,
+        "name": request.name,
+        "project_id": request.project_id,
+        "session_id": request.session_id,
+        "facts": list(request.facts),
+    }
+
+
+def tool_permission_resolution_to_payload(
+    resolution: ChatToolPermissionResolution | None,
+) -> dict[str, object] | None:
+    if resolution is None:
+        return None
+    return {
+        "request_id": resolution.request_id,
+        "call_id": resolution.call_id,
+        "decision": resolution.decision,
+    }
 
 
 def tool_call_to_payload(tool_call: ChatToolCall | None) -> dict[str, object] | None:

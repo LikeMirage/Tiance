@@ -3,6 +3,7 @@
   "description": "批量读取工作区内文本文件。files 可传字符串数组，也可传包含 file_path/start_line/max_lines 的对象数组。",
   "properties": {
     "files": {
+      "permission_type": "filesystem_read",
       "description": "要读取的文件列表。元素可以是路径字符串，或 {\"file_path\":\"...\",\"start_line\":1,\"max_lines\":200}。",
       "items": {
         "oneOf": [
@@ -38,6 +39,7 @@
       "type": "array"
     },
     "max_chars_per_file": {
+      "permission_type": "none",
       "default": 30000,
       "description": "每个文件最多返回字符数。",
       "maximum": 500000,
@@ -46,6 +48,7 @@
       "type": "integer"
     },
     "total_max_chars": {
+      "permission_type": "none",
       "default": 100000,
       "description": "所有文件合计最多返回字符数。",
       "maximum": 2000000,
@@ -54,6 +57,7 @@
       "type": "integer"
     },
     "default_max_lines": {
+      "permission_type": "none",
       "default": 1000,
       "description": "单个文件默认最多读取行数。",
       "maximum": 20000,
@@ -62,6 +66,7 @@
       "type": "integer"
     },
     "encoding": {
+      "permission_type": "none",
       "default": "auto",
       "enum": [
         "auto",
@@ -74,6 +79,7 @@
       "type": "string"
     },
     "include_line_numbers": {
+      "permission_type": "none",
       "default": false,
       "description": "是否为每个文件内容添加行号。",
       "title": "包含行号",

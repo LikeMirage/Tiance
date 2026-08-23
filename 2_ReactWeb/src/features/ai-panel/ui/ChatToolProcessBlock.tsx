@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import { CaretDown, CaretRight } from "@phosphor-icons/react";
+import { CaretDown, CaretRight, Check, X } from "@phosphor-icons/react";
+
+import { submitToolPermissionDecision } from "../../../services/llm/submitToolPermissionDecision";
 
 import type {
   ChatAssistantProcessItem,
@@ -41,6 +43,7 @@ export function ToolProcessBlock({
     let preparingCount = 0;
     let preparingToolCount = 0;
     let runningCount = 0;
+    let waitingPermissionCount = 0;
     let doneCount = 0;
     let errorCount = 0;
     let cancelledCount = 0;
@@ -55,6 +58,8 @@ export function ToolProcessBlock({
         preparingToolCount += 1;
       } else if (entry.tool.status === "running") {
         runningCount += 1;
+      } else if (entry.tool.status === "waiting_permission") {
+        waitingPermissionCount += 1;
       } else if (entry.tool.status === "done") {
         doneCount += 1;
       } else if (entry.tool.status === "error") {
@@ -71,6 +76,7 @@ export function ToolProcessBlock({
       runningCount,
       tools,
       totalPreparingCount: preparingCount + preparingToolCount,
+      waitingPermissionCount,
     };
   }, [entries]);
   const elapsedSeconds = resolveToolGroupElapsedSeconds(entries, clockTick);
@@ -92,11 +98,6 @@ export function ToolProcessBlock({
         </span>
         <span className="chat-msg__tools-title">工具调用</span>
         <span className="chat-msg__tools-summary">
-          {elapsedSeconds !== null ? (
-            <span className="chat-msg__tools-timer">
-              {formatElapsedSeconds(elapsedSeconds)}
-            </span>
-          ) : null}
           {toolSummary.tools.length > 0 ? (
             <span className="chat-msg__tools-count">{toolSummary.tools.length} 个</span>
           ) : null}
@@ -118,9 +119,19 @@ export function ToolProcessBlock({
               调用中 {toolSummary.runningCount}
             </span>
           ) : null}
+          {toolSummary.waitingPermissionCount > 0 ? (
+            <span className="chat-msg__tools-status chat-msg__tools-status--waiting">
+              等待确认 {toolSummary.waitingPermissionCount}
+            </span>
+          ) : null}
           {toolSummary.totalPreparingCount > 0 ? (
             <span className="chat-msg__tools-status chat-msg__tools-status--running">
               准备中
+            </span>
+          ) : null}
+          {elapsedSeconds !== null ? (
+            <span className="chat-msg__tools-timer">
+              {formatElapsedSeconds(elapsedSeconds)}
             </span>
           ) : null}
         </span>
@@ -184,51 +195,103 @@ function ToolProcessCard({
   item: ChatToolProcessItem;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [submittingDecision, setSubmittingDecision] = useState<"allow" | "deny" | null>(null);
   const result = item.error || item.result;
   const elapsedSeconds = resolveToolProcessElapsedSeconds(item, clockTick);
+  const permissionRequest = item.permissionRequest ?? null;
+
+  const decidePermission = async (decision: "allow" | "deny") => {
+    if (!permissionRequest || submittingDecision) return;
+    setSubmittingDecision(decision);
+    try {
+      const response = await submitToolPermissionDecision(
+        permissionRequest.request_id,
+        decision,
+      );
+      if (!response.accepted) setSubmittingDecision(null);
+    } catch {
+      setSubmittingDecision(null);
+    }
+  };
+
   return (
     <article className="chat-msg__tool-card">
-      <button
-        className="chat-msg__tool-head chat-msg__tool-head--button"
-        type="button"
-        aria-expanded={isExpanded}
-        onClick={() => setIsExpanded((value) => !value)}
-      >
-        <span className="chat-msg__tool-caret" aria-hidden="true">
-          {isExpanded ? (
-            <CaretDown size={14} weight="bold" />
-          ) : (
-            <CaretRight size={14} weight="bold" />
-          )}
-        </span>
-        <span className="chat-msg__tool-name">{item.name || "tool"}</span>
+      <div className="chat-msg__tool-head chat-msg__tool-head--button">
+        <button
+          className="chat-msg__tool-head-main"
+          type="button"
+          aria-expanded={isExpanded}
+          onClick={() => setIsExpanded((value) => !value)}
+        >
+          <span className="chat-msg__tool-caret" aria-hidden="true">
+            {isExpanded ? (
+              <CaretDown size={14} weight="bold" />
+            ) : (
+              <CaretRight size={14} weight="bold" />
+            )}
+          </span>
+          <span className="chat-msg__tool-name">{item.name || "tool"}</span>
+        </button>
         <span className="chat-msg__tool-meta">
+          {permissionRequest ? (
+            <span className="chat-msg__tool-permission-actions">
+              <button
+                className="chat-msg__tool-permission-action chat-msg__tool-permission-action--allow"
+                type="button"
+                title="允许本次调用"
+                aria-label="允许本次调用"
+                disabled={submittingDecision !== null}
+                onClick={() => void decidePermission("allow")}
+              >
+                <Check size={15} weight="bold" />
+              </button>
+              <button
+                className="chat-msg__tool-permission-action chat-msg__tool-permission-action--deny"
+                type="button"
+                title="拒绝本次调用"
+                aria-label="拒绝本次调用"
+                disabled={submittingDecision !== null}
+                onClick={() => void decidePermission("deny")}
+              >
+                <X size={15} weight="bold" />
+              </button>
+            </span>
+          ) : null}
+          {item.status !== "waiting_permission" ? (
+            <span
+              className={[
+                "chat-msg__tool-status",
+                item.status === "error" ? "chat-msg__tool-status--error" : "",
+                item.status === "running" || item.status === "preparing"
+                  ? "chat-msg__tool-status--running"
+                  : "",
+              ].filter(Boolean).join(" ")}
+            >
+              {item.status === "preparing"
+                ? "准备中"
+                : item.status === "running"
+                  ? "调用中"
+                  : item.status === "error"
+                    ? "失败"
+                    : item.status === "cancelled"
+                      ? "已取消"
+                      : "完成"}
+            </span>
+          ) : null}
           {elapsedSeconds !== null ? (
             <span className="chat-msg__tool-timer">
               {formatElapsedSeconds(elapsedSeconds)}
             </span>
           ) : null}
-          <span
-            className={[
-              "chat-msg__tool-status",
-              item.status === "error" ? "chat-msg__tool-status--error" : "",
-              item.status === "running" || item.status === "preparing"
-                ? "chat-msg__tool-status--running"
-                : "",
-            ].filter(Boolean).join(" ")}
-          >
-            {item.status === "preparing"
-              ? "准备中"
-              : item.status === "running"
-                ? "调用中"
-                : item.status === "error"
-                  ? "失败"
-                  : item.status === "cancelled"
-                    ? "已取消"
-                    : "完成"}
-          </span>
+          {item.status === "waiting_permission" ? (
+            <span
+              className="chat-msg__tool-waiting-dot"
+              aria-label="等待确认"
+              title="等待确认"
+            />
+          ) : null}
         </span>
-      </button>
+      </div>
       {isExpanded ? (
         <>
           {item.arguments ? (
@@ -341,17 +404,14 @@ export function resolveToolGroupElapsedSeconds(
 }
 
 export function formatElapsedSeconds(seconds: number) {
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  if (minutes < 60) {
-    return remainingSeconds > 0
-      ? `${minutes}m ${remainingSeconds}s`
-      : `${minutes}m`;
+  const totalSeconds = Math.max(0, Math.floor(seconds));
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = totalSeconds % 60;
+  const secondsText = String(remainingSeconds).padStart(2, "0");
+  if (totalMinutes < 60) {
+    return `${totalMinutes}m ${secondsText}s`;
   }
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return remainingMinutes > 0
-    ? `${hours}h ${remainingMinutes}m`
-    : `${hours}h`;
+  const hours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+  return `${hours}h ${String(remainingMinutes).padStart(2, "0")}m ${secondsText}s`;
 }

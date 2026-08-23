@@ -10,6 +10,7 @@ from app.domain.llm.chat import (
     ChatToolDefinition,
 )
 from app.domain.tools import ToolExampleDetail, ToolSummary
+from app.domain.tools.parameter_permissions import schema_without_parameter_permission_types
 from app.services.tools.catalog import ToolCatalogService, get_tool_catalog_service
 from app.services.tools.dynamic_tool_contract import (
     DYNAMIC_TOOL_INFRASTRUCTURE_NAMES,
@@ -139,7 +140,9 @@ class ChatToolInjectionService:
                         summary.description,
                         examples,
                     ),
-                    parameters=parameter_detail.input_schema,
+                    parameters=schema_without_parameter_permission_types(
+                        parameter_detail.input_schema
+                    ),
                 )
             )
         return tuple(definitions)

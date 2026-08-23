@@ -9,10 +9,10 @@
     "openai_compatible": "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
   },
   "modelDiscoveryUrl": "https://ark.cn-beijing.volces.com/api/v3/models",
-  "enabled": true,
+  "enabled": false,
   "reasoningReplayMode": "tool_call_rounds",
-  "createdAt": "2026-07-12T11:09:17.369475+00:00",
-  "updatedAt": "2026-08-17T09:37:37.467182+00:00",
+  "createdAt": "2026-08-23T17:49:29.149426+00:00",
+  "updatedAt": "2026-08-23T17:49:29.149426+00:00",
   "modelDiscoveryStrategy": "openai_models",
   "generationAuthSchemes": {
     "openai_compatible": "bearer_token",

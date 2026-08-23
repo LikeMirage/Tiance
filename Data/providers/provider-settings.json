@@ -3,27 +3,22 @@
   "initializedAt": "2026-08-02T00:00:00+00:00",
   "legacyMigrationCompletedAt": "2026-08-02T00:00:00+00:00",
   "providerOrder": [
-    "dashscope",
-    "volcengine",
-    "zhipu",
-    "anthropic",
     "deepseek",
-    "dmxapi",
-    "gemini",
-    "grok",
-    "minimax",
-    "moonshot",
-    "openai",
-    "openrouter",
+    "opencode",
     "siliconflow",
-    "opencode"
+    "volcengine",
+    "minimax",
+    "zhipu",
+    "dmxapi",
+    "moonshot"
   ],
-  "updatedAt": "2026-08-12T08:51:27.922289+00:00",
+  "updatedAt": "2026-08-23T17:49:48.731649+00:00",
   "modelDiscoveryUrlAutofillVersion": 1,
   "generationUrlContractVersion": 1,
   "generationUrlStorageVersion": 1,
   "presetGenerationUrlDefaultsVersion": 2,
   "modelDiscoveryStrategyVersion": 1,
   "providerAuthContractVersion": 1,
-  "providerPresetCatalogVersion": 2
+  "providerPresetCatalogVersion": 2,
+  "reasoningReplayModeVersion": 1
 }

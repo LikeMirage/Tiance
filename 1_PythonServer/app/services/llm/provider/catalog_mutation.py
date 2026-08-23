@@ -183,21 +183,19 @@ class ProviderCatalogMutationService:
         return saved_entry
 
     def delete_provider(self, provider_id: str) -> None:
-        provider_template = self._repository.get_entry(provider_id)
-        if provider_template is None:
+        if not self._deletion_service.provider_exists(provider_id):
             raise NotFoundError(f"Provider template '{provider_id}' was not found.")
-        self._deletion_service.delete_provider(provider_template)
+        if not self._deletion_service.delete_provider(provider_id):
+            raise NotFoundError(f"Provider template '{provider_id}' was not found.")
         self._synchronize_workspace_registry()
 
     def delete_providers(self, provider_ids: tuple[str, ...]) -> None:
-        providers = []
         for provider_id in provider_ids:
-            provider = self._repository.get_entry(provider_id)
-            if provider is None:
+            if not self._deletion_service.provider_exists(provider_id):
                 raise NotFoundError(f"Provider template '{provider_id}' was not found.")
-            providers.append(provider)
-        for provider in providers:
-            self._deletion_service.delete_provider(provider)
+        for provider_id in provider_ids:
+            if not self._deletion_service.delete_provider(provider_id):
+                raise NotFoundError(f"Provider template '{provider_id}' was not found.")
         self._synchronize_workspace_registry()
 
     def _synchronize_workspace_registry(self) -> None:

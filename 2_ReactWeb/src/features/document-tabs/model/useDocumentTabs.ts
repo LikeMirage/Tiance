@@ -53,6 +53,7 @@ import {
   buildVirtualHtmlPreviewTab,
   buildVirtualMemoryDashboardTab,
   buildVirtualProjectConversationOverviewTab,
+  buildVirtualProjectKnowledgeContentTab,
   buildVirtualProjectRoleConfigurationTab,
   buildVirtualProjectThemeConfigurationTab,
   buildVirtualReferenceViewerTab,
@@ -405,6 +406,20 @@ export function useDocumentTabs() {
     }
   }, []);
 
+  const ensureProjectKnowledgeContent = useCallback((
+    projectId: string,
+    options: { activate?: boolean } = {},
+  ) => {
+    const contentTab = buildVirtualProjectKnowledgeContentTab(projectId);
+    setTabs((prev) => [
+      contentTab,
+      ...prev.filter((tab) => tab.id !== contentTab.id),
+    ]);
+    if (options.activate) {
+      setActiveTabId(contentTab.id);
+    }
+  }, []);
+
   const ensureProjectRoleConfiguration = useCallback((
     projectId: string,
     options: { activate?: boolean } = {},
@@ -458,6 +473,7 @@ export function useDocumentTabs() {
   ) => {
     const runtime = registerFileSource(sourceRuntime);
     const basicsTabId = makeToolDashboardTabId(runtime.source.key, "basics");
+    const permissionsTabId = makeToolDashboardTabId(runtime.source.key, "permissions");
     const examplesTabId = makeToolDashboardTabId(runtime.source.key, "examples");
     const dependenciesTabId = makeToolDashboardTabId(runtime.source.key, "dependencies");
     const callRecordsTabId = makeToolDashboardTabId(runtime.source.key, "callRecords");
@@ -467,15 +483,18 @@ export function useDocumentTabs() {
 
     setTabs((prev) => {
       const existingBasics = prev.find((tab) => tab.id === basicsTabId);
+      const existingPermissions = prev.find((tab) => tab.id === permissionsTabId);
       const existingExamples = prev.find((tab) => tab.id === examplesTabId);
       const existingDependencies = prev.find((tab) => tab.id === dependenciesTabId);
       const existingCallRecords = prev.find((tab) => tab.id === callRecordsTabId);
       const basicsTab = buildToolDashboardTab(runtime.source, title, "basics", existingBasics);
+      const permissionsTab = buildToolDashboardTab(runtime.source, title, "permissions", existingPermissions);
       const examplesTab = buildToolDashboardTab(runtime.source, title, "examples", existingExamples);
       const dependenciesTab = buildToolDashboardTab(runtime.source, title, "dependencies", existingDependencies);
       const callRecordsTab = buildToolDashboardTab(runtime.source, title, "callRecords", existingCallRecords);
       const remaining = prev.filter((tab) =>
         tab.id !== basicsTabId &&
+        tab.id !== permissionsTabId &&
         tab.id !== examplesTabId &&
         tab.id !== dependenciesTabId &&
         tab.id !== callRecordsTabId &&
@@ -484,11 +503,12 @@ export function useDocumentTabs() {
       );
       const sourceIndex = remaining.findIndex((tab) => tab.fileSource?.key === runtime.source.key);
       if (sourceIndex < 0) {
-        return [basicsTab, examplesTab, dependenciesTab, callRecordsTab, ...remaining];
+        return [basicsTab, permissionsTab, examplesTab, dependenciesTab, callRecordsTab, ...remaining];
       }
       return [
         ...remaining.slice(0, sourceIndex),
         basicsTab,
+        permissionsTab,
         examplesTab,
         dependenciesTab,
         callRecordsTab,
@@ -855,6 +875,7 @@ export function useDocumentTabs() {
     closeTab,
     discardTabChanges,
     ensureProjectConversationOverview,
+    ensureProjectKnowledgeContent,
     ensureProjectRoleConfiguration,
     ensureProjectThemeConfiguration,
     getSnapshot,
@@ -887,6 +908,7 @@ export function useDocumentTabs() {
     closeTab,
     discardTabChanges,
     ensureProjectConversationOverview,
+    ensureProjectKnowledgeContent,
     ensureProjectRoleConfiguration,
     ensureProjectThemeConfiguration,
     getSnapshot,
