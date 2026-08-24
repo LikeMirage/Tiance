@@ -42,6 +42,7 @@ const CONFIGURABLE_SETTING_KEYS = [
   "tools_enabled",
   "enabled_tool_names",
   "max_tool_calls",
+  "tool_approval_mode",
 ] as const satisfies readonly (keyof ConfigurableConversationSettings)[];
 
 type MissingConfigurableSettingKey = Exclude<

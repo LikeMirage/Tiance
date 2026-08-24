@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import replace
 from json import loads
 from pathlib import PurePosixPath
 
@@ -85,11 +86,25 @@ def tool_resource_message(
 def without_tool_resource_messages(
     messages: Iterable[ChatMessage],
 ) -> tuple[ChatMessage, ...]:
-    return tuple(
-        message
-        for message in messages
-        if not message.internal_metadata.get("derived_tool_resource_message")
-    )
+    restored: list[ChatMessage] = []
+    for message in messages:
+        if not message.internal_metadata.get("derived_tool_resource_message"):
+            restored.append(message)
+            continue
+        if not restored or restored[-1].role != ChatMessageRole.TOOL:
+            continue
+        target_index = len(restored) - 1
+        target = restored[target_index]
+        restored[target_index] = replace(
+            target,
+            content_parts=_deduplicate_parts(
+                (
+                    *target.content_parts,
+                    *message.content_parts,
+                )
+            ),
+        )
+    return tuple(restored)
 
 
 def restore_tool_resource_messages(
@@ -112,7 +127,16 @@ def restore_tool_resource_messages(
         ):
             tool_message = source_messages[index]
             tool_messages.append(tool_message)
-            restored.append(tool_message)
+            restored.append(
+                replace(
+                    tool_message,
+                    content_parts=tuple(
+                        part
+                        for part in tool_message.content_parts
+                        if part.type != ChatMessageContentPartType.IMAGE_REF
+                    ),
+                )
+            )
             index += 1
         resource_message = tool_resource_message(
             image_parts_from_tool_messages(tool_messages)

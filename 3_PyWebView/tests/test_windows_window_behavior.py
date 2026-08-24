@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from types import SimpleNamespace
 
 from app import api as api_module
@@ -14,6 +15,48 @@ class _Event:
     def __iadd__(self, handler: object) -> "_Event":
         self.handlers.append(handler)
         return self
+
+
+def test_select_external_files_returns_existing_unique_files(monkeypatch, tmp_path) -> None:
+    first_file = tmp_path / "first.txt"
+    second_file = tmp_path / "second.txt"
+    ignored_folder = tmp_path / "folder"
+    first_file.write_text("first", encoding="utf-8")
+    second_file.write_text("second", encoding="utf-8")
+    ignored_folder.mkdir()
+    dialog_calls: list[tuple[int, bool]] = []
+
+    def create_file_dialog(dialog_type: int, *, allow_multiple: bool):
+        dialog_calls.append((dialog_type, allow_multiple))
+        return [
+            str(first_file),
+            str(second_file),
+            str(first_file),
+            str(ignored_folder),
+            str(tmp_path / "missing.txt"),
+        ]
+
+    shell_api = ShellApi(
+        SimpleNamespace(allow_remote_shell_api=False),
+        SimpleNamespace(),
+    )
+    shell_api._window = SimpleNamespace(
+        create_file_dialog=create_file_dialog,
+        url="http://127.0.0.1:18100",
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "webview",
+        SimpleNamespace(FileDialog=SimpleNamespace(OPEN=10)),
+    )
+
+    result = shell_api.select_external_files()
+
+    assert dialog_calls == [(10, True)]
+    assert result == [
+        {"kind": "file", "name": "first.txt", "path": str(first_file.resolve())},
+        {"kind": "file", "name": "second.txt", "path": str(second_file.resolve())},
+    ]
 
 
 def test_backend_start_failure_returns_stable_error_without_internal_details(monkeypatch) -> None:

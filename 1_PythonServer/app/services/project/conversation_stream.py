@@ -137,6 +137,7 @@ class ProjectConversationStreamService:
         self._background_task_registry = (
             background_task_registry or get_conversation_background_task_registry()
         )
+        self._audit_service = get_conversation_audit_service()
         self._run_manager = run_manager or get_conversation_run_manager()
         self._token_estimation_settings_service = (
             token_estimation_settings_service
@@ -170,7 +171,7 @@ class ProjectConversationStreamService:
             client_tool_bridge_service=client_tool_bridge_service,
             runtime_capabilities_service=runtime_capabilities_service,
             attachment_service=attachment_service or get_conversation_attachment_service(),
-            audit_service=get_conversation_audit_service(),
+            audit_service=self._audit_service,
         )
         if hasattr(memory_service, "set_functional_conversation_runner"):
             memory_service.set_functional_conversation_runner(
@@ -230,6 +231,7 @@ class ProjectConversationStreamService:
         context_tokens_estimated = False
         done_payload: dict[str, object | None] | None = None
         background_tasks: list[asyncio.Task] = []
+        blocking_before_next_model_request: list[asyncio.Task] = []
         run_started_at = monotonic()
         last_heartbeat = monotonic()
         memory_session_snapshot = None
@@ -257,6 +259,42 @@ class ProjectConversationStreamService:
             context_tokens = None
             context_tokens_estimated = False
 
+        def schedule_model_exchange(
+            model_request: ChatCompletionRequest,
+            assistant_message: ProjectConversationMessage | None,
+            *,
+            round_index: int,
+            round_usage: ChatUsage | None,
+        ) -> None:
+            if (
+                assistant_message is None
+                or not model_request.project_id
+                or not model_request.session_id
+            ):
+                return
+            task = self._audit_service.create_session_task(
+                model_request.project_id,
+                model_request.session_id,
+                asyncio.to_thread(
+                    self._persistence.record_model_exchange,
+                    model_request,
+                    assistant_message,
+                    round_index=round_index,
+                    usage=round_usage,
+                ),
+                name="conversation-model-exchange-audit",
+            )
+            background_tasks.append(task)
+
+        async def prepare_next_tool_loop_model_request(
+            model_request: ChatCompletionRequest,
+        ) -> ChatCompletionRequest:
+            if blocking_before_next_model_request:
+                tasks = tuple(blocking_before_next_model_request)
+                blocking_before_next_model_request.clear()
+                await asyncio.gather(*tasks)
+            return await self._refresh_tool_loop_memory_context(model_request)
+
         async def schedule_completed_model_round(
             model_request: ChatCompletionRequest,
             assistant_message: ProjectConversationMessage,
@@ -274,12 +312,11 @@ class ProjectConversationStreamService:
                 assistant_message,
                 round_usage,
             )
-            await asyncio.to_thread(
-                self._persistence.record_model_exchange,
+            schedule_model_exchange(
                 model_request,
                 assistant_message,
                 round_index=model_round_serial,
-                usage=round_usage,
+                round_usage=round_usage,
             )
             usage = None
             usage_payload = None
@@ -289,14 +326,7 @@ class ProjectConversationStreamService:
                 model_request,
                 assistant_message,
             )
-            if memory_compression_blocking:
-                await self._persistence.run_memory_compression(
-                    request,
-                    assistant_message,
-                    session_snapshot=memory_session_snapshot,
-                    run_snapshot=run_snapshot,
-                )
-            else:
+            if not memory_compression_blocking:
                 task = self._persistence.schedule_memory_compression(
                     request,
                     assistant_message,
@@ -306,19 +336,16 @@ class ProjectConversationStreamService:
                 if task is not None:
                     background_tasks.append(task)
 
-            await self._persistence.run_long_term_memory_management(
+            task = self._persistence.schedule_tool_round_blocking_memory(
                 request,
                 assistant_message,
-                session_snapshot=memory_session_snapshot,
-                run_snapshot=run_snapshot,
-            )
-            task = self._persistence.schedule_long_term_memory_management(
-                request,
-                assistant_message,
+                include_compression=memory_compression_blocking,
+                await_nonblocking_followup=await_background_tasks,
                 session_snapshot=memory_session_snapshot,
                 run_snapshot=run_snapshot,
             )
             if task is not None:
+                blocking_before_next_model_request.append(task)
                 background_tasks.append(task)
 
         def capture_cancelled_tool_call(
@@ -502,6 +529,7 @@ class ProjectConversationStreamService:
                 on_model_request=capture_model_request,
                 on_model_round_completed=schedule_completed_model_round,
                 on_tool_call_cancelled=capture_cancelled_tool_call,
+                prepare_model_request=prepare_next_tool_loop_model_request,
             ):
                 if isinstance(event, ConversationPersistenceCheckpoint):
                     if include_persistence_checkpoints:
@@ -549,12 +577,11 @@ class ProjectConversationStreamService:
                         context_tokens_estimated=context_tokens_estimated,
                     )
                     if last_model_request is not None and failed_message is not None:
-                        await asyncio.to_thread(
-                            self._persistence.record_model_exchange,
+                        schedule_model_exchange(
                             last_model_request,
                             failed_message,
                             round_index=model_round_serial,
-                            usage=usage,
+                            round_usage=usage,
                         )
                     if settled_payload is not None:
                         yield settled_payload
@@ -637,12 +664,11 @@ class ProjectConversationStreamService:
                 if settled_payload is not None:
                     yield settled_payload
                 if last_model_request is not None and final_assistant_message is not None:
-                    await asyncio.to_thread(
-                        self._persistence.record_model_exchange,
+                    schedule_model_exchange(
                         last_model_request,
                         final_assistant_message,
                         round_index=model_round_serial,
-                        usage=usage,
+                        round_usage=usage,
                     )
                 yield {
                     "kind": "error",
@@ -661,12 +687,11 @@ class ProjectConversationStreamService:
                 usage,
             )
             if last_model_request is not None:
-                await asyncio.to_thread(
-                    self._persistence.record_model_exchange,
+                schedule_model_exchange(
                     last_model_request,
                     assistant_message,
                     round_index=model_round_serial,
-                    usage=usage,
+                    round_usage=usage,
                 )
             if include_persistence_checkpoints and assistant_message is not None:
                 yield persistence_checkpoint_payload(
@@ -803,12 +828,11 @@ class ProjectConversationStreamService:
                 context_tokens_estimated=context_tokens_estimated,
             )
             if last_model_request is not None and failed_message is not None:
-                await asyncio.to_thread(
-                    self._persistence.record_model_exchange,
+                schedule_model_exchange(
                     last_model_request,
                     failed_message,
                     round_index=model_round_serial,
-                    usage=usage,
+                    round_usage=usage,
                 )
             if settled_payload is not None:
                 yield settled_payload
@@ -839,12 +863,11 @@ class ProjectConversationStreamService:
                 context_tokens_estimated=context_tokens_estimated,
             )
             if last_model_request is not None and failed_message is not None:
-                await asyncio.to_thread(
-                    self._persistence.record_model_exchange,
+                schedule_model_exchange(
                     last_model_request,
                     failed_message,
                     round_index=model_round_serial,
-                    usage=usage,
+                    round_usage=usage,
                 )
             if settled_payload is not None:
                 yield settled_payload
@@ -874,12 +897,11 @@ class ProjectConversationStreamService:
                 context_tokens_estimated=context_tokens_estimated,
             )
             if last_model_request is not None and failed_message is not None:
-                await asyncio.to_thread(
-                    self._persistence.record_model_exchange,
+                schedule_model_exchange(
                     last_model_request,
                     failed_message,
                     round_index=model_round_serial,
-                    usage=usage,
+                    round_usage=usage,
                 )
             if settled_payload is not None:
                 yield settled_payload
@@ -918,12 +940,11 @@ class ProjectConversationStreamService:
                     context_tokens_estimated=context_tokens_estimated,
                 )
                 if last_model_request is not None and failed_message is not None:
-                    await asyncio.to_thread(
-                        self._persistence.record_model_exchange,
+                    schedule_model_exchange(
                         last_model_request,
                         failed_message,
                         round_index=model_round_serial,
-                        usage=usage,
+                        round_usage=usage,
                     )
             if settled_payload is not None:
                 yield settled_payload
@@ -964,12 +985,19 @@ class ProjectConversationStreamService:
             None,
         ]
         | None = None,
+        prepare_model_request: Callable[
+            [ChatCompletionRequest],
+            Awaitable[ChatCompletionRequest],
+        ]
+        | None = None,
     ) -> AsyncGenerator[ChatStreamEvent | ConversationPersistenceCheckpoint, None]:
         if self._tool_loop.should_run(stream_request):
             async for event in self._tool_loop.stream_events(
                 original_request,
                 stream_request,
-                prepare_model_request=self._refresh_tool_loop_memory_context,
+                prepare_model_request=(
+                    prepare_model_request or self._refresh_tool_loop_memory_context
+                ),
                 before_model_request=self._write_request_snapshot,
                 resolve_model_request=self._resolve_model_request,
                 on_model_request=on_model_request,

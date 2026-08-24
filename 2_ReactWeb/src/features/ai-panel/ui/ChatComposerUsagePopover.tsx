@@ -22,7 +22,9 @@ export function ChatUsagePopover({ usage }: { usage: ChatComposerUsageState }) {
         type="button"
         onClick={() => usage.onToggleOpen((current) => !current)}
       >
-        Tokens {formatTokenCount(usage.session?.total_tokens)}
+        {usage.contextTokens === null
+          ? "--"
+          : formatTokenCount(usage.contextTokens)}
       </button>
       {usage.isOpen ? <UsagePopoverPortal usage={usage} /> : null}
     </div>
@@ -116,11 +118,6 @@ function UsagePopoverPortal({ usage }: { usage: ChatComposerUsageState }) {
                 <span className="ai-panel__usage-scope-option-label">
                   {option.label}
                 </span>
-                {option.featureLabel ? (
-                  <span className="ai-panel__usage-scope-option-feature">
-                    {option.featureLabel}
-                  </span>
-                ) : null}
               </span>
               {option.providerLabel ? (
                 <span className="ai-panel__usage-scope-option-provider">

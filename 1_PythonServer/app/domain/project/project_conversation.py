@@ -15,6 +15,10 @@ ProjectConversationMessageRole = Literal[
 ]
 ProjectConversationMessageStatus = Literal["running", "done", "error", "cancelled"]
 ProjectConversationRuntimeStatus = Literal["idle", "running", "error"]
+ProjectConversationToolApprovalMode = Literal[
+    "follow_tool_policy",
+    "auto_allow_ask",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +44,7 @@ class ProjectConversationSessionSettings:
     tools_enabled: bool = True
     enabled_tool_names: tuple[str, ...] | None = None
     max_tool_calls: int = 99999
+    tool_approval_mode: ProjectConversationToolApprovalMode = "auto_allow_ask"
 
 
 def functional_session_recursion_guard_settings(

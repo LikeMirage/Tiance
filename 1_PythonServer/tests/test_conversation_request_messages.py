@@ -433,6 +433,7 @@ def test_build_conversation_request_messages_restores_generic_tool_images_after_
         ChatMessageRole.ASSISTANT,
     ]
     resource_message = request_messages[2]
+    assert request_messages[1].content_parts == ()
     assert resource_message.content == "工具返回了以下图片资源。"
     assert resource_message.internal_metadata["derived_tool_resource_message"] is True
     assert resource_message.content_parts[0].image_ref is not None

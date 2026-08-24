@@ -1,5 +1,5 @@
 {
-  "description": "已知一个本机目标文件并需要读取其内容时使用，支持工作区内相对路径和任意绝对路径；已知多个工作区文件时使用 read_many_files，尚不确定相关文件时使用 find_project_files。支持文本起始行、最大行数、字符预算、编码和行号；PNG、JPEG、WebP、GIF、BMP 图片会按当前模型视觉能力直接读取或明确提示改用图片解析工具。",
+  "description": "已知一个本机目标文件并需要读取其内容时使用，支持工作区内相对路径和任意绝对路径；已知多个工作区文件时使用 read_many_files，尚不确定相关文件时使用 find_project_files。支持文本起始行、最大行数、字符预算、编码和行号；图片默认按原宽高 60% 生成临时派生图交给当前 AI，原图不变，看不清时可将 image_scale_percent 提高到 80 或 100。",
   "registration_name": "文件读取",
   "execution": {
     "parallel": true

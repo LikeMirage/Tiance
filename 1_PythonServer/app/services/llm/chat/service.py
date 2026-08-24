@@ -348,8 +348,7 @@ class ChatCompletionService:
     ) -> None:
         if self._http_exchange_recorder is None:
             return
-        await asyncio.to_thread(
-            self._http_exchange_recorder.record_http_exchange,
+        await self._http_exchange_recorder.record_http_exchange(
             request,
             exchange,
         )

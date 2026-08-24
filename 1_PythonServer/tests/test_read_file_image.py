@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import ModuleType
@@ -13,22 +14,29 @@ _READ_FILE_MAIN = (
     / "program/main.py"
 )
 
+_VALID_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
+
 
 def test_read_file_returns_image_reference(monkeypatch, tmp_path):
     module = _load_read_file_module()
     image_path = tmp_path / "interface.png"
-    image_path.write_bytes(b"\x89PNG\r\n\x1a\nimage-data")
+    image_path.write_bytes(_VALID_PNG)
     monkeypatch.setenv("TIANCE_WORKSPACE_ROOT", str(tmp_path))
     monkeypatch.setenv(
         "TIANCE_MODEL_CONTEXT",
         '{"provider_id":"provider-1","model_id":"vision-model","input_modalities":["text","image"]}',
     )
 
-    result = module.run({"file_path": "interface.png"})
+    result = module.run({"file_path": "interface.png", "image_scale_percent": 100})
 
     assert result["ok"] is True
     assert result["data"]["file_type"] == "image"
-    assert result["data"]["mime_type"] == "image/png"
+    assert result["data"]["source_mime_type"] == "image/png"
+    assert result["data"]["returned_mime_type"] == "image/png"
+    assert result["data"]["image_scale_percent"] == 100
+    assert result["data"]["optimized"] is False
     assert result["content"] == [{
         "type": "resource_link",
         "uri": f"tiance-project:///{quote('interface.png', safe='/')}",
@@ -112,15 +120,31 @@ def test_read_file_returns_local_resource_for_image_outside_workspace(monkeypatc
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     external_image = tmp_path / "outside.png"
-    external_image.write_bytes(b"\x89PNG\r\n\x1a\nimage-data")
+    external_image.write_bytes(_VALID_PNG)
     monkeypatch.setenv("TIANCE_WORKSPACE_ROOT", str(workspace))
     monkeypatch.setenv("TIANCE_MODEL_CONTEXT", '{"input_modalities":["image"]}')
 
-    result = module.run({"file_path": str(external_image)})
+    result = module.run({"file_path": str(external_image), "image_scale_percent": 100})
 
     assert result["ok"] is True
     assert result["data"]["path_scope"] == "local"
     assert "relative_path" not in result["data"]
+    assert result["content"][0]["uri"].startswith("tiance-local:")
+
+
+def test_read_file_defaults_to_scaled_image_reference(monkeypatch, tmp_path):
+    module = _load_read_file_module()
+    image_path = tmp_path / "interface.png"
+    image_path.write_bytes(_VALID_PNG)
+    monkeypatch.setenv("TIANCE_WORKSPACE_ROOT", str(tmp_path))
+    monkeypatch.setenv("TIANCE_MODEL_CONTEXT", '{"input_modalities":["image"]}')
+
+    result = module.run({"file_path": "interface.png"})
+
+    assert result["ok"] is True
+    assert result["data"]["image_scale_percent"] == 60
+    assert result["data"]["optimized"] is True
+    assert result["data"]["returned_file_path"] != str(image_path)
     assert result["content"][0]["uri"].startswith("tiance-local:")
 
 

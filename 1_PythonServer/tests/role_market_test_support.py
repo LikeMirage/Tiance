@@ -165,6 +165,11 @@ def role_files(version: str = "1.0.0") -> dict[str, dict[str, object]]:
             "memory_context_token_trigger_threshold": 250000,
             "memory_raw_context_token_reserve": 30000,
         },
-        "tools.json": {"tools_enabled": True, "enabled_tool_names": ["missing-tool"], "max_tool_calls": 8},
+        "tools.json": {
+            "tools_enabled": True,
+            "enabled_tool_names": ["missing-tool"],
+            "max_tool_calls": 8,
+            "tool_approval_mode": "auto_allow_ask",
+        },
     }
     return deepcopy(files)

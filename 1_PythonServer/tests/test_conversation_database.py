@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from hashlib import sha256
 from pathlib import Path
 from json import dumps, loads
 import sqlite3
@@ -19,6 +21,7 @@ from app.repositories.project.conversation_database import (
     read_session_state_payloads,
     write_artifact_record,
 )
+from app.repositories.project.conversation_audit_payloads import audit_blob_path
 from app.domain.project import Project
 from app.domain.llm.chat import ChatCompletionRequest, ChatMessage, ChatMessageRole, ChatUsage
 from app.domain.llm.chat_http_exchange import ChatHttpExchange
@@ -564,6 +567,59 @@ def test_model_exchange_view_keeps_all_appended_rounds(tmp_path: Path) -> None:
     assert second_page.has_previous is True
 
 
+def test_model_exchange_externalizes_repeated_large_values_without_changing_view(
+    tmp_path: Path,
+) -> None:
+    projects = _Projects(tmp_path)
+    conversations = ProjectConversationRepository(projects)
+    session = conversations.create_session(
+        "project-1",
+        title="large model exchanges",
+        provider_id="provider",
+        model_id="model",
+        reasoning_mode=None,
+    )
+    large_value = "image-data:" + ("x" * (70 * 1024))
+    payload = {"round_index": 1, "request": {"image": large_value}}
+    conversations.append_model_exchange("project-1", session.session_id, payload)
+    conversations.append_model_exchange(
+        "project-1",
+        session.session_id,
+        {"round_index": 2, "request": {"image": large_value}},
+    )
+
+    view = ConversationDataViewRepository(projects).read(
+        "project-1",
+        name="model_exchanges.jsonl",
+        session_id=session.session_id,
+        page=1,
+        page_size=2,
+    )
+    records = [loads(line) for line in view.content.splitlines()]
+    digest = sha256(large_value.encode("utf-8")).hexdigest()
+
+    assert [record["request"]["image"] for record in records] == [
+        large_value,
+        large_value,
+    ]
+    assert audit_blob_path(tmp_path / ".Tiance", digest).is_file()
+    assert len(list((tmp_path / ".Tiance" / "conversations" / "audit_blobs").rglob("*.blob"))) == 1
+
+    connection = sqlite3.connect(database_path_from_workspace(tmp_path / ".Tiance"))
+    try:
+        stored_lengths = [
+            int(row[0])
+            for row in connection.execute(
+                "SELECT length(payload_json) FROM conversation_session_events "
+                "WHERE session_id = ? AND kind = 'model_exchanges'",
+                (session.session_id,),
+            ).fetchall()
+        ]
+    finally:
+        connection.close()
+    assert max(stored_lengths) < 4096
+
+
 def test_model_exchange_record_contains_logical_request_and_response() -> None:
     request = ChatCompletionRequest(
         provider_id="provider",
@@ -629,25 +685,29 @@ def test_http_exchange_is_stored_in_database_and_linked_from_journal(tmp_path: P
     )
 
     audit = ConversationAuditService(projects)
-    audit.record_http_exchange(
-        request,
-        ChatHttpExchange(
+    large_input = "request-data:" + ("x" * (70 * 1024))
+    exchange = ChatHttpExchange(
             started_at="2026-08-18T00:00:00+00:00",
             completed_at="2026-08-18T00:00:01+00:00",
             request_url="https://example.test/v1/responses",
             request_headers={"Authorization": "[REDACTED]"},
-            request_body={"model": "model", "input": "question"},
+            request_body={"model": "model", "input": large_input},
             response_status=200,
             response_headers={"content-type": "application/json"},
             response_body=b'{"output":"answer"}',
-        ),
     )
-    audit.record_attempt_outcome(
-        request,
-        status="failed",
-        error_code="upstream_http_error",
-        error_message='{"error":{"message":"raw provider error"}}',
-    )
+
+    async def record_exchange() -> None:
+        await audit.record_http_exchange(request, exchange)
+        audit.record_attempt_outcome(
+            request,
+            status="failed",
+            error_code="upstream_http_error",
+            error_message='{"error":{"message":"raw provider error"}}',
+        )
+        await audit.close()
+
+    asyncio.run(record_exchange())
 
     events = list_journal_events_range(
         tmp_path / ".Tiance",
@@ -685,9 +745,9 @@ def test_http_exchange_is_stored_in_database_and_linked_from_journal(tmp_path: P
     ) == 1
     assert len(artifacts) == 1
     assert artifacts[0]["artifact_id"] == exchange_event["artifact_id"]
-    assert artifacts[0]["compression"] == "gzip"
-    assert artifacts[0]["stored_size_bytes"] > 0
-    assert artifacts[0]["content"]["request"]["body"]["input"] == "question"
+    assert artifacts[0]["compression"] == "gzip+audit-manifest-v1"
+    assert 0 < artifacts[0]["stored_size_bytes"] < 4096
+    assert artifacts[0]["content"]["request"]["body"]["input"] == large_input
     assert artifacts[0]["content"]["response"]["body"]["content"] == '{"output":"answer"}'
     assert not (
         tmp_path
@@ -708,7 +768,10 @@ def test_http_exchange_is_stored_in_database_and_linked_from_journal(tmp_path: P
     view_payload = loads(view.content.strip())
     assert view.total_count == 1
     assert view_payload["artifact_id"] == exchange_event["artifact_id"]
-    assert view_payload["content"]["request"]["body"]["input"] == "question"
+    assert view_payload["content"]["request"]["body"]["input"] == large_input
+    assert len(
+        list((tmp_path / ".Tiance" / "conversations" / "audit_blobs").rglob("*.blob"))
+    ) == 1
 
 
 def test_deleting_session_cascades_embedded_http_exchange(tmp_path: Path) -> None:
@@ -735,9 +798,8 @@ def test_deleting_session_cascades_embedded_http_exchange(tmp_path: Path) -> Non
             ),
         ),
     )
-    ConversationAuditService(projects).record_http_exchange(
-        request,
-        ChatHttpExchange(
+    audit = ConversationAuditService(projects)
+    exchange = ChatHttpExchange(
             started_at="2026-08-18T00:00:00+00:00",
             completed_at="2026-08-18T00:00:01+00:00",
             request_url="https://example.test/v1/responses",
@@ -746,8 +808,13 @@ def test_deleting_session_cascades_embedded_http_exchange(tmp_path: Path) -> Non
             response_status=200,
             response_headers={},
             response_body=b"answer",
-        ),
     )
+
+    async def record_exchange() -> None:
+        await audit.record_http_exchange(request, exchange)
+        await audit.close()
+
+    asyncio.run(record_exchange())
 
     conversations.delete_session(
         "project-1",

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from app.domain.project.project_conversation import ProjectConversationSessionSettings
+from app.domain.project.project_conversation import (
+    ProjectConversationSessionSettings,
+    ProjectConversationToolApprovalMode,
+)
 
 
 def _session_settings_from_payload(payload: object) -> ProjectConversationSessionSettings:
@@ -74,6 +77,10 @@ def _session_settings_from_payload(payload: object) -> ProjectConversationSessio
             payload.get("max_tool_calls"),
             default_value=99999,
             minimum=1,
+        ),
+        tool_approval_mode=_optional_tool_approval_mode(
+            payload.get("tool_approval_mode"),
+            default_value="auto_allow_ask",
         ),
     )
 
@@ -200,6 +207,10 @@ def _merge_session_settings(
             if "max_tool_calls" in payload
             else current.max_tool_calls
         ),
+        tool_approval_mode=_optional_tool_approval_mode(
+            payload.get("tool_approval_mode"),
+            default_value=current.tool_approval_mode,
+        ),
     )
 
 
@@ -232,6 +243,7 @@ def _session_settings_to_payload(settings: ProjectConversationSessionSettings) -
         if settings.enabled_tool_names is not None
         else None,
         "max_tool_calls": settings.max_tool_calls,
+        "tool_approval_mode": settings.tool_approval_mode,
     }
     return payload
 
@@ -306,3 +318,13 @@ def _optional_tool_names(
         names.append(name)
         seen.add(name)
     return tuple(names)
+
+
+def _optional_tool_approval_mode(
+    value: object,
+    *,
+    default_value: ProjectConversationToolApprovalMode,
+) -> ProjectConversationToolApprovalMode:
+    if value in {"follow_tool_policy", "auto_allow_ask"}:
+        return value
+    return default_value

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
+import tempfile
 from typing import Any
 from urllib.parse import quote
 
@@ -125,44 +126,158 @@ def file_sha256(file_path: Path) -> str:
     return digest.hexdigest()
 
 
-def read_image(file_path: Path, root: Path, mime_type: str) -> dict[str, Any]:
+def image_scale_percent(value: Any) -> int:
+    if value is None:
+        return 60
+    if isinstance(value, bool):
+        raise ToolError("INVALID_ARGUMENT", "image_scale_percent 必须是 10 到 100 之间的整数。")
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ToolError("INVALID_ARGUMENT", "image_scale_percent 必须是 10 到 100 之间的整数。") from exc
+    if parsed < 10 or parsed > 100:
+        raise ToolError("INVALID_ARGUMENT", "image_scale_percent 必须是 10 到 100 之间的整数。")
+    return parsed
+
+
+def resized_image(
+    file_path: Path,
+    source_sha256: str,
+    scale_percent: int,
+) -> tuple[Path, str, int, int, int, int]:
+    try:
+        from PIL import Image, ImageOps, ImageSequence
+    except ImportError as exc:
+        raise ToolError(
+            "DEPENDENCY_MISSING",
+            "图片缩放依赖 Pillow，请先在工具依赖看板安装 program/requirements.txt 中的依赖。",
+        ) from exc
+
+    try:
+        with Image.open(file_path) as source:
+            source_width, source_height = ImageOps.exif_transpose(source.copy()).size
+            if scale_percent == 100:
+                return (
+                    file_path,
+                    IMAGE_MIME_TYPES[file_path.suffix.lower()],
+                    source_width,
+                    source_height,
+                    source_width,
+                    source_height,
+                )
+
+            target_width = max(1, round(source_width * scale_percent / 100))
+            target_height = max(1, round(source_height * scale_percent / 100))
+            source_format = (source.format or file_path.suffix.removeprefix(".")).upper()
+            output_format = "PNG" if source_format == "BMP" else source_format
+            output_suffix = ".png" if output_format == "PNG" else file_path.suffix.lower()
+            output_mime_type = IMAGE_MIME_TYPES[output_suffix]
+            cache_root = Path(tempfile.gettempdir()) / "Tiance" / "read_file" / "image-cache"
+            cache_root.mkdir(parents=True, exist_ok=True)
+            output_path = cache_root / f"v1-{source_sha256}-{scale_percent}{output_suffix}"
+
+            if not output_path.exists():
+                resampling = Image.Resampling.LANCZOS
+                frames = []
+                durations = []
+                disposals = []
+                for frame in ImageSequence.Iterator(source):
+                    normalized = ImageOps.exif_transpose(frame.copy())
+                    frames.append(normalized.resize((target_width, target_height), resampling))
+                    durations.append(frame.info.get("duration", source.info.get("duration", 0)))
+                    disposals.append(getattr(frame, "disposal_method", source.info.get("disposal", 0)))
+
+                save_options: dict[str, Any] = {}
+                if output_format in {"JPEG", "JPG"}:
+                    output_format = "JPEG"
+                    frames = [frame.convert("RGB") for frame in frames]
+                    save_options.update({"quality": 90, "optimize": True})
+                elif output_format == "WEBP":
+                    save_options.update({"quality": 90, "method": 4})
+                elif output_format == "PNG":
+                    save_options.update({"optimize": True})
+                elif output_format == "GIF":
+                    frames = [frame.convert("P", palette=Image.Palette.ADAPTIVE) for frame in frames]
+
+                if len(frames) > 1:
+                    save_options.update(
+                        {
+                            "save_all": True,
+                            "append_images": frames[1:],
+                            "duration": durations,
+                            "loop": source.info.get("loop", 0),
+                        }
+                    )
+                    if output_format == "GIF":
+                        save_options["disposal"] = disposals
+                frames[0].save(output_path, format=output_format, **save_options)
+            return output_path, output_mime_type, source_width, source_height, target_width, target_height
+    except ToolError:
+        raise
+    except Exception as exc:
+        raise ToolError("IMAGE_RESIZE_FAILED", "图片缩放失败。", {"reason": str(exc)}) from exc
+
+
+def read_image(
+    file_path: Path,
+    root: Path,
+    mime_type: str,
+    scale_percent: int,
+) -> dict[str, Any]:
     if not model_supports_input("image"):
         raise ToolError(
             "MODEL_INPUT_UNSUPPORTED",
             "当前AI不支持视觉理解，无法直接读取图片。请使用图片解析工具 doubao_vision_parse 解析。",
         )
-    size_bytes = file_path.stat().st_size
-    if size_bytes <= 0:
+    source_size_bytes = file_path.stat().st_size
+    if source_size_bytes <= 0:
         raise ToolError("EMPTY_IMAGE", "图片内容为空。")
     with file_path.open("rb") as stream:
         signature = stream.read(16)
     validate_image_signature(signature, mime_type)
     path_scope, display_path, relative_path = describe_path(file_path, root)
-    resource_uri = (
-        f"tiance-project:///{quote(relative_path, safe='/')}"
-        if relative_path is not None
-        else local_resource_uri(file_path)
+    source_sha256 = file_sha256(file_path)
+    returned_path, returned_mime_type, source_width, source_height, returned_width, returned_height = resized_image(
+        file_path,
+        source_sha256,
+        scale_percent,
     )
+    returned_size_bytes = returned_path.stat().st_size
+    returned_sha256 = file_sha256(returned_path)
+    if returned_path == file_path and relative_path is not None:
+        resource_uri = f"tiance-project:///{quote(relative_path, safe='/')}"
+    else:
+        resource_uri = local_resource_uri(returned_path)
     metadata = {
-            "file_type": "image",
-            "file_path": str(file_path),
-            "path_scope": path_scope,
-            "mime_type": mime_type,
-            "sha256": file_sha256(file_path),
-            "size_bytes": size_bytes,
+        "file_type": "image",
+        "file_path": str(file_path),
+        "path_scope": path_scope,
+        "image_scale_percent": scale_percent,
+        "source_mime_type": mime_type,
+        "source_sha256": source_sha256,
+        "source_size_bytes": source_size_bytes,
+        "source_width": source_width,
+        "source_height": source_height,
+        "returned_file_path": str(returned_path),
+        "returned_mime_type": returned_mime_type,
+        "returned_sha256": returned_sha256,
+        "returned_size_bytes": returned_size_bytes,
+        "returned_width": returned_width,
+        "returned_height": returned_height,
+        "optimized": returned_path != file_path,
     }
     if relative_path is not None:
         metadata["relative_path"] = relative_path
     return {
         "ok": True,
-        "summary": f"已读取图片 {display_path}。",
+        "summary": f"已按 {scale_percent}% 尺寸读取图片 {display_path}。",
         "content": [
             {
                 "type": "resource_link",
                 "uri": resource_uri,
-                "name": file_path.name,
-                "mimeType": mime_type,
-                "size": size_bytes,
+                "name": returned_path.name,
+                "mimeType": returned_mime_type,
+                "size": returned_size_bytes,
                 "annotations": {
                     "audience": ["assistant"],
                     "priority": 1.0,
@@ -200,7 +315,12 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
         file_path = resolve_file(payload.get("file_path"), root)
         image_mime_type = IMAGE_MIME_TYPES.get(file_path.suffix.lower())
         if image_mime_type is not None:
-            return read_image(file_path, root, image_mime_type)
+            return read_image(
+                file_path,
+                root,
+                image_mime_type,
+                image_scale_percent(payload.get("image_scale_percent")),
+            )
         start_line = read_int(payload.get("start_line"), 1, 1, 10_000_000)
         max_lines = read_int(payload.get("max_lines"), 2000, 1, 20_000)
         max_chars = read_int(payload.get("max_chars"), 50_000, 1000, 1_000_000)

@@ -60,6 +60,38 @@
   opacity: 0.48;
 }
 
+.ai-panel__tool-bulk-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ai-panel__tool-bulk-button {
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+  color: var(--color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.ai-panel__tool-bulk-button:hover:not(:disabled),
+.ai-panel__tool-bulk-button:focus-visible {
+  border-color: rgba(var(--color-accent-rgb), 0.38);
+  background: var(--color-surface-input-hover);
+  color: var(--color-text-primary);
+}
+
+.ai-panel__tool-bulk-button:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
 .ai-panel__number-with-suffix {
   display: inline-flex;
   align-items: center;

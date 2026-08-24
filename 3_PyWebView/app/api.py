@@ -181,6 +181,39 @@ class ShellApi:
             return result
         return str(result[0]) if result else None
 
+    def select_external_files(self) -> list[ClipboardPathEntry]:
+        """打开系统文件选择对话框，返回用户明确选择的本机文件。"""
+        from webview import FileDialog
+
+        result = self._require_allowed_window().create_file_dialog(
+            FileDialog.OPEN,
+            allow_multiple=True,
+        )
+        if not result:
+            return []
+
+        selected_values = [result] if isinstance(result, str) else result
+        entries: list[ClipboardPathEntry] = []
+        seen: set[str] = set()
+        for value in selected_values:
+            try:
+                path = Path(str(value)).expanduser().resolve(strict=True)
+            except (OSError, RuntimeError, ValueError):
+                continue
+            if not path.is_file():
+                continue
+            resolved = str(path)
+            key = os.path.normcase(resolved)
+            if key in seen:
+                continue
+            seen.add(key)
+            entries.append({
+                "kind": "file",
+                "name": path.name or resolved,
+                "path": resolved,
+            })
+        return entries
+
     def get_clipboard_path_entries(self) -> list[ClipboardPathEntry]:
         self._require_allowed_window()
         return read_clipboard_path_entries()

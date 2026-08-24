@@ -25,6 +25,7 @@ export const DEFAULT_SESSION_SETTINGS: ConversationSessionSettings = {
   tools_enabled: true,
   enabled_tool_names: null,
   max_tool_calls: 99999,
+  tool_approval_mode: "auto_allow_ask",
 };
 
 export function resolveSessionSettings(

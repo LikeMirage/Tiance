@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { CSSProperties } from "react";
 
 import { useDesktopFileDropTarget } from "../../desktop-shell/model/useDesktopFileDropTarget";
+import { ChatComposerAddMenu } from "./ChatComposerAddMenu";
 import { ChatModelPicker } from "./ChatComposerModelPicker";
 import { ChatComposerReasoningControl } from "./ChatComposerReasoningControl";
 import { ChatComposerReferences } from "./ChatComposerReferences";
@@ -49,6 +50,7 @@ export function ChatComposer({
   usage,
 }: ChatComposerProps) {
   const [isProjectFileDragOver, setIsProjectFileDragOver] = useState(false);
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const { isFileDragOver, targetRef } = useDesktopFileDropTarget({
     onFileDrop: input.onExternalFileDrop,
     scopeKey: input.externalFileDropScopeKey,
@@ -101,7 +103,23 @@ export function ChatComposer({
       <div className="ai-panel__composer-box">
         <ChatComposerTextArea input={input} />
         <div className="ai-panel__composer-actions">
-          <ChatModelPicker modelPicker={modelPicker} />
+          <ChatComposerAddMenu
+            isOpen={isAddMenuOpen}
+            onOpenChange={(nextOpen) => {
+              if (nextOpen) modelPicker.onToggleOpen(() => false);
+              setIsAddMenuOpen(nextOpen);
+            }}
+            onSelectFiles={input.onSelectExternalFiles}
+          />
+          <ChatModelPicker
+            modelPicker={{
+              ...modelPicker,
+              onToggleOpen: (updater) => {
+                setIsAddMenuOpen(false);
+                modelPicker.onToggleOpen(updater);
+              },
+            }}
+          />
           <ChatComposerReasoningControl reasoning={reasoning} />
           <ChatUsagePopover usage={usage} />
           <ComposerSubmitButton generation={generation} input={input} />

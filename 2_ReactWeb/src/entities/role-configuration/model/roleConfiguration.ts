@@ -58,6 +58,7 @@ export type RoleToolsConfiguration = {
   tools_enabled: boolean;
   enabled_tool_names: string[] | null;
   max_tool_calls: number;
+  tool_approval_mode: "follow_tool_policy" | "auto_allow_ask";
 };
 
 export type RoleConfiguration = {
@@ -196,6 +197,7 @@ function parseSectionPayload<Section extends RoleConfigurationSection>(
         tools_enabled: booleanValue(payload.tools_enabled),
         enabled_tool_names: nullableStringArrayValue(payload.enabled_tool_names),
         max_tool_calls: integerValue(payload.max_tool_calls, 1),
+        tool_approval_mode: toolApprovalModeValue(payload.tool_approval_mode),
       } as RoleConfigurationSectionValueMap[Section];
   }
 }
@@ -231,4 +233,8 @@ function nullableStringArrayValue(value: unknown) {
   if (value === null) return null;
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()));
+}
+
+function toolApprovalModeValue(value: unknown): "follow_tool_policy" | "auto_allow_ask" {
+  return value === "follow_tool_policy" ? "follow_tool_policy" : "auto_allow_ask";
 }

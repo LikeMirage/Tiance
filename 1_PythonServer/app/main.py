@@ -19,6 +19,7 @@ from app.services.network_settings import get_network_settings_service
 from app.services.project.conversation_background_tasks import (
     get_conversation_background_task_registry,
 )
+from app.services.project.conversation_audit import get_conversation_audit_service
 from app.services.project.conversation_run_manager import get_conversation_run_manager
 from app.services.application.project_workspace_reconciliation import (
     get_project_workspace_reconciliation_service,
@@ -78,6 +79,7 @@ async def _lifespan(_application: FastAPI):
             await tool_metadata_watch_task
         await get_conversation_run_manager().close()
         await get_conversation_background_task_registry().close()
+        await get_conversation_audit_service().close()
         await get_project_market_application_service().close()
         await get_knowledge_market_application_service().close()
         await get_experience_market_application_service().close()

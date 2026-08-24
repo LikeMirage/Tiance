@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import type { ToolSummary } from "../../../services/tools/getToolSummaries";
+import { OptionSelect } from "../../../shared/ui/option-select/OptionSelect";
 import type { RoleConfigurationEditor } from "../model/useRoleConfigurationEditor";
 import { RoleField, RoleNumberInput, RoleSection, RoleToggle } from "./RoleConfigurationFields";
 
@@ -64,6 +65,24 @@ export function RoleConfigurationToolsPanel({
               onCommit={(value) => editor.updateSection("tools", {
                 ...configuration,
                 max_tool_calls: value ?? 1,
+              })}
+            />
+          </RoleField>
+          <RoleField label="工具授权方式">
+            <OptionSelect
+              ariaLabel="工具授权方式"
+              className="role-dashboard__select"
+              disabled={!configuration.tools_enabled}
+              floating
+              options={[
+                { label: "按工具权限配置", value: "follow_tool_policy" },
+                { label: "自动允许询问项", value: "auto_allow_ask" },
+              ]}
+              showSelectedOption
+              value={configuration.tool_approval_mode}
+              onChange={(value) => editor.updateSection("tools", {
+                ...configuration,
+                tool_approval_mode: value,
               })}
             />
           </RoleField>

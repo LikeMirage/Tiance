@@ -246,6 +246,7 @@ def _valid_files() -> dict[str, dict[str, object]]:
             "tools_enabled": True,
             "enabled_tool_names": ["search"],
             "max_tool_calls": 20,
+            "tool_approval_mode": "follow_tool_policy",
         },
     }
 

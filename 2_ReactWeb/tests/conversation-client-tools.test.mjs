@@ -434,6 +434,7 @@ function conversationSession() {
       top_p: null,
       enabled_tool_names: null,
       max_tool_calls: 99999,
+      tool_approval_mode: "auto_allow_ask",
     },
   };
 }

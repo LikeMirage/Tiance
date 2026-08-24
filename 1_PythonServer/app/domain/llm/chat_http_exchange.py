@@ -21,7 +21,7 @@ class ChatHttpExchange:
 
 
 class ChatHttpExchangeRecorder(Protocol):
-    def record_http_exchange(
+    async def record_http_exchange(
         self,
         request: ChatCompletionRequest,
         exchange: ChatHttpExchange,

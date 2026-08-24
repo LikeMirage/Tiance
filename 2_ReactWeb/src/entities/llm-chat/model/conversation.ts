@@ -25,6 +25,7 @@ export type ConversationSessionSettings = {
   tools_enabled: boolean;
   enabled_tool_names: string[] | null;
   max_tool_calls: number;
+  tool_approval_mode: "follow_tool_policy" | "auto_allow_ask";
 };
 
 export type ConversationSession = {

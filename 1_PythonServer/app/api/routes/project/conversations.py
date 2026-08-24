@@ -49,6 +49,7 @@ from app.services.project import (
 from app.services.project.conversation_background_tasks import (
     get_conversation_background_task_registry,
 )
+from app.services.project.conversation_audit import get_conversation_audit_service
 from app.services.project.conversation_run_manager import get_conversation_run_manager
 from app.services.project.conversation_naming import (
     get_project_conversation_naming_service,
@@ -499,6 +500,13 @@ async def delete_project_conversation(
     ))
     await asyncio.gather(*(
         get_conversation_background_task_registry().cancel_session(
+            project_id,
+            selected_session_id,
+        )
+        for selected_session_id in selected_session_ids
+    ))
+    await asyncio.gather(*(
+        get_conversation_audit_service().wait_session(
             project_id,
             selected_session_id,
         )

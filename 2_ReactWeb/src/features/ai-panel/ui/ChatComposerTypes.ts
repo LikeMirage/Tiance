@@ -25,6 +25,7 @@ export type ChatComposerInputState = {
   onExternalFileDrop?: (event: DesktopFileDropEvent) => void;
   onDropProjectFile?: (file: ProjectFileDragData) => void;
   onPasteFiles?: (files: File[]) => Promise<void>;
+  onSelectExternalFiles: () => Promise<void>;
   onRemoveFileReference?: (referenceId: string) => void;
   onRemoveImageReference?: (referenceId: string) => void;
   onRemoveTextReference?: (referenceId: string) => void;

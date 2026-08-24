@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import type { ConversationSessionSettings } from "../../../entities/llm-chat/model/conversation";
 import { subscribeToolCatalogChanges } from "../../../entities/tool/model/toolCatalogEvents";
 import { useI18n } from "../../../shared/i18n";
+import { OptionSelect } from "../../../shared/ui/option-select/OptionSelect";
 import {
   getToolSummaries,
   type ToolSummary,
 } from "../../../services/tools/getToolSummaries";
-import { SettingsIntegerInput, SettingsToggle } from "./ChatSettingControls";
+import { SettingsIntegerInput } from "./ChatSettingControls";
 
 type Props = {
   onChange: (patch: Partial<ConversationSessionSettings>) => void;
@@ -53,6 +54,9 @@ export function ChatToolSettingsPanel({ onChange, settings }: Props) {
 
   const toolNames = useMemo(() => tools.map((tool) => tool.name), [tools]);
   const enabledNames = useMemo(() => {
+    if (!settings.tools_enabled) {
+      return new Set<string>();
+    }
     if (settings.enabled_tool_names === null) {
       return new Set(toolNames);
     }
@@ -61,7 +65,13 @@ export function ChatToolSettingsPanel({ onChange, settings }: Props) {
   }, [settings.enabled_tool_names, toolNames]);
 
   const toggleTool = (toolName: string, checked: boolean) => {
-    const next = new Set(settings.enabled_tool_names === null ? toolNames : settings.enabled_tool_names);
+    const next = new Set(
+      settings.tools_enabled
+        ? settings.enabled_tool_names === null
+          ? toolNames
+          : settings.enabled_tool_names
+        : [],
+    );
     if (checked) {
       next.add(toolName);
     } else {
@@ -70,6 +80,7 @@ export function ChatToolSettingsPanel({ onChange, settings }: Props) {
     const visibleToolNames = new Set(toolNames);
     const hiddenSelectedNames = Array.from(next).filter((name) => !visibleToolNames.has(name));
     onChange({
+      tools_enabled: true,
       enabled_tool_names: [
         ...toolNames.filter((name) => next.has(name)),
         ...hiddenSelectedNames,
@@ -94,18 +105,54 @@ export function ChatToolSettingsPanel({ onChange, settings }: Props) {
           </button>
         </div>
       </div>
-      <SettingsToggle
-        checked={settings.tools_enabled}
-        label={t("aiPanel.toolSettings.toolsEnabled")}
-        onChange={(checked) => onChange({ tools_enabled: checked })}
-      />
+      <div className="ai-panel__setting-row">
+        <span className="ai-panel__setting-label">{t("aiPanel.toolSettings.bulkActions")}</span>
+        <span className="ai-panel__tool-bulk-actions">
+          <button
+            className="ai-panel__tool-bulk-button"
+            disabled={isLoading}
+            type="button"
+            onClick={() => onChange({ tools_enabled: true, enabled_tool_names: [] })}
+          >
+            {t("aiPanel.toolSettings.disableAll")}
+          </button>
+          <button
+            className="ai-panel__tool-bulk-button"
+            disabled={isLoading}
+            type="button"
+            onClick={() => onChange({ tools_enabled: true, enabled_tool_names: null })}
+          >
+            {t("aiPanel.toolSettings.enableAll")}
+          </button>
+        </span>
+      </div>
       <SettingsIntegerInput
-        disabled={!settings.tools_enabled}
         label={t("aiPanel.toolSettings.maxToolCalls")}
         min={1}
         value={settings.max_tool_calls}
         onCommit={(value) => onChange({ max_tool_calls: value })}
       />
+      <div className="ai-panel__setting-row">
+        <span className="ai-panel__setting-label">{t("aiPanel.toolSettings.approvalMode")}</span>
+        <OptionSelect
+          ariaLabel={t("aiPanel.toolSettings.approvalMode")}
+          className="ai-panel__settings-select"
+          floating
+          options={[
+            {
+              label: t("aiPanel.toolSettings.approvalFollowPolicy"),
+              value: "follow_tool_policy",
+            },
+            {
+              label: t("aiPanel.toolSettings.approvalAutoAllowAsk"),
+              value: "auto_allow_ask",
+            },
+          ]}
+          showSelectedOption
+          value={settings.tool_approval_mode}
+          onChange={(value) => onChange({ tool_approval_mode: value })}
+        />
+      </div>
 
       {isLoading ? (
         <p className="ai-panel__tool-settings-empty">{t("aiPanel.toolSettings.loading")}</p>
@@ -119,7 +166,6 @@ export function ChatToolSettingsPanel({ onChange, settings }: Props) {
             <ToolSettingRow
               key={tool.name}
               checked={enabledNames.has(tool.name)}
-              disabled={!settings.tools_enabled}
               tool={tool}
               noDescriptionLabel={t("aiPanel.toolSettings.noDescription")}
               onChange={(checked) => toggleTool(tool.name, checked)}
@@ -133,13 +179,11 @@ export function ChatToolSettingsPanel({ onChange, settings }: Props) {
 
 function ToolSettingRow({
   checked,
-  disabled,
   noDescriptionLabel,
   onChange,
   tool,
 }: {
   checked: boolean;
-  disabled: boolean;
   noDescriptionLabel: string;
   onChange: (checked: boolean) => void;
   tool: ToolSummary;
@@ -166,7 +210,6 @@ function ToolSettingRow({
             ? "ai-panel__tool-toggle ai-panel__tool-toggle--on"
             : "ai-panel__tool-toggle"
         }
-        disabled={disabled}
         type="button"
         onClick={() => onChange(!checked)}
       >

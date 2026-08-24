@@ -241,4 +241,5 @@ def test_role_creation_initializes_editable_configuration_files(tmp_path):
         "tools_enabled": True,
         "enabled_tool_names": None,
         "max_tool_calls": 99999,
+        "tool_approval_mode": "auto_allow_ask",
     }

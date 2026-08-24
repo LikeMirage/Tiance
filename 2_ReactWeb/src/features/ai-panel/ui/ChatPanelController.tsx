@@ -341,6 +341,7 @@ export function ChatPanelController({
     handleDropProjectFile,
     handleExternalFileDrop,
     handlePasteFiles,
+    handleSelectExternalFiles,
     uploadStatus,
   } = useChatComposerReferences({
     activeProjectIdRef,
@@ -927,6 +928,7 @@ export function ChatPanelController({
             onDropProjectFile: handleDropProjectFile,
             onOpenReference,
             onPasteFiles: handlePasteFiles,
+            onSelectExternalFiles: handleSelectExternalFiles,
             onRemoveFileReference,
             onRemoveImageReference,
             onRemoveTextReference,

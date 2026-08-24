@@ -110,6 +110,17 @@ def test_role_application_ignores_invalid_fields_and_tracks_custom_state(tmp_pat
         encoding="utf-8",
     )
     (role_root / "prompt.json").write_text("{broken", encoding="utf-8")
+    (role_root / "tools.json").write_text(
+        dumps(
+            {
+                "tools_enabled": True,
+                "enabled_tool_names": None,
+                "max_tool_calls": 99999,
+                "tool_approval_mode": "follow_tool_policy",
+            }
+        ),
+        encoding="utf-8",
+    )
 
     applied = role_service.apply_role(
         project.project_id,
@@ -120,6 +131,7 @@ def test_role_application_ignores_invalid_fields_and_tracks_custom_state(tmp_pat
     assert applied.settings.temperature == 1.2
     assert applied.settings.top_p == 0.7
     assert applied.settings.system_prompt == "保留内容"
+    assert applied.settings.tool_approval_mode == "follow_tool_policy"
     assert ProjectConversationSessionResponse.from_domain(applied).role_status == "selected"
 
     renamed = conversation_service.update_session(

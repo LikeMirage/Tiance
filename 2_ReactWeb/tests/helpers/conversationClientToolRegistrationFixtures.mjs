@@ -144,6 +144,7 @@ export function conversationSession(overrides = {}) {
       top_p: 1,
       enabled_tool_names: ["read_text_file"],
       max_tool_calls: 99999,
+      tool_approval_mode: "auto_allow_ask",
     },
     ...overrides,
   };

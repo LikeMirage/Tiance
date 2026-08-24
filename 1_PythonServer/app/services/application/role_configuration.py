@@ -283,6 +283,7 @@ class RoleConfigurationApplicationService:
                     else None
                 ),
                 "max_tool_calls": settings.max_tool_calls,
+                "tool_approval_mode": settings.tool_approval_mode,
             },
         }
         for file_name, payload in documents.items():
@@ -504,6 +505,9 @@ class RoleConfigurationApplicationService:
             "max_tool_calls",
             tools.get("max_tool_calls"),
         )
+        tool_approval_mode = tools.get("tool_approval_mode")
+        if tool_approval_mode in {"follow_tool_policy", "auto_allow_ask"}:
+            settings["tool_approval_mode"] = tool_approval_mode
         return patch
 
     def _read_json_file(

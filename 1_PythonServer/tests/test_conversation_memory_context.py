@@ -239,6 +239,9 @@ def test_compressed_context_rebuilds_images_only_from_tool_results_outside_summa
         if message.internal_metadata.get("derived_tool_resource_message")
     ]
     assert len(image_messages) == 1
+    tool_messages = [message for message in result.messages if message.role == ChatMessageRole.TOOL]
+    assert len(tool_messages) == 1
+    assert tool_messages[0].content_parts == ()
     assert image_messages[0].content_parts[0].image_ref is not None
     assert image_messages[0].content_parts[0].image_ref.path == (
         "tiance-attachment://att_recentrecentrecentrecentrecentre"

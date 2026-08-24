@@ -17,7 +17,11 @@
   },
   {
     "title": "读取图片并进行视觉理解",
-    "content": "{\"file_path\":\"images/interface.png\"}"
+    "content": "{\"file_path\":\"images/interface.png\",\"image_scale_percent\":60}"
+  },
+  {
+    "title": "按原始尺寸重新读取图片细节",
+    "content": "{\"file_path\":\"images/interface.png\",\"image_scale_percent\":100}"
   },
   {
     "title": "当前模型不支持视觉输入时读取图片",

@@ -1,16 +1,16 @@
 import type { ChatUsage } from "../../../entities/llm-chat/model/chatCompletion";
-import type { ConversationUsageSummary } from "../../../services/project/getProjectConversationUsageSummary";
+import type {
+  ConversationUsageModelSummary,
+  ConversationUsageSummary,
+} from "../../../services/project/getProjectConversationUsageSummary";
 
 export {
   formatCostAmount,
   formatTokenCount,
 } from "../../../shared/model/usageFormatting";
 
-export const USAGE_TOTAL_SCOPE_KEY = "__total__";
-
 export type UsageScopeOption = {
   label: string;
-  featureLabel?: string;
   providerLabel?: string;
   value: string;
 };
@@ -24,43 +24,82 @@ export type UsageDisplaySummary = ChatUsage & {
 export function buildUsageScopeOptions(
   summary: ConversationUsageSummary | undefined,
 ): UsageScopeOption[] {
-  const modelSummaries = summary?.by_models ?? [];
-  return [
-    { label: "全部总计", value: USAGE_TOTAL_SCOPE_KEY },
-    ...modelSummaries.map((item) => ({
-      label: item.model_id,
-      featureLabel: item.usage_feature_display_name || formatUsageFeatureLabel(item.usage_feature_key),
-      providerLabel: item.provider_display_name || item.provider_id,
-      value: buildUsageModelScopeKey(item.provider_id, item.model_id, item.usage_feature_key),
-    })),
-  ];
+  return aggregateModelSummaries(summary).map((item) => ({
+    label: item.model_id,
+    providerLabel: item.provider_display_name || item.provider_id,
+    value: buildUsageModelScopeKey(item.provider_id, item.model_id),
+  }));
 }
 
 export function resolveUsageScopeSummary(
   summary: ConversationUsageSummary | undefined,
   scopeKey: string,
 ): UsageDisplaySummary | undefined {
-  if (!summary || scopeKey === USAGE_TOTAL_SCOPE_KEY) {
-    return summary;
-  }
-  return summary.by_models.find((item) =>
-    buildUsageModelScopeKey(item.provider_id, item.model_id, item.usage_feature_key) === scopeKey
-  ) ?? summary;
+  const modelSummaries = aggregateModelSummaries(summary);
+  return modelSummaries.find((item) =>
+    buildUsageModelScopeKey(item.provider_id, item.model_id) === scopeKey
+  ) ?? modelSummaries[0] ?? summary;
 }
 
 function buildUsageModelScopeKey(
   providerId: string,
   modelId: string,
-  usageFeatureKey: string | null | undefined,
 ) {
-  return `model:${providerId}:${modelId}:${usageFeatureKey || "main_chat"}`;
+  return `model:${providerId}:${modelId}`;
 }
 
-function formatUsageFeatureLabel(value: string | null | undefined) {
-  if (value === "conversation_naming") return "会话命名模型";
-  if (value === "global_memory_management") return "全局记忆管理模型";
-  if (value === "memory_compression") return "记忆压缩模型";
-  if (value === "project_memory_management") return "项目记忆管理模型";
-  if (value === "provider_web_search") return "内置网络搜索";
-  return "主会话";
+function aggregateModelSummaries(
+  summary: ConversationUsageSummary | undefined,
+): ConversationUsageModelSummary[] {
+  const grouped = new Map<string, ConversationUsageModelSummary>();
+  for (const item of summary?.by_models ?? []) {
+    const key = buildUsageModelScopeKey(item.provider_id, item.model_id);
+    const current = grouped.get(key);
+    if (!current) {
+      grouped.set(key, {
+        ...item,
+        usage_feature_key: null,
+        usage_feature_display_name: null,
+      });
+      continue;
+    }
+    grouped.set(key, mergeModelSummaries(current, item));
+  }
+  return [...grouped.values()];
+}
+
+function mergeModelSummaries(
+  current: ConversationUsageModelSummary,
+  incoming: ConversationUsageModelSummary,
+): ConversationUsageModelSummary {
+  return {
+    ...current,
+    prompt_tokens: sumOptional(current.prompt_tokens, incoming.prompt_tokens),
+    completion_tokens: sumOptional(current.completion_tokens, incoming.completion_tokens),
+    total_tokens: sumOptional(current.total_tokens, incoming.total_tokens),
+    prompt_cache_hit_tokens: sumOptional(
+      current.prompt_cache_hit_tokens,
+      incoming.prompt_cache_hit_tokens,
+    ),
+    prompt_cache_miss_tokens: sumOptional(
+      current.prompt_cache_miss_tokens,
+      incoming.prompt_cache_miss_tokens,
+    ),
+    reasoning_tokens: sumOptional(current.reasoning_tokens, incoming.reasoning_tokens),
+    estimated_fields: [
+      ...new Set([...(current.estimated_fields ?? []), ...(incoming.estimated_fields ?? [])]),
+    ],
+    cost_amount: sumOptional(current.cost_amount, incoming.cost_amount),
+    record_count: current.record_count + incoming.record_count,
+    estimated_record_count:
+      current.estimated_record_count + incoming.estimated_record_count,
+  };
+}
+
+function sumOptional(
+  left: number | null | undefined,
+  right: number | null | undefined,
+): number | null {
+  if (left == null && right == null) return null;
+  return (left ?? 0) + (right ?? 0);
 }

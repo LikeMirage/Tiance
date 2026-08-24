@@ -9,6 +9,10 @@ import type {
 import { uploadConversationImageAttachment } from "../../../services/project/uploadConversationImageAttachment";
 import type { DesktopPathEntry } from "../../../shared/types/desktopShell";
 import { readDesktopClipboardPathEntries } from "../../desktop-shell/model/desktopClipboard";
+import {
+  DesktopFilePickerUnavailableError,
+  selectDesktopFiles,
+} from "../../desktop-shell/model/desktopFilePicker";
 import type { DesktopFileDropEvent } from "../../desktop-shell/model/desktopFileDropBridge";
 import {
   filePathEntries,
@@ -159,6 +163,42 @@ export function useChatComposerReferences({
     referencePathEntries,
   ]);
 
+  const handleSelectExternalFiles = useCallback(async () => {
+    const requestId = uploadRequestIdRef.current + 1;
+    uploadRequestIdRef.current = requestId;
+    if (!projectId) {
+      setUploadStatus({ kind: "error", message: "当前没有可建立引用的项目。" });
+      return;
+    }
+
+    try {
+      const entries = await selectDesktopFiles();
+      if (
+        uploadRequestIdRef.current !== requestId
+        || activeProjectIdRef.current !== projectId
+      ) return;
+      if (entries.length === 0) {
+        setUploadStatus(IDLE_UPLOAD_STATUS);
+        return;
+      }
+      const referencedCount = referencePathEntries(entries);
+      setUploadStatus(referencedCount === entries.length
+        ? IDLE_UPLOAD_STATUS
+        : { kind: "error", message: "部分文件路径无效，未能建立引用。" });
+    } catch (error) {
+      if (
+        uploadRequestIdRef.current !== requestId
+        || activeProjectIdRef.current !== projectId
+      ) return;
+      setUploadStatus({
+        kind: "error",
+        message: error instanceof DesktopFilePickerUnavailableError
+          ? "当前环境无法打开系统文件选择器。"
+          : "选择文件失败，未能建立引用。",
+      });
+    }
+  }, [activeProjectIdRef, projectId, referencePathEntries]);
+
   const handleDropProjectFile = useCallback((file: ProjectFileDragData) => {
     const requestId = uploadRequestIdRef.current + 1;
     uploadRequestIdRef.current = requestId;
@@ -207,6 +247,7 @@ export function useChatComposerReferences({
     handleDropProjectFile,
     handleExternalFileDrop,
     handlePasteFiles,
+    handleSelectExternalFiles,
     uploadStatus,
   };
 }

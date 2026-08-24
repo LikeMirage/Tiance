@@ -178,6 +178,31 @@ def test_one_time_rejection_returns_tool_failure_without_execution():
     asyncio.run(scenario())
 
 
+def test_session_auto_allow_executes_ask_without_frontend_permission_request():
+    async def scenario():
+        bridge = ToolPermissionBridgeService()
+        execution = _AskingToolExecutionService()
+        loop = ConversationToolLoop(
+            chat_service=None,
+            conversation_service=_ConversationService("auto_allow_ask"),
+            tool_execution_service=execution,
+            tool_result_guidance_service=None,
+            project_service=_ProjectService(),
+            tool_call_record_service=None,
+            client_tool_bridge_service=None,
+            tool_permission_bridge_service=bridge,
+        )
+        call = ChatToolCall(call_id="call-1", name="write_file", arguments='{"path":"a.txt"}')
+        events = loop._execute_tool_call_events(_request(), call)
+
+        result = await anext(events)
+        assert result.kind == ChatStreamEventKind.TOOL_RESULT
+        assert result.tool_result is not None and result.tool_result.ok
+        assert execution.executed
+
+    asyncio.run(scenario())
+
+
 def test_client_tool_request_is_not_sent_before_permission_is_allowed():
     async def scenario():
         permission_bridge = ToolPermissionBridgeService()
@@ -365,9 +390,16 @@ class _ClientToolBridge:
 
 
 class _ConversationService:
+    def __init__(self, approval_mode: str = "follow_tool_policy") -> None:
+        self._approval_mode = approval_mode
+
     def get_session(self, _project_id: str, _session_id: str):
         return SimpleNamespace(
-            settings=SimpleNamespace(tools_enabled=True, enabled_tool_names=None)
+            settings=SimpleNamespace(
+                tools_enabled=True,
+                enabled_tool_names=None,
+                tool_approval_mode=self._approval_mode,
+            )
         )
 
 

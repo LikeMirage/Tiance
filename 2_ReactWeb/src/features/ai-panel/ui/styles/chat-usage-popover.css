@@ -169,16 +169,6 @@
   white-space: nowrap;
 }
 
-.ai-panel__usage-scope-option-feature {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: 0.62rem;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .ai-panel__usage-scope-option-provider {
   flex: 0 0 auto;
   color: var(--color-text-muted);

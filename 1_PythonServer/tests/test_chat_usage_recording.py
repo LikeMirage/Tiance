@@ -691,7 +691,7 @@ class _FakeExchangeRecorder:
     def __init__(self) -> None:
         self.attempts: list[dict[str, object]] = []
 
-    def record_http_exchange(self, _request, _exchange) -> None:
+    async def record_http_exchange(self, _request, _exchange) -> None:
         return None
 
     def record_attempt_outcome(self, request, **outcome) -> None:

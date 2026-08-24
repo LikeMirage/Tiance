@@ -10,7 +10,6 @@ import { buildSessionKey } from "./sessionKey";
 import {
   buildUsageScopeOptions,
   resolveUsageScopeSummary,
-  USAGE_TOTAL_SCOPE_KEY,
 } from "./usageSummary";
 
 type UseConversationUsageOptions = {
@@ -33,7 +32,7 @@ export function useConversationUsage({
   projectId,
 }: UseConversationUsageOptions) {
   const [isUsagePopoverOpen, setIsUsagePopoverOpen] = useState(false);
-  const [usageScopeKey, setUsageScopeKey] = useState(USAGE_TOTAL_SCOPE_KEY);
+  const [usageScopeKey, setUsageScopeKey] = useState("");
   const [sessionUsageSummaries, setSessionUsageSummaries] =
     useState<Record<string, ConversationUsageSummary>>({});
   const usageReloadRequestIdsRef = useRef(new Map<string, number>());
@@ -69,14 +68,14 @@ export function useConversationUsage({
   }, [activeSessionId, isActive, projectId, reloadSessionUsageSummary]);
 
   useEffect(() => {
-    setUsageScopeKey(USAGE_TOTAL_SCOPE_KEY);
+    setUsageScopeKey("");
   }, [activeSessionKey]);
 
   useEffect(() => {
     if (usageScopeOptions.some((option) => option.value === usageScopeKey)) {
       return;
     }
-    setUsageScopeKey(USAGE_TOTAL_SCOPE_KEY);
+    setUsageScopeKey(usageScopeOptions[0]?.value ?? "");
   }, [usageScopeKey, usageScopeOptions]);
 
   return {

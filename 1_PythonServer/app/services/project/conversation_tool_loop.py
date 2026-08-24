@@ -297,11 +297,7 @@ class ConversationToolLoop:
                             content=invalid_result.content,
                             name=invalid_result.name,
                             tool_call_id=invalid_result.call_id,
-                            content_parts=(
-                                tool_message.content_parts
-                                if tool_message is not None
-                                else ()
-                            ),
+                            content_parts=(),
                         ),
                         tool_message.message_id if tool_message is not None else None,
                     )
@@ -342,11 +338,7 @@ class ConversationToolLoop:
                                     content=tool_result.content,
                                     name=tool_result.name,
                                     tool_call_id=tool_result.call_id,
-                                    content_parts=(
-                                        tool_message.content_parts
-                                        if tool_message is not None
-                                        else ()
-                                    ),
+                                    content_parts=(),
                                 ),
                                 tool_message.message_id if tool_message is not None else None,
                             )
@@ -575,7 +567,11 @@ class ConversationToolLoop:
                 request,
                 tool_call,
                 event_type="tool.permission_decided",
-                payload={"tool_name": tool_call.name, "decision": decision},
+                payload={
+                    "tool_name": tool_call.name,
+                    "decision": decision,
+                    "source": "user",
+                },
             )
             if decision != "allow":
                 yield ChatStreamEvent(
@@ -641,6 +637,39 @@ class ConversationToolLoop:
             return tool_call_failure_result(displayed_call, "权限配置禁止了本次工具调用。"), None
         if combined.decision == "allow":
             return None, None
+        approval_mode = self._session_tool_approval_mode(request)
+        requested_payload = {
+            "tool_name": displayed_call.name,
+            "approval_mode": approval_mode,
+            "facts": [
+                {
+                    "tool_name": fact.tool_name,
+                    "parameter_name": fact.parameter_name,
+                    "permission_type": fact.permission_type,
+                    "scope": fact.scope,
+                }
+                for fact in combined.facts
+                if fact.decision == "ask"
+            ],
+        }
+        if approval_mode == "auto_allow_ask":
+            await self._record_tool_event(
+                request,
+                displayed_call,
+                event_type="tool.permission_requested",
+                payload=requested_payload,
+            )
+            await self._record_tool_event(
+                request,
+                displayed_call,
+                event_type="tool.permission_decided",
+                payload={
+                    "tool_name": displayed_call.name,
+                    "decision": "allow",
+                    "source": "session_auto_allow",
+                },
+            )
+            return None, None
         pending = await self._tool_permission_bridge_service.create_request(
             displayed_call_id=displayed_call.call_id,
             displayed_tool_name=displayed_call.name,
@@ -652,19 +681,7 @@ class ConversationToolLoop:
             request,
             displayed_call,
             event_type="tool.permission_requested",
-            payload={
-                "tool_name": displayed_call.name,
-                "facts": [
-                    {
-                        "tool_name": fact.tool_name,
-                        "parameter_name": fact.parameter_name,
-                        "permission_type": fact.permission_type,
-                        "scope": fact.scope,
-                    }
-                    for fact in combined.facts
-                    if fact.decision == "ask"
-                ],
-            },
+            payload=requested_payload,
         )
         return None, pending
 
@@ -768,6 +785,7 @@ class ConversationToolLoop:
                                 payload={
                                     "tool_name": executor_call.name,
                                     "decision": decision,
+                                    "source": "user",
                                 },
                             )
                         if decision != "allow":
@@ -1101,6 +1119,21 @@ class ConversationToolLoop:
         if not session.settings.tools_enabled:
             return ()
         return session.settings.enabled_tool_names
+
+    def _session_tool_approval_mode(self, request: ChatCompletionRequest) -> str:
+        if not request.project_id or not request.session_id:
+            return "follow_tool_policy"
+        try:
+            session = self._conversation_service.get_session(
+                request.project_id,
+                request.session_id,
+            )
+        except AppError:
+            return "follow_tool_policy"
+        if session is None:
+            return "follow_tool_policy"
+        mode = getattr(session.settings, "tool_approval_mode", None)
+        return mode if mode in {"follow_tool_policy", "auto_allow_ask"} else "follow_tool_policy"
 
     def _project_root_path(self, project_id: str | None) -> str | None:
         if not project_id or self._project_service is None:

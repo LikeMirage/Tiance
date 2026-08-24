@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.llm.generation_params import LlmReasoningMode
@@ -56,6 +58,7 @@ class RoleToolsConfiguration(RoleConfigurationContract):
     tools_enabled: bool
     enabled_tool_names: list[str] | None
     max_tool_calls: int = Field(ge=1)
+    tool_approval_mode: Literal["follow_tool_policy", "auto_allow_ask"]
 
 
 ROLE_CONFIGURATION_MODELS: dict[str, type[RoleConfigurationContract]] = {

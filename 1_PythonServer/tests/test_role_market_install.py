@@ -96,5 +96,6 @@ def test_install_preserves_model_and_tool_preferences_without_resolving_them(tmp
         "tools_enabled": True,
         "enabled_tool_names": ["missing-tool"],
         "max_tool_calls": 8,
+        "tool_approval_mode": "auto_allow_ask",
     }
     assert remote.download_calls == 1

@@ -1,12 +1,21 @@
 {
   "additionalProperties": false,
-  "description": "读取一个本机文本文件或图片。相对路径按工作区根目录解析，绝对路径可以指向工作区外。文本默认最多返回 2000 行和 50000 字符；PNG、JPEG、WebP、GIF、BMP 图片会交给当前支持视觉理解的 AI 分析，不支持视觉理解时会提示改用图片解析工具。",
+  "description": "读取一个本机文本文件或图片。相对路径按工作区根目录解析，绝对路径可以指向工作区外。文本默认最多返回 2000 行和 50000 字符；图片默认按原宽高的 60% 生成临时派生图交给支持视觉理解的 AI，原图不修改；需要辨认细节时可显式提高到 80% 或 100%。",
   "properties": {
     "file_path": {
       "permission_type": "filesystem_read",
       "description": "要读取的文本或图片路径。相对路径按工作区根目录解析，也可以传入工作区外的绝对路径。",
       "title": "文件路径",
       "type": "string"
+    },
+    "image_scale_percent": {
+      "permission_type": "none",
+      "default": 60,
+      "description": "读取图片时返回给 AI 的宽高百分比，10 到 100。默认 60；看不清细节时可改为 80 或 100。100 表示直接返回原图。PNG 使用无损编码，JPEG/WebP 派生图使用明确的 90 质量编码，GIF 保留动画，BMP 派生为 PNG。该参数不影响文本读取，也不会修改原图。",
+      "maximum": 100,
+      "minimum": 10,
+      "title": "图片尺寸百分比",
+      "type": "integer"
     },
     "start_line": {
       "permission_type": "none",

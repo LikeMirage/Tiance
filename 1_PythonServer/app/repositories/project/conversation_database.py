@@ -10,6 +10,12 @@ from threading import Lock, local
 from typing import Any, Iterator
 from zlib import error as zlib_error
 
+from app.repositories.project.conversation_audit_payloads import (
+    externalize_audit_payload,
+    is_audit_manifest,
+    restore_audit_payload,
+)
+
 
 DATABASE_FILE = "tiance.db"
 SCHEMA_VERSION = 5
@@ -535,6 +541,11 @@ def replace_message_payloads(session_dir: Path, payloads: list[dict[str, Any]]) 
 
 def append_event(session_dir: Path, kind: str, payload: dict[str, Any]) -> None:
     session_id = session_id_from_session_dir(session_dir)
+    stored_payload = (
+        externalize_audit_payload(session_dir.parents[2], payload)
+        if kind == "model_exchanges"
+        else payload
+    )
     with connection_for_path(database_path_from_session(session_dir)) as connection:
         ordinal = connection.execute(
             """
@@ -548,7 +559,7 @@ def append_event(session_dir: Path, kind: str, payload: dict[str, Any]) -> None:
             INSERT INTO conversation_session_events(session_id, kind, ordinal, payload_json)
             VALUES (?, ?, ?, ?)
             """,
-            (session_id, kind, ordinal, _encode(payload)),
+            (session_id, kind, ordinal, _encode(stored_payload)),
         )
 
 
@@ -563,7 +574,11 @@ def read_events(session_dir: Path, kind: str) -> list[dict[str, Any]]:
             """,
             (session_id_from_session_dir(session_dir), kind),
         ).fetchall()
-    return [value for row in rows if isinstance((value := _decode(row[0])), dict)]
+    return [
+        _restore_session_event(session_dir, kind, value)
+        for row in rows
+        if isinstance((value := _decode(row[0])), dict)
+    ]
 
 
 def count_events(session_dir: Path, kind: str) -> int:
@@ -603,10 +618,19 @@ def list_events_range(
                 end_ordinal,
             ),
         ).fetchall()
-    return [value for row in rows if isinstance((value := _decode(row[0])), dict)]
+    return [
+        _restore_session_event(session_dir, kind, value)
+        for row in rows
+        if isinstance((value := _decode(row[0])), dict)
+    ]
 
 
 def replace_events(session_dir: Path, kind: str, payloads: list[dict[str, Any]]) -> None:
+    stored_payloads = (
+        [externalize_audit_payload(session_dir.parents[2], payload) for payload in payloads]
+        if kind == "model_exchanges"
+        else payloads
+    )
     with connection_for_path(database_path_from_session(session_dir)) as connection:
         connection.execute(
             "DELETE FROM conversation_session_events WHERE session_id = ? AND kind = ?",
@@ -619,7 +643,7 @@ def replace_events(session_dir: Path, kind: str, payloads: list[dict[str, Any]])
             """,
             [
                 (session_id_from_session_dir(session_dir), kind, ordinal, _encode(payload))
-                for ordinal, payload in enumerate(payloads)
+                for ordinal, payload in enumerate(stored_payloads)
             ],
         )
 
@@ -770,6 +794,7 @@ def find_model_exchange_artifact_id(
             WHERE session_id = ?
               AND run_id = ?
               AND event_type IN (
+                  'model.http_exchange.pending',
                   'model.http_exchange.completed',
                   'model.http_exchange.failed'
               )
@@ -1073,6 +1098,54 @@ def write_artifact_record(
             )
 
 
+def complete_artifact_record(
+    workspace_dir: Path,
+    *,
+    artifact_id: str,
+    size_bytes: int,
+    sha256: str,
+    metadata: dict[str, Any],
+    payload_blob: bytes,
+    compression: str,
+) -> None:
+    with connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        cursor = connection.execute(
+            """
+            UPDATE conversation_artifacts
+            SET size_bytes = ?, sha256 = ?, status = 'complete', metadata_json = ?
+            WHERE artifact_id = ? AND status = 'pending'
+            """,
+            (size_bytes, sha256, _encode(metadata), artifact_id),
+        )
+        if cursor.rowcount != 1:
+            raise RuntimeError(f"Pending artifact {artifact_id} no longer exists.")
+        connection.execute(
+            """
+            INSERT INTO conversation_artifact_payloads(
+                artifact_id, compression, stored_size_bytes, payload_blob
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (artifact_id, compression, len(payload_blob), payload_blob),
+        )
+
+
+def fail_artifact_record(
+    workspace_dir: Path,
+    *,
+    artifact_id: str,
+    metadata: dict[str, Any],
+) -> None:
+    with connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        connection.execute(
+            """
+            UPDATE conversation_artifacts
+            SET status = 'failed', metadata_json = ?
+            WHERE artifact_id = ? AND status = 'pending'
+            """,
+            (_encode(metadata), artifact_id),
+        )
+
+
 def count_embedded_artifacts(
     workspace_dir: Path,
     *,
@@ -1121,7 +1194,7 @@ def list_embedded_artifacts_range(
             """,
             (session_id, kind, limit, offset),
         ).fetchall()
-    return [_restore_embedded_artifact(row) for row in rows]
+    return [_restore_embedded_artifact(workspace_dir, row) for row in rows]
 
 
 def journal_mode(database_path: Path) -> str:
@@ -1423,28 +1496,36 @@ def _conversation_run_from_row(row: sqlite3.Row | tuple[Any, ...]) -> dict[str, 
     }
 
 
-def _restore_embedded_artifact(row: sqlite3.Row | tuple[Any, ...]) -> dict[str, Any]:
+def _restore_embedded_artifact(
+    workspace_dir: Path,
+    row: sqlite3.Row | tuple[Any, ...],
+) -> dict[str, Any]:
     artifact_id = str(row[0])
     compression = str(row[8])
     stored_payload = bytes(row[10])
     stored_size_bytes = int(row[9])
     if len(stored_payload) != stored_size_bytes:
         raise RuntimeError(f"Artifact {artifact_id} stored size validation failed.")
-    if compression != "gzip":
+    if compression not in {"gzip", "gzip+audit-manifest-v1"}:
         raise RuntimeError(f"Artifact {artifact_id} uses unsupported compression: {compression}.")
     try:
         content = gzip_decompress(stored_payload)
     except (OSError, EOFError, zlib_error) as error:
         raise RuntimeError(f"Artifact {artifact_id} cannot be decompressed.") from error
-    if len(content) != int(row[4]):
-        raise RuntimeError(f"Artifact {artifact_id} original size validation failed.")
-    if sha256(content).hexdigest() != str(row[5]):
-        raise RuntimeError(f"Artifact {artifact_id} SHA-256 validation failed.")
     encoding = str(row[3] or "utf-8")
     try:
         payload = loads(content.decode(encoding))
     except (UnicodeDecodeError, ValueError) as error:
         raise RuntimeError(f"Artifact {artifact_id} does not contain valid JSON.") from error
+    if compression == "gzip+audit-manifest-v1":
+        if not isinstance(payload, dict) or not is_audit_manifest(payload):
+            raise RuntimeError(f"Artifact {artifact_id} does not contain an audit manifest.")
+        payload = restore_audit_payload(workspace_dir, payload)
+        content = dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(encoding)
+    if len(content) != int(row[4]):
+        raise RuntimeError(f"Artifact {artifact_id} original size validation failed.")
+    if sha256(content).hexdigest() != str(row[5]):
+        raise RuntimeError(f"Artifact {artifact_id} SHA-256 validation failed.")
     return {
         "artifact_id": artifact_id,
         "created_at": row[1],
@@ -1458,6 +1539,16 @@ def _restore_embedded_artifact(row: sqlite3.Row | tuple[Any, ...]) -> dict[str, 
         "compression": compression,
         "content": payload,
     }
+
+
+def _restore_session_event(
+    session_dir: Path,
+    kind: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    if kind != "model_exchanges" or not is_audit_manifest(payload):
+        return payload
+    return restore_audit_payload(session_dir.parents[2], payload)
 
 
 def _encode(value: Any) -> str:

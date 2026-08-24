@@ -222,6 +222,14 @@
               "minimum": 1,
               "type": "integer"
             },
+            "tool_approval_mode": {
+              "description": "工具权限要求询问时的会话处理方式。follow_tool_policy 等待用户决定；auto_allow_ask 自动允许询问项，但不覆盖工具权限中的禁止。",
+              "enum": [
+                "follow_tool_policy",
+                "auto_allow_ask"
+              ],
+              "type": "string"
+            },
             "global_memory_enabled": {
               "description": "是否启用全局记忆注入。",
               "type": "boolean"

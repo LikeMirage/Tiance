@@ -865,6 +865,7 @@ def test_stream_feeds_generic_tool_image_after_all_tool_results():
         ChatMessageRole.USER,
     ]
     assert second_messages[-2].tool_call_id == "capture-1"
+    assert second_messages[-2].content_parts == ()
     assert second_messages[-1].content_parts[0].image_ref is not None
     assert second_messages[-1].content_parts[0].image_ref.path == "captures/dashboard.png"
 
@@ -965,6 +966,70 @@ def test_stream_rejects_direct_tool_call_when_session_tool_master_switch_is_off(
 
 def test_stream_tool_execution_does_not_block_event_loop():
     asyncio.run(_assert_tool_execution_does_not_block_event_loop())
+
+
+def test_tool_starts_while_blocking_memory_finishes_before_next_model_round():
+    conversation_service = _FakeConversationService()
+    chat_service = _ToolCallingChatService()
+    memory_service = _ToolRoundBlockingMemoryService()
+    tool_execution_service = _SignalingToolExecutionService()
+    service = ProjectConversationStreamService(
+        chat_service,
+        conversation_service,
+        _FakeUsageService(),
+        _FakeNamingService(),
+        memory_service,
+        tool_execution_service=tool_execution_service,
+        project_service=_FakeProjectService(),
+    )
+    request = replace(_request(), tools=(_tool_definition("read_text_file"),))
+
+    async def run_test():
+        stream_task = asyncio.create_task(_collect_payloads(service, request=request))
+        await asyncio.wait_for(memory_service.started.wait(), timeout=1)
+        assert await asyncio.wait_for(
+            asyncio.to_thread(tool_execution_service.started.wait, 1),
+            timeout=2,
+        )
+        assert len(chat_service.requests) == 1
+        memory_service.release.set()
+        payloads = await asyncio.wait_for(stream_task, timeout=2)
+        assert len(chat_service.requests) == 2
+        return payloads
+
+    payloads = asyncio.run(run_test())
+    assert any(payload["kind"] == "tool_result" for payload in payloads)
+
+
+def test_tool_starts_while_model_exchange_audit_is_still_being_written():
+    conversation_service = _BlockingModelExchangeConversationService()
+    tool_execution_service = _SignalingToolExecutionService()
+    service = ProjectConversationStreamService(
+        _ToolCallingChatService(),
+        conversation_service,
+        _FakeUsageService(),
+        _FakeNamingService(),
+        _FakeMemoryService(),
+        tool_execution_service=tool_execution_service,
+        project_service=_FakeProjectService(),
+    )
+    request = replace(_request(), tools=(_tool_definition("read_text_file"),))
+
+    async def run_test():
+        stream_task = asyncio.create_task(_collect_payloads(service, request=request))
+        assert await asyncio.wait_for(
+            asyncio.to_thread(conversation_service.audit_started.wait, 1),
+            timeout=2,
+        )
+        assert await asyncio.wait_for(
+            asyncio.to_thread(tool_execution_service.started.wait, 1),
+            timeout=2,
+        )
+        conversation_service.audit_release.set()
+        return await asyncio.wait_for(stream_task, timeout=2)
+
+    payloads = asyncio.run(run_test())
+    assert any(payload["kind"] == "tool_result" for payload in payloads)
 
 
 def test_task_cancellation_during_tool_execution_settles_persisted_tool_round():
@@ -2733,6 +2798,19 @@ class _StatefulFakeConversationService(_FakeConversationService):
         return message
 
 
+class _BlockingModelExchangeConversationService(_FakeConversationService):
+    def __init__(self) -> None:
+        super().__init__()
+        self.audit_started = threading.Event()
+        self.audit_release = threading.Event()
+
+    def append_model_exchange(self, project_id, session_id, payload):
+        self.audit_started.set()
+        if not self.audit_release.wait(timeout=2):
+            raise TimeoutError("Model exchange audit was not released by the test.")
+        super().append_model_exchange(project_id, session_id, payload)
+
+
 class _BlockingAppendConversationService(_FakeConversationService):
     def __init__(self, *, delay_seconds: float) -> None:
         super().__init__()
@@ -2858,6 +2936,24 @@ class _BlockingModeMemoryService(_FakeMemoryService):
         self.finished = True
 
 
+class _ToolRoundBlockingMemoryService(_FakeMemoryService):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def is_blocking_enabled(self) -> bool:
+        return True
+
+    async def compact_request_if_enabled(self, *_args, **_kwargs):
+        return None
+
+    async def compact_context_if_enabled(self, project_id, session_id, **_kwargs):
+        self.compression_calls.append((project_id, session_id))
+        self.started.set()
+        await self.release.wait()
+
+
 class _BlockingMemoryService(_FakeMemoryService):
     def __init__(self) -> None:
         super().__init__()
@@ -2957,6 +3053,15 @@ class _FakeToolExecutionService:
             content='{"ok":true,"content":"hello"}',
             tool_project_id="tool_1",
         )
+
+
+class _SignalingToolExecutionService(_FakeToolExecutionService):
+    def __init__(self) -> None:
+        self.started = threading.Event()
+
+    def execute(self, tool_call, *, context):
+        self.started.set()
+        return super().execute(tool_call, context=context)
 
 
 class _RejectingToolExecutionService(_FakeToolExecutionService):

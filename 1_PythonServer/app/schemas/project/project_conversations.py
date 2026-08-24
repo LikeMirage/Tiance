@@ -50,6 +50,10 @@ class ProjectConversationSessionSettingsPatch(BaseModel):
     tools_enabled: bool | None = None
     enabled_tool_names: list[str] | None = None
     max_tool_calls: int | None = Field(default=None, ge=1)
+    tool_approval_mode: Literal[
+        "follow_tool_policy",
+        "auto_allow_ask",
+    ] | None = None
 
 
 class ProjectConversationCreateRequest(BaseModel):
@@ -122,6 +126,10 @@ class ProjectConversationSessionSettingsResponse(BaseModel):
     tools_enabled: bool = True
     enabled_tool_names: list[str] | None = None
     max_tool_calls: int = 99999
+    tool_approval_mode: Literal[
+        "follow_tool_policy",
+        "auto_allow_ask",
+    ] = "auto_allow_ask"
 
     @classmethod
     def from_domain(
@@ -162,6 +170,7 @@ class ProjectConversationSessionSettingsResponse(BaseModel):
             if session.settings.enabled_tool_names is not None
             else None,
             max_tool_calls=session.settings.max_tool_calls,
+            tool_approval_mode=session.settings.tool_approval_mode,
         )
 
 

@@ -513,6 +513,71 @@ class ConversationStreamPersistence:
         self._track_background_task(task)
         return task
 
+    def schedule_tool_round_blocking_memory(
+        self,
+        request: ChatCompletionRequest,
+        assistant_message: ProjectConversationMessage | None,
+        *,
+        include_compression: bool,
+        await_nonblocking_followup: bool,
+        session_snapshot: ProjectConversationSession | None = None,
+        run_snapshot: ConversationRunSnapshot | None = None,
+    ) -> asyncio.Task | None:
+        if (
+            assistant_message is None
+            or not request.project_id
+            or not request.session_id
+            or (not include_compression and self._long_term_memory_service is None)
+        ):
+            return None
+        task = self._background_task_registry.create_task(
+            request.project_id,
+            request.session_id,
+            self._run_tool_round_blocking_memory(
+                request,
+                assistant_message,
+                include_compression=include_compression,
+                await_nonblocking_followup=await_nonblocking_followup,
+                session_snapshot=session_snapshot,
+                run_snapshot=run_snapshot,
+            ),
+            name="conversation-tool-round-blocking-memory",
+        )
+        self._track_background_task(task)
+        return task
+
+    async def _run_tool_round_blocking_memory(
+        self,
+        request: ChatCompletionRequest,
+        assistant_message: ProjectConversationMessage,
+        *,
+        include_compression: bool,
+        await_nonblocking_followup: bool,
+        session_snapshot: ProjectConversationSession | None,
+        run_snapshot: ConversationRunSnapshot | None,
+    ) -> None:
+        if include_compression:
+            await self.run_memory_compression(
+                request,
+                assistant_message,
+                session_snapshot=session_snapshot,
+                run_snapshot=run_snapshot,
+            )
+        await self.run_long_term_memory_management(
+            request,
+            assistant_message,
+            session_snapshot=session_snapshot,
+            run_snapshot=run_snapshot,
+        )
+        followup = self.schedule_long_term_memory_management(
+            request,
+            assistant_message,
+            session_snapshot=session_snapshot,
+            run_snapshot=run_snapshot,
+        )
+        if await_nonblocking_followup and followup is not None:
+            await followup
+
     def schedule_session_naming(
         self,
         request: ChatCompletionRequest,
