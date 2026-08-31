@@ -115,15 +115,6 @@
       "updated_at": "2026-06-02T03:40:34.536760+00:00"
     },
     {
-      "project_id": "a95b5a17-ef14-5af7-ad45-c5a5377a23f3",
-      "name": "Tavily 网络搜索",
-      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
-      "is_default": false,
-      "sort_order": 0,
-      "created_at": "2026-06-11T01:28:43+00:00",
-      "updated_at": "2026-07-31T09:13:35.207446+00:00"
-    },
-    {
       "project_id": "3094f07a-27f0-58dc-980f-e4718926119a",
       "name": "AI 会话交互",
       "category_id": "toolset_c14f6e2593194fe88f2b218a0d7c6a9e",
@@ -149,6 +140,15 @@
       "sort_order": 0,
       "created_at": "2026-07-05T00:00:00+00:00",
       "updated_at": "2026-08-02T01:06:50.543736+00:00"
+    },
+    {
+      "project_id": "0510e798-3244-534d-84be-1c9ffa16cfd4",
+      "name": "模型内置网络搜索",
+      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
+      "is_default": false,
+      "sort_order": 0,
+      "created_at": "2026-07-19T00:00:00+00:00",
+      "updated_at": "2026-07-19T17:58:42.180648+00:00"
     },
     {
       "project_id": "c44767b0-4693-4647-9542-c158402ce8a6",
@@ -178,22 +178,13 @@
       "updated_at": "2026-06-08T07:51:26.881691+00:00"
     },
     {
-      "project_id": "51d20d43-f24f-5a2d-92d4-00781dfd044b",
-      "name": "工具体检",
+      "project_id": "afeba52b-601f-54e6-80a6-c0bc89350801",
+      "name": "项目收尾检查",
       "category_id": "c3b8c681-bf0c-4ec5-8247-b66be22d8e5b",
       "is_default": false,
       "sort_order": 1,
       "created_at": "2026-06-10T15:40:00+00:00",
-      "updated_at": "2026-08-02T01:06:48.987326+00:00"
-    },
-    {
-      "project_id": "280b107b-5f97-5c66-9b79-97e478dd3dd4",
-      "name": "SerpAPI 多引擎搜索",
-      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
-      "is_default": false,
-      "sort_order": 1,
-      "created_at": "2026-06-11T01:42:50+00:00",
-      "updated_at": "2026-06-11T01:42:50+00:00"
+      "updated_at": "2026-08-02T01:06:49.184749+00:00"
     },
     {
       "project_id": "d624fd9b-5b9c-5bf4-8126-6610868e64ba",
@@ -241,6 +232,15 @@
       "updated_at": "2026-08-03T00:00:00Z"
     },
     {
+      "project_id": "1b43022a-0a0a-467c-a751-cf382ca9d53a",
+      "name": "免费网络搜索",
+      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
+      "is_default": false,
+      "sort_order": 1,
+      "created_at": "2026-08-11T00:00:00+00:00",
+      "updated_at": "2026-08-11T00:00:00+00:00"
+    },
+    {
       "project_id": "59dfc998-de87-586a-a617-439dbaa2e3d8",
       "name": "批量读取文件",
       "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
@@ -250,13 +250,13 @@
       "updated_at": "2026-08-02T01:06:45.007616+00:00"
     },
     {
-      "project_id": "afeba52b-601f-54e6-80a6-c0bc89350801",
-      "name": "项目收尾检查",
+      "project_id": "81672808-f39b-5c7b-9e00-99bceed762b0",
+      "name": "Python 脚本执行",
       "category_id": "c3b8c681-bf0c-4ec5-8247-b66be22d8e5b",
       "is_default": false,
       "sort_order": 2,
-      "created_at": "2026-06-10T15:40:00+00:00",
-      "updated_at": "2026-08-02T01:06:49.184749+00:00"
+      "created_at": "2026-06-19T10:35:50.371056+00:00",
+      "updated_at": "2026-08-02T01:06:47.831726+00:00"
     },
     {
       "project_id": "e76a4e0a-205d-50c4-8415-081cdaa49d39",
@@ -277,15 +277,6 @@
       "updated_at": "2026-07-12T00:00:00+00:00"
     },
     {
-      "project_id": "0510e798-3244-534d-84be-1c9ffa16cfd4",
-      "name": "模型内置网络搜索",
-      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
-      "is_default": false,
-      "sort_order": 2,
-      "created_at": "2026-07-19T00:00:00+00:00",
-      "updated_at": "2026-07-19T17:58:42.180648+00:00"
-    },
-    {
       "project_id": "66d138af-7379-4a3c-b038-888708910ab1",
       "name": "GitHub 仓库",
       "category_id": "4850f094-68fb-464b-9c44-d687c0f69097",
@@ -293,6 +284,15 @@
       "sort_order": 2,
       "created_at": "2026-08-03T00:00:00Z",
       "updated_at": "2026-08-03T00:00:00Z"
+    },
+    {
+      "project_id": "d915c8c7-8315-4de1-b61c-c29b77a5a6d5",
+      "name": "DeepSeek 官方网络搜索",
+      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
+      "is_default": false,
+      "sort_order": 2,
+      "created_at": "2026-08-12T00:00:00+00:00",
+      "updated_at": "2026-08-12T00:00:00+00:00"
     },
     {
       "project_id": "8f2c6f8b-0fd4-5c2f-9d5d-6c7fa8c1e4b2",
@@ -313,15 +313,6 @@
       "updated_at": "2026-08-02T01:06:45.229779+00:00"
     },
     {
-      "project_id": "81672808-f39b-5c7b-9e00-99bceed762b0",
-      "name": "Python 脚本执行",
-      "category_id": "c3b8c681-bf0c-4ec5-8247-b66be22d8e5b",
-      "is_default": false,
-      "sort_order": 3,
-      "created_at": "2026-06-19T10:35:50.371056+00:00",
-      "updated_at": "2026-08-02T01:06:47.831726+00:00"
-    },
-    {
       "project_id": "cbb8296b-08bd-5ddd-bc26-8b33a1e4f470",
       "name": "等待",
       "category_id": "toolset_a8b8eef5210548778c229305f6a4d2c3",
@@ -329,6 +320,15 @@
       "sort_order": 3,
       "created_at": "2026-07-17T08:29:43.972403Z",
       "updated_at": "2026-07-17T08:29:43.972403Z"
+    },
+    {
+      "project_id": "4256aef7-221f-5395-98fa-597f9ca9bda0",
+      "name": "PIP 依赖管理",
+      "category_id": "c3b8c681-bf0c-4ec5-8247-b66be22d8e5b",
+      "is_default": false,
+      "sort_order": 3,
+      "created_at": "2026-07-20T12:00:00Z",
+      "updated_at": "2026-08-02T01:06:48.171482+00:00"
     },
     {
       "project_id": "7ef483c5-64ad-4b4d-b279-3afc50c82913",
@@ -340,15 +340,6 @@
       "updated_at": "2026-08-03T00:00:00Z"
     },
     {
-      "project_id": "1b43022a-0a0a-467c-a751-cf382ca9d53a",
-      "name": "免费网络搜索",
-      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
-      "is_default": false,
-      "sort_order": 3,
-      "created_at": "2026-08-11T00:00:00+00:00",
-      "updated_at": "2026-08-11T00:00:00+00:00"
-    },
-    {
       "project_id": "2143d169-9bf4-55d3-88c3-3fb6608cbbb6",
       "name": "内容搜索",
       "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
@@ -358,13 +349,13 @@
       "updated_at": "2026-08-02T01:06:45.433441+00:00"
     },
     {
-      "project_id": "4256aef7-221f-5395-98fa-597f9ca9bda0",
-      "name": "PIP 依赖管理",
+      "project_id": "215084ab-60fc-5ceb-929c-72b98ec4a900",
+      "name": "Python 后台进程管理",
       "category_id": "c3b8c681-bf0c-4ec5-8247-b66be22d8e5b",
       "is_default": false,
       "sort_order": 4,
-      "created_at": "2026-07-20T12:00:00Z",
-      "updated_at": "2026-08-02T01:06:48.171482+00:00"
+      "created_at": "2026-07-21T08:43:01.0233677Z",
+      "updated_at": "2026-08-02T01:06:48.599177+00:00"
     },
     {
       "project_id": "3df2b1cb-de5a-5a72-96ca-ed3441d560a6",
@@ -385,15 +376,6 @@
       "updated_at": "2026-08-03T00:00:00Z"
     },
     {
-      "project_id": "d915c8c7-8315-4de1-b61c-c29b77a5a6d5",
-      "name": "DeepSeek 官方网络搜索",
-      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
-      "is_default": false,
-      "sort_order": 4,
-      "created_at": "2026-08-12T00:00:00+00:00",
-      "updated_at": "2026-08-12T00:00:00+00:00"
-    },
-    {
       "project_id": "e81889b3-deab-5ca4-b534-4a6e728a3298",
       "name": "文件匹配",
       "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
@@ -401,15 +383,6 @@
       "sort_order": 5,
       "created_at": "2026-05-30T21:04:15.782249+00:00",
       "updated_at": "2026-08-02T01:06:45.671859+00:00"
-    },
-    {
-      "project_id": "215084ab-60fc-5ceb-929c-72b98ec4a900",
-      "name": "Python 后台进程管理",
-      "category_id": "c3b8c681-bf0c-4ec5-8247-b66be22d8e5b",
-      "is_default": false,
-      "sort_order": 5,
-      "created_at": "2026-07-21T08:43:01.0233677Z",
-      "updated_at": "2026-08-02T01:06:48.599177+00:00"
     },
     {
       "project_id": "c40ac51b-b2fd-43e1-aeb2-6f9ef8b50a9e",

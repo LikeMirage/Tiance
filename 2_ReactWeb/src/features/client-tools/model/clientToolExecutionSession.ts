@@ -1,4 +1,5 @@
 import type { ClientToolExecutionResult } from "./clientToolBridge";
+import { createUuid } from "../../../shared/model/createUuid";
 
 const EXECUTOR_ID_KEY = "tiance.client-tool-executor-id";
 const EXECUTION_KEY_PREFIX = "tiance.client-tool-execution:";
@@ -20,7 +21,7 @@ export function getClientToolExecutorId(): string {
   const storage = getSessionStorage();
   const stored = storage?.getItem(EXECUTOR_ID_KEY)?.trim();
   if (stored) return stored;
-  memoryExecutorId ??= crypto.randomUUID();
+  memoryExecutorId ??= createUuid();
   try {
     storage?.setItem(EXECUTOR_ID_KEY, memoryExecutorId);
   } catch {

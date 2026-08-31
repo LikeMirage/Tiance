@@ -17,6 +17,7 @@
 - FastAPI 后端源码；
 - React 前端 `2_ReactWeb/dist` 最新生产构建；发布包不包含前端源码；
 - PyWebView 桌面壳源码和根目录 `Tiance.exe`；
+- 独立访问网关 `runtime/gateway/TianceRemoteGateway.exe`；
 - 内置 Python 运行环境及后端、桌面壳运行依赖；
 - 已公开的预置工具、供应商、主题、语言和对应设置文件；
 - 许可证与 `system/` 内的版本、升级器文件。
@@ -85,6 +86,8 @@ git diff --check
 
 后端、桌面壳或工具发生变化时，还应运行对应测试。测试范围按本次改动决定，不能只因为前端构建成功就认为整个版本已经验证。
 
+访问网关源码发生变化时，发布提交前运行 `scripts/build-remote-gateway.ps1`，并将生成的 `runtime/gateway/TianceRemoteGateway.exe` 纳入发布提交。发布脚本会检查标签中是否存在该程序，缺失时直接停止。
+
 ## 三、提交正式版本
 
 审查改动后提交并推送：
@@ -103,6 +106,8 @@ git push origin vX.Y.Z
 ```
 
 标签创建后不要移动。若内容还要变化，继续发布下一个补丁版本。
+
+用户要求“先做发布包，不发布到远端”时，只进行本地提交、标签和打包，不执行推送及 GitHub Release 创建；获得后续授权后，再推送同一提交、标签及通过校验的附件。
 
 ## 四、制作完整安装包和在线更新包
 

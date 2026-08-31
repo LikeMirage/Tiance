@@ -30,7 +30,19 @@ class NetworkSettings:
     stream_timeout_seconds: float
     backend_port_mode: BackendPortMode
     fixed_backend_port: int
+    external_access_enabled: bool
     updated_at: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ExternalAccessStatus:
+    configured_enabled: bool
+    effective_enabled: bool
+    restart_required: bool
+    listen_host: str
+    port: int
+    local_url: str
+    access_urls: tuple[str, ...]
 
 
 DEFAULT_NETWORK_SETTINGS = NetworkSettings(
@@ -43,4 +55,5 @@ DEFAULT_NETWORK_SETTINGS = NetworkSettings(
     stream_timeout_seconds=300.0,
     backend_port_mode=BackendPortMode.AUTO,
     fixed_backend_port=18000,
+    external_access_enabled=False,
 )

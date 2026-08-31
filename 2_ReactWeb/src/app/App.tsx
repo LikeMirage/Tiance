@@ -9,7 +9,10 @@ import { StartupSoftwareUpdatePrompt } from "../features/software-update/ui/Star
 import { StartupAnnouncementPrompt } from "../features/announcements/ui/StartupAnnouncementPrompt";
 import { revealDesktopShellWindow } from "../features/desktop-shell/model/desktopShellStore";
 import { WorkspacePage } from "../pages/workspace/ui/WorkspacePage";
-import { markFrontendStartup } from "../shared/model/startup-timing/startupTiming";
+import {
+  dismissFrontendBootPlaceholder,
+  markFrontendStartup,
+} from "../shared/model/startup-timing/startupTiming";
 import { AppFrame } from "../widgets/app-frame/ui/AppFrame";
 import type { WorkspaceLayoutPreferences } from "../entities/workspace/model/workspaceLayoutPreferences";
 import type { ThemeDefinition } from "../shared/theme";
@@ -133,8 +136,4 @@ export function App({
       </DesktopShellProvider>
     </I18nProvider>
   );
-}
-
-function dismissFrontendBootPlaceholder(): void {
-  document.getElementById("tiance-boot-placeholder")?.remove();
 }

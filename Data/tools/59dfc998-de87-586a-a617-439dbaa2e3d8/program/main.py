@@ -3,9 +3,21 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
+import tempfile
 from typing import Any
+from urllib.parse import quote
 
-from tiance_runtime import run_tool
+from tiance_runtime import model_supports_input, run_tool
+
+
+IMAGE_MIME_TYPES = {
+    ".bmp": "image/bmp",
+    ".gif": "image/gif",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+}
 
 
 class ToolError(Exception):
@@ -69,6 +81,202 @@ def resolve_file(raw: Any, root: Path) -> Path:
     return resolved
 
 
+def describe_path(file_path: Path, root: Path) -> tuple[str, str, str | None]:
+    try:
+        relative_path = file_path.relative_to(root).as_posix()
+    except ValueError:
+        return "local", str(file_path), None
+    return "workspace", relative_path, relative_path
+
+
+def local_resource_uri(file_path: Path) -> str:
+    file_uri = file_path.as_uri()
+    return f"tiance-local:{file_uri.removeprefix('file:')}"
+
+
+def validate_image_signature(content: bytes, mime_type: str) -> None:
+    is_valid = (
+        (mime_type == "image/png" and content.startswith(b"\x89PNG\r\n\x1a\n"))
+        or (mime_type == "image/jpeg" and content.startswith(b"\xff\xd8\xff"))
+        or (mime_type == "image/gif" and content.startswith((b"GIF87a", b"GIF89a")))
+        or (
+            mime_type == "image/webp"
+            and len(content) >= 12
+            and content[:4] == b"RIFF"
+            and content[8:12] == b"WEBP"
+        )
+        or (mime_type == "image/bmp" and content.startswith(b"BM"))
+    )
+    if not is_valid:
+        raise ToolError("IMAGE_CONTENT_MISMATCH", "图片内容和图片类型不匹配。")
+
+
+def file_sha256(file_path: Path) -> str:
+    digest = hashlib.sha256()
+    with file_path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def image_scale_percent(value: Any, default: int = 60) -> int:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        raise ToolError("INVALID_ARGUMENT", "image_scale_percent 必须是 10 到 100 之间的整数。")
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ToolError("INVALID_ARGUMENT", "image_scale_percent 必须是 10 到 100 之间的整数。") from exc
+    if parsed < 10 or parsed > 100:
+        raise ToolError("INVALID_ARGUMENT", "image_scale_percent 必须是 10 到 100 之间的整数。")
+    return parsed
+
+
+def resized_image(
+    file_path: Path,
+    source_sha256: str,
+    scale_percent: int,
+) -> tuple[Path, str, int, int, int, int]:
+    try:
+        from PIL import Image, ImageOps, ImageSequence
+    except ImportError as exc:
+        raise ToolError(
+            "DEPENDENCY_MISSING",
+            "图片缩放依赖 Pillow，请先在工具依赖看板安装 program/requirements.txt 中的依赖。",
+        ) from exc
+
+    try:
+        with Image.open(file_path) as source:
+            source_width, source_height = ImageOps.exif_transpose(source.copy()).size
+            if scale_percent == 100:
+                return (
+                    file_path,
+                    IMAGE_MIME_TYPES[file_path.suffix.lower()],
+                    source_width,
+                    source_height,
+                    source_width,
+                    source_height,
+                )
+
+            target_width = max(1, round(source_width * scale_percent / 100))
+            target_height = max(1, round(source_height * scale_percent / 100))
+            source_format = (source.format or file_path.suffix.removeprefix(".")).upper()
+            output_format = "PNG" if source_format == "BMP" else source_format
+            output_suffix = ".png" if output_format == "PNG" else file_path.suffix.lower()
+            output_mime_type = IMAGE_MIME_TYPES[output_suffix]
+            cache_root = Path(tempfile.gettempdir()) / "Tiance" / "read_many_files" / "image-cache"
+            cache_root.mkdir(parents=True, exist_ok=True)
+            output_path = cache_root / f"v1-{source_sha256}-{scale_percent}{output_suffix}"
+
+            if not output_path.exists():
+                resampling = Image.Resampling.LANCZOS
+                frames = []
+                durations = []
+                disposals = []
+                for frame in ImageSequence.Iterator(source):
+                    normalized = ImageOps.exif_transpose(frame.copy())
+                    frames.append(normalized.resize((target_width, target_height), resampling))
+                    durations.append(frame.info.get("duration", source.info.get("duration", 0)))
+                    disposals.append(getattr(frame, "disposal_method", source.info.get("disposal", 0)))
+
+                save_options: dict[str, Any] = {}
+                if output_format in {"JPEG", "JPG"}:
+                    output_format = "JPEG"
+                    frames = [frame.convert("RGB") for frame in frames]
+                    save_options.update({"quality": 90, "optimize": True})
+                elif output_format == "WEBP":
+                    save_options.update({"quality": 90, "method": 4})
+                elif output_format == "PNG":
+                    save_options.update({"optimize": True})
+                elif output_format == "GIF":
+                    frames = [frame.convert("P", palette=Image.Palette.ADAPTIVE) for frame in frames]
+
+                if len(frames) > 1:
+                    save_options.update(
+                        {
+                            "save_all": True,
+                            "append_images": frames[1:],
+                            "duration": durations,
+                            "loop": source.info.get("loop", 0),
+                        }
+                    )
+                    if output_format == "GIF":
+                        save_options["disposal"] = disposals
+                frames[0].save(output_path, format=output_format, **save_options)
+            return output_path, output_mime_type, source_width, source_height, target_width, target_height
+    except ToolError:
+        raise
+    except Exception as exc:
+        raise ToolError("IMAGE_RESIZE_FAILED", "图片缩放失败。", {"reason": str(exc)}) from exc
+
+
+def read_image(
+    file_path: Path,
+    root: Path,
+    mime_type: str,
+    scale_percent: int,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not model_supports_input("image"):
+        raise ToolError(
+            "MODEL_INPUT_UNSUPPORTED",
+            "当前AI不支持视觉理解，无法直接读取图片。请使用图片解析工具 doubao_vision_parse 解析。",
+        )
+    source_size_bytes = file_path.stat().st_size
+    if source_size_bytes <= 0:
+        raise ToolError("EMPTY_IMAGE", "图片内容为空。")
+    with file_path.open("rb") as stream:
+        signature = stream.read(16)
+    validate_image_signature(signature, mime_type)
+    path_scope, _display_path, relative_path = describe_path(file_path, root)
+    source_sha256 = file_sha256(file_path)
+    returned_path, returned_mime_type, source_width, source_height, returned_width, returned_height = resized_image(
+        file_path,
+        source_sha256,
+        scale_percent,
+    )
+    returned_size_bytes = returned_path.stat().st_size
+    returned_sha256 = file_sha256(returned_path)
+    if returned_path == file_path and relative_path is not None:
+        resource_uri = f"tiance-project:///{quote(relative_path, safe='/')}"
+    else:
+        resource_uri = local_resource_uri(returned_path)
+    metadata = {
+        "ok": True,
+        "file_type": "image",
+        "file_path": str(file_path),
+        "path_scope": path_scope,
+        "image_scale_percent": scale_percent,
+        "source_mime_type": mime_type,
+        "source_sha256": source_sha256,
+        "source_size_bytes": source_size_bytes,
+        "source_width": source_width,
+        "source_height": source_height,
+        "returned_file_path": str(returned_path),
+        "returned_mime_type": returned_mime_type,
+        "returned_sha256": returned_sha256,
+        "returned_size_bytes": returned_size_bytes,
+        "returned_width": returned_width,
+        "returned_height": returned_height,
+        "resource_uri": resource_uri,
+        "optimized": returned_path != file_path,
+    }
+    if relative_path is not None:
+        metadata["relative_path"] = relative_path
+    content_block = {
+        "type": "resource_link",
+        "uri": resource_uri,
+        "name": returned_path.name,
+        "mimeType": returned_mime_type,
+        "size": returned_size_bytes,
+        "annotations": {
+            "audience": ["assistant"],
+            "priority": 1.0,
+        },
+    }
+    return metadata, content_block
+
+
 def decode_text(data: bytes, encoding: str) -> tuple[str, str]:
     candidates = ["utf-8-sig", "utf-8", "gb18030"] if (encoding or "auto").lower() == "auto" else [encoding]
     for item in candidates:
@@ -88,9 +296,14 @@ def looks_binary(data: bytes) -> bool:
 
 def normalize_request(item: Any, default_max_lines: int) -> dict[str, Any]:
     if isinstance(item, str):
-        return {"file_path": item, "start_line": 1, "max_lines": default_max_lines}
+        return {
+            "file_path": item,
+            "start_line": 1,
+            "max_lines": default_max_lines,
+            "image_scale_percent": None,
+        }
     if isinstance(item, dict):
-        allowed_fields = {"file_path", "start_line", "max_lines"}
+        allowed_fields = {"file_path", "start_line", "max_lines", "image_scale_percent"}
         unknown_fields = sorted(set(item) - allowed_fields)
         if unknown_fields:
             raise ToolError(
@@ -108,6 +321,7 @@ def normalize_request(item: Any, default_max_lines: int) -> dict[str, Any]:
             "file_path": file_path,
             "start_line": read_int(item.get("start_line"), 1, 1, 10_000_000),
             "max_lines": read_int(item.get("max_lines"), default_max_lines, 1, 20_000),
+            "image_scale_percent": item.get("image_scale_percent"),
         }
     raise ToolError("INVALID_ARGUMENT", "files 中的元素必须是路径字符串或对象。", {"item": repr(item)})
 
@@ -148,23 +362,38 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
         default_max_lines = read_int(payload.get("default_max_lines"), 1000, 1, 20_000)
         include_numbers = read_bool(payload.get("include_line_numbers"), False)
         encoding = str(payload.get("encoding") or "auto")
+        default_image_scale_percent = image_scale_percent(payload.get("image_scale_percent"))
         files: list[dict[str, Any]] = []
+        content_blocks: list[dict[str, Any]] = []
         warnings: list[str] = []
         used_chars = 0
+        budget_warning_added = False
         for index, item in enumerate(items):
-            if used_chars >= total_max_chars:
-                files.extend(
-                    budget_skipped_entry(remaining_index, remaining_item)
-                    for remaining_index, remaining_item in enumerate(
-                        items[index:],
-                        start=index,
-                    )
-                )
-                warnings.append("总字符预算已用尽，后续文件未读取。")
-                break
             request = normalize_request(item, default_max_lines)
             try:
+                requested_suffix = Path(request["file_path"]).suffix.lower()
+                if used_chars >= total_max_chars and requested_suffix not in IMAGE_MIME_TYPES:
+                    files.append(budget_skipped_entry(index, item))
+                    if not budget_warning_added:
+                        warnings.append("总字符预算已用尽，后续文本文件未读取；图片仍会继续处理。")
+                        budget_warning_added = True
+                    continue
                 path = resolve_file(request["file_path"], root)
+                image_mime_type = IMAGE_MIME_TYPES.get(path.suffix.lower())
+                if image_mime_type is not None:
+                    scale_percent = image_scale_percent(
+                        request.get("image_scale_percent"),
+                        default_image_scale_percent,
+                    )
+                    image_data, content_block = read_image(
+                        path,
+                        root,
+                        image_mime_type,
+                        scale_percent,
+                    )
+                    files.append(image_data)
+                    content_blocks.append(content_block)
+                    continue
                 raw = path.read_bytes()
                 if looks_binary(raw):
                     raise ToolError("BINARY_FILE", "文件疑似二进制。", {"file_path": str(path)})
@@ -212,7 +441,14 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
             except ToolError as exc:
                 files.append({"ok": False, "index": index, "error": f"{exc.code}: {exc.message}", "error_info": {"code": exc.code, "message": exc.message, "details": exc.details}})
                 warnings.append(f"第 {index + 1} 个文件读取失败：{exc.code}。")
-        return success(f"完成批量读取：成功 {sum(1 for item in files if item.get('ok'))} 个，失败 {sum(1 for item in files if not item.get('ok'))} 个。", {"files": files, "total_chars": used_chars}, warnings)
+        result = success(
+            f"完成批量读取：成功 {sum(1 for item in files if item.get('ok'))} 个，失败 {sum(1 for item in files if not item.get('ok'))} 个。",
+            {"files": files, "total_chars": used_chars},
+            warnings,
+        )
+        if content_blocks:
+            result["content"] = content_blocks
+        return result
     except ToolError as exc:
         return failure(exc.code, exc.message, exc.details)
 

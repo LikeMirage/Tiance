@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 from dataclasses import dataclass
 from functools import partial
 import logging
@@ -11,6 +12,7 @@ import queue
 import sys
 from typing import Literal
 
+import anyio
 from watchfiles import Change, awatch
 
 from app.infra.projects.project_file_names import is_internal_write_temp_path
@@ -20,6 +22,9 @@ _WATCH_QUIET_SECONDS = 0.35
 _WATCH_MAX_BATCH_SECONDS = 1.5
 _WATCH_PROCESS_QUEUE_SIZE = 4
 _WATCH_PROCESS_POLL_SECONDS = 0.5
+# Terminate, wait, then kill and wait again. Failure to reap is an error; never
+# start a replacement while the previous process is still alive.
+_WATCH_PROCESS_STOP_SECONDS = 2.0
 _WATCH_RETRY_DELAYS = (1.0, 5.0, 30.0)
 
 logger = logging.getLogger(__name__)
@@ -40,8 +45,9 @@ async def watch_project_file_changes(
 ) -> AsyncIterator[ProjectFileWatchEvent]:
     root = Path(project_root).resolve()
     if sys.platform == "win32":
-        async for event in _watch_windows_process(root, project_id=project_id):
-            yield event
+        async with aclosing(_watch_windows_process(root, project_id=project_id)) as source:
+            async for event in source:
+                yield event
         return
 
     yield ProjectFileWatchEvent("ready")
@@ -88,8 +94,8 @@ async def _watch_windows_process(
             daemon=True,
         )
         process_started_at = asyncio.get_running_loop().time()
-        process.start()
         try:
+            process.start()
             while True:
                 try:
                     kind, raw_paths = await asyncio.to_thread(
@@ -162,24 +168,31 @@ async def _watch_windows_process(
                 "Isolated project file watcher failed for project %s; automatic refresh is degraded.",
                 project_id,
             )
-            yield ProjectFileWatchEvent("unavailable")
         finally:
-            await asyncio.to_thread(_stop_watch_process, process, event_queue)
+            with anyio.CancelScope(shield=True):
+                await anyio.to_thread.run_sync(_stop_watch_process, process, event_queue)
 
+        yield ProjectFileWatchEvent("unavailable")
         delay = _WATCH_RETRY_DELAYS[min(retry_index, len(_WATCH_RETRY_DELAYS) - 1)]
         retry_index += 1
         await asyncio.sleep(delay)
 
 
 def _stop_watch_process(process, event_queue) -> None:
-    if process.is_alive():
-        process.terminate()
-    process.join(timeout=2)
-    if process.is_alive():
-        process.kill()
-        process.join(timeout=2)
-    event_queue.close()
-    event_queue.join_thread()
+    try:
+        if process.pid is not None:
+            if process.is_alive():
+                process.terminate()
+            process.join(timeout=_WATCH_PROCESS_STOP_SECONDS)
+            if process.is_alive():
+                process.kill()
+                process.join(timeout=_WATCH_PROCESS_STOP_SECONDS)
+            if process.is_alive():
+                raise RuntimeError(f"File watcher process {process.pid} did not exit")
+        process.close()
+    finally:
+        event_queue.close()
+        event_queue.join_thread()
 
 
 async def _coalesce_changes(

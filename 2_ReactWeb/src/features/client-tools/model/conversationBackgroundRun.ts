@@ -1,5 +1,6 @@
 import type { ConversationSession } from "../../../entities/llm-chat/model/conversation";
 import type { ChatClientCapability } from "../../../entities/llm-chat/model/chatCompletion";
+import { createUuid } from "../../../shared/model/createUuid";
 import { buildConversationRunRequest } from "../../conversation-runtime/model/conversationRunRequest";
 import { processChatStreamEventSideEffects } from "../../conversation-runtime/model/chatStreamEventSideEffects";
 import type { ClientToolExecutor } from "./clientToolBridge";
@@ -66,7 +67,7 @@ export class ConversationBackgroundRunRegistry {
 
   startOrResume(input: ConversationBackgroundRunInput): ConversationBackgroundRunHandle {
     const key = `${input.projectId}:${input.session.session_id}`;
-    const userMessageId = input.userMessageId ?? crypto.randomUUID();
+    const userMessageId = input.userMessageId ?? createUuid();
     const trackedRun = this.runs.get(key);
     if (trackedRun?.userMessageId === userMessageId) {
       return trackedRun.handle;

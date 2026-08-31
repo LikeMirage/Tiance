@@ -22,6 +22,7 @@ import {
   ProjectListPanel,
   type ProjectListPanelProjectCatalog,
 } from "../../../features/project-catalog/ui/ProjectListPanel";
+import { ServerDirectoryPicker } from "../../../features/server-directory-picker/ui/ServerDirectoryPicker";
 import { useI18n } from "../../../shared/i18n";
 import { ConfirmModal } from "../../../shared/ui/confirm-modal/ConfirmModal";
 import { SlidingViewStage } from "../../../shared/ui/sliding-view-stage/SlidingViewStage";
@@ -132,6 +133,12 @@ export function WorkspaceProjectsPanel({
           confirmLabel={t("workspace.projectsPanel.jump")}
           onCancel={projectCatalog.dismissImportConflict}
           onConfirm={projectCatalog.jumpToImportConflictProject}
+        />
+      ) : null}
+      {controller.isServerDirectoryPickerOpen ? (
+        <ServerDirectoryPicker
+          onCancel={controller.closeServerDirectoryPicker}
+          onSelect={controller.handleImportServerDirectory}
         />
       ) : null}
     </aside>

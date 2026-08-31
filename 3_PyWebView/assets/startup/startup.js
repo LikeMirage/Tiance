@@ -153,7 +153,7 @@ async function runStartupCheck() {
   }
 
   setText("summary", "正在等待后端服务");
-  if (!(await canReach(startup.apiUrl, startupConfig.apiTimeoutMs))) {
+  if (!(await canReach(startup.gatewayHealthUrl, startupConfig.apiTimeoutMs))) {
     if (startupAttempt >= startupConfig.maxAttempts) {
       setPageState("error");
       setText("summary", "启动失败");

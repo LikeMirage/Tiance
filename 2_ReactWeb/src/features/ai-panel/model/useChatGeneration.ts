@@ -18,6 +18,7 @@ import { streamChatCompletion } from "../../../services/llm/streamChatCompletion
 import { isConversationStreamResyncRequired } from "../../../services/llm/conversationStreamErrors";
 import { HttpRequestError } from "../../../services/http/httpClient";
 import { isAbortError } from "../../../services/http/httpErrors";
+import { createUuid } from "../../../shared/model/createUuid";
 import type { ClientToolExecutor } from "../../client-tools/model/clientToolBridge";
 import type { ChatModelOption } from "./chatModelOption";
 import {
@@ -267,7 +268,7 @@ export function useChatGeneration({
     const requestUserContentParts = supportsImageInput
       ? buildConversationImageContentParts(references, streamProjectId)
       : [];
-    const userMessageId = crypto.randomUUID();
+    const userMessageId = createUuid();
     const requestMessages: ChatCompletionMessageInput[] = [{
       role: "user",
       content: text,
@@ -311,7 +312,7 @@ export function useChatGeneration({
     });
     setSessionRuntimeStatus(streamProjectId, sessionId, "running");
 
-    const assistantId = crypto.randomUUID();
+    const assistantId = createUuid();
     const assistantStartedAt = Date.now();
     updateSessionMessages(streamProjectId, sessionId, (prev) => [
       ...prev,

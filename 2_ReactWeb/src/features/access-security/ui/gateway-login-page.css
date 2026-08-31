@@ -1,0 +1,53 @@
+.gateway-login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--app-bg, #1e1e1e);
+  color: var(--text-primary, #f5f5f5);
+}
+
+.gateway-login__form {
+  width: min(340px, calc(100vw - 48px));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.gateway-login__form > svg,
+.gateway-login__form h1 {
+  align-self: center;
+}
+
+.gateway-login__form h1 {
+  margin: 4px 0 14px;
+  font-size: 26px;
+}
+
+.gateway-login__form label {
+  font-size: 13px;
+  color: var(--text-secondary, #a7a7a7);
+}
+
+.gateway-login__form input {
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color, #444);
+  border-radius: 4px;
+  color: inherit;
+  background: transparent;
+  outline: none;
+}
+
+.gateway-login__form input:focus { border-color: var(--accent-color, #d89b50); }
+.gateway-login__form button {
+  height: 40px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--accent-color, #d89b50);
+  color: #111;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gateway-login__form button:disabled { opacity: .5; cursor: default; }
+.gateway-login__error { margin: 0; color: #e56565; font-size: 13px; }

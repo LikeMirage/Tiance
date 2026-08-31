@@ -21,6 +21,7 @@ class NetworkSettingsPayload(BaseModel):
     stream_timeout_seconds: float = Field(ge=1, le=3600)
     backend_port_mode: BackendPortMode
     fixed_backend_port: int = Field(ge=1, le=65535)
+    external_access_enabled: bool
 
     def to_domain(self) -> NetworkSettings:
         return NetworkSettings(**self.model_dump())
@@ -37,6 +38,7 @@ class NetworkSettingsPayload(BaseModel):
             stream_timeout_seconds=settings.stream_timeout_seconds,
             backend_port_mode=settings.backend_port_mode,
             fixed_backend_port=settings.fixed_backend_port,
+            external_access_enabled=settings.external_access_enabled,
         )
 
 
@@ -67,3 +69,19 @@ class NetworkDiagnosticResponse(BaseModel):
     status_code: int | None = None
     elapsed_ms: int
     error: str | None = None
+
+
+class ExternalAccessSaveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+
+
+class ExternalAccessStatusResponse(BaseModel):
+    configured_enabled: bool
+    effective_enabled: bool
+    restart_required: bool
+    listen_host: str
+    port: int
+    local_url: str
+    access_urls: list[str]

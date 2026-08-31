@@ -5,6 +5,7 @@ import type {
   FileWorkspaceMutation,
 } from "../../../entities/file-workspace/model/fileWorkspace";
 import { isAbortError } from "../../../services/http/httpErrors";
+import { createUuid } from "../../../shared/model/createUuid";
 import type { FileWorkspaceApi } from "./fileWorkspaceApi";
 import { getFileWorkspaceTreeWithTimeout } from "./fileWorkspaceBrowserFileLoader";
 import type {
@@ -79,7 +80,7 @@ export function useFileWorkspaceBrowserController({
   const revealRequestIdRef = useRef(0);
   const expandedRestoreRequestIdRef = useRef(0);
   const editingNodeIdRef = useRef<string | null>(null);
-  const mutationSourceIdRef = useRef(`file_workspace_browser_${crypto.randomUUID()}`);
+  const mutationSourceIdRef = useRef(`file_workspace_browser_${createUuid()}`);
   const createEntryRef = useRef<(
     kind: FileWorkspaceEntryKind,
     parentNodeId?: string,

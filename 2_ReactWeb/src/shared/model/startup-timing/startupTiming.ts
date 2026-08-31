@@ -51,6 +51,10 @@ export function markFrontendStartup(
   flushStartupMarks();
 }
 
+export function dismissFrontendBootPlaceholder() {
+  document.getElementById("tiance-boot-placeholder")?.remove();
+}
+
 export function createStartupRequestTrace(
   path: string,
   method = "GET",

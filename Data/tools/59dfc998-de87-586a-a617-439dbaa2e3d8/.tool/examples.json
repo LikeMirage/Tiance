@@ -6,5 +6,9 @@
   {
     "title": "读取指定行段",
     "content": "{\"files\":[{\"file_path\":\"1_PythonServer/app/services/tools/tool_execution.py\",\"start_line\":1,\"max_lines\":160}],\"include_line_numbers\":true}"
+  },
+  {
+    "title": "批量读取图片并调整单张尺寸",
+    "content": "{\"files\":[\"images/page-01.png\",{\"file_path\":\"images/page-02.png\",\"image_scale_percent\":100}],\"image_scale_percent\":60}"
   }
 ]

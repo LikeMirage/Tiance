@@ -1,9 +1,11 @@
+from contextlib import aclosing
 import json
 import mimetypes
 
 from fastapi import APIRouter, Query, Response, status
 from fastapi.responses import FileResponse, StreamingResponse
 
+from app.api.event_stream import EventStreamResponse
 from app.core.errors import BadRequestError
 from app.schemas.project import (
     ProjectContentFileResponse,
@@ -29,6 +31,10 @@ from app.schemas.project import (
 from app.services.project import get_project_file_service
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+# Transport-only keepalive, below the gateway's 100-second idle timeout.
+# It neither refreshes files nor limits the lifetime of a subscription.
+_FILE_EVENTS_HEARTBEAT_SECONDS = 15.0
 
 
 @router.get(
@@ -75,19 +81,16 @@ async def watch_project_files(project_id: str) -> StreamingResponse:
     file_changes = service.watch_file_changes(project_id)
 
     async def event_generator():
-        async for event in file_changes:
-            payload = {"kind": event.kind}
-            if event.kind == "changed":
-                payload["paths"] = event.paths
-            yield _sse_event(payload)
+        async with aclosing(file_changes):
+            async for event in file_changes:
+                payload = {"kind": event.kind}
+                if event.kind == "changed":
+                    payload["paths"] = event.paths
+                yield _sse_event(payload)
 
-    return StreamingResponse(
+    return EventStreamResponse(
         event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
+        heartbeat_seconds=_FILE_EVENTS_HEARTBEAT_SECONDS,
     )
 
 

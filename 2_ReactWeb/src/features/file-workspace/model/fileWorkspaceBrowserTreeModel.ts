@@ -2,6 +2,7 @@ import type {
   FileWorkspaceEntryKind,
   FileWorkspaceNode,
 } from "../../../entities/file-workspace/model/fileWorkspace";
+import { createUuid } from "../../../shared/model/createUuid";
 
 export type FileWorkspaceBrowserNode = {
   id: string;
@@ -256,11 +257,11 @@ export function nextDefaultEntryName(
     }
   }
 
-  return `${nameParts.stem}${crypto.randomUUID()}${nameParts.extension}`;
+  return `${nameParts.stem}${createUuid()}${nameParts.extension}`;
 }
 
 export function buildPendingNodeId(kind: FileWorkspaceEntryKind): string {
-  return `__pending_${kind}_${crypto.randomUUID()}`;
+  return `__pending_${kind}_${createUuid()}`;
 }
 
 export function resolveCreateParent(

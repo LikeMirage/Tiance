@@ -1,5 +1,36 @@
 {
-  "name":"github_pull_request","registration_name":"GitHub PR","description":"处理 GitHub Pull Request。支持列表、详情、分支比较、创建和编辑 PR、评论、文件和审查列表、提交审查、更新分支与合并。写操作可用 dry_run=true 模拟。",
-  "keywords":["GitHub","Pull Request","PR","代码审查","合并"],"execution":{"parallel": true},"loading":{"dynamic":false},"state":{"enabled":true},
-  "runtime":{"type":"python","entry":"program/main.py","timeout_seconds":600},"io":{"input":"stdin_json","output":"stdout_json"},"files":{"input_schema":".tool/input.schema.json","output_schema":".tool/output.schema.json","examples":".tool/examples.json","permissions":".tool/permissions.json"}
+  "description": "处理 GitHub Pull Request。支持列表、详情、分支比较、创建和编辑 PR、评论、文件和审查列表、提交审查、更新分支与合并。写操作可用 dry_run=true 模拟。",
+  "execution": {
+    "parallel": true
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json",
+    "permissions": ".tool/permissions.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "GitHub",
+    "Pull Request",
+    "PR",
+    "代码审查",
+    "合并"
+  ],
+  "loading": {
+    "dynamic": true
+  },
+  "name": "github_pull_request",
+  "registration_name": "GitHub PR",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 600,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
 }

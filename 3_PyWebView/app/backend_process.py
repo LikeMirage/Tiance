@@ -79,17 +79,17 @@ class BackendProcessManager:
 
             if not self._settings.manage_backend:
                 mark("backend process: management disabled")
-                if is_port_open(self._settings.api_host, self._settings.api_port):
+                if is_port_open(self._settings.backend_host, self._settings.backend_port):
                     return
                 raise RuntimeError(
                     "Backend management is disabled and no backend is listening at "
-                    f"{self._settings.api_url}."
+                    f"{self._settings.backend_url}."
                 )
 
-            if is_port_open(self._settings.api_host, self._settings.api_port):
+            if is_port_open(self._settings.backend_host, self._settings.backend_port):
                 raise RuntimeError(
-                    "Selected API port became occupied before backend startup: "
-                    f"{self._settings.api_host}:{self._settings.api_port}"
+                    "Selected internal backend port became occupied before startup: "
+                    f"{self._settings.backend_host}:{self._settings.backend_port}"
                 )
 
             backend_run_file = PROJECT_ROOT / "1_PythonServer" / "run.py"
@@ -129,7 +129,7 @@ class BackendProcessManager:
                 PROJECT_ROOT,
                 pid=process.pid,
                 instance_id=lease.instance_id,
-                api_url=self._settings.api_url,
+                api_url=self._settings.backend_url,
             )
             mark("backend process: started", pid=process.pid)
 
@@ -138,7 +138,7 @@ class BackendProcessManager:
                 raise RuntimeError("Managed backend process was not created")
             monitor = BackendHealthMonitor(
                 process=process,
-                api_url=self._settings.api_url,
+                api_url=self._settings.backend_url,
                 instance_id=lease.instance_id,
                 on_unavailable=lambda reason: self._handle_backend_unavailable(
                     process,
@@ -207,8 +207,17 @@ def _build_backend_environment(settings: ShellSettings, lease: ShellLease) -> di
         env.pop(key, None)
 
     env["PYTHONNOUSERSITE"] = "1"
-    env["TIANCE_API_HOST"] = settings.api_host
-    env["TIANCE_API_PORT"] = str(settings.api_port)
+    env["TIANCE_API_HOST"] = settings.backend_host
+    env["TIANCE_API_PORT"] = str(settings.backend_port)
+    env["TIANCE_GATEWAY_HOST"] = settings.gateway_listen_host
+    env["TIANCE_GATEWAY_PORT"] = str(settings.api_port)
+    env["TIANCE_GATEWAY_EXTERNAL_ACCESS_ENABLED"] = (
+        "true" if settings.external_access_enabled else "false"
+    )
+    env["TIANCE_GATEWAY_HTTPS_ENABLED"] = (
+        "true" if settings.gateway_https_enabled else "false"
+    )
+    env["TIANCE_GATEWAY_HTTPS_PORT"] = str(settings.gateway_https_port)
     env["TIANCE_API_RELOAD"] = "false"
     env["TIANCE_API_USE_EMBEDDED_PYTHON"] = "true"
     env["TIANCE_SHELL_PARENT_PID"] = str(os.getpid())

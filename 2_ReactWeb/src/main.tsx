@@ -2,10 +2,16 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import { App } from "./app/App";
+import { GatewayLoginPage, GatewayUnavailablePage } from "./features/access-security/ui/GatewayLoginPage";
+import { subscribeGatewayAuthenticationRequired } from "./services/security/gatewayAuthenticationEvents";
+import { getGatewaySecurityStatus } from "./services/security/gatewaySecurity";
 import { getActiveThemeWithTimeout } from "./services/theme";
 import { getWorkspaceLayoutPreferencesWithTimeout } from "./services/workspace/workspaceLayoutPreferences";
 import type { WorkspaceLayoutPreferences } from "./entities/workspace/model/workspaceLayoutPreferences";
-import { markFrontendStartup } from "./shared/model/startup-timing/startupTiming";
+import {
+  dismissFrontendBootPlaceholder,
+  markFrontendStartup,
+} from "./shared/model/startup-timing/startupTiming";
 import { applyTheme, type ThemeDefinition } from "./shared/theme";
 import "./shared/styles/globals.css";
 
@@ -20,9 +26,51 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 markFrontendStartup("frontend: react root created");
 
-void bootstrapReactApp(root);
+let bootstrapRevision = 0;
+let authenticationRefreshScheduled = false;
 
-async function bootstrapReactApp(root: ReactDOM.Root) {
+subscribeGatewayAuthenticationRequired(scheduleAuthenticationRefresh);
+requestReactAppBootstrap();
+
+function scheduleAuthenticationRefresh() {
+  if (authenticationRefreshScheduled) return;
+  authenticationRefreshScheduled = true;
+  window.queueMicrotask(() => {
+    authenticationRefreshScheduled = false;
+    requestReactAppBootstrap();
+  });
+}
+
+function requestReactAppBootstrap() {
+  bootstrapRevision += 1;
+  void bootstrapReactApp(root, bootstrapRevision);
+}
+
+async function bootstrapReactApp(root: ReactDOM.Root, revision: number) {
+  let securityStatus;
+  try {
+    securityStatus = await getGatewaySecurityStatus();
+  } catch (error) {
+    if (revision !== bootstrapRevision) return;
+    console.warn("Failed to read gateway security status.", error);
+    dismissFrontendBootPlaceholder();
+    root.render(
+      <React.StrictMode>
+        <GatewayUnavailablePage onRetry={requestReactAppBootstrap} />
+      </React.StrictMode>,
+    );
+    return;
+  }
+  if (revision !== bootstrapRevision) return;
+  if (!securityStatus.authenticated) {
+    dismissFrontendBootPlaceholder();
+    root.render(
+      <React.StrictMode>
+        <GatewayLoginPage onAuthenticated={requestReactAppBootstrap} />
+      </React.StrictMode>,
+    );
+    return;
+  }
   const [
     initialTheme,
     initialWorkspaceLayoutPreferences,
@@ -30,6 +78,8 @@ async function bootstrapReactApp(root: ReactDOM.Root) {
     loadStartupTheme(),
     loadStartupWorkspaceLayoutPreferences(),
   ]);
+
+  if (revision !== bootstrapRevision) return;
 
   root.render(
     <React.StrictMode>

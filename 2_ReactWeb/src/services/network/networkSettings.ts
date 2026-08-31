@@ -14,6 +14,7 @@ export type NetworkSettings = {
   stream_timeout_seconds: number;
   backend_port_mode: BackendPortMode;
   fixed_backend_port: number;
+  external_access_enabled: boolean;
 };
 
 export type NetworkSettingsResponse = {
@@ -31,6 +32,16 @@ export type NetworkDiagnosticResponse = {
   error: string | null;
 };
 
+export type ExternalAccessStatus = {
+  configured_enabled: boolean;
+  effective_enabled: boolean;
+  restart_required: boolean;
+  listen_host: string;
+  port: number;
+  local_url: string;
+  access_urls: string[];
+};
+
 export function getNetworkSettings() {
   return fetchJson<NetworkSettingsResponse>("/api/network/settings");
 }
@@ -45,5 +56,16 @@ export function saveNetworkSettings(settings: NetworkSettings) {
 export function diagnoseGithubConnection() {
   return fetchJson<NetworkDiagnosticResponse>("/api/network/diagnostics/github", {
     method: "POST",
+  });
+}
+
+export function getExternalAccessStatus() {
+  return fetchJson<ExternalAccessStatus>("/api/network/access");
+}
+
+export function saveExternalAccess(enabled: boolean) {
+  return fetchJson<ExternalAccessStatus>("/api/network/access", {
+    body: JSON.stringify({ enabled }),
+    method: "PUT",
   });
 }

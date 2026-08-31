@@ -1,11 +1,16 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.schemas.workspace import (
+    ServerDirectoryEntryResponse,
+    ServerDirectoryListingResponse,
     WorkspaceActivitySummaryResponse,
     WorkspaceLayoutPreferencesResponse,
     WorkspaceLayoutPreferencesSaveRequest,
     WorkspaceLastOpenedResponse,
     WorkspaceLastOpenedSaveRequest,
+)
+from app.services.application.server_directory_browser import (
+    get_server_directory_browser_service,
 )
 from app.services.workspace_state import get_workspace_state_service
 from app.services.workspace_activity import (
@@ -14,6 +19,25 @@ from app.services.workspace_activity import (
 )
 
 router = APIRouter(prefix="/workspace", tags=["workspace"])
+
+
+@router.get(
+    "/directories",
+    response_model=ServerDirectoryListingResponse,
+    summary="Browse server directories",
+)
+def list_server_directories(
+    path: str | None = Query(default=None, description="要浏览的服务器文件夹绝对路径"),
+) -> ServerDirectoryListingResponse:
+    listing = get_server_directory_browser_service().list_directories(path)
+    return ServerDirectoryListingResponse(
+        path=str(listing["path"]),
+        parent_path=(str(listing["parent_path"]) if listing["parent_path"] else None),
+        roots=[ServerDirectoryEntryResponse(**item) for item in listing["roots"]],
+        directories=[
+            ServerDirectoryEntryResponse(**item) for item in listing["directories"]
+        ],
+    )
 
 
 @router.get(

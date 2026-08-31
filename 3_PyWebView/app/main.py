@@ -2,6 +2,7 @@ from app.api import ShellApi
 from app.backend_process import BackendProcessManager
 from app.backend_runtime_record import cleanup_orphaned_managed_backend
 from app.config import PROJECT_ROOT, load_settings
+from app.gateway_process import GatewayProcessManager
 from app.installation_lock import acquire_installation_lock
 from app.native_file_drop import install_native_file_drop_bridge
 from app.runtime import resolve_launch_target
@@ -19,6 +20,7 @@ def main() -> None:
     mark("main: entered")
     release_installation_lock = acquire_installation_lock(PROJECT_ROOT)
     backend_manager: BackendProcessManager | None = None
+    gateway_manager: GatewayProcessManager | None = None
     shell_api: ShellApi | None = None
 
     try:
@@ -45,6 +47,7 @@ def main() -> None:
         )
 
         backend_manager = BackendProcessManager(settings)
+        gateway_manager = GatewayProcessManager(settings)
 
         with timed_stage("resolve launch target"):
             target = resolve_launch_target(settings)
@@ -87,6 +90,8 @@ def main() -> None:
 
         with timed_stage("backend process: early ensure"):
             backend_manager.ensure_running()
+        with timed_stage("gateway process: early ensure"):
+            gateway_manager.ensure_running()
 
         mark(
             "pywebview.start: entering",
@@ -104,6 +109,8 @@ def main() -> None:
     finally:
         if shell_api is not None:
             shell_api.dispose()
+        if gateway_manager is not None:
+            gateway_manager.stop()
         if backend_manager is not None:
             backend_manager.stop()
         release_installation_lock()

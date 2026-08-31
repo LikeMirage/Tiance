@@ -7,6 +7,8 @@ export type WorkspaceSettingsSectionId =
   | "github"
   | "global-memory"
   | "network"
+  | "access-management"
+  | "access-security"
   | "token-estimation"
   | FunctionalModelSettingsSectionId;
 

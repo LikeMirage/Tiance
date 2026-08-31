@@ -46,6 +46,7 @@ class NetworkSettingsRepository:
             "stream_timeout_seconds": settings.stream_timeout_seconds,
             "backend_port_mode": settings.backend_port_mode.value,
             "fixed_backend_port": settings.fixed_backend_port,
+            "external_access_enabled": settings.external_access_enabled,
         }
         with database_transaction(self._database_path) as connection:
             connection.execute(
@@ -80,6 +81,7 @@ class NetworkSettingsRepository:
             stream_timeout_seconds=settings.stream_timeout_seconds,
             backend_port_mode=settings.backend_port_mode,
             fixed_backend_port=settings.fixed_backend_port,
+            external_access_enabled=settings.external_access_enabled,
             updated_at=now,
         )
 
@@ -97,6 +99,7 @@ def _row_to_settings(row: sqlite3.Row) -> NetworkSettings | None:
             stream_timeout_seconds=float(payload["stream_timeout_seconds"]),
             backend_port_mode=BackendPortMode(str(payload["backend_port_mode"])),
             fixed_backend_port=int(payload["fixed_backend_port"]),
+            external_access_enabled=payload.get("external_access_enabled") is True,
             updated_at=str(row["updated_at"]),
         )
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):

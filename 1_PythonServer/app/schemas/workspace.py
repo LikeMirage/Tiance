@@ -144,3 +144,15 @@ class WorkspaceActivitySummaryResponse(BaseModel):
     conversation_count: int
     sent_message_count: int
     ai_runtime_ms: int
+
+
+class ServerDirectoryEntryResponse(BaseModel):
+    name: str
+    path: str
+
+
+class ServerDirectoryListingResponse(BaseModel):
+    path: str
+    parent_path: str | None = None
+    roots: list[ServerDirectoryEntryResponse] = Field(default_factory=list)
+    directories: list[ServerDirectoryEntryResponse] = Field(default_factory=list)

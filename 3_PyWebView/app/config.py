@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 
@@ -19,6 +20,7 @@ DEFAULT_APP_ICON_FILE = SHELL_ROOT / "assets" / "app-icon.ico"
 WEBVIEW2_RUNTIME_MODES = {"auto", "bundled", "system"}
 DEFAULT_API_PORT = 18000
 DEFAULT_API_PORT_RANGE = (18000, 18020)
+DEFAULT_BACKEND_PORT_RANGE = (18200, 18220)
 
 
 @dataclass(frozen=True)
@@ -26,8 +28,16 @@ class ShellSettings:
     title: str
     debug: bool
     api_host: str
+    gateway_listen_host: str
     api_port: int
     api_url: str
+    backend_host: str
+    backend_port: int
+    backend_url: str
+    gateway_executable_path: str
+    external_access_enabled: bool
+    gateway_https_enabled: bool
+    gateway_https_port: int
     manage_backend: bool
     dev_url: str
     app_url: str
@@ -49,10 +59,20 @@ class ShellSettings:
 
 
 def load_settings() -> ShellSettings:
-    api_host = os.getenv("TIANCE_API_HOST", "127.0.0.1")
     network_preferences = load_network_startup_preferences(PROJECT_ROOT)
+    configured_host = os.getenv("TIANCE_API_HOST")
+    gateway_listen_host = (
+        configured_host.strip()
+        if configured_host is not None and configured_host.strip()
+        else "0.0.0.0" if network_preferences.external_access_enabled else "127.0.0.1"
+    )
+    api_host = _local_connection_host(gateway_listen_host)
     api_port = _resolve_api_port(api_host, network_preferences)
     api_url = f"http://{api_host}:{api_port}"
+    backend_host = "127.0.0.1"
+    backend_port = _resolve_backend_port(backend_host)
+    backend_url = f"http://{backend_host}:{backend_port}"
+    gateway_security = _load_gateway_security_projection()
     frontend_dist_path = _resolve_frontend_dist_path()
     default_frontend_url = os.getenv("TIANCE_FRONTEND_DEV_URL", "http://127.0.0.1:18100")
     default_app_url = _build_default_app_url(api_url, frontend_dist_path)
@@ -68,8 +88,16 @@ def load_settings() -> ShellSettings:
         title=os.getenv("TIANCE_SHELL_TITLE", "Tiance"),
         debug=debug,
         api_host=api_host,
+        gateway_listen_host=gateway_listen_host,
         api_port=api_port,
         api_url=api_url,
+        backend_host=backend_host,
+        backend_port=backend_port,
+        backend_url=backend_url,
+        gateway_executable_path=str(_resolve_gateway_executable_path()),
+        external_access_enabled=network_preferences.external_access_enabled,
+        gateway_https_enabled=bool(gateway_security.get("httpsEnabled", False)),
+        gateway_https_port=int(gateway_security.get("httpsPort", 18443)),
         manage_backend=_read_bool(os.getenv("TIANCE_SHELL_MANAGE_BACKEND"), default=True),
         dev_url=default_frontend_url,
         app_url=os.getenv("TIANCE_APP_URL") or default_app_url,
@@ -108,6 +136,13 @@ def _read_bool(value: str | None, *, default: bool) -> bool:
     return normalized in {"1", "true", "yes", "on"}
 
 
+def _local_connection_host(listen_host: str) -> str:
+    normalized = listen_host.strip().strip("[]")
+    if normalized in {"0.0.0.0", "::"}:
+        return "127.0.0.1"
+    return listen_host
+
+
 def _read_int(value: str | None, *, default: int) -> int:
     if value is None:
         return default
@@ -140,6 +175,46 @@ def _resolve_api_port(
         f"Checked {host}:{start_port}-{end_port}. "
         "Close the conflicting process or set TIANCE_API_PORT."
     )
+
+
+def _resolve_backend_port(host: str) -> int:
+    configured_port = os.getenv("TIANCE_BACKEND_PORT")
+    if configured_port:
+        port = _read_int(configured_port, default=0)
+        if not 1 <= port <= 65535:
+            raise SystemExit("TIANCE_BACKEND_PORT must be between 1 and 65535.")
+        return port
+
+    start_port, end_port = _read_port_range(
+        os.getenv("TIANCE_BACKEND_PORT_RANGE"),
+        default=DEFAULT_BACKEND_PORT_RANGE,
+    )
+    for port in range(start_port, end_port + 1):
+        if not is_port_open(host, port):
+            return port
+    raise SystemExit(
+        "No available internal Tiance backend port. "
+        f"Checked {host}:{start_port}-{end_port}."
+    )
+
+
+def _resolve_gateway_executable_path() -> Path:
+    configured_path = os.getenv("TIANCE_GATEWAY_EXECUTABLE")
+    if configured_path:
+        return _resolve_path(configured_path)
+    return (PROJECT_ROOT / "runtime" / "gateway" / "TianceRemoteGateway.exe").resolve()
+
+
+def _load_gateway_security_projection() -> dict[str, object]:
+    settings_path = PROJECT_ROOT / "Data" / "security" / "access-security.json"
+    if not settings_path.is_file():
+        return {}
+    try:
+        payload = json.loads(settings_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    settings = payload.get("settings") if isinstance(payload, dict) else None
+    return settings if isinstance(settings, dict) else {}
 
 
 def _read_port_range(value: str | None, *, default: tuple[int, int]) -> tuple[int, int]:

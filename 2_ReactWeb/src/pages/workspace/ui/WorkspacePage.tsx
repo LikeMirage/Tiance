@@ -886,6 +886,12 @@ export function WorkspacePage({
   const handleSelectNetworkSettings = useCallback(() => {
     setActiveSettingsSectionId("network");
   }, []);
+  const handleSelectAccessManagementSettings = useCallback(() => {
+    setActiveSettingsSectionId("access-management");
+  }, []);
+  const handleSelectAccessSecuritySettings = useCallback(() => {
+    setActiveSettingsSectionId("access-security");
+  }, []);
   const handleReferenceProjectFile = useCallback((file: ProjectFileDragData) => {
     projectFileReferenceRequestIdRef.current += 1;
     setProjectFileReferenceRequest({
@@ -984,6 +990,8 @@ export function WorkspacePage({
           onSelectSoftwareUpdateSettings={handleSelectSoftwareUpdateSettings}
           onSelectAnnouncementSettings={handleSelectAnnouncementSettings}
           onSelectNetworkSettings={handleSelectNetworkSettings}
+          onSelectAccessManagementSettings={handleSelectAccessManagementSettings}
+          onSelectAccessSecuritySettings={handleSelectAccessSecuritySettings}
           onSelectTokenEstimationSettings={handleSelectTokenEstimationSettings}
           onToggleFunctionalModelGroup={functionalModelSectionSelection.toggleSectionGroup}
         />

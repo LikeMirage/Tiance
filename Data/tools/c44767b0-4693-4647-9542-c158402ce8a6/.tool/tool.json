@@ -25,7 +25,7 @@
     "多地同步"
   ],
   "loading": {
-    "dynamic": false
+    "dynamic": true
   },
   "name": "github_repository_sync",
   "runtime": {

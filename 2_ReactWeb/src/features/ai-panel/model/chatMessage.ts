@@ -11,6 +11,7 @@ import type {
   ConversationRunAttemptFailure,
   ConversationRunOutcome,
 } from "../../../entities/llm-chat/model/conversation";
+import { createUuid } from "../../../shared/model/createUuid";
 
 export type ChatToolProcessStatus =
   | "preparing"
@@ -524,7 +525,7 @@ export function appendThinkingProcessDelta(
   return [
     ...items,
     {
-      id: `thinking-${crypto.randomUUID()}`,
+      id: `thinking-${createUuid()}`,
       type: "thinking" as const,
       content,
       status: "running" as const,
@@ -579,7 +580,7 @@ export function appendToolPreparingProcess(
   return [
     ...baseItems,
     {
-      id: `tool-preparing-${crypto.randomUUID()}`,
+      id: `tool-preparing-${createUuid()}`,
       type: "tool_preparing" as const,
       startedAt: now,
     },
@@ -594,7 +595,7 @@ export function appendAssistantContentProcess(
   return [
     ...items,
     {
-      id: `content-${crypto.randomUUID()}`,
+      id: `content-${createUuid()}`,
       type: "content" as const,
       content,
     },
@@ -634,7 +635,7 @@ export function upsertToolProcessItemInTimeline(
 }
 
 export function toolProcessId(callId: string, toolName: string) {
-  return `tool-${callId || toolName || crypto.randomUUID()}`;
+  return `tool-${callId || toolName || createUuid()}`;
 }
 
 function resolveToolProcessStatus(

@@ -1,5 +1,5 @@
 {
-  "description": "已知多个目标文本文件并需要一次读取时使用；单个文件使用 read_file，尚不确定相关文件时使用 find_project_files。按单文件和总字符预算自动截断，并返回明确的截断原因与预算跳过记录。",
+  "description": "已知多个目标文本文件或图片并需要一次读取时使用；单个文件使用 read_file，尚不确定相关文件时使用 find_project_files。文本按单文件和总字符预算自动截断；图片复用文件读取工具的校验、视觉能力检测和缩放内核，默认生成 60% 临时派生图且不修改原图。",
   "registration_name": "批量读取文件",
   "execution": {
     "parallel": true
@@ -20,6 +20,8 @@
     "源码",
     "文档",
     "配置"
+    ,"图片"
+    ,"批量图片"
   ],
   "loading": {
     "dynamic": false

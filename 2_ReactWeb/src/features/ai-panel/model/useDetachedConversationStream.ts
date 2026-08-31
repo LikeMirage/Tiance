@@ -5,6 +5,7 @@ import { dispatchProjectConversationUpdated } from "../../../entities/llm-chat/m
 import { emitLlmUsageChanged } from "../../../entities/llm-usage/model/usageRefreshEvents";
 import { resumeChatCompletionStream } from "../../../services/llm/resumeChatCompletionStream";
 import { HttpRequestError } from "../../../services/http/httpClient";
+import { createUuid } from "../../../shared/model/createUuid";
 import type { ClientToolExecutor } from "../../client-tools/model/clientToolBridge";
 import { createChatStreamAccumulator, type UpdateSessionMessages } from "./chatStreamAccumulator";
 import type { ChatMessage } from "./chatMessage";
@@ -153,7 +154,7 @@ export function useDetachedConversationStream({
         const now = Date.now();
         const resumeSnapshot = prepareConversationStreamResume(
           messages,
-          crypto.randomUUID(),
+          createUuid(),
           now,
         );
         assistantId = resumeSnapshot.assistantMessage.id;
@@ -186,7 +187,7 @@ export function useDetachedConversationStream({
             updateSessionMessages(projectId, activeSessionId, (messages) => {
               const resetSnapshot = prepareConversationStreamFullReplay(
                 messages,
-                crypto.randomUUID(),
+                createUuid(),
                 Date.now(),
               );
               assistantId = resetSnapshot.assistantMessage.id;

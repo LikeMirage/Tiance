@@ -93,6 +93,98 @@
                 "additionalProperties": false,
                 "properties": {
                   "ok": {
+                    "const": true
+                  },
+                  "file_type": {
+                    "const": "image"
+                  },
+                  "file_path": {
+                    "type": "string"
+                  },
+                  "relative_path": {
+                    "type": "string"
+                  },
+                  "path_scope": {
+                    "const": "workspace"
+                  },
+                  "image_scale_percent": {
+                    "maximum": 100,
+                    "minimum": 10,
+                    "type": "integer"
+                  },
+                  "source_mime_type": {
+                    "type": "string"
+                  },
+                  "source_sha256": {
+                    "type": "string"
+                  },
+                  "source_size_bytes": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "source_width": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "source_height": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "returned_file_path": {
+                    "type": "string"
+                  },
+                  "returned_mime_type": {
+                    "type": "string"
+                  },
+                  "returned_sha256": {
+                    "type": "string"
+                  },
+                  "returned_size_bytes": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "returned_width": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "returned_height": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "resource_uri": {
+                    "type": "string"
+                  },
+                  "optimized": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "ok",
+                  "file_type",
+                  "file_path",
+                  "relative_path",
+                  "path_scope",
+                  "image_scale_percent",
+                  "source_mime_type",
+                  "source_sha256",
+                  "source_size_bytes",
+                  "source_width",
+                  "source_height",
+                  "returned_file_path",
+                  "returned_mime_type",
+                  "returned_sha256",
+                  "returned_size_bytes",
+                  "returned_width",
+                  "returned_height",
+                  "resource_uri",
+                  "optimized"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "ok": {
                     "const": false
                   },
                   "index": {
@@ -151,6 +243,39 @@
         "total_chars"
       ],
       "type": "object"
+    },
+    "content": {
+      "description": "读取到图片时返回一个或多个通用富媒体资源块，顺序与 data.files 中成功的图片项一致。",
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "type": {
+            "const": "resource_link"
+          },
+          "uri": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "size": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "type",
+          "uri",
+          "name",
+          "mimeType",
+          "size"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     },
     "warnings": {
       "items": {

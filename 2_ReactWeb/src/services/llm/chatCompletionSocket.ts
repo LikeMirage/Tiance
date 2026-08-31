@@ -3,6 +3,7 @@ import type {
   ChatStreamEvent,
 } from "../../entities/llm-chat/model/chatCompletion";
 import { env } from "../../shared/config/env";
+import { createUuid } from "../../shared/model/createUuid";
 import { HttpRequestError } from "../http/httpClient";
 import { ChatSocketEventBuffer } from "./chatSocketEventBuffer";
 
@@ -73,7 +74,7 @@ class ChatCompletionSocket {
       return Promise.reject(createAbortError());
     }
 
-    const channelId = crypto.randomUUID();
+    const channelId = createUuid();
     return new Promise<void>((resolve, reject) => {
       const onAbort = () => {
         this.sendUnsubscribe(channelId);

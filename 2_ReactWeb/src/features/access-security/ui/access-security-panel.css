@@ -1,0 +1,138 @@
+.access-security {
+  display: flex;
+  flex: 1 1 auto;
+  align-self: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  color: var(--color-text-primary);
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.access-security::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+.access-security::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+.access-security::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--scrollbar-thumb); }
+.access-security::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+
+.access-security__content {
+  box-sizing: border-box;
+  width: min(100%, 860px);
+  padding: 28px 30px 42px;
+}
+
+.access-security__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+.access-security__head h2 { margin: 0; color: var(--color-text-heading); font-size: 1.35rem; }
+.access-security__status { color: var(--color-text-muted); font-size: .78rem; }
+.access-security__status--active { color: var(--color-success-text); }
+
+.access-security__feedback {
+  margin: 18px 0 0;
+  padding-left: 10px;
+  border-left: 3px solid currentColor;
+  font-size: .82rem;
+  line-height: 1.55;
+}
+
+.access-security__error { color: var(--color-danger-text); }
+.access-security__message { color: var(--color-success-text); }
+
+.access-security__section {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(320px, 1fr);
+  gap: 30px;
+  padding: 26px 0;
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+.access-security__section-head h3 {
+  margin: 0;
+  color: var(--color-text-heading);
+  font-size: .95rem;
+  font-weight: 650;
+}
+
+.access-security__section-head p {
+  margin: 7px 0 0;
+  color: var(--color-text-muted);
+  font-size: .78rem;
+  line-height: 1.55;
+}
+
+.access-security__form { display: grid; gap: 15px; min-width: 0; }
+.access-security__new-password-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+
+.access-security__form label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: .79rem;
+}
+
+.access-security__form input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 38px;
+  padding: 0 11px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  outline: none;
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.access-security__form input:hover { border-color: var(--color-border-strong, var(--color-text-muted)); }
+.access-security__form input:focus { border-color: var(--color-accent); background: var(--color-surface-overlay); }
+.access-security__hint { margin: -4px 0 0; color: var(--color-text-muted); font-size: .74rem; }
+.access-security__actions { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 2px; }
+
+.access-security button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.access-security button:hover:not(:disabled) { background: var(--color-surface-muted); }
+.access-security button:disabled { cursor: default; opacity: .45; }
+
+.access-security .access-security__primary {
+  border-color: rgba(var(--color-accent-rgb), .62);
+  background: var(--color-selection-accent-bg);
+  color: var(--color-accent);
+}
+
+.access-security__danger { color: var(--color-danger-text) !important; }
+.access-security__sessions { align-items: center; }
+.access-security__sessions > button { justify-self: start; }
+
+@media (max-width: 760px) {
+  .access-security__content { padding: 22px 20px 36px; }
+  .access-security__section { grid-template-columns: 1fr; gap: 18px; }
+}
+
+@media (max-width: 520px) {
+  .access-security__new-password-fields { grid-template-columns: 1fr; }
+}

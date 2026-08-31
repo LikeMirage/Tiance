@@ -66,6 +66,7 @@ class ShellConfigPortSelectionTests(unittest.TestCase):
         preferences = shell_config.NetworkStartupPreferences(
             backend_port_mode="fixed",
             fixed_backend_port=19009,
+            external_access_enabled=False,
         )
         with (
             patch.dict(os.environ, {}, clear=True),
@@ -81,6 +82,7 @@ class ShellConfigPortSelectionTests(unittest.TestCase):
         preferences = shell_config.NetworkStartupPreferences(
             backend_port_mode="fixed",
             fixed_backend_port=19009,
+            external_access_enabled=False,
         )
         with patch.dict(os.environ, {"TIANCE_API_PORT": "19010"}, clear=True):
             self.assertEqual(
@@ -174,6 +176,26 @@ class BackendProcessOwnershipTests(unittest.TestCase):
         origins = environment["ALLOWED_ORIGINS"].split(",")
         self.assertIn("http://127.0.0.1:18100", origins)
         self.assertIn("http://localhost:18100", origins)
+
+    def test_managed_backend_stays_on_loopback_and_receives_gateway_projection(self) -> None:
+        settings = replace(
+            _shell_settings(Path.cwd()),
+            gateway_listen_host="0.0.0.0",
+            external_access_enabled=True,
+        )
+        lease = ShellLease(
+            instance_id="instance",
+            token="token",
+            heartbeat_url="http://127.0.0.1:19000/heartbeat",
+        )
+
+        with patch.dict(os.environ, {}, clear=True):
+            environment = _build_backend_environment(settings, lease)
+
+        self.assertEqual(environment["TIANCE_API_HOST"], "127.0.0.1")
+        self.assertEqual(environment["TIANCE_GATEWAY_HOST"], "0.0.0.0")
+        self.assertEqual(environment["TIANCE_GATEWAY_EXTERNAL_ACCESS_ENABLED"], "true")
+        self.assertEqual(settings.api_url, "http://127.0.0.1:18000")
 
     def test_stop_requests_graceful_shutdown_before_killing_process_tree(self) -> None:
         manager = BackendProcessManager(_shell_settings(Path.cwd()))
@@ -379,6 +401,7 @@ class StartupPreferencesContractTests(unittest.TestCase):
                             {
                                 "backend_port_mode": "fixed",
                                 "fixed_backend_port": 19021,
+                                "external_access_enabled": True,
                             }
                         ),
                     ),
@@ -389,6 +412,7 @@ class StartupPreferencesContractTests(unittest.TestCase):
 
             self.assertEqual(preferences.backend_port_mode, "fixed")
             self.assertEqual(preferences.fixed_backend_port, 19021)
+            self.assertTrue(preferences.external_access_enabled)
 
     def test_window_snapshot_is_read_with_supported_version(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -596,8 +620,16 @@ def _shell_settings(frontend_dist: Path) -> ShellSettings:
         title="Tiance",
         debug=True,
         api_host="127.0.0.1",
+        gateway_listen_host="127.0.0.1",
         api_port=18000,
         api_url="http://127.0.0.1:18000",
+        backend_host="127.0.0.1",
+        backend_port=18200,
+        backend_url="http://127.0.0.1:18200",
+        gateway_executable_path=str(frontend_dist / "TianceRemoteGateway.exe"),
+        external_access_enabled=False,
+        gateway_https_enabled=False,
+        gateway_https_port=18443,
         manage_backend=True,
         dev_url="http://127.0.0.1:18100",
         app_url="http://127.0.0.1:18000/app/",

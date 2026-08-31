@@ -1,10 +1,10 @@
 {
   "additionalProperties": false,
-  "description": "批量读取工作区内文本文件。files 可传字符串数组，也可传包含 file_path/start_line/max_lines 的对象数组。",
+  "description": "批量读取工作区内文本文件或图片。files 可传字符串数组，也可传包含 file_path/start_line/max_lines/image_scale_percent 的对象数组。图片默认按原宽高的 60% 生成临时派生图交给支持视觉理解的 AI，原图不修改；图片不占用文本字符预算。",
   "properties": {
     "files": {
       "permission_type": "filesystem_read",
-      "description": "要读取的文件列表。元素可以是路径字符串，或 {\"file_path\":\"...\",\"start_line\":1,\"max_lines\":200}。",
+      "description": "要读取的文本或图片列表。元素可以是路径字符串，或 {\"file_path\":\"...\",\"start_line\":1,\"max_lines\":200,\"image_scale_percent\":60}。文本使用行数参数，图片使用尺寸百分比。",
       "items": {
         "oneOf": [
           {
@@ -25,6 +25,12 @@
                 "maximum": 20000,
                 "minimum": 1,
                 "type": "integer"
+              },
+              "image_scale_percent": {
+                "description": "仅覆盖当前图片的尺寸百分比，10 到 100；省略时使用顶层 image_scale_percent。",
+                "maximum": 100,
+                "minimum": 10,
+                "type": "integer"
               }
             },
             "required": [
@@ -37,6 +43,15 @@
       "minItems": 1,
       "title": "文件列表",
       "type": "array"
+    },
+    "image_scale_percent": {
+      "permission_type": "none",
+      "default": 60,
+      "description": "所有图片默认返回给 AI 的宽高百分比，10 到 100。默认 60；单个 files 对象可以覆盖。100 表示直接返回原图。该参数不影响文本读取，也不会修改原图。",
+      "maximum": 100,
+      "minimum": 10,
+      "title": "默认图片尺寸百分比",
+      "type": "integer"
     },
     "max_chars_per_file": {
       "permission_type": "none",

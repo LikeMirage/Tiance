@@ -4,10 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tiance-api-server"
-version = "0.3.24"
+version = "0.3.25"
 description = "Local API server for the Tiance workspace."
 requires-python = ">=3.11"
 dependencies = [
+  "anyio>=4,<5",
   "cryptography>=42,<47",
   "dulwich>=1.2,<2.0",
   "fastapi>=0.116,<1.0",

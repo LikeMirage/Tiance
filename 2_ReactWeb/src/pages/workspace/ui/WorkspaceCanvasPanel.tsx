@@ -21,6 +21,8 @@ import type { ProjectEntryWarmupOptions } from "../../../features/project-entry/
 import { FunctionalModelSettingsPanel } from "../../../features/functional-model-settings/ui/FunctionalModelSettingsPanel";
 import { TokenEstimationSettingsPanel } from "../../../features/token-estimation-settings/ui/TokenEstimationSettingsPanel";
 import { NetworkSettingsPanel } from "../../../features/network-settings/ui/NetworkSettingsPanel";
+import { AccessManagementPanel } from "../../../features/access-management/ui/AccessManagementPanel";
+import { AccessSecurityPanel } from "../../../features/access-security/ui/AccessSecurityPanel";
 import { LanguageSettingsPanel } from "../../../features/locale-settings/ui/LanguageSettingsPanel";
 import { GithubSettingsPanel } from "../../../features/github-settings/ui/GithubSettingsPanel";
 import { GlobalMemorySettingsPanel } from "../../../features/global-memory-settings/ui/GlobalMemorySettingsPanel";
@@ -275,6 +277,12 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
   const markNetworkSettingsReady = useCallback(() => {
     markSettingsSectionReady("network");
   }, [markSettingsSectionReady]);
+  const markAccessManagementSettingsReady = useCallback(() => {
+    markSettingsSectionReady("access-management");
+  }, [markSettingsSectionReady]);
+  const markAccessSecuritySettingsReady = useCallback(() => {
+    markSettingsSectionReady("access-security");
+  }, [markSettingsSectionReady]);
   const markLanguageSettingsReady = useCallback(() => {
     markSettingsSectionReady("language");
   }, [markSettingsSectionReady]);
@@ -514,6 +522,8 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
             onAnnouncementSettingsReady={markAnnouncementSettingsReady}
             onLanguageSettingsReady={markLanguageSettingsReady}
             onNetworkSettingsReady={markNetworkSettingsReady}
+            onAccessManagementSettingsReady={markAccessManagementSettingsReady}
+            onAccessSecuritySettingsReady={markAccessSecuritySettingsReady}
             onSelectFunctionalModelSection={onSelectFunctionalModelSection}
             onTokenEstimationSettingsReady={markTokenEstimationSettingsReady}
           />
@@ -597,6 +607,8 @@ function WorkspaceSettingsCanvas({
   onAnnouncementSettingsReady,
   onLanguageSettingsReady,
   onNetworkSettingsReady,
+  onAccessManagementSettingsReady,
+  onAccessSecuritySettingsReady,
   onSelectFunctionalModelSection,
   onTokenEstimationSettingsReady,
 }: {
@@ -609,6 +621,8 @@ function WorkspaceSettingsCanvas({
   onAnnouncementSettingsReady: () => void;
   onLanguageSettingsReady: () => void;
   onNetworkSettingsReady: () => void;
+  onAccessManagementSettingsReady: () => void;
+  onAccessSecuritySettingsReady: () => void;
   onSelectFunctionalModelSection: (sectionId: FunctionalModelSettingsSectionId) => void;
   onTokenEstimationSettingsReady: () => void;
 }) {
@@ -620,8 +634,10 @@ function WorkspaceSettingsCanvas({
   const isSoftwareUpdateDisplayed = displayedSettingsSectionId === "software-update";
   const isAnnouncementDisplayed = displayedSettingsSectionId === "announcements";
   const isNetworkDisplayed = displayedSettingsSectionId === "network";
+  const isAccessManagementDisplayed = displayedSettingsSectionId === "access-management";
+  const isAccessSecurityDisplayed = displayedSettingsSectionId === "access-security";
   const isFunctionalModelDisplayed =
-    !isGithubDisplayed && !isGlobalMemoryDisplayed && !isSoftwareUpdateDisplayed && !isAnnouncementDisplayed && !isLanguageDisplayed && !isTokenEstimationDisplayed && !isNetworkDisplayed;
+    !isGithubDisplayed && !isGlobalMemoryDisplayed && !isSoftwareUpdateDisplayed && !isAnnouncementDisplayed && !isLanguageDisplayed && !isTokenEstimationDisplayed && !isNetworkDisplayed && !isAccessManagementDisplayed && !isAccessSecurityDisplayed;
 
   return (
     <div className="workspace-page__settings-canvas">
@@ -683,6 +699,26 @@ function WorkspaceSettingsCanvas({
         aria-hidden={isNetworkDisplayed ? undefined : "true"}
       >
         <NetworkSettingsPanel onReady={onNetworkSettingsReady} />
+      </div>
+      <div
+        className={
+          isAccessManagementDisplayed
+            ? "workspace-page__settings-view"
+            : "workspace-page__settings-view workspace-page__settings-view--hidden"
+        }
+        aria-hidden={isAccessManagementDisplayed ? undefined : "true"}
+      >
+        <AccessManagementPanel onReady={onAccessManagementSettingsReady} />
+      </div>
+      <div
+        className={
+          isAccessSecurityDisplayed
+            ? "workspace-page__settings-view"
+            : "workspace-page__settings-view workspace-page__settings-view--hidden"
+        }
+        aria-hidden={isAccessSecurityDisplayed ? undefined : "true"}
+      >
+        <AccessSecurityPanel onReady={onAccessSecuritySettingsReady} />
       </div>
       <div
         className={

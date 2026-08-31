@@ -102,6 +102,7 @@ export function useWorkspaceProjectsPanelController({
   const saveTimerRef = useRef<number | null>(null);
   const [fileSearchKeyword, setFileSearchKeyword] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [isServerDirectoryPickerOpen, setIsServerDirectoryPickerOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState("");
   const [workspaceStateError, setWorkspaceStateError] = useState<string | null>(null);
   const projectScrollbar = useOverlayScrollbar(
@@ -167,6 +168,7 @@ export function useWorkspaceProjectsPanelController({
 
   useEffect(() => {
     setSearchKeyword("");
+    setIsServerDirectoryPickerOpen(false);
   }, [projectCatalog.selectedCategoryId]);
 
   const createProjectEntry = useCallback((kind: WorkspaceProjectEntryKind) => {
@@ -335,6 +337,11 @@ export function useWorkspaceProjectsPanelController({
   }, [activeView, browser]);
 
   const handleImportFolder = useCallback(async () => {
+    if (!desktopShell.state.available) {
+      setIsServerDirectoryPickerOpen(true);
+      return;
+    }
+
     setIsImporting(true);
     try {
       const rootPath = await desktopShell.selectProjectFolder();
@@ -349,6 +356,22 @@ export function useWorkspaceProjectsPanelController({
       setIsImporting(false);
     }
   }, [desktopShell, projectCatalog]);
+
+  const handleImportServerDirectory = useCallback(async (rootPath: string) => {
+    setIsImporting(true);
+    try {
+      await projectCatalog.createProjectFromFolder(rootPath);
+      setIsServerDirectoryPickerOpen(false);
+    } finally {
+      setIsImporting(false);
+    }
+  }, [projectCatalog]);
+
+  const closeServerDirectoryPicker = useCallback(() => {
+    if (!isImporting) {
+      setIsServerDirectoryPickerOpen(false);
+    }
+  }, [isImporting]);
 
   const handleCreateProject = useCallback(() => {
     setSearchKeyword("");
@@ -366,10 +389,13 @@ export function useWorkspaceProjectsPanelController({
     handleCreateClick,
     handleCreatePointerDown,
     handleCreateProject,
+    handleImportServerDirectory,
     handleRefreshTreeClick,
     handleImportFolder,
     handleSearchChange,
     isImporting,
+    isServerDirectoryPickerOpen,
+    closeServerDirectoryPicker,
     projectScrollbar,
     searchInputValue,
     searchKeyword,

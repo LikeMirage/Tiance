@@ -13,6 +13,19 @@ $currentTree = Join-Path $work "current"
 $incrementalTree = Join-Path $work "incremental"
 $fullProgramTree = Join-Path $work "full-program"
 
+# Keep packaging local and never replace an existing artifact implicitly.
+foreach ($assetName in @("Tiance.zip", "Tiance-update.zip", "Tiance-update-incremental.zip", "update.json")) {
+    if (Test-Path -LiteralPath (Join-Path $output $assetName)) {
+        throw "发布包已存在，请指定新的输出目录：$(Join-Path $output $assetName)"
+    }
+}
+$tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+$resolvedWork = [IO.Path]::GetFullPath($work)
+if (-not $resolvedWork.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase) -or
+    [IO.Path]::GetFileName($resolvedWork) -notmatch '^tiance-release-[0-9a-f]{32}$') {
+    throw "发布临时目录不在预期范围：$resolvedWork"
+}
+
 function Invoke-Git([string[]]$Arguments) {
     & git @Arguments
     if ($LASTEXITCODE -ne 0) { throw "git 命令失败：$($Arguments -join ' ')" }
@@ -71,6 +84,10 @@ try {
     $versionPayload = Get-Content -LiteralPath (Join-Path $currentTree "system/version.json") -Raw | ConvertFrom-Json
     if ($versionPayload.version -ne $Version) {
         throw "标签版本号 $($versionPayload.version) 与发布版本 $Version 不一致。"
+    }
+    $gatewayExecutable = Join-Path $currentTree "runtime/gateway/TianceRemoteGateway.exe"
+    if (-not (Test-Path -LiteralPath $gatewayExecutable -PathType Leaf)) {
+        throw "发布标签缺少访问网关：runtime/gateway/TianceRemoteGateway.exe。请先构建并提交网关程序。"
     }
 
     # 完整安装包包含公开预置数据；两个在线更新包始终不包含 Data。
@@ -166,6 +183,6 @@ try {
     Write-Output "完整替换：$($currentProgramPaths.Count)，历史删除：$($fullDeletePaths.Count)"
 } finally {
     if (Test-Path -LiteralPath $work) {
-        Remove-Item -LiteralPath $work -Recurse -Force
+        Remove-Item -LiteralPath $resolvedWork -Recurse -Force
     }
 }

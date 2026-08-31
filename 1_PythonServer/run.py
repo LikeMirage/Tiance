@@ -19,6 +19,13 @@ DEFAULT_API_PORT = 18000
 SHELL_PARENT_PID_ENV = "TIANCE_SHELL_PARENT_PID"
 
 
+def _resolve_api_host() -> str:
+    configured = os.getenv("TIANCE_API_HOST")
+    if configured is not None and configured.strip():
+        return configured.strip()
+    return "127.0.0.1"
+
+
 def _read_bool_env(name: str, *, default: bool) -> bool:
     """读取布尔类型环境变量，识别 1/true/yes/on 为真值"""
 
@@ -271,7 +278,8 @@ if __name__ == "__main__":
         "TIANCE_API_RELOAD",
         default=True,
     )
-    host = os.getenv("TIANCE_API_HOST", "127.0.0.1")
+    host = _resolve_api_host()
+    os.environ.setdefault("TIANCE_API_HOST", host)
     port = int(os.getenv("TIANCE_API_PORT", str(DEFAULT_API_PORT)))
     graceful_shutdown_timeout = _read_int_env(
         "TIANCE_API_GRACEFUL_SHUTDOWN_TIMEOUT",

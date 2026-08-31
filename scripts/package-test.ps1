@@ -35,6 +35,7 @@ try {
             "Data\themes",
             "Data\tools",
             "system",
+            "runtime",
             "Tiance.exe",
             "LICENSE"
         )
@@ -86,7 +87,8 @@ try {
         "system/version.json",
         "1_PythonServer/run.py",
         "2_ReactWeb/dist/index.html",
-        "3_PyWebView/run.py"
+        "3_PyWebView/run.py",
+        "runtime/gateway/TianceRemoteGateway.exe"
     )
     foreach ($relativePath in $requiredFiles) {
         if (-not (Test-Path -LiteralPath (Join-Path $stage $relativePath) -PathType Leaf)) {

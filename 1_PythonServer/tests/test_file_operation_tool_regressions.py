@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from contextlib import contextmanager
 from importlib.util import module_from_spec, spec_from_file_location
 import json
@@ -17,13 +18,16 @@ _REPLACE_TEXT = resolve_formal_tool_root("replace_text")
 _SAFE_PATCH = resolve_formal_tool_root("safe_patch")
 _READ_MANY_FILES = resolve_formal_tool_root("read_many_files")
 _FIND_PROJECT_FILES = resolve_formal_tool_root("find_project_files")
-_TOOL_HEALTH_CHECK = resolve_formal_tool_root("tool_health_check")
 _THEME_DESIGNER = resolve_formal_tool_root("theme_designer")
 _RUN_PYTHON_SCRIPT = resolve_formal_tool_root("run_python_script")
 _INTERACT_AI_CONVERSATION = resolve_formal_tool_root(
     "interact_ai_conversation"
 )
 _EDITOR_TABS_MANAGER = resolve_formal_tool_root("editor_tabs_manager")
+
+_VALID_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
 
 
 def test_replace_text_keeps_original_when_atomic_commit_fails(
@@ -332,6 +336,43 @@ def test_read_many_files_rejects_removed_path_alias(
     assert result["error_info"]["details"]["fields"] == ["path"]
 
 
+def test_read_many_files_returns_images_after_text_budget_is_used(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_tool("read_many_images", _READ_MANY_FILES)
+    (tmp_path / "full.txt").write_text("a" * 1000, encoding="utf-8")
+    image_path = tmp_path / "interface.png"
+    image_path.write_bytes(_VALID_PNG)
+    monkeypatch.setenv("TIANCE_WORKSPACE_ROOT", str(tmp_path))
+    monkeypatch.setenv("TIANCE_MODEL_CONTEXT", '{"input_modalities":["image"]}')
+
+    result = module.run(
+        {
+            "files": ["full.txt", {"file_path": "interface.png", "image_scale_percent": 100}],
+            "total_max_chars": 1000,
+        }
+    )
+
+    files = result["data"]["files"]
+    assert result["ok"] is True
+    assert result["data"]["total_chars"] == 1000
+    assert files[0]["ok"] is True
+    assert files[1]["file_type"] == "image"
+    assert files[1]["image_scale_percent"] == 100
+    assert files[1]["resource_uri"] == "tiance-project:///interface.png"
+    assert result["content"] == [
+        {
+            "type": "resource_link",
+            "uri": "tiance-project:///interface.png",
+            "name": "interface.png",
+            "mimeType": "image/png",
+            "size": image_path.stat().st_size,
+            "annotations": {"audience": ["assistant"], "priority": 1.0},
+        }
+    ]
+
+
 def test_find_project_files_uses_explicit_keywords(
     monkeypatch,
     tmp_path: Path,
@@ -414,19 +455,6 @@ def test_updated_tool_schemas_describe_new_contracts() -> None:
     assert "keywords" in find_project_files_data["required"]
     assert "task" not in find_project_files_data["properties"]
     assert "terms" not in find_project_files_data["properties"]
-
-
-def test_tool_health_check_uses_host_tools_root(
-    monkeypatch,
-    tmp_path: Path,
-) -> None:
-    module = _load_tool("tool_health_check", _TOOL_HEALTH_CHECK)
-    tools_root = tmp_path / "real-tools"
-    tools_root.mkdir()
-    monkeypatch.setenv("TIANCE_WORKSPACE_ROOT", str(tmp_path))
-    monkeypatch.setenv("TIANCE_TOOLS_ROOT", str(tools_root))
-
-    assert module.resolve_tools_root(None) == tools_root.resolve()
 
 
 def test_theme_designer_current_and_list_results_are_compact(

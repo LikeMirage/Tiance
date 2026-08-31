@@ -41,6 +41,7 @@ class DesktopWindowSizePreferences:
 class NetworkStartupPreferences:
     backend_port_mode: str
     fixed_backend_port: int
+    external_access_enabled: bool
 
 
 def load_desktop_window_size_preferences(project_root: Path) -> DesktopWindowSizePreferences:
@@ -142,6 +143,7 @@ def load_network_startup_preferences(project_root: Path) -> NetworkStartupPrefer
     return NetworkStartupPreferences(
         backend_port_mode=port_mode if port_mode in {"auto", "fixed"} else "auto",
         fixed_backend_port=_read_saved_port(fixed_port, 18000),
+        external_access_enabled=payload.get("external_access_enabled") is True,
     )
 
 
@@ -149,6 +151,7 @@ def default_network_startup_preferences() -> NetworkStartupPreferences:
     return NetworkStartupPreferences(
         backend_port_mode="auto",
         fixed_backend_port=18000,
+        external_access_enabled=False,
     )
 
 

@@ -57,6 +57,8 @@ type WorkspaceSidePanelProps = {
   onSelectSoftwareUpdateSettings: () => void;
   onSelectAnnouncementSettings: () => void;
   onSelectNetworkSettings: () => void;
+  onSelectAccessManagementSettings: () => void;
+  onSelectAccessSecuritySettings: () => void;
   onSelectTokenEstimationSettings: () => void;
   onToggleFunctionalModelGroup: () => void;
 };
@@ -103,6 +105,8 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
   onSelectSoftwareUpdateSettings,
   onSelectAnnouncementSettings,
   onSelectNetworkSettings,
+  onSelectAccessManagementSettings,
+  onSelectAccessSecuritySettings,
   onSelectTokenEstimationSettings,
   onToggleFunctionalModelGroup,
 }: WorkspaceSidePanelProps) {
@@ -124,6 +128,8 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
   const isGithubSettingsActive = activeSettingsSectionId === "github";
   const isGlobalMemorySettingsActive = activeSettingsSectionId === "global-memory";
   const isNetworkSettingsActive = activeSettingsSectionId === "network";
+  const isAccessManagementSettingsActive = activeSettingsSectionId === "access-management";
+  const isAccessSecuritySettingsActive = activeSettingsSectionId === "access-security";
   const isFunctionalModelGroupActive =
     isFunctionalModelSettingsSection(activeSettingsSectionId);
   const shouldShowTokenEstimationSearchResult =
@@ -136,6 +142,15 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
     || normalizeSettingsSearchText(
       `${t("workspace.settings.network")} proxy timeout port github`,
     ).includes(normalizedSettingsSearchKeyword);
+  const shouldShowAccessManagementSearchResult =
+    !isSearchingSettings
+    || normalizeSettingsSearchText(
+      `${t("workspace.settings.accessManagement")} remote external wechat dingtalk telegram 外部访问 微信 钉钉`,
+    ).includes(normalizedSettingsSearchKeyword);
+  const shouldShowAccessSecuritySearchResult =
+    !isSearchingSettings
+    || normalizeSettingsSearchText(`${t("workspace.settings.accessSecurity")} 密码 登录 会话 security password login`)
+      .includes(normalizedSettingsSearchKeyword);
   const shouldShowLanguageSettingsSearchResult =
     !isSearchingSettings
     || normalizeSettingsSearchText(
@@ -276,6 +291,38 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
                 </span>
               </button>
             ) : null}
+            {shouldShowAccessManagementSearchResult ? (
+              <button
+                className={
+                  isAccessManagementSettingsActive
+                    ? "workspace-settings-panel__search-result workspace-settings-panel__search-result--active"
+                    : "workspace-settings-panel__search-result"
+                }
+                type="button"
+                aria-current={isAccessManagementSettingsActive ? "page" : undefined}
+                onClick={onSelectAccessManagementSettings}
+              >
+                <span className="workspace-settings-panel__search-result-title">
+                  {t("workspace.settings.accessManagement")}
+                </span>
+                <span className="workspace-settings-panel__search-result-meta">
+                  {t("accessManagement.tabs.external")}
+                </span>
+              </button>
+            ) : null}
+            {shouldShowAccessSecuritySearchResult ? (
+              <button
+                className={isAccessSecuritySettingsActive
+                  ? "workspace-settings-panel__search-result workspace-settings-panel__search-result--active"
+                  : "workspace-settings-panel__search-result"}
+                type="button"
+                aria-current={isAccessSecuritySettingsActive ? "page" : undefined}
+                onClick={onSelectAccessSecuritySettings}
+              >
+                <span className="workspace-settings-panel__search-result-title">安全设置</span>
+                <span className="workspace-settings-panel__search-result-meta">密码与登录会话</span>
+              </button>
+            ) : null}
             {shouldShowGithubSettingsSearchResult ? (
               <button
                 className={
@@ -378,6 +425,8 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
               && !shouldShowGithubSettingsSearchResult
               && !shouldShowGlobalMemorySettingsSearchResult
               && !shouldShowNetworkSettingsSearchResult
+              && !shouldShowAccessManagementSearchResult
+              && !shouldShowAccessSecuritySearchResult
               && !shouldShowTokenEstimationSearchResult
               && filteredFunctionalModelSections.length === 0 ? (
               <div className="workspace-settings-panel__empty" role="status">
@@ -454,6 +503,28 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
               onClick={onSelectNetworkSettings}
             >
               {t("workspace.settings.network")}
+            </button>
+            <button
+              className={
+                isAccessManagementSettingsActive
+                  ? "workspace-settings-panel__standalone workspace-settings-panel__standalone--active"
+                  : "workspace-settings-panel__standalone"
+              }
+              type="button"
+              aria-current={isAccessManagementSettingsActive ? "page" : undefined}
+              onClick={onSelectAccessManagementSettings}
+            >
+              {t("workspace.settings.accessManagement")}
+            </button>
+            <button
+              className={isAccessSecuritySettingsActive
+                ? "workspace-settings-panel__standalone workspace-settings-panel__standalone--active"
+                : "workspace-settings-panel__standalone"}
+              type="button"
+              aria-current={isAccessSecuritySettingsActive ? "page" : undefined}
+              onClick={onSelectAccessSecuritySettings}
+            >
+              {t("workspace.settings.accessSecurity")}
             </button>
             <button
               className={

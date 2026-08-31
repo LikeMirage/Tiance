@@ -10,7 +10,7 @@
   },
   "io": {"input": "stdin_json", "output": "stdout_json"},
   "keywords": ["Git", "版本控制", "克隆", "提交", "推送", "拉取", "分支", "差异"],
-  "loading": {"dynamic": false},
+  "loading": {"dynamic": true},
   "name": "git_repository",
   "runtime": {
     "entry": "program/main.py",

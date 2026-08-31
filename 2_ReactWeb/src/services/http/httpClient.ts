@@ -1,5 +1,6 @@
 import { env } from "../../shared/config/env";
 import { createStartupRequestTrace } from "../../shared/model/startup-timing/startupTiming";
+import { notifyGatewayAuthenticationRequired } from "../security/gatewayAuthenticationEvents";
 
 export class HttpRequestError extends Error {
   readonly status: number;
@@ -23,6 +24,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
   try {
     response = await fetch(buildApiUrl(path), {
       ...init,
+      credentials: init?.credentials ?? "include",
       headers,
     });
   } catch (requestError) {
@@ -34,6 +36,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
 
   if (!response.ok) {
     const error = await buildRequestError(response);
+    notifyAuthenticationRequired(response.status, error.code);
     throw new HttpRequestError(error.message, response.status, error.code, error.details);
   }
 
@@ -48,6 +51,7 @@ export async function fetchNoContent(path: string, init?: RequestInit): Promise<
   try {
     response = await fetch(buildApiUrl(path), {
       ...init,
+      credentials: init?.credentials ?? "include",
       headers,
     });
   } catch (requestError) {
@@ -59,7 +63,14 @@ export async function fetchNoContent(path: string, init?: RequestInit): Promise<
 
   if (!response.ok) {
     const error = await buildRequestError(response);
+    notifyAuthenticationRequired(response.status, error.code);
     throw new HttpRequestError(error.message, response.status, error.code, error.details);
+  }
+}
+
+function notifyAuthenticationRequired(status: number, code: string | null) {
+  if (status === 401 && code === "AUTHENTICATION_REQUIRED") {
+    notifyGatewayAuthenticationRequired();
   }
 }
 

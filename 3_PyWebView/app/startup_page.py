@@ -26,6 +26,7 @@ def render_startup_page(settings: ShellSettings) -> str:
     startup_theme = load_startup_theme()
     startup_state = {
         "apiUrl": settings.api_url,
+        "gatewayHealthUrl": f"{settings.api_url}/gateway/health",
         "devUrl": settings.dev_url,
         "appUrl": settings.app_url,
         "distExists": _frontend_dist_exists(settings),
