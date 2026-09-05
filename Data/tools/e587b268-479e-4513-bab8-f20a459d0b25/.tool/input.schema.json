@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "allOf": [
+    {"if": {"properties": {"action": {"const": "type_text"}}, "required": ["action"]}, "then": {"required": ["text"]}},
+    {"if": {"properties": {"action": {"const": "press_key"}}, "required": ["action"]}, "then": {"required": ["key"]}},
+    {"if": {"properties": {"action": {"const": "hotkey"}}, "required": ["action"]}, "then": {"required": ["keys"]}}
+  ],
+  "description": "在当前GUI临时会话对应的Windows界面执行键盘操作，无需锁定界面。",
+  "properties": {
+    "action": {"type": "string", "enum": ["type_text", "press_key", "hotkey"], "description": "键盘动作。", "permission_type": "ui_control"},
+    "gui_session_id": {"type": "string", "pattern": "^gui_[a-f0-9]{32}$", "permission_type": "none"},
+    "text": {"type": "string", "maxLength": 100000, "description": "type_text输入的Unicode文本。", "permission_type": "none"},
+    "key": {"type": "string", "minLength": 1, "description": "press_key按键名，支持字母、数字、F1-F24及常用控制键。", "permission_type": "none"},
+    "keys": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 2, "maxItems": 8, "description": "hotkey按下顺序，按相反顺序释放。", "permission_type": "none"},
+    "presses": {"type": "integer", "minimum": 1, "maximum": 20, "default": 1, "permission_type": "none"},
+    "interval_ms": {"type": "integer", "minimum": 0, "maximum": 2000, "default": 20, "description": "文本字符或重复按键间隔。", "permission_type": "none"},
+    "hold_ms": {"type": "integer", "minimum": 0, "maximum": 2000, "default": 0, "description": "hotkey全部按下后的保持时间。", "permission_type": "none"},
+    "change_threshold_percent": {"type": "number", "minimum": 0.01, "maximum": 100, "default": 0.5, "description": "操作前界面变化阻断阈值；任一RGB通道变化达到16的像素计为变化。", "permission_type": "none"}
+  },
+  "required": ["action", "gui_session_id"],
+  "type": "object"
+}

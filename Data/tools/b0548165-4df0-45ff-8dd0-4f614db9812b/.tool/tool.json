@@ -1,0 +1,36 @@
+{
+  "description": "查看Windows屏幕或窗口并返回带编号网格的图片资源，无需预先锁定界面。首次使用会自动启动无覆盖层、不会拦截用户输入的GUI后台运行器。start创建独立GUI临时会话；zoom放大指定格；refresh刷新；wait等待界面变化或稳定；close删除本次临时文件，最后一个会话关闭时自动停止后台运行器。后续坐标采用指定Frame、View和Cell内左下角原点的0到1比例。",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json",
+    "permissions": ".tool/permissions.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "GUI",
+    "截图",
+    "窗口",
+    "网格定位",
+    "界面查看"
+  ],
+  "loading": {
+    "dynamic": true
+  },
+  "name": "gui_inspect",
+  "registration_name": "GUI 界面查看",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 45,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

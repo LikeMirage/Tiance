@@ -1,0 +1,53 @@
+﻿{
+  "additionalProperties": false,
+  "description": "通过本机 Tiance 后端操作指定项目的 AI 会话。list_sessions 只需 project_id；其他动作还需 session_id；send 额外需要 message。",
+  "properties": {
+    "action": {
+      "permission_type": "tiance_data_write",
+      "description": "动作。list_sessions 列出会话；get_messages 读取最近消息；send 发送消息并等待回复；stop 停止运行。",
+      "enum": [
+        "list_sessions",
+        "get_messages",
+        "send",
+        "stop"
+      ],
+      "title": "动作",
+      "type": "string"
+    },
+    "project_id": {
+      "permission_type": "tiance_data_read",
+      "description": "目标 Tiance 项目 ID。",
+      "title": "项目 ID",
+      "type": "string",
+      "minLength": 1
+    },
+    "session_id": {
+      "permission_type": "tiance_data_read",
+      "description": "目标会话 ID。除 list_sessions 外必填。",
+      "title": "会话 ID",
+      "type": "string",
+      "minLength": 1
+    },
+    "message": {
+      "permission_type": "tiance_data_write",
+      "description": "send 要发送给目标会话的普通用户消息正文。",
+      "title": "消息",
+      "type": "string",
+      "minLength": 1
+    },
+    "limit": {
+      "permission_type": "none",
+      "description": "get_messages 最多返回多少条消息。",
+      "title": "消息数量",
+      "type": "integer",
+      "default": 20,
+      "minimum": 1,
+      "maximum": 100
+    }
+  },
+  "required": [
+    "action",
+    "project_id"
+  ],
+  "type": "object"
+}

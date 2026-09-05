@@ -1,0 +1,42 @@
+{
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"action": {"const": "drag"}}, "required": ["action"]},
+      "then": {"required": ["to"]}
+    }
+  ],
+  "description": "使用最新Frame的网格坐标预览落点或执行鼠标操作。x/y是Cell内部0到1比例，原点在左下角。preview只生成带颜色点的预览图，不移动鼠标、不点击且不创建新Frame。",
+  "properties": {
+    "action": {"type": "string", "enum": ["preview", "move", "click", "drag", "scroll", "mouse_down", "mouse_up"], "description": "preview仅预览选定坐标；其他值执行对应鼠标动作。", "permission_type": "ui_control"},
+    "gui_session_id": {"type": "string", "pattern": "^gui_[a-f0-9]{32}$", "permission_type": "none"},
+    "frame_id": {"type": "integer", "minimum": 0, "description": "必须是当前最新Frame ID。", "permission_type": "none"},
+    "view_id": {"type": "string", "minLength": 1, "description": "目标View ID。", "permission_type": "none"},
+    "cell_id": {"type": "integer", "minimum": 1, "description": "目标Cell ID。", "permission_type": "none"},
+    "x": {"type": "number", "minimum": 0, "maximum": 1, "description": "Cell内从左到右比例。", "permission_type": "none"},
+    "y": {"type": "number", "minimum": 0, "maximum": 1, "description": "Cell内从下到上比例。", "permission_type": "none"},
+    "to": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "drag终点，仍使用同一最新Frame。",
+      "properties": {
+        "view_id": {"type": "string", "minLength": 1},
+        "cell_id": {"type": "integer", "minimum": 1},
+        "x": {"type": "number", "minimum": 0, "maximum": 1},
+        "y": {"type": "number", "minimum": 0, "maximum": 1}
+      },
+      "required": ["view_id", "cell_id", "x", "y"]
+    },
+    "button": {"type": "string", "enum": ["left", "right", "middle"], "default": "left", "permission_type": "none"},
+    "clicks": {"type": "integer", "enum": [1, 2], "default": 1, "permission_type": "none"},
+    "click_hold_ms": {"type": "integer", "minimum": 0, "maximum": 2000, "default": 80, "description": "每次click按下到抬起的时长，默认80毫秒。", "permission_type": "none"},
+    "modifiers": {"type": "array", "items": {"type": "string", "enum": ["ctrl", "shift", "alt", "win"]}, "uniqueItems": true, "maxItems": 4, "default": [], "permission_type": "none"},
+    "duration_ms": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0, "description": "move/drag持续时间，0表示立即到达。", "permission_type": "none"},
+    "direction": {"type": "string", "enum": ["up", "down", "left", "right"], "default": "down", "permission_type": "none"},
+    "notches": {"type": "integer", "minimum": 1, "maximum": 100, "default": 3, "permission_type": "none"},
+    "interval_ms": {"type": "integer", "minimum": 0, "maximum": 2000, "default": 120, "description": "双击或滚动事件间隔。", "permission_type": "none"},
+    "change_threshold_percent": {"type": "number", "minimum": 0.01, "maximum": 100, "default": 0.5, "description": "操作前界面变化阻断阈值；任一RGB通道变化达到16的像素计为变化。", "permission_type": "none"}
+  },
+  "required": ["action", "gui_session_id", "frame_id", "view_id", "cell_id", "x", "y"],
+  "type": "object"
+}

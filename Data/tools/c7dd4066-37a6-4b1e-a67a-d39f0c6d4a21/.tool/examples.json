@@ -1,0 +1,5 @@
+[
+  {"title": "启动后台运行器", "content": "{\"action\":\"start\"}"},
+  {"title": "查询运行状态", "content": "{\"action\":\"status\"}"},
+  {"title": "停止后台运行器", "content": "{\"action\":\"stop\"}"}
+]

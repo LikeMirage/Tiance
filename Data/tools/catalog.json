@@ -75,6 +75,14 @@
       "sort_order": 8,
       "created_at": "2026-08-02T00:00:00Z",
       "updated_at": "2026-08-02T00:00:00Z"
+    },
+    {
+      "category_id": "de7ff9ea-e4d4-4965-8902-04037bfa3ae8",
+      "name": "GUI 操作",
+      "is_default": false,
+      "sort_order": 9,
+      "created_at": "2026-09-01T00:00:00+00:00",
+      "updated_at": "2026-09-01T00:00:00+00:00"
     }
   ],
   "projects": [
@@ -160,6 +168,15 @@
       "updated_at": "2026-08-02T00:00:00Z"
     },
     {
+      "project_id": "c7dd4066-37a6-4b1e-a67a-d39f0c6d4a21",
+      "name": "GUI 后台运行器",
+      "category_id": "de7ff9ea-e4d4-4965-8902-04037bfa3ae8",
+      "is_default": false,
+      "sort_order": 0,
+      "created_at": "2026-09-01T00:00:00+00:00",
+      "updated_at": "2026-09-01T00:00:00+00:00"
+    },
+    {
       "project_id": "7a70dd37-ca12-5ecc-9235-f12e3c14b1d2",
       "name": "文件读取",
       "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
@@ -241,6 +258,15 @@
       "updated_at": "2026-08-11T00:00:00+00:00"
     },
     {
+      "project_id": "b0548165-4df0-45ff-8dd0-4f614db9812b",
+      "name": "GUI 界面查看",
+      "category_id": "de7ff9ea-e4d4-4965-8902-04037bfa3ae8",
+      "is_default": false,
+      "sort_order": 1,
+      "created_at": "2026-09-01T00:00:00+00:00",
+      "updated_at": "2026-09-01T00:00:00+00:00"
+    },
+    {
       "project_id": "59dfc998-de87-586a-a617-439dbaa2e3d8",
       "name": "批量读取文件",
       "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
@@ -304,6 +330,15 @@
       "updated_at": "2026-08-13T00:00:00+00:00"
     },
     {
+      "project_id": "08cb1494-bf1e-47a9-bbb5-add9c576db62",
+      "name": "GUI 鼠标操作",
+      "category_id": "de7ff9ea-e4d4-4965-8902-04037bfa3ae8",
+      "is_default": false,
+      "sort_order": 2,
+      "created_at": "2026-09-01T00:00:00+00:00",
+      "updated_at": "2026-09-01T00:00:00+00:00"
+    },
+    {
       "project_id": "0ba917ac-ea6b-5de5-ae1f-324e8134d74b",
       "name": "文件补丁编辑",
       "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
@@ -340,6 +375,24 @@
       "updated_at": "2026-08-03T00:00:00Z"
     },
     {
+      "project_id": "8f4b1ace-0abf-54dc-8c9a-9dbdc9319525",
+      "name": "Tiance AI 会话桥",
+      "category_id": "toolset_c14f6e2593194fe88f2b218a0d7c6a9e",
+      "is_default": false,
+      "sort_order": 3,
+      "created_at": "2026-08-26T02:04:43.412251+00:00",
+      "updated_at": "2026-08-26T02:04:43.412251+00:00"
+    },
+    {
+      "project_id": "e587b268-479e-4513-bab8-f20a459d0b25",
+      "name": "GUI 键盘操作",
+      "category_id": "de7ff9ea-e4d4-4965-8902-04037bfa3ae8",
+      "is_default": false,
+      "sort_order": 3,
+      "created_at": "2026-09-01T00:00:00+00:00",
+      "updated_at": "2026-09-01T00:00:00+00:00"
+    },
+    {
       "project_id": "2143d169-9bf4-55d3-88c3-3fb6608cbbb6",
       "name": "内容搜索",
       "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
@@ -374,6 +427,15 @@
       "sort_order": 4,
       "created_at": "2026-08-03T00:00:00Z",
       "updated_at": "2026-08-03T00:00:00Z"
+    },
+    {
+      "project_id": "64893807-4ab4-432e-ae8d-f27e57ff7b54",
+      "name": "GUI 批量操作",
+      "category_id": "de7ff9ea-e4d4-4965-8902-04037bfa3ae8",
+      "is_default": false,
+      "sort_order": 4,
+      "created_at": "2026-09-01T00:00:00+00:00",
+      "updated_at": "2026-09-01T00:00:00+00:00"
     },
     {
       "project_id": "e81889b3-deab-5ca4-b534-4a6e728a3298",

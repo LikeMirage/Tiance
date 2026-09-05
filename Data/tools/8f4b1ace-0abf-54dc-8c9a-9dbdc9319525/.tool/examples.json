@@ -1,0 +1,18 @@
+﻿[
+  {
+    "title": "列出项目全部 AI 会话",
+    "content": "{\"action\": \"list_sessions\", \"project_id\": \"<project_id>\"}"
+  },
+  {
+    "title": "读取某会话最近消息",
+    "content": "{\"action\": \"get_messages\", \"project_id\": \"<project_id>\", \"session_id\": \"<session_id>\", \"limit\": 10}"
+  },
+  {
+    "title": "向目标 AI 发送消息并等待回复",
+    "content": "{\"action\": \"send\", \"project_id\": \"<project_id>\", \"session_id\": \"<session_id>\", \"message\": \"请汇报当前任务进展。\"}"
+  },
+  {
+    "title": "停止目标会话",
+    "content": "{\"action\": \"stop\", \"project_id\": \"<project_id>\", \"session_id\": \"<session_id>\"}"
+  }
+]

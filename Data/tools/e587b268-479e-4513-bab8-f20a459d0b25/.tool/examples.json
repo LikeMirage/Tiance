@@ -1,0 +1,4 @@
+[
+  {"title": "输入文本", "content": "{\"action\":\"type_text\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"text\":\"测试文本\",\"interval_ms\":20}"},
+  {"title": "复制快捷键", "content": "{\"action\":\"hotkey\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"keys\":[\"ctrl\",\"c\"],\"hold_ms\":0}"}
+]

@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "description": "GUI后台运行器属于当前项目会话。gui_inspect会自动启动，通常只需用status查看或用stop手动停止。运行器不显示覆盖层、不锁定界面。",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": ["start", "status", "stop"],
+      "title": "动作",
+      "description": "start手动启动后台运行器；status查询；stop停止运行器并清理其GUI临时会话。",
+      "permission_type": "ui_control"
+    }
+  },
+  "required": ["action"],
+  "type": "object"
+}

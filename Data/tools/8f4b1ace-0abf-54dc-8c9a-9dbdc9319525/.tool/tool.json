@@ -1,0 +1,38 @@
+﻿{
+  "description": "通过本机 Tiance 后端与指定项目中的 AI 会话协作。可列出会话、读取最近消息、向空闲会话发送普通用户消息并等待本次回复、停止正在运行的会话。该工具是 Python 后端桥，不依赖桌面 client 工具运行时，适合经 MCP 远程调用。",
+  "registration_name": "Tiance AI 会话桥",
+  "execution": {
+    "parallel": true
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "permissions": ".tool/permissions.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "AI会话",
+    "会话桥",
+    "AI协作",
+    "发送消息",
+    "会话历史",
+    "MCP",
+    "远程协作"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "tiance_conversation_bridge",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 900,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

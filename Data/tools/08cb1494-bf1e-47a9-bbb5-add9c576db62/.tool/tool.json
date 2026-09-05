@@ -1,0 +1,12 @@
+{
+  "description": "在Windows界面预览选定坐标，或执行鼠标移动、点击、拖拽、滚动和按下/抬起，无需锁定界面。坐标预览会在当前View图片上标出落点，不移动鼠标也不创建新Frame；click可设置按下时长，默认80毫秒。必须使用gui_inspect返回的最新Frame、View、Cell及格内比例坐标；比例原点在格子左下角。执行前若界面已变化则不操作并返回新图片；执行后返回最新界面及用户输入变化信息。",
+  "registration_name": "GUI 鼠标操作",
+  "execution": {"parallel": false},
+  "files": {"examples": ".tool/examples.json", "permissions": ".tool/permissions.json", "input_schema": ".tool/input.schema.json", "output_schema": ".tool/output.schema.json"},
+  "io": {"input": "stdin_json", "output": "stdout_json"},
+  "keywords": ["GUI", "鼠标", "点击", "坐标预览", "拖拽", "滚动"],
+  "loading": {"dynamic": true},
+  "name": "gui_mouse",
+  "runtime": {"entry": "program/main.py", "timeout_seconds": 45, "type": "python"},
+  "state": {"enabled": true}
+}

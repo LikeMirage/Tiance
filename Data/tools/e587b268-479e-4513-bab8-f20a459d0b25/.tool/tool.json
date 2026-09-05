@@ -1,0 +1,36 @@
+{
+  "description": "在Windows界面输入文本、按键或组合键，无需锁定界面。必须先用gui_inspect取得GUI临时会话；执行前若界面已变化则不操作并返回新图片，执行后返回最新界面及用户输入变化信息。",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json",
+    "permissions": ".tool/permissions.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "GUI",
+    "键盘",
+    "文本输入",
+    "按键",
+    "快捷键"
+  ],
+  "loading": {
+    "dynamic": true
+  },
+  "name": "gui_keyboard",
+  "registration_name": "GUI 键盘操作",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 45,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

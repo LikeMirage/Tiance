@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "fallback": "deny",
+  "policies": {
+    "unknown": {"all": "deny"},
+    "filesystem_read": {"workspace_inside": "allow", "workspace_outside": "allow", "unresolved": "deny"},
+    "filesystem_write": {"workspace_inside": "allow", "workspace_outside": "deny", "unresolved": "deny"},
+    "filesystem_delete": {"workspace_inside": "deny", "workspace_outside": "deny", "unresolved": "deny"},
+    "program_execute": {"workspace_program": "deny", "system_program": "deny", "unresolved": "deny"},
+    "process_control": {"all": "deny"},
+    "runtime_modify": {"all": "deny"},
+    "network_access": {"loopback": "allow", "private_network": "deny", "public_network": "deny", "unresolved": "deny"},
+    "credential_use": {"all": "deny"},
+    "external_data_read": {"all": "deny"},
+    "external_data_modify": {"all": "deny"},
+    "tiance_data_read": {"current_project": "deny", "other_project": "deny", "global_data": "deny", "unresolved": "deny"},
+    "tiance_data_write": {"current_project": "deny", "other_project": "deny", "global_data": "deny", "unresolved": "deny"},
+    "tiance_data_delete": {"current_project": "deny", "other_project": "deny", "global_data": "deny", "unresolved": "deny"},
+    "ui_control": {"all": "allow"}
+  }
+}

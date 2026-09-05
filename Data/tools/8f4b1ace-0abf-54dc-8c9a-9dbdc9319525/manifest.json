@@ -1,0 +1,16 @@
+﻿{
+  "schemaVersion": 1,
+  "kind": "tiance-tool-package",
+  "id": "tiance_conversation_bridge",
+  "version": "1.0.0",
+  "author": {
+    "name": "Local"
+  },
+  "license": "CC0-1.0",
+  "compatibility": {
+    "minTianceVersion": "0.3.24",
+    "platforms": [
+      "windows-x64"
+    ]
+  }
+}

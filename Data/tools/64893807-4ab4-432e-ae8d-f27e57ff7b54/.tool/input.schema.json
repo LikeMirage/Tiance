@@ -1,0 +1,63 @@
+{
+  "additionalProperties": false,
+  "description": "一次顺序执行1到50个动作。只在整批开始前验证界面；中途不会重新识别，因此只用于坐标依据在整批期间保持有效的操作。",
+  "properties": {
+    "gui_session_id": {"type": "string", "pattern": "^gui_[a-f0-9]{32}$", "permission_type": "none"},
+    "actions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "permission_type": "ui_control",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {"properties": {"type": {"enum": ["move", "click", "drag", "scroll", "mouse_down", "mouse_up"]}}, "required": ["type"]},
+            "then": {"required": ["frame_id", "view_id", "cell_id", "x", "y"]}
+          },
+          {"if": {"properties": {"type": {"const": "drag"}}, "required": ["type"]}, "then": {"required": ["to"]}},
+          {"if": {"properties": {"type": {"const": "type_text"}}, "required": ["type"]}, "then": {"required": ["text"]}},
+          {"if": {"properties": {"type": {"const": "press_key"}}, "required": ["type"]}, "then": {"required": ["key"]}},
+          {"if": {"properties": {"type": {"const": "hotkey"}}, "required": ["type"]}, "then": {"required": ["keys"]}}
+        ],
+        "properties": {
+          "type": {"type": "string", "enum": ["move", "click", "drag", "scroll", "mouse_down", "mouse_up", "type_text", "press_key", "hotkey", "wait"]},
+          "frame_id": {"type": "integer", "minimum": 0},
+          "view_id": {"type": "string", "minLength": 1},
+          "cell_id": {"type": "integer", "minimum": 1},
+          "x": {"type": "number", "minimum": 0, "maximum": 1},
+          "y": {"type": "number", "minimum": 0, "maximum": 1},
+          "to": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "view_id": {"type": "string", "minLength": 1},
+              "cell_id": {"type": "integer", "minimum": 1},
+              "x": {"type": "number", "minimum": 0, "maximum": 1},
+              "y": {"type": "number", "minimum": 0, "maximum": 1}
+            },
+            "required": ["view_id", "cell_id", "x", "y"]
+          },
+          "button": {"type": "string", "enum": ["left", "right", "middle"], "default": "left"},
+          "clicks": {"type": "integer", "enum": [1, 2], "default": 1},
+          "click_hold_ms": {"type": "integer", "minimum": 0, "maximum": 2000, "default": 80, "description": "每次click按下到抬起的时长，默认80毫秒。"},
+          "modifiers": {"type": "array", "items": {"type": "string", "enum": ["ctrl", "shift", "alt", "win"]}, "uniqueItems": true, "maxItems": 4, "default": []},
+          "duration_ms": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0},
+          "direction": {"type": "string", "enum": ["up", "down", "left", "right"], "default": "down"},
+          "notches": {"type": "integer", "minimum": 1, "maximum": 100, "default": 3},
+          "interval_ms": {"type": "integer", "minimum": 0, "maximum": 2000, "default": 20},
+          "text": {"type": "string", "maxLength": 100000},
+          "key": {"type": "string", "minLength": 1},
+          "keys": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 2, "maxItems": 8},
+          "presses": {"type": "integer", "minimum": 1, "maximum": 20, "default": 1},
+          "hold_ms": {"type": "integer", "minimum": 0, "maximum": 2000, "default": 0}
+        },
+        "required": ["type"]
+      }
+    },
+    "change_threshold_percent": {"type": "number", "minimum": 0.01, "maximum": 100, "default": 0.5, "description": "整批开始前的界面变化阻断阈值；任一RGB通道变化达到16的像素计为变化。", "permission_type": "none"}
+  },
+  "required": ["gui_session_id", "actions"],
+  "type": "object"
+}

@@ -1,0 +1,5 @@
+[
+  {"title": "预览网格坐标", "content": "{\"action\":\"preview\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"frame_id\":0,\"view_id\":\"root\",\"cell_id\":6,\"x\":0.5,\"y\":0.5}"},
+  {"title": "单击网格中心", "content": "{\"action\":\"click\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"frame_id\":0,\"view_id\":\"root\",\"cell_id\":6,\"x\":0.5,\"y\":0.5,\"button\":\"left\",\"clicks\":1,\"click_hold_ms\":80}"},
+  {"title": "向下滚动", "content": "{\"action\":\"scroll\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"frame_id\":1,\"view_id\":\"root\",\"cell_id\":8,\"x\":0.5,\"y\":0.5,\"direction\":\"down\",\"notches\":3}"}
+]

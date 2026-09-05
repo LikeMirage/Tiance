@@ -1,0 +1,6 @@
+[
+  {"title": "列出窗口", "content": "{\"action\":\"list_windows\",\"limit\":100}"},
+  {"title": "查看完整桌面", "content": "{\"action\":\"start\",\"target\":\"screen\",\"monitor\":0,\"grid_mode\":\"auto\",\"grid_target_cells\":16}"},
+  {"title": "放大网格", "content": "{\"action\":\"zoom\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"frame_id\":0,\"view_id\":\"root\",\"cell_id\":6}"},
+  {"title": "等待界面稳定", "content": "{\"action\":\"wait\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"mode\":\"stable\",\"change_threshold_percent\":0.5,\"timeout_ms\":5000,\"interval_ms\":250,\"stable_checks\":2}"}
+]

@@ -1,0 +1,6 @@
+[
+  {
+    "title": "点击后输入",
+    "content": "{\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"change_threshold_percent\":0.5,\"actions\":[{\"type\":\"click\",\"frame_id\":0,\"view_id\":\"root\",\"cell_id\":6,\"x\":0.5,\"y\":0.5,\"button\":\"left\",\"clicks\":1,\"click_hold_ms\":80},{\"type\":\"type_text\",\"text\":\"测试文本\",\"interval_ms\":20}]}"
+  }
+]

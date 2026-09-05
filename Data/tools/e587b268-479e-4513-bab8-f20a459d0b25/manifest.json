@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "kind": "tiance-tool-package",
+  "id": "gui_keyboard",
+  "version": "2.0.0",
+  "author": {"name": "Tiance"},
+  "license": "CC0-1.0",
+  "compatibility": {"minTianceVersion": "0.3.25", "platforms": ["windows-x64"]}
+}

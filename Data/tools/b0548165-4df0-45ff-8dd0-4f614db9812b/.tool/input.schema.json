@@ -1,0 +1,47 @@
+{
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"action": {"enum": ["zoom", "refresh", "wait", "close"]}}, "required": ["action"]},
+      "then": {"required": ["gui_session_id"]}
+    },
+    {
+      "if": {"properties": {"action": {"const": "zoom"}}, "required": ["action"]},
+      "then": {"required": ["frame_id", "view_id", "cell_id"]}
+    },
+    {
+      "if": {"properties": {"grid_mode": {"const": "fixed"}}, "required": ["grid_mode"]},
+      "then": {"required": ["grid_rows", "grid_cols"]}
+    }
+  ],
+  "description": "查看Windows界面，无需预先锁定。start会自动启动后台运行器并创建一个.Tiance/gui-temp/gui_<id>子目录；close删除本次临时目录，最后一个会话关闭时自动停止后台运行器。",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": ["list_windows", "start", "zoom", "refresh", "wait", "close"],
+      "description": "查看动作。",
+      "permission_type": "ui_control"
+    },
+    "contains": {"type": "string", "description": "list_windows按标题包含文字筛选。", "permission_type": "none"},
+    "limit": {"type": "integer", "minimum": 1, "maximum": 300, "default": 100, "description": "list_windows最多返回的窗口数；仅限制本次展示结果。", "permission_type": "none"},
+    "target": {"type": "string", "enum": ["screen", "window"], "default": "screen", "description": "start查看全部/单个屏幕或窗口。", "permission_type": "none"},
+    "monitor": {"type": "integer", "minimum": 0, "default": 0, "description": "screen目标的显示器编号；0为完整虚拟桌面，1开始为各显示器。", "permission_type": "none"},
+    "hwnd": {"type": "integer", "minimum": 1, "description": "window目标的窗口句柄，优先于标题。", "permission_type": "none"},
+    "window_title": {"type": "string", "minLength": 1, "description": "window目标标题，先精确匹配再包含匹配；不填时使用前台窗口。", "permission_type": "none"},
+    "gui_session_id": {"type": "string", "pattern": "^gui_[a-f0-9]{32}$", "description": "start返回的GUI临时会话ID。", "permission_type": "none"},
+    "frame_id": {"type": "integer", "minimum": 0, "description": "必须使用当前最新Frame。", "permission_type": "none"},
+    "view_id": {"type": "string", "minLength": 1, "description": "Frame中的View ID，根视图为root。", "permission_type": "none"},
+    "cell_id": {"type": "integer", "minimum": 1, "description": "zoom要放大的网格编号。", "permission_type": "none"},
+    "grid_mode": {"type": "string", "enum": ["auto", "fixed"], "default": "auto", "description": "网格自动计算或固定行列。", "permission_type": "none"},
+    "grid_target_cells": {"type": "integer", "minimum": 4, "maximum": 64, "default": 16, "description": "auto模式期望的格子数量。", "permission_type": "none"},
+    "grid_rows": {"type": "integer", "minimum": 1, "maximum": 16, "description": "fixed模式行数。", "permission_type": "none"},
+    "grid_cols": {"type": "integer", "minimum": 1, "maximum": 16, "description": "fixed模式列数。", "permission_type": "none"},
+    "mode": {"type": "string", "enum": ["change", "stable"], "default": "stable", "description": "wait等待发生变化或连续稳定。", "permission_type": "none"},
+    "change_threshold_percent": {"type": "number", "minimum": 0.01, "maximum": 100, "default": 0.5, "description": "判定界面变化的像素占比百分数；任一RGB通道变化达到16的像素计为变化。", "permission_type": "none"},
+    "timeout_ms": {"type": "integer", "minimum": 100, "maximum": 30000, "default": 5000, "description": "wait最长等待毫秒数。", "permission_type": "none"},
+    "interval_ms": {"type": "integer", "minimum": 50, "maximum": 2000, "default": 250, "description": "wait采样间隔毫秒数。", "permission_type": "none"},
+    "stable_checks": {"type": "integer", "minimum": 1, "maximum": 10, "default": 2, "description": "stable需要连续满足的采样次数。", "permission_type": "none"}
+  },
+  "required": ["action"],
+  "type": "object"
+}

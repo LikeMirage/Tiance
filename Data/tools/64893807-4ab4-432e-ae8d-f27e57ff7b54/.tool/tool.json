@@ -1,0 +1,12 @@
+{
+  "description": "在一次调用中顺序执行1到50个GUI鼠标、键盘或等待动作，无需锁定界面，适合界面状态不会在中途改变坐标依据的连续操作。必须先用gui_inspect取得最新Frame。整批执行前若界面已变化则一个动作也不执行；执行后返回最新界面、用户输入与整批变化信息。",
+  "registration_name": "GUI 批量操作",
+  "execution": {"parallel": false},
+  "files": {"examples": ".tool/examples.json", "permissions": ".tool/permissions.json", "input_schema": ".tool/input.schema.json", "output_schema": ".tool/output.schema.json"},
+  "io": {"input": "stdin_json", "output": "stdout_json"},
+  "keywords": ["GUI", "批量操作", "鼠标", "键盘", "自动化"],
+  "loading": {"dynamic": true},
+  "name": "gui_batch",
+  "runtime": {"entry": "program/main.py", "timeout_seconds": 130, "type": "python"},
+  "state": {"enabled": true}
+}
