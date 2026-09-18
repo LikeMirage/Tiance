@@ -1,5 +1,5 @@
 {
-  "description": "在Windows界面输入文本、按键或组合键，无需锁定界面。必须先用gui_inspect取得GUI临时会话；执行前若界面已变化则不操作并返回新图片，执行后返回最新界面及用户输入变化信息。",
+  "description": "在锁定的Windows界面输入文本、按键或组合键。先调用gui_runtime start，再用gui_inspect取得GUI临时会话。执行前检查完整截图；变化达到阈值则返回最新Frame并停止操作。用户输入被拦截，按Esc立即中止并解锁。 操作结束后按screenshot_delay_seconds等待再截图，默认1秒、范围0到30秒。",
   "execution": {
     "parallel": false
   },
@@ -27,7 +27,7 @@
   "registration_name": "GUI 键盘操作",
   "runtime": {
     "entry": "program/main.py",
-    "timeout_seconds": 45,
+    "timeout_seconds": 75,
     "type": "python"
   },
   "state": {

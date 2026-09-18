@@ -35,105 +35,33 @@
         position: fixed;
         inset: 0;
         z-index: 1;
-        display: grid;
-        place-items: center;
-        background: var(--tiance-boot-surface-base);
+        background: #080704;
         pointer-events: none;
       }
 
-      .tiance-boot-placeholder__loader {
-        position: relative;
-        display: grid;
-        width: min(920px, calc(100vw - 64px));
-        height: 190px;
-        place-items: center;
-      }
-
-      .tiance-boot-placeholder__wordmark {
-        position: relative;
-        display: grid;
-        min-width: 700px;
-        min-height: 190px;
-        place-items: center;
-      }
-
-      .tiance-boot-placeholder__wordmark-text {
-        position: relative;
-        transform: translateY(-0.045em);
-        color: var(--tiance-boot-text-primary);
-        font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
-        font-size: 9.5rem;
-        font-weight: 650;
-        line-height: 1;
-        letter-spacing: 0;
-      }
-
-      .tiance-boot-placeholder__wordmark-text::after {
-        content: attr(data-text);
+      .tiance-boot-placeholder__background {
         position: absolute;
         inset: 0;
-        color: transparent;
-        background: linear-gradient(
-          100deg,
-          transparent 30%,
-          rgba(var(--tiance-boot-accent-rgb), 0.5) 42%,
-          var(--tiance-boot-accent) 47%,
-          var(--tiance-boot-text-primary) 50%,
-          var(--tiance-boot-accent) 53%,
-          rgba(var(--tiance-boot-accent-rgb), 0.5) 58%,
-          transparent 70%
-        );
-        background-position: 135% 0;
-        background-size: 300% 100%;
-        background-clip: text;
-        -webkit-background-clip: text;
-        animation: tiance-boot-placeholder-wordmark-sweep 1.8s ease-in-out infinite;
-        pointer-events: none;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
       }
 
       .tiance-boot-placeholder__status {
         position: absolute;
-        top: calc(50% + 112px);
+        bottom: max(24px, 5vh);
         left: 50%;
-        width: min(360px, calc(100vw - 64px));
-        min-height: 20px;
+        width: min(560px, calc(100vw - 48px));
         margin: 0;
-        color: var(--tiance-boot-text-muted);
+        color: #f1d6a0;
         font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
-        font-size: 0.8rem;
-        line-height: 1.5;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 1.6;
+        letter-spacing: 0.08em;
+        text-shadow: 0 2px 8px #000, 0 0 3px #000;
         text-align: center;
         transform: translateX(-50%);
-      }
-
-      @keyframes tiance-boot-placeholder-wordmark-sweep {
-        0% {
-          background-position: 135% 0;
-        }
-
-        100% {
-          background-position: -35% 0;
-        }
-      }
-
-      @media (max-width: 720px), (max-height: 560px) {
-        .tiance-boot-placeholder__loader {
-          width: min(560px, calc(100vw - 48px));
-          height: 130px;
-        }
-
-        .tiance-boot-placeholder__wordmark {
-          min-width: 420px;
-          min-height: 130px;
-        }
-
-        .tiance-boot-placeholder__wordmark-text {
-          font-size: 6rem;
-        }
-
-        .tiance-boot-placeholder__status {
-          top: calc(50% + 80px);
-        }
       }
     </style>
     <script>
@@ -189,12 +117,8 @@
   <body>
     <div id="root"></div>
     <div id="tiance-boot-placeholder" class="tiance-boot-placeholder" aria-label="Tiance 正在启动">
-      <div class="tiance-boot-placeholder__loader">
-        <div class="tiance-boot-placeholder__wordmark" aria-hidden="true">
-          <span class="tiance-boot-placeholder__wordmark-text" data-text="Tiance">Tiance</span>
-        </div>
-        <p class="tiance-boot-placeholder__status">正在加载界面</p>
-      </div>
+      <img class="tiance-boot-placeholder__background" src="/startup-background.png" alt="" />
+      <p class="tiance-boot-placeholder__status" role="status">正在加载界面</p>
     </div>
     <script>
       (() => {

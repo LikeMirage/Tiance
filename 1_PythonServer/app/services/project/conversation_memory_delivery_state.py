@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from app.domain.project.project_conversation import ProjectConversationMessage
 from app.services.project.conversation_memory_delivery_schema import (
     GLOBAL_MEMORY_SCOPE,
     MEMORY_DELIVERY_SCHEMA_VERSION,
@@ -21,6 +22,7 @@ def prepare_memory_delivery_state(
     *,
     user_message_id: str,
     created_at: str,
+    last_model_response: ProjectConversationMessage | None,
     global_events: list[dict[str, Any]],
     project_events: list[dict[str, Any]],
     global_enabled: bool,
@@ -56,6 +58,7 @@ def prepare_memory_delivery_state(
     cache_context = state["cache_context"]
     cache_expired = _cache_has_expired(
         cache_context,
+        last_model_response=last_model_response,
         current_at=created_at,
         provider_id=cache_provider_id,
         model_id=cache_model_id,
@@ -103,7 +106,6 @@ def prepare_memory_delivery_state(
         "cache_context": {
             "provider_id": cache_provider_id or cache_context["provider_id"],
             "model_id": cache_model_id or cache_context["model_id"],
-            "last_request_at": created_at,
         },
         "baseline": baseline,
         "cursors": cursors,
@@ -217,7 +219,6 @@ def _initial_state(
         "cache_context": {
             "provider_id": cache_provider_id,
             "model_id": cache_model_id,
-            "last_request_at": created_at,
         },
         "baseline": baseline,
         "cursors": cursors,
@@ -228,6 +229,7 @@ def _initial_state(
 def _cache_has_expired(
     cache_context: dict[str, str],
     *,
+    last_model_response: ProjectConversationMessage | None,
     current_at: str,
     provider_id: str,
     model_id: str,
@@ -239,9 +241,15 @@ def _cache_has_expired(
         return True
     if model_id and previous_model_id and model_id != previous_model_id:
         return True
+    if last_model_response is None:
+        return True
+    if provider_id and provider_id != last_model_response.provider_id:
+        return True
+    if model_id and model_id != last_model_response.model_id:
+        return True
     try:
         previous_at = datetime.fromisoformat(
-            cache_context["last_request_at"].replace("Z", "+00:00")
+            last_model_response.created_at.replace("Z", "+00:00")
         )
         current = datetime.fromisoformat(current_at.replace("Z", "+00:00"))
     except ValueError:

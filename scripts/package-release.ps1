@@ -6,6 +6,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "package-providers.ps1")
 $root = (Get-Location).Path
 $output = Join-Path $root $OutputDirectory
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ("tiance-release-" + [guid]::NewGuid().ToString("N"))
@@ -77,7 +78,8 @@ function Get-PackageMetadata([string]$Path, [string]$AssetName) {
 
 New-Item -ItemType Directory -Force -Path $output, $currentTree, $incrementalTree, $fullProgramTree | Out-Null
 try {
-    Invoke-Git @("archive", "--format=tar", "--output=$work/current.tar", $Tag)
+    $packageTree = New-PackageProviderTree -Treeish $Tag -TemporaryDirectory $work
+    Invoke-Git @("archive", "--format=tar", "--output=$work/current.tar", $packageTree)
     tar -xf (Join-Path $work "current.tar") -C $currentTree
     if ($LASTEXITCODE -ne 0) { throw "无法解压发布标签。" }
 
@@ -93,7 +95,7 @@ try {
     # 完整安装包包含公开预置数据；两个在线更新包始终不包含 Data。
     $fullInstall = Join-Path $output "Tiance.zip"
     Invoke-Git @(
-        "archive", "--format=zip", "--prefix=Tiance/", "--output=$fullInstall", $Tag, "--",
+        "archive", "--format=zip", "--prefix=Tiance/", "--output=$fullInstall", $packageTree, "--",
         "Tiance.exe", "LICENSE", "system", "runtime", "Data", "1_PythonServer", "2_ReactWeb/dist", "3_PyWebView"
     )
 

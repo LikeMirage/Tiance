@@ -1,4 +1,4 @@
-﻿[
+[
   {
     "title": "列出项目全部 AI 会话",
     "content": "{\"action\": \"list_sessions\", \"project_id\": \"<project_id>\"}"

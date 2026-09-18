@@ -322,8 +322,10 @@ class ProjectConversationMemoryService:
             request.project_id,
             request.session_id,
         )
-        if session is None or not session.settings.memory_compression_enabled:
+        if session is None:
             return request
+        # The switch controls new compaction tasks, not use of completed summaries.
+        # Functional sessions inherit those summaries with automation disabled.
         result = build_compressed_context_messages(
             messages=request.messages,
             compression_records=self._memory_repository.list_compressions(

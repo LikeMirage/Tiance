@@ -21,17 +21,16 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
 
 import type { ChatUsage } from "../../../entities/llm-chat/model/chatCompletion";
 import { LazyMarkdownPreview } from "../../markdown-preview/ui/LazyMarkdownPreview";
 import { resolveAssistantBodyContent } from "../model/chatDisplayMessages";
+import { ConversationEventNotice, RunFailureNotice } from "./ChatRunNotices";
 import { createWorkspaceAssetUrl } from "../../document-editor-canvas/model/documentAssetUrls";
 import {
   buildChatMessageClass,
   formatChatRetryNotice,
-  formatChatRunFailureNotice,
   readToolProcessItemFromMessage,
   resolveThinkingElapsedSeconds,
   shouldOfferUserMessageExpand,
@@ -97,7 +96,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
     isStreamingMessage && message.content.trim().length > 0;
   const shouldRenderThinking =
     message.thinkingContent.trim().length > 0 ||
-    (isStreamingMessage && !isBodyStreaming);
+    (isStreamingMessage && !isBodyStreaming && !message.retryStatus);
   const shouldRenderProcessTimeline =
     message.processItems !== undefined && message.processItems.length > 0;
   const isThinkingStreaming =
@@ -116,9 +115,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   return (
     <>
       {modelSwitchModelId ? <ModelSwitchNotice modelId={modelSwitchModelId} /> : null}
-      {message.retryStatus && message.role !== "error" ? (
-        <RetryNotice message={message} />
-      ) : null}
       {isMemoryCompactionStatus ? (
         <MemoryCompactionNotice message={message} />
       ) : message.role === "error" ? (
@@ -169,6 +165,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             isSessionStreaming={isSessionStreaming}
             message={message}
           />
+          {message.retryStatus ? <RetryNotice message={message} /> : null}
           {usageToRender ? (
             <div className="chat-msg__usage">{formatChatUsage(usageToRender)}</div>
           ) : null}
@@ -187,18 +184,6 @@ function RetryNotice({ message }: { message: ChatMessage }) {
       icon={<ArrowsClockwise size={12} weight="bold" aria-hidden="true" />}
       text={text}
       title={`${text}。${message.retryStatus.error}`}
-    />
-  );
-}
-
-function RunFailureNotice({ message }: { message: ChatMessage }) {
-  const text = formatChatRunFailureNotice(message);
-  return (
-    <ConversationEventNotice
-      className="chat-msg__run-failure"
-      icon={<WarningCircle size={12} weight="fill" aria-hidden="true" />}
-      messageId={message.id}
-      text={text}
     />
   );
 }
@@ -233,36 +218,6 @@ function MemoryCompactionNotice({ message }: { message: ChatMessage }) {
       messageId={message.id}
       text={message.content}
     />
-  );
-}
-
-type ConversationEventNoticeProps = {
-  className?: string;
-  icon: ReactNode;
-  messageId?: string;
-  text: string;
-  title?: string;
-};
-
-function ConversationEventNotice({
-  className = "",
-  icon,
-  messageId,
-  text,
-  title,
-}: ConversationEventNoticeProps) {
-  return (
-    <div
-      className={["chat-msg__event", className].filter(Boolean).join(" ")}
-      data-chat-message-id={messageId}
-      role="note"
-      title={title}
-    >
-      <span className="chat-msg__event-label">
-        {icon}
-        <span>{text}</span>
-      </span>
-    </div>
   );
 }
 

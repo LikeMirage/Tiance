@@ -8,7 +8,7 @@ from app.domain.tools.parameter_permissions import (
     TOOL_PARAMETER_PERMISSION_TYPE_KEY,
     TOOL_PARAMETER_PERMISSION_TYPES,
 )
-from app.domain.tools.permission_policies import normalize_tool_permission_policy
+from app.domain.tools.permission_policies import declared_permission_scopes, normalize_tool_permission_policy
 from app.infra.tools.tool_project_config_constants import (
     TOOL_EXAMPLES_FILE,
     TOOL_INPUT_SCHEMA_FILE,
@@ -51,7 +51,13 @@ def _validate_schema_parameter_permission_types(
         return
 
     for parameter_name, schema in properties.items():
-        if not isinstance(schema, dict) or TOOL_PARAMETER_PERMISSION_TYPE_KEY not in schema:
+        if not isinstance(schema, dict):
+            continue
+        try:
+            declared_permission_scopes(schema.get(TOOL_PARAMETER_PERMISSION_TYPE_KEY, "unknown"), schema)
+        except (ValueError, TypeError) as exc:
+            raise BadRequestError(f"参数 {parameter_name} 的 permission_scope 无效。") from exc
+        if TOOL_PARAMETER_PERMISSION_TYPE_KEY not in schema:
             continue
         permission_type = schema.get(TOOL_PARAMETER_PERMISSION_TYPE_KEY)
         if (

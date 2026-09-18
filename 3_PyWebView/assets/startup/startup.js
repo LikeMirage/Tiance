@@ -1,6 +1,8 @@
 const startup = __TIANCE_STARTUP_STATE__;
 const startupConfig = __TIANCE_STARTUP_CONFIG__;
 let startupAttempt = 0;
+let startupStage = "backend";
+let startupCheckRunning = false;
 
 startStartup();
 
@@ -11,13 +13,14 @@ function setTitlebarVisible(visible) {
 function setPageState(state) {
   document.getElementById("loader")?.setAttribute("data-state", state);
   if (state === "error") {
+    startupStage = "error";
     setTitlebarVisible(true);
   }
 }
 
 function setText(id, text) {
   const element = document.getElementById(id);
-  if (element) element.textContent = text;
+  if (element && element.textContent !== text) element.textContent = text;
 }
 
 function waitForShellApi() {
@@ -134,54 +137,76 @@ function getRetryDelay() {
 }
 
 async function runStartupCheck() {
-  startupAttempt += 1;
-  setPageState("loading");
-  setText("summary", startupAttempt === 1 ? "正在启动后端服务" : "正在等待后端服务");
-  const backendResult = await ensureBackendRunning();
-  if (!backendResult?.ok) {
-    setPageState("error");
-    setText("summary", "启动失败");
-    const backendError =
-      typeof backendResult?.error === "string" ? backendResult.error.trim() : "";
-    setText(
-      "hint",
-      backendError
-        ? `后端服务启动失败：${backendError}`
-        : "后端服务启动失败，请重试。",
-    );
+  if (startupCheckRunning || startupStage === "entered" || startupStage === "error") {
     return;
   }
+  startupCheckRunning = true;
+  try {
+    await advanceStartup();
+  } finally {
+    startupCheckRunning = false;
+  }
+}
 
-  setText("summary", "正在等待后端服务");
-  if (!(await canReach(startup.gatewayHealthUrl, startupConfig.apiTimeoutMs))) {
-    if (startupAttempt >= startupConfig.maxAttempts) {
+async function advanceStartup() {
+  startupAttempt += 1;
+  if (startupStage === "backend") {
+    setPageState("loading");
+    setText("summary", "正在启动后端服务");
+    const backendResult = await ensureBackendRunning();
+    if (!backendResult?.ok) {
       setPageState("error");
       setText("summary", "启动失败");
-      setText("hint", "后端服务长时间未就绪，请关闭后重新启动。");
+      const backendError =
+        typeof backendResult?.error === "string" ? backendResult.error.trim() : "";
+      setText(
+        "hint",
+        backendError
+          ? `后端服务启动失败：${backendError}`
+          : "后端服务启动失败，请重试。",
+      );
       return;
     }
-    window.setTimeout(runStartupCheck, getRetryDelay());
-    return;
+    startupStage = "gateway";
+    setText("summary", "正在等待本地服务");
   }
 
-  setText("summary", "后端已就绪，正在检测前端开发服务");
-  if (await canReachDevFrontend()) {
-    setText("summary", "正在进入开发服务");
-    window.location.replace(withBootState(startup.devUrl, "正在加载开发服务界面"));
-    return;
+  if (startupStage === "gateway") {
+    if (!(await canReach(startup.gatewayHealthUrl, startupConfig.apiTimeoutMs))) {
+      if (startupAttempt >= startupConfig.maxAttempts) {
+        setPageState("error");
+        setText("summary", "启动失败");
+        setText("hint", "本地服务长时间未就绪，请关闭后重新启动。");
+        return;
+      }
+      window.setTimeout(runStartupCheck, getRetryDelay());
+      return;
+    }
+    startupStage = "frontend";
   }
 
-  setText("summary", "正在检查本地页面");
-  if (!startup.distExists) {
-    setPageState("error");
-    setText("summary", "启动未完成");
-    setText("hint", "请先启动前端开发服务，或构建本地页面后重试。");
-    return;
+  if (startupStage === "frontend") {
+    setText("summary", "正在检测前端开发服务");
+    if (await canReachDevFrontend()) {
+      startupStage = "entered";
+      setText("summary", "正在进入开发服务");
+      window.location.replace(withBootState(startup.devUrl, "正在加载开发服务界面"));
+      return;
+    }
+
+    if (!startup.distExists) {
+      setPageState("error");
+      setText("summary", "启动未完成");
+      setText("hint", "请先启动前端开发服务，或构建本地页面后重试。");
+      return;
+    }
+    startupStage = "page";
+    setText("summary", "正在等待本地页面");
   }
 
-  setText("summary", "正在进入本地页面");
   if (await canReach(startup.appUrl, startupConfig.appTimeoutMs)) {
-    setText("summary", "正在打开应用");
+    startupStage = "entered";
+    setText("summary", "正在进入本地页面");
     window.location.replace(withBootState(startup.appUrl, "正在加载本地界面"));
     return;
   }
@@ -201,7 +226,9 @@ async function startStartup() {
 }
 
 document.getElementById("open-target")?.addEventListener("click", () => {
+  if (startupStage !== "error" || startupCheckRunning) return;
   startupAttempt = 0;
+  startupStage = "backend";
   setTitlebarVisible(false);
   runStartupCheck();
 });

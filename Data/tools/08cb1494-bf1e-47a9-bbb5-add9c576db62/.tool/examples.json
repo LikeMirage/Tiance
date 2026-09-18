@@ -1,5 +1,7 @@
 [
-  {"title": "预览网格坐标", "content": "{\"action\":\"preview\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"frame_id\":0,\"view_id\":\"root\",\"cell_id\":6,\"x\":0.5,\"y\":0.5}"},
+  {"title": "预览双击", "content": "{\"action\":\"preview\",\"preview_action\":\"click\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"frame_id\":0,\"view_id\":\"root\",\"cell_id\":6,\"x\":0.5,\"y\":0.5,\"button\":\"left\",\"clicks\":2,\"click_hold_ms\":80}"},
+  {"title": "按预览编号执行（编号取实际返回值）", "content": "{\"action\":\"execute_preview\",\"preview_id\":\"preview_0123456789abcdef0123456789abcdef_abcdef0123456789abcdef0123456789\"}"},
+  {"title": "预览拖动路径", "content": "{\"action\":\"preview\",\"preview_action\":\"drag\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"frame_id\":0,\"view_id\":\"root\",\"cell_id\":1,\"x\":0.5,\"y\":0.5,\"to\":{\"view_id\":\"root\",\"cell_id\":6,\"x\":0.5,\"y\":0.5},\"duration_ms\":300}"},
   {"title": "单击网格中心", "content": "{\"action\":\"click\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"frame_id\":0,\"view_id\":\"root\",\"cell_id\":6,\"x\":0.5,\"y\":0.5,\"button\":\"left\",\"clicks\":1,\"click_hold_ms\":80}"},
   {"title": "向下滚动", "content": "{\"action\":\"scroll\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"frame_id\":1,\"view_id\":\"root\",\"cell_id\":8,\"x\":0.5,\"y\":0.5,\"direction\":\"down\",\"notches\":3}"}
 ]

@@ -106,6 +106,9 @@ export function setToolParameterPermissionType(
   schema: Record<string, unknown>,
   value: ToolParameterPermissionType | "",
 ) {
+  if (schema[TOOL_PARAMETER_PERMISSION_TYPE_KEY] !== value) {
+    delete schema.permission_scope;
+  }
   if (value) {
     schema[TOOL_PARAMETER_PERMISSION_TYPE_KEY] = value;
   } else {

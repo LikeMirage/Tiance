@@ -111,7 +111,9 @@ class NativeListWriter:
         abstract_id = OxmlElement("w:abstractNumId")
         abstract_id.set(qn("w:val"), str(self._abstract_id(ordered)))
         number.append(abstract_id)
-        if ordered and start != 1:
+        # A new numId alone can continue a shared abstract list in Word.
+        # Every independent ordered list needs an explicit start, including 1.
+        if ordered:
             override = OxmlElement("w:lvlOverride")
             override.set(qn("w:ilvl"), str(max(0, min(MAX_LIST_LEVELS - 1, level))))
             start_override = OxmlElement("w:startOverride")

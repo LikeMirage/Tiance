@@ -17,6 +17,7 @@ import type {
   ChatMessage,
 } from "../model/chatMessage";
 import type { ChatMessageItemInteractions } from "./chatMessageItemTypes";
+import { RunFailureNotice } from "./ChatRunNotices";
 import {
   formatElapsedSeconds,
   ToolProcessBlock,
@@ -32,7 +33,7 @@ type AssistantProcessTimelineProps = {
 };
 
 type AssistantProcessRenderItem =
-  | Extract<ChatAssistantProcessItem, { type: "thinking" | "content" }>
+  | Extract<ChatAssistantProcessItem, { type: "thinking" | "content" | "attempt_failure" }>
   | {
       id: string;
       type: "tool_group";
@@ -224,6 +225,9 @@ function renderAssistantProcessItem({
   resolveFoldExpanded,
   toggleFold,
 }: RenderAssistantProcessItemOptions) {
+  if (item.type === "attempt_failure") {
+    return <RunFailureNotice key={item.id} message={item.message} />;
+  }
   if (item.type === "tool_group") {
     const isExpanded = resolveFoldExpanded(item.id);
     return (

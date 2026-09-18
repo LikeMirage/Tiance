@@ -145,7 +145,7 @@ def test_fork_inherits_memory_delivery_and_replays_changes_at_new_request(tmp_pa
     repository = _repository(tmp_path)
     source = _create_session(repository)
     source_user = _append(repository, source.session_id, "user", "已有请求")
-    _append(repository, source.session_id, "assistant", "已有回复")
+    source_reply = _append(repository, source.session_id, "assistant", "已有回复")
     branch_point = _append(repository, source.session_id, "user", "从这里创建分支")
     _append(repository, source.session_id, "assistant", "分支点原回复")
 
@@ -163,7 +163,8 @@ def test_fork_inherits_memory_delivery_and_replays_changes_at_new_request(tmp_pa
     state = prepare_memory_delivery_state(
         None,
         user_message_id=source_user.message_id,
-        created_at="2026-07-14T00:00:00+00:00",
+        created_at=source_user.created_at,
+        last_model_response=None,
         global_events=global_events,
         project_events=[],
         global_enabled=True,
@@ -183,7 +184,8 @@ def test_fork_inherits_memory_delivery_and_replays_changes_at_new_request(tmp_pa
     state = prepare_memory_delivery_state(
         state,
         user_message_id=branch_point.message_id,
-        created_at="2026-07-14T00:01:00+00:00",
+        created_at=branch_point.created_at,
+        last_model_response=source_reply,
         global_events=global_events,
         project_events=[],
         global_enabled=True,
@@ -221,7 +223,8 @@ def test_fork_inherits_memory_delivery_and_replays_changes_at_new_request(tmp_pa
     continued = prepare_memory_delivery_state(
         inherited,
         user_message_id="child-user",
-        created_at="2026-07-14T00:02:00+00:00",
+        created_at=datetime.now(UTC).isoformat(),
+        last_model_response=repository.list_messages(PROJECT_ID, result.session.session_id)[-1],
         global_events=global_events,
         project_events=[],
         global_enabled=True,

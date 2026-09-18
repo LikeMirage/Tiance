@@ -45,6 +45,11 @@ export type ChatToolProcessItem = {
 export type ChatAssistantProcessItem =
   | {
       id: string;
+      type: "attempt_failure";
+      message: ChatMessage;
+    }
+  | {
+      id: string;
       type: "thinking";
       content: string;
       status: "running" | "done";

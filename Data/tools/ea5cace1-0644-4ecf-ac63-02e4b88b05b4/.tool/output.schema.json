@@ -1,0 +1,116 @@
+{
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "operation": {
+          "type": "string"
+        },
+        "database_path": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "results": {
+          "type": "array",
+          "description": "search 页级结果。使用 rank_score + score_type 判断当前查询内排序；rank_score 不是概率，不同 mode 不可横向比较。引文溯源优先读取 match_type、has_literal_evidence 和 evidence。",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "rank": {
+                "type": "integer"
+              },
+              "page_id": {
+                "type": "integer"
+              },
+              "rank_score": {
+                "type": "number"
+              },
+              "score_type": {
+                "type": "string"
+              },
+              "match_type": {
+                "type": "string",
+                "enum": [
+                  "exact",
+                  "lexical_semantic",
+                  "lexical_only",
+                  "semantic_only"
+                ],
+                "description": "证据类型。semantic_only 只表示语义近邻，不可直接认定为原句出处。"
+              },
+              "has_literal_evidence": {
+                "type": "boolean"
+              },
+              "body_char_count": {
+                "type": "integer"
+              },
+              "evidence": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "结构化证据，含 exact、anchor、keyword、vector 的命中、排名、覆盖、距离等。"
+              },
+              "evidence_note": {
+                "type": "string"
+              },
+              "score_note": {
+                "type": "string",
+                "description": "rank_score 仅用于当前查询内部排序，不是命中概率；不同 mode 的值不可直接横向比较。"
+              }
+            }
+          }
+        },
+        "pages": {
+          "type": "array"
+        },
+        "diagnostics": {
+          "type": "object"
+        },
+        "capabilities": {
+          "type": "object"
+        },
+        "volumes": {
+          "type": "array"
+        },
+        "source_status": {
+          "type": "string",
+          "description": "search 证据状态：exact_evidence / literal_evidence / weak_literal_evidence / semantic_only_candidates / no_candidates。"
+        },
+        "literal_evidence_found": {
+          "type": "boolean",
+          "description": "候选集中是否发现任意精确/锚点/关键词字面证据。"
+        },
+        "strong_literal_evidence_found": {
+          "type": "boolean",
+          "description": "候选集中是否发现完整精确命中、强字面锚点或高覆盖关键词证据。"
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "ok"
+  ]
+}

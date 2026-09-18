@@ -1,6 +1,6 @@
 {
-  "description": "查看GUI后台运行器状态或手动停止它。通常不需要调用：gui_inspect会在首次使用时自动启动无覆盖层运行器，并在最后一个GUI临时会话关闭时自动停止。运行器只记录用户与AI输入差异，不锁定界面、不拦截用户输入。",
-  "registration_name": "GUI 后台运行器",
+  "description": "GUI操作前必须调用start锁定界面，再用gui_inspect建立坐标。覆盖层在操作及截图时持续显示，系统将它排除出截图；需要Windows 10 2004或更新版本且启用桌面合成，不支持时明确报错。用户鼠标移动、点击、滚轮和键盘输入均被拦截，仅按Esc手动退出。被拦截的输入不会干扰AI操作。stop解除锁定并清理GUI临时文件（含预览编号），最后一个GUI会话close也会自动解锁。",
+  "registration_name": "GUI 界面锁",
   "execution": {"parallel": false},
   "files": {
     "examples": ".tool/examples.json",

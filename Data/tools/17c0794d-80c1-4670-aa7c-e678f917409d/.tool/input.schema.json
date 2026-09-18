@@ -1,0 +1,65 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "search",
+        "status",
+        "stop"
+      ],
+      "description": "search按需启动管理员Everything并查询；status只检查运行状态；stop停止本工具实例，保留索引。",
+      "permission_type": "process_control"
+    },
+    "query": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Everything搜索表达式，如ext:pdf或ESP32。search必填。默认搜索已索引本机文件，不局限于当前项目。",
+      "permission_type": "filesystem_read"
+    },
+    "base_path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "可选限定目录，必须是本机绝对路径；不提供则搜索全部已索引位置。",
+      "permission_type": "filesystem_read"
+    },
+    "page_size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5000,
+      "default": 200,
+      "description": "每页条数，仅限制本次传输，不限制可翻页总量。",
+      "permission_type": "none"
+    },
+    "offset": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "起始位置；后续使用next_offset并保持其他参数相同。实时索引分页，不是固定快照，文件变动可能使分页结果移动。",
+      "permission_type": "none"
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "search"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "query"
+        ]
+      },
+      "else": {
+        "maxProperties": 1
+      }
+    }
+  ]
+}

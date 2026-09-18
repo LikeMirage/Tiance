@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 
 TOOL_PARAMETER_PERMISSION_TYPE_KEY = "permission_type"
+TOOL_PARAMETER_PERMISSION_SCOPE_KEY = "permission_scope"
 
 TOOL_PARAMETER_PERMISSION_TYPES = frozenset(
     {
@@ -36,4 +37,5 @@ def schema_without_parameter_permission_types(
     for schema in properties.values():
         if isinstance(schema, dict):
             schema.pop(TOOL_PARAMETER_PERMISSION_TYPE_KEY, None)
+            schema.pop(TOOL_PARAMETER_PERMISSION_SCOPE_KEY, None)
     return result

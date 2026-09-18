@@ -1,0 +1,44 @@
+{
+  "description": "只读检索当前项目中的结构化 SQLite 文献数据库。适配 volume→page→block 正文结构、fts_blocks FTS5 全文索引和 page_embedding sqlite-vec 页向量；提供精确、关键词、向量、固定比例混合、自动检索和共识检索，以及数据库检查、整页读取和相邻上下文读取。auto/consensus 在严格连续原文未命中时会先尝试内部多级字面锚点，再结合关键词与向量排序；search 结果显式返回 match_type、has_literal_evidence 和结构化 evidence，semantic_only 只表示语义近邻，不能直接视为原句出处。原数据库始终 mode=ro；工具可在当前项目 .Tiance/cache/structured-database-search 写入可重建的 text→page 映射缓存以降低重复检索开销。向量相关模式使用工具自身 program/config.json 中保存的 SiliconFlow Embedding 配置。",
+  "execution": {
+    "parallel": true
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json",
+    "permissions": ".tool/permissions.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "SQLite",
+    "数据库检索",
+    "全文检索",
+    "FTS5",
+    "sqlite-vec",
+    "向量检索",
+    "混合检索",
+    "动态权重",
+    "精确门控",
+    "共识检索",
+    "文献数据库",
+    "引文溯源",
+    "字面证据"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "structured_database_search",
+  "registration_name": "结构化数据库检索",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 300,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

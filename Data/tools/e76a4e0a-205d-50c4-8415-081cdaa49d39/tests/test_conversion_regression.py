@@ -126,6 +126,71 @@ def test_unclosed_display_formula_keeps_delimiter_literal(tmp_path: Path) -> Non
     ]
 
 
+def test_blockquote_display_formulas_keep_structure_and_surrounding_text(tmp_path: Path) -> None:
+    document, warnings = _convert(
+        tmp_path,
+        r"""> 例如，均值定义为
+>
+> $$
+> \bar{x}=\frac{1}{n}\sum_{i=1}^{n}x_i,
+> $$
+>
+> 其中 $n$ 是样本数量，$x_i$ 是第 $i$ 个观测值。
+> \[
+> a+b
+> \]
+> $$ c+d $$
+> \(
+> e+f
+> \)
+> 引用第一行
+> 引用第二行\
+> 引用第三行
+
+引用外正文。
+
+$$g+h$$
+""",
+    )
+
+    assert warnings == []
+    assert len(document._element.xpath(".//m:oMath")) == 8
+    display_paragraphs = [
+        paragraph for paragraph in document.paragraphs
+        if paragraph._p.xpath("./m:oMath") and not paragraph.text
+    ]
+    assert len(display_paragraphs) == 5
+    assert all(
+        paragraph._p.xpath("./w:pPr/w:jc/@w:val") == ["center"]
+        for paragraph in display_paragraphs
+    )
+    for paragraph in display_paragraphs[:-1]:
+        assert paragraph._p.xpath("./w:pPr/w:pBdr/w:left")
+        assert paragraph.paragraph_format.left_indent.inches == 0.25
+    assert not display_paragraphs[-1]._p.xpath("./w:pPr/w:pBdr/w:left")
+    text = "\n".join(paragraph.text for paragraph in document.paragraphs)
+    assert "例如，均值定义为" in text
+    assert "其中  是样本数量， 是第  个观测值。" in text
+    assert "引用第一行 引用第二行\n引用第三行" in text
+    assert "引用外正文。" in text
+    assert "$$" not in text
+    assert r"\bar" not in text
+
+
+def test_unclosed_blockquote_formula_keeps_source_and_stays_in_quote(tmp_path: Path) -> None:
+    document, warnings = _convert(
+        tmp_path,
+        "> $$\n> x+1\n>\n> 引用尾部。\n\n正文尾部。\n\n$$y+2$$",
+    )
+
+    assert warnings == ["公式定界符未闭合，已保留原文：$$"]
+    assert [paragraph.text for paragraph in document.paragraphs] == [
+        "$$", "x+1", "引用尾部。", "正文尾部。", "",
+    ]
+    assert len(document._element.xpath(".//m:oMath")) == 1
+    assert document.paragraphs[0]._p.xpath("./w:pPr/w:pBdr/w:left")
+
+
 def test_unclosed_html_keeps_source_and_following_content(tmp_path: Path) -> None:
     document, warnings = _convert(
         tmp_path,
@@ -273,6 +338,40 @@ def test_formula_font_size_follows_heading_and_table_context(tmp_path: Path) -> 
     table_sizes = document.tables[0].cell(1, 0)._tc.xpath(".//m:oMath//w:rPr/w:sz/@w:val")
     assert set(heading_sizes) == {"36"}
     assert set(table_sizes) == {"21"}
+
+
+def test_separate_ordered_lists_have_explicit_restarts(tmp_path: Path) -> None:
+    document, warnings = _convert(
+        tmp_path,
+        "1. 第一组一\n2. 第一组二\n\n"
+        "### 第二组\n\n1. 第二组一\n2. 第二组二\n\n"
+        "说明段落\n\n1. 第三组一\n\n"
+        "---\n\n5. 指定起点\n6. 指定后续",
+    )
+    assert warnings == []
+    paragraphs = [p for p in document.paragraphs if p._p.xpath("./w:pPr/w:numPr")]
+    ids = [p._p.xpath("./w:pPr/w:numPr/w:numId/@w:val")[0] for p in paragraphs]
+    assert ids[0] == ids[1]
+    assert ids[2] == ids[3]
+    assert ids[5] == ids[6]
+    assert len({ids[0], ids[2], ids[4], ids[5]}) == 4
+    for index, expected in [(0, "1"), (2, "1"), (4, "1"), (5, "5")]:
+        num = next(n for n in document.part.numbering_part.element.findall(qn("w:num"))
+                   if n.get(qn("w:numId")) == ids[index])
+        assert num.xpath("./w:lvlOverride[@w:ilvl='0']/w:startOverride/@w:val") == [expected]
+
+
+def test_blank_lines_keep_one_list_and_nested_parent_sequence(tmp_path: Path) -> None:
+    document, warnings = _convert(
+        tmp_path,
+        "1. 父项一\n\n   - 子项一\n\n   - 子项二\n\n1. 父项二\n\n1. 父项三",
+    )
+    assert warnings == []
+    paragraphs = [p for p in document.paragraphs if p._p.xpath("./w:pPr/w:numPr")]
+    ids = [p._p.xpath("./w:pPr/w:numPr/w:numId/@w:val")[0] for p in paragraphs]
+    assert ids[0] == ids[3] == ids[4]
+    assert ids[1] == ids[2]
+    assert ids[0] != ids[1]
 
 
 def _convert(tmp_path: Path, markdown: str) -> tuple[Document, list[str]]:

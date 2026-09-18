@@ -5,8 +5,9 @@
     {"if": {"properties": {"action": {"const": "press_key"}}, "required": ["action"]}, "then": {"required": ["key"]}},
     {"if": {"properties": {"action": {"const": "hotkey"}}, "required": ["action"]}, "then": {"required": ["keys"]}}
   ],
-  "description": "在当前GUI临时会话对应的Windows界面执行键盘操作，无需锁定界面。",
+  "description": "先调用gui_runtime start锁定界面，再在gui_inspect建立的GUI临时会话中执行键盘操作。",
   "properties": {
+    "screenshot_delay_seconds": {"type":"number","minimum":0,"maximum":30,"default":1,"description":"操作全部结束后等待再截图，默认1秒，可设0到30秒（含小数）；0立即截图，等待期间Esc立即取消。截图等待计入调用总时限。","permission_type":"none"},
     "action": {"type": "string", "enum": ["type_text", "press_key", "hotkey"], "description": "键盘动作。", "permission_type": "ui_control"},
     "gui_session_id": {"type": "string", "pattern": "^gui_[a-f0-9]{32}$", "permission_type": "none"},
     "text": {"type": "string", "maxLength": 100000, "description": "type_text输入的Unicode文本。", "permission_type": "none"},

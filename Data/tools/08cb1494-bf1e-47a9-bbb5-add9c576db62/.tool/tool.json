@@ -1,5 +1,5 @@
 {
-  "description": "在Windows界面预览选定坐标，或执行鼠标移动、点击、拖拽、滚动和按下/抬起，无需锁定界面。坐标预览会在当前View图片上标出落点，不移动鼠标也不创建新Frame；click可设置按下时长，默认80毫秒。必须使用gui_inspect返回的最新Frame、View、Cell及格内比例坐标；比例原点在格子左下角。执行前若界面已变化则不操作并返回新图片；执行后返回最新界面及用户输入变化信息。",
+  "description": "先gui_runtime start锁定，再gui_inspect start查看。preview必须指定preview_action（move/click/drag/scroll/mouse_down/mouse_up），使用最新Frame、View、Cell和左下角为原点的格内x/y；返回预览图、完整动作和preview_id。确认后execute_preview只传preview_id，不重填或覆盖动作参数；也可直接调用鼠标动作。点击默认按住80毫秒，支持右键和双击；拖动标起终点与路径，滚动标落点与方向。编号只执行一次，重复提交返回原结果并标记preview_reused；Frame更新、窗口移动或目标变化后失效。执行前自动检查，正常结束返回截图；失败查看execution_status，partial表示已有输入但动作未完整完成，需gui_inspect refresh核对界面，不应盲目重试。目标变化检查默认target_cell，drag始终frame。用户输入被拦截，按Esc立即中止并解锁，覆盖层始终显示。 操作结束后按screenshot_delay_seconds等待再截图，默认1秒、范围0到30秒；批量仅末尾等待，预览保存该参数但不等待。",
   "registration_name": "GUI 鼠标操作",
   "execution": {"parallel": false},
   "files": {"examples": ".tool/examples.json", "permissions": ".tool/permissions.json", "input_schema": ".tool/input.schema.json", "output_schema": ".tool/output.schema.json"},
@@ -7,6 +7,6 @@
   "keywords": ["GUI", "鼠标", "点击", "坐标预览", "拖拽", "滚动"],
   "loading": {"dynamic": true},
   "name": "gui_mouse",
-  "runtime": {"entry": "program/main.py", "timeout_seconds": 45, "type": "python"},
+  "runtime": {"entry": "program/main.py", "timeout_seconds": 75, "type": "python"},
   "state": {"enabled": true}
 }

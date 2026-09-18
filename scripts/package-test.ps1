@@ -4,6 +4,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "package-providers.ps1")
 $root = (Get-Location).Path
 $output = Join-Path $root $OutputDirectory
 $target = Join-Path $output "Tiance"
@@ -11,6 +12,12 @@ $work = Join-Path ([System.IO.Path]::GetTempPath()) ("tiance-test-package-" + [g
 $archive = Join-Path $work "source.tar"
 $stage = Join-Path $work "Tiance"
 $index = Join-Path $work "git-index"
+$tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+$resolvedWork = [IO.Path]::GetFullPath($work)
+if (-not $resolvedWork.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase) -or
+    [IO.Path]::GetFileName($resolvedWork) -notmatch '^tiance-test-package-[0-9a-f]{32}$') {
+    throw "测试包临时目录不在预期范围：$resolvedWork"
+}
 
 if (-not (Test-Path -LiteralPath (Join-Path $root ".git") -PathType Container)) {
     throw "必须在 Tiance 源码仓库根目录运行测试包脚本。"
@@ -38,6 +45,8 @@ try {
             "runtime",
             "Tiance.exe",
             "LICENSE"
+            "scripts\package-providers.json"
+            ".gitattributes"
         )
         $env:GIT_INDEX_FILE = $index
         try {
@@ -71,7 +80,8 @@ try {
         }
     }
 
-    & git archive --format=tar --output=$archive $treeish -- `
+    $packageTree = New-PackageProviderTree -Treeish $treeish -TemporaryDirectory $work
+    & git archive --format=tar --output=$archive $packageTree -- `
         Tiance.exe LICENSE system runtime Data 1_PythonServer 2_ReactWeb/dist 3_PyWebView
     if ($LASTEXITCODE -ne 0) {
         throw "无法从当前提交提取测试包。"
@@ -96,7 +106,14 @@ try {
         }
     }
 
-    Move-Item -LiteralPath $stage -Destination $target
+    $resolvedStage = [IO.Path]::GetFullPath($stage)
+    $resolvedOutput = [IO.Path]::GetFullPath($output).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+    $resolvedTarget = [IO.Path]::GetFullPath($target)
+    if (-not $resolvedStage.StartsWith($resolvedWork + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or
+        -not $resolvedTarget.StartsWith($resolvedOutput, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "测试包移动路径不在预期范围。"
+    }
+    Move-Item -LiteralPath $resolvedStage -Destination $resolvedTarget
     $version = (Get-Content -LiteralPath (Join-Path $target "system/version.json") -Raw | ConvertFrom-Json).version
     $commit = (& git rev-parse --short HEAD).Trim()
     Write-Output "测试包：$target"
@@ -108,6 +125,6 @@ try {
 } finally {
     Remove-Item Env:GIT_INDEX_FILE -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $work) {
-        Remove-Item -LiteralPath $work -Recurse -Force
+        Remove-Item -LiteralPath $resolvedWork -Recurse -Force
     }
 }

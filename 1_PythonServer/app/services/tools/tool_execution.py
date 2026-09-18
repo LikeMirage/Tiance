@@ -132,14 +132,17 @@ class ToolExecutionService:
         resolved = self._resolve_tool_call(tool_call)
         if isinstance(resolved, ChatToolResult):
             return resolved
-        return evaluate_tool_permissions(
-            tool_name=resolved.metadata.name,
-            arguments=resolved.arguments,
-            input_schema=resolved.metadata.input_schema,
-            tool_root=resolved.entry.root_path,
-            workspace_root=context.workspace_root,
-            project_id=context.project_id,
-        )
+        try:
+            return evaluate_tool_permissions(
+                tool_name=resolved.metadata.name,
+                arguments=resolved.arguments,
+                input_schema=resolved.metadata.input_schema,
+                tool_root=resolved.entry.root_path,
+                workspace_root=context.workspace_root,
+                project_id=context.project_id,
+            )
+        except ValueError:
+            return failure_result(tool_call, "工具权限配置无效，请检查参数权限范围。")
 
     def prepare_dynamic_tool_execution(
         self,

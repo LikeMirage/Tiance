@@ -150,6 +150,20 @@ def test_input_schema_save_rejects_invalid_parameter_permission_type():
         )
 
 
+@pytest.mark.parametrize("scope", ["unresolved", "public_network", "invalid", None, ["unresolved"]])
+def test_input_schema_validates_declared_permission_scope(scope):
+    storage = ToolProjectConfigStorage()
+    payload = {"type": "object", "properties": {"query": {
+        "type": "string", "permission_type": "network_access", "permission_scope": scope,
+    }}}
+    if scope in ("unresolved", "public_network"):
+        saved = loads(storage.normalize_standard_file_content(TOOL_INPUT_SCHEMA_FILE, dumps(payload)))
+        assert saved["properties"]["query"]["permission_scope"] == scope
+    else:
+        with pytest.raises(BadRequestError, match="permission_scope"):
+            storage.normalize_standard_file_content(TOOL_INPUT_SCHEMA_FILE, dumps(payload))
+
+
 def test_permissions_save_completes_missing_policy_cells():
     storage = ToolProjectConfigStorage()
     content = storage.normalize_standard_file_content(

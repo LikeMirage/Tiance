@@ -1,5 +1,5 @@
 {
-  "description": "查看Windows屏幕或窗口并返回带编号网格的图片资源，无需预先锁定界面。首次使用会自动启动无覆盖层、不会拦截用户输入的GUI后台运行器。start创建独立GUI临时会话；zoom放大指定格；refresh刷新；wait等待界面变化或稳定；close删除本次临时文件，最后一个会话关闭时自动停止后台运行器。后续坐标采用指定Frame、View和Cell内左下角原点的0到1比例。",
+  "description": "先调用gui_runtime start锁定界面，再查看Windows屏幕或窗口并获取编号网格。start创建GUI临时会话；zoom裁剪指定格并按zoom_scale_percent放大显示，默认400%，多级放大始终从原始像素裁剪；refresh刷新；wait等待；close删除临时文件，最后一个会话关闭时自动解锁。坐标使用返回的最新Frame、View和Cell内左下角原点的0到1比例；显示放大不改变屏幕落点。",
   "execution": {
     "parallel": false
   },

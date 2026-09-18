@@ -14,7 +14,7 @@
       "then": {"required": ["grid_rows", "grid_cols"]}
     }
   ],
-  "description": "查看Windows界面，无需预先锁定。start会自动启动后台运行器并创建一个.Tiance/gui-temp/gui_<id>子目录；close删除本次临时目录，最后一个会话关闭时自动停止后台运行器。",
+  "description": "先调用gui_runtime start锁定界面。start创建.Tiance/gui-temp/gui_<id>临时目录；zoom只放大显示，坐标仍对应原始屏幕像素；close删除本次临时目录，最后一个会话关闭时自动解锁。",
   "properties": {
     "action": {
       "type": "string",
@@ -33,6 +33,7 @@
     "view_id": {"type": "string", "minLength": 1, "description": "Frame中的View ID，根视图为root。", "permission_type": "none"},
     "cell_id": {"type": "integer", "minimum": 1, "description": "zoom要放大的网格编号。", "permission_type": "none"},
     "grid_mode": {"type": "string", "enum": ["auto", "fixed"], "default": "auto", "description": "网格自动计算或固定行列。", "permission_type": "none"},
+    "zoom_scale_percent": {"type": "integer", "minimum": 100, "maximum": 800, "default": 400, "description": "仅zoom使用：相对所选区域原始像素的显示百分比，默认400%。每级独立设置，不累计倍率、不改变屏幕坐标。", "permission_type": "none"},
     "grid_target_cells": {"type": "integer", "minimum": 4, "maximum": 64, "default": 16, "description": "auto模式期望的格子数量。", "permission_type": "none"},
     "grid_rows": {"type": "integer", "minimum": 1, "maximum": 16, "description": "fixed模式行数。", "permission_type": "none"},
     "grid_cols": {"type": "integer", "minimum": 1, "maximum": 16, "description": "fixed模式列数。", "permission_type": "none"},

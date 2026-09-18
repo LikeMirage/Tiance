@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "providerIds": [
+    "deepseek",
+    "opencode",
+    "siliconflow",
+    "volcengine",
+    "minimax",
+    "zhipu",
+    "dmxapi",
+    "moonshot"
+  ]
+}

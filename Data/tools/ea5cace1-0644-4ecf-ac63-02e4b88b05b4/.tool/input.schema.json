@@ -1,0 +1,204 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "description": "对当前项目中的 volume/page/block + FTS5 + sqlite-vec SQLite 数据库执行只读检查、检索和上下文读取。search 的六种 mode：exact 连续原文；keyword 关键词/FTS；vector 页级向量；hybrid 固定比例关键词+向量；auto 严格精确门控→内部多级字面锚点→动态权重；consensus 多路共识。结果会区分 exact / lexical_semantic / lexical_only / semantic_only；semantic_only 是语义近邻，不等于已确认出处。",
+  "properties": {
+    "operation": {
+      "permission_type": "none",
+      "type": "string",
+      "enum": [
+        "inspect",
+        "search",
+        "read_page",
+        "read_context"
+      ],
+      "default": "search",
+      "description": "操作类型。inspect 检查数据库结构与能力；search 检索；read_page 读取一页的有序内容块；read_context 读取命中页前后相邻页。"
+    },
+    "database_path": {
+      "permission_type": "filesystem_read",
+      "type": "string",
+      "default": "马恩全集.db",
+      "description": "当前项目工作区内的 SQLite 数据库路径。省略时默认使用工作区根目录的 马恩全集.db。工具始终以 SQLite mode=ro 只读打开，不写入原数据库。"
+    },
+    "mode": {
+      "permission_type": "none",
+      "type": "string",
+      "enum": [
+        "exact",
+        "keyword",
+        "vector",
+        "hybrid",
+        "auto",
+        "consensus"
+      ],
+      "default": "auto",
+      "description": "search 检索模式。exact=连续原文精确匹配；keyword=FTS关键词；vector=页级向量KNN；hybrid=关键词与向量固定比例融合；auto=可靠完整原文优先，完整原文未中时自动尝试14/12/10/8/6字内部字面锚点，再按动态权重融合关键词和向量；consensus=在 exact/内部anchor/keyword/vector 及派生 hybrid/auto 排名间做共识融合，强字面证据优先于纯语义近邻。"
+    },
+    "query": {
+      "permission_type": "none",
+      "type": "string",
+      "maxLength": 4000,
+      "description": "search 使用的查询文本。exact 模式按连续原文匹配；其他模式可使用自然语言问题、概念描述或引文。引文存在版本/译文差异时，auto/consensus 会在 strict exact 失败后自动做多级字面锚点召回；若 AI 已明确稳定片段，也可显式传 keywords。"
+    },
+    "keywords": {
+      "permission_type": "none",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      },
+      "maxItems": 12,
+      "description": "可选的显式关键词。提供时严格只使用这些词进行 keyword/hybrid/auto/consensus 的关键词通道，不会再自动补词；适合 AI 已明确标题、术语或引文中的稳定片段时使用。对存在译文差异的溯源，通常优先选择若干 6–14 字、彼此有区分度的片段；未提供时工具从 query 中确定性提取。fts_blocks 使用 trigram，3 个及以上中文字符效率最好。"
+    },
+    "exact_query": {
+      "permission_type": "none",
+      "type": "string",
+      "maxLength": 1000,
+      "description": "可选的严格精确门控文本。exact 模式提供时替代 query；auto/consensus 提供时优先用它做完整连续原文门控，例如 AI 已识别出的文章标题或原句。若完整 exact 未命中，auto/consensus 会基于 exact_query （未提供则基于 query）继续做内部多级字面锚点召回，而不是直接只依赖向量。"
+    },
+    "volume_ids": {
+      "permission_type": "none",
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "maxItems": 500,
+      "description": "可选卷 ID 白名单。省略表示全部卷。inspect 会返回 volume_id 与卷名对应关系。"
+    },
+    "block_types": {
+      "permission_type": "none",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      },
+      "maxItems": 50,
+      "description": "可选内容块类型白名单，例如 [\"title\"]、[\"paragraph\",\"page_footnote\"]。exact/keyword 会按命中的块类型过滤；vector 及融合模式会限制到至少包含这些类型之一的页面。"
+    },
+    "limit": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 20,
+      "description": "search 最终返回页数，或 read_page/read_context 中单次返回限制的相关上限。"
+    },
+    "semantic_k": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2000,
+      "default": 50,
+      "description": "vector/hybrid/auto/consensus 的页级向量 KNN 候选数。默认 50，与既有检索基准一致。"
+    },
+    "keyword_page_cap": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 10,
+      "maximum": 5000,
+      "default": 500,
+      "description": "keyword 召回保留的最大候选页数。默认 500，与既有检索基准一致。"
+    },
+    "keyword_block_cap": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 50000,
+      "default": 10000,
+      "description": "关键词阶段的候选块总预算基准。工具按每个关键词分配独立候选配额，避免单个高频词吃光整个候选池；任一词达到其配额时会显式标记 keyword_candidates_truncated。"
+    },
+    "exact_candidate_cap": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 20000,
+      "default": 2000,
+      "description": "精确搜索 FTS 锚点阶段最多读取的候选块数。默认 2000，与既有检索基准一致。"
+    },
+    "keyword_weight": {
+      "permission_type": "none",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.2,
+      "description": "hybrid 中关键词权重；向量权重自动为 1-keyword_weight。默认 0.2（词20/向80）。AI 可按任务显式调整任意 0~1 比例。"
+    },
+    "auto_params": {
+      "permission_type": "none",
+      "type": "object",
+      "additionalProperties": false,
+      "description": "可选覆盖 auto 动态权重参数。通常省略，使用专项实验默认值。长度只作为小幅候选级修正，词面置信度与向量领先程度是主要信号。",
+      "properties": {
+        "bias": {
+          "type": "number",
+          "minimum": -10,
+          "maximum": 10
+        },
+        "length_ratio_coefficient": {
+          "type": "number",
+          "minimum": -10,
+          "maximum": 10
+        },
+        "lexical_confidence_coefficient": {
+          "type": "number",
+          "minimum": -10,
+          "maximum": 10
+        },
+        "semantic_margin_coefficient": {
+          "type": "number",
+          "minimum": -20,
+          "maximum": 20
+        }
+      }
+    },
+    "page_id": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 1,
+      "description": "read_page/read_context 的页 ID。优先使用 search 结果返回的 page_id。"
+    },
+    "volume_id": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 1,
+      "description": "read_page/read_context 未提供 page_id 时，可与 physical_page 一起定位页面。"
+    },
+    "physical_page": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 1,
+      "description": "read_page/read_context 未提供 page_id 时，与 volume_id 一起表示 PDF 物理页。"
+    },
+    "before": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 20,
+      "default": 2,
+      "description": "read_context 向前读取的相邻物理页数。"
+    },
+    "after": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 20,
+      "default": 2,
+      "description": "read_context 向后读取的相邻物理页数。"
+    },
+    "max_chars_per_page": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 500,
+      "maximum": 100000,
+      "default": 20000,
+      "description": "read_page/read_context 每页最多返回的正文字符数。超过时明确标记 truncated，不会静默冒充完整。"
+    }
+  },
+  "required": [
+    "operation"
+  ]
+}

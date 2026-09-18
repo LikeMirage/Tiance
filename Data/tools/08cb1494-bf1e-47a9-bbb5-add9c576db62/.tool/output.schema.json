@@ -4,7 +4,16 @@
   "properties": {
     "ok": {"type": "boolean"},
     "summary": {"type": "string"},
-    "data": {"type": "object"},
+    "data": {"type": "object", "additionalProperties": true, "properties": {
+      "screenshot_delay_seconds": {"type": "number", "minimum": 0, "maximum": 30, "description": "本次操作结束后实际采用的截图等待秒数；预览时见operation中的同名参数。"},
+      "preview_id": {"type": "string"},
+      "preview_status": {"type": "string", "enum": ["pending", "executed", "expired", "failed"]},
+      "preview_reused": {"type": "boolean", "description": "true表示返回该编号的历史结果，没有再次执行；图片不是重新截取的。"},
+      "operation": {"type": "object", "description": "已保存的完整鼠标动作，包含实际生效的默认参数。"},
+      "execution_status": {"type": "string", "enum": ["not_started", "partial", "completed"], "description": "描述输入执行阶段，不保证应用已完成响应。partial表示已发送部分输入，不能当作完全未执行。"},
+      "performed": {"type": "boolean", "description": "是否已发出操作输入；失败时结合execution_status判断完整性。"},
+      "input_events_sent": {"type": "integer", "minimum": 0}
+    }},
     "content": {"type": "array", "items": {"type": "object"}},
     "warnings": {"type": "array", "items": {"type": "string"}},
     "error": {"type": "string"},

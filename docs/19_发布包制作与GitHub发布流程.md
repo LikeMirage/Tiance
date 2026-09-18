@@ -163,7 +163,7 @@ tar -tf "发布包/Tiance.zip" | Select-String -Pattern "Tiance.exe|2_ReactWeb/d
 
 旧版 `3.10` 更新器有额外的核心文件检查，不能直接安装 `3.11` 的新协议差分包。旧版本迁移应使用完整安装包；从 `3.11` 开始，更新器按 `schemaVersion: 2` 的文件清单工作。
 
-最严格的完整性检查是：压缩包中的文件集合应与该标签的 `git ls-tree -r --name-only v<版本号>` 一致，只多一层统一的 `Tiance/` 根目录。
+完整性检查应以标签经发布路径白名单、供应商白名单及 `.gitattributes` 的 `export-ignore` 过滤后的快照为准，压缩包只多一层统一的 `Tiance/` 根目录。供应商排序由白名单生成；不能直接拿整个标签文件集合与发布包比较。
 
 ## 五、创建 GitHub Release 并上传
 

@@ -1,0 +1,38 @@
+[
+  {
+    "title": "先检查数据库结构和可用检索能力",
+    "content": "{\n  \"operation\": \"inspect\",\n  \"database_path\": \"马恩全集.db\"\n}\n返回表结构能力、卷列表、页/块/FTS/向量数量和 block type。"
+  },
+  {
+    "title": "已知连续原文或标题时精确检索",
+    "content": "{\n  \"operation\": \"search\",\n  \"database_path\": \"马恩全集.db\",\n  \"mode\": \"exact\",\n  \"query\": \"雇佣劳动与资本\",\n  \"block_types\": [\"title\"],\n  \"limit\": 20\n}\nexact 只确认完整连续原文；命中可直接看到 match_type=exact。"
+  },
+  {
+    "title": "译文差异或引文溯源时显式传稳定片段",
+    "content": "{\n  \"operation\": \"search\",\n  \"mode\": \"keyword\",\n  \"query\": \"资本越发展……市场越扩大……力求在空间上更加扩大市场\",\n  \"keywords\": [\"资本越发展\", \"市场越扩大\", \"力求在空间上更加扩大市场\"],\n  \"limit\": 30\n}\n显式 keywords 会被严格采用、不自动补词。存在译文差异时，若 AI 能识别稳定片段，通常可传多个 6–14 字片段提高字面召回；结果看 evidence.keyword.coverage 与 matched_terms。"
+  },
+  {
+    "title": "纯向量反查",
+    "content": "{\n  \"operation\": \"search\",\n  \"mode\": \"vector\",\n  \"query\": \"技术提高效率以后为什么反而会排挤劳动者\",\n  \"semantic_k\": 50,\n  \"limit\": 20\n}\nvector 专门返回语义近邻，不要求字面证据；不要把 semantic_only 自动解释成原句出处。"
+  },
+  {
+    "title": "固定比例混合并自定义词向权重",
+    "content": "{\n  \"operation\": \"search\",\n  \"mode\": \"hybrid\",\n  \"query\": \"为什么机器提高生产率后会造成工人失业\",\n  \"keyword_weight\": 0.35,\n  \"limit\": 20\n}\nkeyword_weight=0.35 表示词35%、向量65%；省略时默认词20%、向量80%。混合排序中的极短正文页会在语义分量上降权。"
+  },
+  {
+    "title": "自动检索：精确门控、字面锚点回退、动态权重",
+    "content": "{\n  \"operation\": \"search\",\n  \"mode\": \"auto\",\n  \"query\": \"请查看这篇文章并说明其中关于工资的论述\",\n  \"exact_query\": \"雇佣劳动与资本\",\n  \"block_types\": [\"title\"],\n  \"limit\": 20\n}\nexact_query 是 AI 已明确识别出的精确对象；完整 exact 命中时优先。若未命中，工具先做内部 14/12/10/8/6 字字面锚点回退，再进入关键词+向量动态融合。"
+  },
+  {
+    "title": "不确定检索路线时使用共识检索",
+    "content": "{\n  \"operation\": \"search\",\n  \"mode\": \"consensus\",\n  \"query\": \"机器应用为什么会导致工人失业\",\n  \"limit\": 30\n}\n工具综合 exact、内部字面 anchor、keyword、vector 及 hybrid/auto 派生排名；完整或强字面证据优先，再看多路共识。"
+  },
+  {
+    "title": "判读语义候选是否可作为出处",
+    "content": "search 返回后先看 source_status、strong_literal_evidence_found 和每条 result.match_type。若 source_status=semantic_only_candidates 或某条 match_type=semantic_only，只能说明内容语义相近；若任务是引文/原句溯源，应继续提供稳定 keywords、尝试 exact，或 read_page/read_context 核验，不能直接写成出处。"
+  },
+  {
+    "title": "命中后读取前后连续上下文",
+    "content": "{\n  \"operation\": \"read_context\",\n  \"database_path\": \"马恩全集.db\",\n  \"page_id\": 13232,\n  \"before\": 2,\n  \"after\": 2,\n  \"max_chars_per_page\": 20000\n}"
+  }
+]

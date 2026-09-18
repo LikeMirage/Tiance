@@ -71,10 +71,6 @@ def normalize_memory_delivery_state(payload: dict[str, Any]) -> dict[str, Any]:
         "cache_context": {
             "provider_id": text_value(cache_context.get("provider_id")),
             "model_id": text_value(cache_context.get("model_id")),
-            "last_request_at": (
-                text_value(cache_context.get("last_request_at"))
-                or text_value(payload.get("updated_at"))
-            ),
         },
         "baseline": baseline,
         "cursors": cursors,

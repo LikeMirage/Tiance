@@ -1,0 +1,62 @@
+{
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "ok"
+  ],
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "count": {
+          "type": "integer"
+        },
+        "has_more": {
+          "type": "boolean"
+        },
+        "next_offset": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "page_size": {
+          "type": "integer"
+        },
+        "pagination_consistency": {
+          "const": "live_index"
+        },
+        "active": {
+          "type": "boolean"
+        }
+      }
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "type": "object"
+    }
+  }
+}

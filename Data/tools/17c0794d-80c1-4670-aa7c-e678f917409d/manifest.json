@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "kind": "tiance-tool-package",
+  "id": "everything_search",
+  "version": "1.0.0",
+  "author": {
+    "name": "Tiance"
+  },
+  "license": "MIT",
+  "compatibility": {
+    "minTianceVersion": "0.3.25",
+    "platforms": [
+      "windows-x64"
+    ]
+  }
+}

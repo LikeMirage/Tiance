@@ -5,6 +5,7 @@ import {
   getToolParameterPermissionOption,
   getToolParameterPermissionType,
   setToolParameterPermissionType,
+  TOOL_PERMISSION_POLICY_DEFINITIONS,
 } from "../../../entities/tool/model/toolPermissions";
 import {
   asString,
@@ -389,6 +390,9 @@ function EditableParameterItem({
   const defaultValue = formatDefaultValue(schema.default);
   const permissionType = getToolParameterPermissionType(schema.permission_type);
   const permissionOption = getToolParameterPermissionOption(permissionType);
+  const permissionScopes = TOOL_PERMISSION_POLICY_DEFINITIONS.find(
+    (definition) => definition.permissionType === permissionType,
+  )?.scopes;
 
   return (
     <div className={["tool-dashboard__param-card", isExpanded ? "tool-dashboard__param-card--expanded" : ""].filter(Boolean).join(" ")}>
@@ -441,6 +445,24 @@ function EditableParameterItem({
                 )}
               />
             </Field>
+            {permissionScopes ? (
+              <Field label="权限范围来源">
+                <OptionSelect
+                  ariaLabel="权限范围来源"
+                  className="tool-dashboard__select"
+                  floating
+                  options={[
+                    { label: "从参数值判断", value: "" },
+                    ...permissionScopes.map((scope) => ({ label: `固定：${scope.label}`, value: scope.id })),
+                  ]}
+                  value={asString(schema.permission_scope)}
+                  onChange={(value) => onSchemaChange((draft) => {
+                    if (value) draft.permission_scope = value;
+                    else delete draft.permission_scope;
+                  })}
+                />
+              </Field>
+            ) : null}
             <Field label="默认值">
               {options.length > 0 ? (
                 <OptionSelect

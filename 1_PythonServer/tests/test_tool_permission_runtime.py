@@ -1,5 +1,6 @@
 import asyncio
 import json
+import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,7 +18,10 @@ from app.services.project.conversation_tool_loop import ConversationToolLoop
 from app.services.project.conversation_run_manager import ConversationRunManager
 from app.services.tools.tool_permission_bridge import ToolPermissionBridgeService
 from app.services.tools.client_tool_bridge import ClientToolResultPayload
-from app.services.tools.tool_execution import PreparedClientToolExecution
+from app.services.tools.tool_execution import PreparedClientToolExecution, ToolExecutionService, ToolExecutionContext
+from app.domain.tools.parameter_permissions import schema_without_parameter_permission_types
+from app.domain.tools.permission_policies import build_default_tool_permission_policy
+from app.services.tools.tool_permissions import _network_scopes
 from app.services.tools.tool_permissions import (
     ToolPermissionEvaluation,
     ToolPermissionFact,
@@ -90,6 +94,102 @@ def test_missing_parameter_permission_type_is_unknown_and_asks(tmp_path: Path):
     assert evaluation.decision == "ask"
     assert evaluation.facts[0].permission_type == "unknown"
     assert evaluation.facts[0].scope == "all"
+
+
+@pytest.mark.parametrize("query", [
+    "天策 AI 是什么？请搜索其官方介绍与最新版本信息，并列出来源链接。",
+    "2026年9月有哪些重要的科技或AI领域公开新闻？请列出3条并给出来源链接。",
+    "localhost",
+    "https://example.com",
+])
+@pytest.mark.parametrize("decision", ["allow", "ask", "deny"])
+def test_content_network_scope_uses_declared_policy_not_query(tmp_path, query, decision):
+    tool_root = Path(__file__).resolve().parents[2] / "Data/tools/0510e798-3244-534d-84be-1c9ffa16cfd4"
+    schema = json.loads((tool_root / ".tool/input.schema.json").read_text(encoding="utf-8"))
+    policy = build_default_tool_permission_policy()
+    policy["policies"]["network_access"]["unresolved"] = decision
+    (tmp_path / ".tool").mkdir()
+    (tmp_path / ".tool/permissions.json").write_text(json.dumps(policy), encoding="utf-8")
+    evaluation = evaluate_tool_permissions(
+        tool_name="arbitrary_content_tool", arguments={"query": query},
+        input_schema=schema, tool_root=str(tmp_path), workspace_root=None, project_id=None,
+    )
+    assert evaluation.decision == decision
+    assert [(fact.permission_type, fact.scope) for fact in evaluation.facts] == [("network_access", "unresolved")]
+    provider_schema = schema_without_parameter_permission_types(schema)
+    assert "permission_scope" not in provider_schema["properties"]["query"]
+    assert "permission_type" not in provider_schema["properties"]["query"]
+    assert schema["properties"]["query"]["permission_scope"] == "unresolved"
+
+
+@pytest.mark.parametrize(("value", "scope"), [
+    ("天策 AI 是什么？", "unresolved"),
+    ("http://[broken", "unresolved"),
+    ("http://localhost:bad", "unresolved"),
+    ("http://localhost:99999", "unresolved"),
+    ("http://127.0.0.1:18000/app/", "loopback"),
+    ("http://[::1]/", "loopback"),
+    ("http://192.168.1.10/", "private_network"),
+    ("https://example.com/path", "public_network"),
+])
+def test_network_scope_parsing_preserves_valid_addresses_and_handles_invalid(value, scope):
+    assert _network_scopes(value) == (scope,)
+
+
+def test_invalid_declared_scope_returns_tool_failure(tmp_path):
+    resolved = SimpleNamespace(
+        metadata=SimpleNamespace(name="content_tool", input_schema={"properties": {"query": {
+            "permission_type": "network_access", "permission_scope": "workspace_inside",
+        }}}),
+        arguments={"query": "新闻？"}, entry=SimpleNamespace(root_path=str(tmp_path)),
+    )
+    service = SimpleNamespace(_resolve_tool_call=lambda call: resolved)
+    call = ChatToolCall(call_id="call-1", name="content_tool", arguments='{"query":"新闻？"}')
+    result = ToolExecutionService.evaluate_permissions(service, call, context=ToolExecutionContext())
+    assert isinstance(result, ChatToolResult) and not result.ok
+    assert "工具权限配置无效" in result.error
+
+
+@pytest.mark.parametrize("decision", ["allow", "ask", "deny"])
+def test_declared_network_policy_passes_through_dynamic_auto_approval_gate(tmp_path, decision):
+    policy = build_default_tool_permission_policy()
+    policy["policies"]["network_access"]["unresolved"] = decision
+    (tmp_path / ".tool").mkdir()
+    (tmp_path / ".tool/permissions.json").write_text(json.dumps(policy), encoding="utf-8")
+
+    class Execution(_AskingToolExecutionService):
+        def evaluate_permissions(self, call, *, context):
+            if call.name == "execute_dynamic_tool":
+                return ToolPermissionEvaluation(decision="allow", facts=())
+            return evaluate_tool_permissions(
+                tool_name=call.name, arguments=json.loads(call.arguments),
+                input_schema={"properties": {"query": {
+                    "permission_type": "network_access", "permission_scope": "unresolved",
+                }}},
+                tool_root=str(tmp_path), workspace_root=None, project_id=None,
+            )
+
+    async def scenario():
+        loop = ConversationToolLoop(
+            chat_service=None, conversation_service=_ConversationService("auto_allow_ask"),
+            tool_execution_service=Execution(), tool_result_guidance_service=None,
+            project_service=_ProjectService(), tool_call_record_service=None,
+            client_tool_bridge_service=None, tool_permission_bridge_service=ToolPermissionBridgeService(),
+        )
+        target = ChatToolCall(call_id="call-1", name="arbitrary_content_tool", arguments=json.dumps({"query": "现在有哪些新闻？"}))
+        wrapper = ChatToolCall(call_id="call-1", name="execute_dynamic_tool", arguments="{}")
+        error, pending = await loop._prepare_permission_gate(
+            _request(), displayed_call=wrapper, actual_calls=(wrapper, target),
+            context=await loop._build_tool_execution_context(_request()),
+        )
+        assert pending is None
+        if decision == "deny":
+            assert error is not None and not error.ok
+            assert "权限配置禁止" in error.error
+        else:
+            assert error is None
+
+    asyncio.run(scenario())
 
 
 def test_permission_bridge_accepts_exactly_one_decision():

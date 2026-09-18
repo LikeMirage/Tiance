@@ -18,14 +18,14 @@ __TIANCE_STARTUP_STYLES__
     </div>
     <main>
       <div class="loader" id="loader" data-state="loading">
-        <div class="wordmark" aria-label="__TIANCE_TITLE__ 正在启动">
-          <span class="wordmark__text" data-text="Tiance">Tiance</span>
-        </div>
-        <p class="status" id="summary">正在启动服务</p>
-        <p class="error" id="hint">未发现前端开发服务，也没有找到可用的本地页面。</p>
-        <div class="actions">
-          <button type="button" id="open-target">重试</button>
-          <button type="button" id="reload-page">刷新</button>
+        <img class="startup-background" src="__TIANCE_STARTUP_BACKGROUND__" alt="" />
+        <div class="startup-feedback">
+          <p class="status" id="summary" role="status">正在启动服务</p>
+          <p class="error" id="hint">未发现前端开发服务，也没有找到可用的本地页面。</p>
+          <div class="actions">
+            <button type="button" id="open-target">重试</button>
+            <button type="button" id="reload-page">刷新</button>
+          </div>
         </div>
       </div>
     </main>

@@ -89,6 +89,10 @@ function buildResumedAssistantMessage(
   let toolCalls: ChatToolProcessItem[] = [];
 
   displayMessages.forEach((message) => {
+    if (message.runAttemptFailure) {
+      processItems.push({ id: message.id, type: "attempt_failure", message });
+      return;
+    }
     if (message.role === "tool") {
       const tool = readToolProcessItemFromMessage(message);
       if (tool) {

@@ -213,17 +213,17 @@ def start_lock(
     workspace: Path,
     project_id: str,
     session_id: str,
-    *,
-    block_user_input: bool = False,
 ) -> dict[str, Any]:
     existing = require_owned_state(workspace, project_id, session_id)
     if existing is not None:
+        if existing.get("input_mode") != "blocked":
+            raise ToolError("GUI_LOCK_REQUIRED", "旧的无锁运行器仍在运行，请先调用gui_runtime stop，再调用start。")
         status = rpc_call(existing, "status")
         if not status.get("ok"):
             raise ToolError("GUI_RUNTIME_UNAVAILABLE", str(status.get("error") or "GUI后台运行器状态异常。"))
         data = status.get("data") if isinstance(status.get("data"), dict) else {}
         data["already_active"] = True
-        return success("当前会话的GUI后台运行器已经启动。", data)
+        return success("当前会话已经锁定界面。鼠标已禁止操作，按Esc退出。", data)
 
     lock_id = f"lock_{uuid4().hex}"
     token = secrets.token_urlsafe(32)
@@ -259,8 +259,6 @@ def start_lock(
         "--token", token,
         "--marker", str(marker),
     ]
-    if block_user_input:
-        command.append("--block-user-input")
     creation_flags = 0x00000008 | 0x00000200 | 0x08000000
     process = subprocess.Popen(
         command,
@@ -285,7 +283,7 @@ def start_lock(
                     data = result.get("data") if isinstance(result.get("data"), dict) else {}
                     data["already_active"] = False
                     data["startup_timeout_seconds"] = STARTUP_TIMEOUT_SECONDS
-                    return success("GUI后台运行器已启动，不会显示覆盖层或拦截用户输入。", data)
+                    return success("界面已锁定。鼠标已禁止操作，按Esc退出。", data)
         if process.poll() is not None:
             remove_state_if_matches(lock_id)
             raise ToolError(
@@ -316,7 +314,7 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
             raise ToolError("INVALID_ARGUMENT", "action必须是start、status或stop。")
         with state_mutex():
             if action == "start":
-                return start_lock(workspace, project_id, session_id, block_user_input=False)
+                return start_lock(workspace, project_id, session_id)
             state = require_owned_state(workspace, project_id, session_id)
             if state is None:
                 if action == "status":

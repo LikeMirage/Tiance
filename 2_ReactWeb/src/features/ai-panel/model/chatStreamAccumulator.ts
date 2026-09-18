@@ -244,9 +244,22 @@ export function createChatStreamAccumulator({
         attemptIndex,
         attemptCount: currentAttemptCount,
       };
+      const hasCommittedProcess = processItems.length > 0
+        || Boolean(contentBuffer.trim() || thinkingBuffer.trim());
+      if (hasCommittedProcess) {
+        moveBufferedContentToProcess();
+        processItems = [...processItems, {
+          id: attemptFailureMessage.id,
+          type: "attempt_failure",
+          message: attemptFailureMessage,
+        }];
+        // Display-only notices retain their positions on another retry.
+        committedContentBuffer = contentBuffer;
+        committedProcessItems = [...processItems];
+      }
       updateSessionMessages(streamProjectId, sessionId, (prev) => prev.flatMap((message) =>
         message.id === assistantId
-          ? [attemptFailureMessage, {
+          ? [...(hasCommittedProcess ? [] : [attemptFailureMessage]), {
               ...message,
               role: "assistant",
               content: contentBuffer,

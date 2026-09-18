@@ -60,6 +60,17 @@ def collect_paragraph(lines: list[str], start: int) -> tuple[str, int]:
     return paragraph, index
 
 
+def block_formula_delimiters(line: str) -> tuple[str, str] | None:
+    stripped = line.strip()
+    if stripped.startswith("$$"):
+        return "$$", "$$"
+    if stripped.startswith(r"\["):
+        return r"\[", r"\]"
+    if stripped == r"\(":
+        return r"\(", r"\)"
+    return None
+
+
 def collect_blockquote(lines: list[str], start: int) -> tuple[list[str], int]:
     paragraphs: list[str] = []
     parts: list[tuple[str, bool]] = []

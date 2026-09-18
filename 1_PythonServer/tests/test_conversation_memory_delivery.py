@@ -1,5 +1,6 @@
 import pytest
 
+from app.domain.project.project_conversation import ProjectConversationMessage
 from app.domain.llm.chat import ChatCompletionRequest, ChatMessage, ChatMessageRole
 from app.repositories.project.conversation_branch_copy import (
     write_inherited_memory_delivery_state,
@@ -32,6 +33,7 @@ def test_branch_memory_delivery_keeps_prefix_and_replays_changes_after_branch_po
     global_events = [_add_event("gm_1", "初始记忆", reason="初始事实")]
     state = prepare_memory_delivery_state(
         None,
+        last_model_response=None,
         user_message_id="user-0",
         created_at="2026-07-14T00:00:00+00:00",
         global_events=global_events,
@@ -44,6 +46,7 @@ def test_branch_memory_delivery_keeps_prefix_and_replays_changes_after_branch_po
     )
     state = prepare_memory_delivery_state(
         state,
+        last_model_response=_successful_response(),
         user_message_id="user-1",
         created_at="2026-07-14T00:01:00+00:00",
         global_events=global_events,
@@ -59,6 +62,7 @@ def test_branch_memory_delivery_keeps_prefix_and_replays_changes_after_branch_po
     )
     state = prepare_memory_delivery_state(
         state,
+        last_model_response=_successful_response(),
         user_message_id="user-2",
         created_at="2026-07-14T00:02:00+00:00",
         global_events=global_events,
@@ -90,6 +94,7 @@ def test_branch_memory_delivery_keeps_prefix_and_replays_changes_after_branch_po
 
     continued = prepare_memory_delivery_state(
         inherited,
+        last_model_response=_successful_response(),
         user_message_id="child-task",
         created_at="2026-07-14T00:03:00+00:00",
         global_events=global_events,
@@ -112,6 +117,7 @@ def test_branch_memory_delivery_at_latest_point_does_not_repeat_changes(tmp_path
     global_events = [_add_event("gm_1", "初始记忆", reason="初始事实")]
     state = prepare_memory_delivery_state(
         None,
+        last_model_response=None,
         user_message_id="user-0",
         created_at="2026-07-14T00:00:00+00:00",
         global_events=global_events,
@@ -124,6 +130,7 @@ def test_branch_memory_delivery_at_latest_point_does_not_repeat_changes(tmp_path
     )
     state = prepare_memory_delivery_state(
         state,
+        last_model_response=_successful_response(),
         user_message_id="user-1",
         created_at="2026-07-14T00:01:00+00:00",
         global_events=global_events,
@@ -150,6 +157,7 @@ def test_branch_memory_delivery_at_latest_point_does_not_repeat_changes(tmp_path
     assert inherited["cursors"][GLOBAL_MEMORY_SCOPE] == len(global_events)
     continued = prepare_memory_delivery_state(
         inherited,
+        last_model_response=_successful_response(),
         user_message_id="child-task",
         created_at="2026-07-14T00:02:00+00:00",
         global_events=global_events,
@@ -166,6 +174,7 @@ def test_inherited_delivery_recreates_bounded_notification_for_functional_sessio
     global_events = [_add_event("gm_1", "旧规则", reason="初始事实")]
     state = prepare_memory_delivery_state(
         None,
+        last_model_response=None,
         user_message_id="user-0",
         created_at="2026-07-14T00:00:00+00:00",
         global_events=global_events,
@@ -178,6 +187,7 @@ def test_inherited_delivery_recreates_bounded_notification_for_functional_sessio
     )
     state = prepare_memory_delivery_state(
         state,
+        last_model_response=_successful_response(),
         user_message_id="user-1",
         created_at="2026-07-14T00:01:00+00:00",
         global_events=global_events,
@@ -224,6 +234,7 @@ def test_inherited_delivery_recreates_bounded_notification_for_functional_sessio
 def test_new_session_freezes_labeled_global_and_project_memory_snapshots():
     state = prepare_memory_delivery_state(
         None,
+        last_model_response=None,
         user_message_id="user-1",
         created_at="2026-07-14T00:00:00+00:00",
         global_events=[_add_event("gm_1", "全局偏好", reason="用户明确表达")],
@@ -260,6 +271,7 @@ def test_memory_changes_bind_to_next_user_message_and_remain_in_history():
     global_events = [_add_event("gm_1", "旧全局记忆", reason="初始事实")]
     state = prepare_memory_delivery_state(
         None,
+        last_model_response=None,
         user_message_id="user-1",
         created_at="2026-07-14T00:00:00+00:00",
         global_events=global_events,
@@ -276,6 +288,7 @@ def test_memory_changes_bind_to_next_user_message_and_remain_in_history():
     )
     state = prepare_memory_delivery_state(
         state,
+        last_model_response=_successful_response(),
         user_message_id="user-2",
         created_at="2026-07-14T00:01:00+00:00",
         global_events=global_events,
@@ -319,6 +332,7 @@ def test_change_folds_into_snapshot_after_bound_user_message_is_compressed_away(
     global_events = [_add_event("gm_1", "旧内容", reason="初始事实")]
     state = prepare_memory_delivery_state(
         None,
+        last_model_response=None,
         user_message_id="user-1",
         created_at="2026-07-14T00:00:00+00:00",
         global_events=global_events,
@@ -329,6 +343,7 @@ def test_change_folds_into_snapshot_after_bound_user_message_is_compressed_away(
     global_events.append(_update_event("gm_1", "新内容", reason="新事实替代旧事实"))
     state = prepare_memory_delivery_state(
         state,
+        last_model_response=_successful_response(),
         user_message_id="user-2",
         created_at="2026-07-14T00:01:00+00:00",
         global_events=global_events,
@@ -363,6 +378,7 @@ def test_compressed_leading_deliveries_are_persistently_folded_without_losing_or
     global_events.append(_update_event("gm_1", "中间内容", reason="第一次更新"))
     state = prepare_memory_delivery_state(
         state,
+        last_model_response=_successful_response(),
         user_message_id="user-2",
         created_at="2026-07-14T00:01:00+00:00",
         global_events=global_events,
@@ -373,6 +389,7 @@ def test_compressed_leading_deliveries_are_persistently_folded_without_losing_or
     global_events.append(_update_event("gm_1", "最新内容", reason="第二次更新"))
     state = prepare_memory_delivery_state(
         state,
+        last_model_response=_successful_response(),
         user_message_id="user-3",
         created_at="2026-07-14T00:02:00+00:00",
         global_events=global_events,
@@ -407,6 +424,7 @@ def test_missing_delivery_after_visible_history_moves_to_latest_user_instead_of_
     global_events.append(_update_event("gm_1", "中间内容", reason="第一次更新"))
     state = prepare_memory_delivery_state(
         state,
+        last_model_response=_successful_response(),
         user_message_id="user-2",
         created_at="2026-07-14T00:01:00+00:00",
         global_events=global_events,
@@ -417,6 +435,7 @@ def test_missing_delivery_after_visible_history_moves_to_latest_user_instead_of_
     global_events.append(_update_event("gm_1", "最新内容", reason="第二次更新"))
     state = prepare_memory_delivery_state(
         state,
+        last_model_response=_successful_response(),
         user_message_id="user-3",
         created_at="2026-07-14T00:02:00+00:00",
         global_events=global_events,
@@ -458,6 +477,7 @@ def test_global_changes_reach_every_project_but_project_changes_do_not_cross_pro
 
     state_a = prepare_memory_delivery_state(
         state_a,
+        last_model_response=_successful_response(),
         user_message_id="a-2",
         created_at="2026-07-14T00:01:00+00:00",
         global_events=changed_global,
@@ -467,6 +487,7 @@ def test_global_changes_reach_every_project_but_project_changes_do_not_cross_pro
     )
     state_b = prepare_memory_delivery_state(
         state_b,
+        last_model_response=_successful_response(),
         user_message_id="b-2",
         created_at="2026-07-14T00:01:00+00:00",
         global_events=changed_global,
@@ -490,6 +511,7 @@ def test_memory_delivery_never_truncates_changes_at_one_hundred():
 
     state = prepare_memory_delivery_state(
         state,
+        last_model_response=_successful_response(),
         user_message_id="user-2",
         created_at="2026-07-14T00:01:00+00:00",
         global_events=global_events,
@@ -519,6 +541,7 @@ def test_memory_delivery_rejects_event_log_rewind_instead_of_marking_changes_con
     with pytest.raises(ValueError, match="shorter than its delivery cursor"):
         prepare_memory_delivery_state(
             state,
+            last_model_response=_successful_response(),
             user_message_id="user-2",
             created_at="2026-07-14T00:01:00+00:00",
             global_events=[],
@@ -532,6 +555,7 @@ def test_cache_expiry_updates_snapshot_and_keeps_next_message_notification():
     global_events = [_add_event("gm_1", "旧内容", reason="初始事实")]
     state = prepare_memory_delivery_state(
         None,
+        last_model_response=None,
         user_message_id="user-1",
         created_at="2026-07-14T00:00:00+00:00",
         global_events=global_events,
@@ -546,6 +570,7 @@ def test_cache_expiry_updates_snapshot_and_keeps_next_message_notification():
 
     state = prepare_memory_delivery_state(
         state,
+        last_model_response=_successful_response(),
         user_message_id="user-2",
         created_at="2026-07-14T00:06:00+00:00",
         global_events=global_events,
@@ -566,6 +591,7 @@ def test_active_cache_keeps_snapshot_stable_and_appends_notification_only():
     global_events = [_add_event("gm_1", "旧内容", reason="初始事实")]
     state = prepare_memory_delivery_state(
         None,
+        last_model_response=None,
         user_message_id="user-1",
         created_at="2026-07-14T00:00:00+00:00",
         global_events=global_events,
@@ -580,6 +606,7 @@ def test_active_cache_keeps_snapshot_stable_and_appends_notification_only():
 
     state = prepare_memory_delivery_state(
         state,
+        last_model_response=_successful_response(),
         user_message_id="user-2",
         created_at="2026-07-14T00:06:00+00:00",
         global_events=global_events,
@@ -595,9 +622,20 @@ def test_active_cache_keeps_snapshot_stable_and_appends_notification_only():
     assert state["deliveries"][-1][GLOBAL_MEMORY_SCOPE][0]["after"]["content"] == "新内容"
 
 
+def _successful_response():
+    return ProjectConversationMessage(
+        message_id="assistant-0", session_id="source", role="assistant",
+        content="reply", thinking_content="", usage=None,
+        provider_id="deepseek", model_id="deepseek-v4", status="done",
+        created_at="2026-07-14T00:00:30+00:00",
+        updated_at="2026-07-14T00:00:30+00:00",
+    )
+
+
 def _initial_state(user_message_id, global_events, project_events):
     return prepare_memory_delivery_state(
         None,
+        last_model_response=None,
         user_message_id=user_message_id,
         created_at="2026-07-14T00:00:00+00:00",
         global_events=global_events,

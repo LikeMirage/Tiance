@@ -1,0 +1,6 @@
+{
+  "startup_timeout_seconds": 120,
+  "query_timeout_seconds": 30,
+  "lock_timeout_seconds": 10,
+  "poll_interval_seconds": 0.2
+}

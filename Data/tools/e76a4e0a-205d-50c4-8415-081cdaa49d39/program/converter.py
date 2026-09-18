@@ -154,11 +154,13 @@ class Md2DocxConverter:
             line = lines[index]
             stripped = line.strip().lstrip("\ufeff")
             if not stripped:
-                self.lists.end_sequence()
+                # Blank lines may separate items of the same (loose) list.
+                # A non-list block below closes the sequence instead.
                 index += 1
                 continue
             reference = self._table_references.get(stripped)
             if reference is not None:
+                self.lists.end_sequence()
                 external = load_external_table(reference)
                 self.tables.add_external(external)
                 self._resolved_table_references.append(
@@ -181,14 +183,10 @@ class Md2DocxConverter:
                 self._add_toc()
                 index += 1
                 continue
-            if stripped.startswith("$$"):
-                index = self._add_block_formula(lines, index, opener="$$", closer="$$") + 1
-                continue
-            if stripped.startswith(r"\["):
-                index = self._add_block_formula(lines, index, opener=r"\[", closer=r"\]") + 1
-                continue
-            if stripped == r"\(":
-                index = self._add_block_formula(lines, index, opener=r"\(", closer=r"\)") + 1
+            delimiters = markdown_blocks.block_formula_delimiters(stripped)
+            if delimiters is not None:
+                opener, closer = delimiters
+                index = self._add_block_formula(lines, index, opener=opener, closer=closer) + 1
                 continue
             if re.match(r"^#{1,9}\s+", stripped):
                 self._add_heading(stripped)
@@ -241,6 +239,7 @@ class Md2DocxConverter:
         *,
         opener: str,
         closer: str,
+        quote: bool = False,
     ) -> int:
         line = lines[start].strip()
         if line.startswith(opener) and line.endswith(closer) and len(line) > len(opener) + len(closer):
@@ -250,21 +249,31 @@ class Md2DocxConverter:
             latex, end = self._collect_block_formula(lines, start, line, opener, closer)
             if end is None:
                 self._warnings.append(f"公式定界符未闭合，已保留原文：{line}")
-                paragraph = self.doc.add_paragraph()
-                formatting.normalize_paragraph(paragraph, style=self._style("body"))
+                paragraph = self._new_formula_paragraph(quote=quote)
                 formatting.add_plain_runs(paragraph, line)
                 return start
         if latex:
-            paragraph = self.doc.add_paragraph()
-            paragraph.paragraph_format.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-            formatting.normalize_paragraph(paragraph, style=self._style("body"))
+            paragraph = self._new_formula_paragraph(quote=quote, display=True)
             self.formulas.write(
                 paragraph,
                 latex,
-                font_size=self._font_size(self._style("body"), Pt(12)),
+                font_size=self._font_size(self._formula_style(quote), Pt(12)),
                 display_mode=True,
             )
         return end
+
+    def _formula_style(self, quote: bool) -> ContentStyleProfile | None:
+        return (self._style("quote") or self._style("body")) if quote else self._style("body")
+
+    def _new_formula_paragraph(self, *, quote: bool, display: bool = False):
+        paragraph = self.doc.add_paragraph()
+        if display:
+            paragraph.paragraph_format.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        formatting.normalize_paragraph(paragraph, style=self._formula_style(quote))
+        if quote and self.template is None:
+            paragraph.paragraph_format.left_indent = Inches(0.25)
+            formatting.set_left_border(paragraph, "A0AEC0")
+        return paragraph
 
     def _collect_block_formula(
         self,
@@ -354,7 +363,35 @@ class Md2DocxConverter:
         paragraph._p.append(field)
 
     def _add_blockquote(self, lines: list[str], start: int) -> int:
-        paragraphs, end_index = markdown_blocks.collect_blockquote(lines, start)
+        # Keep source lines intact until display formulas have been parsed.
+        # Flattening first would turn a multiline $$ block into inline text.
+        quote_lines: list[str] = []
+        end = start
+        while end < len(lines) and lines[end].strip().startswith(">"):
+            quote_lines.append(re.sub(r"^\s*>\s?", "", lines[end]))
+            end += 1
+        index = 0
+        while index < len(quote_lines):
+            delimiters = markdown_blocks.block_formula_delimiters(quote_lines[index])
+            if delimiters is not None:
+                opener, closer = delimiters
+                index = self._add_block_formula(
+                    quote_lines, index, opener=opener, closer=closer, quote=True,
+                ) + 1
+                continue
+            text_start = index
+            index += 1
+            while index < len(quote_lines) and markdown_blocks.block_formula_delimiters(
+                quote_lines[index]
+            ) is None:
+                index += 1
+            paragraphs, _ = markdown_blocks.collect_blockquote(
+                lines[start + text_start : start + index], 0,
+            )
+            self._add_quote_paragraphs(paragraphs)
+        return end - 1
+
+    def _add_quote_paragraphs(self, paragraphs: list[str]) -> None:
         quote_style = self._style("quote") or self._style("body")
         quote_size = self._font_size(quote_style, Pt(12))
         for text in paragraphs:
@@ -370,7 +407,6 @@ class Md2DocxConverter:
                 style=quote_style,
                 default_size=quote_size,
             )
-        return end_index
 
     def _add_code_block(
         self,

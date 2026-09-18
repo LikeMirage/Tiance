@@ -13,28 +13,51 @@ export function remarkLocalFilePaths() {
   return (tree: MdastNode) => transformChildren(tree, null);
 }
 
-function transformChildren(node: MdastNode, parentType: string | null) {
+function transformChildren(node: MdastNode, parentType: string | null, directory: string | null = null) {
   if (!node.children || parentType === "link" || parentType === "code" || parentType === "inlineCode") {
     return;
   }
   const nextChildren: MdastNode[] = [];
+  let precedingDirectory: string | null = null;
   for (const child of node.children) {
+    // Read the original paragraph before its code/text becomes a link.
+    const childDirectory = standaloneDirectory(child);
     if (child.type === "inlineCode" && child.value && looksLikeInlineLocalPath(child.value)) {
+      const path = child.value.trim();
       nextChildren.push({
         type: "link",
-        url: encodeLocalPathLink(child.value.trim()),
+        url: encodeLocalPathLink(directory && !/^(?:[A-Za-z]:[\\/]|\\\\)/.test(path)
+          ? directory + path
+          : path),
         children: [{ type: "text", value: child.value }],
       });
       continue;
     }
     if (child.type !== "text" || !child.value) {
-      transformChildren(child, child.type ?? null);
+      transformChildren(child, child.type ?? null,
+        child.type === "list" ? precedingDirectory ?? directory : directory);
       nextChildren.push(child);
+      precedingDirectory = childDirectory;
       continue;
     }
     nextChildren.push(...splitTextNode(child.value));
+    precedingDirectory = null;
   }
   node.children = nextChildren;
+}
+
+/** Only an explicit absolute directory with a trailing separator supplies context. */
+export function explicitLocalDirectory(value: string): string | null {
+  const path = value.trim();
+  return /^(?:[A-Za-z]:[\\/]|\\\\)[^\r\n<>"|?*]*$/.test(path) && /[\\/]$/.test(path) ? path : null;
+}
+
+function standaloneDirectory(node: MdastNode): string | null {
+  if (node.type !== "paragraph" || node.children?.length !== 1) return null;
+  const child = node.children[0];
+  return (child.type === "inlineCode" || child.type === "text") && child.value
+    ? explicitLocalDirectory(child.value)
+    : null;
 }
 
 function looksLikeInlineLocalPath(value: string) {

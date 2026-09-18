@@ -2,6 +2,7 @@
   "additionalProperties": false,
   "description": "一次顺序执行1到50个动作。只在整批开始前验证界面；中途不会重新识别，因此只用于坐标依据在整批期间保持有效的操作。",
   "properties": {
+    "screenshot_delay_seconds": {"type":"number","minimum":0,"maximum":30,"default":1,"description":"操作全部结束后等待再截图，默认1秒，可设0到30秒（含小数）；0立即截图，等待期间Esc立即取消。整批只在末尾等待一次。截图等待计入调用总时限。","permission_type":"none"},
     "gui_session_id": {"type": "string", "pattern": "^gui_[a-f0-9]{32}$", "permission_type": "none"},
     "actions": {
       "type": "array",

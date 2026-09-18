@@ -1,0 +1,36 @@
+{
+  "description": "使用工具自带Everything搜索Windows本机文件及目录。支持原生搜索语法、限定目录和显式分页。首次搜索会请求Windows管理员授权，仅提升Everything，不安装服务；之后复用本工具独立实例，不影响已有Everything。返回has_more和next_offset，按完整路径升序实时分页。status不启动程序，stop只停止本工具实例。UAC需用户在本机确认，天策自动允许不能代替；无人值守应先在本机授权启动。",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json",
+    "permissions": ".tool/permissions.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "Everything",
+    "文件搜索",
+    "全盘搜索",
+    "文件名",
+    "目录"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "everything_search",
+  "registration_name": "Everything 文件搜索",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 300,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

@@ -4,6 +4,7 @@ import {
   isOffsetInsideMathRange,
   type MarkdownMathRange,
 } from "./markdownMathScanner";
+import { explicitLocalDirectory } from "./remarkLocalFilePaths";
 
 export type MarkdownSegment = {
   content: string;
@@ -244,6 +245,7 @@ function findStableMarkdownBoundaries(content: string) {
   const mathRanges = findMarkdownMathRanges(content);
   let inFence = false;
   let fenceMarker = "";
+  let inDirectoryList = false;
   const linePattern = /.*(?:\r?\n|$)/g;
   let match: RegExpExecArray | null;
 
@@ -254,6 +256,14 @@ function findStableMarkdownBoundaries(content: string) {
     const lineEnd = match.index + line.length;
     const lineText = line.replace(/\r?\n$/, "");
     const fenceMatch = /^\s*(```+|~~~+)/.exec(lineText);
+
+    if (!inFence && lineText.trim()) {
+      const directory = explicitLocalDirectory(lineText.trim().replace(/^`([^`]+)`$/, "$1"));
+      // Keep an explicit directory and its following list in the same render
+      // segment, including the growing streaming tail and loose-list blanks.
+      if (directory) inDirectoryList = true;
+      else if (!/^(?:\s+|(?:[-+*]|\d+[.)])\s)/.test(lineText)) inDirectoryList = false;
+    }
 
     if (fenceMatch) {
       const marker = fenceMatch[1][0];
@@ -268,6 +278,7 @@ function findStableMarkdownBoundaries(content: string) {
 
     if (
       !inFence
+      && !inDirectoryList
       && lineText.trim() === ""
       && !isOffsetInsideMathRange(lineEnd, mathRanges)
     ) {

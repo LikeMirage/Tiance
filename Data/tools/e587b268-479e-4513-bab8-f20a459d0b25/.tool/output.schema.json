@@ -4,7 +4,7 @@
   "properties": {
     "ok": {"type": "boolean"},
     "summary": {"type": "string"},
-    "data": {"type": "object"},
+    "data": {"type": "object", "properties": {"screenshot_delay_seconds": {"type": "number", "minimum": 0, "maximum": 30, "description": "本次操作结束后实际采用的截图等待秒数。"}}},
     "content": {"type": "array", "items": {"type": "object"}},
     "warnings": {"type": "array", "items": {"type": "string"}},
     "error": {"type": "string"},

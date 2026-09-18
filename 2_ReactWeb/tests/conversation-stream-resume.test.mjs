@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 const vite = await createServer({
   appType: "custom",
@@ -362,22 +364,27 @@ test("上游重试只撤销未提交片段并保留已经完成的工具轮次",
     attempt_count: 2,
   });
 
-  assert.equal(messages[0].role, "error");
-  assert.equal(messages[0].content, "上游请求失败");
-  assert.equal(messages[0].runAttemptFailure.attempt_index, 1);
-  assert.equal(messages[0].runAttemptFailure.attempt_count, 2);
-  assert.equal(messages[1].content, "");
-  assert.equal(messages[1].thinkingContent, "");
+  assert.equal(messages.length, 1);
+  const failure = messages[0].processItems.at(-1).message;
+  assert.equal(failure.role, "error");
+  assert.equal(failure.content, "上游请求失败");
+  assert.equal(failure.runAttemptFailure.attempt_index, 1);
+  assert.equal(failure.runAttemptFailure.attempt_count, 2);
+  assert.deepEqual(messages[0].processItems.map((item) => item.type), [
+    "content", "tool", "attempt_failure",
+  ]);
+  assert.equal(messages[0].content, "");
+  assert.equal(messages[0].thinkingContent, "");
   assert.deepEqual(
-    messages[1].processItems
+    messages[0].processItems
       .filter((item) => item.type === "content")
       .map((item) => item.content),
     ["已提交工具前正文"],
   );
-  assert.equal(messages[1].toolCalls.length, 1);
-  assert.equal(messages[1].toolCalls[0].callId, "call-committed");
-  assert.equal(messages[1].toolCalls[0].status, "done");
-  assert.deepEqual(messages[1].retryStatus, {
+  assert.equal(messages[0].toolCalls.length, 1);
+  assert.equal(messages[0].toolCalls[0].callId, "call-committed");
+  assert.equal(messages[0].toolCalls[0].status, "done");
+  assert.deepEqual(messages[0].retryStatus, {
     error: "上游请求失败",
     errorCode: null,
     attemptIndex: 2,
@@ -385,7 +392,61 @@ test("上游重试只撤销未提交片段并保留已经完成的工具轮次",
   });
 
   accumulator.handleEvent({ kind: "thinking_delta", content: "第二次尝试开始输出" });
-  assert.equal(messages[1].retryStatus, null);
+  accumulator.flushNow();
+  assert.equal(messages[0].retryStatus, null);
+  assert.deepEqual(messages[0].processItems.map((item) => item.type), [
+    "content", "tool", "attempt_failure", "thinking",
+  ]);
+  accumulator.handleEvent({ kind: "retry_reset", error: "再次失败", attempt_index: 3, attempt_count: 3 });
+  assert.deepEqual(messages[0].processItems.map((item) => item.type), [
+    "content", "tool", "attempt_failure", "attempt_failure",
+  ]);
+  accumulator.finalizeCancelled();
+  assert.equal(messages[0].retryStatus, null);
+  assert.equal(messages[0].processItems.filter((item) => item.type === "attempt_failure").length, 2);
+});
+
+test("重连恢复时失败记录留在工具轮次之后且不进入正文", () => {
+  const failure = message({
+    id: "failure", role: "error", content: "ConnectTimeout",
+    runAttemptFailure: { event_id: 1, error_message: "ConnectTimeout", attempt_index: 1, attempt_count: 2 },
+  });
+  const snapshot = prepareConversationStreamResume([
+    message({ id: "user", role: "user", content: "测试" }),
+    message({ id: "previous", processItems: [{ id: "finished", type: "tool", tool: tool({ status: "done" }) }] }),
+    failure,
+    message({ id: "next", content: "重试后正文" }),
+  ], "fallback");
+  assert.deepEqual(snapshot.assistantMessage.processItems.map((item) => item.type), [
+    "tool", "attempt_failure", "content",
+  ]);
+  assert.equal(snapshot.assistantMessage.content, "");
+  assert.equal(snapshot.assistantMessage.processItems[1].message, failure);
+});
+
+test("重试动画的实际渲染顺序是已完成工具、失败记录、重试提示", async () => {
+  const { ChatMessageItem } = await vite.ssrLoadModule("/src/features/ai-panel/ui/ChatMessageItem.tsx");
+  const failure = message({
+    id: "failed-attempt", role: "error", content: "ConnectTimeout",
+    runAttemptFailure: { attempt_index: 1, attempt_count: 2 },
+  });
+  const html = renderToStaticMarkup(createElement(ChatMessageItem, {
+    autoCollapseAssistantProcess: false, clockTick: 4000, expandedUserMessageIds: new Set(),
+    interactions: { localFileActions: {}, projectId: null, resolveLocalFileReference: () => null },
+    isLastMessage: true, isSessionStreaming: true, modelSwitchModelId: null,
+    message: message({
+      status: "running",
+      retryStatus: { error: "ConnectTimeout", errorCode: "upstream_connection_error", attemptIndex: 2, attemptCount: 2 },
+      processItems: [
+        { id: "completed", type: "tool", tool: tool({ status: "done", finishedAt: 3000 }) },
+        { id: "failed-attempt", type: "attempt_failure", message: failure },
+      ],
+    }),
+  }));
+  const toolPosition = html.indexOf("write_text_file");
+  const failurePosition = html.indexOf("ConnectTimeout");
+  const retryPosition = html.indexOf("chat-msg__upstream-retry");
+  assert.ok(toolPosition >= 0 && failurePosition > toolPosition && retryPosition > failurePosition);
 });
 
 test("上游重试和刷新后的最终失败使用同一尝试次数语义", () => {

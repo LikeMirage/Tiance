@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import shutil
 import socket
+import sys
 import threading
 import time
 from typing import Any
@@ -159,6 +160,9 @@ user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
 user32.DestroyWindow.argtypes = [wintypes.HWND]
 user32.SetLayeredWindowAttributes.argtypes = [wintypes.HWND, wintypes.COLORREF, wintypes.BYTE, wintypes.DWORD]
 user32.SetWindowDisplayAffinity.argtypes = [wintypes.HWND, wintypes.DWORD]
+user32.SetWindowDisplayAffinity.restype = wintypes.BOOL
+user32.GetWindowDisplayAffinity.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+user32.GetWindowDisplayAffinity.restype = wintypes.BOOL
 user32.PostThreadMessageW.argtypes = [wintypes.DWORD, wintypes.UINT, WPARAM, LPARAM]
 user32.LoadCursorW.argtypes = [wintypes.HINSTANCE, ctypes.c_void_p]
 user32.LoadCursorW.restype = wintypes.HANDLE
@@ -168,11 +172,43 @@ kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
 kernel32.GetModuleHandleW.restype = wintypes.HMODULE
 kernel32.GetCurrentThreadId.restype = wintypes.DWORD
 
+# HWND/HDC/HGDIOBJ是指针宽度，ctypes默认的int会在64位Windows截断句柄。
+user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.UINT]
+user32.SetWindowPos.restype = wintypes.BOOL
+user32.GetMonitorInfoW.argtypes = [wintypes.HMONITOR, ctypes.POINTER(MONITORINFO)]
+user32.RegisterClassExW.argtypes = [ctypes.POINTER(WNDCLASSEXW)]
+user32.BeginPaint.argtypes = [wintypes.HWND, ctypes.POINTER(PAINTSTRUCT)]
+user32.BeginPaint.restype = wintypes.HDC
+user32.EndPaint.argtypes = [wintypes.HWND, ctypes.POINTER(PAINTSTRUCT)]
+user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+user32.FillRect.argtypes = [wintypes.HDC, ctypes.POINTER(wintypes.RECT), wintypes.HBRUSH]
+user32.DrawTextW.argtypes = [wintypes.HDC, wintypes.LPCWSTR, ctypes.c_int, ctypes.POINTER(wintypes.RECT), wintypes.UINT]
+user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+gdi32.CreateSolidBrush.argtypes = [wintypes.COLORREF]
+gdi32.CreateSolidBrush.restype = wintypes.HBRUSH
+gdi32.CreatePen.argtypes = [ctypes.c_int, ctypes.c_int, wintypes.COLORREF]
+gdi32.CreatePen.restype = wintypes.HANDLE
+gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HANDLE]
+gdi32.SelectObject.restype = wintypes.HANDLE
+gdi32.DeleteObject.argtypes = [wintypes.HANDLE]
+gdi32.MoveToEx.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int, ctypes.POINTER(POINT)]
+gdi32.LineTo.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int]
+gdi32.SetBkMode.argtypes = [wintypes.HDC, ctypes.c_int]
+gdi32.SetTextColor.argtypes = [wintypes.HDC, wintypes.COLORREF]
+gdi32.CreateFontW.argtypes = [ctypes.c_int] * 5 + [wintypes.DWORD] * 8 + [wintypes.LPCWSTR]
+gdi32.CreateFontW.restype = wintypes.HFONT
+
 
 WM_PAINT = 0x000F
 WM_DESTROY = 0x0002
 WM_NCHITTEST = 0x0084
+WM_MOUSEMOVE = 0x0200
+WM_LBUTTONDOWN = 0x0201
 WM_LBUTTONUP = 0x0202
+WM_KEYDOWN = 0x0100
+WM_KEYUP = 0x0101
+WM_SYSKEYUP = 0x0105
 WM_QUIT = 0x0012
 WM_APP_STOP = 0x8001
 HTTRANSPARENT = -1
@@ -186,7 +222,6 @@ WS_EX_TRANSPARENT = 0x00000020
 WS_EX_NOACTIVATE = 0x08000000
 GWL_EXSTYLE = -20
 LWA_ALPHA = 0x00000002
-SW_HIDE = 0
 SW_SHOWNOACTIVATE = 4
 HWND_TOPMOST = -1
 SWP_NOSIZE = 0x0001
@@ -220,9 +255,27 @@ SM_YVIRTUALSCREEN = 77
 SM_CXVIRTUALSCREEN = 78
 SM_CYVIRTUALSCREEN = 79
 PIXEL_CHANNEL_DELTA_THRESHOLD = 16
+DEFAULT_SCREENSHOT_DELAY_SECONDS = 1.0
 DEFAULT_CLICK_HOLD_MS = 80
 COORDINATE_PREVIEW_COLOR = (255, 45, 138)
 COORDINATE_PREVIEW_COLOR_HEX = "#FF2D8A"
+DEFAULT_ZOOM_SCALE_PERCENT = 400
+POINTER_VERIFY_TIMEOUT_MS = 250
+MOUSE_ACTION_DEFAULTS = {
+    "screenshot_delay_seconds": DEFAULT_SCREENSHOT_DELAY_SECONDS,
+    "button": "left", "clicks": 1, "click_hold_ms": DEFAULT_CLICK_HOLD_MS,
+    "modifiers": [], "duration_ms": 0, "direction": "down", "notches": 3,
+    "interval_ms": 120, "change_check_scope": "target_cell", "change_threshold_percent": 0.5,
+}
+MOUSE_ACTIONS = {"move", "click", "drag", "scroll", "mouse_down", "mouse_up"}
+MOUSE_ACTION_OPTIONS = {
+    "move": ("duration_ms",),
+    "click": ("button", "clicks", "click_hold_ms", "modifiers", "interval_ms"),
+    "drag": ("button", "duration_ms", "modifiers"),
+    "scroll": ("direction", "notches", "interval_ms", "modifiers"),
+    "mouse_down": ("button",), "mouse_up": ("button",),
+}
+PREVIEW_ID_PATTERN = re.compile(r"^preview_([a-f0-9]{32})_([a-f0-9]{32})$")
 
 MOUSE_BUTTON_FLAGS = {
     "left": (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP),
@@ -258,6 +311,23 @@ class GuiError(RuntimeError):
         self.code = code
         self.message = message
         self.details = details or {}
+
+
+@contextmanager
+def physical_coordinates():
+    """截图、窗口矩形及输入线程共同使用每显示器物理像素。"""
+    setter = getattr(user32, "SetThreadDpiAwarenessContext", None)
+    if setter is None:
+        raise GuiError("DPI_CONTEXT_UNAVAILABLE", "GUI工具需要支持每显示器DPI感知的Windows 10或更新版本。")
+    setter.argtypes = [ctypes.c_void_p]
+    setter.restype = ctypes.c_void_p
+    previous = setter(ctypes.c_void_p(-4))  # PER_MONITOR_AWARE_V2
+    if not previous:
+        raise GuiError("DPI_CONTEXT_UNAVAILABLE", "无法启用物理像素坐标，未执行GUI操作。")
+    try:
+        yield
+    finally:
+        setter(previous)
 
 
 def now_iso() -> str:
@@ -439,6 +509,8 @@ def choose_grid(width: int, height: int, mode: str, target: int, rows: int | Non
 
 
 def build_cells(rect: dict[str, int], rows: int, cols: int) -> list[dict[str, Any]]:
+    if rows > rect["height"] or cols > rect["width"]:
+        raise GuiError("GRID_TOO_FINE", "网格细于原始屏幕像素，请减少行列数或使用上一级View。")
     cells: list[dict[str, Any]] = []
     for row in range(rows):
         top = rect["top"] + round(row * rect["height"] / rows)
@@ -466,10 +538,10 @@ def overlay_image(raw: Image.Image, cells: list[dict[str, Any]], source_rect: di
     line_width = max(1, round(min(image.size) / 500))
     for cell in cells:
         rect = cell["rect_absolute"]
-        left = rect["left"] - source_rect["left"]
-        top = rect["top"] - source_rect["top"]
-        right = left + rect["width"]
-        bottom = top + rect["height"]
+        left = round((rect["left"] - source_rect["left"]) * image.width / source_rect["width"])
+        top = round((rect["top"] - source_rect["top"]) * image.height / source_rect["height"])
+        right = round((rect["left"] - source_rect["left"] + rect["width"]) * image.width / source_rect["width"])
+        bottom = round((rect["top"] - source_rect["top"] + rect["height"]) * image.height / source_rect["height"])
         draw.rectangle((left, top, right - 1, bottom - 1), outline=(0, 230, 255, 210), width=line_width)
         label = str(cell["cell_id"])
         label_box = draw.textbbox((0, 0), label, font=font, stroke_width=2)
@@ -509,12 +581,10 @@ class GuiService:
         self.lock_id = args.lock_id
         self.token = args.token
         self.marker = int(args.marker) & 0xFFFFFFFF
-        self.block_user_input = bool(args.block_user_input)
+        self.block_user_input = True
         self.project_id = args.project_id
         self.session_id = args.session_id
         self.overlay_windows: list[int] = []
-        self.exit_window: int = 0
-        self.exit_rect = {"left": 0, "top": 0, "width": 0, "height": 0}
         self.window_proc = WNDPROC(self._window_proc)
         self.mouse_hook_proc = HOOKPROC(self._mouse_hook)
         self.keyboard_hook_proc = HOOKPROC(self._keyboard_hook)
@@ -524,9 +594,11 @@ class GuiService:
         self.stop_event = threading.Event()
         self.cancel_event = threading.Event()
         self.service_lock = threading.RLock()
-        self.passthrough = False
+        self.blocked_mouse_events = 0
+        self.blocked_keyboard_events = 0
         self.external_mouse_events = 0
         self.external_keyboard_events = 0
+        self.input_events_sent = 0
         self.held_mouse_buttons: set[str] = set()
         self.held_keys: set[tuple[int, bool]] = set()
         self.created_gui_sessions: set[str] = set()
@@ -542,10 +614,10 @@ class GuiService:
     def run(self) -> int:
         self.gui_root.mkdir(parents=True, exist_ok=True)
         try:
+            self.capture_mode = self._detect_capture_mode()
             if self.block_user_input:
                 self._create_windows()
             self._install_hooks()
-            self.capture_mode = self._detect_capture_mode() if self.block_user_input else "no_overlay"
             self._write_active_state("active")
             self.server_thread.start()
             message = wintypes.MSG()
@@ -561,15 +633,26 @@ class GuiService:
             self._write_active_state("failed", error=f"{type(exc).__name__}: {exc}")
             return 1
         finally:
+            self.cancel_event.set()
             self.stop_event.set()
             try:
                 self.server_socket.close()
             except OSError:
                 pass
-            self._release_held_inputs()
-            self._uninstall_hooks()
-            self._destroy_windows()
-            self._cleanup_gui_sessions()
+            # 保持主线程泵送钩子消息，等待动作线程结算按键抬起后再清理。
+            while not self.service_lock.acquire(blocking=False):
+                message = wintypes.MSG()
+                while user32.PeekMessageW(ctypes.byref(message), 0, 0, 0, 1):
+                    user32.TranslateMessage(ctypes.byref(message))
+                    user32.DispatchMessageW(ctypes.byref(message))
+                time.sleep(0.01)
+            try:
+                self._uninstall_hooks()
+                self._release_held_inputs()
+                self._destroy_windows()
+                self._cleanup_gui_sessions()
+            finally:
+                self.service_lock.release()
             if not self.startup_failed:
                 self._remove_active_state()
 
@@ -635,16 +718,14 @@ class GuiService:
 
     def _create_windows(self) -> None:
         self.overlay_class = f"TianceGuiOverlay_{os.getpid()}"
-        self.exit_class = f"TianceGuiExit_{os.getpid()}"
         self._register_class(self.overlay_class)
-        self._register_class(self.exit_class)
         instance = kernel32.GetModuleHandleW(None)
         monitors = monitor_rects()
         if not monitors:
             raise GuiError("DISPLAY_UNAVAILABLE", "没有检测到可用显示器。")
         for rect in monitors:
             hwnd = user32.CreateWindowExW(
-                WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_NOACTIVATE,
+                WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
                 self.overlay_class,
                 "Tiance AI Control Overlay",
                 WS_POPUP,
@@ -655,49 +736,21 @@ class GuiService:
                 raise ctypes.WinError(ctypes.get_last_error())
             self.overlay_windows.append(int(hwnd))
             user32.SetLayeredWindowAttributes(hwnd, 0, 205, LWA_ALPHA)
-            user32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)
+            self._exclude_window_from_capture(hwnd)
             user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
             user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
 
-        primary = next((item for item in monitors if item["primary"]), monitors[0])
-        button_width, button_height = 220, 58
-        button_left = primary["left"] + (primary["width"] - button_width) // 2
-        button_top = primary["top"] + primary["height"] // 2 + 105
-        self.exit_rect = {
-            "left": button_left, "top": button_top,
-            "width": button_width, "height": button_height,
-        }
-        hwnd = user32.CreateWindowExW(
-            WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_NOACTIVATE,
-            self.exit_class,
-            "退出AI操控",
-            WS_POPUP,
-            button_left, button_top, button_width, button_height,
-            0, 0, instance, None,
-        )
-        if not hwnd:
-            raise ctypes.WinError(ctypes.get_last_error())
-        self.exit_window = int(hwnd)
-        user32.SetLayeredWindowAttributes(hwnd, 0, 242, LWA_ALPHA)
-        user32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)
-        user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
-        user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
-
     def _destroy_windows(self) -> None:
-        for hwnd in [self.exit_window, *self.overlay_windows]:
+        for hwnd in self.overlay_windows:
             if hwnd and user32.IsWindow(hwnd):
                 user32.DestroyWindow(hwnd)
-        self.exit_window = 0
         self.overlay_windows.clear()
 
     def _window_proc(self, hwnd: int, message: int, wparam: int, lparam: int) -> int:
-        if message == WM_NCHITTEST and self.passthrough:
+        if message == WM_NCHITTEST:
             return HTTRANSPARENT
         if message == WM_PAINT:
             self._paint_window(int(hwnd))
-            return 0
-        if message == WM_LBUTTONUP and int(hwnd) == self.exit_window:
-            self.request_stop("user_exit")
             return 0
         if message == WM_APP_STOP:
             user32.PostQuitMessage(0)
@@ -715,21 +768,6 @@ class GuiService:
             client = wintypes.RECT()
             user32.GetClientRect(hwnd, ctypes.byref(client))
             width, height = int(client.right), int(client.bottom)
-            if hwnd == self.exit_window:
-                brush = gdi32.CreateSolidBrush(colorref(8, 44, 61))
-                user32.FillRect(dc, ctypes.byref(client), brush)
-                gdi32.DeleteObject(brush)
-                pen = gdi32.CreatePen(0, 2, colorref(0, 220, 255))
-                old_pen = gdi32.SelectObject(dc, pen)
-                gdi32.MoveToEx(dc, 1, 1, None)
-                gdi32.LineTo(dc, width - 2, 1)
-                gdi32.LineTo(dc, width - 2, height - 2)
-                gdi32.LineTo(dc, 1, height - 2)
-                gdi32.LineTo(dc, 1, 1)
-                gdi32.SelectObject(dc, old_pen)
-                gdi32.DeleteObject(pen)
-                self._draw_text(dc, "退出 AI 操控", client, 20, colorref(235, 255, 255))
-                return
             background = gdi32.CreateSolidBrush(colorref(3, 12, 20))
             user32.FillRect(dc, ctypes.byref(client), background)
             gdi32.DeleteObject(background)
@@ -747,7 +785,7 @@ class GuiService:
             title = wintypes.RECT(0, height // 2 - 66, width, height // 2 + 6)
             subtitle = wintypes.RECT(0, height // 2 + 10, width, height // 2 + 54)
             self._draw_text(dc, "AI 操控中", title, 46, colorref(225, 253, 255))
-            self._draw_text(dc, "界面已锁定，请等待操作完成", subtitle, 19, colorref(0, 220, 255))
+            self._draw_text(dc, "鼠标已锁定，按 Esc 退出 AI 操控", subtitle, 19, colorref(0, 220, 255))
         finally:
             user32.EndPaint(hwnd, ctypes.byref(paint))
 
@@ -762,45 +800,24 @@ class GuiService:
         gdi32.SelectObject(dc, old_font)
         gdi32.DeleteObject(font)
 
-    def _set_passthrough(self, enabled: bool) -> None:
-        self.passthrough = bool(enabled)
-        for hwnd in [*self.overlay_windows, self.exit_window]:
-            if not hwnd or not user32.IsWindow(hwnd):
-                continue
-            style = int(user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE))
-            updated = style | WS_EX_TRANSPARENT if enabled else style & ~WS_EX_TRANSPARENT
-            user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, updated)
-            user32.SetWindowPos(
-                hwnd,
-                HWND_TOPMOST,
-                0,
-                0,
-                0,
-                0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-            )
-
-    def _show_overlays(self, visible: bool) -> None:
-        command = SW_SHOWNOACTIVATE if visible else SW_HIDE
-        for hwnd in [*self.overlay_windows, self.exit_window]:
-            if hwnd and user32.IsWindow(hwnd):
-                user32.ShowWindow(hwnd, command)
-                if visible:
-                    user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
-
     def _detect_capture_mode(self) -> str:
-        primary = next((item for item in monitor_rects() if item["primary"]), monitor_rects()[0])
-        try:
-            time.sleep(0.04)
-            shown = ImageGrab.grab(bbox=rect_ltrb(primary), all_screens=True).convert("RGB")
-            self._show_overlays(False)
-            time.sleep(0.05)
-            hidden = ImageGrab.grab(bbox=rect_ltrb(primary), all_screens=True).convert("RGB")
-            return "exclude_from_capture" if image_difference_percent(shown, hidden) < 0.2 else "hide_during_capture"
-        except Exception:
-            return "hide_during_capture"
-        finally:
-            self._show_overlays(True)
+        # 老版本会把EXCLUDEFROMCAPTURE当成MONITOR，截图出现黑块而非真实桌面。
+        # 不通过动态画面差异推断系统能力，也不隐藏覆盖层来截图。
+        if sys.getwindowsversion().build < 19041:
+            raise GuiError("CAPTURE_EXCLUSION_UNAVAILABLE", "无闪烁界面锁需要Windows 10 2004或更新版本。")
+        enabled = wintypes.BOOL()
+        if dwmapi is None or dwmapi.DwmIsCompositionEnabled(ctypes.byref(enabled)) != 0 or not enabled.value:
+            raise GuiError("CAPTURE_EXCLUSION_UNAVAILABLE", "桌面合成不可用，无法保持覆盖层显示并取得干净截图。")
+        return "exclude_from_capture"
+
+    def _exclude_window_from_capture(self, hwnd: int) -> None:
+        affinity = wintypes.DWORD()
+        if (
+            not user32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)
+            or not user32.GetWindowDisplayAffinity(hwnd, ctypes.byref(affinity))
+            or affinity.value != WDA_EXCLUDEFROMCAPTURE
+        ):
+            raise GuiError("CAPTURE_EXCLUSION_UNAVAILABLE", "Windows未能将界面锁排除出截图，已停止启动；不会切换到隐藏覆盖层的闪烁模式。")
 
     def _install_hooks(self) -> None:
         instance = kernel32.GetModuleHandleW(None)
@@ -820,30 +837,26 @@ class GuiService:
     def _mouse_hook(self, code: int, wparam: int, lparam: int) -> int:
         if code >= 0:
             event = ctypes.cast(lparam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
-            if int(event.dwExtraInfo) == self.marker:
+            if int(event.dwExtraInfo) & 0xFFFFFFFF == self.marker:
                 return int(user32.CallNextHookEx(self.mouse_hook, code, wparam, lparam))
-            self.external_mouse_events += 1
-            if self.block_user_input and int(wparam) == WM_LBUTTONUP:
-                left = self.exit_rect["left"]
-                top = self.exit_rect["top"]
-                if (
-                    left <= int(event.pt.x) < left + self.exit_rect["width"]
-                    and top <= int(event.pt.y) < top + self.exit_rect["height"]
-                ):
-                    self.request_stop("user_exit")
             if self.block_user_input:
+                self.blocked_mouse_events += 1
                 return 1
+            self.external_mouse_events += 1
             return int(user32.CallNextHookEx(self.mouse_hook, code, wparam, lparam))
         return int(user32.CallNextHookEx(self.mouse_hook, code, wparam, lparam))
 
     def _keyboard_hook(self, code: int, wparam: int, lparam: int) -> int:
         if code >= 0:
             event = ctypes.cast(lparam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
-            if int(event.dwExtraInfo) == self.marker:
+            if int(event.dwExtraInfo) & 0xFFFFFFFF == self.marker:
                 return int(user32.CallNextHookEx(self.keyboard_hook, code, wparam, lparam))
-            self.external_keyboard_events += 1
             if self.block_user_input:
+                self.blocked_keyboard_events += 1
+                if event.vkCode == VK_CODES["esc"] and int(wparam) in {WM_KEYUP, WM_SYSKEYUP}:
+                    self.request_stop("user_escape")
                 return 1
+            self.external_keyboard_events += 1
             return int(user32.CallNextHookEx(self.keyboard_hook, code, wparam, lparam))
         return int(user32.CallNextHookEx(self.keyboard_hook, code, wparam, lparam))
 
@@ -867,7 +880,8 @@ class GuiService:
             connection.settimeout(130)
             try:
                 request = self._receive_json(connection)
-                response = self._dispatch(request)
+                with physical_coordinates():
+                    response = self._dispatch(request)
             except GuiError as exc:
                 response = {"ok": False, "error": exc.message, "error_info": {"code": exc.code, "details": exc.details}}
             except Exception as exc:
@@ -918,6 +932,8 @@ class GuiService:
         with self.service_lock:
             if self.cancel_event.is_set():
                 raise GuiError("GUI_RUNTIME_STOPPED", "GUI后台运行器已经退出。")
+            if not self.block_user_input:
+                raise GuiError("GUI_LOCK_REQUIRED", "请先调用gui_runtime start锁定界面。")
             if method == "inspect":
                 return self.inspect(arguments)
             if method == "mouse":
@@ -933,12 +949,16 @@ class GuiService:
             "ok": True,
             "summary": "GUI后台运行器正在工作。",
             "data": {
-                "active": True,
+                "active": not self.cancel_event.is_set(),
                 "runtime_id": self.lock_id,
                 "project_id": self.project_id,
                 "session_id": self.session_id,
                 "capture_mode": self.capture_mode,
                 "input_mode": "blocked" if self.block_user_input else "observed",
+                "mouse_movement_allowed": not self.block_user_input,
+                "blocked_input_counts": {"mouse": self.blocked_mouse_events, "keyboard": self.blocked_keyboard_events},
+                "exit_shortcut": "Esc",
+                "coordinate_space": "physical_screen_pixels",
                 "external_input_counts": {
                     "mouse": self.external_mouse_events,
                     "keyboard": self.external_keyboard_events,
@@ -949,19 +969,8 @@ class GuiService:
     def _capture_bbox(self, rect: dict[str, int]) -> Image.Image:
         if rect["width"] < 2 or rect["height"] < 2:
             raise GuiError("CAPTURE_FAILED", "截图区域尺寸无效。")
-        if self.capture_mode in {"exclude_from_capture", "no_overlay"}:
-            return ImageGrab.grab(bbox=rect_ltrb(rect), all_screens=True).convert("RGB")
-        self._show_overlays(False)
-        try:
-            if dwmapi is not None:
-                try:
-                    dwmapi.DwmFlush()
-                except OSError:
-                    pass
-            time.sleep(0.04)
-            return ImageGrab.grab(bbox=rect_ltrb(rect), all_screens=True).convert("RGB")
-        finally:
-            self._show_overlays(True)
+        self._detect_capture_mode()
+        return ImageGrab.grab(bbox=rect_ltrb(rect), all_screens=True).convert("RGB")
 
     def _target_rect(self, target: dict[str, Any]) -> dict[str, int]:
         if target["type"] == "window":
@@ -1029,10 +1038,17 @@ class GuiService:
         grid_target_cells: int,
         grid_rows: int | None,
         grid_cols: int | None,
+        zoom_scale_percent: int = 100,
     ) -> dict[str, Any]:
+        if raw.size != (source_rect["width"], source_rect["height"]):
+            raise GuiError("CAPTURE_GEOMETRY_MISMATCH", "截图像素尺寸与屏幕区域不一致，未建立坐标映射。")
         rows, cols = choose_grid(raw.width, raw.height, grid_mode, grid_target_cells, grid_rows, grid_cols)
         cells = build_cells(source_rect, rows, cols)
-        overlay = overlay_image(raw, cells, source_rect)
+        if not 100 <= zoom_scale_percent <= 800:
+            raise GuiError("INVALID_ARGUMENT", "zoom_scale_percent必须在100到800之间。")
+        display_size = (round(raw.width * zoom_scale_percent / 100), round(raw.height * zoom_scale_percent / 100))
+        display = raw.resize(display_size, Image.Resampling.NEAREST) if display_size != raw.size else raw
+        overlay = overlay_image(display, cells, source_rect)
         frame_folder = folder / f"frame_{frame_id:03d}"
         frame_folder.mkdir(parents=True, exist_ok=True)
         safe_view = "root" if view_id == "root" else "zoom_" + re.sub(r"[^0-9A-Za-z_-]", "_", view_id)
@@ -1043,6 +1059,8 @@ class GuiService:
         return {
             "view_id": view_id,
             "source_rect_absolute": source_rect,
+            "image_size": {"width": overlay.width, "height": overlay.height},
+            "zoom_scale_percent": zoom_scale_percent,
             "grid": {"rows": rows, "columns": cols},
             "cells": cells,
             "raw_image": raw_path.relative_to(folder).as_posix(),
@@ -1108,6 +1126,11 @@ class GuiService:
                 "view_id": view["view_id"],
                 "target": session["target"],
                 "grid": view["grid"],
+                "coordinate_space": "physical_screen_pixels",
+                "coordinate_origin": "cell_bottom_left",
+                "source_rect_absolute": view["source_rect_absolute"],
+                "image_size": view["image_size"],
+                "zoom_scale_percent": view["zoom_scale_percent"],
                 "performed": performed,
                 "interface_state": interface_state or {
                     "changed_before_action": False,
@@ -1129,7 +1152,7 @@ class GuiService:
         if action == "list_windows":
             contains = str(arguments.get("contains") or "").casefold()
             limit = max(1, min(int(arguments.get("limit", 100)), 300))
-            own_windows = {self.exit_window, *self.overlay_windows}
+            own_windows = set(self.overlay_windows)
             items = [item for item in visible_windows() if item["hwnd"] not in own_windows]
             if contains:
                 items = [item for item in items if contains in item["title"].casefold()]
@@ -1138,7 +1161,7 @@ class GuiService:
             target_type = str(arguments.get("target") or "screen")
             if target_type == "window":
                 selected = resolve_window(arguments.get("hwnd"), arguments.get("window_title"))
-                if selected["hwnd"] in {self.exit_window, *self.overlay_windows}:
+                if selected["hwnd"] in set(self.overlay_windows):
                     raise GuiError("INVALID_ARGUMENT", "不能把GUI锁覆盖层作为操作目标。")
                 if not activate_window(selected["hwnd"]):
                     raise GuiError("WINDOW_ACTIVATION_FAILED", "无法把目标窗口切换到前台，未创建GUI会话。")
@@ -1164,14 +1187,19 @@ class GuiService:
                 "frames": [],
             }
             self._save_session(session)
-            frame, image_path = self._create_frame(
-                session,
-                reason="inspect_start",
-                grid_mode=str(arguments.get("grid_mode") or "auto"),
-                grid_target_cells=int(arguments.get("grid_target_cells", 16)),
-                grid_rows=arguments.get("grid_rows"),
-                grid_cols=arguments.get("grid_cols"),
-            )
+            try:
+                frame, image_path = self._create_frame(
+                    session,
+                    reason="inspect_start",
+                    grid_mode=str(arguments.get("grid_mode") or "auto"),
+                    grid_target_cells=int(arguments.get("grid_target_cells", 16)),
+                    grid_rows=arguments.get("grid_rows"),
+                    grid_cols=arguments.get("grid_cols"),
+                )
+            except Exception:
+                shutil.rmtree(folder)
+                self.created_gui_sessions.discard(gui_session_id)
+                raise
             view = frame["views"]["root"]
             return self._result_with_image(summary="已查看当前界面。", session=session, frame=frame, view=view, image_path=image_path)
         gui_session_id = safe_session_id(str(arguments.get("gui_session_id") or ""))
@@ -1223,6 +1251,7 @@ class GuiService:
                 grid_target_cells=int(arguments.get("grid_target_cells", 16)),
                 grid_rows=arguments.get("grid_rows"),
                 grid_cols=arguments.get("grid_cols"),
+                zoom_scale_percent=int(arguments.get("zoom_scale_percent", DEFAULT_ZOOM_SCALE_PERCENT)),
             )
             frame["views"][view_id] = view
             self._save_session(session)
@@ -1255,7 +1284,7 @@ class GuiService:
                             matched = True
                             break
                     reference = raw
-                    time.sleep(interval_ms / 1000)
+                    self._interruptible_sleep(interval_ms / 1000)
                     raw, rect = self._capture_target(session["target"])
                     difference = image_difference_percent(reference, raw)
                 reason = f"wait_{mode}_{'matched' if matched else 'timeout'}"
@@ -1297,7 +1326,7 @@ class GuiService:
             y += current["top"] - captured["top"]
         return frame, x, y
 
-    def _preflight(self, session: dict[str, Any], threshold: float) -> tuple[dict[str, Any], Image.Image, dict[str, int], float]:
+    def _preflight(self, session: dict[str, Any], points: list[dict[str, Any]] | None = None) -> tuple[dict[str, Any], Image.Image, dict[str, int], float]:
         target = session["target"]
         if target["type"] == "window" and int(user32.GetForegroundWindow() or 0) != int(target["hwnd"]):
             raise GuiError("TARGET_NOT_FOREGROUND", "目标窗口已失去前台焦点，本次未执行；请重新查看目标窗口。")
@@ -1305,7 +1334,20 @@ class GuiService:
         root = frame["views"]["root"]
         previous = Image.open(self._session_dir(session["gui_session_id"]) / root["raw_image"]).convert("RGB")
         current, rect = self._capture_target(session["target"])
-        difference = image_difference_percent(previous, current)
+        captured = frame["capture_rect"]
+        if rect["width"] != captured["width"] or rect["height"] != captured["height"] or (target["type"] == "screen" and rect != captured):
+            raise GuiError("TARGET_GEOMETRY_CHANGED", "屏幕或目标窗口尺寸已经变化，请刷新界面后重试。")
+        if points:
+            differences = []
+            for point in points:
+                view = self._view(frame, str(point.get("view_id") or "root"))
+                cell = self._cell(view, int(point.get("cell_id", 0)))["rect_absolute"]
+                left, top = cell["left"] - captured["left"], cell["top"] - captured["top"]
+                box = (left, top, left + cell["width"], top + cell["height"])
+                differences.append(image_difference_percent(previous.crop(box), current.crop(box)))
+            difference = max(differences)
+        else:
+            difference = image_difference_percent(previous, current)
         return frame, current, rect, difference
 
     def _preview_coordinate(
@@ -1319,8 +1361,11 @@ class GuiService:
         difference: float,
         mouse_before: int,
         keyboard_before: int,
+        end_point: tuple[int, int] | None = None,
     ) -> dict[str, Any]:
         view = self._view(frame, str(arguments.get("view_id") or "root"))
+        if end_point is not None and arguments["to"]["view_id"] != view["view_id"]:
+            view = frame["views"]["root"]
         source_rect = view["source_rect_absolute"]
         captured_x, captured_y = screen_x, screen_y
         if session["target"]["type"] == "window":
@@ -1328,12 +1373,15 @@ class GuiService:
             captured_rect = frame["capture_rect"]
             captured_x -= current_rect["left"] - captured_rect["left"]
             captured_y -= current_rect["top"] - captured_rect["top"]
-        local_x = captured_x - int(source_rect["left"])
-        local_y = captured_y - int(source_rect["top"])
+        source_x = captured_x - int(source_rect["left"])
+        source_y = captured_y - int(source_rect["top"])
         folder = self._session_dir(session["gui_session_id"])
         image = Image.open(folder / view["overlay_image"]).convert("RGB")
-        if not 0 <= local_x < image.width or not 0 <= local_y < image.height:
+        if not 0 <= source_x < source_rect["width"] or not 0 <= source_y < source_rect["height"]:
             raise GuiError("COORDINATE_PREVIEW_FAILED", "选定坐标不在当前View内，未生成预览图。")
+        # 标在屏幕源像素对应的显示像素中心，不将显示放大倍数带回点击坐标。
+        local_x = min(image.width - 1, int((source_x + 0.5) * image.width / source_rect["width"]))
+        local_y = min(image.height - 1, int((source_y + 0.5) * image.height / source_rect["height"]))
         preview = image.copy()
         draw = ImageDraw.Draw(preview)
         radius = max(6, min(14, round(min(preview.size) / 100)))
@@ -1346,6 +1394,26 @@ class GuiService:
             (local_x - radius, local_y - radius, local_x + radius, local_y + radius),
             fill=COORDINATE_PREVIEW_COLOR,
         )
+        end_marker = None
+        if end_point is not None:
+            # 两端使用同一图片坐标空间；不同放大区域的拖动回到root展示完整路径。
+            end_source_x = source_x + end_point[0] - screen_x
+            end_source_y = source_y + end_point[1] - screen_y
+            end_local_x = min(image.width - 1, int((end_source_x + 0.5) * image.width / source_rect["width"]))
+            end_local_y = min(image.height - 1, int((end_source_y + 0.5) * image.height / source_rect["height"]))
+            draw.line((local_x, local_y, end_local_x, end_local_y), fill="#FFE66D", width=3)
+            draw.ellipse((end_local_x - radius, end_local_y - radius, end_local_x + radius, end_local_y + radius), fill="#00DCFF", outline="white", width=2)
+            draw.text((local_x + radius, local_y), "START", fill="white", stroke_width=1, stroke_fill="black")
+            draw.text((end_local_x + radius, end_local_y), "END", fill="white", stroke_width=1, stroke_fill="black")
+            end_marker = {"color": "#00DCFF", "center_x": end_local_x, "center_y": end_local_y}
+        elif arguments.get("action") == "scroll":
+            dx, dy = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0)}[arguments["direction"]]
+            arrow_x = max(4, min(image.width - 5, local_x + dx * radius * 4))
+            arrow_y = max(4, min(image.height - 5, local_y + dy * radius * 4))
+            draw.line((local_x, local_y, arrow_x, arrow_y), fill="#FFE66D", width=3)
+            draw.polygon([(arrow_x, arrow_y), (arrow_x - dx * 8 + dy * 5, arrow_y - dy * 8 - dx * 5), (arrow_x - dx * 8 - dy * 5, arrow_y - dy * 8 + dx * 5)], fill="#FFE66D")
+        if end_point is not None or arguments.get("action") == "scroll":
+            draw.ellipse((local_x - radius, local_y - radius, local_x + radius, local_y + radius), fill=COORDINATE_PREVIEW_COLOR, outline="white", width=2)
         safe_view = "root" if view["view_id"] == "root" else "zoom_" + re.sub(r"[^0-9A-Za-z_-]", "_", view["view_id"])
         preview_path = folder / f"frame_{int(frame['frame_id']):03d}" / f"{safe_view}_point_{uuid4().hex[:8]}.png"
         preview.save(preview_path, format="PNG", optimize=True)
@@ -1383,15 +1451,116 @@ class GuiService:
             },
             "marker": {"color": COORDINATE_PREVIEW_COLOR_HEX, "center_x": local_x, "center_y": local_y},
         })
+        if end_marker is not None:
+            result["data"]["end_marker"] = end_marker
+            result["data"]["selected_end_coordinate"] = {"screen_x": end_point[0], "screen_y": end_point[1]}
         return result
 
-    def _blocked_changed_result(self, session: dict[str, Any], raw: Image.Image, rect: dict[str, int], difference: float) -> dict[str, Any]:
+    def _mouse_arguments(self, arguments: dict[str, Any], action: str) -> dict[str, Any]:
+        if action not in MOUSE_ACTIONS:
+            raise GuiError("INVALID_ARGUMENT", "preview必须明确提供preview_action鼠标动作。")
+        required = ("gui_session_id", "frame_id", "view_id", "cell_id", "x", "y")
+        if any(key not in arguments for key in required) or (action == "drag" and not isinstance(arguments.get("to"), dict)):
+            raise GuiError("INVALID_ARGUMENT", "鼠标操作缺少坐标，或拖动缺少to终点。")
+        resolved = {key: arguments[key] for key in required}
+        resolved["action"] = action
+        for key in (*MOUSE_ACTION_OPTIONS[action], "change_check_scope", "change_threshold_percent"):
+            resolved[key] = arguments.get(key, MOUSE_ACTION_DEFAULTS[key])
+        if action == "drag":
+            resolved["to"] = arguments["to"]
+            resolved["change_check_scope"] = "frame"
+        resolved["screenshot_delay_seconds"] = self._screenshot_delay(arguments)
+        # 保存有效参数与已解析默认值，后续执行不接受参数覆盖。
+        return json.loads(json.dumps(resolved))
+
+    def _save_mouse_preview(self, session: dict[str, Any], arguments: dict[str, Any], result: dict[str, Any], rect: dict[str, int], point: tuple[int, int], end_point: tuple[int, int] | None) -> dict[str, Any]:
+        if not result["data"]["interface_state"]["safe_to_continue"]:
+            raise GuiError("PREVIEW_INTERRUPTED", "预览期间检测到外部输入或解锁，未建立可执行预览。")
+        preview_id = f"preview_{session['gui_session_id'][4:]}_{uuid4().hex}"
+        operation = str(arguments["action"])
+        labels = {"move": "移动", "click": "点击", "drag": "拖动", "scroll": "滚动", "mouse_down": "按下鼠标", "mouse_up": "抬起鼠标"}
+        detail = ""
+        if operation == "click":
+            detail = f"（{arguments['button']}，{arguments['clicks']}次，每次按住{arguments['click_hold_ms']}毫秒）"
+        elif operation == "scroll":
+            detail = f"（{arguments['direction']}，{arguments['notches']}格）"
+        elif operation == "drag":
+            detail = "（粉色起点、蓝色终点、黄色路径）"
+        result["summary"] = f"已预览{labels[operation]}{detail}，尚未执行。确认后用execute_preview和preview_id执行。"
+        result["data"].update({"preview_id": preview_id, "preview_status": "pending", "operation": arguments})
+        record = {
+            "preview_id": preview_id, "lock_id": self.lock_id, "status": "pending", "created_at": now_iso(),
+            "arguments": arguments, "capture_rect": rect, "screen_point": list(point),
+            "end_screen_point": list(end_point) if end_point is not None else None,
+        }
+        atomic_json(self._session_dir(session["gui_session_id"]) / "previews" / f"{preview_id}.json", record)
+        return result
+
+    def _execute_preview(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        if set(arguments) != {"action", "preview_id"}:
+            raise GuiError("INVALID_ARGUMENT", "execute_preview只接受action和preview_id，不允许覆盖已预览的操作参数。")
+        preview_id = str(arguments.get("preview_id") or "")
+        match = PREVIEW_ID_PATTERN.fullmatch(preview_id)
+        if not match:
+            raise GuiError("PREVIEW_NOT_FOUND", "预览编号无效。")
+        session = self._load_session(f"gui_{match[1]}")
+        path = self._session_dir(session["gui_session_id"]) / "previews" / f"{preview_id}.json"
+        if not path.is_file():
+            raise GuiError("PREVIEW_NOT_FOUND", "预览不存在或已随GUI会话清理。")
+        record = read_json(path)
+        if record.get("preview_id") != preview_id or record.get("lock_id") != self.lock_id or record["arguments"]["gui_session_id"] != session["gui_session_id"]:
+            raise GuiError("PREVIEW_NOT_FOUND", "预览不属于当前界面锁和GUI会话。")
+        if record["status"] != "pending":
+            if isinstance(record.get("result"), dict):
+                result = record["result"]
+                result["data"]["preview_reused"] = True
+                return result
+            raise GuiError("PREVIEW_ALREADY_CLAIMED", "该编号已开始执行但未留下完整结果，不会再次执行；请查看当前界面。", {"preview_id": preview_id, "execution_status": "unknown"})
+        # RPC service_lock覆盖领取、执行和结算；先落盘领取，失败或连接重试均不能重复输入。
+        record.update({"status": "executing", "started_at": now_iso(), "input_completed": False})
+        atomic_json(path, record)
+        sent_before = self.input_events_sent
+        try:
+            result = self.mouse(record["arguments"], preview_record=record)
+            status = "executed" if result["data"]["performed"] else "expired"
+        except Exception as exc:
+            sent = self.input_events_sent - sent_before
+            execution_status = "completed" if record["input_completed"] else "partial" if sent else "not_started"
+            code = exc.code if isinstance(exc, GuiError) else "GUI_INTERNAL_ERROR"
+            details = dict(exc.details) if isinstance(exc, GuiError) else {}
+            details.update({"execution_status": execution_status, "input_events_sent": sent})
+            result = {"ok": False, "error": str(exc), "error_info": {"code": code, "message": str(exc), "details": details}, "warnings": [], "data": {"gui_session_id": session["gui_session_id"], "performed": bool(sent)}}
+            # 失败也尽可能返回当前画面，但用户已退出时不再抓屏。
+            if not self.cancel_event.is_set():
+                try:
+                    current_session = self._load_session(session["gui_session_id"])
+                    frame, image_path = self._create_frame(current_session, reason="preview_execution_failed")
+                    latest = self._result_with_image(summary="", session=current_session, frame=frame, view=frame["views"]["root"], image_path=image_path, performed=bool(sent))
+                    result["data"] = latest["data"]
+                    result["data"]["interface_state"]["safe_to_continue"] = False
+                    result["image_path"] = latest["image_path"]
+                except Exception as capture_error:
+                    result["warnings"].append(f"未取得操作后的截图：{capture_error}")
+            else:
+                result["warnings"].append("界面锁已退出，未继续截图。")
+            if not self.cancel_event.is_set():
+                result["warnings"].append("请调用gui_inspect refresh核对当前界面后再决定下一步；同一预览编号不会再次执行。")
+            result["data"].update(details)
+            status = "expired" if not sent else "failed"
+        result["data"].update({"preview_id": preview_id, "preview_status": status, "preview_reused": False})
+        result["data"].setdefault("execution_status", "completed" if record["input_completed"] else "not_started")
+        record.update({"status": status, "finished_at": now_iso(), "result": result})
+        atomic_json(path, record)
+        return result
+
+    def _blocked_changed_result(self, session: dict[str, Any], raw: Image.Image, rect: dict[str, int], difference: float, scope: str = "frame") -> dict[str, Any]:
         frame, image_path = self._create_frame(session, reason="interface_changed_before_action", raw=raw, source_rect=rect)
         view = frame["views"]["root"]
         state = {
             "changed_before_action": True,
             "changed_during_action": False,
             "difference_percent": difference,
+            "change_check_scope": scope,
             "external_input_detected": False,
             "external_mouse_input": False,
             "external_keyboard_input": False,
@@ -1415,11 +1584,18 @@ class GuiService:
             raise GuiError("GUI_RUNTIME_STOPPED", "GUI后台运行器已经退出。")
         mouse_before = self.external_mouse_events
         keyboard_before = self.external_keyboard_events
-        self._set_passthrough(True)
         try:
             yield mouse_before, keyboard_before
         finally:
-            self._set_passthrough(False)
+            if self.cancel_event.is_set():
+                self._release_held_inputs()
+
+    @staticmethod
+    def _screenshot_delay(arguments: dict[str, Any]) -> float:
+        value = arguments.get("screenshot_delay_seconds", DEFAULT_SCREENSHOT_DELAY_SECONDS)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 30:
+            raise GuiError("INVALID_ARGUMENT", "screenshot_delay_seconds必须是0到30秒之间的数字。")
+        return float(value)
 
     def _finish_action(
         self,
@@ -1430,7 +1606,9 @@ class GuiService:
         keyboard_before: int,
         action_name: str,
         action_data: dict[str, Any],
+        screenshot_delay_seconds: float,
     ) -> dict[str, Any]:
+        self._interruptible_sleep(screenshot_delay_seconds)
         raw, rect = self._capture_target(session["target"])
         difference = image_difference_percent(before_raw, raw)
         external_mouse = self.external_mouse_events > mouse_before
@@ -1456,21 +1634,41 @@ class GuiService:
             image_path=image_path,
             interface_state=state,
         )
+        result["data"]["screenshot_delay_seconds"] = screenshot_delay_seconds
         result["data"]["action"] = action_data
         return result
 
-    def mouse(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        session = self._load_session(str(arguments.get("gui_session_id") or ""))
-        action = str(arguments.get("action") or "").strip()
+    def mouse(self, arguments: dict[str, Any], *, preview_record: dict[str, Any] | None = None) -> dict[str, Any]:
+        requested_action = str(arguments.get("action") or "").strip()
+        if requested_action == "execute_preview":
+            return self._execute_preview(arguments)
+        action = str(arguments.get("preview_action") or "") if requested_action == "preview" else requested_action
+        arguments = self._mouse_arguments(arguments, action)
+        session = self._load_session(str(arguments["gui_session_id"]))
         mouse_at_start = self.external_mouse_events
         keyboard_at_start = self.external_keyboard_events
         threshold = float(arguments.get("change_threshold_percent", 0.5))
-        _frame, before_raw, rect, difference = self._preflight(session, threshold)
-        if difference >= threshold:
-            return self._blocked_changed_result(session, before_raw, rect, difference)
+        scope = str(arguments.get("change_check_scope", "target_cell"))
+        if scope not in {"target_cell", "frame"}:
+            raise GuiError("INVALID_ARGUMENT", "change_check_scope必须是target_cell或frame。")
         frame, x, y = self._resolve_point(session, arguments)
-        if action == "preview":
-            return self._preview_coordinate(
+        end_point = None
+        if action == "drag":
+            _target_frame, end_x, end_y = self._resolve_point(session, {**arguments["to"], "frame_id": frame["frame_id"]})
+            end_point = (end_x, end_y)
+        # 拖动经过的区域可能影响目标，仍检查完整Frame。
+        check_scope = "frame" if action == "drag" else scope
+        _frame, before_raw, rect, difference = self._preflight(session, [arguments] if check_scope == "target_cell" else None)
+        if preview_record is not None and (
+            preview_record["capture_rect"] != rect
+            or preview_record["screen_point"] != [x, y]
+            or preview_record["end_screen_point"] != (list(end_point) if end_point is not None else None)
+        ):
+            raise GuiError("PREVIEW_EXPIRED", "预览后窗口位置或坐标映射发生变化，未执行；请重新预览。")
+        if difference >= threshold:
+            return self._blocked_changed_result(session, before_raw, rect, difference, check_scope)
+        if requested_action == "preview":
+            result = self._preview_coordinate(
                 session=session,
                 frame=frame,
                 arguments=arguments,
@@ -1479,8 +1677,10 @@ class GuiService:
                 difference=difference,
                 mouse_before=mouse_at_start,
                 keyboard_before=keyboard_at_start,
+                end_point=end_point,
             )
-        action_data: dict[str, Any] = {"type": action, "screen_point": {"x": x, "y": y}}
+            return self._save_mouse_preview(session, arguments, result, rect, (x, y), end_point)
+        action_data: dict[str, Any] = {"type": action, "screen_point": {"x": x, "y": y}, "change_check_scope": check_scope}
         with self._ai_input() as counters:
             if action == "move":
                 self._mouse_move(x, y, int(arguments.get("duration_ms", 0)))
@@ -1491,10 +1691,6 @@ class GuiService:
                     self._mouse_click(x, y, str(arguments.get("button") or "left"), int(arguments.get("clicks", 1)), int(arguments.get("interval_ms", 120)), click_hold_ms)
                 action_data.update({"button": str(arguments.get("button") or "left"), "clicks": int(arguments.get("clicks", 1)), "click_hold_ms": click_hold_ms, "modifiers": modifiers})
             elif action == "drag":
-                target = arguments.get("to")
-                if not isinstance(target, dict):
-                    raise GuiError("INVALID_ARGUMENT", "drag必须提供to坐标。")
-                _target_frame, end_x, end_y = self._resolve_point(session, {"frame_id": frame["frame_id"], **target})
                 modifiers = self._normalize_modifiers(arguments.get("modifiers"))
                 with self._hold_modifiers(modifiers):
                     self._mouse_drag(x, y, end_x, end_y, str(arguments.get("button") or "left"), int(arguments.get("duration_ms", 0)))
@@ -1515,6 +1711,8 @@ class GuiService:
                 self._mouse_flag(MOUSE_BUTTON_FLAGS[button][1], button=button)
             else:
                 raise GuiError("INVALID_ARGUMENT", f"不支持的鼠标操作：{action}")
+        if preview_record is not None:
+            preview_record["input_completed"] = True
         return self._finish_action(
             session=session,
             before_raw=before_raw,
@@ -1522,12 +1720,14 @@ class GuiService:
             keyboard_before=counters[1],
             action_name=action,
             action_data=action_data,
+            screenshot_delay_seconds=arguments["screenshot_delay_seconds"],
         )
 
     def keyboard(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        delay = self._screenshot_delay(arguments)
         session = self._load_session(str(arguments.get("gui_session_id") or ""))
         threshold = float(arguments.get("change_threshold_percent", 0.5))
-        _frame, before_raw, rect, difference = self._preflight(session, threshold)
+        _frame, before_raw, rect, difference = self._preflight(session)
         if difference >= threshold:
             return self._blocked_changed_result(session, before_raw, rect, difference)
         action = str(arguments.get("action") or "").strip()
@@ -1557,12 +1757,14 @@ class GuiService:
             keyboard_before=counters[1],
             action_name=action,
             action_data=action_data,
+            screenshot_delay_seconds=delay,
         )
 
     def batch(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        delay = self._screenshot_delay(arguments)
         session = self._load_session(str(arguments.get("gui_session_id") or ""))
         threshold = float(arguments.get("change_threshold_percent", 0.5))
-        _frame, before_raw, rect, difference = self._preflight(session, threshold)
+        _frame, before_raw, rect, difference = self._preflight(session)
         if difference >= threshold:
             return self._blocked_changed_result(session, before_raw, rect, difference)
         actions = arguments.get("actions")
@@ -1583,6 +1785,7 @@ class GuiService:
             keyboard_before=counters[1],
             action_name="batch",
             action_data={"type": "batch", "actions": results},
+            screenshot_delay_seconds=delay,
         )
 
     def _execute_batch_item(self, session: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
@@ -1647,11 +1850,14 @@ class GuiService:
             raise GuiError("GUI_RUNTIME_STOPPED", "GUI后台运行器已经退出。")
         if user32.SendInput(1, ctypes.byref(item), ctypes.sizeof(INPUT)) != 1:
             raise GuiError("INPUT_DESKTOP_UNAVAILABLE", "Windows拒绝了输入，桌面可能已锁定或不可交互。")
+        self.input_events_sent = getattr(self, "input_events_sent", 0) + 1
 
     def _mouse_move_event(self, x: int, y: int) -> None:
         left, top, width, height = self._virtual_metrics()
-        normalized_x = round((x - left) * 65535 / max(1, width - 1))
-        normalized_y = round((y - top) * 65535 / max(1, height - 1))
+        if not left <= x < left + width or not top <= y < top + height:
+            raise GuiError("POINT_OUTSIDE_DESKTOP", "目标坐标已不在当前屏幕范围内，请刷新界面。")
+        normalized_x = min(65535, int((x - left + 0.5) * 65536 / width))
+        normalized_y = min(65535, int((y - top + 0.5) * 65536 / height))
         flags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK
         self._send_input(INPUT(type=INPUT_MOUSE, mi=MOUSEINPUT(normalized_x, normalized_y, 0, flags, 0, self.marker)))
 
@@ -1661,6 +1867,7 @@ class GuiService:
         user32.GetCursorPos(ctypes.byref(point))
         if duration <= 0:
             self._mouse_move_event(x, y)
+            self._verify_mouse_position(x, y)
             return
         steps = max(2, min(120, math.ceil(duration / 15)))
         for step in range(1, steps + 1):
@@ -1668,6 +1875,18 @@ class GuiService:
             self._mouse_move_event(round(point.x + (x - point.x) * ratio), round(point.y + (y - point.y) * ratio))
             if step < steps:
                 self._interruptible_sleep(duration / steps / 1000)
+        self._verify_mouse_position(x, y)
+
+    def _verify_mouse_position(self, x: int, y: int) -> None:
+        point = POINT()
+        deadline = time.monotonic() + POINTER_VERIFY_TIMEOUT_MS / 1000
+        while user32.GetCursorPos(ctypes.byref(point)):
+            if (int(point.x), int(point.y)) == (x, y):
+                return
+            if time.monotonic() >= deadline:
+                break
+            self._interruptible_sleep(0.005)
+        raise GuiError("POINTER_POSITION_MISMATCH", "鼠标实际位置与预览落点不一致，未继续点击。", {"expected": {"x": x, "y": y}, "actual": {"x": int(point.x), "y": int(point.y)}, "verification_timeout_ms": POINTER_VERIFY_TIMEOUT_MS})
 
     def _mouse_flag(
         self,
@@ -1869,9 +2088,11 @@ class GuiService:
 
     def _interruptible_sleep(self, seconds: float) -> None:
         deadline = time.monotonic() + max(0.0, seconds)
-        while time.monotonic() < deadline:
+        while True:
             if self.cancel_event.is_set():
                 raise GuiError("GUI_RUNTIME_STOPPED", "GUI后台运行器已经退出。")
+            if time.monotonic() >= deadline:
+                return
             time.sleep(min(0.02, max(0.0, deadline - time.monotonic())))
 
 
@@ -1884,7 +2105,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lock-id", required=True)
     parser.add_argument("--token", required=True)
     parser.add_argument("--marker", required=True, type=int)
-    parser.add_argument("--block-user-input", action="store_true")
     return parser.parse_args()
 
 
@@ -1892,8 +2112,9 @@ def main() -> int:
     global SERVICE
     if os.name != "nt":
         return 2
-    SERVICE = GuiService(parse_args())
-    return SERVICE.run()
+    with physical_coordinates():
+        SERVICE = GuiService(parse_args())
+        return SERVICE.run()
 
 
 if __name__ == "__main__":

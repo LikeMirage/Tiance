@@ -2,13 +2,29 @@
   "additionalProperties": false,
   "allOf": [
     {
-      "if": {"properties": {"action": {"const": "drag"}}, "required": ["action"]},
+      "if": {"properties": {"action": {"const": "execute_preview"}}, "required": ["action"]},
+      "then": {"required": ["preview_id"], "maxProperties": 2},
+      "else": {"required": ["gui_session_id", "frame_id", "view_id", "cell_id", "x", "y"], "not": {"required": ["preview_id"]}}
+    },
+    {
+      "if": {"properties": {"action": {"const": "preview"}}, "required": ["action"]},
+      "then": {"required": ["preview_action"]},
+      "else": {"not": {"required": ["preview_action"]}}
+    },
+    {
+      "if": {"anyOf": [
+        {"properties": {"action": {"const": "drag"}}, "required": ["action"]},
+        {"properties": {"action": {"const": "preview"}, "preview_action": {"const": "drag"}}, "required": ["action", "preview_action"]}
+      ]},
       "then": {"required": ["to"]}
     }
   ],
-  "description": "使用最新Frame的网格坐标预览落点或执行鼠标操作。x/y是Cell内部0到1比例，原点在左下角。preview只生成带颜色点的预览图，不移动鼠标、不点击且不创建新Frame。",
+  "description": "先调用gui_runtime start锁定，再用最新Frame网格坐标操作。x/y是Cell内部0到1比例，原点在左下角。preview必须指定preview_action，保存完整动作并返回preview_id；确认后execute_preview只传该编号。预览不输入、不创建新Frame；编号只执行一次，旧Frame、移动窗口或目标变化会使其失效。",
   "properties": {
-    "action": {"type": "string", "enum": ["preview", "move", "click", "drag", "scroll", "mouse_down", "mouse_up"], "description": "preview仅预览选定坐标；其他值执行对应鼠标动作。", "permission_type": "ui_control"},
+    "screenshot_delay_seconds": {"type":"number","minimum":0,"maximum":30,"default":1,"description":"操作全部结束后等待再截图，默认1秒，可设0到30秒（含小数）；0立即截图，等待期间Esc立即取消。批量只在末尾等待一次；预览不等待，参数随预览保存，执行编号时不可覆盖。截图等待计入调用总时限。","permission_type":"none"},
+    "action": {"type": "string", "enum": ["preview", "execute_preview", "move", "click", "drag", "scroll", "mouse_down", "mouse_up"], "description": "preview预览并保存完整鼠标动作；execute_preview按编号执行；其他值直接执行。", "permission_type": "ui_control"},
+    "preview_action": {"type": "string", "enum": ["move", "click", "drag", "scroll", "mouse_down", "mouse_up"], "description": "仅preview使用且必填。点击类型由button/clicks决定，拖动展示起终点和路径，滚动展示落点和方向。", "permission_type": "none"},
+    "preview_id": {"type": "string", "pattern": "^preview_[a-f0-9]{32}_[a-f0-9]{32}$", "description": "execute_preview必填，使用预览结果原样返回的编号；同一次界面锁内有效，重复提交只返回原执行结果，不再操作。", "permission_type": "none"},
     "gui_session_id": {"type": "string", "pattern": "^gui_[a-f0-9]{32}$", "permission_type": "none"},
     "frame_id": {"type": "integer", "minimum": 0, "description": "必须是当前最新Frame ID。", "permission_type": "none"},
     "view_id": {"type": "string", "minLength": 1, "description": "目标View ID。", "permission_type": "none"},
@@ -18,7 +34,7 @@
     "to": {
       "type": "object",
       "additionalProperties": false,
-      "description": "drag终点，仍使用同一最新Frame。",
+      "description": "drag或preview_action=drag的终点，仍使用同一最新Frame。",
       "properties": {
         "view_id": {"type": "string", "minLength": 1},
         "cell_id": {"type": "integer", "minimum": 1},
@@ -31,12 +47,13 @@
     "clicks": {"type": "integer", "enum": [1, 2], "default": 1, "permission_type": "none"},
     "click_hold_ms": {"type": "integer", "minimum": 0, "maximum": 2000, "default": 80, "description": "每次click按下到抬起的时长，默认80毫秒。", "permission_type": "none"},
     "modifiers": {"type": "array", "items": {"type": "string", "enum": ["ctrl", "shift", "alt", "win"]}, "uniqueItems": true, "maxItems": 4, "default": [], "permission_type": "none"},
-    "duration_ms": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0, "description": "move/drag持续时间，0表示立即到达。", "permission_type": "none"},
+    "duration_ms": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0, "description": "move/drag持续时间，0表示立即移动；定位后最多等待250毫秒校验实际光标位置，不一致则停止操作。", "permission_type": "none"},
     "direction": {"type": "string", "enum": ["up", "down", "left", "right"], "default": "down", "permission_type": "none"},
     "notches": {"type": "integer", "minimum": 1, "maximum": 100, "default": 3, "permission_type": "none"},
     "interval_ms": {"type": "integer", "minimum": 0, "maximum": 2000, "default": 120, "description": "双击或滚动事件间隔。", "permission_type": "none"},
-    "change_threshold_percent": {"type": "number", "minimum": 0.01, "maximum": 100, "default": 0.5, "description": "操作前界面变化阻断阈值；任一RGB通道变化达到16的像素计为变化。", "permission_type": "none"}
+    "change_check_scope": {"type": "string", "enum": ["target_cell", "frame"], "default": "target_cell", "description": "操作前检查范围：target_cell比较选定格子，frame比较完整截图。drag经过多个区域，始终检查完整截图。", "permission_type": "none"},
+    "change_threshold_percent": {"type": "number", "minimum": 0.01, "maximum": 100, "default": 0.5, "description": "检查范围内变化像素达到该百分比则阻断并返回最新Frame；任一RGB通道变化达到16的像素计为变化。", "permission_type": "none"}
   },
-  "required": ["action", "gui_session_id", "frame_id", "view_id", "cell_id", "x", "y"],
+  "required": ["action"],
   "type": "object"
 }

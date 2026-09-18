@@ -60,11 +60,13 @@ def context_and_state() -> tuple[Path, dict[str, Any]]:
     try:
         state = json.loads(STATE_PATH.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
-        raise ToolError("GUI_RUNTIME_UNAVAILABLE", "GUI临时会话已经失效，请重新调用gui_inspect start。") from exc
+        raise ToolError("GUI_LOCK_REQUIRED", "请先调用gui_runtime start锁定界面，再调用gui_inspect start。") from exc
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ToolError("GUI_RUNTIME_STATE_INVALID", "GUI后台运行器状态损坏，请重新调用gui_inspect start。") from exc
     if not isinstance(state, dict) or state.get("status") != "active" or not process_alive(state.get("pid")):
-        raise ToolError("GUI_RUNTIME_UNAVAILABLE", "GUI后台运行器未运行，请重新调用gui_inspect start。")
+        raise ToolError("GUI_LOCK_REQUIRED", "界面锁已退出，请调用gui_runtime start后重新查看界面。")
+    if state.get("input_mode") != "blocked":
+        raise ToolError("GUI_LOCK_REQUIRED", "旧的无锁运行器仍在运行，请调用gui_runtime stop后重新start。")
     actual_workspace = Path(str(state.get("workspace") or "")).resolve(strict=False)
     if state.get("project_id") != project_id or state.get("session_id") != session_id or str(actual_workspace).casefold() != str(workspace).casefold():
         raise ToolError("GUI_RUNTIME_OWNED_BY_OTHER_SESSION", "GUI临时会话属于另一个项目会话。")
@@ -123,9 +125,7 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
             raise ToolError("PLATFORM_NOT_SUPPORTED", "GUI工具目前只支持Windows。")
         workspace, state = context_and_state()
         response = call_helper(state, payload)
-        if not response.get("ok"):
-            info = response.get("error_info") if isinstance(response.get("error_info"), dict) else {}
-            raise ToolError(str(info.get("code") or "GUI_OPERATION_FAILED"), str(response.get("error") or "GUI操作失败。"), info.get("details"))
+        # 失败结果也可能包含部分执行信息和最新截图，必须完整保留。
         return attach_image(response, workspace)
     except ToolError as exc:
         return failure(exc)

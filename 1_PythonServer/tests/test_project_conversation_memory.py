@@ -28,6 +28,11 @@ from app.repositories.project.conversation_compaction_repository import (
 from app.repositories.project.conversation_memory_repository import (
     ProjectConversationMemoryRepository,
 )
+from app.repositories.project.conversation_long_term_memory_repository import (
+    GLOBAL_MEMORY_REPOSITORY_DEFINITION,
+    PROJECT_MEMORY_REPOSITORY_DEFINITION,
+    ProjectConversationLongTermMemoryRepository,
+)
 from app.repositories.project.conversation_repository import (
     ProjectConversationRepository,
 )
@@ -674,7 +679,17 @@ def test_compaction_creates_named_function_session_and_replaces_source_history(
     compacted_function = memory.build_request_with_compressed_context(
         function_request
     )
-    assert compacted_function.messages == function_request.messages
+    # Completed results remain usable after the recursion guard disables new tasks.
+    function_record = repository.list_compressions(
+        PROJECT_ID, function_session.session_id,
+    )[-1]
+    covered_ids = set(function_record["source_message_ids"])
+    assert compacted_function.messages[0].content == compacted.messages[0].content
+    assert compacted_function.messages[1:] == tuple(
+        message for message in function_request.messages
+        if conversation_message_id(message) not in covered_ids
+    )
+    assert conversation.list_messages(PROJECT_ID, function_session.session_id) == function_messages
     compaction_task_message = next(
         message
         for message in compacted_function.messages
@@ -1152,6 +1167,83 @@ def test_compaction_function_session_defaults_disable_memory_automation(tmp_path
     assert reenabled.settings.memory_compression_enabled is True
     assert reenabled.settings.project_memory_extraction_enabled is True
     assert reenabled.settings.global_memory_extraction_enabled is True
+
+
+@pytest.mark.parametrize("definition", [
+    PROJECT_MEMORY_REPOSITORY_DEFINITION,
+    GLOBAL_MEMORY_REPOSITORY_DEFINITION,
+    None,
+], ids=["project-memory", "global-memory", "disabled-source"])
+def test_disabled_compaction_keeps_existing_summary_without_starting_new_task(tmp_path, definition):
+    conversation, source, repository, memory = _create_services(tmp_path)
+    first_turn = _append_turn(conversation, source.session_id, 1)
+    _append_turn(conversation, source.session_id, 2)
+    source_messages = conversation.list_messages(PROJECT_ID, source.session_id)
+    repository.append_compression(PROJECT_ID, source.session_id, {
+        "compression_id": "cmp_existing",
+        "status": "completed",
+        "source_type": "conversation_context",
+        "source_message_ids": [message.message_id for message in first_turn],
+        "result": COMPACTION_RESULT,
+    })
+    source_request = ChatCompletionRequest(
+        provider_id="deepseek", model_id="deepseek-v4",
+        project_id=PROJECT_ID, session_id=source.session_id,
+        messages=build_conversation_request_messages(source_messages, None, source.settings),
+    )
+    expected = memory.build_request_with_compressed_context(source_request)
+    assert expected.messages[0].content.startswith("历史累计摘要：")
+
+    if definition is not None:
+        tasks = ProjectConversationLongTermMemoryRepository(
+            FakeProjectRepository(str(tmp_path / "project")), definition,
+        )
+        creation = tasks.create_task(
+            PROJECT_ID, source.session_id,
+            task_id="task-memory", previous_boundary_message_id=None,
+            snapshot_boundary_message_id=source_messages[-1].message_id,
+            newly_covered_message_ids=tuple(message.message_id for message in source_messages),
+            target_provider_id="deepseek", target_model_id="deepseek-v4",
+            target_reasoning_mode=None, target_settings=source.settings,
+            mode="session", trigger={},
+        )
+        target = creation.session
+    else:
+        target = conversation.update_session(
+            PROJECT_ID, source.session_id,
+            settings={"memory_compression_enabled": False}, should_update_settings=True,
+        )
+    assert target.settings.memory_compression_enabled is False
+    records = repository.list_compressions(PROJECT_ID, target.session_id)
+    assert len(records) == 1
+    if definition is not None:
+        assert records[0]["inherited_from"]["compression_id"] == "cmp_existing"
+    target_messages = conversation.list_messages(PROJECT_ID, target.session_id)
+    target_request = replace(
+        source_request, session_id=target.session_id,
+        messages=build_conversation_request_messages(target_messages, "整理记忆", target.settings),
+    )
+
+    actual = memory.build_request_with_compressed_context(target_request)
+
+    # Message provenance IDs change on a fork; the model-visible prefix must not.
+    assert [(message.role, message.content) for message in actual.messages[:-1]] == [
+        (message.role, message.content) for message in expected.messages
+    ]
+    assert actual.messages[-1].content == "整理记忆"
+    assert conversation.list_messages(PROJECT_ID, source.session_id) == source_messages
+    assert conversation.list_messages(PROJECT_ID, target.session_id) == target_messages
+    assert len(target_messages) == len(source_messages)
+    calls = []
+    _install_successful_runner(conversation, memory, calls=calls)
+    sessions_before = conversation.list_sessions(PROJECT_ID)
+    asyncio.run(memory.compact_request_if_enabled(
+        PROJECT_ID, target.session_id, model_request=actual,
+        session_snapshot=replace(target, settings=replace(target.settings, memory_compression_enabled=True)),
+    ))
+    assert calls == []
+    assert conversation.list_sessions(PROJECT_ID) == sessions_before
+    assert repository.list_compressions(PROJECT_ID, target.session_id) == records
 
 
 def test_request_context_does_not_truncate_large_history(tmp_path):

@@ -141,15 +141,6 @@
       "updated_at": "2026-08-02T01:06:49.373509+00:00"
     },
     {
-      "project_id": "304eed42-b6fe-5600-9507-0e787c1a8c9b",
-      "name": "DMXAPI 绘图",
-      "category_id": "f7889dde-1a63-41bf-bf79-f55da3961be3",
-      "is_default": false,
-      "sort_order": 0,
-      "created_at": "2026-07-05T00:00:00+00:00",
-      "updated_at": "2026-08-02T01:06:50.543736+00:00"
-    },
-    {
       "project_id": "0510e798-3244-534d-84be-1c9ffa16cfd4",
       "name": "模型内置网络搜索",
       "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
@@ -169,7 +160,7 @@
     },
     {
       "project_id": "c7dd4066-37a6-4b1e-a67a-d39f0c6d4a21",
-      "name": "GUI 后台运行器",
+      "name": "GUI 界面锁",
       "category_id": "de7ff9ea-e4d4-4965-8902-04037bfa3ae8",
       "is_default": false,
       "sort_order": 0,
@@ -508,6 +499,33 @@
       "sort_order": 10,
       "created_at": "2026-08-03T00:00:00+00:00",
       "updated_at": "2026-08-03T00:00:00+00:00"
+    },
+    {
+      "project_id": "17c0794d-80c1-4670-aa7c-e678f917409d",
+      "name": "Everything 文件搜索",
+      "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
+      "is_default": false,
+      "sort_order": 11,
+      "created_at": "2026-09-11T00:00:00+00:00",
+      "updated_at": "2026-09-11T00:00:00+00:00"
+    },
+    {
+      "project_id": "ea5cace1-0644-4ecf-ac63-02e4b88b05b4",
+      "name": "结构化数据库检索",
+      "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
+      "is_default": false,
+      "sort_order": 12,
+      "created_at": "2026-09-18T07:49:37.039741+00:00",
+      "updated_at": "2026-09-18T07:49:37.039741+00:00"
+    },
+    {
+      "project_id": "31084ec1-b544-4654-a09a-2021b6406a70",
+      "name": "DMXAPI 绘图",
+      "category_id": "f7889dde-1a63-41bf-bf79-f55da3961be3",
+      "is_default": false,
+      "sort_order": 13,
+      "created_at": "2026-09-18T10:07:59.924197+00:00",
+      "updated_at": "2026-09-18T10:07:59.924197+00:00"
     }
   ]
 }

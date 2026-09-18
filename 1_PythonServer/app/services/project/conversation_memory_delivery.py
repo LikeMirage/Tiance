@@ -4,7 +4,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.domain.llm.chat import ChatCompletionRequest, ChatMessageRole
-from app.domain.project.project_conversation import ProjectConversationSession
+from app.domain.project.project_conversation import (
+    ProjectConversationMessage,
+    ProjectConversationSession,
+)
 from app.repositories.project.conversation_memory_repository import (
     ProjectConversationMemoryRepository,
 )
@@ -58,6 +61,7 @@ class ProjectConversationMemoryDeliveryService:
                 existing,
                 user_message_id=user_message_id,
                 created_at=created_at,
+                last_model_response=self._last_model_response(project_id, session_id),
                 global_events=self._memory_repository.list_global_memory_events(),
                 project_events=self._memory_repository.list_project_memory_events(
                     project_id
@@ -158,6 +162,7 @@ class ProjectConversationMemoryDeliveryService:
             state,
             user_message_id=user_message_id,
             created_at=_utc_now(),
+            last_model_response=self._last_model_response(project_id, session.session_id),
             global_events=self._memory_repository.list_global_memory_events(),
             project_events=self._memory_repository.list_project_memory_events(project_id),
             global_enabled=session.settings.global_memory_enabled,
@@ -169,6 +174,17 @@ class ProjectConversationMemoryDeliveryService:
                 model_id,
             ),
         )
+
+    def _last_model_response(
+        self, project_id: str, session_id: str,
+    ) -> ProjectConversationMessage | None:
+        # Use persisted model replies, including tool calls. User/tool messages and
+        # partial error/cancelled replies are not successful model activity.
+        messages = self._conversation_service.list_messages(project_id, session_id)
+        for message in reversed(messages):
+            if message.role == "assistant" and message.status == "done":
+                return message
+        return None
 
     def _cache_retention_seconds(self, provider_id: str, model_id: str) -> int:
         return self._adaptation_rules_repository.resolve_prompt_cache_retention_seconds(

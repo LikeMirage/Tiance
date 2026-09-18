@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from app.domain.tools.parameter_permissions import TOOL_PARAMETER_PERMISSION_TYPES
+from app.domain.tools.parameter_permissions import (
+    TOOL_PARAMETER_PERMISSION_TYPES,
+    TOOL_PARAMETER_PERMISSION_SCOPE_KEY,
+)
 
 TOOL_PERMISSION_POLICY_VERSION = 1
 TOOL_PERMISSION_DECISIONS = frozenset({"deny", "ask", "allow"})
@@ -115,6 +118,18 @@ if {
     for permission_type, scopes in TOOL_PERMISSION_POLICY_SCOPES.items()
 }:
     raise RuntimeError("工具权限默认策略与权限范围定义不一致。")
+
+
+def declared_permission_scopes(
+    permission_type: str, schema: dict[str, object],
+) -> tuple[str, ...] | None:
+    """A declared scope is tool metadata, never inferred from content parameters."""
+    if TOOL_PARAMETER_PERMISSION_SCOPE_KEY not in schema:
+        return None
+    scope = schema[TOOL_PARAMETER_PERMISSION_SCOPE_KEY]
+    if not isinstance(scope, str) or scope not in TOOL_PERMISSION_POLICY_SCOPES.get(permission_type, ()):
+        raise ValueError("permission_scope 必须是当前权限类型支持的范围。")
+    return (scope,)
 
 
 def build_default_tool_permission_policy() -> dict[str, object]:

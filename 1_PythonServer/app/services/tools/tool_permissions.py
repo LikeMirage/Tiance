@@ -13,6 +13,7 @@ from app.domain.tools.parameter_permissions import (
 )
 from app.domain.tools.permission_policies import (
     build_default_tool_permission_policy,
+    declared_permission_scopes,
     normalize_tool_permission_policy,
 )
 from app.infra.tools.tool_project_config_constants import TOOL_PERMISSIONS_FILE
@@ -63,6 +64,7 @@ def evaluate_tool_permissions(
     for parameter_name, value in arguments.items():
         parameter_schema = property_schemas.get(parameter_name)
         if not isinstance(parameter_schema, dict):
+            parameter_schema = {}
             permission_type = "unknown"
         else:
             raw_permission_type = parameter_schema.get(TOOL_PARAMETER_PERMISSION_TYPE_KEY)
@@ -72,15 +74,18 @@ def evaluate_tool_permissions(
                 and raw_permission_type in TOOL_PARAMETER_PERMISSION_TYPES
                 else "unknown"
             )
+        scopes = declared_permission_scopes(permission_type, parameter_schema)
         if permission_type == "none":
             continue
 
-        for scope in _resolve_scopes(
-            permission_type,
-            value,
-            workspace_root=workspace_root,
-            project_id=project_id,
-        ):
+        if scopes is None:
+            scopes = _resolve_scopes(
+                permission_type,
+                value,
+                workspace_root=workspace_root,
+                project_id=project_id,
+            )
+        for scope in scopes:
             decision = _read_decision(policy, permission_type, scope)
             facts.append(
                 ToolPermissionFact(
@@ -229,8 +234,14 @@ def _network_scopes(value: Any) -> tuple[str, ...]:
             scopes.add("unresolved")
             continue
         raw = leaf.strip()
-        parsed = urlparse(raw if "://" in raw else f"//{raw}")
-        host = (parsed.hostname or "").strip().casefold()
+        try:
+            parsed = urlparse(raw if "://" in raw else f"//{raw}")
+            host = (parsed.hostname or "").strip().casefold()
+            # Accessing port also validates malformed or out-of-range ports.
+            parsed.port
+        except ValueError:
+            scopes.add("unresolved")
+            continue
         if not host:
             scopes.add("unresolved")
             continue

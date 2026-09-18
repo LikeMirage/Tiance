@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import ctypes
 from ctypes import wintypes
-from importlib.util import module_from_spec, spec_from_file_location
 import json
 import os
 from pathlib import Path
 import socket
 import tempfile
-from types import ModuleType
 from typing import Any
 
 from tiance_runtime import run_tool
@@ -19,8 +17,6 @@ STATE_PATH = Path(tempfile.gettempdir()) / "Tiance" / "gui-control" / "active-lo
 RPC_TIMEOUT_SECONDS = 130.0
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 STILL_ACTIVE = 259
-RUNTIME_TOOL_PROJECT_ID = "c7dd4066-37a6-4b1e-a67a-d39f0c6d4a21"
-_RUNTIME_MODULE: ModuleType | None = None
 
 kernel32 = ctypes.windll.kernel32
 kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
@@ -59,44 +55,6 @@ def process_alive(value: Any) -> bool:
         kernel32.CloseHandle(handle)
 
 
-def _load_runtime_module() -> ModuleType:
-    global _RUNTIME_MODULE
-    if _RUNTIME_MODULE is not None:
-        return _RUNTIME_MODULE
-    path = Path(__file__).resolve().parents[2] / RUNTIME_TOOL_PROJECT_ID / "program" / "main.py"
-    spec = spec_from_file_location("tiance_gui_runtime_launcher", path)
-    if spec is None or spec.loader is None:
-        raise ToolError("GUI_RUNTIME_UNAVAILABLE", "无法载入GUI后台运行器。")
-    module = module_from_spec(spec)
-    spec.loader.exec_module(module)
-    _RUNTIME_MODULE = module
-    return module
-
-
-def _ensure_runtime(workspace: Path, project_id: str, session_id: str) -> dict[str, Any]:
-    runtime = _load_runtime_module()
-    try:
-        with runtime.state_mutex():
-            runtime.start_lock(
-                workspace,
-                project_id,
-                session_id,
-                block_user_input=False,
-            )
-    except Exception as exc:
-        code = str(getattr(exc, "code", "GUI_RUNTIME_START_FAILED"))
-        message = str(getattr(exc, "message", "GUI后台运行器启动失败。"))
-        details = getattr(exc, "details", None)
-        raise ToolError(code, message, details if isinstance(details, dict) else None) from exc
-    try:
-        state = json.loads(STATE_PATH.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ToolError("GUI_RUNTIME_STATE_INVALID", "GUI后台运行器状态无法读取。") from exc
-    if not isinstance(state, dict):
-        raise ToolError("GUI_RUNTIME_STATE_INVALID", "GUI后台运行器状态格式无效。")
-    return state
-
-
 def context_and_state() -> tuple[Path, dict[str, Any]]:
     workspace_value = str(os.environ.get("TIANCE_WORKSPACE_ROOT") or "").strip()
     project_id = str(os.environ.get("TIANCE_PROJECT_ID") or "").strip()
@@ -106,12 +64,14 @@ def context_and_state() -> tuple[Path, dict[str, Any]]:
     workspace = Path(workspace_value).resolve(strict=False)
     try:
         state = json.loads(STATE_PATH.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        state = _ensure_runtime(workspace, project_id, session_id)
+    except FileNotFoundError as exc:
+        raise ToolError("GUI_LOCK_REQUIRED", "请先调用gui_runtime start锁定界面，再调用gui_inspect start。") from exc
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ToolError("GUI_RUNTIME_STATE_INVALID", "GUI后台运行器状态损坏。") from exc
     if not isinstance(state, dict) or state.get("status") != "active" or not process_alive(state.get("pid")):
-        state = _ensure_runtime(workspace, project_id, session_id)
+        raise ToolError("GUI_LOCK_REQUIRED", "界面锁已退出，请调用gui_runtime start后重新查看界面。")
+    if state.get("input_mode") != "blocked":
+        raise ToolError("GUI_LOCK_REQUIRED", "旧的无锁运行器仍在运行，请调用gui_runtime stop后重新start。")
     actual_workspace = Path(str(state.get("workspace") or "")).resolve(strict=False)
     if (
         state.get("project_id") != project_id
@@ -193,7 +153,9 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
         result = attach_image(response, workspace)
         data = result.get("data") if isinstance(result.get("data"), dict) else {}
         if str(payload.get("action") or "") == "close" and data.get("runtime_idle") is True:
-            call_helper(state, {}, method="unlock")
+            stopped = call_helper(state, {}, method="unlock")
+            if not stopped.get("ok"):
+                raise ToolError("GUI_UNLOCK_FAILED", "临时会话已关闭，但解除界面锁失败，请调用gui_runtime stop。")
             data["runtime_stopped"] = True
         return result
     except ToolError as exc:
