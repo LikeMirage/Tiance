@@ -1,5 +1,5 @@
 {
-  "description": "在锁定的Windows界面输入文本、按键或组合键。先调用gui_runtime start，再用gui_inspect取得GUI临时会话。执行前检查完整截图；变化达到阈值则返回最新Frame并停止操作。用户输入被拦截，按Esc立即中止并解锁。 操作结束后按screenshot_delay_seconds等待再截图，默认1秒、范围0到30秒。",
+  "description": "先调用gui_runtime start并等待成功锁定，再用gui_inspect start取得截图会话和坐标依据。依据明确的最新frame_id输入文本或按键。可引用elements返回的element_id；键盘输入前核查目标控件身份、可用状态和焦点；没有控件引用时核对所依据截图的焦点与画面。set_value通过UIAutomation直接设置可写非密码控件并校验结果。expected_elements可检查其他控件的名称、值、选中状态等；不能识别的区域用截图重新确认。",
   "execution": {
     "parallel": false
   },
@@ -21,7 +21,7 @@
     "快捷键"
   ],
   "loading": {
-    "dynamic": true
+    "dynamic": false
   },
   "name": "gui_keyboard",
   "registration_name": "GUI 键盘操作",

@@ -66,6 +66,7 @@ class ConversationRunSubscription:
 @dataclass(slots=True)
 class _ConversationRun:
     key: str
+    run_id: str = field(default_factory=lambda: uuid4().hex)
     task: asyncio.Task[None] | None = None
     subscribers: dict[str, ConversationRunMailbox] = field(default_factory=dict)
     replay: ConversationRunReplayBuffer = field(default_factory=ConversationRunReplayBuffer)
@@ -131,6 +132,13 @@ class ConversationRunManager:
             subscription_id=subscription_id,
             mailbox=mailbox,
         )
+
+    async def get_run_status(self, project_id: str, session_id: str) -> dict[str, object]:
+        """Read the current generation identity without subscribing or replaying messages."""
+        async with self._lock:
+            run = self._runs.get(_session_run_key(project_id, session_id))
+            running = bool(run and run.task and not run.task.done() and not run.task.cancelling() and not run.finished)
+            return {"running": running, "run_id": run.run_id if running and run else None}
 
     async def subscribe(
         self,

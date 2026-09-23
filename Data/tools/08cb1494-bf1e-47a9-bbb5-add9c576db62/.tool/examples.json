@@ -1,7 +1,26 @@
 [
-  {"title": "预览双击", "content": "{\"action\":\"preview\",\"preview_action\":\"click\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"frame_id\":0,\"view_id\":\"root\",\"cell_id\":6,\"x\":0.5,\"y\":0.5,\"button\":\"left\",\"clicks\":2,\"click_hold_ms\":80}"},
-  {"title": "按预览编号执行（编号取实际返回值）", "content": "{\"action\":\"execute_preview\",\"preview_id\":\"preview_0123456789abcdef0123456789abcdef_abcdef0123456789abcdef0123456789\"}"},
-  {"title": "预览拖动路径", "content": "{\"action\":\"preview\",\"preview_action\":\"drag\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"frame_id\":0,\"view_id\":\"root\",\"cell_id\":1,\"x\":0.5,\"y\":0.5,\"to\":{\"view_id\":\"root\",\"cell_id\":6,\"x\":0.5,\"y\":0.5},\"duration_ms\":300}"},
-  {"title": "单击网格中心", "content": "{\"action\":\"click\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"frame_id\":0,\"view_id\":\"root\",\"cell_id\":6,\"x\":0.5,\"y\":0.5,\"button\":\"left\",\"clicks\":1,\"click_hold_ms\":80}"},
-  {"title": "向下滚动", "content": "{\"action\":\"scroll\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"frame_id\":1,\"view_id\":\"root\",\"cell_id\":8,\"x\":0.5,\"y\":0.5,\"direction\":\"down\",\"notches\":3}"}
+  {
+    "title": "预览双击",
+    "content": "{\n  \"action\": \"preview\",\n  \"preview_action\": \"click\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"view_id\": \"root\",\n  \"cell_id\": 6,\n  \"x\": 0.5,\n  \"y\": 0.5,\n  \"button\": \"left\",\n  \"clicks\": 2,\n  \"click_hold_ms\": 80\n}"
+  },
+  {
+    "title": "按预览编号执行（编号取实际返回值）",
+    "content": "{\n  \"action\": \"execute_preview\",\n  \"preview_id\": \"preview_0123456789abcdef0123456789abcdef_abcdef0123456789abcdef0123456789\"\n}"
+  },
+  {
+    "title": "预览拖动路径",
+    "content": "{\n  \"action\": \"preview\",\n  \"preview_action\": \"drag\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"view_id\": \"root\",\n  \"cell_id\": 1,\n  \"x\": 0.5,\n  \"y\": 0.5,\n  \"to\": {\n    \"view_id\": \"root\",\n    \"cell_id\": 6,\n    \"x\": 0.5,\n    \"y\": 0.5\n  },\n  \"duration_ms\": 300\n}"
+  },
+  {
+    "title": "单击网格中心",
+    "content": "{\n  \"action\": \"click\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"view_id\": \"root\",\n  \"cell_id\": 6,\n  \"x\": 0.5,\n  \"y\": 0.5,\n  \"button\": \"left\",\n  \"clicks\": 1,\n  \"click_hold_ms\": 80\n}"
+  },
+  {
+    "title": "向下滚动",
+    "content": "{\n  \"action\": \"scroll\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 1,\n  \"view_id\": \"root\",\n  \"cell_id\": 8,\n  \"x\": 0.5,\n  \"y\": 0.5,\n  \"direction\": \"down\",\n  \"notches\": 3\n}"
+  },
+  {
+    "title": "按控件引用点击并检查输入内容",
+    "content": "{\n  \"action\": \"click\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"element_id\": \"uia_send\",\n  \"expected_elements\": [\n    {\n      \"element_id\": \"uia_recipient\",\n      \"name\": \"目标联系人\"\n    },\n    {\n      \"element_id\": \"uia_message\",\n      \"value\": \"确认要发送的文本\"\n    }\n  ]\n}"
+  }
 ]

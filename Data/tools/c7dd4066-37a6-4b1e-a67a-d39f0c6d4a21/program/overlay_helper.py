@@ -6,19 +6,23 @@ from ctypes import wintypes
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
+import hashlib
 import math
 import os
 from pathlib import Path
 import re
 import shutil
 import socket
+import select
+import subprocess
+import urllib.request
 import sys
 import threading
 import time
 from typing import Any
 from uuid import uuid4
 
-from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageGrab
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageGrab
 
 
 user32 = ctypes.windll.user32
@@ -64,6 +68,25 @@ class PAINTSTRUCT(ctypes.Structure):
 
 class POINT(ctypes.Structure):
     _fields_ = [("x", wintypes.LONG), ("y", wintypes.LONG)]
+
+
+class BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [
+        ("biSize", wintypes.DWORD), ("biWidth", wintypes.LONG), ("biHeight", wintypes.LONG),
+        ("biPlanes", wintypes.WORD), ("biBitCount", wintypes.WORD),
+        ("biCompression", wintypes.DWORD), ("biSizeImage", wintypes.DWORD),
+        ("biXPelsPerMeter", wintypes.LONG), ("biYPelsPerMeter", wintypes.LONG),
+        ("biClrUsed", wintypes.DWORD), ("biClrImportant", wintypes.DWORD),
+    ]
+
+
+class BITMAPINFO(ctypes.Structure):
+    _fields_ = [("bmiHeader", BITMAPINFOHEADER), ("bmiColors", wintypes.DWORD * 1)]
+
+
+class BLENDFUNCTION(ctypes.Structure):
+    _fields_ = [("BlendOp", wintypes.BYTE), ("BlendFlags", wintypes.BYTE),
+                ("SourceConstantAlpha", wintypes.BYTE), ("AlphaFormat", wintypes.BYTE)]
 
 
 class MSLLHOOKSTRUCT(ctypes.Structure):
@@ -147,6 +170,10 @@ user32.UnhookWindowsHookEx.argtypes = [wintypes.HHOOK]
 user32.CallNextHookEx.argtypes = [wintypes.HHOOK, ctypes.c_int, WPARAM, LPARAM]
 user32.CallNextHookEx.restype = LRESULT
 user32.GetForegroundWindow.restype = wintypes.HWND
+user32.WindowFromPoint.argtypes = [POINT]
+user32.WindowFromPoint.restype = wintypes.HWND
+user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
+user32.GetAncestor.restype = wintypes.HWND
 user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
 user32.GetWindowThreadProcessId.restype = wintypes.DWORD
 user32.AttachThreadInput.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.BOOL]
@@ -158,7 +185,20 @@ user32.IsWindowVisible.argtypes = [wintypes.HWND]
 user32.IsIconic.argtypes = [wintypes.HWND]
 user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
 user32.DestroyWindow.argtypes = [wintypes.HWND]
+user32.UpdateLayeredWindow.argtypes = [wintypes.HWND, wintypes.HDC, ctypes.POINTER(POINT),
+    ctypes.POINTER(wintypes.SIZE), wintypes.HDC, ctypes.POINTER(POINT), wintypes.COLORREF,
+    ctypes.POINTER(BLENDFUNCTION), wintypes.DWORD]
+user32.UpdateLayeredWindow.restype = wintypes.BOOL
 user32.SetLayeredWindowAttributes.argtypes = [wintypes.HWND, wintypes.COLORREF, wintypes.BYTE, wintypes.DWORD]
+user32.SetLayeredWindowAttributes.restype = wintypes.BOOL
+user32.GetDpiForWindow.argtypes = [wintypes.HWND]
+user32.GetDpiForWindow.restype = wintypes.UINT
+gdi32.CreateCompatibleDC.argtypes = [wintypes.HDC]
+gdi32.CreateCompatibleDC.restype = wintypes.HDC
+gdi32.DeleteDC.argtypes = [wintypes.HDC]
+gdi32.CreateDIBSection.argtypes = [wintypes.HDC, ctypes.POINTER(BITMAPINFO), wintypes.UINT,
+                                  ctypes.POINTER(ctypes.c_void_p), wintypes.HANDLE, wintypes.DWORD]
+gdi32.CreateDIBSection.restype = wintypes.HBITMAP
 user32.SetWindowDisplayAffinity.argtypes = [wintypes.HWND, wintypes.DWORD]
 user32.SetWindowDisplayAffinity.restype = wintypes.BOOL
 user32.GetWindowDisplayAffinity.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
@@ -182,22 +222,15 @@ user32.BeginPaint.restype = wintypes.HDC
 user32.EndPaint.argtypes = [wintypes.HWND, ctypes.POINTER(PAINTSTRUCT)]
 user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
 user32.FillRect.argtypes = [wintypes.HDC, ctypes.POINTER(wintypes.RECT), wintypes.HBRUSH]
-user32.DrawTextW.argtypes = [wintypes.HDC, wintypes.LPCWSTR, ctypes.c_int, ctypes.POINTER(wintypes.RECT), wintypes.UINT]
 user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
 user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
 gdi32.CreateSolidBrush.argtypes = [wintypes.COLORREF]
 gdi32.CreateSolidBrush.restype = wintypes.HBRUSH
-gdi32.CreatePen.argtypes = [ctypes.c_int, ctypes.c_int, wintypes.COLORREF]
-gdi32.CreatePen.restype = wintypes.HANDLE
 gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HANDLE]
 gdi32.SelectObject.restype = wintypes.HANDLE
 gdi32.DeleteObject.argtypes = [wintypes.HANDLE]
-gdi32.MoveToEx.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int, ctypes.POINTER(POINT)]
-gdi32.LineTo.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int]
-gdi32.SetBkMode.argtypes = [wintypes.HDC, ctypes.c_int]
-gdi32.SetTextColor.argtypes = [wintypes.HDC, wintypes.COLORREF]
-gdi32.CreateFontW.argtypes = [ctypes.c_int] * 5 + [wintypes.DWORD] * 8 + [wintypes.LPCWSTR]
-gdi32.CreateFontW.restype = wintypes.HFONT
+gdi32.GetStockObject.argtypes = [ctypes.c_int]
+gdi32.GetStockObject.restype = wintypes.HANDLE
 
 
 WM_PAINT = 0x000F
@@ -215,23 +248,23 @@ HTTRANSPARENT = -1
 WH_KEYBOARD_LL = 13
 WH_MOUSE_LL = 14
 WS_POPUP = 0x80000000
+WS_CHILD = 0x40000000
 WS_EX_TOPMOST = 0x00000008
 WS_EX_TOOLWINDOW = 0x00000080
 WS_EX_LAYERED = 0x00080000
 WS_EX_TRANSPARENT = 0x00000020
 WS_EX_NOACTIVATE = 0x08000000
 GWL_EXSTYLE = -20
-LWA_ALPHA = 0x00000002
+GWL_STYLE = -16
+LWA_COLORKEY = 0x00000001
+ULW_ALPHA = 0x00000002
+AC_SRC_ALPHA = 0x01
 SW_SHOWNOACTIVATE = 4
 HWND_TOPMOST = -1
 SWP_NOSIZE = 0x0001
 SWP_NOMOVE = 0x0002
 SWP_NOACTIVATE = 0x0010
 SWP_FRAMECHANGED = 0x0020
-DT_CENTER = 0x0001
-DT_VCENTER = 0x0004
-DT_SINGLELINE = 0x0020
-TRANSPARENT = 1
 WDA_EXCLUDEFROMCAPTURE = 0x00000011
 INPUT_MOUSE = 0
 INPUT_KEYBOARD = 1
@@ -337,8 +370,15 @@ def now_iso() -> str:
 def atomic_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
-    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(temporary, path)
+    try:
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass  # Preserve the original access error; never remove the destination.
+        raise
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -453,6 +493,45 @@ def visible_windows() -> list[dict[str, Any]]:
     return rows
 
 
+def drag_window_snapshot(excluded: list[int]) -> list[dict[str, Any]]:
+    """Capture top-level windows in Z order, including untitled popup occluders.
+
+    Rectangles conservatively identify the window visible at a captured point;
+    native hit testing must corroborate it before any drag is allowed.
+    """
+    rows: list[dict[str, Any]] = []
+    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    @callback_type
+    def collect(hwnd: int, _data: int) -> bool:
+        if int(hwnd) in excluded or not user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
+            return True
+        if dwmapi is not None:
+            cloaked = wintypes.DWORD()
+            if dwmapi.DwmGetWindowAttribute(wintypes.HWND(hwnd), 14, ctypes.byref(cloaked), ctypes.sizeof(cloaked)) == 0 and cloaked.value:
+                return True
+        try:
+            rect = window_rect(int(hwnd))
+        except GuiError:
+            return True  # A window destroyed during enumeration cannot own this snapshot.
+        pid = wintypes.DWORD()
+        thread_id = int(user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid)))
+        rows.append({"hwnd": int(hwnd), "pid": int(pid.value), "thread_id": thread_id, "rect": rect})
+        return True
+
+    if not user32.EnumWindows(collect, 0):
+        raise GuiError("WINDOW_SNAPSHOT_FAILED", "无法记录截图对应的窗口，请重新查看界面。")
+    return rows
+
+
+def window_at_point(windows: list[dict[str, Any]], x: int, y: int) -> dict[str, Any] | None:
+    for window in windows:
+        left, top, right, bottom = rect_ltrb(window["rect"])
+        if left <= x < right and top <= y < bottom:
+            return window
+    return None
+
+
 def resolve_window(hwnd: int | None, title: str | None) -> dict[str, Any]:
     rows = visible_windows()
     if hwnd:
@@ -527,41 +606,70 @@ def build_cells(rect: dict[str, int], rows: int, cols: int) -> list[dict[str, An
     return cells
 
 
-def overlay_image(raw: Image.Image, cells: list[dict[str, Any]], source_rect: dict[str, int]) -> Image.Image:
+OVERLAY_MODES = ("labels+lines", "lines", "none")
+DEFAULT_OVERLAY = "labels+lines"
+# Display-only limits: labels occupy at most 45% of cell width / 30% of height.
+# If even 9px text cannot fit, omit all labels and report that explicitly.
+LABEL_MIN_FONT = 9
+LABEL_MAX_FONT = 16
+LABEL_WIDTH_FRACTION = 0.45
+LABEL_HEIGHT_FRACTION = 0.30
+
+
+def overlay_image(raw: Image.Image, cells: list[dict[str, Any]], source_rect: dict[str, int],
+                  mode: str = DEFAULT_OVERLAY) -> Image.Image:
+    if mode not in OVERLAY_MODES:
+        raise GuiError("INVALID_ARGUMENT", "overlay必须是labels+lines、lines或none。")
     image = raw.convert("RGB").copy()
     draw = ImageDraw.Draw(image, "RGBA")
-    try:
-        font_path = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "segoeuib.ttf"
-        font = ImageFont.truetype(str(font_path), max(14, min(28, round(min(image.size) / 32))))
-    except OSError:
-        font = ImageFont.load_default()
-    line_width = max(1, round(min(image.size) / 500))
+    rectangles = []
     for cell in cells:
         rect = cell["rect_absolute"]
         left = round((rect["left"] - source_rect["left"]) * image.width / source_rect["width"])
         top = round((rect["top"] - source_rect["top"]) * image.height / source_rect["height"])
         right = round((rect["left"] - source_rect["left"] + rect["width"]) * image.width / source_rect["width"])
         bottom = round((rect["top"] - source_rect["top"] + rect["height"]) * image.height / source_rect["height"])
-        draw.rectangle((left, top, right - 1, bottom - 1), outline=(0, 230, 255, 210), width=line_width)
-        label = str(cell["cell_id"])
-        label_box = draw.textbbox((0, 0), label, font=font, stroke_width=2)
-        label_width = label_box[2] - label_box[0]
-        label_height = label_box[3] - label_box[1]
-        pad = 4
-        draw.rounded_rectangle(
-            (left + 4, top + 4, left + 4 + label_width + pad * 2, top + 4 + label_height + pad * 2),
-            radius=4,
-            fill=(0, 22, 34, 210),
-            outline=(0, 230, 255, 240),
-        )
-        draw.text(
-            (left + 4 + pad, top + 4 + pad - label_box[1]),
-            label,
-            font=font,
-            fill=(235, 255, 255, 255),
-            stroke_width=2,
-            stroke_fill=(0, 20, 30, 255),
-        )
+        rectangles.append((left, top, right, bottom))
+    if mode != "none":
+        # Each boundary is drawn once, at one final-output pixel, never per-cell twice.
+        xs = {min(image.width - 1, edge) for rect in rectangles for edge in (rect[0], rect[2])}
+        ys = {min(image.height - 1, edge) for rect in rectangles for edge in (rect[1], rect[3])}
+        for x in sorted(xs):
+            draw.line((x, 0, x, image.height - 1), fill=(0, 230, 255, 210), width=1)
+        for y in sorted(ys):
+            draw.line((0, y, image.width - 1, y), fill=(0, 230, 255, 210), width=1)
+    font = None
+    font_size = 0
+    pad = 1
+    boxes = []
+    if mode == "labels+lines":
+        font_path = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "segoeuib.ttf"
+        for size in range(LABEL_MAX_FONT, LABEL_MIN_FONT - 1, -1):
+            try:
+                candidate = ImageFont.truetype(str(font_path), size)
+            except OSError as exc:
+                raise GuiError("OVERLAY_FONT_UNAVAILABLE", "无法加载网格字体；可显式选择overlay=lines或none。") from exc
+            boxes = [draw.textbbox((0, 0), str(cell["cell_id"]), font=candidate) for cell in cells]
+            if all(box[2] - box[0] + 2 * pad <= (rect[2] - rect[0]) * LABEL_WIDTH_FRACTION
+                   and box[3] - box[1] + 2 * pad <= (rect[3] - rect[1]) * LABEL_HEIGHT_FRACTION
+                   for rect, box in zip(rectangles, boxes)):
+                font, font_size = candidate, size
+                break
+    if font is not None:
+        for cell, rect, box in zip(cells, rectangles, boxes):
+            left, top = rect[0] + 2, rect[1] + 2
+            width, height = box[2] - box[0] + 2 * pad, box[3] - box[1] + 2 * pad
+            draw.rectangle((left, top, left + width - 1, top + height - 1), fill=(0, 22, 34, 210))
+            draw.text((left + pad - box[0], top + pad - box[1]), str(cell["cell_id"]),
+                      font=font, fill=(235, 255, 255, 255))
+    image.info["overlay"] = {
+        "requested": mode,
+        "effective": "lines" if mode == "labels+lines" and font is None else mode,
+        "labels_visible": font is not None,
+        "labels_hidden_reason": "cells_too_small" if mode == "labels+lines" and font is None else None,
+        "font_size_px": font_size, "line_width_px": 0 if mode == "none" else 1,
+        "numbering": "row_major_top_left_1_based",
+    }
     return image
 
 
@@ -570,6 +678,61 @@ def safe_session_id(value: str) -> str:
     if not re.fullmatch(r"gui_[a-f0-9]{32}", normalized):
         raise GuiError("GUI_SESSION_INVALID", "GUI Session ID无效。")
     return normalized
+
+
+def render_lock_overlay(width: int, height: int, dpi: int) -> Image.Image:
+    """Only the edge glow and top notice have alpha; the working area stays untouched."""
+    if width <= 0 or height <= 0 or dpi <= 0:
+        raise GuiError("OVERLAY_GEOMETRY_INVALID", "无法取得界面提示层的尺寸或缩放比例。")
+    scale = dpi / 96
+    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    glow_width = min(round(28 * scale), min(width, height) // 2)
+    for inset in range(glow_width):
+        alpha = round(125 * math.exp(-inset / (6 * scale)))
+        draw.rectangle((inset, inset, width - 1 - inset, height - 1 - inset),
+                       outline=(90, 184, 244, alpha))
+    draw.rectangle((0, 0, width - 1, height - 1), outline=(160, 220, 255, 180),
+                   width=max(1, round(scale)))
+
+    # Render just the notice at 2x for smooth type/rounded edges, not the whole monitor.
+    density = 2
+    font_path = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "msyh.ttc"
+    title_font = ImageFont.truetype(str(font_path), 14 * density)
+    detail_font = ImageFont.truetype(str(font_path), 13 * density)
+    title, detail = "天策正在操作", "鼠标与键盘已锁定"
+    title_width = math.ceil(title_font.getlength(title))
+    detail_width = math.ceil(detail_font.getlength(detail))
+    card_width = title_width + detail_width + 174 * density
+    card_height, margin = 42 * density, 12 * density
+    card = Image.new("RGBA", (card_width + margin * 2, card_height + margin * 2))
+    bounds = (margin, margin, margin + card_width, margin + card_height)
+    shadow = ImageDraw.Draw(card)
+    shadow.rounded_rectangle(bounds, radius=21 * density, fill=(0, 0, 0, 90))
+    card = card.filter(ImageFilter.GaussianBlur(6 * density))
+    ink = ImageDraw.Draw(card)
+    ink.rounded_rectangle(bounds, radius=21 * density, fill=(17, 25, 36, 235),
+                          outline=(157, 208, 242, 85), width=density)
+    center_y = margin + card_height // 2
+    x = margin + 19 * density
+    ink.ellipse((x - 3 * density, center_y - 3 * density,
+                 x + 3 * density, center_y + 3 * density), fill=(134, 216, 244, 255))
+    x += 13 * density
+    ink.text((x, center_y), title, font=title_font, anchor="lm", fill=(239, 246, 252, 255))
+    x += title_width + 15 * density
+    ink.line((x, center_y - 7 * density, x, center_y + 7 * density), fill=(128, 151, 175, 90), width=density)
+    x += 15 * density
+    ink.text((x, center_y), detail, font=detail_font, anchor="lm", fill=(184, 199, 215, 255))
+    x += detail_width + 16 * density
+    ink.rounded_rectangle((x, center_y - 11 * density, x + 34 * density, center_y + 11 * density),
+                          radius=5 * density, fill=(51, 65, 81, 220), outline=(163, 185, 205, 90), width=density)
+    ink.text((x + 17 * density, center_y), "Esc", font=detail_font, anchor="mm", fill=(230, 239, 247, 255))
+    ink.text((x + 42 * density, center_y), "退出", font=detail_font, anchor="lm", fill=(209, 221, 232, 255))
+    notice_scale = min(scale, width / (card.width / density), height / (card.height / density))
+    card = card.resize((max(1, round(card.width * notice_scale / density)),
+                        max(1, round(card.height * notice_scale / density))), Image.Resampling.LANCZOS)
+    image.alpha_composite(card, ((width - card.width) // 2, 0))
+    return image
 
 
 class GuiService:
@@ -610,16 +773,49 @@ class GuiService:
         self.port = int(self.server_socket.getsockname()[1])
         self.server_thread = threading.Thread(target=self._serve, name="gui-control-rpc", daemon=True)
         self.startup_failed = False
+        self.idle_timeout_seconds = float(getattr(args, "idle_timeout_seconds", 120))
+        self.last_activity = time.monotonic()
+        self.owner_status_url = str(getattr(args, "owner_status_url", ""))
+        self.owner_run_id: str | None = None
+        self.stop_reason: str | None = None
+        self.startup_confirmed = threading.Event()
+        self.startup_deadline = time.monotonic() + float(getattr(args, "startup_timeout_seconds", 10))
+        if not getattr(args, "require_startup_confirmation", False):
+            self.startup_confirmed.set()
+
+    def _receive_startup_confirmation(self) -> None:
+        try:
+            confirmed = sys.stdin.readline() == "confirm\n"
+        except (OSError, ValueError):
+            confirmed = False
+        if confirmed:
+            self.startup_confirmed.set()
+        else:
+            self.request_stop("startup_caller_disconnected")
 
     def run(self) -> int:
-        self.gui_root.mkdir(parents=True, exist_ok=True)
         try:
+            self.gui_root.mkdir(parents=True, exist_ok=True)
+            if not self.startup_confirmed.is_set():
+                threading.Thread(target=self._receive_startup_confirmation, name="gui-startup-owner", daemon=True).start()
+            # Publish and verify access before installing hooks. No ACL is changed.
+            self._write_active_state("starting")
+            state = read_json(self.state_path)
+            if state.get("lock_id") != self.lock_id:
+                raise GuiError("GUI_RUNTIME_STATE_INVALID", "启动状态归属校验失败。")
+            if self.owner_status_url:
+                self.owner_run_id = self._read_owner_run()
             self.capture_mode = self._detect_capture_mode()
             if self.block_user_input:
                 self._create_windows()
+            if self.cancel_event.is_set():
+                raise GuiError("GUI_START_CANCELLED", "启动调用已退出。")
             self._install_hooks()
+            if self.cancel_event.is_set():
+                raise GuiError("GUI_START_CANCELLED", "启动调用已退出。")
             self._write_active_state("active")
             self.server_thread.start()
+            threading.Thread(target=self._watch_lifecycle, name="gui-lifecycle", daemon=True).start()
             message = wintypes.MSG()
             while not self.stop_event.is_set():
                 result = user32.GetMessageW(ctypes.byref(message), 0, 0, 0)
@@ -630,7 +826,10 @@ class GuiService:
             return 0
         except Exception as exc:
             self.startup_failed = True
-            self._write_active_state("failed", error=f"{type(exc).__name__}: {exc}")
+            try:
+                self._write_active_state("failed", error=f"{type(exc).__name__}: {exc}")
+            except OSError:
+                pass  # Failure to report must not bypass hook release in finally.
             return 1
         finally:
             self.cancel_event.set()
@@ -654,7 +853,44 @@ class GuiService:
             finally:
                 self.service_lock.release()
             if not self.startup_failed:
-                self._remove_active_state()
+                try:
+                    self._remove_active_state()
+                except (OSError, GuiError):
+                    pass  # Process is exiting with hooks removed; a stale file is not a live lock.
+
+    def _read_owner_run(self) -> str:
+        # Public run-state API; no message/history reads and no private database access.
+        with urllib.request.urlopen(self.owner_status_url, timeout=2) as response:
+            status = json.load(response)
+        if not status.get("running") or not isinstance(status.get("run_id"), str):
+            raise GuiError("GUI_OWNER_STOPPED", "来源会话已停止运行。")
+        return status["run_id"]
+
+    def _check_idle(self, now: float) -> None:
+        # Acquire the same execution lock: an active operation is never treated as idle.
+        if self.service_lock.acquire(blocking=False):
+            try:
+                if now - self.last_activity >= self.idle_timeout_seconds:
+                    self.request_stop("idle_timeout")
+            finally:
+                self.service_lock.release()
+
+    def _watch_lifecycle(self) -> None:
+        next_owner_check = 0.0
+        while not self.stop_event.wait(0.25):
+            now = time.monotonic()
+            if not self.startup_confirmed.is_set() and now >= self.startup_deadline:
+                self.request_stop("startup_confirmation_timeout")
+                return
+            self._check_idle(now)
+            # Owner check every second, including while an action is active.
+            if self.owner_status_url and now >= next_owner_check:
+                next_owner_check = now + 1
+                try:
+                    if self._read_owner_run() != self.owner_run_id:
+                        self.request_stop("owner_run_changed")
+                except Exception:
+                    self.request_stop("owner_stopped_or_disconnected")
 
     def _cleanup_gui_sessions(self) -> None:
         for gui_session_id in list(self.created_gui_sessions):
@@ -706,7 +942,7 @@ class GuiService:
             hInstance=instance,
             hIcon=0,
             hCursor=user32.LoadCursorW(None, ctypes.c_void_p(32512)),
-            hbrBackground=gdi32.CreateSolidBrush(colorref(5, 14, 24)),
+            hbrBackground=0,
             lpszMenuName=None,
             lpszClassName=name,
             hIconSm=0,
@@ -735,8 +971,20 @@ class GuiService:
             if not hwnd:
                 raise ctypes.WinError(ctypes.get_last_error())
             self.overlay_windows.append(int(hwnd))
-            user32.SetLayeredWindowAttributes(hwnd, 0, 205, LWA_ALPHA)
+            # A redirected, color-keyed host supports capture exclusion; the per-pixel
+            # alpha child is composed inside it and is excluded with the parent.
+            if not user32.SetLayeredWindowAttributes(hwnd, 0, 255, LWA_COLORKEY):
+                raise GuiError("OVERLAY_RENDER_FAILED", "无法创建透明界面提示窗口。")
             self._exclude_window_from_capture(hwnd)
+            child = user32.CreateWindowExW(
+                WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
+                self.overlay_class, "Tiance AI Control Glow", WS_CHILD,
+                0, 0, rect["width"], rect["height"], hwnd, 0, instance, None,
+            )
+            if not child:
+                raise GuiError("OVERLAY_RENDER_FAILED", "无法创建柔光提示层。")
+            self._update_overlay(int(child), {**rect, "left": 0, "top": 0})
+            user32.ShowWindow(child, SW_SHOWNOACTIVATE)
             user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
             user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
 
@@ -750,7 +998,15 @@ class GuiService:
         if message == WM_NCHITTEST:
             return HTTRANSPARENT
         if message == WM_PAINT:
-            self._paint_window(int(hwnd))
+            paint = PAINTSTRUCT()
+            dc = user32.BeginPaint(hwnd, ctypes.byref(paint))
+            if dc and not user32.GetWindowLongPtrW(hwnd, GWL_STYLE) & WS_CHILD:
+                # The host is entirely color-key transparent. Child pixels are owned
+                # by UpdateLayeredWindow and must not be repainted through GDI.
+                client = wintypes.RECT()
+                user32.GetClientRect(hwnd, ctypes.byref(client))
+                user32.FillRect(dc, ctypes.byref(client), gdi32.GetStockObject(4))  # BLACK_BRUSH
+            user32.EndPaint(hwnd, ctypes.byref(paint))
             return 0
         if message == WM_APP_STOP:
             user32.PostQuitMessage(0)
@@ -759,46 +1015,40 @@ class GuiService:
             return 0
         return int(user32.DefWindowProcW(hwnd, message, wparam, lparam))
 
-    def _paint_window(self, hwnd: int) -> None:
-        paint = PAINTSTRUCT()
-        dc = user32.BeginPaint(hwnd, ctypes.byref(paint))
+    def _update_overlay(self, hwnd: int, rect: dict[str, int]) -> None:
+        image = render_lock_overlay(rect["width"], rect["height"], int(user32.GetDpiForWindow(hwnd)))
+        # UpdateLayeredWindow requires premultiplied BGRA, not straight-alpha RGBA.
+        pixels = image.convert("RGBa").tobytes("raw", "BGRa")
+        info = BITMAPINFO(bmiHeader=BITMAPINFOHEADER(
+            biSize=ctypes.sizeof(BITMAPINFOHEADER), biWidth=image.width, biHeight=-image.height,
+            biPlanes=1, biBitCount=32, biCompression=0, biSizeImage=len(pixels),
+        ))
+        dc = gdi32.CreateCompatibleDC(None)
         if not dc:
-            return
+            raise GuiError("OVERLAY_RENDER_FAILED", "无法创建界面提示层绘图上下文。")
+        bitmap, old_bitmap = None, None
         try:
-            client = wintypes.RECT()
-            user32.GetClientRect(hwnd, ctypes.byref(client))
-            width, height = int(client.right), int(client.bottom)
-            background = gdi32.CreateSolidBrush(colorref(3, 12, 20))
-            user32.FillRect(dc, ctypes.byref(client), background)
-            gdi32.DeleteObject(background)
-            pen = gdi32.CreatePen(0, 1, colorref(0, 88, 110))
-            old_pen = gdi32.SelectObject(dc, pen)
-            spacing = max(72, min(width, height) // 10)
-            for x in range(0, width, spacing):
-                gdi32.MoveToEx(dc, x, 0, None)
-                gdi32.LineTo(dc, x, height)
-            for y in range(0, height, spacing):
-                gdi32.MoveToEx(dc, 0, y, None)
-                gdi32.LineTo(dc, width, y)
-            gdi32.SelectObject(dc, old_pen)
-            gdi32.DeleteObject(pen)
-            title = wintypes.RECT(0, height // 2 - 66, width, height // 2 + 6)
-            subtitle = wintypes.RECT(0, height // 2 + 10, width, height // 2 + 54)
-            self._draw_text(dc, "AI 操控中", title, 46, colorref(225, 253, 255))
-            self._draw_text(dc, "鼠标已锁定，按 Esc 退出 AI 操控", subtitle, 19, colorref(0, 220, 255))
+            bits = ctypes.c_void_p()
+            bitmap = gdi32.CreateDIBSection(dc, ctypes.byref(info), 0, ctypes.byref(bits), None, 0)
+            if not bitmap or not bits.value:
+                raise GuiError("OVERLAY_RENDER_FAILED", "无法创建界面提示层位图。")
+            old_bitmap = gdi32.SelectObject(dc, bitmap)
+            if not old_bitmap or old_bitmap == ctypes.c_void_p(-1).value:
+                old_bitmap = None
+                raise GuiError("OVERLAY_RENDER_FAILED", "无法选择界面提示层位图。")
+            ctypes.memmove(bits, pixels, len(pixels))
+            destination, source = POINT(rect["left"], rect["top"]), POINT(0, 0)
+            size = wintypes.SIZE(image.width, image.height)
+            blend = BLENDFUNCTION(0, 0, 255, AC_SRC_ALPHA)
+            if not user32.UpdateLayeredWindow(hwnd, None, ctypes.byref(destination), ctypes.byref(size),
+                                             dc, ctypes.byref(source), 0, ctypes.byref(blend), ULW_ALPHA):
+                raise GuiError("OVERLAY_RENDER_FAILED", "无法显示透明界面提示层。")
         finally:
-            user32.EndPaint(hwnd, ctypes.byref(paint))
-
-    def _draw_text(self, dc: int, text: str, rect: wintypes.RECT, size: int, color: int) -> None:
-        font = gdi32.CreateFontW(
-            -size, 0, 0, 0, 600, 0, 0, 0, 134, 0, 0, 5, 0, "Microsoft YaHei UI"
-        )
-        old_font = gdi32.SelectObject(dc, font)
-        gdi32.SetBkMode(dc, TRANSPARENT)
-        gdi32.SetTextColor(dc, color)
-        user32.DrawTextW(dc, text, -1, ctypes.byref(rect), DT_CENTER | DT_VCENTER | DT_SINGLELINE)
-        gdi32.SelectObject(dc, old_font)
-        gdi32.DeleteObject(font)
+            if old_bitmap:
+                gdi32.SelectObject(dc, old_bitmap)
+            if bitmap:
+                gdi32.DeleteObject(bitmap)
+            gdi32.DeleteDC(dc)
 
     def _detect_capture_mode(self) -> str:
         # 老版本会把EXCLUDEFROMCAPTURE当成MONITOR，截图出现黑块而非真实桌面。
@@ -861,6 +1111,7 @@ class GuiService:
         return int(user32.CallNextHookEx(self.keyboard_hook, code, wparam, lparam))
 
     def request_stop(self, reason: str) -> None:
+        self.stop_reason = reason
         self.cancel_event.set()
         self.stop_event.set()
         user32.PostThreadMessageW(self.main_thread_id, WM_APP_STOP, 0, 0)
@@ -875,11 +1126,28 @@ class GuiService:
                 break
             threading.Thread(target=self._handle_connection, args=(connection,), daemon=True).start()
 
+    def _watch_connection(self, connection: socket.socket, finished: threading.Event) -> None:
+        while not finished.is_set() and not self.stop_event.is_set():
+            try:
+                readable, _, _ = select.select([connection], [], [], 0.1)
+                if readable and not finished.is_set() and not connection.recv(1, socket.MSG_PEEK):
+                    self.request_stop("tool_connection_lost")
+                    return
+            except OSError:
+                if not finished.is_set():
+                    self.request_stop("tool_connection_lost")
+                return
+
     def _handle_connection(self, connection: socket.socket) -> None:
         with connection:
             connection.settimeout(130)
+            finished = threading.Event()
             try:
                 request = self._receive_json(connection)
+                if (request.get("token") == self.token and request.get("project_id") == self.project_id
+                        and request.get("session_id") == self.session_id
+                        and request.get("method") in {"inspect", "mouse", "keyboard", "batch"}):
+                    threading.Thread(target=self._watch_connection, args=(connection, finished), daemon=True).start()
                 with physical_coordinates():
                     response = self._dispatch(request)
             except GuiError as exc:
@@ -890,6 +1158,8 @@ class GuiService:
                     "error": f"{type(exc).__name__}: {exc}",
                     "error_info": {"code": "GUI_INTERNAL_ERROR"},
                 }
+            finally:
+                finished.set()
             try:
                 connection.sendall((json.dumps(response, ensure_ascii=False) + "\n").encode("utf-8"))
             except OSError:
@@ -927,6 +1197,7 @@ class GuiService:
             return self.status()
         if method == "unlock":
             response = {"ok": True, "summary": "GUI后台运行器已退出。", "data": {"runtime_id": self.lock_id, "released": True}}
+            self.cancel_event.set()  # Reject queued work before acknowledging unlock.
             threading.Timer(0.05, lambda: self.request_stop("tool_unlock")).start()
             return response
         with self.service_lock:
@@ -935,21 +1206,28 @@ class GuiService:
             if not self.block_user_input:
                 raise GuiError("GUI_LOCK_REQUIRED", "请先调用gui_runtime start锁定界面。")
             if method == "inspect":
-                return self.inspect(arguments)
-            if method == "mouse":
-                return self.mouse(arguments)
-            if method == "keyboard":
-                return self.keyboard(arguments)
-            if method == "batch":
-                return self.batch(arguments)
-        raise GuiError("INVALID_ARGUMENT", f"不支持的GUI方法：{method}")
+                result = self.inspect(arguments)
+            elif method == "mouse":
+                result = self.mouse(arguments)
+            elif method == "keyboard":
+                result = self.keyboard(arguments)
+            elif method == "batch":
+                result = self.batch(arguments)
+            else:
+                raise GuiError("INVALID_ARGUMENT", f"不支持的GUI方法：{method}")
+            if result.get("ok"):
+                self.last_activity = time.monotonic()
+            return result
 
     def status(self) -> dict[str, Any]:
         return {
             "ok": True,
             "summary": "GUI后台运行器正在工作。",
             "data": {
-                "active": not self.cancel_event.is_set(),
+                "active": bool(self.mouse_hook and self.keyboard_hook) and not self.cancel_event.is_set(),
+                "hooks_installed": bool(self.mouse_hook and self.keyboard_hook),
+                "pid": os.getpid(),
+                "port": self.port,
                 "runtime_id": self.lock_id,
                 "project_id": self.project_id,
                 "session_id": self.session_id,
@@ -958,6 +1236,9 @@ class GuiService:
                 "mouse_movement_allowed": not self.block_user_input,
                 "blocked_input_counts": {"mouse": self.blocked_mouse_events, "keyboard": self.blocked_keyboard_events},
                 "exit_shortcut": "Esc",
+                "idle_timeout_seconds": self.idle_timeout_seconds,
+                "idle_remaining_seconds": max(0, self.idle_timeout_seconds - (time.monotonic() - self.last_activity)),
+                "stop_reason": self.stop_reason,
                 "coordinate_space": "physical_screen_pixels",
                 "external_input_counts": {
                     "mouse": self.external_mouse_events,
@@ -985,7 +1266,12 @@ class GuiService:
 
     def _capture_target(self, target: dict[str, Any]) -> tuple[Image.Image, dict[str, int]]:
         rect = self._target_rect(target)
-        return self._capture_bbox(rect), rect
+        windows = drag_window_snapshot(self.overlay_windows)
+        image = self._capture_bbox(rect)
+        # Carry acquisition-time evidence with this image, not the later frame-save
+        # time. _create_frame persists it in the frame JSON, not the PNG/context.
+        image.info["drag_windows"] = windows
+        return image, rect
 
     def _session_dir(self, gui_session_id: str) -> Path:
         session_id = safe_session_id(gui_session_id)
@@ -1016,7 +1302,15 @@ class GuiService:
     def _view(frame: dict[str, Any], view_id: str) -> dict[str, Any]:
         view = (frame.get("views") or {}).get(str(view_id))
         if not isinstance(view, dict):
-            raise GuiError("VIEW_NOT_FOUND", f"没有找到View {view_id}。")
+            available_view_ids = list(frame.get("views") or {})
+            raise GuiError(
+                "VIEW_NOT_FOUND",
+                f"Frame {frame['frame_id']}中没有View {view_id}；可用View：{', '.join(available_view_ids)}。"
+                "放大View仅属于创建它的Frame，新Frame不继承旧View；请从当前Frame的root重新zoom，"
+                "并使用该Frame实际返回的view_id。",
+                {"frame_id": frame["frame_id"], "requested_view_id": view_id,
+                 "available_view_ids": available_view_ids},
+            )
         return view
 
     @staticmethod
@@ -1024,7 +1318,14 @@ class GuiService:
         for cell in view.get("cells", []):
             if int(cell.get("cell_id", -1)) == int(cell_id):
                 return cell
-        raise GuiError("CELL_NOT_FOUND", f"没有找到Cell {cell_id}。")
+        raise GuiError(
+            "CELL_NOT_FOUND",
+            f"View {view['view_id']}的已有网格中没有Cell {cell_id}。"
+            "请按该View已有网格的有效格号选择区域；zoom的grid_rows/grid_cols等只设置放大后的新网格，"
+            "不改变来源格号。",
+            {"view_id": view["view_id"], "requested_cell_id": cell_id,
+             "grid": view["grid"], "available_cell_ids": [cell["cell_id"] for cell in view.get("cells", [])]},
+        )
 
     def _create_view(
         self,
@@ -1039,6 +1340,8 @@ class GuiService:
         grid_rows: int | None,
         grid_cols: int | None,
         zoom_scale_percent: int = 100,
+        overlay: str = DEFAULT_OVERLAY,
+        parent_view_id: str | None = None,
     ) -> dict[str, Any]:
         if raw.size != (source_rect["width"], source_rect["height"]):
             raise GuiError("CAPTURE_GEOMETRY_MISMATCH", "截图像素尺寸与屏幕区域不一致，未建立坐标映射。")
@@ -1048,24 +1351,39 @@ class GuiService:
             raise GuiError("INVALID_ARGUMENT", "zoom_scale_percent必须在100到800之间。")
         display_size = (round(raw.width * zoom_scale_percent / 100), round(raw.height * zoom_scale_percent / 100))
         display = raw.resize(display_size, Image.Resampling.NEAREST) if display_size != raw.size else raw
-        overlay = overlay_image(display, cells, source_rect)
+        rendered = overlay_image(display, cells, source_rect, overlay)
         frame_folder = folder / f"frame_{frame_id:03d}"
         frame_folder.mkdir(parents=True, exist_ok=True)
         safe_view = "root" if view_id == "root" else "zoom_" + re.sub(r"[^0-9A-Za-z_-]", "_", view_id)
         raw_path = frame_folder / f"{safe_view}_raw.png"
         overlay_path = frame_folder / f"{safe_view}_overlay.png"
         raw.save(raw_path, format="PNG", optimize=True)
-        overlay.save(overlay_path, format="PNG", optimize=True)
+        rendered.save(overlay_path, format="PNG", optimize=True)
         return {
             "view_id": view_id,
             "source_rect_absolute": source_rect,
-            "image_size": {"width": overlay.width, "height": overlay.height},
+            "image_size": {"width": rendered.width, "height": rendered.height},
+            "overlay": rendered.info["overlay"],
+            "parent_view_id": parent_view_id,
             "zoom_scale_percent": zoom_scale_percent,
             "grid": {"rows": rows, "columns": cols},
             "cells": cells,
             "raw_image": raw_path.relative_to(folder).as_posix(),
             "overlay_image": overlay_path.relative_to(folder).as_posix(),
         }
+
+    @staticmethod
+    def _native_focus() -> int:
+        class GUIThreadInfo(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD),
+                        ("hwndActive", wintypes.HWND), ("hwndFocus", wintypes.HWND),
+                        ("hwndCapture", wintypes.HWND), ("hwndMenuOwner", wintypes.HWND),
+                        ("hwndMoveSize", wintypes.HWND), ("hwndCaret", wintypes.HWND),
+                        ("rcCaret", wintypes.RECT)]
+        info = GUIThreadInfo(cbSize=ctypes.sizeof(GUIThreadInfo))
+        if not user32.GetGUIThreadInfo(0, ctypes.byref(info)):
+            raise GuiError("GUI_FOCUS_UNAVAILABLE", "无法确认当前输入焦点。")
+        return int(info.hwndFocus or 0)
 
     def _create_frame(
         self,
@@ -1074,31 +1392,43 @@ class GuiService:
         reason: str,
         raw: Image.Image | None = None,
         source_rect: dict[str, int] | None = None,
-        grid_mode: str = "auto",
-        grid_target_cells: int = 16,
+        grid_mode: str | None = None,
+        grid_target_cells: int | None = None,
         grid_rows: int | None = None,
         grid_cols: int | None = None,
+        overlay: str | None = None,
     ) -> tuple[dict[str, Any], Path]:
         if raw is None or source_rect is None:
             raw, source_rect = self._capture_target(session["target"])
         frame_id = len(session.get("frames", []))
         folder = self._session_dir(session["gui_session_id"])
+        grid = dict(session.get("grid_settings") or {
+            "grid_mode": "auto", "grid_target_cells": 16, "grid_rows": None, "grid_cols": None,
+        })
+        for name, value in (("grid_mode", grid_mode), ("grid_target_cells", grid_target_cells),
+                            ("grid_rows", grid_rows), ("grid_cols", grid_cols)):
+            if value is not None:
+                grid[name] = value
+        session["grid_settings"] = grid
+        if overlay is not None and overlay not in OVERLAY_MODES:
+            raise GuiError("INVALID_ARGUMENT", "overlay必须是labels+lines、lines或none。")
+        session["overlay_mode"] = overlay if overlay is not None else session.get("overlay_mode", DEFAULT_OVERLAY)
         root = self._create_view(
             folder=folder,
             frame_id=frame_id,
             view_id="root",
             raw=raw,
             source_rect=source_rect,
-            grid_mode=grid_mode,
-            grid_target_cells=grid_target_cells,
-            grid_rows=grid_rows,
-            grid_cols=grid_cols,
+            overlay=session["overlay_mode"],
+            **grid,
         )
         frame = {
             "frame_id": frame_id,
             "created_at": now_iso(),
             "reason": reason,
             "capture_rect": source_rect,
+            "focus_window": self._native_focus(),
+            "drag_windows": raw.info.get("drag_windows", []),
             "views": {"root": root},
         }
         session.setdefault("frames", []).append(frame)
@@ -1124,6 +1454,9 @@ class GuiService:
                 "gui_session_id": session["gui_session_id"],
                 "frame_id": frame["frame_id"],
                 "view_id": view["view_id"],
+                "parent_view_id": view["parent_view_id"],
+                "available_view_ids": list(frame["views"]),
+                "overlay": view["overlay"],
                 "target": session["target"],
                 "grid": view["grid"],
                 "coordinate_space": "physical_screen_pixels",
@@ -1131,6 +1464,11 @@ class GuiService:
                 "source_rect_absolute": view["source_rect_absolute"],
                 "image_size": view["image_size"],
                 "zoom_scale_percent": view["zoom_scale_percent"],
+                "sampling": {
+                    "source_pixels": {"width": view["source_rect_absolute"]["width"], "height": view["source_rect_absolute"]["height"]},
+                    "display_pixels_per_screen_pixel": view["zoom_scale_percent"] / 100,
+                    "adds_detail": False,
+                },
                 "performed": performed,
                 "interface_state": interface_state or {
                     "changed_before_action": False,
@@ -1144,11 +1482,17 @@ class GuiService:
                 },
             },
             "image_path": str(image_path),
-            "warnings": [],
+            "warnings": (["网格太小，已隐藏编号并保留格号映射；可减少行列数或使用祖先视图。"]
+                         if view["overlay"]["labels_hidden_reason"] else [])
+                        + (["当前每个屏幕像素已显示为8×8图像像素；继续递归只缩小观察区域，不增加原始细节。"]
+                           if view["zoom_scale_percent"] >= 800 else []),
         }
 
     def inspect(self, arguments: dict[str, Any]) -> dict[str, Any]:
         action = str(arguments.get("action") or "").strip()
+        if "overlay" in arguments and (arguments["overlay"] not in OVERLAY_MODES
+                or action not in {"start", "zoom", "view", "refresh", "wait"}):
+            raise GuiError("INVALID_ARGUMENT", "overlay仅用于start、zoom、view、refresh、wait，值为labels+lines、lines或none。")
         if action == "list_windows":
             contains = str(arguments.get("contains") or "").casefold()
             limit = max(1, min(int(arguments.get("limit", 100)), 300))
@@ -1165,7 +1509,9 @@ class GuiService:
                     raise GuiError("INVALID_ARGUMENT", "不能把GUI锁覆盖层作为操作目标。")
                 if not activate_window(selected["hwnd"]):
                     raise GuiError("WINDOW_ACTIVATION_FAILED", "无法把目标窗口切换到前台，未创建GUI会话。")
-                target = {"type": "window", "hwnd": selected["hwnd"], "title": selected["title"]}
+                pid = wintypes.DWORD()
+                user32.GetWindowThreadProcessId(selected["hwnd"], ctypes.byref(pid))
+                target = {"type": "window", "hwnd": selected["hwnd"], "title": selected["title"], "process_id": int(pid.value)}
             elif target_type == "screen":
                 target = {"type": "screen", "monitor": int(arguments.get("monitor", 0))}
             else:
@@ -1195,6 +1541,7 @@ class GuiService:
                     grid_target_cells=int(arguments.get("grid_target_cells", 16)),
                     grid_rows=arguments.get("grid_rows"),
                     grid_cols=arguments.get("grid_cols"),
+                    overlay=arguments.get("overlay", DEFAULT_OVERLAY),
                 )
             except Exception:
                 shutil.rmtree(folder)
@@ -1204,6 +1551,33 @@ class GuiService:
             return self._result_with_image(summary="已查看当前界面。", session=session, frame=frame, view=view, image_path=image_path)
         gui_session_id = safe_session_id(str(arguments.get("gui_session_id") or ""))
         session = self._load_session(gui_session_id)
+        if action == "view":
+            frame_id = int(arguments.get("frame_id", -1))
+            if frame_id != int(session.get("latest_frame_id", -1)):
+                raise GuiError("STALE_FRAME", "只能查看当前最新Frame中的已有View；请使用最新截图。")
+            frame = self._frame(session, frame_id)
+            view = self._view(frame, str(arguments.get("view_id") or "root"))
+            folder = self._session_dir(gui_session_id)
+            if "overlay" in arguments:
+                with Image.open(folder / view["raw_image"]) as saved:
+                    raw = saved.convert("RGB")
+                display = raw.resize((view["image_size"]["width"], view["image_size"]["height"]), Image.Resampling.NEAREST)
+                rendered = overlay_image(display, view["cells"], view["source_rect_absolute"], arguments["overlay"])
+                # Keep previously returned image paths immutable for tool history.
+                raw_path = Path(view["raw_image"])
+                rendered_path = raw_path.with_name(raw_path.stem.removesuffix("_raw") + "_overlay_" + arguments["overlay"].replace("+", "-") + ".png")
+                rendered.save(folder / rendered_path, format="PNG", optimize=True)
+                view["overlay_image"] = rendered_path.as_posix()
+                view["overlay"] = rendered.info["overlay"]
+                if view["view_id"] == "root":
+                    session["overlay_mode"] = arguments["overlay"]
+                self._save_session(session)
+            return self._result_with_image(summary="已返回已有视图；未重新截图或执行输入。", session=session,
+                                           frame=frame, view=view, image_path=folder / view["overlay_image"], performed=False)
+        if action == "elements":
+            return self._inspect_elements(session, arguments)
+        if action == "activate":
+            return self._activate_session_window(session)
         if action == "close":
             session["status"] = "closed"
             session["closed_at"] = now_iso()
@@ -1226,11 +1600,24 @@ class GuiService:
                 raise GuiError("STALE_FRAME", "只能放大当前最新Frame。")
             frame = self._frame(session, frame_id)
             parent = self._view(frame, str(arguments.get("view_id") or "root"))
-            cell = self._cell(parent, int(arguments.get("cell_id", 0)))
+            ids = arguments.get("cell_ids")
+            if ids is None:
+                ids = [int(arguments.get("cell_id", 0))]
+            if not isinstance(ids, list) or not ids or len(set(ids)) != len(ids):
+                raise GuiError("INVALID_CELL_SELECTION", "请选择不重复的网格编号。")
+            selected = [self._cell(parent, int(cell_id)) for cell_id in ids]
+            rows = [cell["row"] for cell in selected]
+            cols = [cell["column"] for cell in selected]
+            if len(selected) != (max(rows) - min(rows) + 1) * (max(cols) - min(cols) + 1):
+                raise GuiError("NON_RECTANGULAR_SELECTION", "所选格子必须组成连续、无缺口的完整矩形。")
+            rects = [cell["rect_absolute"] for cell in selected]
+            left, top = min(r["left"] for r in rects), min(r["top"] for r in rects)
+            cell_rect = {"left": left, "top": top,
+                         "width": max(r["left"] + r["width"] for r in rects) - left,
+                         "height": max(r["top"] + r["height"] for r in rects) - top}
             folder = self._session_dir(gui_session_id)
             parent_raw = Image.open(folder / parent["raw_image"]).convert("RGB")
             parent_rect = parent["source_rect_absolute"]
-            cell_rect = cell["rect_absolute"]
             local = (
                 cell_rect["left"] - parent_rect["left"],
                 cell_rect["top"] - parent_rect["top"],
@@ -1238,7 +1625,8 @@ class GuiService:
                 cell_rect["top"] - parent_rect["top"] + cell_rect["height"],
             )
             cropped = parent_raw.crop(local)
-            view_id = str(cell["cell_id"]) if parent["view_id"] == "root" else f"{parent['view_id']}/{cell['cell_id']}"
+            selection_id = "-".join(str(value) for value in sorted(ids))
+            view_id = selection_id if parent["view_id"] == "root" else f"{parent['view_id']}/{selection_id}"
             if view_id in frame["views"]:
                 raise GuiError("VIEW_ALREADY_EXISTS", "该区域已经放大过，请直接使用已有View。")
             view = self._create_view(
@@ -1252,6 +1640,8 @@ class GuiService:
                 grid_rows=arguments.get("grid_rows"),
                 grid_cols=arguments.get("grid_cols"),
                 zoom_scale_percent=int(arguments.get("zoom_scale_percent", DEFAULT_ZOOM_SCALE_PERCENT)),
+                overlay=arguments.get("overlay", parent["overlay"]["requested"]),
+                parent_view_id=parent["view_id"],
             )
             frame["views"][view_id] = view
             self._save_session(session)
@@ -1294,7 +1684,8 @@ class GuiService:
                 matched = True
                 samples = 1
                 reason = "inspect_refresh"
-            frame, image_path = self._create_frame(session, reason=reason, raw=raw, source_rect=rect)
+            frame, image_path = self._create_frame(session, reason=reason, raw=raw, source_rect=rect,
+                                                   **{key: arguments[key] for key in ("grid_mode", "grid_target_cells", "grid_rows", "grid_cols", "overlay") if key in arguments})
             view = frame["views"]["root"]
             result = self._result_with_image(summary="已返回最新界面。", session=session, frame=frame, view=view, image_path=image_path)
             result["data"]["difference_from_previous_percent"] = difference
@@ -1303,11 +1694,140 @@ class GuiService:
             return result
         raise GuiError("INVALID_ARGUMENT", f"不支持的查看操作：{action}")
 
+
+    def _activate_session_window(self, session: dict[str, Any]) -> dict[str, Any]:
+        target = session["target"]
+        if target.get("type") != "window":
+            raise GuiError("WINDOW_TARGET_REQUIRED", "activate只用于窗口目标；请先用start指定目标窗口。")
+        hwnd = int(target["hwnd"])
+        pid = wintypes.DWORD()
+        if not user32.IsWindow(hwnd) or not user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid)):
+            raise GuiError("WINDOW_NOT_AVAILABLE", "原目标窗口已关闭，请重新选择窗口。")
+        if not target.get("process_id") or int(pid.value) != target["process_id"]:
+            raise GuiError("WINDOW_IDENTITY_CHANGED", "原窗口进程已变化或缺少身份依据，请重新start查看窗口。")
+        if not activate_window(hwnd):
+            raise GuiError("WINDOW_ACTIVATION_FAILED", "无法把原目标窗口切到前台，未继续操作。")
+        raw, rect = self._capture_target(target)
+        if self.cancel_event.is_set():
+            raise GuiError("GUI_RUNTIME_STOPPED", "界面锁已退出，未继续操作。")
+        if int(user32.GetForegroundWindow() or 0) != hwnd:
+            raise GuiError("TARGET_NOT_FOREGROUND", "截图时目标窗口再次失去前台焦点，请重新观察。")
+        frame, path = self._create_frame(session, reason="target_window_activated", raw=raw, source_rect=rect)
+        return self._result_with_image(summary="已激活原目标窗口并返回新Frame；请依据新图操作，旧坐标和预览已失效。",
+                                       session=session, frame=frame, view=frame["views"]["root"], image_path=path)
+
+    def _uia_query(self, hwnd: int, runtime_ids: list[str] | None = None, **options: Any) -> list[dict[str, Any]]:
+        script = Path(__file__).with_name("uia_bridge.ps1")
+        request = {"hwnd": hwnd, "runtime_ids": runtime_ids or [], "operation": "inspect", **options}
+        process = subprocess.Popen(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(script)],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", creationflags=0x08000000,
+        )
+        deadline = time.monotonic() + 10  # UIA query/action time budget, exposed in tool documentation.
+        first = True
+        try:
+            while True:
+                if self.cancel_event.is_set():
+                    raise GuiError("GUI_RUNTIME_STOPPED", "GUI操作已取消。")
+                try:
+                    output, _error = process.communicate(json.dumps(request) if first else None, timeout=0.1)
+                    break
+                except subprocess.TimeoutExpired:
+                    first = False
+                    if time.monotonic() >= deadline:
+                        raise GuiError("UIA_TIMEOUT", "读取或操作控件超过10秒，未返回不完整控件列表。")
+            try:
+                result = json.loads(output.lstrip("\ufeff"))
+            except ValueError as exc:
+                raise GuiError("UIA_UNAVAILABLE", "Windows UIAutomation 未返回有效结果。") from exc
+            if not result.get("ok"):
+                raise GuiError("UIA_UNAVAILABLE", "控件读取或操作失败，请重新查看目标窗口。")
+            return result["elements"]
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.communicate()
+
+    def _require_frame(self, session: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+        if arguments.get("frame_id") != session["latest_frame_id"]:
+            raise GuiError("STALE_FRAME", "必须提供AI实际查看过的最新frame_id，请重新查看界面。")
+        return self._frame(session, int(arguments["frame_id"]))
+
+    def _uia_element(self, session: dict[str, Any], element_id: str, *,
+                     expected: dict[str, Any] | None = None, require_focus: bool = False) -> dict[str, Any]:
+        frame = self._frame(session, session["latest_frame_id"])
+        saved = frame.get("elements", {}).get(element_id)
+        if saved is None:
+            raise GuiError("UIA_ELEMENT_UNKNOWN", "此控件不属于当前Frame，请先读取控件列表。")
+        hwnd = int(saved["hwnd"])
+        if int(user32.GetForegroundWindow() or 0) != hwnd:
+            raise GuiError("TARGET_NOT_FOREGROUND", "控件所属窗口已失去前台焦点。")
+        matches = self._uia_query(hwnd, [saved["runtime_id"]])
+        if len(matches) != 1:
+            raise GuiError("UIA_ELEMENT_STALE", "原控件已经不存在，请重新查看。")
+        live = matches[0]
+        for key in ("runtime_id", "process_id", "hwnd", "name", "automation_id", "control_type", "class_name"):
+            if live.get(key) != saved.get(key):
+                raise GuiError("UIA_ELEMENT_CHANGED", "控件身份或名称发生变化，请重新查看。")
+        if not live["enabled"] or live["offscreen"]:
+            raise GuiError("UIA_ELEMENT_UNAVAILABLE", "目标控件不可用或不在可见区域。")
+        if require_focus and not live["focused"]:
+            raise GuiError("UIA_FOCUS_CHANGED", "焦点不在指定输入控件，本次未输入。")
+        for key, value in (expected or {}).items():
+            if key != "element_id" and live.get(key) != value:
+                raise GuiError("UIA_CONDITION_FAILED", f"控件的{key}不符合预期，本次未继续。")
+        return live
+
+    def _check_conditions(self, session: dict[str, Any], conditions: list[dict[str, Any]]) -> None:
+        for condition in conditions:
+            self._uia_element(session, str(condition["element_id"]), expected=condition)
+
+    def _inspect_elements(self, session: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+        frame = self._require_frame(session, arguments)
+        hwnd = int(session["target"].get("hwnd") or user32.GetForegroundWindow())
+        if int(user32.GetForegroundWindow() or 0) != hwnd:
+            raise GuiError("TARGET_NOT_FOREGROUND", "请先查看并激活目标窗口。")
+        if "element_inventory" not in frame:
+            frame["element_inventory"] = self._uia_query(hwnd)
+            frame["element_window"] = hwnd
+        if frame["element_window"] != hwnd:
+            raise GuiError("UIA_ELEMENT_CHANGED", "控件列表所属窗口发生变化，请刷新Frame。")
+        records = frame["element_inventory"]  # Stable snapshot across pages; actions revalidate live controls.
+        query = str(arguments.get("contains") or "").casefold()
+        matches = [r for r in records if query in str(r["name"]).casefold()]
+        offset, limit = int(arguments.get("offset", 0)), int(arguments.get("limit", 100))
+        if offset < 0 or limit < 1:
+            raise GuiError("INVALID_ARGUMENT", "offset不得为负，limit必须大于0。")
+        page = matches[offset:offset + limit]  # Explicit presentation page; reports total/next_offset.
+        saved = frame.setdefault("elements", {})
+        output = []
+        for record in page:
+            identity = json.dumps([record["hwnd"], record["process_id"], record["runtime_id"]])
+            element_id = "uia_" + hashlib.sha256(identity.encode()).hexdigest()[:24]
+            if element_id in saved and any(saved[element_id].get(k) != record.get(k) for k in ("name", "automation_id", "control_type", "class_name")):
+                raise GuiError("UIA_ELEMENT_CHANGED", "分页期间控件发生变化，请刷新Frame后重读。")
+            saved.setdefault(element_id, record)
+            output.append({"element_id": element_id, **record})
+        self._save_session(session)
+        next_offset = offset + len(page)
+        return {"ok": True, "summary": f"返回{len(page)}个控件，共{len(matches)}个匹配项。",
+                "data": {"gui_session_id": session["gui_session_id"], "frame_id": frame["frame_id"],
+                         "elements": output, "total": len(matches),
+                         "complete": next_offset >= len(matches),
+                         "next_offset": next_offset if next_offset < len(matches) else None}, "warnings": []}
+
     def _resolve_point(self, session: dict[str, Any], arguments: dict[str, Any]) -> tuple[dict[str, Any], int, int]:
         frame_id = int(arguments.get("frame_id", -1))
         if frame_id != int(session.get("latest_frame_id", -1)):
             raise GuiError("STALE_FRAME", "GUI操作必须使用最新Frame。")
         frame = self._frame(session, frame_id)
+        if arguments.get("element_id"):
+            element = self._uia_element(session, str(arguments["element_id"]))
+            rect = element["rect"]
+            if rect["width"] <= 0 or rect["height"] <= 0:
+                raise GuiError("UIA_ELEMENT_UNAVAILABLE", "控件没有可点击区域。")
+            return frame, round(rect["left"] + rect["width"] / 2), round(rect["top"] + rect["height"] / 2)
         view = self._view(frame, str(arguments.get("view_id") or "root"))
         cell = self._cell(view, int(arguments.get("cell_id", 0)))
         x_ratio = float(arguments.get("x", 0.5))
@@ -1326,17 +1846,19 @@ class GuiService:
             y += current["top"] - captured["top"]
         return frame, x, y
 
-    def _preflight(self, session: dict[str, Any], points: list[dict[str, Any]] | None = None) -> tuple[dict[str, Any], Image.Image, dict[str, int], float]:
+    def _preflight(self, session: dict[str, Any], points: list[dict[str, Any]] | None = None, *, compare_pixels: bool = True) -> tuple[dict[str, Any], Image.Image, dict[str, int], float]:
         target = session["target"]
         if target["type"] == "window" and int(user32.GetForegroundWindow() or 0) != int(target["hwnd"]):
             raise GuiError("TARGET_NOT_FOREGROUND", "目标窗口已失去前台焦点，本次未执行；请重新查看目标窗口。")
         frame = self._frame(session, int(session["latest_frame_id"]))
-        root = frame["views"]["root"]
-        previous = Image.open(self._session_dir(session["gui_session_id"]) / root["raw_image"]).convert("RGB")
         current, rect = self._capture_target(session["target"])
         captured = frame["capture_rect"]
         if rect["width"] != captured["width"] or rect["height"] != captured["height"] or (target["type"] == "screen" and rect != captured):
             raise GuiError("TARGET_GEOMETRY_CHANGED", "屏幕或目标窗口尺寸已经变化，请刷新界面后重试。")
+        if not compare_pixels:
+            return frame, current, rect, 0.0
+        root = frame["views"]["root"]
+        previous = Image.open(self._session_dir(session["gui_session_id"]) / root["raw_image"]).convert("RGB")
         if points:
             differences = []
             for point in points:
@@ -1349,6 +1871,24 @@ class GuiService:
         else:
             difference = image_difference_percent(previous, current)
         return frame, current, rect, difference
+
+    def _check_drag_origin(self, frame: dict[str, Any], x: int, y: int) -> dict[str, Any]:
+        if self.cancel_event.is_set():
+            raise GuiError("GUI_RUNTIME_STOPPED", "GUI后台运行器已经退出。")
+        expected = window_at_point(frame.get("drag_windows", []), x, y)
+        if expected is None or not expected["pid"] or not expected["thread_id"]:
+            raise GuiError("DRAG_ORIGIN_UNCONFIRMED", "截图中没有可确认的拖动起点窗口，请刷新后重新定位。")
+        current = drag_window_snapshot(self.overlay_windows)
+        actual = next((window for window in current if window["hwnd"] == expected["hwnd"]), None)
+        if actual is None or any(actual[key] != expected[key] for key in ("pid", "thread_id", "rect")):
+            raise GuiError("DRAG_ORIGIN_CHANGED", "拖动起点窗口已关闭、移动、缩放或身份变化，本次未拖动；请刷新后重新定位。")
+        if window_at_point(current, x, y) != actual:
+            raise GuiError("DRAG_ORIGIN_OCCLUDED", "拖动起点已被其他窗口遮挡，本次未拖动；请刷新后重新定位。")
+        hit = user32.WindowFromPoint(POINT(x, y))
+        root = int(user32.GetAncestor(hit, 2) or 0) if hit else 0  # GA_ROOT
+        if root != expected["hwnd"]:
+            raise GuiError("DRAG_ORIGIN_UNCONFIRMED", "起点实际命中的窗口与截图依据不一致，本次未拖动；请刷新后重新定位。")
+        return expected
 
     def _preview_coordinate(
         self,
@@ -1364,7 +1904,7 @@ class GuiService:
         end_point: tuple[int, int] | None = None,
     ) -> dict[str, Any]:
         view = self._view(frame, str(arguments.get("view_id") or "root"))
-        if end_point is not None and arguments["to"]["view_id"] != view["view_id"]:
+        if end_point is not None and arguments["to"].get("view_id", "root") != view["view_id"]:
             view = frame["views"]["root"]
         source_rect = view["source_rect_absolute"]
         captured_x, captured_y = screen_x, screen_y
@@ -1459,16 +1999,17 @@ class GuiService:
     def _mouse_arguments(self, arguments: dict[str, Any], action: str) -> dict[str, Any]:
         if action not in MOUSE_ACTIONS:
             raise GuiError("INVALID_ARGUMENT", "preview必须明确提供preview_action鼠标动作。")
-        required = ("gui_session_id", "frame_id", "view_id", "cell_id", "x", "y")
+        required = (("gui_session_id", "frame_id", "element_id") if arguments.get("element_id")
+                    else ("gui_session_id", "frame_id", "view_id", "cell_id", "x", "y"))
         if any(key not in arguments for key in required) or (action == "drag" and not isinstance(arguments.get("to"), dict)):
             raise GuiError("INVALID_ARGUMENT", "鼠标操作缺少坐标，或拖动缺少to终点。")
         resolved = {key: arguments[key] for key in required}
         resolved["action"] = action
+        resolved["expected_elements"] = arguments.get("expected_elements", [])
         for key in (*MOUSE_ACTION_OPTIONS[action], "change_check_scope", "change_threshold_percent"):
             resolved[key] = arguments.get(key, MOUSE_ACTION_DEFAULTS[key])
         if action == "drag":
             resolved["to"] = arguments["to"]
-            resolved["change_check_scope"] = "frame"
         resolved["screenshot_delay_seconds"] = self._screenshot_delay(arguments)
         # 保存有效参数与已解析默认值，后续执行不接受参数覆盖。
         return json.loads(json.dumps(resolved))
@@ -1645,6 +2186,7 @@ class GuiService:
         action = str(arguments.get("preview_action") or "") if requested_action == "preview" else requested_action
         arguments = self._mouse_arguments(arguments, action)
         session = self._load_session(str(arguments["gui_session_id"]))
+        self._check_conditions(session, arguments.get("expected_elements", []))
         mouse_at_start = self.external_mouse_events
         keyboard_at_start = self.external_keyboard_events
         threshold = float(arguments.get("change_threshold_percent", 0.5))
@@ -1656,16 +2198,17 @@ class GuiService:
         if action == "drag":
             _target_frame, end_x, end_y = self._resolve_point(session, {**arguments["to"], "frame_id": frame["frame_id"]})
             end_point = (end_x, end_y)
-        # 拖动经过的区域可能影响目标，仍检查完整Frame。
-        check_scope = "frame" if action == "drag" else scope
-        _frame, before_raw, rect, difference = self._preflight(session, [arguments] if check_scope == "target_cell" else None)
+        check_scope = "origin_window" if action == "drag" else scope
+        _frame, before_raw, rect, difference = self._preflight(session, [arguments] if check_scope == "target_cell" and not arguments.get("element_id") else None, compare_pixels=action != "drag")
+        if action == "drag":
+            self._check_drag_origin(frame, x, y)
         if preview_record is not None and (
             preview_record["capture_rect"] != rect
             or preview_record["screen_point"] != [x, y]
             or preview_record["end_screen_point"] != (list(end_point) if end_point is not None else None)
         ):
             raise GuiError("PREVIEW_EXPIRED", "预览后窗口位置或坐标映射发生变化，未执行；请重新预览。")
-        if difference >= threshold:
+        if action != "drag" and difference >= threshold and not arguments.get("element_id"):
             return self._blocked_changed_result(session, before_raw, rect, difference, check_scope)
         if requested_action == "preview":
             result = self._preview_coordinate(
@@ -1693,7 +2236,7 @@ class GuiService:
             elif action == "drag":
                 modifiers = self._normalize_modifiers(arguments.get("modifiers"))
                 with self._hold_modifiers(modifiers):
-                    self._mouse_drag(x, y, end_x, end_y, str(arguments.get("button") or "left"), int(arguments.get("duration_ms", 0)))
+                    self._mouse_drag(x, y, end_x, end_y, str(arguments.get("button") or "left"), int(arguments.get("duration_ms", 0)), origin_frame=frame)
                 action_data.update({"to": {"x": end_x, "y": end_y}, "button": str(arguments.get("button") or "left"), "modifiers": modifiers})
             elif action == "scroll":
                 modifiers = self._normalize_modifiers(arguments.get("modifiers"))
@@ -1723,17 +2266,47 @@ class GuiService:
             screenshot_delay_seconds=arguments["screenshot_delay_seconds"],
         )
 
+    def _check_keyboard_target(self, session: dict[str, Any], arguments: dict[str, Any], focus: int) -> None:
+        self._check_conditions(session, arguments.get("expected_elements", []))
+        if arguments.get("element_id"):
+            self._uia_element(session, str(arguments["element_id"]),
+                              require_focus=arguments.get("action", arguments.get("type")) != "set_value")
+        elif self._native_focus() != focus:
+            raise GuiError("GUI_FOCUS_CHANGED", "输入焦点与已观察状态不一致，未执行键盘操作。")
+
+    def _set_element_value(self, session: dict[str, Any], arguments: dict[str, Any]) -> None:
+        if not arguments.get("element_id"):
+            raise GuiError("INVALID_ARGUMENT", "set_value必须指定element_id。")
+        target = self._uia_element(session, str(arguments["element_id"]))
+        value = str(arguments.get("text", ""))
+        try:
+            result = self._uia_query(int(target["hwnd"]), [target["runtime_id"]], operation="set_value",
+                                     value=value, expected_name=target["name"], expected_process_id=target["process_id"])
+        except GuiError as exc:
+            exc.details["execution_status"] = "unknown"
+            raise
+        if len(result) != 1 or not result[0].get("performed"):
+            raise GuiError("UIA_VALUE_NOT_SET", "目标控件未执行赋值，请重新查看。")
+        # ValuePattern invocation is an external input, and must count for partial execution.
+        self.input_events_sent += 1
+        self._uia_element(session, str(arguments["element_id"]), expected={"value": value})
+
     def keyboard(self, arguments: dict[str, Any]) -> dict[str, Any]:
         delay = self._screenshot_delay(arguments)
         session = self._load_session(str(arguments.get("gui_session_id") or ""))
+        frame = self._require_frame(session, arguments)
+        self._check_keyboard_target(session, arguments, int(frame["focus_window"]))
         threshold = float(arguments.get("change_threshold_percent", 0.5))
         _frame, before_raw, rect, difference = self._preflight(session)
-        if difference >= threshold:
+        if difference >= threshold and not arguments.get("element_id"):
             return self._blocked_changed_result(session, before_raw, rect, difference)
         action = str(arguments.get("action") or "").strip()
         action_data: dict[str, Any] = {"type": action}
         with self._ai_input() as counters:
-            if action == "type_text":
+            if action == "set_value":
+                self._set_element_value(session, arguments)
+                action_data["character_count"] = len(str(arguments.get("text", "")))
+            elif action == "type_text":
                 text = str(arguments.get("text") or "")
                 self._type_text(text, int(arguments.get("interval_ms", 20)))
                 action_data["character_count"] = len(text)
@@ -1763,29 +2336,54 @@ class GuiService:
     def batch(self, arguments: dict[str, Any]) -> dict[str, Any]:
         delay = self._screenshot_delay(arguments)
         session = self._load_session(str(arguments.get("gui_session_id") or ""))
+        frame = self._require_frame(session, arguments)
         threshold = float(arguments.get("change_threshold_percent", 0.5))
-        _frame, before_raw, rect, difference = self._preflight(session)
-        if difference >= threshold:
-            return self._blocked_changed_result(session, before_raw, rect, difference)
         actions = arguments.get("actions")
         if not isinstance(actions, list) or not 1 <= len(actions) <= 50:
             raise GuiError("INVALID_ARGUMENT", "actions必须包含1到50个动作。")
+        if any(not isinstance(item, dict) for item in actions):
+            raise GuiError("INVALID_ARGUMENT", "所有批量动作必须为对象。")
+        needs_pixels = any(not item.get("element_id") for item in actions if item.get("type") not in {"wait", "drag"})
+        _frame, before_raw, rect, difference = self._preflight(session, compare_pixels=needs_pixels)
+        # Coordinate scripts still require the initial observed pixels. UIA-only scripts
+        # validate element identity and explicit conditions instead of unrelated animation.
+        if difference >= threshold and needs_pixels:
+            return self._blocked_changed_result(session, before_raw, rect, difference)
         results: list[dict[str, Any]] = []
+        focus = int(frame["focus_window"])
         with self._ai_input() as counters:
             for index, item in enumerate(actions):
-                if self.cancel_event.is_set():
-                    raise GuiError("GUI_RUNTIME_STOPPED", "GUI后台运行器已经退出。", {"completed_actions": index})
-                if not isinstance(item, dict):
-                    raise GuiError("INVALID_ARGUMENT", f"actions[{index}]必须是对象。")
-                results.append(self._execute_batch_item(session, item))
+                inputs_before = self.input_events_sent
+                try:
+                    if self.cancel_event.is_set():
+                        raise GuiError("GUI_RUNTIME_STOPPED", "GUI后台运行器已经退出。")
+                    self._check_conditions(session, item.get("expected_elements", []))
+                    kind = str(item.get("type") or "")
+                    if kind in {"type_text", "press_key", "hotkey", "set_value"}:
+                        self._check_keyboard_target(session, item, focus)
+                    elif kind != "wait":
+                        self._require_frame(session, item)
+                        if kind == "drag":
+                            self._preflight(session, compare_pixels=False)
+                        elif item.get("element_id"):
+                            self._uia_element(session, str(item["element_id"]))
+                        else:
+                            _, raw_now, rect_now, changed = self._preflight(session, [item])
+                            if changed >= threshold:
+                                raise GuiError("GUI_BATCH_TARGET_CHANGED", "后续坐标目标区域已变化，请重新查看后再操作。")
+                    result = self._execute_batch_item(session, item)
+                    self._check_conditions(session, item.get("postconditions", []))
+                    results.append(result)
+                    focus = self._native_focus()
+                except Exception as error:
+                    exc = error if isinstance(error, GuiError) else GuiError("GUI_BATCH_FAILED", "批量操作失败，后续动作已停止。")
+                    exc.details.update({"completed_actions": len(results), "failed_action_index": index,
+                                        "execution_status": exc.details.get("execution_status", "partial" if results or self.input_events_sent > inputs_before else "not_started"),
+                                        "action_results": results})
+                    raise exc
         return self._finish_action(
-            session=session,
-            before_raw=before_raw,
-            mouse_before=counters[0],
-            keyboard_before=counters[1],
-            action_name="batch",
-            action_data={"type": "batch", "actions": results},
-            screenshot_delay_seconds=delay,
+            session=session, before_raw=before_raw, mouse_before=counters[0], keyboard_before=counters[1],
+            action_name="batch", action_data={"type": "batch", "actions": results}, screenshot_delay_seconds=delay,
         )
 
     def _execute_batch_item(self, session: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
@@ -1819,9 +2417,13 @@ class GuiService:
             if not isinstance(target, dict):
                 raise GuiError("INVALID_ARGUMENT", "批量drag缺少to。")
             _target_frame, end_x, end_y = self._resolve_point(session, {"frame_id": item.get("frame_id"), **target})
+            self._check_drag_origin(_frame, x, y)
             with self._hold_modifiers(self._normalize_modifiers(item.get("modifiers"))):
-                self._mouse_drag(x, y, end_x, end_y, str(item.get("button") or "left"), int(item.get("duration_ms", 0)))
-            return {"type": action, "from": {"x": x, "y": y}, "to": {"x": end_x, "y": end_y}}
+                self._mouse_drag(x, y, end_x, end_y, str(item.get("button") or "left"), int(item.get("duration_ms", 0)), origin_frame=_frame)
+            return {"type": action, "from": {"x": x, "y": y}, "to": {"x": end_x, "y": end_y}, "change_check_scope": "origin_window"}
+        if action == "set_value":
+            self._set_element_value(session, item)
+            return {"type": action, "character_count": len(str(item.get("text", "")))}
         if action == "type_text":
             text = str(item.get("text") or "")
             self._type_text(text, int(item.get("interval_ms", 20)))
@@ -1935,9 +2537,11 @@ class GuiService:
             if index + 1 < count:
                 self._interruptible_sleep(max(0, min(interval_ms, 1000)) / 1000)
 
-    def _mouse_drag(self, x: int, y: int, end_x: int, end_y: int, button: str, duration_ms: int) -> None:
+    def _mouse_drag(self, x: int, y: int, end_x: int, end_y: int, button: str, duration_ms: int, *, origin_frame: dict[str, Any]) -> None:
         chosen = self._button(button)
         self._mouse_move(x, y, 0)
+        # Pointer movement can open a popup; recheck immediately before pressing.
+        self._check_drag_origin(origin_frame, x, y)
         down, up = MOUSE_BUTTON_FLAGS[chosen]
         pressed = False
         try:
@@ -2105,6 +2709,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lock-id", required=True)
     parser.add_argument("--token", required=True)
     parser.add_argument("--marker", required=True, type=int)
+    parser.add_argument("--idle-timeout-seconds", type=float, default=120)
+    parser.add_argument("--owner-status-url", default="")
+    parser.add_argument("--require-startup-confirmation", action="store_true")
+    parser.add_argument("--startup-timeout-seconds", type=float, default=10)
     return parser.parse_args()
 
 

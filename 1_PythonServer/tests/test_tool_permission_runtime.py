@@ -96,6 +96,19 @@ def test_missing_parameter_permission_type_is_unknown_and_asks(tmp_path: Path):
     assert evaluation.facts[0].scope == "all"
 
 
+@pytest.mark.parametrize("broken_policy", [None, "not json"])
+def test_missing_or_invalid_policy_asks_for_unresolved_deletion(tmp_path, broken_policy):
+    if broken_policy is not None:
+        (tmp_path / ".tool").mkdir()
+        (tmp_path / ".tool/permissions.json").write_text(broken_policy, encoding="utf-8")
+    evaluation = evaluate_tool_permissions(
+        tool_name="data_tool", arguments={"action": "delete"},
+        input_schema={"properties": {"action": {"permission_type": "tiance_data_delete"}}},
+        tool_root=str(tmp_path), workspace_root=None, project_id="project-1",
+    )
+    assert evaluation.decision == "ask"
+
+
 @pytest.mark.parametrize("query", [
     "天策 AI 是什么？请搜索其官方介绍与最新版本信息，并列出来源链接。",
     "2026年9月有哪些重要的科技或AI领域公开新闻？请列出3条并给出来源链接。",
@@ -188,6 +201,46 @@ def test_declared_network_policy_passes_through_dynamic_auto_approval_gate(tmp_p
             assert "权限配置禁止" in error.error
         else:
             assert error is None
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("approval_mode", ["follow_tool_policy", "auto_allow_ask"])
+def test_naming_with_real_tool_policy_respects_session_approval_mode(approval_mode):
+    tool_root = Path(__file__).resolve().parents[2] / "Data/tools/d624fd9b-5b9c-5bf4-8126-6610868e64ba"
+    schema = json.loads((tool_root / ".tool/input.schema.json").read_text(encoding="utf-8"))
+
+    class Execution(_AskingToolExecutionService):
+        def evaluate_permissions(self, call, *, context):
+            return evaluate_tool_permissions(
+                tool_name=call.name, arguments=json.loads(call.arguments),
+                input_schema=schema, tool_root=str(tool_root),
+                workspace_root=context.workspace_root, project_id=context.project_id,
+            )
+
+    async def scenario():
+        bridge = ToolPermissionBridgeService()
+        loop = ConversationToolLoop(
+            chat_service=None, conversation_service=_ConversationService(approval_mode),
+            tool_execution_service=Execution(), tool_result_guidance_service=None,
+            project_service=_ProjectService(), tool_call_record_service=None,
+            client_tool_bridge_service=None, tool_permission_bridge_service=bridge,
+        )
+        call = ChatToolCall(
+            call_id="naming-call", name="manage_ai_conversations",
+            arguments=json.dumps({"action": "name_parent_session", "title": "会话标题"}),
+        )
+        error, pending = await loop._prepare_permission_gate(
+            _request(), displayed_call=call, actual_calls=(call,),
+            context=await loop._build_tool_execution_context(_request()),
+        )
+        assert error is None
+        if approval_mode == "auto_allow_ask":
+            assert pending is None
+        else:
+            assert pending is not None
+            assert await bridge.submit_decision(pending.request_id, "allow")
+            assert await bridge.wait_for_decision(pending.request_id) == "allow"
 
     asyncio.run(scenario())
 

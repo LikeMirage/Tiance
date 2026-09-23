@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import ctypes
 from ctypes import wintypes
 import json
+import math
 import msvcrt
 import os
 from pathlib import Path
@@ -15,6 +16,7 @@ import tempfile
 import time
 from typing import Any, Iterator
 from uuid import uuid4
+from urllib.parse import urlencode
 
 from tiance_runtime import run_tool
 
@@ -25,6 +27,7 @@ MUTEX_PATH = CONTROL_ROOT / "lock.mutex"
 STARTUP_TIMEOUT_SECONDS = 10.0
 MUTEX_TIMEOUT_SECONDS = 5.0
 RPC_TIMEOUT_SECONDS = 10.0
+STARTUP_ROLLBACK_TIMEOUT_SECONDS = 3.0
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 STILL_ACTIVE = 259
 
@@ -86,10 +89,17 @@ def process_alive(pid: Any) -> bool:
         return False
     handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, process_id)
     if not handle:
-        return False
+        error = int(kernel32.GetLastError())
+        if error == 87:  # Invalid PID: the process no longer exists.
+            return False
+        raise ToolError("GUI_RUNTIME_PROCESS_STATUS_UNKNOWN", "无法读取运行器进程状态，不能认为界面锁已退出。",
+                        {"pid": process_id, "active": None, "winerror": error})
     try:
         exit_code = wintypes.DWORD()
-        return bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))) and exit_code.value == STILL_ACTIVE
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            raise ToolError("GUI_RUNTIME_PROCESS_STATUS_UNKNOWN", "无法确认运行器进程是否已经退出。",
+                            {"pid": process_id, "active": None})
+        return exit_code.value == STILL_ACTIVE
     finally:
         kernel32.CloseHandle(handle)
 
@@ -99,31 +109,35 @@ def read_state() -> dict[str, Any] | None:
         payload = json.loads(STATE_PATH.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return None
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ToolError("GUI_RUNTIME_STATE_INVALID", "GUI后台运行器状态文件损坏。", {"reason": str(exc)}) from exc
+    except OSError as exc:
+        raise ToolError("GUI_RUNTIME_STATE_ACCESS_FAILED", "无法访问GUI状态文件；锁状态未知，请勿认为已经解锁，可按Esc退出。",
+                        {"state_file": str(STATE_PATH), "active": None, "winerror": getattr(exc, "winerror", None)}) from exc
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ToolError("GUI_RUNTIME_STATE_INVALID", "GUI后台运行器状态文件损坏，锁状态未知。", {"active": None}) from exc
     if not isinstance(payload, dict) or payload.get("schema_version") != 1:
         raise ToolError("GUI_RUNTIME_STATE_INVALID", "GUI后台运行器状态格式无效。")
     return payload
 
 
 def remove_state_if_matches(lock_id: Any) -> None:
-    try:
-        state = read_state()
-    except ToolError:
-        STATE_PATH.unlink(missing_ok=True)
-        return
+    # Never delete a state file whose ownership cannot be read and verified.
+    state = read_state()
     if state is not None and state.get("lock_id") == lock_id:
         STATE_PATH.unlink(missing_ok=True)
 
 
 def public_state(state: dict[str, Any]) -> dict[str, Any]:
+    alive = process_alive(state.get("pid"))
     return {
-        "active": state.get("status") == "active" and process_alive(state.get("pid")),
+        "active": None if alive else False,
+        "process_alive": alive,
         "runtime_id": state.get("lock_id"),
         "project_id": state.get("project_id"),
         "session_id": state.get("session_id"),
         "capture_mode": state.get("capture_mode"),
         "created_at": state.get("created_at"),
+        "pid": state.get("pid"),
+        "port": state.get("port"),
     }
 
 
@@ -209,22 +223,93 @@ def require_owned_state(workspace: Path, project_id: str, session_id: str) -> di
     return state
 
 
+def preflight_state_storage() -> None:
+    """Check the actual inherited ACL through file operations before creating a lock."""
+    probe = CONTROL_ROOT / f".startup-{uuid4().hex}.tmp"
+    replaced = probe.with_suffix(".check")
+    try:
+        CONTROL_ROOT.mkdir(parents=True, exist_ok=True)
+        probe.write_bytes(b"gui-state-access-check")
+        os.replace(probe, replaced)
+        if replaced.read_bytes() != b"gui-state-access-check":
+            raise OSError("State storage verification failed")
+        replaced.unlink()
+    except OSError as exc:
+        details: dict[str, Any] = {"state_directory": str(CONTROL_ROOT),
+                                  "process_created": False, "winerror": getattr(exc, "winerror", None)}
+        for path in (probe, replaced):
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                details.setdefault("remaining_probe_files", []).append(str(path))
+        raise ToolError("GUI_RUNTIME_STATE_ACCESS_FAILED",
+                        "GUI状态目录读写、替换或删除检查失败，未创建运行器、未锁定界面；请检查该目录的实际访问权限。", details) from exc
+
+
+def confirmed_lock_status(state: dict[str, Any], response: dict[str, Any]) -> dict[str, Any]:
+    data = response.get("data") if isinstance(response.get("data"), dict) else {}
+    matches = all(data.get(key) == state.get(source)
+                  for key, source in (("runtime_id", "lock_id"), ("pid", "pid"),
+                                      ("project_id", "project_id"), ("session_id", "session_id")))
+    if (response.get("ok") is not True or data.get("active") is not True
+            or data.get("input_mode") != "blocked" or data.get("hooks_installed") is not True or not matches):
+        raise ToolError("GUI_LOCK_NOT_CONFIRMED", "未能确认GUI界面锁实际生效。",
+                        {"pid": state.get("pid"), "port": state.get("port"),
+                         "active": data.get("active"), "hooks_installed": data.get("hooks_installed")})
+    return data
+
+
+def rollback_start(process: subprocess.Popen, lock_id: str, state: dict[str, Any] | None) -> dict[str, Any]:
+    """Use the child handle we created, never a PID recovered from an unreadable file."""
+    details: dict[str, Any] = {"runtime_id": lock_id, "pid": process.pid,
+                              "port": state.get("port") if state else None, "process_created": True}
+    if process.stdin is not None:
+        try:
+            process.stdin.close()  # EOF also requests child release before confirmation.
+        except OSError:
+            pass
+    try:
+        if process.poll() is None:
+            process.terminate()
+        process.wait(timeout=STARTUP_ROLLBACK_TIMEOUT_SECONDS)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        details["rollback_error"] = type(exc).__name__
+    alive = process.poll() is None
+    details.update({"process_alive": alive, "active": None if alive else False, "released": not alive})
+    if not alive:
+        try:
+            remove_state_if_matches(lock_id)
+        except (ToolError, OSError) as exc:
+            details["state_cleanup_error"] = exc.code if isinstance(exc, ToolError) else type(exc).__name__
+    return details
+
+
 def start_lock(
     workspace: Path,
     project_id: str,
     session_id: str,
+    idle_timeout_seconds: float = 120.0,
 ) -> dict[str, Any]:
+    if not math.isfinite(idle_timeout_seconds) or idle_timeout_seconds <= 0:
+        raise ToolError("INVALID_ARGUMENT", "idle_timeout_seconds必须是有限正数。")
     existing = require_owned_state(workspace, project_id, session_id)
     if existing is not None:
         if existing.get("input_mode") != "blocked":
             raise ToolError("GUI_LOCK_REQUIRED", "旧的无锁运行器仍在运行，请先调用gui_runtime stop，再调用start。")
-        status = rpc_call(existing, "status")
-        if not status.get("ok"):
-            raise ToolError("GUI_RUNTIME_UNAVAILABLE", str(status.get("error") or "GUI后台运行器状态异常。"))
-        data = status.get("data") if isinstance(status.get("data"), dict) else {}
+        try:
+            status = rpc_call(existing, "status")
+            data = confirmed_lock_status(existing, status)
+        except ToolError as exc:
+            exc.details.setdefault("pid", existing.get("pid"))
+            exc.details.setdefault("port", existing.get("port"))
+            exc.details.setdefault("active", None)
+            raise
+        if data.get("idle_timeout_seconds") != idle_timeout_seconds:
+            raise ToolError("GUI_RUNTIME_CONFIG_CHANGED", "修改空闲时长需要先stop再start。")
         data["already_active"] = True
         return success("当前会话已经锁定界面。鼠标已禁止操作，按Esc退出。", data)
 
+    preflight_state_storage()
     lock_id = f"lock_{uuid4().hex}"
     token = secrets.token_urlsafe(32)
     # 部分Windows鼠标输入链路只保留dwExtraInfo的低32位；使用非零31位标记，
@@ -258,50 +343,61 @@ def start_lock(
         "--lock-id", lock_id,
         "--token", token,
         "--marker", str(marker),
+        "--idle-timeout-seconds", str(idle_timeout_seconds),
+        "--require-startup-confirmation",
+        "--startup-timeout-seconds", str(STARTUP_TIMEOUT_SECONDS),
     ]
+    api_base = str(os.environ.get("TIANCE_API_BASE_URL") or "").rstrip("/")
+    if api_base:
+        owner_url = api_base + "/llm/chat/completions/stream/status?" + urlencode({"project_id": project_id, "session_id": session_id})
+        command.extend(["--owner-status-url", owner_url])
     creation_flags = 0x00000008 | 0x00000200 | 0x08000000
     process = subprocess.Popen(
         command,
         cwd=str(helper_path.parent),
-        stdin=subprocess.DEVNULL,
+        stdin=subprocess.PIPE,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         creationflags=creation_flags,
         close_fds=True,
     )
-    deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
-    while time.monotonic() < deadline:
-        state = read_state()
-        if state is not None and state.get("lock_id") == lock_id:
-            if state.get("status") == "failed":
-                error = str(state.get("error") or "辅助进程启动失败。")
-                remove_state_if_matches(lock_id)
-                raise ToolError("GUI_RUNTIME_START_FAILED", "GUI后台运行器启动失败。", {"reason": error})
-            if state.get("status") == "active" and process_alive(state.get("pid")):
-                result = rpc_call(state, "status")
-                if result.get("ok"):
-                    data = result.get("data") if isinstance(result.get("data"), dict) else {}
-                    data["already_active"] = False
-                    data["startup_timeout_seconds"] = STARTUP_TIMEOUT_SECONDS
-                    return success("界面已锁定。鼠标已禁止操作，按Esc退出。", data)
-        if process.poll() is not None:
-            remove_state_if_matches(lock_id)
-            raise ToolError(
-                "GUI_RUNTIME_START_FAILED",
-                "GUI后台运行器启动后立即退出。",
-                {"exit_code": process.returncode},
-            )
-        time.sleep(0.05)
-    remove_state_if_matches(lock_id)
+    known_state: dict[str, Any] | None = None
     try:
-        process.terminate()
-    except OSError:
-        pass
-    raise ToolError(
-        "GUI_RUNTIME_START_TIMEOUT",
-        "GUI后台运行器未在10秒内启动完成。",
-        {"startup_timeout_seconds": STARTUP_TIMEOUT_SECONDS},
-    )
+        deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            state = read_state()
+            if state is not None and state.get("lock_id") == lock_id:
+                known_state = state
+                if state.get("status") == "failed":
+                    raise ToolError("GUI_RUNTIME_START_FAILED", "GUI后台运行器启动失败。",
+                                    {"reason": state.get("error") or "辅助进程启动失败。"})
+                if state.get("status") == "active" and state.get("pid") == process.pid and process.poll() is None:
+                    data = confirmed_lock_status(state, rpc_call(state, "status"))
+                    if process.stdin is None:
+                        raise ToolError("GUI_START_CONFIRMATION_FAILED", "启动确认通道不可用。")
+                    process.stdin.write(b"confirm\n")
+                    process.stdin.flush()
+                    process.stdin.close()
+                    data.update({"already_active": False, "startup_timeout_seconds": STARTUP_TIMEOUT_SECONDS})
+                    return success("界面已锁定。鼠标已禁止操作，按Esc退出。", data)
+            if process.poll() is not None:
+                raise ToolError("GUI_RUNTIME_START_FAILED", "GUI后台运行器启动后立即退出。",
+                                {"exit_code": process.returncode})
+            time.sleep(0.05)
+        raise ToolError("GUI_RUNTIME_START_TIMEOUT", "GUI后台运行器未在启动时限内完成确认。",
+                        {"startup_timeout_seconds": STARTUP_TIMEOUT_SECONDS})
+    except BaseException as exc:
+        details = rollback_start(process, lock_id, known_state)
+        if not isinstance(exc, Exception):
+            raise
+        error = exc if isinstance(exc, ToolError) else ToolError(
+            "GUI_RUNTIME_STATE_ACCESS_FAILED" if isinstance(exc, OSError) else "GUI_RUNTIME_START_FAILED",
+            "GUI启动未完成。", {"cause_type": type(exc).__name__})
+        error.details.update(details)
+        error.message += " 本次创建的运行器已退出，界面锁已释放。" if details["released"] else " 未能确认释放，请按Esc退出；不要继续操作。"
+        if error is exc:
+            raise
+        raise error from exc
 
 
 def run(payload: dict[str, Any]) -> dict[str, Any]:
@@ -314,7 +410,7 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
             raise ToolError("INVALID_ARGUMENT", "action必须是start、status或stop。")
         with state_mutex():
             if action == "start":
-                return start_lock(workspace, project_id, session_id)
+                return start_lock(workspace, project_id, session_id, float(payload.get("idle_timeout_seconds", 120)))
             state = require_owned_state(workspace, project_id, session_id)
             if state is None:
                 if action == "status":
@@ -332,6 +428,9 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
             return response
     except ToolError as exc:
         return failure(exc)
+    except OSError as exc:
+        return failure(ToolError("GUI_RUNTIME_STATE_ACCESS_FAILED", "GUI状态访问失败，不能确认当前锁状态；如界面仍被锁定，请按Esc退出。",
+                                 {"active": None, "state_file": str(STATE_PATH), "winerror": getattr(exc, "winerror", None)}))
     except Exception as exc:
         return failure(ToolError("GUI_RUNTIME_INTERNAL_ERROR", "GUI后台运行器工具执行失败。", {"reason": str(exc)}))
 

@@ -1,17 +1,36 @@
 {
-  "description": "GUI操作前必须调用start锁定界面，再用gui_inspect建立坐标。覆盖层在操作及截图时持续显示，系统将它排除出截图；需要Windows 10 2004或更新版本且启用桌面合成，不支持时明确报错。用户鼠标移动、点击、滚轮和键盘输入均被拦截，仅按Esc手动退出。被拦截的输入不会干扰AI操作。stop解除锁定并清理GUI临时文件（含预览编号），最后一个GUI会话close也会自动解锁。",
+  "description": "所有GUI查看和操作（包括gui_inspect list_windows）都必须先调用本工具start并等待成功返回，再调用其他GUI工具。gui_inspect start另用于创建截图会话，不会代替锁定。Esc随时解锁。start的idle_timeout_seconds默认120秒；没有动作执行且没有成功GUI请求超过该时长自动解锁，status不续期。动作执行期间不算空闲。连接会话运行器时每秒检查所属生成任务，检查连接超时2秒；任务结束、取消、换代或失联即释放。释放后排队动作取消、旧预览失效，必须重新start并观察。 启动前验证状态目录的读写、替换和删除权限，不修改系统ACL；新运行器必须确认钩子生效，启动异常只回收本次创建的进程。启动确认10秒，失败回收最多等待3秒；错误报告pid、已知端口、进程是否仍存活和释放结果，无法确认的锁状态以active=null报告。",
   "registration_name": "GUI 界面锁",
-  "execution": {"parallel": false},
+  "execution": {
+    "parallel": false
+  },
   "files": {
     "examples": ".tool/examples.json",
     "permissions": ".tool/permissions.json",
     "input_schema": ".tool/input.schema.json",
     "output_schema": ".tool/output.schema.json"
   },
-  "io": {"input": "stdin_json", "output": "stdout_json"},
-  "keywords": ["GUI", "后台运行器", "AI操控", "屏幕", "Windows"],
-  "loading": {"dynamic": true},
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "GUI",
+    "后台运行器",
+    "AI操控",
+    "屏幕",
+    "Windows"
+  ],
+  "loading": {
+    "dynamic": false
+  },
   "name": "gui_runtime",
-  "runtime": {"entry": "program/main.py", "timeout_seconds": 20, "type": "python"},
-  "state": {"enabled": true}
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 30,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
 }

@@ -1,9 +1,20 @@
 {
   "additionalProperties": false,
-  "description": "一次顺序执行1到50个动作。只在整批开始前验证界面；中途不会重新识别，因此只用于坐标依据在整批期间保持有效的操作。",
+  "description": "先调用gui_runtime start并等待成功锁定，再用gui_inspect start取得截图会话和坐标依据。一次提交1至50个顺序动作，适合目标明确、顺序确定的连续操作，不是并发操作鼠标键盘。逐步检查控件身份/焦点或坐标区域；drag单独核对原截图起点窗口身份、位置和遮挡，不比较截图像素；混有其他坐标动作时仍保留整批初始像素检查；每步可提供expected_elements前置条件与postconditions后置条件。任一步失败立即停止后续动作，返回已完成动作和失败位置；不要盲目重放已经执行的步骤。整批末尾只等待和生成一次新截图，过程中仍依据明确的原frame_id。",
   "properties": {
-    "screenshot_delay_seconds": {"type":"number","minimum":0,"maximum":30,"default":1,"description":"操作全部结束后等待再截图，默认1秒，可设0到30秒（含小数）；0立即截图，等待期间Esc立即取消。整批只在末尾等待一次。截图等待计入调用总时限。","permission_type":"none"},
-    "gui_session_id": {"type": "string", "pattern": "^gui_[a-f0-9]{32}$", "permission_type": "none"},
+    "screenshot_delay_seconds": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 30,
+      "default": 1,
+      "description": "操作全部结束后等待再截图，默认1秒，可设0到30秒（含小数）；0立即截图，等待期间Esc立即取消。整批只在末尾等待一次。截图等待计入调用总时限。",
+      "permission_type": "none"
+    },
+    "gui_session_id": {
+      "type": "string",
+      "pattern": "^gui_[a-f0-9]{32}$",
+      "permission_type": "none"
+    },
     "actions": {
       "type": "array",
       "minItems": 1,
@@ -14,51 +25,475 @@
         "additionalProperties": false,
         "allOf": [
           {
-            "if": {"properties": {"type": {"enum": ["move", "click", "drag", "scroll", "mouse_down", "mouse_up"]}}, "required": ["type"]},
-            "then": {"required": ["frame_id", "view_id", "cell_id", "x", "y"]}
+            "if": {
+              "properties": {
+                "type": {
+                  "enum": [
+                    "move",
+                    "click",
+                    "drag",
+                    "scroll",
+                    "mouse_down",
+                    "mouse_up"
+                  ]
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "required": [
+                "frame_id"
+              ],
+              "oneOf": [
+                {
+                  "required": [
+                    "element_id"
+                  ],
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "view_id"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "cell_id"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "x"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "y"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "required": [
+                    "view_id",
+                    "cell_id",
+                    "x",
+                    "y"
+                  ],
+                  "not": {
+                    "required": [
+                      "element_id"
+                    ]
+                  }
+                }
+              ]
+            }
           },
-          {"if": {"properties": {"type": {"const": "drag"}}, "required": ["type"]}, "then": {"required": ["to"]}},
-          {"if": {"properties": {"type": {"const": "type_text"}}, "required": ["type"]}, "then": {"required": ["text"]}},
-          {"if": {"properties": {"type": {"const": "press_key"}}, "required": ["type"]}, "then": {"required": ["key"]}},
-          {"if": {"properties": {"type": {"const": "hotkey"}}, "required": ["type"]}, "then": {"required": ["keys"]}}
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "drag"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "required": [
+                "to"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "type_text"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "required": [
+                "text"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "press_key"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "required": [
+                "key"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "hotkey"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "required": [
+                "keys"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "set_value"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "required": [
+                "element_id",
+                "text"
+              ]
+            }
+          }
         ],
         "properties": {
-          "type": {"type": "string", "enum": ["move", "click", "drag", "scroll", "mouse_down", "mouse_up", "type_text", "press_key", "hotkey", "wait"]},
-          "frame_id": {"type": "integer", "minimum": 0},
-          "view_id": {"type": "string", "minLength": 1},
-          "cell_id": {"type": "integer", "minimum": 1},
-          "x": {"type": "number", "minimum": 0, "maximum": 1},
-          "y": {"type": "number", "minimum": 0, "maximum": 1},
+          "type": {
+            "type": "string",
+            "enum": [
+              "move",
+              "click",
+              "drag",
+              "scroll",
+              "mouse_down",
+              "mouse_up",
+              "type_text",
+              "press_key",
+              "hotkey",
+              "wait",
+              "set_value"
+            ]
+          },
+          "frame_id": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "view_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "cell_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "x": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
           "to": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "view_id": {"type": "string", "minLength": 1},
-              "cell_id": {"type": "integer", "minimum": 1},
-              "x": {"type": "number", "minimum": 0, "maximum": 1},
-              "y": {"type": "number", "minimum": 0, "maximum": 1}
+              "view_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "cell_id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "x": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "y": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "element_id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "gui_inspect elements返回的控件引用，仅当前Frame有效。",
+                "permission_type": "none"
+              }
             },
-            "required": ["view_id", "cell_id", "x", "y"]
+            "oneOf": [
+              {
+                "required": [
+                  "element_id"
+                ],
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "view_id"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "cell_id"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "x"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "y"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "required": [
+                  "view_id",
+                  "cell_id",
+                  "x",
+                  "y"
+                ],
+                "not": {
+                  "required": [
+                    "element_id"
+                  ]
+                }
+              }
+            ]
           },
-          "button": {"type": "string", "enum": ["left", "right", "middle"], "default": "left"},
-          "clicks": {"type": "integer", "enum": [1, 2], "default": 1},
-          "click_hold_ms": {"type": "integer", "minimum": 0, "maximum": 2000, "default": 80, "description": "每次click按下到抬起的时长，默认80毫秒。"},
-          "modifiers": {"type": "array", "items": {"type": "string", "enum": ["ctrl", "shift", "alt", "win"]}, "uniqueItems": true, "maxItems": 4, "default": []},
-          "duration_ms": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0},
-          "direction": {"type": "string", "enum": ["up", "down", "left", "right"], "default": "down"},
-          "notches": {"type": "integer", "minimum": 1, "maximum": 100, "default": 3},
-          "interval_ms": {"type": "integer", "minimum": 0, "maximum": 2000, "default": 20},
-          "text": {"type": "string", "maxLength": 100000},
-          "key": {"type": "string", "minLength": 1},
-          "keys": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 2, "maxItems": 8},
-          "presses": {"type": "integer", "minimum": 1, "maximum": 20, "default": 1},
-          "hold_ms": {"type": "integer", "minimum": 0, "maximum": 2000, "default": 0}
+          "button": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right",
+              "middle"
+            ],
+            "default": "left"
+          },
+          "clicks": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "default": 1
+          },
+          "click_hold_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2000,
+            "default": 80,
+            "description": "每次click按下到抬起的时长，默认80毫秒。"
+          },
+          "modifiers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "ctrl",
+                "shift",
+                "alt",
+                "win"
+              ]
+            },
+            "uniqueItems": true,
+            "maxItems": 4,
+            "default": []
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000,
+            "default": 0
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down",
+              "left",
+              "right"
+            ],
+            "default": "down"
+          },
+          "notches": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 3
+          },
+          "interval_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2000,
+            "default": 20
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 100000
+          },
+          "key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 2,
+            "maxItems": 8
+          },
+          "presses": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "default": 1
+          },
+          "hold_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2000,
+            "default": 0
+          },
+          "element_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "gui_inspect elements返回的控件引用，仅当前Frame有效。",
+            "permission_type": "none"
+          },
+          "expected_elements": {
+            "type": "array",
+            "description": "逐个核查指定控件；不符合即停止。可检查收件人名称、输入框内容、焦点或选中状态。",
+            "permission_type": "none",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "element_id"
+              ],
+              "properties": {
+                "element_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "gui_inspect elements返回的控件引用，仅当前Frame有效。",
+                  "permission_type": "none"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "focused": {
+                  "type": "boolean"
+                },
+                "selected": {
+                  "type": "boolean"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "offscreen": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "postconditions": {
+            "type": "array",
+            "description": "逐个核查指定控件；不符合即停止。可检查收件人名称、输入框内容、焦点或选中状态。",
+            "permission_type": "none",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "element_id"
+              ],
+              "properties": {
+                "element_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "gui_inspect elements返回的控件引用，仅当前Frame有效。",
+                  "permission_type": "none"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "focused": {
+                  "type": "boolean"
+                },
+                "selected": {
+                  "type": "boolean"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "offscreen": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
         },
-        "required": ["type"]
+        "required": [
+          "type"
+        ]
       }
     },
-    "change_threshold_percent": {"type": "number", "minimum": 0.01, "maximum": 100, "default": 0.5, "description": "整批开始前的界面变化阻断阈值；任一RGB通道变化达到16的像素计为变化。", "permission_type": "none"}
+    "change_threshold_percent": {
+      "type": "number",
+      "minimum": 0.01,
+      "maximum": 100,
+      "default": 0.5,
+      "description": "非drag坐标动作逐步检查依赖区域，UIAutomation动作核验控件身份/状态及指定条件；达到阈值停止后续步骤。drag核对起点窗口，不使用此阈值；混有其他坐标动作时仍保留整批初始像素检查。",
+      "permission_type": "none"
+    },
+    "frame_id": {
+      "type": "integer",
+      "minimum": 0,
+      "permission_type": "none"
+    }
   },
-  "required": ["gui_session_id", "actions"],
+  "required": [
+    "gui_session_id",
+    "actions",
+    "frame_id"
+  ],
   "type": "object"
 }

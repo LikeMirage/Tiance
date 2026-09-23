@@ -1,5 +1,18 @@
 [
-  {"title": "锁定界面", "content": "{\"action\":\"start\"}"},
-  {"title": "查询运行状态", "content": "{\"action\":\"status\"}"},
-  {"title": "解除界面锁定", "content": "{\"action\":\"stop\"}"}
+  {
+    "title": "锁定界面",
+    "content": "{\n  \"action\": \"start\"\n}"
+  },
+  {
+    "title": "查询运行状态",
+    "content": "{\n  \"action\": \"status\"\n}"
+  },
+  {
+    "title": "解除界面锁定",
+    "content": "{\n  \"action\": \"stop\"\n}"
+  },
+  {
+    "title": "设置空闲自动解锁时长",
+    "content": "{\n  \"action\": \"start\",\n  \"idle_timeout_seconds\": 120\n}"
+  }
 ]

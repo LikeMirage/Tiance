@@ -2,47 +2,365 @@
   "additionalProperties": false,
   "allOf": [
     {
-      "if": {"properties": {"action": {"enum": ["zoom", "refresh", "wait", "close"]}}, "required": ["action"]},
-      "then": {"required": ["gui_session_id"]}
+      "if": {
+        "properties": {
+          "action": {
+            "enum": [
+              "zoom",
+              "refresh",
+              "wait",
+              "close",
+              "elements",
+              "activate"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "gui_session_id"
+        ]
+      }
     },
     {
-      "if": {"properties": {"action": {"const": "zoom"}}, "required": ["action"]},
-      "then": {"required": ["frame_id", "view_id", "cell_id"]}
+      "if": {
+        "properties": {
+          "action": {
+            "const": "zoom"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "frame_id",
+          "view_id"
+        ],
+        "oneOf": [
+          {
+            "required": [
+              "cell_id"
+            ],
+            "not": {
+              "required": [
+                "cell_ids"
+              ]
+            }
+          },
+          {
+            "required": [
+              "cell_ids"
+            ],
+            "not": {
+              "required": [
+                "cell_id"
+              ]
+            }
+          }
+        ]
+      }
     },
     {
-      "if": {"properties": {"grid_mode": {"const": "fixed"}}, "required": ["grid_mode"]},
-      "then": {"required": ["grid_rows", "grid_cols"]}
+      "if": {
+        "properties": {
+          "grid_mode": {
+            "const": "fixed"
+          }
+        },
+        "required": [
+          "grid_mode"
+        ]
+      },
+      "then": {
+        "required": [
+          "grid_rows",
+          "grid_cols"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "elements"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "frame_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "activate"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "gui_session_id"
+        ],
+        "maxProperties": 2
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "view"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "gui_session_id",
+          "frame_id",
+          "view_id"
+        ],
+        "properties": {
+          "action": {},
+          "gui_session_id": {},
+          "frame_id": {},
+          "view_id": {},
+          "overlay": {}
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "overlay"
+        ]
+      },
+      "then": {
+        "properties": {
+          "action": {
+            "enum": [
+              "start",
+              "zoom",
+              "view",
+              "refresh",
+              "wait"
+            ]
+          }
+        }
+      }
     }
   ],
-  "description": "先调用gui_runtime start锁定界面。start创建.Tiance/gui-temp/gui_<id>临时目录；zoom只放大显示，坐标仍对应原始屏幕像素；close删除本次临时目录，最后一个会话关闭时自动解锁。",
+  "description": "所有动作先等待gui_runtime start锁定成功。list_windows列窗口；start可选target=window并传hwnd，只截目标窗口所在屏幕区域（先激活，非后台截图），或screen选择全部/单屏。zoom从未叠加的原始截图裁剪，生成树状子View；cell_id/cell_ids按来源View网格选区，多格必须完整矩形；新网格参数只作用于子View。view可返回同一最新Frame中的root、父层或已有分支，并切换overlay，不重新截图、不改变坐标或使预览失效。格号从左上1开始逐行先右后下，格号=(行-1)*列数+列；格内x向右、y从底向上，均为0到1任意小数。overlay为labels+lines（默认）、lines、none；字号按格子自适应，线宽为最终图片1像素，小格自动省略编号并明确返回原因。zoom未指定overlay时继承父View；refresh/wait/操作后的新Frame继承根网格和根overlay设置，新Frame只有root，旧放大View不继承。返回parent_view_id、available_view_ids、overlay实际状态、原始像素尺寸与显示倍率；倍率相对原始屏幕像素，不递乘、不增加细节。elements要求最新frame_id，按next_offset分页取完，UIAutomation最长10秒；activate只传action和gui_session_id，重新激活原窗口并生成新Frame。",
   "properties": {
     "action": {
       "type": "string",
-      "enum": ["list_windows", "start", "zoom", "refresh", "wait", "close"],
-      "description": "查看动作。",
+      "enum": [
+        "list_windows",
+        "start",
+        "zoom",
+        "refresh",
+        "wait",
+        "close",
+        "elements",
+        "activate",
+        "view"
+      ],
+      "description": "先锁定。start创建截图；zoom创建子View；view返回已有视图/切换叠加层，使用最新frame_id和真实view_id；refresh/wait生成新截图。",
       "permission_type": "ui_control"
     },
-    "contains": {"type": "string", "description": "list_windows按标题包含文字筛选。", "permission_type": "none"},
-    "limit": {"type": "integer", "minimum": 1, "maximum": 300, "default": 100, "description": "list_windows最多返回的窗口数；仅限制本次展示结果。", "permission_type": "none"},
-    "target": {"type": "string", "enum": ["screen", "window"], "default": "screen", "description": "start查看全部/单个屏幕或窗口。", "permission_type": "none"},
-    "monitor": {"type": "integer", "minimum": 0, "default": 0, "description": "screen目标的显示器编号；0为完整虚拟桌面，1开始为各显示器。", "permission_type": "none"},
-    "hwnd": {"type": "integer", "minimum": 1, "description": "window目标的窗口句柄，优先于标题。", "permission_type": "none"},
-    "window_title": {"type": "string", "minLength": 1, "description": "window目标标题，先精确匹配再包含匹配；不填时使用前台窗口。", "permission_type": "none"},
-    "gui_session_id": {"type": "string", "pattern": "^gui_[a-f0-9]{32}$", "description": "start返回的GUI临时会话ID。", "permission_type": "none"},
-    "frame_id": {"type": "integer", "minimum": 0, "description": "必须使用当前最新Frame。", "permission_type": "none"},
-    "view_id": {"type": "string", "minLength": 1, "description": "Frame中的View ID，根视图为root。", "permission_type": "none"},
-    "cell_id": {"type": "integer", "minimum": 1, "description": "zoom要放大的网格编号。", "permission_type": "none"},
-    "grid_mode": {"type": "string", "enum": ["auto", "fixed"], "default": "auto", "description": "网格自动计算或固定行列。", "permission_type": "none"},
-    "zoom_scale_percent": {"type": "integer", "minimum": 100, "maximum": 800, "default": 400, "description": "仅zoom使用：相对所选区域原始像素的显示百分比，默认400%。每级独立设置，不累计倍率、不改变屏幕坐标。", "permission_type": "none"},
-    "grid_target_cells": {"type": "integer", "minimum": 4, "maximum": 64, "default": 16, "description": "auto模式期望的格子数量。", "permission_type": "none"},
-    "grid_rows": {"type": "integer", "minimum": 1, "maximum": 16, "description": "fixed模式行数。", "permission_type": "none"},
-    "grid_cols": {"type": "integer", "minimum": 1, "maximum": 16, "description": "fixed模式列数。", "permission_type": "none"},
-    "mode": {"type": "string", "enum": ["change", "stable"], "default": "stable", "description": "wait等待发生变化或连续稳定。", "permission_type": "none"},
-    "change_threshold_percent": {"type": "number", "minimum": 0.01, "maximum": 100, "default": 0.5, "description": "判定界面变化的像素占比百分数；任一RGB通道变化达到16的像素计为变化。", "permission_type": "none"},
-    "timeout_ms": {"type": "integer", "minimum": 100, "maximum": 30000, "default": 5000, "description": "wait最长等待毫秒数。", "permission_type": "none"},
-    "interval_ms": {"type": "integer", "minimum": 50, "maximum": 2000, "default": 250, "description": "wait采样间隔毫秒数。", "permission_type": "none"},
-    "stable_checks": {"type": "integer", "minimum": 1, "maximum": 10, "default": 2, "description": "stable需要连续满足的采样次数。", "permission_type": "none"}
+    "contains": {
+      "type": "string",
+      "description": "list_windows按窗口标题、elements按控件名称包含文字筛选。",
+      "permission_type": "none"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300,
+      "default": 100,
+      "description": "每页显示数量；elements返回total、complete和next_offset，不截断正式结果。",
+      "permission_type": "none"
+    },
+    "target": {
+      "type": "string",
+      "enum": [
+        "screen",
+        "window"
+      ],
+      "default": "screen",
+      "description": "start查看全部/单个屏幕或窗口。",
+      "permission_type": "none"
+    },
+    "monitor": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "screen目标的显示器编号；0为完整虚拟桌面，1开始为各显示器。",
+      "permission_type": "none"
+    },
+    "hwnd": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "window目标的窗口句柄，优先于标题。",
+      "permission_type": "none"
+    },
+    "window_title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "window目标标题，先精确匹配再包含匹配；不填时使用前台窗口。",
+      "permission_type": "none"
+    },
+    "gui_session_id": {
+      "type": "string",
+      "pattern": "^gui_[a-f0-9]{32}$",
+      "description": "start返回的GUI临时会话ID。",
+      "permission_type": "none"
+    },
+    "frame_id": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "使用实际观察过的最新Frame编号，并与view_id所属Frame一致。操作或刷新返回新Frame后，旧Frame的放大View不能沿用。",
+      "permission_type": "none"
+    },
+    "view_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "当前frame_id中已实际返回的View ID。新Frame最初只有root；旧Frame的放大View不会继承，须先从新Frame的root重新zoom。",
+      "permission_type": "none"
+    },
+    "cell_id": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "在输入frame_id/view_id已有网格中选择的格号，不是放大后新网格的格号。",
+      "permission_type": "none"
+    },
+    "grid_mode": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "fixed"
+      ],
+      "description": "start初始默认auto；refresh省略时保持根视图原设置。zoom仅设置放大后新View的网格，选区仍按输入view_id的已有格号；不改变来源网格或frame_id。",
+      "permission_type": "none"
+    },
+    "zoom_scale_percent": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 800,
+      "default": 400,
+      "description": "仅zoom使用：相对所选区域原始像素的显示百分比，默认400%。每级独立设置，不累计倍率、不改变屏幕坐标。",
+      "permission_type": "none"
+    },
+    "grid_target_cells": {
+      "type": "integer",
+      "minimum": 4,
+      "maximum": 64,
+      "description": "auto模式期望的格子数量。zoom时仅用于放大后新View，不改变来源View的格号。",
+      "permission_type": "none"
+    },
+    "grid_rows": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16,
+      "description": "fixed模式行数。zoom时仅设置放大后新View的行数，不参与解释cell_id/cell_ids。",
+      "permission_type": "none"
+    },
+    "grid_cols": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16,
+      "description": "fixed模式列数。zoom时仅设置放大后新View的列数，不参与解释cell_id/cell_ids。",
+      "permission_type": "none"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "change",
+        "stable"
+      ],
+      "default": "stable",
+      "description": "wait等待发生变化或连续稳定。",
+      "permission_type": "none"
+    },
+    "change_threshold_percent": {
+      "type": "number",
+      "minimum": 0.01,
+      "maximum": 100,
+      "default": 0.5,
+      "description": "判定界面变化的像素占比百分数；任一RGB通道变化达到16的像素计为变化。",
+      "permission_type": "none"
+    },
+    "timeout_ms": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 30000,
+      "default": 5000,
+      "description": "wait最长等待毫秒数。",
+      "permission_type": "none"
+    },
+    "interval_ms": {
+      "type": "integer",
+      "minimum": 50,
+      "maximum": 2000,
+      "default": 250,
+      "description": "wait采样间隔毫秒数。",
+      "permission_type": "none"
+    },
+    "stable_checks": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "default": 2,
+      "description": "stable需要连续满足的采样次数。",
+      "permission_type": "none"
+    },
+    "cell_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "description": "按输入frame_id/view_id已有网格选择多个格子，必须连续、无缺口并恰好构成矩形。已有网格每行5格时[1,2,6,7]有效、[1,2,6]拒绝；已有2×2网格仅可选1至4，即使本次输出设为3×3也不能选5至9。",
+      "permission_type": "none"
+    },
+    "offset": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "elements控件列表偏移；继续读取返回的next_offset直到complete=true。",
+      "permission_type": "none"
+    },
+    "overlay": {
+      "type": "string",
+      "enum": [
+        "labels+lines",
+        "lines",
+        "none"
+      ],
+      "description": "仅用于start/zoom/view/refresh/wait。start默认labels+lines；zoom省略时继承父View；view省略保持原样。refresh/wait省略继承根设置。labels+lines显示编号和线，lines仅线，none无叠加；均保留格号映射。小格无法容纳编号时返回effective=lines及原因。",
+      "permission_type": "none"
+    }
   },
-  "required": ["action"],
+  "required": [
+    "action"
+  ],
   "type": "object"
 }

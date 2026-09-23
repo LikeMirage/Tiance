@@ -1,5 +1,5 @@
 {
-  "description": "先调用gui_runtime start锁定界面，再查看Windows屏幕或窗口并获取编号网格。start创建GUI临时会话；zoom裁剪指定格并按zoom_scale_percent放大显示，默认400%，多级放大始终从原始像素裁剪；refresh刷新；wait等待；close删除临时文件，最后一个会话关闭时自动解锁。坐标使用返回的最新Frame、View和Cell内左下角原点的0到1比例；显示放大不改变屏幕落点。",
+  "description": "所有动作先等待gui_runtime start锁定成功。list_windows列窗口；start可选target=window并传hwnd，只截目标窗口所在屏幕区域（先激活，非后台截图），或screen选择全部/单屏。zoom从未叠加的原始截图裁剪，生成树状子View；cell_id/cell_ids按来源View网格选区，多格必须完整矩形；新网格参数只作用于子View。view可返回同一最新Frame中的root、父层或已有分支，并切换overlay，不重新截图、不改变坐标或使预览失效。格号从左上1开始逐行先右后下，格号=(行-1)*列数+列；格内x向右、y从底向上，均为0到1任意小数。overlay为labels+lines（默认）、lines、none；字号按格子自适应，线宽为最终图片1像素，小格自动省略编号并明确返回原因。zoom未指定overlay时继承父View；refresh/wait/操作后的新Frame继承根网格和根overlay设置，新Frame只有root，旧放大View不继承。返回parent_view_id、available_view_ids、overlay实际状态、原始像素尺寸与显示倍率；倍率相对原始屏幕像素，不递乘、不增加细节。elements要求最新frame_id，按next_offset分页取完，UIAutomation最长10秒；activate只传action和gui_session_id，重新激活原窗口并生成新Frame。",
   "execution": {
     "parallel": false
   },
@@ -21,7 +21,7 @@
     "界面查看"
   ],
   "loading": {
-    "dynamic": true
+    "dynamic": false
   },
   "name": "gui_inspect",
   "registration_name": "GUI 界面查看",

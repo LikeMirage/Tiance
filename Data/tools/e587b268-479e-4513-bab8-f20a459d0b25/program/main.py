@@ -42,10 +42,17 @@ def process_alive(value: Any) -> bool:
         return False
     handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
     if not handle:
-        return False
+        error = int(kernel32.GetLastError())
+        if error == 87:  # Invalid PID: the process no longer exists.
+            return False
+        raise ToolError("GUI_RUNTIME_PROCESS_STATUS_UNKNOWN", "无法读取运行器进程状态，不能认为界面锁已退出。",
+                        {"pid": pid, "active": None, "winerror": error})
     try:
         code = wintypes.DWORD()
-        return bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == STILL_ACTIVE
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            raise ToolError("GUI_RUNTIME_PROCESS_STATUS_UNKNOWN", "无法确认运行器进程是否已经退出。",
+                            {"pid": pid, "active": None})
+        return code.value == STILL_ACTIVE
     finally:
         kernel32.CloseHandle(handle)
 
@@ -61,7 +68,10 @@ def context_and_state() -> tuple[Path, dict[str, Any]]:
         state = json.loads(STATE_PATH.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
         raise ToolError("GUI_LOCK_REQUIRED", "请先调用gui_runtime start锁定界面，再调用gui_inspect start。") from exc
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except OSError as exc:
+        raise ToolError("GUI_RUNTIME_STATE_ACCESS_FAILED", "无法访问GUI状态文件，当前锁状态未知；如界面仍锁定，请按Esc退出。",
+                        {"active": None, "state_file": str(STATE_PATH), "winerror": getattr(exc, "winerror", None)}) from exc
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ToolError("GUI_RUNTIME_STATE_INVALID", "GUI后台运行器状态损坏，请重新调用gui_inspect start。") from exc
     if not isinstance(state, dict) or state.get("status") != "active" or not process_alive(state.get("pid")):
         raise ToolError("GUI_LOCK_REQUIRED", "界面锁已退出，请调用gui_runtime start后重新查看界面。")

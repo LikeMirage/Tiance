@@ -1,4 +1,14 @@
 [
-  {"title": "输入文本", "content": "{\"action\":\"type_text\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"text\":\"测试文本\",\"interval_ms\":20}"},
-  {"title": "复制快捷键", "content": "{\"action\":\"hotkey\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"keys\":[\"ctrl\",\"c\"],\"hold_ms\":0}"}
+  {
+    "title": "输入文本",
+    "content": "{\n  \"action\": \"type_text\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"text\": \"测试文本\",\n  \"interval_ms\": 20,\n  \"frame_id\": 0\n}"
+  },
+  {
+    "title": "复制快捷键",
+    "content": "{\n  \"action\": \"hotkey\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"keys\": [\n    \"ctrl\",\n    \"c\"\n  ],\n  \"hold_ms\": 0,\n  \"frame_id\": 0\n}"
+  },
+  {
+    "title": "向已聚焦的控件输入文本",
+    "content": "{\n  \"action\": \"type_text\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"element_id\": \"uia_message\",\n  \"text\": \"待输入文本\"\n}"
+  }
 ]

@@ -137,7 +137,7 @@
 当前正式发布主线为 Windows。发布包已经包含内置 Python、后端依赖和编译后的前端，无需另外安装 Python 或 Node.js。
 
 1. 下载并解压 [最新 Windows 发布包](https://github.com/LikeMirage/Tiance/releases/latest/download/Tiance.zip)。
-2. 保留完整目录结构，双击根目录的 `Tiance.exe`。
+2. 保留完整目录结构，双击根目录的 `Tiance.exe`，确认 Windows 管理员授权后启动。
 3. 在模型集中添加自己的供应商与 API Key，然后创建项目和会话。
 
 也可以直接克隆源码运行：
@@ -148,6 +148,8 @@ cd Tiance
 ```
 
 随后双击 `Tiance.exe`。通过 Git 克隆的源码工作区应继续使用 Git 更新；带有 `.git` 的目录不会被软件覆盖安装。
+
+Windows 启动器要求管理员权限，桌面壳、后端、Python 工具及其正常创建的子进程沿启动链继承权限；取消授权则不启动。升级后需完整退出旧实例再启动，已运行的普通权限进程不会原地提权。Windows 权限不改变天策内部的工具授权配置。直接运行 Python 源码入口进行开发时，需自行使用管理员终端；绕过 `Tiance.exe` 不会自动触发管理员授权。
 
 ## 当前阶段
 

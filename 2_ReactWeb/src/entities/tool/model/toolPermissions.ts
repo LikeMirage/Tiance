@@ -208,8 +208,8 @@ const DEFAULT_TOOL_PERMISSION_POLICIES: ToolPermissionPolicy["policies"] = {
   },
   filesystem_delete: {
     workspace_inside: "ask",
-    workspace_outside: "deny",
-    unresolved: "deny",
+    workspace_outside: "ask",
+    unresolved: "ask",
   },
   program_execute: {
     workspace_program: "allow",
@@ -243,7 +243,7 @@ const DEFAULT_TOOL_PERMISSION_POLICIES: ToolPermissionPolicy["policies"] = {
     current_project: "ask",
     other_project: "ask",
     global_data: "ask",
-    unresolved: "deny",
+    unresolved: "ask",
   },
   ui_control: { all: "allow" },
 };

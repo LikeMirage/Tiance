@@ -92,6 +92,7 @@ runtime/python-packages/backend/py313/site-packages/bin/dul-upload-pack
 runtime/python-packages/backend/py313/site-packages/bin/dulwich.exe
 Data/tools/**/__pycache__/
 Data/tools/81672808-f39b-5c7b-9e00-99bceed762b0/dependencies/
+Data/tools/c7dd4066-37a6-4b1e-a67a-d39f0c6d4a21/dependencies/
 Data/tools/**/dependencies/py313/site-packages/playwright/driver/node.exe
 
 # Local workspace state may be created inside otherwise published collections.

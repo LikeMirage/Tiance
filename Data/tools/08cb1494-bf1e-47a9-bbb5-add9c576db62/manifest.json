@@ -5,5 +5,5 @@
   "version": "5.0.0",
   "author": {"name": "Tiance"},
   "license": "CC0-1.0",
-  "compatibility": {"minTianceVersion": "0.3.25", "platforms": ["windows-x64"]}
+  "compatibility": {"minTianceVersion": "0.3.27", "platforms": ["windows-x64"]}
 }

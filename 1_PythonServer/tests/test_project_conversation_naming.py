@@ -516,6 +516,94 @@ def test_naming_repository_rejects_task_and_branch_parent_mismatch(tmp_path):
     assert unchanged.title == "新对话"
 
 
+def _create_naming_attempt(naming, source, boundary):
+    return naming.create_task(
+        _PROJECT_ID, source.session_id,
+        snapshot_boundary_message_id=boundary.message_id,
+        target_provider_id="codex", target_model_id="gpt-5.6-sol",
+        target_reasoning_mode=None, target_settings=source.settings,
+        mode="session", trigger={"trigger_token_threshold": 20_000},
+        task_prompt="只执行自动命名。",
+    )
+
+
+@pytest.fixture
+def naming_attempt(tmp_path):
+    projects = _FakeProjectRepository(str(tmp_path))
+    conversations = ProjectConversationRepository(projects)
+    naming = ProjectConversationNamingRepository(projects)
+    source = conversations.create_session(
+        _PROJECT_ID, title="新对话", provider_id="codex",
+        model_id="gpt-5.6-sol", reasoning_mode=None,
+    )
+    boundary = conversations.append_message(
+        _PROJECT_ID, source.session_id, role="assistant", content="已完成回复。", status="done",
+    )
+    created = _create_naming_attempt(naming, source, boundary)
+    assert created is not None
+    return projects, conversations, naming, source, boundary, created
+
+
+@pytest.mark.parametrize("outcome", ["done", "error", "cancelled"])
+def test_failed_naming_is_skipped_after_new_messages_and_repository_reload(naming_attempt, outcome):
+    projects, conversations, naming, source, boundary, created = naming_attempt
+    failed = naming.settle_task(_PROJECT_ID, created.session.session_id, outcome=outcome)
+    assert failed["status"] == "failed"
+    assert _create_naming_attempt(naming, source, boundary) is None
+
+    conversations.append_message(
+        _PROJECT_ID, source.session_id, role="user", content="继续处理。", status="done",
+    )
+    later = conversations.append_message(
+        _PROJECT_ID, source.session_id, role="assistant", content="后续回复。", status="done",
+    )
+    reloaded = ProjectConversationNamingRepository(projects)
+    assert _create_naming_attempt(reloaded, source, later) is None
+    assert {s.session_id for s in conversations.list_sessions(_PROJECT_ID)} == {
+        source.session_id, created.session.session_id,
+    }
+    assert len(conversations.list_messages(_PROJECT_ID, source.session_id)) == 3
+    assert conversations.get_session(_PROJECT_ID, source.session_id).title == "新对话"
+
+    other = conversations.create_session(
+        _PROJECT_ID, title="新对话", provider_id="codex",
+        model_id="gpt-5.6-sol", reasoning_mode=None,
+    )
+    other_boundary = conversations.append_message(
+        _PROJECT_ID, other.session_id, role="assistant", content="另一个会话。", status="done",
+    )
+    assert _create_naming_attempt(reloaded, other, other_boundary) is not None
+
+
+def test_orphaned_naming_is_marked_failed_without_creating_replacement(naming_attempt, tmp_path):
+    projects, conversations, naming, source, boundary, created = naming_attempt
+    conversations.save_state(
+        _PROJECT_ID, active_session_id=None, should_update_active_session=False,
+        session_runtime_statuses={created.session.session_id: "idle"},
+        session_drafts={created.session.session_id: ""}, session_references={},
+    )
+    assert _create_naming_attempt(naming, source, boundary) is None
+    task_dir = tmp_path / ".Tiance/conversations/sessions" / created.session.session_id
+    task = read_document(task_dir, "automatic_naming_task")
+    assert task["status"] == "failed"
+    assert task["failure"]["reason"] == "orphaned_functional_run"
+    assert _create_naming_attempt(ProjectConversationNamingRepository(projects), source, boundary) is None
+    assert len(conversations.list_sessions(_PROJECT_ID)) == 2
+
+
+@pytest.mark.parametrize("running", [False, True])
+def test_pending_or_running_naming_still_blocks_duplicate(naming_attempt, running):
+    _, conversations, naming, source, boundary, created = naming_attempt
+    if running:
+        conversations.save_state(
+            _PROJECT_ID, active_session_id=None, should_update_active_session=False,
+            session_runtime_statuses={created.session.session_id: "running"},
+            session_drafts={created.session.session_id: ""}, session_references={},
+        )
+    assert _create_naming_attempt(naming, source, boundary) is None
+    assert len(conversations.list_sessions(_PROJECT_ID)) == 2
+
+
 class _FakeConversationService:
     def __init__(self, session: ProjectConversationSession) -> None:
         self.session = session

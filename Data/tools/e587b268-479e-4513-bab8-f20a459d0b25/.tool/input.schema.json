@@ -1,23 +1,211 @@
 {
   "additionalProperties": false,
   "allOf": [
-    {"if": {"properties": {"action": {"const": "type_text"}}, "required": ["action"]}, "then": {"required": ["text"]}},
-    {"if": {"properties": {"action": {"const": "press_key"}}, "required": ["action"]}, "then": {"required": ["key"]}},
-    {"if": {"properties": {"action": {"const": "hotkey"}}, "required": ["action"]}, "then": {"required": ["keys"]}}
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "type_text"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "text"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "press_key"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "key"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "hotkey"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "keys"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "set_value"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "element_id",
+          "text"
+        ]
+      }
+    }
   ],
-  "description": "先调用gui_runtime start锁定界面，再在gui_inspect建立的GUI临时会话中执行键盘操作。",
+  "description": "先调用gui_runtime start并等待成功锁定，再用gui_inspect start取得截图会话和坐标依据。依据明确的最新frame_id输入文本或按键。可引用elements返回的element_id；键盘输入前核查目标控件身份、可用状态和焦点；没有控件引用时核对所依据截图的焦点与画面。set_value通过UIAutomation直接设置可写非密码控件并校验结果。expected_elements可检查其他控件的名称、值、选中状态等；不能识别的区域用截图重新确认。",
   "properties": {
-    "screenshot_delay_seconds": {"type":"number","minimum":0,"maximum":30,"default":1,"description":"操作全部结束后等待再截图，默认1秒，可设0到30秒（含小数）；0立即截图，等待期间Esc立即取消。截图等待计入调用总时限。","permission_type":"none"},
-    "action": {"type": "string", "enum": ["type_text", "press_key", "hotkey"], "description": "键盘动作。", "permission_type": "ui_control"},
-    "gui_session_id": {"type": "string", "pattern": "^gui_[a-f0-9]{32}$", "permission_type": "none"},
-    "text": {"type": "string", "maxLength": 100000, "description": "type_text输入的Unicode文本。", "permission_type": "none"},
-    "key": {"type": "string", "minLength": 1, "description": "press_key按键名，支持字母、数字、F1-F24及常用控制键。", "permission_type": "none"},
-    "keys": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 2, "maxItems": 8, "description": "hotkey按下顺序，按相反顺序释放。", "permission_type": "none"},
-    "presses": {"type": "integer", "minimum": 1, "maximum": 20, "default": 1, "permission_type": "none"},
-    "interval_ms": {"type": "integer", "minimum": 0, "maximum": 2000, "default": 20, "description": "文本字符或重复按键间隔。", "permission_type": "none"},
-    "hold_ms": {"type": "integer", "minimum": 0, "maximum": 2000, "default": 0, "description": "hotkey全部按下后的保持时间。", "permission_type": "none"},
-    "change_threshold_percent": {"type": "number", "minimum": 0.01, "maximum": 100, "default": 0.5, "description": "操作前界面变化阻断阈值；任一RGB通道变化达到16的像素计为变化。", "permission_type": "none"}
+    "screenshot_delay_seconds": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 30,
+      "default": 1,
+      "description": "操作全部结束后等待再截图，默认1秒，可设0到30秒（含小数）；0立即截图，等待期间Esc立即取消。截图等待计入调用总时限。",
+      "permission_type": "none"
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "type_text",
+        "press_key",
+        "hotkey",
+        "set_value"
+      ],
+      "description": "键盘动作。",
+      "permission_type": "ui_control"
+    },
+    "gui_session_id": {
+      "type": "string",
+      "pattern": "^gui_[a-f0-9]{32}$",
+      "permission_type": "none"
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 100000,
+      "description": "type_text输入的Unicode文本。",
+      "permission_type": "none"
+    },
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "description": "press_key按键名，支持字母、数字、F1-F24及常用控制键。",
+      "permission_type": "none"
+    },
+    "keys": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 2,
+      "maxItems": 8,
+      "description": "hotkey按下顺序，按相反顺序释放。",
+      "permission_type": "none"
+    },
+    "presses": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "default": 1,
+      "permission_type": "none"
+    },
+    "interval_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2000,
+      "default": 20,
+      "description": "文本字符或重复按键间隔。",
+      "permission_type": "none"
+    },
+    "hold_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2000,
+      "default": 0,
+      "description": "hotkey全部按下后的保持时间。",
+      "permission_type": "none"
+    },
+    "change_threshold_percent": {
+      "type": "number",
+      "minimum": 0.01,
+      "maximum": 100,
+      "default": 0.5,
+      "description": "操作前界面变化阻断阈值；任一RGB通道变化达到16的像素计为变化。",
+      "permission_type": "none"
+    },
+    "frame_id": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "实际观察过的最新Frame ID，不能自动使用后台新截图。",
+      "permission_type": "none"
+    },
+    "element_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "gui_inspect elements返回的控件引用，仅当前Frame有效。",
+      "permission_type": "none"
+    },
+    "expected_elements": {
+      "type": "array",
+      "description": "逐个核查指定控件；不符合即停止。可检查收件人名称、输入框内容、焦点或选中状态。",
+      "permission_type": "none",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "element_id"
+        ],
+        "properties": {
+          "element_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "gui_inspect elements返回的控件引用，仅当前Frame有效。",
+            "permission_type": "none"
+          },
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "focused": {
+            "type": "boolean"
+          },
+          "selected": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "offscreen": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
   },
-  "required": ["action", "gui_session_id"],
+  "required": [
+    "action",
+    "gui_session_id",
+    "frame_id"
+  ],
   "type": "object"
 }

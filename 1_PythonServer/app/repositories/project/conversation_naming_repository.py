@@ -122,7 +122,7 @@ class ProjectConversationNamingRepository:
                 return None
 
             original_graph = self._branch_store.read_graph(conversations_dir)
-            if self._has_active_task(
+            if self._has_active_or_failed_task(
                 project_id,
                 source_session_id,
                 original_graph,
@@ -448,7 +448,7 @@ class ProjectConversationNamingRepository:
             _write_json_object(task_path, failed_task)
             return failed_task
 
-    def _has_active_task(
+    def _has_active_or_failed_task(
         self,
         project_id: str,
         source_session_id: str,
@@ -469,7 +469,13 @@ class ProjectConversationNamingRepository:
                     node.session_id,
                 ) / AUTOMATIC_NAMING_TASK_FILE
             )
-            if task is None or task.get("status") not in ACTIVE_TASK_STATUSES:
+            if task is None:
+                continue
+            # Naming targets the source session, not each later message boundary.
+            # Persisted failures stop automatic re-creation without a retry counter.
+            if task.get("status") == "failed":
+                return True
+            if task.get("status") not in ACTIVE_TASK_STATUSES:
                 continue
             state = self._session_store.read_session_state(
                 conversations_dir,
@@ -494,6 +500,7 @@ class ProjectConversationNamingRepository:
                     },
                 },
             )
+            return True
         return False
 
 

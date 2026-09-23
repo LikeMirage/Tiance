@@ -1,6 +1,42 @@
 [
-  {"title": "列出窗口", "content": "{\"action\":\"list_windows\",\"limit\":100}"},
-  {"title": "查看完整桌面", "content": "{\"action\":\"start\",\"target\":\"screen\",\"monitor\":0,\"grid_mode\":\"auto\",\"grid_target_cells\":16}"},
-  {"title": "放大网格", "content": "{\"action\":\"zoom\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"frame_id\":0,\"view_id\":\"root\",\"cell_id\":6}"},
-  {"title": "等待界面稳定", "content": "{\"action\":\"wait\",\"gui_session_id\":\"gui_0123456789abcdef0123456789abcdef\",\"mode\":\"stable\",\"change_threshold_percent\":0.5,\"timeout_ms\":5000,\"interval_ms\":250,\"stable_checks\":2}"}
+  {
+    "title": "列出窗口",
+    "content": "{\n  \"action\": \"list_windows\",\n  \"limit\": 100\n}"
+  },
+  {
+    "title": "查看完整桌面",
+    "content": "{\n  \"action\": \"start\",\n  \"target\": \"screen\",\n  \"monitor\": 0,\n  \"grid_mode\": \"auto\",\n  \"grid_target_cells\": 16\n}"
+  },
+  {
+    "title": "放大网格",
+    "content": "{\n  \"action\": \"zoom\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"view_id\": \"root\",\n  \"cell_id\": 6\n}"
+  },
+  {
+    "title": "等待界面稳定",
+    "content": "{\n  \"action\": \"wait\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"mode\": \"stable\",\n  \"change_threshold_percent\": 0.5,\n  \"timeout_ms\": 5000,\n  \"interval_ms\": 250,\n  \"stable_checks\": 2\n}"
+  },
+  {
+    "title": "放大两行五列视图中的矩形四格",
+    "content": "{\n  \"action\": \"zoom\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"view_id\": \"root\",\n  \"cell_ids\": [\n    1,\n    2,\n    6,\n    7\n  ],\n  \"grid_mode\": \"fixed\",\n  \"grid_rows\": 4,\n  \"grid_cols\": 6\n}"
+  },
+  {
+    "title": "读取当前窗口控件第一页",
+    "content": "{\n  \"action\": \"elements\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"offset\": 0,\n  \"limit\": 100\n}"
+  },
+  {
+    "title": "重新激活原目标窗口并刷新坐标依据",
+    "content": "{\n  \"action\": \"activate\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\"\n}"
+  },
+  {
+    "title": "查看目标窗口（先list_windows取得真实句柄）",
+    "content": "{\n  \"action\": \"start\",\n  \"target\": \"window\",\n  \"hwnd\": 123456,\n  \"overlay\": \"labels+lines\"\n}"
+  },
+  {
+    "title": "返回根视图并仅保留网格线（使用当前Frame）",
+    "content": "{\n  \"action\": \"view\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"view_id\": \"root\",\n  \"overlay\": \"lines\"\n}"
+  },
+  {
+    "title": "无叠加观察已有子视图（使用实际返回的view_id）",
+    "content": "{\n  \"action\": \"view\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"view_id\": \"6\",\n  \"overlay\": \"none\"\n}"
+  }
 ]

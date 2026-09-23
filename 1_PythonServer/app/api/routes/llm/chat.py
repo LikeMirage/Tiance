@@ -26,6 +26,11 @@ from app.services.project.conversation_stream import get_project_conversation_st
 router = APIRouter(prefix="/llm/chat", tags=["llm"])
 
 
+@router.get("/completions/stream/status", summary="Read active generation identity")
+async def get_chat_completion_run_status(project_id: str, session_id: str) -> dict[str, object]:
+    return await get_conversation_run_manager().get_run_status(project_id, session_id)
+
+
 @router.post(
     "/completions",
     response_model=ChatCompletionResponse,

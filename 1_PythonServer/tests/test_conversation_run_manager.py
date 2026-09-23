@@ -20,6 +20,44 @@ from app.services.tools.client_tool_bridge import (
 )
 
 
+def test_run_status_http_endpoint_is_read_only(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.api.routes.llm import chat
+    calls = []
+    class Reader:
+        async def get_run_status(self, project_id, session_id):
+            calls.append((project_id, session_id))
+            return {"running": True, "run_id": "generation-123"}
+    monkeypatch.setattr(chat, "get_conversation_run_manager", lambda: Reader())
+    app = FastAPI()
+    app.include_router(chat.router)
+    with TestClient(app) as client:
+        response = client.get("/llm/chat/completions/stream/status", params={"project_id": "project-1", "session_id": "session-1"})
+    assert response.status_code == 200
+    assert response.json() == {"running": True, "run_id": "generation-123"}
+    assert calls == [("project-1", "session-1")]
+
+
+def test_run_status_identity_changes_and_cancel_is_immediate():
+    async def run_test():
+        manager = ConversationRunManager()
+        assert await manager.get_run_status("project-1", "session-1") == {"running": False, "run_id": None}
+        first_service = _ControlledStreamService()
+        await manager.start(_request(), first_service)
+        first = await manager.get_run_status("project-1", "session-1")
+        assert first["running"] and first["run_id"]
+        assert await manager.get_run_status("project-1", "session-1") == first
+        await manager.stop("project-1", "session-1")
+        assert await manager.get_run_status("project-1", "session-1") == {"running": False, "run_id": None}
+        await asyncio.sleep(0)
+        await manager.start(_request(), _ControlledStreamService())
+        second = await manager.get_run_status("project-1", "session-1")
+        assert second["running"] and first["run_id"] != second["run_id"]
+        await manager.close()
+    asyncio.run(run_test())
+
+
 def test_listener_disconnect_does_not_cancel_generation():
     async def run_test():
         manager = ConversationRunManager()

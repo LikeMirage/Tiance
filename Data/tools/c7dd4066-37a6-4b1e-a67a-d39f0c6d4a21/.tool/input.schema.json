@@ -1,15 +1,28 @@
 {
   "additionalProperties": false,
-  "description": "GUI操作前调用start锁定界面。用户鼠标输入全部被拦截，仅按Esc手动退出。锁定属于当前项目会话；退出后需重新start和gui_inspect start。",
+  "description": "所有GUI查看和操作（包括gui_inspect list_windows）都必须先调用本工具start并等待成功返回，再调用其他GUI工具。gui_inspect start另用于创建截图会话，不会代替锁定。Esc随时解锁。start的idle_timeout_seconds默认120秒；没有动作执行且没有成功GUI请求超过该时长自动解锁，status不续期。动作执行期间不算空闲。连接会话运行器时每秒检查所属生成任务，检查连接超时2秒；任务结束、取消、换代或失联即释放。释放后排队动作取消、旧预览失效，必须重新start并观察。 启动前验证状态目录的读写、替换和删除权限，不修改系统ACL；新运行器必须确认钩子生效，启动异常只回收本次创建的进程。启动确认10秒，失败回收最多等待3秒；错误报告pid、已知端口、进程是否仍存活和释放结果，无法确认的锁状态以active=null报告。",
   "properties": {
     "action": {
       "type": "string",
-      "enum": ["start", "status", "stop"],
+      "enum": [
+        "start",
+        "status",
+        "stop"
+      ],
       "title": "动作",
-      "description": "start锁定界面；status查询锁定状态；stop解除锁定并清理其GUI临时会话。",
+      "description": "start锁定界面，必须等待成功返回后再调用gui_inspect（包括list_windows）或其他GUI工具；status查询锁定状态；stop解除锁定并清理其GUI临时会话。",
       "permission_type": "ui_control"
+    },
+    "idle_timeout_seconds": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "default": 120,
+      "description": "start时设定空闲解锁秒数；无动作执行且无成功GUI请求达到该时长即解锁。status不续期，修改时长需先stop再start。",
+      "permission_type": "none"
     }
   },
-  "required": ["action"],
+  "required": [
+    "action"
+  ],
   "type": "object"
 }
