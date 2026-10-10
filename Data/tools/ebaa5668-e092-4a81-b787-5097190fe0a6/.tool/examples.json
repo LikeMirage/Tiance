@@ -1,0 +1,26 @@
+[
+  {
+    "title": "一次添加框选、箭头和多行文字",
+    "content": "{\n  \"action\": \"draw\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"view_id\": \"root\",\n  \"annotations\": [\n    {\n      \"type\": \"grid\",\n      \"cell_ids\": [\n        1,\n        2\n      ]\n    },\n    {\n      \"type\": \"arrow\",\n      \"tail\": {\n        \"cell_id\": 3,\n        \"x\": 0.2,\n        \"y\": 0.2\n      },\n      \"head\": {\n        \"cell_id\": 4,\n        \"x\": 0.5,\n        \"y\": 0.8\n      }\n    },\n    {\n      \"type\": \"text\",\n      \"position\": {\n        \"cell_id\": 1,\n        \"x\": 0.1,\n        \"y\": 0.9\n      },\n      \"text\": \"问题一\\n请核对这里的内容\",\n      \"size\": 24\n    }\n  ]\n}"
+  },
+  {
+    "title": "只修改颜色和大小，其他字段保留",
+    "content": "{\n  \"action\": \"update\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"updates\": [\n    {\n      \"annotation_id\": \"ann_0123456789abcdef0123456789abcdef\",\n      \"color\": \"blue\",\n      \"size\": 6\n    }\n  ]\n}"
+  },
+  {
+    "title": "查看保存的标注ID和参数",
+    "content": "{\n  \"action\": \"list\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\"\n}"
+  },
+  {
+    "title": "删除指定标注",
+    "content": "{\n  \"action\": \"delete\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"annotation_ids\": [\n    \"ann_0123456789abcdef0123456789abcdef\"\n  ]\n}"
+  },
+  {
+    "title": "关闭当前项目全部标注，保留数据",
+    "content": "{\n  \"action\": \"close\"\n}"
+  },
+  {
+    "title": "明确重新显示指定会话标注",
+    "content": "{\n  \"action\": \"show\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\"\n}"
+  }
+]

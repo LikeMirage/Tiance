@@ -1,0 +1,34 @@
+{
+  "siliconflow": {
+    "base_url": "https://api.siliconflow.cn/v1/embeddings",
+    "api_key": "",
+    "model": "Qwen/Qwen3-Embedding-8B",
+    "dimensions": 4096,
+    "timeout_seconds": 90,
+    "attempts": 2,
+    "retry_base_delay_seconds": 1.0
+  },
+  "retrieval": {
+    "semantic_k": 50,
+    "exact_candidate_cap": 2000,
+    "keyword_block_cap": 10000,
+    "keyword_page_cap": 500,
+    "hybrid_keyword_weight": 0.2,
+    "auto": {
+      "bias": 0.0,
+      "length_ratio_coefficient": -1.5,
+      "lexical_confidence_coefficient": 1.5,
+      "semantic_margin_coefficient": 6.0
+    },
+    "consensus": {
+      "rrf_k": 60.0,
+      "weights": {
+        "exact": 2.0,
+        "keyword": 1.0,
+        "vector": 1.0,
+        "hybrid": 0.5,
+        "auto": 0.75
+      }
+    }
+  }
+}

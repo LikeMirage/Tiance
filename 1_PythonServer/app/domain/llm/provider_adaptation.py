@@ -13,6 +13,21 @@ from app.domain.llm.runtime_capabilities import (
 
 
 DEFAULT_PROMPT_CACHE_RETENTION_SECONDS = 5 * 60
+REQUEST_HEADER_SOURCES = frozenset({"session_id", "client_user_agent"})
+RESERVED_REQUEST_HEADERS = frozenset(
+    {
+        "authorization", "proxy-authorization", "x-api-key", "x-goog-api-key",
+        "cookie", "host", "content-length", "transfer-encoding", "connection",
+        "content-type", "accept",
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class LlmRequestHeader:
+    name: str
+    value: str | None = None
+    source: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +56,7 @@ class LlmRequestRules:
     reasoning_toggle_parameter: str | None = None
     reasoning_enabled_value: object | None = None
     reasoning_disabled_value: object | None = None
+    headers: tuple[LlmRequestHeader, ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,7 +79,10 @@ def merge_adaptation_rules(
 ) -> ProviderAdaptationRules:
     return ProviderAdaptationRules(
         capabilities=_merge_dataclass(base.capabilities, override.capabilities),
-        request=_merge_dataclass(base.request, override.request),
+        request=replace(
+            _merge_dataclass(base.request, override.request),
+            headers=_merge_headers(base.request.headers, override.request.headers),
+        ),
         behavior=_merge_dataclass(base.behavior, override.behavior),
     )
 
@@ -158,6 +177,17 @@ def apply_capability_rules(
             else capabilities.input_modalities
         ),
     )
+
+
+def _merge_headers(
+    base: tuple[LlmRequestHeader, ...] | None,
+    override: tuple[LlmRequestHeader, ...] | None,
+) -> tuple[LlmRequestHeader, ...] | None:
+    if override is None:
+        return base
+    headers = {header.name.lower(): header for header in base or ()}
+    headers.update({header.name.lower(): header for header in override})
+    return tuple(headers.values())
 
 
 def _merge_dataclass(base, override):

@@ -8,11 +8,11 @@
     "content": "{\n  \"action\": \"status\"\n}"
   },
   {
-    "title": "解除界面锁定",
+    "title": "GUI阶段结束或下一步不需要GUI时立即解锁",
     "content": "{\n  \"action\": \"stop\"\n}"
   },
   {
-    "title": "设置空闲自动解锁时长",
+    "title": "设置空闲解锁兜底（收尾仍须主动stop）",
     "content": "{\n  \"action\": \"start\",\n  \"idle_timeout_seconds\": 120\n}"
   }
 ]

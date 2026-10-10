@@ -88,6 +88,8 @@ export function WorkspacePage({
     useState<HoverSidebarSectionId>("overview");
   const [isWindowClosePromptOpen, setIsWindowClosePromptOpen] = useState(false);
   const [isWindowCloseActionPending, setIsWindowCloseActionPending] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
+  const exitRequestedRef = useRef(false);
   const [windowCloseError, setWindowCloseError] = useState<string | null>(null);
   const [layoutPreferences, setLayoutPreferences] = useState(() =>
     normalizeWorkspaceLayoutPreferences(initialLayoutPreferences),
@@ -385,21 +387,36 @@ export function WorkspacePage({
     requestUnsavedTransition,
   ]);
   const requestApplicationExit = useCallback(() => {
+    if (exitRequestedRef.current) return;
+    exitRequestedRef.current = true;
     void requestUnsavedTransition(
       [projectDocumentTabs, toolDocumentTabs],
       "exit",
-      closeDesktopShell,
-    );
+      async () => {
+        setIsExiting(true);
+        setIsWindowCloseActionPending(true);
+        setIsWindowClosePromptOpen(true);
+        setWindowCloseError(null);
+        try {
+          await closeDesktopShell();
+        } catch (error) {
+          setWindowCloseError(error instanceof Error ? error.message : String(error));
+        } finally {
+          setIsExiting(false);
+          setIsWindowCloseActionPending(false);
+        }
+      },
+    ).finally(() => { exitRequestedRef.current = false; });
   }, [projectDocumentTabs, requestUnsavedTransition, toolDocumentTabs]);
   const handleRequestCloseWindow = useCallback(() => {
-    if (unsavedChangesModal) return;
+    if (unsavedChangesModal || exitRequestedRef.current || isWindowCloseActionPending) return;
     if (!canHideToTray) {
       requestApplicationExit();
       return;
     }
     setWindowCloseError(null);
     setIsWindowClosePromptOpen(true);
-  }, [canHideToTray, requestApplicationExit, unsavedChangesModal]);
+  }, [canHideToTray, isWindowCloseActionPending, requestApplicationExit, unsavedChangesModal]);
   useEffect(() => {
     const handleNativeCloseRequest = () => handleRequestCloseWindow();
     window.addEventListener("tiance:window-close-requested", handleNativeCloseRequest);
@@ -1100,9 +1117,10 @@ export function WorkspacePage({
           toolWorkspaceError={toolWorkspaceTabs.error}
         />
       </section>
-      <WorkspaceUnsavedChangesModal modal={unsavedChangesModal} />
+      <WorkspaceUnsavedChangesModal modal={isExiting ? null : unsavedChangesModal} />
       <WorkspaceWindowCloseModal
         error={windowCloseError}
+        isExiting={isExiting}
         isBusy={isWindowCloseActionPending}
         isOpen={isWindowClosePromptOpen}
         onCancel={handleCancelWindowClose}

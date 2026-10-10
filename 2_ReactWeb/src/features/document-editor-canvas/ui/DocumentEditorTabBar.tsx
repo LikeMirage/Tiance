@@ -65,7 +65,7 @@ export function DocumentEditorTabBar({
         <div
           className={buildTabClassName(tab, activeTabId)}
           key={tab.id}
-          title={tab.isMissing ? `${tab.displayPath}（文件已删除）` : tab.displayPath}
+          title={tab.isMissing ? `${tab.displayPath}（找不到文件）` : tab.displayPath}
           onClick={() => onSelectTab(tab.id)}
           onContextMenu={(event) => {
             event.preventDefault();

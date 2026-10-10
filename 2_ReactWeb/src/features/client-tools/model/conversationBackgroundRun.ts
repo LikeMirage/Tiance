@@ -125,11 +125,11 @@ export class ConversationBackgroundRunRegistry {
       const turn = await this.dependencies.loadTurn(
         input.projectId,
         input.session.session_id,
-        userMessageId,
+        settlement?.userMessageId ?? userMessageId,
       );
-      const result = buildRunResult(userMessageId, turn, settlement);
+      const result = buildRunResult(settlement?.userMessageId ?? userMessageId, turn, settlement);
       settleStarted({ running: false, userMessageId });
-      return result;
+      return { ...result, userMessageId };
     }).catch((error) => {
       settleStarted(null, error);
       throw error;
@@ -218,7 +218,7 @@ function outcomeFromTurn(turn: ConversationTurn): ConversationRunOutcome | null 
   const reply = turn.reply;
   if (!reply) return null;
   if (reply.status === "cancelled") return "cancelled";
-  if (reply.role === "error" || reply.status === "error") return "error";
+  if (reply.role === "error" || reply.status === "error" || reply.finish_reason === "output_limit") return "error";
   if (reply.status === "done") return "done";
   return null;
 }

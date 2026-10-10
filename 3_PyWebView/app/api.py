@@ -271,7 +271,12 @@ class ShellApi:
 
     def close_window(self) -> None:
         self._require_allowed_window()
-        self._destroy_window()
+        self._backend_manager.prepare_exit()
+        try:
+            self._destroy_window()
+        except Exception:
+            self._backend_manager.cancel_exit_preparation()
+            raise
 
     def install_software_update(self, stage_path: str) -> dict[str, str | bool]:
         window = self._require_allowed_window()
@@ -1395,10 +1400,10 @@ def _is_windows_desktop_shell_foreground(window_hwnd: int) -> bool:
     if not foreground or int(foreground) == int(window_hwnd):
         return False
 
+    # Focusing the taskbar does not mean the user requested Show Desktop.
     return _get_windows_window_class_name(int(foreground)) in {
         "Progman",
         "WorkerW",
-        "Shell_TrayWnd",
         "TrayShowDesktopButtonWClass",
     }
 

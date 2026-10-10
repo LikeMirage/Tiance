@@ -61,7 +61,8 @@ def test_read_file_rejects_image_for_non_visual_model(monkeypatch, tmp_path):
 
     assert result["ok"] is False
     assert result["error_info"]["code"] == "MODEL_INPUT_UNSUPPORTED"
-    assert "doubao_vision_parse" in result["error"]
+    assert "支持图片输入的模型" in result["error"]
+    assert "parse_document_mineru_dmx" in result["error"]
 
 
 def test_read_file_rejects_mismatched_image_content(monkeypatch, tmp_path):

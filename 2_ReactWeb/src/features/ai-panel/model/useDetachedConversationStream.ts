@@ -37,6 +37,7 @@ type UseDetachedConversationStreamOptions = {
       forceRefresh?: boolean;
       preserveLocalIfShorter?: boolean;
       signal?: AbortSignal;
+      authoritative?: boolean;
     },
   ) => Promise<boolean>;
   reloadSessionUsageSummary: (
@@ -137,6 +138,7 @@ export function useDetachedConversationStream({
       const [didReloadMessages] = await Promise.all([
         reloadSessionMessages(projectId, activeSessionId, {
           forceRefresh: true,
+          authoritative: true,
           signal: controller.signal,
         }).catch(() => false),
         reloadSessionUsageSummary(projectId, activeSessionId, {
@@ -180,6 +182,7 @@ export function useDetachedConversationStream({
             clearChatStreamEventSequence(activeSessionKey, streamEventSequenceState);
             await reloadSessionMessages(projectId, activeSessionId, {
               forceRefresh: true,
+              authoritative: true,
               preserveLocalIfShorter: true,
               signal: controller.signal,
             }).catch(() => false);
@@ -236,7 +239,7 @@ export function useDetachedConversationStream({
         checkpointMessageId,
       );
       shouldClearEventSequence = true;
-      accumulator.flushNow();
+      accumulator.finalizeCompleted();
       terminalRuntimeStatus = accumulator.hadError() ? "error" : "idle";
     };
 

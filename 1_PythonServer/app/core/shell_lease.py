@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import hmac
 import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -135,6 +136,14 @@ class ShellLeaseMonitor:
 def managed_shell_instance_id() -> str | None:
     value = os.getenv(SHELL_INSTANCE_ID_ENV, "").strip()
     return value or None
+
+
+def is_managed_shell_request(instance_id: str, token: str) -> bool:
+    configuration = ShellLeaseConfiguration.from_environment()
+    return configuration is not None and (
+        hmac.compare_digest(instance_id.encode(), configuration.instance_id.encode())
+        and hmac.compare_digest(token.encode(), configuration.token.encode())
+    )
 
 
 def start_shell_lease_monitor(server) -> ShellLeaseMonitor | None:

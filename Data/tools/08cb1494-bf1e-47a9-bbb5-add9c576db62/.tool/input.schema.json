@@ -21,51 +21,11 @@
       "else": {
         "required": [
           "gui_session_id",
-          "frame_id"
-        ],
-        "oneOf": [
-          {
-            "required": [
-              "element_id"
-            ],
-            "not": {
-              "anyOf": [
-                {
-                  "required": [
-                    "view_id"
-                  ]
-                },
-                {
-                  "required": [
-                    "cell_id"
-                  ]
-                },
-                {
-                  "required": [
-                    "x"
-                  ]
-                },
-                {
-                  "required": [
-                    "y"
-                  ]
-                }
-              ]
-            }
-          },
-          {
-            "required": [
-              "view_id",
-              "cell_id",
-              "x",
-              "y"
-            ],
-            "not": {
-              "required": [
-                "element_id"
-              ]
-            }
-          }
+          "frame_id",
+          "view_id",
+          "cell_id",
+          "x",
+          "y"
         ],
         "not": {
           "required": [
@@ -134,7 +94,7 @@
       }
     }
   ],
-  "description": "先调用gui_runtime start并等待成功锁定，再用gui_inspect start取得截图会话和坐标依据。在锁定界面直接执行click、scroll等鼠标动作，preview仅是可选落点确认。x/y接受任意小数，如0.5037，不限两位，最终取整到屏幕像素；原点在格子左下角。也可引用gui_inspect elements返回的element_id，执行前重新核对控件身份和状态，按当前矩形定位。expected_elements可核查会话对象、输入内容等调用方指定条件。预览编号一次执行。drag不比较截图像素、不使用变化阈值，改为核对截图时的起点窗口身份、位置和遮挡；窗口变化时刷新后重新定位，完成后返回新截图。其他动作保留原有变化检查。",
+  "description": "【最短持锁】只在当前GUI操作及必要界面确认期间持锁。当前GUI阶段结束，或下一步不再需要GUI时，立即gui_runtime stop并核实释放；等待用户、失败或取消时也先解锁，不等整件任务结束或空闲超时。如需切换展示窗口，最多尝试一次，随后立即stop，不以切换成功作为解锁前提。解锁后继续GUI操作须重新gui_runtime start并用gui_inspect start建立新会话，不沿用旧Frame、预览或控件引用。 先调用gui_runtime start并等待成功锁定，再用gui_inspect start取得截图会话和坐标依据。直接执行click、scroll等鼠标动作，preview仅为可选落点确认，预览编号只执行一次。x/y接受任意小数，例如0.5037，最终取整到屏幕像素；格内原点在左下角，y向上。动作不因画面像素变化而拦截；保留最新Frame、窗口身份和尺寸检查，drag还核对起点窗口的位置与遮挡。操作后返回新截图和当前前台窗口；execution_status只表示输入是否完成，observation_status单独表示截图是否取得。输入已完成但截图失败时，不要重放动作，先重新观察。 GUI操作中收到用户新消息，表示用户已解除锁定并暂停上一轮AI对话；如需继续操作，必须重新调用gui_runtime start并等待成功，再调用gui_inspect start建立新会话并重新观察，不沿用旧会话、Frame、预览或控件引用。 输入前确认目标前台，必要时先gui_inspect activate或start（target=window、真实hwnd、activate=true），再使用新Frame；已有菜单及所属弹窗遵循owner规则，避免反复激活主窗口。execute_preview只传action和preview_id；screenshot_delay_seconds在preview阶段设置并随动作保存，执行阶段不得补传或覆盖。需要继续观察变化或稳定时使用gui_inspect wait，画面稳定不代表业务成功。表单按钮、输入框、列表项能由UIA定位且支持相应pattern时优先gui_uia；纯视觉、canvas或未暴露控件的界面用坐标。",
   "properties": {
     "screenshot_delay_seconds": {
       "type": "number",
@@ -156,7 +116,7 @@
         "mouse_down",
         "mouse_up"
       ],
-      "description": "preview预览并保存完整鼠标动作；execute_preview按编号执行；其他值直接执行。",
+      "description": "preview预览并保存完整鼠标动作；execute_preview按编号执行且只接受action、preview_id两个字段，其他参数必须在preview阶段设置；其他值直接执行。",
       "permission_type": "ui_control"
     },
     "preview_action": {
@@ -237,57 +197,13 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1
-        },
-        "element_id": {
-          "type": "string",
-          "minLength": 1,
-          "description": "gui_inspect elements返回的控件引用，仅当前Frame有效。",
-          "permission_type": "none"
         }
       },
-      "oneOf": [
-        {
-          "required": [
-            "element_id"
-          ],
-          "not": {
-            "anyOf": [
-              {
-                "required": [
-                  "view_id"
-                ]
-              },
-              {
-                "required": [
-                  "cell_id"
-                ]
-              },
-              {
-                "required": [
-                  "x"
-                ]
-              },
-              {
-                "required": [
-                  "y"
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "required": [
-            "view_id",
-            "cell_id",
-            "x",
-            "y"
-          ],
-          "not": {
-            "required": [
-              "element_id"
-            ]
-          }
-        }
+      "required": [
+        "view_id",
+        "cell_id",
+        "x",
+        "y"
       ]
     },
     "button": {
@@ -366,68 +282,6 @@
       "default": 120,
       "description": "双击或滚动事件间隔。",
       "permission_type": "none"
-    },
-    "change_check_scope": {
-      "type": "string",
-      "enum": [
-        "target_cell",
-        "frame"
-      ],
-      "default": "target_cell",
-      "description": "非drag动作的操作前检查范围：target_cell比较选定格子，frame比较完整截图。drag忽略此参数，核对起点窗口身份、位置和遮挡，不比较像素。",
-      "permission_type": "none"
-    },
-    "change_threshold_percent": {
-      "type": "number",
-      "minimum": 0.01,
-      "maximum": 100,
-      "default": 0.5,
-      "description": "非drag动作检查范围内变化像素达到该百分比则阻断并返回最新Frame；任一RGB通道变化达到16的像素计为变化。drag不使用此阈值，无需提高阈值重试拖动。",
-      "permission_type": "none"
-    },
-    "element_id": {
-      "type": "string",
-      "minLength": 1,
-      "description": "gui_inspect elements返回的控件引用，仅当前Frame有效。",
-      "permission_type": "none"
-    },
-    "expected_elements": {
-      "type": "array",
-      "description": "逐个核查指定控件；不符合即停止。可检查收件人名称、输入框内容、焦点或选中状态。",
-      "permission_type": "none",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "element_id"
-        ],
-        "properties": {
-          "element_id": {
-            "type": "string",
-            "minLength": 1,
-            "description": "gui_inspect elements返回的控件引用，仅当前Frame有效。",
-            "permission_type": "none"
-          },
-          "name": {
-            "type": "string"
-          },
-          "value": {
-            "type": "string"
-          },
-          "focused": {
-            "type": "boolean"
-          },
-          "selected": {
-            "type": "boolean"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "offscreen": {
-            "type": "boolean"
-          }
-        }
-      }
     }
   },
   "required": [

@@ -48,22 +48,6 @@ export function RoleResponseContextPanel({
         </div>
         <div className="role-dashboard__toggle-grid">
           <RoleToggle
-            checked={response.return_cancelled_messages}
-            label="取消后继续使用已生成内容"
-            onChange={(value) => editor.updateSection("response", {
-              ...response,
-              return_cancelled_messages: value,
-            })}
-          />
-          <RoleToggle
-            checked={response.return_user_before_cancelled}
-            label="取消后继续使用本轮用户消息"
-            onChange={(value) => editor.updateSection("response", {
-              ...response,
-              return_user_before_cancelled: value,
-            })}
-          />
-          <RoleToggle
             checked={response.streaming_enabled}
             label="流式输出"
             onChange={(value) => editor.updateSection("response", {

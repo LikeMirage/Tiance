@@ -227,7 +227,7 @@ def read_image(
     if not model_supports_input("image"):
         raise ToolError(
             "MODEL_INPUT_UNSUPPORTED",
-            "当前AI不支持视觉理解，无法直接读取图片。请使用图片解析工具 doubao_vision_parse 解析。",
+            "当前AI不支持视觉理解，无法直接读取图片。请切换到支持图片输入的模型后重试，或使用 MinerU 文档解析工具 parse_document_mineru_dmx 解析图片。",
         )
     source_size_bytes = file_path.stat().st_size
     if source_size_bytes <= 0:

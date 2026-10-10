@@ -1,4 +1,5 @@
 import { env } from "../../shared/config/env";
+import { watchEventSocket } from "../http/watchEventSocket";
 
 export type ProjectWorkspaceEvent = {
   kind: "ready" | "changed";
@@ -6,15 +7,19 @@ export type ProjectWorkspaceEvent = {
 };
 
 export function watchProjectWorkspaceEvents(onChanged: (paths: string[]) => void) {
-  const source = new EventSource(`${env.apiBaseUrl}/api/projects/events`);
-
-  source.onmessage = (event) => {
-    const payload = parseProjectWorkspaceEvent(event.data);
-    if (!payload || payload.kind !== "changed") return;
-    onChanged(payload.paths ?? []);
-  };
-
-  return () => source.close();
+  let needsReconcile = false;
+  return watchEventSocket(`${env.apiBaseUrl}/api/projects/events`, {
+    onMessage: (data) => {
+      const payload = parseProjectWorkspaceEvent(data);
+      if (payload?.kind === "changed") onChanged(payload.paths ?? []);
+      if (payload?.kind === "ready" && needsReconcile) {
+        needsReconcile = false;
+        onChanged([]);
+      }
+    },
+    onReconnect: () => { needsReconcile = true; },
+    onDisconnect: () => { needsReconcile = true; },
+  });
 }
 
 export function parseProjectWorkspaceEvent(data: string): ProjectWorkspaceEvent | null {

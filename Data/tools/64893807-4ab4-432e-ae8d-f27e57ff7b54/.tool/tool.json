@@ -1,5 +1,5 @@
 {
-  "description": "先调用gui_runtime start并等待成功锁定，再用gui_inspect start取得截图会话和坐标依据。一次提交1至50个顺序动作，适合目标明确、顺序确定的连续操作，不是并发操作鼠标键盘。逐步检查控件身份/焦点或坐标区域；drag单独核对原截图起点窗口身份、位置和遮挡，不比较截图像素；混有其他坐标动作时仍保留整批初始像素检查；每步可提供expected_elements前置条件与postconditions后置条件。任一步失败立即停止后续动作，返回已完成动作和失败位置；不要盲目重放已经执行的步骤。整批末尾只等待和生成一次新截图，过程中仍依据明确的原frame_id。",
+  "description": "【最短持锁】只在当前GUI操作及必要界面确认期间持锁。当前GUI阶段结束，或下一步不再需要GUI时，立即gui_runtime stop并核实释放；等待用户、失败或取消时也先解锁，不等整件任务结束或空闲超时。如需切换展示窗口，最多尝试一次，随后立即stop，不以切换成功作为解锁前提。解锁后继续GUI操作须重新gui_runtime start并用gui_inspect start建立新会话，不沿用旧Frame、预览或控件引用。 先调用gui_runtime start并等待成功锁定，再用gui_inspect start取得截图会话和坐标依据。一次提交1至50个顺序动作，适合目标明确、顺序确定的连续操作，鼠标键盘不能并发。整批使用已观察的frame_id；各步不比较截图像素，前一步输入、菜单或滚动造成的画面变化不拦截后一步。保留窗口身份、尺寸及键盘目标窗口检查，drag另核对起点窗口位置和遮挡。新对话框需重新观察，不自动把后续输入转过去。任一步失败停止后续动作，返回completed_actions、failed_action_index（从0开始）和action_results，勿重放已完成步骤。整批末尾只等待和截图一次。操作后返回新截图和当前前台窗口；execution_status只表示输入是否完成，observation_status单独表示截图是否取得。输入已完成但截图失败时，不要重放动作，先重新观察。 GUI操作中收到用户新消息，表示用户已解除锁定并暂停上一轮AI对话；如需继续操作，必须重新调用gui_runtime start并等待成功，再调用gui_inspect start建立新会话并重新观察，不沿用旧会话、Frame、预览或控件引用。 提交前确认目标前台与键盘输入位置；必要时先激活并使用新Frame。表单控件支持UIA能力时可改用独立gui_uia调用，本工具的批量动作仍只包含既有鼠标、键盘和等待动作。",
   "registration_name": "GUI 批量操作",
   "execution": {
     "parallel": false

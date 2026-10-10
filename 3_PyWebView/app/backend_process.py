@@ -1,4 +1,5 @@
 import os
+import json
 import subprocess
 import sys
 import threading
@@ -7,11 +8,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import BinaryIO
 from urllib.parse import urlparse
+from urllib.request import ProxyHandler, Request, build_opener
 
 from app.backend_watchdog import (
     BackendHealthMonitor,
     ShellLease,
     ShellLeaseServer,
+    LEASE_INSTANCE_HEADER,
+    LEASE_TOKEN_HEADER,
     build_managed_backend_environment,
 )
 from app.backend_process_log import backend_log_path, open_backend_process_log
@@ -33,6 +37,10 @@ PYTHON_ENVIRONMENT_KEYS_TO_CLEAR = (
 )
 SHELL_DEFAULT_ALLOWED_ORIGINS = ("https://pywebview.flowrl.com",)
 BACKEND_GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS = 8.0
+# Each local status request is bounded; disk commits have no forced deadline.
+# The window stays visible until completion/rollback, or an explicit error.
+EXIT_PREPARATION_REQUEST_TIMEOUT_SECONDS = 8.0
+EXIT_PREPARATION_POLL_SECONDS = 0.1
 
 
 class BackendProcessManager:
@@ -41,6 +49,7 @@ class BackendProcessManager:
         self._process: subprocess.Popen[bytes] | None = None
         self._started_by_shell = False
         self._lease_server = ShellLeaseServer()
+        self._lease: ShellLease | None = None
         self._health_monitor: BackendHealthMonitor | None = None
         self._backend_log: BinaryIO | None = None
         self._on_backend_unavailable: Callable[[str], None] | None = None
@@ -98,6 +107,7 @@ class BackendProcessManager:
                 raise FileNotFoundError(f"Backend entry is missing: {backend_run_file}")
 
             lease = self._lease_server.start()
+            self._lease = lease
             env = _build_backend_environment(self._settings, lease)
 
             creationflags = 0
@@ -147,6 +157,46 @@ class BackendProcessManager:
             )
             self._health_monitor = monitor
             monitor.start()
+
+    def prepare_exit(self) -> None:
+        with self._lock:
+            process, lease = self._process, self._lease
+        if process is None or process.poll() is not None:
+            return
+        if lease is None:
+            raise RuntimeError("无法确认后端身份，未关闭窗口。")
+        try:
+            while process.poll() is None:
+                state = self._request_exit_preparation(lease, method="POST")
+                if state.get("ready") is True and state.get("pending_tasks") == 0:
+                    return
+                if not isinstance(state.get("pending_tasks"), int) or state["pending_tasks"] <= 0:
+                    raise ValueError("Invalid exit preparation response")
+                time.sleep(EXIT_PREPARATION_POLL_SECONDS)
+        except Exception as exc:
+            self.cancel_exit_preparation()
+            raise RuntimeError("退出准备失败，窗口已保留，请重试退出。") from exc
+
+    def cancel_exit_preparation(self) -> None:
+        with self._lock:
+            process, lease = self._process, self._lease
+        if process is None or process.poll() is not None or lease is None:
+            return
+        try:
+            self._request_exit_preparation(lease, method="DELETE")
+        except Exception:
+            mark("backend exit preparation: could not resume; retry exit required")
+
+    def _request_exit_preparation(self, lease: ShellLease, *, method: str) -> dict:
+        request = Request(
+            f"{self._settings.backend_url.rstrip('/')}/api/desktop/exit-preparation",
+            data=b"", method=method,
+            headers={LEASE_INSTANCE_HEADER: lease.instance_id, LEASE_TOKEN_HEADER: lease.token},
+        )
+        with build_opener(ProxyHandler({})).open(
+            request, timeout=EXIT_PREPARATION_REQUEST_TIMEOUT_SECONDS,
+        ) as response:
+            return json.load(response) if method == "POST" else {}
 
     def stop(self) -> None:
         with self._lock:

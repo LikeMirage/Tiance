@@ -42,6 +42,7 @@ def stream_event_to_payload(
         "tool_result": tool_result_to_payload(event.tool_result),
         "attempt_index": event.attempt_index,
         "attempt_count": event.attempt_count,
+        **({"has_tool_calls": event.has_tool_calls} if event.kind == ChatStreamEventKind.MODEL_RESPONSE_FINISHED else {}),
     }
 
 

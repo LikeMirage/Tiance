@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from contextlib import suppress
 from functools import lru_cache
 import json
@@ -12,6 +11,7 @@ from uuid import uuid4
 
 from app.core.atomic_replace import atomic_replace_path
 from app.core.config import get_settings
+from app.core.shutdown_tasks import finish_thread, shutdown_tasks
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.domain.project import Project, ProjectKind
 from app.infra.tool_market import (
@@ -116,14 +116,17 @@ class ToolMarketApplicationService:
     def save_filters(self, filters: ToolMarketFilterSettings) -> ToolMarketSettingsResponse:
         return self._settings_repository.save_filters(filters)
 
+    @shutdown_tasks.request
     async def connect(self, source: str) -> ToolMarketIndexResponse:
         loaded = await self._index_gateway.connect(source)
         return await loaded.build_response(self._to_response)
 
+    @shutdown_tasks.request
     async def get_index(self) -> ToolMarketIndexResponse:
         loaded = await self._index_gateway.get_index()
         return await loaded.build_response(self._to_response)
 
+    @shutdown_tasks.request
     async def install_tool(
         self,
         *,
@@ -137,7 +140,7 @@ class ToolMarketApplicationService:
         entry = _require_entry(remote, tool_id)
         self._require_compatible(entry)
 
-        local_matches = await asyncio.to_thread(self._find_tools_by_market_id, tool_id)
+        local_matches = await finish_thread(self._find_tools_by_market_id, tool_id)
         if len(local_matches) > 1:
             raise ConflictError("本地存在多个相同市场身份的工具，无法确定更新目标。")
         existing = local_matches[0] if local_matches else None
@@ -152,7 +155,7 @@ class ToolMarketApplicationService:
             self._require_category(category_id)
             selected_call_name = (call_name or entry.call_name).strip()
             _require_call_name(selected_call_name)
-            conflict = await asyncio.to_thread(
+            conflict = await finish_thread(
                 self._find_project_by_call_name,
                 selected_call_name,
             )
@@ -162,7 +165,7 @@ class ToolMarketApplicationService:
                     details={
                         "reason": "tool_call_name_conflict",
                         "call_name": selected_call_name,
-                        "suggested_call_name": await asyncio.to_thread(
+                        "suggested_call_name": await finish_thread(
                             self._suggest_call_name,
                             selected_call_name,
                         ),
@@ -180,20 +183,21 @@ class ToolMarketApplicationService:
                 expected_sha256=entry.sha256,
                 target=archive_path,
             )
-            package_root = await asyncio.to_thread(
+            shutdown_tasks.commit_started()
+            package_root = await finish_thread(
                 self._archive.validate_and_extract,
                 archive_path=archive_path,
                 staging_root=staging_root,
                 market_entry=entry,
             )
             has_dependencies = bool(
-                await asyncio.to_thread(
+                await finish_thread(
                     parse_requirements_file,
                     package_root / TOOL_REQUIREMENTS_FILE,
                 )
             )
             if existing is not None:
-                project = await asyncio.to_thread(
+                project = await finish_thread(
                     self._update_installed_tool,
                     project=existing,
                     package_root=package_root,
@@ -202,7 +206,7 @@ class ToolMarketApplicationService:
                 )
                 updated = True
             else:
-                project = await asyncio.to_thread(
+                project = await finish_thread(
                     self._install_new_tool,
                     package_root=package_root,
                     category_id=category_id or "",
@@ -219,7 +223,7 @@ class ToolMarketApplicationService:
                 hasDependencies=has_dependencies,
             )
         finally:
-            await asyncio.to_thread(
+            await finish_thread(
                 remove_tool_market_staging_path,
                 operation_root,
                 allowed_root=self._cache_repository.downloads_root,

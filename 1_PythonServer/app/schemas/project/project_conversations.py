@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.domain.llm.generation_params import LlmReasoningMode
+from app.domain.llm.output_limit import DEFAULT_OUTPUT_LIMIT_MESSAGE, OutputLimitAction
 from app.domain.project.project_conversation import (
     conversation_session_configuration_hash,
     ProjectConversationMessage,
@@ -36,8 +37,6 @@ class ProjectConversationSessionSettingsPatch(BaseModel):
     memory_raw_context_token_reserve: int | None = Field(default=None, ge=0)
     project_memory_enabled: bool | None = None
     project_memory_extraction_enabled: bool | None = None
-    return_cancelled_messages: bool | None = None
-    return_user_before_cancelled: bool | None = None
     streaming_enabled: bool | None = None
     auto_collapse_assistant_process: bool | None = None
     malformed_tool_call_recovery_enabled: bool | None = None
@@ -45,6 +44,10 @@ class ProjectConversationSessionSettingsPatch(BaseModel):
     inject_message_timestamps: bool | None = None
     system_prompt: str | None = None
     max_output_tokens: int | None = Field(default=None, ge=1)
+    output_limit_action: OutputLimitAction | None = None
+    output_limit_save_partial: bool | None = None
+    output_limit_message: str | None = None
+    output_limit_max_recoveries: int | None = Field(default=None, ge=0)
     temperature: float | None = Field(default=None, ge=0)
     top_p: float | None = Field(default=None, ge=0)
     tools_enabled: bool | None = None
@@ -112,8 +115,6 @@ class ProjectConversationSessionSettingsResponse(BaseModel):
     memory_raw_context_token_reserve: int = 30000
     project_memory_enabled: bool = True
     project_memory_extraction_enabled: bool = True
-    return_cancelled_messages: bool = True
-    return_user_before_cancelled: bool = True
     streaming_enabled: bool = True
     auto_collapse_assistant_process: bool = True
     malformed_tool_call_recovery_enabled: bool = True
@@ -121,6 +122,10 @@ class ProjectConversationSessionSettingsResponse(BaseModel):
     inject_message_timestamps: bool = True
     system_prompt: str = ""
     max_output_tokens: int = 32768
+    output_limit_action: OutputLimitAction = "retry"
+    output_limit_save_partial: bool = False
+    output_limit_message: str = DEFAULT_OUTPUT_LIMIT_MESSAGE
+    output_limit_max_recoveries: int | None = Field(default=None, ge=0)
     temperature: float | None = None
     top_p: float | None = None
     tools_enabled: bool = True
@@ -152,8 +157,6 @@ class ProjectConversationSessionSettingsResponse(BaseModel):
             project_memory_extraction_enabled=(
                 session.settings.project_memory_extraction_enabled
             ),
-            return_cancelled_messages=session.settings.return_cancelled_messages,
-            return_user_before_cancelled=session.settings.return_user_before_cancelled,
             streaming_enabled=session.settings.streaming_enabled,
             auto_collapse_assistant_process=session.settings.auto_collapse_assistant_process,
             malformed_tool_call_recovery_enabled=(
@@ -163,6 +166,10 @@ class ProjectConversationSessionSettingsResponse(BaseModel):
             inject_message_timestamps=session.settings.inject_message_timestamps,
             system_prompt=session.settings.system_prompt,
             max_output_tokens=session.settings.max_output_tokens,
+            output_limit_action=session.settings.output_limit_action,
+            output_limit_save_partial=session.settings.output_limit_save_partial,
+            output_limit_message=session.settings.output_limit_message,
+            output_limit_max_recoveries=session.settings.output_limit_max_recoveries,
             temperature=session.settings.temperature,
             top_p=session.settings.top_p,
             tools_enabled=session.settings.tools_enabled,
@@ -445,6 +452,10 @@ class ProjectConversationMessageResponse(BaseModel):
     role: ProjectConversationMessageRole
     content: str
     thinking_content: str
+    finish_reason: str | None = None
+    include_in_context: bool = True
+    message_source: str | None = None
+    continuation_of: str | None = None
     usage: dict | None = None
     context_tokens: int | None = None
     context_tokens_estimated: bool = False
@@ -475,6 +486,10 @@ class ProjectConversationMessageResponse(BaseModel):
             role=message.role,
             content=message.content,
             thinking_content=message.thinking_content,
+            finish_reason=message.finish_reason,
+            include_in_context=message.include_in_context,
+            message_source=message.message_source,
+            continuation_of=message.continuation_of,
             usage=message.usage,
             context_tokens=message.context_tokens,
             context_tokens_estimated=message.context_tokens_estimated,

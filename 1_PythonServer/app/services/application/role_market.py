@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from contextlib import suppress
 from functools import lru_cache
 import json
@@ -11,6 +10,7 @@ from uuid import uuid4
 
 from app.core.atomic_replace import atomic_replace_path
 from app.core.config import get_settings
+from app.core.shutdown_tasks import finish_thread, shutdown_tasks
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.domain.project import Project, ProjectKind
 from app.infra.role_market import (
@@ -93,14 +93,17 @@ class RoleMarketApplicationService:
     ) -> RoleMarketSettingsResponse:
         return self._settings_repository.save_filters(_normalize_filters(filters))
 
+    @shutdown_tasks.request
     async def connect(self, source: str) -> RoleMarketIndexResponse:
         loaded = await self._index_gateway.connect(source)
         return await loaded.build_response(self._to_response)
 
+    @shutdown_tasks.request
     async def get_index(self) -> RoleMarketIndexResponse:
         loaded = await self._index_gateway.get_index()
         return await loaded.build_response(self._to_response)
 
+    @shutdown_tasks.request
     async def install_role(
         self,
         *,
@@ -111,7 +114,7 @@ class RoleMarketApplicationService:
         if _ROLE_ID_PATTERN.fullmatch(role_id) is None:
             raise BadRequestError("在线角色 ID 无效。")
 
-        installed_projects = await asyncio.to_thread(self._installed_projects, role_id)
+        installed_projects = await finish_thread(self._installed_projects, role_id)
         if len(installed_projects) > 1:
             raise ConflictError("本地存在多个同源角色，无法确定安全更新目标。")
         installed_project = installed_projects[0][0] if installed_projects else None
@@ -149,14 +152,15 @@ class RoleMarketApplicationService:
                 expected_sha256=entry.sha256,
                 target=archive_path,
             )
-            package_root = await asyncio.to_thread(
+            shutdown_tasks.commit_started()
+            package_root = await finish_thread(
                 self._archive.validate_and_extract,
                 archive_path=archive_path,
                 staging_root=staging_root,
                 market_entry=entry,
             )
             if installed_project is None:
-                project = await asyncio.to_thread(
+                project = await finish_thread(
                     self._install_new_role,
                     entry=entry,
                     package_root=package_root,
@@ -164,7 +168,7 @@ class RoleMarketApplicationService:
                 )
                 updated = False
             else:
-                project = await asyncio.to_thread(
+                project = await finish_thread(
                     self._update_installed_role,
                     project=installed_project,
                     package_root=package_root,
@@ -179,7 +183,7 @@ class RoleMarketApplicationService:
                 updated=updated,
             )
         finally:
-            await asyncio.to_thread(
+            await finish_thread(
                 remove_role_staging_path,
                 operation_root,
                 allowed_root=self._downloads_root,

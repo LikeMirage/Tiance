@@ -130,18 +130,21 @@ class UsageFileStore:
         return records, message_usage_ids
 
 
+def _usage_identity(record: LlmUsageRecord) -> str | None:
+    return f"request:{record.request_id}" if record.request_id else record.message_id
+
+
 def _apply_upsert(
     records: dict[str, LlmUsageRecord],
     message_usage_ids: dict[str, str],
     incoming: LlmUsageRecord,
 ) -> None:
-    existing_usage_id = (
-        message_usage_ids.get(incoming.message_id) if incoming.message_id is not None else None
-    )
+    key = _usage_identity(incoming)
+    existing_usage_id = message_usage_ids.get(key) if key is not None else None
     if existing_usage_id is None:
         records[incoming.usage_id] = incoming
-        if incoming.message_id is not None:
-            message_usage_ids[incoming.message_id] = incoming.usage_id
+        if key is not None:
+            message_usage_ids[key] = incoming.usage_id
         return
 
     existing = records[existing_usage_id]
@@ -175,8 +178,9 @@ def _apply_model_delete(
     )
     for usage_id in deleted_ids:
         record = records.pop(usage_id)
-        if record.message_id is not None:
-            message_usage_ids.pop(record.message_id, None)
+        key = _usage_identity(record)
+        if key is not None:
+            message_usage_ids.pop(key, None)
 
 
 def _record_from_payload(payload: object, *, line_number: int) -> LlmUsageRecord:
@@ -200,6 +204,7 @@ def _record_from_payload(payload: object, *, line_number: int) -> LlmUsageRecord
             cost_amount=_optional_float(payload.get("cost_amount")),
             cost_currency=_optional_str(payload.get("cost_currency")),
             is_estimated=bool(payload.get("is_estimated")),
+            request_id=_optional_str(payload.get("request_id")),
             created_at=_required_str(payload, "created_at"),
         )
     except (TypeError, ValueError) as exc:

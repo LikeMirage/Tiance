@@ -1,6 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
 
 export default defineConfig(({ command }) => ({
   base: command === "build" ? "./" : "/",
@@ -8,6 +11,9 @@ export default defineConfig(({ command }) => ({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // These browser entries require DOM APIs unavailable in Markdown workers.
+      "decode-named-character-reference": require.resolve("decode-named-character-reference"),
+      "hast-util-from-html-isomorphic": require.resolve("hast-util-from-html-isomorphic"),
     },
   },
   server: {

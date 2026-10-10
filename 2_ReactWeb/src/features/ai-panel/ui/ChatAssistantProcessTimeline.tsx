@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { CaretDown, CaretRight } from "@phosphor-icons/react";
 
 import { LazyMarkdownPreview } from "../../markdown-preview/ui/LazyMarkdownPreview";
@@ -12,15 +12,17 @@ import {
   type AssistantProcessArchiveMode,
 } from "../model/useAssistantProcessAutoCollapse";
 import { resolveAssistantBodyContent } from "../model/chatDisplayMessages";
+import { useChatProcessFolds } from "../model/chatProcessFoldState";
 import type {
   ChatAssistantProcessItem,
   ChatMessage,
 } from "../model/chatMessage";
 import type { ChatMessageItemInteractions } from "./chatMessageItemTypes";
-import { RunFailureNotice } from "./ChatRunNotices";
+import { RunFailureNotice, ChatNotificationNotice } from "./ChatRunNotices";
 import {
   formatElapsedSeconds,
   ToolProcessBlock,
+  toolGroupFoldKey,
   type ToolProcessEntry,
 } from "./ChatToolProcessBlock";
 
@@ -33,7 +35,7 @@ type AssistantProcessTimelineProps = {
 };
 
 type AssistantProcessRenderItem =
-  | Extract<ChatAssistantProcessItem, { type: "thinking" | "content" | "attempt_failure" }>
+  | Extract<ChatAssistantProcessItem, { type: "thinking" | "content" | "attempt_failure" | "notification" }>
   | {
       id: string;
       type: "tool_group";
@@ -71,9 +73,18 @@ export function AssistantProcessTimeline({
   isStreamingMessage,
   message,
 }: AssistantProcessTimelineProps) {
-  const [manualFoldStates, setManualFoldStates] = useState<Record<string, boolean>>({});
+  const { states: manualFoldStates, setExpanded, thinkingOffset } = useChatProcessFolds();
   const items = message.processItems ?? EMPTY_PROCESS_ITEMS;
   const renderItems = useMemo(() => buildAssistantProcessRenderItems(items), [items]);
+  const foldKeys = useMemo(() => {
+    const keys = new Map<string, string>();
+    let thinkingIndex = thinkingOffset;
+    for (const item of renderItems) {
+      if (item.type === "thinking") keys.set(item.id, `thinking:${thinkingIndex++}`);
+      if (item.type === "tool_group") keys.set(item.id, toolGroupFoldKey(item.entries));
+    }
+    return keys;
+  }, [renderItems, thinkingOffset]);
   const lastRunningThinkingId = useMemo(() => findLastRunningThinkingId(items), [items]);
   const hasTrailingBodyContent = useMemo(
     () => resolveAssistantBodyContent(message).trim().length > 0,
@@ -99,12 +110,9 @@ export function AssistantProcessTimeline({
       : null
   ), [hasTrailingBodyContent, isStreamingMessage, partitionedItems.visibleItems]);
   const resolveFoldExpanded = (foldId: string) =>
-    manualFoldStates[foldId] ?? autoExpandedFoldId === foldId;
+    manualFoldStates[foldKeys.get(foldId)!] ?? autoExpandedFoldId === foldId;
   const toggleFold = (foldId: string, currentExpanded: boolean) => {
-    setManualFoldStates((prev) => ({
-      ...prev,
-      [foldId]: !currentExpanded,
-    }));
+    setExpanded(foldKeys.get(foldId)!, !currentExpanded);
   };
 
   return (
@@ -117,6 +125,8 @@ export function AssistantProcessTimeline({
           items={partitionedItems.archivedItems}
           lastRunningThinkingId={lastRunningThinkingId}
           message={message}
+          resolveFoldExpanded={resolveFoldExpanded}
+          toggleFold={toggleFold}
           totalElapsedSeconds={
             resolveAssistantMessageElapsedSeconds(message, clockTick) ??
             resolveRenderItemsElapsedSeconds(partitionedItems.archivedItems, clockTick)
@@ -225,6 +235,9 @@ function renderAssistantProcessItem({
   resolveFoldExpanded,
   toggleFold,
 }: RenderAssistantProcessItemOptions) {
+  if (item.type === "notification") {
+    return <ChatNotificationNotice key={item.id} message={item.message} />;
+  }
   if (item.type === "attempt_failure") {
     return <RunFailureNotice key={item.id} message={item.message} />;
   }
@@ -274,6 +287,8 @@ function ProcessedProcessBlock({
   lastRunningThinkingId,
   message,
   totalElapsedSeconds,
+  resolveFoldExpanded,
+  toggleFold,
 }: {
   clockTick: number;
   interactions: ChatMessageItemInteractions;
@@ -282,16 +297,11 @@ function ProcessedProcessBlock({
   lastRunningThinkingId: string | null;
   message: ChatMessage;
   totalElapsedSeconds: number | null;
+  resolveFoldExpanded: RenderAssistantProcessItemOptions["resolveFoldExpanded"];
+  toggleFold: RenderAssistantProcessItemOptions["toggleFold"];
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [manualFoldStates, setManualFoldStates] = useState<Record<string, boolean>>({});
-  const resolveFoldExpanded = (foldId: string) => manualFoldStates[foldId] ?? false;
-  const toggleFold = (foldId: string, currentExpanded: boolean) => {
-    setManualFoldStates((prev) => ({
-      ...prev,
-      [foldId]: !currentExpanded,
-    }));
-  };
+  const { states, setExpanded } = useChatProcessFolds();
+  const isExpanded = states.processed ?? false;
 
   return (
     <section className="chat-msg__processed">
@@ -299,7 +309,7 @@ function ProcessedProcessBlock({
         className="chat-msg__processed-toggle"
         type="button"
         aria-expanded={isExpanded}
-        onClick={() => setIsExpanded((value) => !value)}
+        onClick={() => setExpanded("processed", !isExpanded)}
       >
         <span className="chat-msg__processed-main">
           <span className="chat-msg__processed-caret" aria-hidden="true">
@@ -364,6 +374,7 @@ function AssistantContentProcessBlock({
       <LazyMarkdownPreview
         content={content}
         isStreaming={isStreaming}
+        renderStrategy="responsive"
         mathErrorMode="neutral"
         localFileActions={interactions.localFileActions}
         onPreviewHtmlCode={interactions.onPreviewHtmlCode}
@@ -427,6 +438,7 @@ function ThinkingProcessBlock({
           <LazyMarkdownPreview
             content={item.content}
             isStreaming={isStreaming}
+            renderStrategy="responsive"
             mathErrorMode="neutral"
             localFileActions={interactions.localFileActions}
             onPreviewHtmlCode={interactions.onPreviewHtmlCode}
@@ -449,6 +461,7 @@ function resolveRenderItemsElapsedSeconds(
 
   items.forEach((item) => {
     if (item.type === "thinking") {
+      if (item.startedAt === null) return;
       starts.push(item.startedAt);
       if (item.finishedAt === null || item.status === "running") {
         hasActiveItem = true;

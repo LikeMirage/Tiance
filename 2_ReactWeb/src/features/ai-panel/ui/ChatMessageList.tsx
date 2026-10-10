@@ -1,18 +1,20 @@
 import {
-  memo,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
-  type MutableRefObject,
+  useSyncExternalStore,
   type RefObject,
 } from "react";
 
 import type { ChatMessage } from "../model/chatMessage";
 import type { ConversationRuntimeStatus } from "../../../entities/llm-chat/model/conversation";
 import { useI18n } from "../../../shared/i18n";
-import { buildChatDisplayMessages } from "../model/chatDisplayMessages";
+import { ContentReadinessContext } from "../../../shared/lib/contentReadiness";
+import { createChatDisplayProjector } from "../model/chatDisplayMessages";
 import { buildModelSwitches } from "../model/chatModelTransitions";
+import { buildChatProcessFoldIdentities } from "../model/chatProcessFoldState";
 import {
   ChatMessageItem,
   type ChatMessageItemInteractions,
@@ -23,6 +25,8 @@ import {
 } from "../model/useVirtualMessageList";
 
 const VIRTUALIZE_MIN_HISTORICAL_MESSAGES = 28;
+const noPendingContent = () => 0;
+const subscribeNoContent = () => () => {};
 
 export type ChatMessageNavigationRequest = {
   behavior?: ScrollBehavior;
@@ -59,19 +63,31 @@ export function ChatMessageList({
   scrollParentRef,
 }: ChatMessageListProps) {
   const { t } = useI18n();
+  const readiness = useContext(ContentReadinessContext);
+  const contentPending = useSyncExternalStore(readiness?.subscribe ?? subscribeNoContent,
+    readiness?.getSnapshot ?? noPendingContent, readiness?.getSnapshot ?? noPendingContent);
   const messageSizeCacheRef = useRef(new Map<string, number>());
+  const projectDisplayMessages = useMemo(() => createChatDisplayProjector(), []);
+  const effectiveRuntimeStatus = isActiveSessionStreaming ? "running" : runtimeStatus;
   const displayMessages = useMemo(
-    () => buildChatDisplayMessages(messages, { runtimeStatus }),
-    [messages, runtimeStatus],
+    () => projectDisplayMessages(messages, { runtimeStatus: effectiveRuntimeStatus }),
+    [messages, effectiveRuntimeStatus, projectDisplayMessages],
   );
   const historicalMessages = useStableHistoricalMessages(displayMessages);
-  const modelSwitches = useMemo(
-    () => buildModelSwitches(displayMessages),
-    [displayMessages],
-  );
-  const liveMessage = displayMessages.length > 0
-    ? displayMessages[displayMessages.length - 1]
-    : null;
+  const modelSwitches = useStableModelSwitches(displayMessages);
+  const foldIdentities = useMemo(() => buildChatProcessFoldIdentities(displayMessages), [displayMessages]);
+  const liveMessage = [...displayMessages].reverse().find((message) => message.role === "assistant") ?? null;
+  const lastUserIndex = displayMessages.reduce((last, message, index) => message.role === "user" ? index : last, -1);
+  const liveMessageIndex = liveMessage ? displayMessages.indexOf(liveMessage) : -1;
+  const activeAssistantId = (isActiveSessionStreaming || runtimeStatus === "running")
+    && liveMessageIndex > lastUserIndex && liveMessage?.finishReason !== "output_limit"
+    ? liveMessage?.id ?? null : null;
+  const shouldVirtualize = historicalMessages.length >= VIRTUALIZE_MIN_HISTORICAL_MESSAGES;
+  const virtualList = useVirtualMessageList({ enabled: shouldVirtualize, keepLastMessageMounted: true, keepMessageMountedId: activeAssistantId,
+    messages: displayMessages, scrollParentRef, sizeCacheRef: messageSizeCacheRef });
+  const navigationTargetIsRendered = Boolean(navigationRequest && virtualList.virtualItems.some(
+    (item) => item.message.id === navigationRequest.messageId,
+  ));
 
   useLayoutEffect(() => {
     const liveMessageId = liveMessage?.id;
@@ -81,6 +97,7 @@ export function ChatMessageList({
     if (!messageElement) return undefined;
 
     const measure = () => {
+      if (messageElement.querySelector('[aria-busy="true"]')) return;
       const messageHeight = messageElement.getBoundingClientRect().height;
       const modelSwitchElement = messageElement.previousElementSibling;
       const modelSwitchHeight = modelSwitchElement instanceof HTMLElement &&
@@ -88,7 +105,7 @@ export function ChatMessageList({
         ? modelSwitchElement.getBoundingClientRect().height
         : 0;
       messageSizeCacheRef.current.set(
-        liveMessageId,
+        liveMessage?.displayKey ?? liveMessageId,
         Math.ceil(messageHeight + modelSwitchHeight),
       );
     };
@@ -103,10 +120,10 @@ export function ChatMessageList({
       observer.observe(modelSwitchElement);
     }
     return () => observer.disconnect();
-  }, [liveMessage?.id, scrollParentRef]);
+  }, [liveMessage?.id, liveMessage?.displayKey, scrollParentRef]);
 
   useEffect(() => {
-    const visibleMessageIds = new Set(displayMessages.map((message) => message.id));
+    const visibleMessageIds = new Set(displayMessages.map((message) => message.displayKey ?? message.id));
     messageSizeCacheRef.current.forEach((_, messageId) => {
       if (!visibleMessageIds.has(messageId)) {
         messageSizeCacheRef.current.delete(messageId);
@@ -115,19 +132,25 @@ export function ChatMessageList({
   }, [displayMessages]);
 
   useEffect(() => {
-    if (!navigationRequest || liveMessage?.id !== navigationRequest.messageId) return undefined;
+    if (!navigationRequest || contentPending) return undefined;
+    if (!displayMessages.some((message) => message.id === navigationRequest.messageId)) return undefined;
     const frameId = window.requestAnimationFrame(() => {
+      if (shouldVirtualize && !navigationTargetIsRendered) {
+        virtualList.scrollToMessage(navigationRequest.messageId, "auto");
+        return;
+      }
       if (scrollRenderedMessageIntoView(
         scrollParentRef.current,
         navigationRequest.messageId,
-        navigationRequest.behavior,
+        shouldVirtualize ? "auto" : navigationRequest.behavior,
         navigationRequest.viewportOffset,
       )) {
         onNavigationHandled?.(navigationRequest.requestId);
       }
     });
     return () => window.cancelAnimationFrame(frameId);
-  }, [liveMessage?.id, navigationRequest, onNavigationHandled, scrollParentRef]);
+  }, [contentPending, displayMessages, navigationRequest, navigationTargetIsRendered, onNavigationHandled,
+    scrollParentRef, shouldVirtualize, virtualList.scrollToMessage]);
 
   if (displayMessages.length === 0) {
     return (
@@ -141,155 +164,42 @@ export function ChatMessageList({
     );
   }
 
-  return (
-    <div className="ai-panel__messages">
-      <HistoricalMessageItems
-        autoCollapseAssistantProcess={autoCollapseAssistantProcess}
-        expandedUserMessageIds={expandedUserMessageIds}
-        interactions={interactions}
-        messages={historicalMessages}
-        modelSwitches={modelSwitches}
-        navigationRequest={navigationRequest}
-        onNavigationHandled={onNavigationHandled}
-        scrollParentRef={scrollParentRef}
-        sizeCacheRef={messageSizeCacheRef}
-      />
-      {liveMessage ? (
-        <ChatMessageItem
-          key={liveMessage.id}
+  const renderedItems = shouldVirtualize ? virtualList.virtualItems : displayMessages.map((message, index) => ({
+    index, key: message.displayKey ?? message.id, message, size: 0, start: 0,
+  }));
+
+  return <div className="ai-panel__messages">
+    <div className={shouldVirtualize ? "ai-panel__virtual-list" : undefined} ref={virtualList.listRef}
+      style={shouldVirtualize ? { height: virtualList.totalSize } : undefined}>
+      {renderedItems.map((item) => {
+        const isLastMessage = item.index === displayMessages.length - 1;
+        const identity = foldIdentities.get(item.message.id);
+        return <VirtualMessageRow
+          key={item.key}
           autoCollapseAssistantProcess={autoCollapseAssistantProcess}
-          clockTick={clockTick}
+          clockTick={item.message.id === activeAssistantId ? clockTick : 0}
           expandedUserMessageIds={expandedUserMessageIds}
           interactions={interactions}
-          isLastMessage
-          isSessionStreaming={isActiveSessionStreaming}
-          message={liveMessage}
-          modelSwitchModelId={modelSwitches.get(liveMessage.id) ?? null}
-        />
-      ) : null}
+          isLastMessage={isLastMessage}
+          isVirtualized={shouldVirtualize}
+          isSessionStreaming={item.message.id === activeAssistantId}
+          item={item}
+          foldTurnId={identity!.turnId}
+          foldThinkingOffset={identity!.thinkingOffset}
+          modelSwitchModelId={modelSwitches.get(item.message.id) ?? null}
+          onMeasure={virtualList.measureMessage}
+        />;
+      })}
     </div>
-  );
+  </div>;
 }
 
-type HistoricalMessageItemsProps = {
-  autoCollapseAssistantProcess: boolean;
-  expandedUserMessageIds: Set<string>;
-  interactions: ChatMessageItemInteractions;
-  messages: ChatMessage[];
-  modelSwitches: Map<string, string>;
-  navigationRequest: ChatMessageNavigationRequest | null;
-  onNavigationHandled?: (requestId: number) => void;
-  scrollParentRef: RefObject<HTMLDivElement | null>;
-  sizeCacheRef: MutableRefObject<Map<string, number>>;
-};
-
-const HistoricalMessageItems = memo(function HistoricalMessageItems({
-  autoCollapseAssistantProcess,
-  expandedUserMessageIds,
-  interactions,
-  messages,
-  modelSwitches,
-  navigationRequest,
-  onNavigationHandled,
-  scrollParentRef,
-  sizeCacheRef,
-}: HistoricalMessageItemsProps) {
-  const shouldVirtualize = messages.length >= VIRTUALIZE_MIN_HISTORICAL_MESSAGES;
-  const virtualList = useVirtualMessageList({
-    enabled: shouldVirtualize,
-    messages,
-    scrollParentRef,
-    sizeCacheRef,
-  });
-  const navigationTargetIsRendered = Boolean(
-    navigationRequest && virtualList.virtualItems.some(
-      (item) => item.message.id === navigationRequest.messageId,
-    ),
-  );
-
-  useEffect(() => {
-    if (!navigationRequest) return undefined;
-    if (!messages.some((message) => message.id === navigationRequest.messageId)) {
-      return undefined;
-    }
-
-    const frameId = window.requestAnimationFrame(() => {
-      if (shouldVirtualize) {
-        if (navigationTargetIsRendered && scrollRenderedMessageIntoView(
-          scrollParentRef.current,
-          navigationRequest.messageId,
-          "auto",
-          navigationRequest.viewportOffset,
-        )) {
-          onNavigationHandled?.(navigationRequest.requestId);
-          return;
-        }
-        virtualList.scrollToMessage(navigationRequest.messageId, "auto");
-        return;
-      }
-      if (scrollRenderedMessageIntoView(
-        scrollParentRef.current,
-        navigationRequest.messageId,
-        navigationRequest.behavior,
-        navigationRequest.viewportOffset,
-      )) {
-        onNavigationHandled?.(navigationRequest.requestId);
-      }
-    });
-    return () => window.cancelAnimationFrame(frameId);
-  }, [
-    messages,
-    navigationRequest,
-    navigationTargetIsRendered,
-    onNavigationHandled,
-    scrollParentRef,
-    shouldVirtualize,
-    virtualList.scrollToMessage,
-  ]);
-
-  if (shouldVirtualize) {
-    return (
-      <div
-        className="ai-panel__virtual-list"
-        ref={virtualList.listRef}
-        style={{ height: virtualList.totalSize }}
-      >
-        {virtualList.virtualItems.map((item) => (
-          <VirtualMessageRow
-            key={item.key}
-            autoCollapseAssistantProcess={autoCollapseAssistantProcess}
-            clockTick={0}
-            expandedUserMessageIds={expandedUserMessageIds}
-            interactions={interactions}
-            item={item}
-            modelSwitchModelId={modelSwitches.get(item.message.id) ?? null}
-            onMeasure={virtualList.measureMessage}
-          />
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <>
-      {messages.map((message) => (
-        <ChatMessageItem
-          key={message.id}
-          autoCollapseAssistantProcess={autoCollapseAssistantProcess}
-          clockTick={0}
-          expandedUserMessageIds={expandedUserMessageIds}
-          interactions={interactions}
-          isLastMessage={false}
-          isSessionStreaming={false}
-          message={message}
-          modelSwitchModelId={modelSwitches.get(message.id) ?? null}
-        />
-      ))}
-    </>
-  );
-});
-
 type VirtualMessageRowProps = {
+  isVirtualized: boolean;
+  isLastMessage: boolean;
+  isSessionStreaming: boolean;
+  foldTurnId: string;
+  foldThinkingOffset: number;
   autoCollapseAssistantProcess: boolean;
   clockTick: number;
   expandedUserMessageIds: Set<string>;
@@ -300,6 +210,11 @@ type VirtualMessageRowProps = {
 };
 
 function VirtualMessageRow({
+  isVirtualized,
+  isLastMessage,
+  isSessionStreaming,
+  foldTurnId,
+  foldThinkingOffset,
   autoCollapseAssistantProcess,
   clockTick,
   expandedUserMessageIds,
@@ -312,38 +227,51 @@ function VirtualMessageRow({
 
   useLayoutEffect(() => {
     const node = rowRef.current;
-    if (!node) return undefined;
+    if (!node || !isVirtualized) return undefined;
 
     const measure = () => {
+      // A reattached deferred preview is briefly empty. Do not let that empty
+      // height evict neighboring rows and cancel/restart their Markdown jobs.
+      if (node.querySelector('[aria-busy="true"]')) return;
       onMeasure(
-        item.message.id,
+        item.key,
         item.index,
         node.getBoundingClientRect().height,
       );
     };
     const observer = new ResizeObserver(measure);
+    let frame: number | null = null;
+    const mutations = new MutationObserver(() => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => { frame = null; measure(); });
+    });
     measure();
     observer.observe(node);
+    mutations.observe(node, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-busy"] });
 
     return () => {
       observer.disconnect();
+      mutations.disconnect();
+      if (frame !== null) window.cancelAnimationFrame(frame);
     };
-  }, [item.index, item.message.id, onMeasure]);
+  }, [isVirtualized, item.index, item.key, onMeasure]);
 
   return (
     <div
-      className="ai-panel__virtual-row"
+      className={isVirtualized ? "ai-panel__virtual-row" : undefined}
       ref={rowRef}
-      style={{ transform: `translateY(${item.start}px)` }}
+      style={isVirtualized ? { transform: `translateY(${item.start}px)` } : undefined}
     >
       <ChatMessageItem
         autoCollapseAssistantProcess={autoCollapseAssistantProcess}
         clockTick={clockTick}
         expandedUserMessageIds={expandedUserMessageIds}
         interactions={interactions}
-        isLastMessage={false}
-        isSessionStreaming={false}
+        isLastMessage={isLastMessage}
+        isSessionStreaming={isSessionStreaming}
         message={item.message}
+        foldTurnId={foldTurnId}
+        foldThinkingOffset={foldThinkingOffset}
         modelSwitchModelId={modelSwitchModelId}
       />
     </div>
@@ -372,6 +300,19 @@ function useStableHistoricalMessages(messages: ChatMessage[]) {
   const next = messages.slice(0, historicalLength);
   stableRef.current = next;
   return next;
+}
+
+function useStableModelSwitches(messages: ChatMessage[]) {
+  const previousRef = useRef(new Map<string, string>());
+  return useMemo(() => {
+    const next = buildModelSwitches(messages);
+    const previous = previousRef.current;
+    if (next.size === previous.size && Array.from(next).every(([id, model]) => previous.get(id) === model)) {
+      return previous;
+    }
+    previousRef.current = next;
+    return next;
+  }, [messages]);
 }
 
 function scrollRenderedMessageIntoView(

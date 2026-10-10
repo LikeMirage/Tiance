@@ -289,6 +289,14 @@ if __name__ == "__main__":
 
     if not reload_enabled:
         from app.core.shell_lease import start_shell_lease_monitor
+        from app.core.shutdown_tasks import shutdown_tasks
+
+        class DesktopServer(UvicornServer):
+            async def shutdown(self, sockets=None):
+                # Stop opted-in downloads before Uvicorn waits on HTTP requests.
+                # Normal desktop close has already drained disk commits here.
+                await shutdown_tasks.close()
+                await super().shutdown(sockets=sockets)
 
         config = UvicornConfig(
             "app.main:app",
@@ -297,7 +305,7 @@ if __name__ == "__main__":
             reload=False,
             timeout_graceful_shutdown=graceful_shutdown_timeout,
         )
-        server = UvicornServer(config)
+        server = DesktopServer(config)
         if shell_parent_pid is not None:
             _start_shell_parent_monitor(server, shell_parent_pid)
         lease_monitor = start_shell_lease_monitor(server)

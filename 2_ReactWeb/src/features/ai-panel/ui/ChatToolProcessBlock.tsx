@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { CaretDown, CaretRight, Check, X } from "@phosphor-icons/react";
 
 import { submitToolPermissionDecision } from "../../../services/llm/submitToolPermissionDecision";
+import { useChatProcessFolds } from "../model/chatProcessFoldState";
 
 import type {
   ChatAssistantProcessItem,
@@ -24,6 +25,11 @@ export function toolProcessEntriesFromTools(items: ChatToolProcessItem[]): ToolP
   }));
 }
 
+export function toolGroupFoldKey(entries: ToolProcessEntry[]) {
+  const first = entries[0];
+  return `tool-group:${first?.type === "tool" ? first.tool.callId || first.tool.id : first?.id}`;
+}
+
 export function ToolProcessBlock({
   clockTick,
   entries,
@@ -35,9 +41,10 @@ export function ToolProcessBlock({
   isExpanded?: boolean;
   onToggleExpanded?: () => void;
 }) {
-  const [localExpanded, setLocalExpanded] = useState(false);
-  const isExpanded = controlledExpanded ?? localExpanded;
-  const toggleExpanded = onToggleExpanded ?? (() => setLocalExpanded((value) => !value));
+  const { states, setExpanded } = useChatProcessFolds();
+  const foldKey = toolGroupFoldKey(entries);
+  const isExpanded = controlledExpanded ?? states[foldKey] ?? false;
+  const toggleExpanded = onToggleExpanded ?? (() => setExpanded(foldKey, !isExpanded));
   const toolSummary = useMemo(() => {
     const tools: ChatToolProcessItem[] = [];
     let preparingCount = 0;
@@ -194,7 +201,9 @@ function ToolProcessCard({
   clockTick: number;
   item: ChatToolProcessItem;
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const { states, setExpanded } = useChatProcessFolds();
+  const foldKey = `tool:${item.callId || item.id}`;
+  const isExpanded = states[foldKey] ?? false;
   const [submittingDecision, setSubmittingDecision] = useState<"allow" | "deny" | null>(null);
   const result = item.error || item.result;
   const elapsedSeconds = resolveToolProcessElapsedSeconds(item, clockTick);
@@ -221,7 +230,7 @@ function ToolProcessCard({
           className="chat-msg__tool-head-main"
           type="button"
           aria-expanded={isExpanded}
-          onClick={() => setIsExpanded((value) => !value)}
+          onClick={() => setExpanded(foldKey, !isExpanded)}
         >
           <span className="chat-msg__tool-caret" aria-hidden="true">
             {isExpanded ? (

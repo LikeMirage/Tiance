@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from uuid import uuid4
 
 from app.core.errors import BadRequestError, UpstreamProviderError
 from app.domain.llm.provider_capabilities import ProviderWebSearchResult
@@ -13,6 +14,7 @@ from app.infra.llm.provider_capabilities.gemini import GeminiWebSearchAdapter
 from app.infra.llm.provider_capabilities.openai_responses import (
     OpenAIResponsesWebSearchAdapter,
 )
+from app.infra.llm.request_headers import merge_request_headers, resolve_request_headers
 
 
 class ProviderCapabilityRemoteClient:
@@ -34,19 +36,29 @@ class ProviderCapabilityRemoteClient:
         api_key: str,
         model_id: str,
         query: str,
+        session_id: str | None = None,
     ) -> ProviderWebSearchResult:
         adapter = self._web_search_adapters.get(provider_template.protocol_family)
         if adapter is None:
             raise BadRequestError(
                 f"协议 '{provider_template.protocol_family.value}' 尚未适配内置网络搜索。"
             )
+        declared_headers = resolve_request_headers(
+            provider_template, model_id=model_id, session_id=session_id or uuid4().hex,
+        )
+
+        async def post_json(
+            url: str, headers: dict[str, str], body: dict[str, object],
+        ) -> dict[str, object]:
+            return await self._post_json(url, merge_request_headers(headers, declared_headers), body)
+
         return await adapter.search(
             provider_template=provider_template,
             runtime_config=runtime_config,
             api_key=api_key,
             model_id=model_id,
             query=query,
-            post_json=self._post_json,
+            post_json=post_json,
         )
 
     async def _post_json(

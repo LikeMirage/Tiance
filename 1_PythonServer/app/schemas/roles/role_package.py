@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.llm.generation_params import LlmReasoningMode
+from app.domain.llm.output_limit import DEFAULT_OUTPUT_LIMIT_MESSAGE, OutputLimitAction
 
 
 class RoleConfigurationContract(BaseModel):
@@ -32,12 +33,26 @@ class RolePromptConfiguration(RoleConfigurationContract):
 
 
 class RoleResponseConfiguration(RoleConfigurationContract):
-    return_cancelled_messages: bool
-    return_user_before_cancelled: bool
+    output_limit_action: OutputLimitAction = "retry"
+    output_limit_save_partial: bool = False
+    output_limit_message: str = DEFAULT_OUTPUT_LIMIT_MESSAGE
+    output_limit_max_recoveries: int | None = Field(default=None, ge=0)
     streaming_enabled: bool
     auto_collapse_assistant_process: bool
     malformed_tool_call_recovery_enabled: bool
     upstream_retry_count: int = Field(ge=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def discard_removed_cancellation_settings(cls, value: object) -> object:
+        if not isinstance(value, dict):
+            return value
+        # Older role packages may still contain these retired options.
+        return {
+            key: item
+            for key, item in value.items()
+            if key not in {"return_cancelled_messages", "return_user_before_cancelled"}
+        }
 
 
 class RoleContextConfiguration(RoleConfigurationContract):

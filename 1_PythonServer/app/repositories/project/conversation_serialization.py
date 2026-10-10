@@ -1,5 +1,7 @@
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
+from json import dumps
 from uuid import uuid4
 
 from app.domain.llm.chat import (
@@ -13,6 +15,7 @@ from app.domain.llm.chat import (
 )
 from app.domain.llm.generation_params import LlmReasoningMode
 from app.domain.project.project_conversation import (
+    conversation_session_configuration_hash,
     ProjectConversationMessage,
     ProjectConversationMessageRole,
     ProjectConversationMessageStatus,
@@ -34,7 +37,7 @@ _RUNNING_STATUS_STALE_AFTER = timedelta(seconds=150)
 _REASONING_MODES = {mode.value for mode in LlmReasoningMode}
 
 def _session_from_payload(payload: dict) -> ProjectConversationSession:
-    return ProjectConversationSession(
+    session = ProjectConversationSession(
         session_id=str(payload.get("session_id") or ""),
         sequence_number=_payload_int(payload.get("sequence_number")),
         title=str(payload.get("title") or "新对话"),
@@ -50,6 +53,54 @@ def _session_from_payload(payload: dict) -> ProjectConversationSession:
         role_configuration_hash=_optional_str(
             payload.get("role_configuration_hash")
         ),
+    )
+    return _migrate_session_settings_hash(session, payload)
+
+
+def _migrate_session_settings_hash(
+    session: ProjectConversationSession,
+    payload: dict,
+) -> ProjectConversationSession:
+    removed_fields = ("return_cancelled_messages", "return_user_before_cancelled")
+    added_fields = (
+        "output_limit_action", "output_limit_save_partial",
+        "output_limit_message", "output_limit_max_recoveries",
+    )
+    stored_settings = payload.get("settings")
+    if (
+        not session.role_project_id
+        or not session.role_configuration_hash
+        or not isinstance(stored_settings, dict)
+        or not (any(key in stored_settings for key in removed_fields)
+                or any(key not in stored_settings for key in added_fields))
+    ):
+        return session
+    legacy_settings = asdict(session.settings)
+    enabled_tool_names = legacy_settings.get("enabled_tool_names")
+    if isinstance(enabled_tool_names, tuple):
+        legacy_settings["enabled_tool_names"] = sorted(enabled_tool_names)
+    for key in added_fields:
+        if key not in stored_settings:
+            legacy_settings.pop(key, None)
+    if any(key in stored_settings for key in removed_fields):
+        for key in removed_fields:
+            value = stored_settings.get(key)
+            legacy_settings[key] = value if isinstance(value, bool) else True
+    legacy_configuration = {
+        "provider_id": session.provider_id,
+        "model_id": session.model_id,
+        "reasoning_mode": session.reasoning_mode,
+        "settings": legacy_settings,
+    }
+    legacy_hash = sha256(dumps(
+        legacy_configuration, ensure_ascii=False, separators=(",", ":"), sort_keys=True,
+    ).encode("utf-8")).hexdigest()
+    if session.role_configuration_hash != legacy_hash:
+        return session
+    # Schema defaults and retired options must not mark an unchanged role as custom.
+    return replace(
+        session,
+        role_configuration_hash=conversation_session_configuration_hash(session),
     )
 
 def _message_from_payload(payload: dict) -> ProjectConversationMessage:
@@ -102,6 +153,10 @@ def _message_from_payload(payload: dict) -> ProjectConversationMessage:
             else None
         ),
         content_parts=_content_parts_from_payload(payload.get("content_parts")),
+        finish_reason=_optional_str(payload.get("finish_reason")),
+        include_in_context=payload.get("include_in_context") is not False,
+        message_source=_optional_str(payload.get("message_source")),
+        continuation_of=_optional_str(payload.get("continuation_of")),
         origin_message_id=origin_message_id,
         variant_group_id=variant_group_id,
         variant_index=max(1, _payload_int(payload.get("variant_index")) or 1),
@@ -139,6 +194,10 @@ def _message_to_payload(message: ProjectConversationMessage) -> dict:
         "created_at": message.created_at,
         "updated_at": message.updated_at,
         "origin_message_id": message.origin_message_id or message.message_id,
+        "finish_reason": message.finish_reason,
+        "include_in_context": message.include_in_context,
+        "message_source": message.message_source,
+        "continuation_of": message.continuation_of,
     }
     if message.created_at_local:
         payload["created_at_local"] = message.created_at_local

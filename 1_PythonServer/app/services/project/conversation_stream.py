@@ -1,9 +1,13 @@
 import asyncio
 import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable
+from contextlib import aclosing
 from dataclasses import replace
 from functools import lru_cache
 from time import monotonic
+from uuid import uuid4
+
+from app.domain.llm.output_limit import OutputLimitRecoveryBudget, OUTPUT_LIMIT_MESSAGE_PREFIX
 from typing import Any
 
 import httpx
@@ -11,6 +15,8 @@ import httpx
 from app.core.errors import AppError, local_exception_message, upstream_http_error_message
 from app.domain.llm.chat import (
     ChatCompletionRequest,
+    ChatMessage,
+    ChatMessageRole,
     ChatMessageContentPart,
     ChatStreamEvent,
     ChatStreamEventKind,
@@ -64,6 +70,7 @@ from app.services.project.conversation_audit import get_conversation_audit_servi
 from app.services.project.conversation_stream_persistence import ConversationStreamPersistence
 from app.services.project.conversation_stream_settlement import ConversationStreamSettlement
 from app.services.project.conversation_stream_events import stream_event_to_payload
+from app.services.project.conversation_notifications import conversation_notifications
 from app.services.project.conversation_stream_run_events import (
     conversation_run_settled_payload,
     conversation_run_started_payload,
@@ -222,6 +229,76 @@ class ProjectConversationStreamService:
         await_background_tasks: bool = False,
         include_persistence_checkpoints: bool = False,
     ) -> AsyncGenerator[dict[str, object | None], None]:
+        # One manager task owns all automatic user turns, so stop cancels the chain.
+        request = replace(request, output_limit_budget=OutputLimitRecoveryBudget(), record_attempt_usage=True, emit_response_boundaries=True)
+        pending_user: dict | None = None
+        conversation_notifications.open(request.project_id, request.session_id)
+        try:
+            while True:
+                try:
+                    continuation = await asyncio.to_thread(self._persistence.output_limit_continuation, request)
+                except AppError:
+                    # Let the regular run pipeline report conflicts/deletions with its usual semantics.
+                    continuation = None
+                if continuation is not None:
+                    parent, next_user, saved = continuation
+                    started = conversation_run_started_payload(parent)
+                    if started:
+                        yield started
+                    pending_user = _output_limit_message_payload(next_user)
+                    yield {
+                        "kind": "output_limit", "action": "send_message", "will_recover": True,
+                        "saved_message": _output_limit_message_payload(saved),
+                        "next_user_message": pending_user, "usage": None,
+                    }
+                    request.output_limit_budget.used += 1
+                    request = _output_limit_continuation_request(request, pending_user)
+                    continue
+                next_message: dict | None = None
+                single_run = self._stream_single_run_payloads(
+                    request,
+                    await_background_tasks=await_background_tasks,
+                    include_persistence_checkpoints=include_persistence_checkpoints,
+                )
+                try:
+                    async for payload in single_run:
+                        if payload.get("kind") == "output_limit" and payload.get("will_recover") and payload.get("action") == "send_message":
+                            next_message = payload.get("next_user_message")
+                            pending_user = next_message
+                        if payload.get("kind") in {"conversation_run_started", "conversation_run_settled"} and pending_user and payload.get("user_message_id") == pending_user["message_id"]:
+                            pending_user = None
+                        yield payload
+                finally:
+                    await single_run.aclose()
+                if next_message is None:
+                    return
+                request = _output_limit_continuation_request(request, next_message)
+        except (asyncio.CancelledError, GeneratorExit) as exc:
+            # A stop may arrive after the automatic user is durable but before its run starts.
+            if pending_user is not None:
+                cancelled_request = _output_limit_continuation_request(request, pending_user)
+                try:
+                    user = await asyncio.to_thread(self._persistence.current_user_message, cancelled_request)
+                    await asyncio.to_thread(self._persistence.begin_run, cancelled_request, user)
+                    await asyncio.to_thread(self._persistence.settle_run, cancelled_request, status="cancelled", attempt_count=1)
+                    await asyncio.to_thread(self._persistence.save_runtime_status, cancelled_request, "idle")
+                    settled = conversation_run_settled_payload(user, None, status="cancelled")
+                    if settled is not None and not isinstance(exc, GeneratorExit):
+                        yield settled
+                except Exception:
+                    logger.exception("Failed to settle a pending output-limit continuation.")
+            raise
+        finally:
+            # Cancellation, errors and generator closure also release pending notices.
+            await conversation_notifications.close(request.project_id, request.session_id)
+
+    async def _stream_single_run_payloads(
+        self,
+        request: ChatCompletionRequest,
+        *,
+        await_background_tasks: bool = False,
+        include_persistence_checkpoints: bool = False,
+    ) -> AsyncGenerator[dict[str, object | None], None]:
         answer_parts: list[str] = []
         thinking_parts: list[str] = []
         assistant_content_parts: list[ChatMessageContentPart] = []
@@ -230,6 +307,7 @@ class ProjectConversationStreamService:
         context_tokens: int | None = None
         context_tokens_estimated = False
         done_payload: dict[str, object | None] | None = None
+        final_response_boundary: ChatStreamEvent | None = None
         background_tasks: list[asyncio.Task] = []
         blocking_before_next_model_request: list[asyncio.Task] = []
         run_started_at = monotonic()
@@ -250,6 +328,8 @@ class ProjectConversationStreamService:
             nonlocal context_tokens, context_tokens_estimated, last_model_request
             nonlocal model_round_serial, upstream_attempt_index
             last_model_request = model_request
+            if model_request.output_limit_budget is not None:
+                model_request.output_limit_budget.last_round_usage_recorded = False
             model_round_serial += 1
             # Attempt indexes are local to one upstream model round.  A retry in
             # an earlier tool round must not leak into the final run outcome.
@@ -365,7 +445,7 @@ class ProjectConversationStreamService:
                     "cancelled"
                     if existing_turn.reply.status == "cancelled"
                     else "error"
-                    if existing_turn.reply.role == "error" or existing_turn.reply.status == "error"
+                    if existing_turn.reply.role == "error" or existing_turn.reply.status == "error" or existing_turn.reply.finish_reason == "output_limit"
                     else "done"
                 )
                 # The assistant reply can be durable before the process gets a
@@ -384,7 +464,7 @@ class ProjectConversationStreamService:
                 )
                 started_payload = conversation_run_started_payload(run_user_message)
                 if started_payload is not None:
-                    yield started_payload
+                    yield {**started_payload, "run_id": request.run_id or f"run_{run_user_message.message_id}"}
                 settled_payload = conversation_run_settled_payload(
                     run_user_message,
                     existing_turn.reply,
@@ -418,7 +498,7 @@ class ProjectConversationStreamService:
             if existing_run is not None and existing_run.status in {"error", "cancelled"}:
                 started_payload = conversation_run_started_payload(run_user_message)
                 if started_payload is not None:
-                    yield started_payload
+                    yield {**started_payload, "run_id": request.run_id or f"run_{run_user_message.message_id}"}
                 settled_payload = conversation_run_settled_payload(
                     run_user_message,
                     None,
@@ -455,7 +535,7 @@ class ProjectConversationStreamService:
             await asyncio.to_thread(self._persistence.save_runtime_status, request, "running")
             started_payload = conversation_run_started_payload(run_user_message)
             if started_payload is not None:
-                yield started_payload
+                yield {**started_payload, "run_id": request.run_id or f"run_{run_user_message.message_id}"}
             session_request = await asyncio.to_thread(
                 self._context_builder.rebuild_session_request_messages,
                 request,
@@ -523,109 +603,217 @@ class ProjectConversationStreamService:
             )
             if request_check is not None:
                 background_tasks.append(request_check)
-            async for event in self._stream_chat_events(
+            model_events = self._stream_chat_events(
                 request,
                 stream_request,
                 on_model_request=capture_model_request,
                 on_model_round_completed=schedule_completed_model_round,
                 on_tool_call_cancelled=capture_cancelled_tool_call,
                 prepare_model_request=prepare_next_tool_loop_model_request,
-            ):
-                if isinstance(event, ConversationPersistenceCheckpoint):
-                    if include_persistence_checkpoints:
-                        yield persistence_checkpoint_payload(event)
-                    continue
-                now = monotonic()
-                if now - last_heartbeat >= _STREAM_HEARTBEAT_SECONDS:
-                    await asyncio.to_thread(self._persistence.save_runtime_status, request, "running")
-                    last_heartbeat = now
+            )
+            notification_events = conversation_notifications.with_notifications(request.project_id, request.session_id, model_events)
+            async with aclosing(notification_events):
+                async for event in notification_events:
+                    if isinstance(event, ProjectConversationMessage):
+                        yield {"kind": "conversation_notice", "message": _output_limit_message_payload(event)}
+                        continue
+                    if isinstance(event, ConversationPersistenceCheckpoint):
+                        if include_persistence_checkpoints:
+                            yield persistence_checkpoint_payload(event)
+                        continue
+                    now = monotonic()
+                    if now - last_heartbeat >= _STREAM_HEARTBEAT_SECONDS:
+                        await asyncio.to_thread(self._persistence.save_runtime_status, request, "running")
+                        last_heartbeat = now
 
-                if event.kind == ChatStreamEventKind.PROTOCOL_CONTINUATION:
-                    continue
+                    if event.kind == ChatStreamEventKind.MODEL_RESPONSE_STARTED:
+                        await conversation_notifications.start_response(request.project_id, request.session_id)
+                        yield stream_event_to_payload(event)
+                        continue
+                    if event.kind == ChatStreamEventKind.MODEL_RESPONSE_FINISHED:
+                        if event.error_code == "upstream_output_limit":
+                            # A retained partial response is a real history row.
+                            # Persist it before draining notices at this boundary.
+                            final_response_boundary = event
+                            continue
+                        if event.has_tool_calls or event.error_code:
+                            notices = await conversation_notifications.finish_response(request.project_id, request.session_id)
+                            yield {**stream_event_to_payload(event), "notifications": [_output_limit_message_payload(item) for item in notices]}
+                        else:
+                            final_response_boundary = event
+                        continue
+                    if event.kind == ChatStreamEventKind.PROTOCOL_CONTINUATION:
+                        continue
 
-                if event.kind == ChatStreamEventKind.RETRY_RESET:
-                    upstream_attempt_index = max(
-                        upstream_attempt_index,
-                        event.attempt_index or upstream_attempt_index,
-                    )
-                    request = replace(
-                        request,
-                        upstream_attempt_index=upstream_attempt_index,
-                    )
-                    answer_parts.clear()
-                    thinking_parts.clear()
+                    if event.kind == ChatStreamEventKind.OUTPUT_LIMIT:
+                        policy = last_model_request or request
+                        partial = event.partial_message
+                        saved_message = None
+                        if policy.output_limit_save_partial and partial is not None:
+                            saved_message = await asyncio.to_thread(
+                                self._persistence.append_assistant_message,
+                                request, content=partial.content,
+                                thinking_content=partial.thinking_content,
+                                usage=usage_to_payload(event.usage) if event.usage else None,
+                                context_tokens=event.usage.prompt_tokens if event.usage else None,
+                                status="done", finish_reason="output_limit",
+                                include_in_context=(policy.output_limit_action != "retry" and bool(partial.content.strip())),
+                            )
+                        answer_parts.clear()
+                        thinking_parts.clear()
+                        usage = None
+                        usage_payload = None
+                        if final_response_boundary is not None:
+                            notices = await conversation_notifications.finish_response(request.project_id, request.session_id)
+                            yield {**stream_event_to_payload(final_response_boundary), "notifications": [_output_limit_message_payload(item) for item in notices]}
+                            final_response_boundary = None
+                        next_user_message = None
+                        if event.will_recover and event.recovery_action == "send_message":
+                            automatic_message = ChatMessage(
+                                role=ChatMessageRole.USER,
+                                content=OUTPUT_LIMIT_MESSAGE_PREFIX + policy.output_limit_message,
+                                message_id=f"msg_{uuid4().hex[:16]}",
+                                internal_metadata={
+                                    "message_source": "output_limit",
+                                    "continuation_of": run_user_message.message_id if run_user_message else None,
+                                },
+                            )
+                            automatic_request = replace(request, messages=(automatic_message,))
+                            append_task = asyncio.create_task(asyncio.to_thread(
+                                self._persistence.append_user_message, automatic_request,
+                            ))
+                            try:
+                                next_user_message = await asyncio.shield(append_task)
+                            except asyncio.CancelledError:
+                                # The database write cannot be cancelled once the thread starts.
+                                # Wait for its identity, then durably cancel it without starting a model request.
+                                pending = await append_task
+                                if pending is not None:
+                                    cancelled_request = _output_limit_continuation_request(
+                                        request, _output_limit_message_payload(pending),
+                                    )
+                                    await asyncio.to_thread(self._persistence.begin_run, cancelled_request, pending)
+                                    await asyncio.to_thread(self._persistence.settle_run, cancelled_request, status="cancelled")
+                                raise
+                        yield {
+                            "kind": "output_limit",
+                            "action": event.recovery_action,
+                            "will_recover": event.will_recover,
+                            "saved_message": _output_limit_message_payload(saved_message),
+                            "next_user_message": _output_limit_message_payload(next_user_message),
+                            "usage": usage_to_payload(event.usage) if event.usage else None,
+                        }
+                        checkpoint_message = next_user_message or saved_message
+                        if include_persistence_checkpoints and checkpoint_message is not None:
+                            yield persistence_checkpoint_payload(ConversationPersistenceCheckpoint(checkpoint_message.message_id))
+                        if event.will_recover and event.recovery_action == "retry":
+                            continue
+                        _, settled_payload = await self._settlement.settle_failed(
+                            request, run_user_message, run_started_at=run_started_at,
+                            assistant_message=saved_message,
+                            content=event.error or "上游生成达到最大输出长度，回复未完成。",
+                            error_code="upstream_output_limit",
+                            attempt_count=event.attempt_index or 1,
+                            usage=event.usage, usage_payload=None,
+                            context_tokens=event.usage.prompt_tokens if event.usage else None,
+                            context_tokens_estimated=False,
+                            keep_running=event.will_recover and event.recovery_action == "send_message",
+                        )
+                        if settled_payload is not None:
+                            yield settled_payload
+                        if not event.will_recover:
+                            yield {
+                                "kind": "error",
+                                "error": event.error or "上游生成达到最大输出长度，回复未完成。",
+                                "error_code": "upstream_output_limit",
+                                "attempt_index": event.attempt_index or 1,
+                                "attempt_count": event.attempt_count or 1,
+                            }
+                        return
+
+                    if event.kind == ChatStreamEventKind.RETRY_RESET:
+                        upstream_attempt_index = max(
+                            upstream_attempt_index,
+                            event.attempt_index or upstream_attempt_index,
+                        )
+                        request = replace(
+                            request,
+                            upstream_attempt_index=upstream_attempt_index,
+                        )
+                        answer_parts.clear()
+                        thinking_parts.clear()
+                        yield stream_event_to_payload(
+                            event,
+                            usage_payload=usage_payload,
+                            context_tokens=context_tokens,
+                            context_tokens_estimated=context_tokens_estimated,
+                        )
+                        continue
+
+                    if event.kind == ChatStreamEventKind.ERROR:
+                        error = event.error or "上游供应商返回错误。"
+                        failed_message, settled_payload = await self._settlement.settle_failed(
+                            request,
+                            run_user_message,
+                            run_started_at=run_started_at,
+                            content=error,
+                            error_code=event.error_code or "upstream_response_failed",
+                            attempt_count=upstream_attempt_index,
+                            usage=usage,
+                            usage_payload=usage_payload,
+                            context_tokens=context_tokens,
+                            context_tokens_estimated=context_tokens_estimated,
+                        )
+                        if last_model_request is not None and failed_message is not None:
+                            schedule_model_exchange(
+                                last_model_request,
+                                failed_message,
+                                round_index=model_round_serial,
+                                round_usage=usage,
+                            )
+                        if settled_payload is not None:
+                            yield settled_payload
+                        yield {
+                            "kind": "error",
+                            "error": error,
+                            "error_code": event.error_code or "upstream_response_failed",
+                            "attempt_index": upstream_attempt_index,
+                            "attempt_count": max(
+                                upstream_attempt_index,
+                                request.upstream_attempt_count,
+                            ),
+                        }
+                        return
+                    if event.kind == ChatStreamEventKind.DELTA and event.content:
+                        answer_parts.append(event.content)
+                    if event.kind == ChatStreamEventKind.THINKING_DELTA and event.content:
+                        thinking_parts.append(event.content)
+                    if event.kind == ChatStreamEventKind.USAGE and event.usage:
+                        if event.usage.prompt_tokens is not None:
+                            context_tokens = event.usage.prompt_tokens
+                            context_tokens_estimated = (
+                                "prompt_tokens" in event.usage.estimated_fields
+                            )
+                        usage = merge_usage(usage, event.usage)
+                        usage_payload = usage_to_payload(usage)
+                    if event.kind == ChatStreamEventKind.TOOL_RESULT:
+                        answer_parts.clear()
+                        thinking_parts.clear()
+                    if event.kind == ChatStreamEventKind.DONE:
+                        done_payload = stream_event_to_payload(
+                            event,
+                            usage_payload=usage_payload,
+                            context_tokens=context_tokens,
+                            context_tokens_estimated=context_tokens_estimated,
+                        )
+                        continue
+
                     yield stream_event_to_payload(
                         event,
                         usage_payload=usage_payload,
                         context_tokens=context_tokens,
                         context_tokens_estimated=context_tokens_estimated,
                     )
-                    continue
-
-                if event.kind == ChatStreamEventKind.ERROR:
-                    error = event.error or "上游供应商返回错误。"
-                    failed_message, settled_payload = await self._settlement.settle_failed(
-                        request,
-                        run_user_message,
-                        run_started_at=run_started_at,
-                        content=error,
-                        error_code=event.error_code or "upstream_response_failed",
-                        attempt_count=upstream_attempt_index,
-                        usage=usage,
-                        usage_payload=usage_payload,
-                        context_tokens=context_tokens,
-                        context_tokens_estimated=context_tokens_estimated,
-                    )
-                    if last_model_request is not None and failed_message is not None:
-                        schedule_model_exchange(
-                            last_model_request,
-                            failed_message,
-                            round_index=model_round_serial,
-                            round_usage=usage,
-                        )
-                    if settled_payload is not None:
-                        yield settled_payload
-                    yield {
-                        "kind": "error",
-                        "error": error,
-                        "error_code": event.error_code or "upstream_response_failed",
-                        "attempt_index": upstream_attempt_index,
-                        "attempt_count": max(
-                            upstream_attempt_index,
-                            request.upstream_attempt_count,
-                        ),
-                    }
-                    return
-                if event.kind == ChatStreamEventKind.DELTA and event.content:
-                    answer_parts.append(event.content)
-                if event.kind == ChatStreamEventKind.THINKING_DELTA and event.content:
-                    thinking_parts.append(event.content)
-                if event.kind == ChatStreamEventKind.USAGE and event.usage:
-                    if event.usage.prompt_tokens is not None:
-                        context_tokens = event.usage.prompt_tokens
-                        context_tokens_estimated = (
-                            "prompt_tokens" in event.usage.estimated_fields
-                        )
-                    usage = merge_usage(usage, event.usage)
-                    usage_payload = usage_to_payload(usage)
-                if event.kind == ChatStreamEventKind.TOOL_RESULT:
-                    answer_parts.clear()
-                    thinking_parts.clear()
-                if event.kind == ChatStreamEventKind.DONE:
-                    done_payload = stream_event_to_payload(
-                        event,
-                        usage_payload=usage_payload,
-                        context_tokens=context_tokens,
-                        context_tokens_estimated=context_tokens_estimated,
-                    )
-                    continue
-
-                yield stream_event_to_payload(
-                    event,
-                    usage_payload=usage_payload,
-                    context_tokens=context_tokens,
-                    context_tokens_estimated=context_tokens_estimated,
-                )
 
             if await self._discard_removed_conversation(request):
                 await self._settlement.record_ai_run_elapsed(
@@ -647,6 +835,9 @@ class ProjectConversationStreamService:
                 sync_session_model=False,
             )
             final_assistant_message = assistant_message
+            if final_response_boundary is not None:
+                notices = await conversation_notifications.finish_response(request.project_id, request.session_id)
+                yield {**stream_event_to_payload(final_response_boundary), "notifications": [_output_limit_message_payload(item) for item in notices]}
             if assistant_message is None:
                 empty_response_error = "模型未返回可持久化的回复内容。"
                 final_assistant_message, settled_payload = await self._settlement.settle_failed(
@@ -992,7 +1183,7 @@ class ProjectConversationStreamService:
         | None = None,
     ) -> AsyncGenerator[ChatStreamEvent | ConversationPersistenceCheckpoint, None]:
         if self._tool_loop.should_run(stream_request):
-            async for event in self._tool_loop.stream_events(
+            tool_events = self._tool_loop.stream_events(
                 original_request,
                 stream_request,
                 prepare_model_request=(
@@ -1003,16 +1194,19 @@ class ProjectConversationStreamService:
                 on_model_request=on_model_request,
                 on_model_round_completed=on_model_round_completed,
                 on_tool_call_cancelled=on_tool_call_cancelled,
-            ):
-                yield event
+            )
+            async with aclosing(tool_events):
+                async for event in tool_events:
+                    yield event
             return
 
         await self._write_request_snapshot(stream_request)
         resolved_request = await self._resolve_model_request(stream_request)
         if on_model_request is not None:
             on_model_request(resolved_request)
-        async for event in self._chat_service.stream(resolved_request):
-            yield event
+        async with aclosing(self._chat_service.stream(resolved_request)) as events:
+            async for event in events:
+                yield event
 
     async def _write_request_snapshot(self, request: ChatCompletionRequest) -> None:
         await asyncio.to_thread(self._context_builder.write_injection_preview, request)
@@ -1073,4 +1267,34 @@ def get_project_conversation_stream_service() -> ProjectConversationStreamServic
         long_term_memory_service=(
             get_project_conversation_long_term_memory_service()
         ),
+    )
+
+
+def _output_limit_message_payload(message: ProjectConversationMessage | None) -> dict | None:
+    if message is None:
+        return None
+    return {
+        "message_id": message.message_id, "session_id": message.session_id,
+        "role": message.role, "content": message.content, "name": message.name,
+        "thinking_content": message.thinking_content, "usage": message.usage,
+        "provider_id": message.provider_id, "model_id": message.model_id,
+        "target_provider_id": message.target_provider_id,
+        "target_model_id": message.target_model_id,
+        "status": message.status, "created_at": message.created_at,
+        "updated_at": message.updated_at,
+        "origin_message_id": message.origin_message_id or message.message_id,
+        "finish_reason": message.finish_reason,
+        "include_in_context": message.include_in_context,
+        "message_source": message.message_source,
+        "continuation_of": message.continuation_of,
+    }
+
+
+def _output_limit_continuation_request(request: ChatCompletionRequest, message: dict) -> ChatCompletionRequest:
+    return replace(
+        request, run_id="run_" + message["message_id"], user_message_id=message["message_id"],
+        messages=(ChatMessage(
+            role=ChatMessageRole.USER, content=message["content"], message_id=message["message_id"],
+            internal_metadata={"message_source": "output_limit", "continuation_of": message.get("continuation_of")},
+        ),),
     )

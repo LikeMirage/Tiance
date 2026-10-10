@@ -79,6 +79,10 @@ class ConversationStreamContextBuilder:
                 session.settings.malformed_tool_call_recovery_enabled
             ),
             upstream_retry_count=session.settings.upstream_retry_count,
+            output_limit_action=session.settings.output_limit_action,
+            output_limit_save_partial=session.settings.output_limit_save_partial,
+            output_limit_message=session.settings.output_limit_message,
+            output_limit_max_recoveries=session.settings.output_limit_max_recoveries,
             cache_affinity_id=self._conversation_service.get_cache_affinity_id(
                 request.project_id,
                 request.session_id,

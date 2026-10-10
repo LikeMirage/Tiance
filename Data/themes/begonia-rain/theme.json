@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 2,
+  "id": "begonia-rain",
+  "mode": "light",
+  "tokens": {
+    "color": {
+      "surface": {
+        "base": "#F3EFEC",
+        "panel": "rgba(252,249,247,0.91)",
+        "panelAlt": "rgba(247,242,239,0.93)",
+        "toolbar": "rgba(246,241,238,0.96)",
+        "titlebar": "rgba(241,235,232,0.97)",
+        "statusbar": "#EDE4E0",
+        "sidebar": "rgba(243,237,234,0.95)",
+        "canvas": "rgba(253,251,249,0.83)",
+        "elevated": "rgba(255,253,251,0.98)",
+        "muted": "#EFE7E4",
+        "overlay": "rgba(56,45,43,0.20)",
+        "menu": "rgba(255,252,250,0.99)",
+        "input": "rgba(255,253,251,0.94)",
+        "inputHover": "#FFFFFF",
+        "itemHover": "rgba(161,83,86,0.08)",
+        "itemHoverStrong": "rgba(161,83,86,0.15)"
+      },
+      "text": {
+        "primary": "#403737",
+        "secondary": "#6A5D5D",
+        "muted": "#8D7E7D",
+        "heading": "#302727",
+        "headingAccent": "#9D555B",
+        "inverse": "#FFF9F7",
+        "selectionText": "#FFFFFF"
+      },
+      "border": {
+        "soft": "rgba(98,76,76,0.17)",
+        "subtle": "rgba(98,76,76,0.10)",
+        "strong": "rgba(128,75,78,0.29)",
+        "focus": "#AC6268",
+        "separator": "rgba(98,76,76,0.14)"
+      },
+      "accent": {
+        "base": "#A65B61",
+        "rgb": "166,91,97",
+        "hover": "#8D484E",
+        "text": "#9D555B",
+        "softText": "#B47B7F",
+        "selectionText": "#FFFFFF",
+        "selectionBgSubtle": "rgba(166,91,97,0.10)",
+        "selectionBg": "#A65B61",
+        "selectionBgHover": "#8D484E",
+        "selectionBorder": "rgba(166,91,97,0.58)",
+        "textSelectionBg": "rgba(166,91,97,0.76)"
+      },
+      "state": {
+        "danger": "#C04E54",
+        "dangerText": "#A1393E",
+        "dangerSoftText": "#B86165",
+        "dangerBg": "#FCEDEF",
+        "dangerBorder": "#E4B2B6",
+        "warning": "#B17D39",
+        "warningText": "#82591F",
+        "success": "#56806A",
+        "successText": "#3E6651"
+      },
+      "collapse": {
+        "fadeStart": "rgba(253,251,249,0)",
+        "fadeMid": "rgba(253,251,249,0.75)",
+        "fadeEnd": "rgba(253,251,249,1)",
+        "caret": "#7B6E6D"
+      },
+      "scrollbar": {
+        "track": "transparent",
+        "thumb": "rgba(96,76,76,0.24)",
+        "thumbHover": "rgba(166,91,97,0.50)"
+      }
+    },
+    "structure": {
+      "color": "rgba(98,76,76,0.14)",
+      "hoverColor": "rgba(172,98,104,0.44)",
+      "activeColor": "#AC6268",
+      "enabled": true,
+      "lines": {
+        "titlebarBottom": true,
+        "statusbarTop": true,
+        "navigationRight": true,
+        "sidePanelRight": true,
+        "assistantPanelLeft": true,
+        "contentSplit": true
+      },
+      "width": 1
+    },
+    "shadow": {
+      "floating": "0 16px 42px rgba(72,52,52,0.17)",
+      "panel": "0 4px 18px rgba(72,52,52,0.09)"
+    },
+    "editor": {
+      "background": "#FBF8F6",
+      "foreground": "#423939",
+      "gutterBackground": "#F2ECE9",
+      "gutterForeground": "#938481",
+      "activeLine": "rgba(166,91,97,0.07)",
+      "selectionMatch": "rgba(95,131,126,0.24)",
+      "tooltipBackground": "#FFFFFF"
+    },
+    "background": {
+      "image": "assets/begonia-rain-theme-background-e4ca298d90.png",
+      "opacity": 0.58,
+      "blur": 1,
+      "overlay": "rgba(249,246,243,0.10)",
+      "position": "center",
+      "size": "cover",
+      "repeat": "no-repeat"
+    }
+  },
+  "integrations": {
+    "codeMirror": "light",
+    "shiki": "github-light-default",
+    "mermaid": "neutral",
+    "milkdown": "light"
+  },
+  "registrationName": "海棠春雨"
+}

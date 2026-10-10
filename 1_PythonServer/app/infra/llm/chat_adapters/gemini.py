@@ -1,3 +1,4 @@
+from app.domain.llm.output_limit_error import OutputLimitError
 from collections.abc import AsyncGenerator
 
 from app.core.errors import UpstreamProviderError
@@ -55,6 +56,14 @@ class GeminiGenerateContentChatAdapter:
         )
         parts = _extract_gemini_parts(payload)
         finish_reason = _extract_gemini_finish_reason(payload)
+        if finish_reason == "MAX_TOKENS":
+            text, thinking = _extract_gemini_content(payload)
+            raise OutputLimitError(ChatCompletionResult(
+                provider_id=request.provider_id, model_id=request.model_id,
+                message=ChatMessage(role=ChatMessageRole.ASSISTANT, content=text, thinking_content=thinking),
+                thinking_content=thinking, finish_reason=finish_reason,
+                usage=_parse_gemini_usage(payload.get("usageMetadata")), raw_response=payload,
+            ))
         if not parts or finish_reason is None:
             raise UpstreamProviderError(
                 "上游 Gemini 返回缺少完整候选结果结构。",
@@ -101,6 +110,7 @@ class GeminiGenerateContentChatAdapter:
         stream_body: StreamBody,
     ) -> AsyncGenerator[ChatStreamEvent, None]:
         last_finish_reason: str | None = None
+        malformed_tool_arguments = False
         emitted_tool_call_keys: set[tuple[str, str]] = set()
         continuation_parts: list[dict[str, object]] = []
         async for payload in _iter_sse_payloads(
@@ -130,10 +140,8 @@ class GeminiGenerateContentChatAdapter:
             try:
                 tool_calls = _extract_gemini_tool_calls(payload)
             except ValueError:
-                yield _protocol_error_event(
-                    "上游 Gemini 返回了无效的工具参数。"
-                )
-                return
+                malformed_tool_arguments = True
+                tool_calls = ()
             for tool_call in tool_calls:
                 tool_call_key = (tool_call.name, tool_call.arguments)
                 if tool_call_key in emitted_tool_call_keys:
@@ -161,7 +169,11 @@ class GeminiGenerateContentChatAdapter:
                 kind=ChatStreamEventKind.ERROR,
                 error=message,
                 error_code=code,
+                finish_reason=last_finish_reason,
             )
+            return
+        if malformed_tool_arguments:
+            yield _protocol_error_event("上游 Gemini 返回了无效的工具参数。")
             return
         continuation = build_protocol_continuation(
             request,
@@ -386,6 +398,8 @@ def _parse_gemini_usage(value: object) -> ChatUsage | None:
     completion_tokens = _optional_int(value.get("candidatesTokenCount"))
     total_tokens = _optional_int(value.get("totalTokenCount"))
     reasoning_tokens = _optional_int(value.get("thoughtsTokenCount"))
+    if completion_tokens is not None or reasoning_tokens is not None:
+        completion_tokens = (completion_tokens or 0) + (reasoning_tokens or 0)
     if (
         prompt_tokens is None
         and completion_tokens is None

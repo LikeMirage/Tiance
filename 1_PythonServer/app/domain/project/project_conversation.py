@@ -8,6 +8,7 @@ from app.domain.llm.chat import (
     ChatProtocolContinuation,
     ChatToolCall,
 )
+from app.domain.llm.output_limit import DEFAULT_OUTPUT_LIMIT_MESSAGE, OutputLimitAction
 
 
 ProjectConversationMessageRole = Literal[
@@ -30,8 +31,6 @@ class ProjectConversationSessionSettings:
     memory_raw_context_token_reserve: int = 30000
     project_memory_enabled: bool = True
     project_memory_extraction_enabled: bool = True
-    return_cancelled_messages: bool = True
-    return_user_before_cancelled: bool = True
     streaming_enabled: bool = True
     auto_collapse_assistant_process: bool = True
     malformed_tool_call_recovery_enabled: bool = True
@@ -39,6 +38,10 @@ class ProjectConversationSessionSettings:
     inject_message_timestamps: bool = True
     system_prompt: str = ""
     max_output_tokens: int = 32768
+    output_limit_action: OutputLimitAction = "retry"
+    output_limit_save_partial: bool = False
+    output_limit_message: str = DEFAULT_OUTPUT_LIMIT_MESSAGE
+    output_limit_max_recoveries: int | None = None
     temperature: float | None = None
     top_p: float | None = None
     tools_enabled: bool = True
@@ -127,6 +130,10 @@ class ProjectConversationMessage:
     variant_group_id: str | None = None
     variant_index: int = 1
     references: list[dict] = field(default_factory=list)
+    finish_reason: str | None = None
+    include_in_context: bool = True
+    message_source: str | None = None
+    continuation_of: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

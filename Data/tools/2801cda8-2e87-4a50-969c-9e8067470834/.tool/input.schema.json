@@ -1,0 +1,171 @@
+{
+  "type": "object",
+  "description": "【最短持锁】只在当前GUI操作及必要界面确认期间持锁。当前GUI阶段结束，或下一步不再需要GUI时，立即gui_runtime stop并核实释放；等待用户、失败或取消时也先解锁，不等整件任务结束或空闲超时。如需切换展示窗口，最多尝试一次，随后立即stop，不以切换成功作为解锁前提。解锁后继续GUI操作须重新gui_runtime start并用gui_inspect start建立新会话，不沿用旧Frame、预览或控件引用。 先调用gui_runtime start锁定，再用gui_inspect start建立GUI会话。独立可选的Windows UIAutomation控件工具；纯视觉任务不要使用。inspect读取控件名称、automation_id、类型、矩形、状态和支持的patterns；窗口会话读取所选窗口，屏幕会话读取当前前台窗口，不激活窗口。query按名称或automation_id包含匹配；结果分页，翻页传原snapshot_id和next_offset。read重新读取element_id的实时状态。invoke直接触发按钮，set_value设置输入框，select选择列表项，toggle切换复选状态，expand/collapse展开折叠，focus聚焦；只执行控件支持的能力，不暗中转为坐标点击。密码值不读取，密码控件不执行这些动作。控件引用属于当前锁和GUI会话，不绑定截图frame_id；每次动作重新核对控件身份、可用性和前台窗口。截图刷新不使引用自动失效，控件消失或身份变化则重新inspect。动作后返回截图；execution_status与observation_status分开，unknown表示可能已生效，先观察或read，不要盲目重试。timeout_seconds默认10秒、范围1至60秒，超时不返回残缺列表，不自动重试。 GUI操作中收到用户新消息，表示用户已解除锁定并暂停上一轮AI对话；如需继续操作，必须重新调用gui_runtime start并等待成功，再调用gui_inspect start建立新会话并重新观察，不沿用旧会话、Frame、预览或控件引用。 网页或桌面表单的按钮、输入框、列表项能定位且支持对应pattern时优先本工具，避免反复目测坐标；纯视觉、canvas、自绘或未暴露控件时使用视觉工具，不反复扫描控件树。inspect先读取完整树再筛选和分页，query/limit不缩减读取范围；同一快照翻页沿用snapshot_id。动作完成不等于应用业务成功，仍需必要结果确认，确认后立即stop。",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "inspect",
+        "read",
+        "invoke",
+        "set_value",
+        "select",
+        "toggle",
+        "expand",
+        "collapse",
+        "focus"
+      ],
+      "permission_type": "ui_control"
+    },
+    "gui_session_id": {
+      "type": "string",
+      "pattern": "^gui_[a-f0-9]{32}$",
+      "permission_type": "none"
+    },
+    "element_id": {
+      "type": "string",
+      "pattern": "^uia_[a-f0-9]{32}:[0-9]+$",
+      "description": "使用本GUI会话inspect实际返回的编号，不是automation_id。",
+      "permission_type": "none"
+    },
+    "snapshot_id": {
+      "type": "string",
+      "pattern": "^uia_[a-f0-9]{32}$",
+      "description": "inspect翻页时提供原快照编号；省略时重新读取完整控件树。",
+      "permission_type": "none"
+    },
+    "query": {
+      "type": "string",
+      "default": "",
+      "description": "inspect按名称或automation_id包含文字筛选，不区分大小写；翻页使用相同query。先读取完整控件树再筛选，query不缩减读取范围。",
+      "permission_type": "none"
+    },
+    "offset": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "inspect分页起点；大于0必须提供snapshot_id。",
+      "permission_type": "none"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 500,
+      "default": 100,
+      "description": "inspect单页数量，只控制传输页大小，不缩减完整控件树的读取范围；全部控件留在快照，total/complete/next_offset说明是否读完。",
+      "permission_type": "none"
+    },
+    "timeout_seconds": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 60,
+      "default": 10,
+      "description": "本次UIA读取或动作（含工作进程启动）的时限；超时不自动重试。动作超时可能已生效，返回unknown。",
+      "permission_type": "none"
+    },
+    "screenshot_delay_seconds": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 30,
+      "default": 1,
+      "description": "仅动作使用，动作结束后等待再截图的秒数；截图沿用GUI会话目标，失败不抹掉已执行结果。",
+      "permission_type": "none"
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 100000,
+      "description": "set_value完整替换输入框内容，最多100000字符，超出明确拒绝。",
+      "permission_type": "none"
+    }
+  },
+  "required": [
+    "action",
+    "gui_session_id"
+  ],
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "properties": {
+        "action": {
+          "enum": [
+            "inspect"
+          ]
+        },
+        "gui_session_id": {},
+        "timeout_seconds": {},
+        "snapshot_id": {},
+        "query": {},
+        "offset": {},
+        "limit": {}
+      },
+      "required": [
+        "action",
+        "gui_session_id"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "properties": {
+        "action": {
+          "enum": [
+            "read"
+          ]
+        },
+        "gui_session_id": {},
+        "timeout_seconds": {},
+        "element_id": {}
+      },
+      "required": [
+        "action",
+        "gui_session_id",
+        "element_id"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "properties": {
+        "action": {
+          "enum": [
+            "set_value"
+          ]
+        },
+        "gui_session_id": {},
+        "timeout_seconds": {},
+        "element_id": {},
+        "text": {},
+        "screenshot_delay_seconds": {}
+      },
+      "required": [
+        "action",
+        "gui_session_id",
+        "element_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "properties": {
+        "action": {
+          "enum": [
+            "invoke",
+            "select",
+            "toggle",
+            "expand",
+            "collapse",
+            "focus"
+          ]
+        },
+        "gui_session_id": {},
+        "timeout_seconds": {},
+        "element_id": {},
+        "screenshot_delay_seconds": {}
+      },
+      "required": [
+        "action",
+        "gui_session_id",
+        "element_id"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

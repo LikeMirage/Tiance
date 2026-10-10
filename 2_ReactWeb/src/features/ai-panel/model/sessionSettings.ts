@@ -3,7 +3,10 @@ import type {
   ConversationSessionSettings,
 } from "../../../entities/llm-chat/model/conversation";
 
+import { DEFAULT_OUTPUT_LIMIT_POLICY } from "../../../entities/llm-chat/model/outputLimitPolicy";
+
 export const DEFAULT_SESSION_SETTINGS: ConversationSessionSettings = {
+  ...DEFAULT_OUTPUT_LIMIT_POLICY,
   global_memory_enabled: true,
   global_memory_extraction_enabled: true,
   memory_compression_enabled: true,
@@ -11,8 +14,6 @@ export const DEFAULT_SESSION_SETTINGS: ConversationSessionSettings = {
   memory_raw_context_token_reserve: 30000,
   project_memory_enabled: true,
   project_memory_extraction_enabled: true,
-  return_cancelled_messages: true,
-  return_user_before_cancelled: true,
   streaming_enabled: true,
   auto_collapse_assistant_process: true,
   malformed_tool_call_recovery_enabled: true,

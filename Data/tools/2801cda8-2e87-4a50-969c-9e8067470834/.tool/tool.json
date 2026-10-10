@@ -1,0 +1,36 @@
+{
+  "description": "【最短持锁】只在当前GUI操作及必要界面确认期间持锁。当前GUI阶段结束，或下一步不再需要GUI时，立即gui_runtime stop并核实释放；等待用户、失败或取消时也先解锁，不等整件任务结束或空闲超时。如需切换展示窗口，最多尝试一次，随后立即stop，不以切换成功作为解锁前提。解锁后继续GUI操作须重新gui_runtime start并用gui_inspect start建立新会话，不沿用旧Frame、预览或控件引用。 先调用gui_runtime start锁定，再用gui_inspect start建立GUI会话。独立可选的Windows UIAutomation控件工具；纯视觉任务不要使用。inspect读取控件名称、automation_id、类型、矩形、状态和支持的patterns；窗口会话读取所选窗口，屏幕会话读取当前前台窗口，不激活窗口。query按名称或automation_id包含匹配；结果分页，翻页传原snapshot_id和next_offset。read重新读取element_id的实时状态。invoke直接触发按钮，set_value设置输入框，select选择列表项，toggle切换复选状态，expand/collapse展开折叠，focus聚焦；只执行控件支持的能力，不暗中转为坐标点击。密码值不读取，密码控件不执行这些动作。控件引用属于当前锁和GUI会话，不绑定截图frame_id；每次动作重新核对控件身份、可用性和前台窗口。截图刷新不使引用自动失效，控件消失或身份变化则重新inspect。动作后返回截图；execution_status与observation_status分开，unknown表示可能已生效，先观察或read，不要盲目重试。timeout_seconds默认10秒、范围1至60秒，超时不返回残缺列表，不自动重试。 GUI操作中收到用户新消息，表示用户已解除锁定并暂停上一轮AI对话；如需继续操作，必须重新调用gui_runtime start并等待成功，再调用gui_inspect start建立新会话并重新观察，不沿用旧会话、Frame、预览或控件引用。 网页或桌面表单的按钮、输入框、列表项能定位且支持对应pattern时优先本工具，避免反复目测坐标；纯视觉、canvas、自绘或未暴露控件时使用视觉工具，不反复扫描控件树。inspect先读取完整树再筛选和分页，query/limit不缩减读取范围；同一快照翻页沿用snapshot_id。动作完成不等于应用业务成功，仍需必要结果确认，确认后立即stop。",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json",
+    "permissions": ".tool/permissions.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "keywords": [
+    "GUI",
+    "UIAutomation",
+    "控件",
+    "按钮",
+    "输入框"
+  ],
+  "loading": {
+    "dynamic": false
+  },
+  "name": "gui_uia",
+  "registration_name": "GUI 控件操作",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 100,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

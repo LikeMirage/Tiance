@@ -1,14 +1,13 @@
 {
-  "description": "所有GUI查看和操作（包括gui_inspect list_windows）都必须先调用本工具start并等待成功返回，再调用其他GUI工具。gui_inspect start另用于创建截图会话，不会代替锁定。Esc随时解锁。start的idle_timeout_seconds默认120秒；没有动作执行且没有成功GUI请求超过该时长自动解锁，status不续期。动作执行期间不算空闲。连接会话运行器时每秒检查所属生成任务，检查连接超时2秒；任务结束、取消、换代或失联即释放。释放后排队动作取消、旧预览失效，必须重新start并观察。 启动前验证状态目录的读写、替换和删除权限，不修改系统ACL；新运行器必须确认钩子生效，启动异常只回收本次创建的进程。启动确认10秒，失败回收最多等待3秒；错误报告pid、已知端口、进程是否仍存活和释放结果，无法确认的锁状态以active=null报告。",
-  "registration_name": "GUI 界面锁",
+  "description": "【最短持锁】只在当前GUI操作及必要界面确认期间持锁。当前GUI阶段结束，或下一步不再需要GUI时，立即gui_runtime stop并核实释放；等待用户、失败或取消时也先解锁，不等整件任务结束或空闲超时。如需切换展示窗口，最多尝试一次，随后立即stop，不以切换成功作为解锁前提。解锁后继续GUI操作须重新gui_runtime start并用gui_inspect start建立新会话，不沿用旧Frame、预览或控件引用。 gui_inspect/gui_mouse/gui_keyboard/gui_batch/gui_uia的查看和操作（包括gui_inspect list_windows）都必须先调用本工具start并等待成功返回，再调用这些GUI工具。gui_annotate可在解锁后独立显示和编辑，不要求持锁。gui_inspect start另用于创建截图会话，不会代替锁定。Esc随时解锁。start的idle_timeout_seconds默认120秒；没有动作执行且没有成功GUI请求超过该时长自动解锁，status不续期。动作执行期间不算空闲。连接会话运行器时每秒检查所属生成任务，检查连接超时2秒；任务结束、取消、换代或失联即释放。释放后排队动作取消、旧预览失效，必须重新start并观察。 启动前验证状态目录的读写、替换和删除权限，不修改系统ACL；新运行器必须确认钩子生效，启动异常只回收本次创建的进程。启动确认10秒，失败回收最多等待3秒；错误报告pid、已知端口、进程是否仍存活和释放结果，无法确认的锁状态以active=null报告。 GUI操作中收到用户新消息，表示用户已解除锁定并暂停上一轮AI对话；如需继续操作，必须重新调用gui_runtime start并等待成功，再调用gui_inspect start建立新会话并重新观察，不沿用旧会话、Frame、预览或控件引用。 收尾如需切换展示窗口，使用真实hwnd及gui_inspect的显式激活能力；尝试一次后立即gui_runtime stop，不以切换成功作为解锁前提。 顶部提示条显示本次锁定时长，从0s开始按秒更新，最大单位为d，不转换为年。 空闲自动解锁只是兜底，不能替代主动stop；stop未确认释放时先核对锁状态，不宣称已解锁。 解锁保留GUI截图和定位文件，关闭旧执行会话。",
   "execution": {
     "parallel": false
   },
   "files": {
     "examples": ".tool/examples.json",
-    "permissions": ".tool/permissions.json",
     "input_schema": ".tool/input.schema.json",
-    "output_schema": ".tool/output.schema.json"
+    "output_schema": ".tool/output.schema.json",
+    "permissions": ".tool/permissions.json"
   },
   "io": {
     "input": "stdin_json",
@@ -25,6 +24,7 @@
     "dynamic": false
   },
   "name": "gui_runtime",
+  "registration_name": "GUI 界面锁",
   "runtime": {
     "entry": "program/main.py",
     "timeout_seconds": 30,

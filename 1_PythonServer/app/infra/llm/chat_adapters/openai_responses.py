@@ -1,3 +1,4 @@
+from app.domain.llm.output_limit_error import OutputLimitError
 from collections.abc import AsyncGenerator
 
 from app.core.errors import UpstreamProviderError
@@ -70,6 +71,15 @@ class OpenAIResponsesChatAdapter:
             ),
         )
         status = str(payload.get("status") or "")
+        if status == "incomplete" and isinstance(payload.get("incomplete_details"), dict) and payload["incomplete_details"].get("reason") == "max_output_tokens":
+            text = _extract_responses_text(payload)
+            thinking = _extract_responses_reasoning_text(payload)
+            raise OutputLimitError(ChatCompletionResult(
+                provider_id=request.provider_id, model_id=request.model_id,
+                message=ChatMessage(role=ChatMessageRole.ASSISTANT, content=text, thinking_content=thinking),
+                thinking_content=thinking, finish_reason="max_output_tokens",
+                usage=_parse_responses_usage(payload.get("usage")), raw_response=payload,
+            ))
         if status == "incomplete":
             raise UpstreamProviderError(
                 _responses_incomplete_message(payload),
@@ -268,6 +278,7 @@ class OpenAIResponsesChatAdapter:
                         yield ChatStreamEvent(
                             kind=ChatStreamEventKind.ERROR,
                             error=_responses_incomplete_message(response),
+                            finish_reason=_responses_incomplete_reason(response),
                             error_code="upstream_response_incomplete",
                         )
                         return
@@ -313,6 +324,7 @@ class OpenAIResponsesChatAdapter:
                 yield ChatStreamEvent(
                     kind=ChatStreamEventKind.ERROR,
                     error=_responses_incomplete_message(response),
+                    finish_reason=_responses_incomplete_reason(response),
                     error_code="upstream_response_incomplete",
                 )
                 return
@@ -342,3 +354,10 @@ def _build_profiled_responses_body(
         include_message_phase=provider_profile.include_responses_message_phase,
     )
     return provider_profile.apply_openai_responses_body(body, request)
+
+
+def _responses_incomplete_reason(response: object) -> str | None:
+    if not isinstance(response, dict):
+        return None
+    details = response.get("incomplete_details")
+    return _optional_str(details.get("reason")) if isinstance(details, dict) else None

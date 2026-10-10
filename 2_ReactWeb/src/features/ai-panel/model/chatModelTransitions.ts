@@ -1,10 +1,11 @@
-import type { ChatMessage } from "./chatMessage";
+import { isChatNotificationMessage, type ChatMessage } from "./chatMessage";
 
 export function buildModelSwitches(messages: ChatMessage[]) {
   const switches = new Map<string, string>();
   let previousModelId: string | null = null;
 
   for (const message of messages) {
+    if (isChatNotificationMessage(message)) continue;
     const modelId = resolveMessageModelId(message);
     if (!modelId) continue;
     if (previousModelId && modelId !== previousModelId) {

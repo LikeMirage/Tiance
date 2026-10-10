@@ -1,5 +1,6 @@
 import {
   readToolProcessItemFromMessage,
+  isChatNotificationMessage,
   upsertToolProcessItem,
   type ChatAssistantProcessItem,
   type ChatMessage,
@@ -12,16 +13,59 @@ type BuildChatDisplayMessagesOptions = {
   runtimeStatus?: ConversationRuntimeStatus | null;
 };
 
+/** View-only cache. Message objects are immutable; replacing any source message
+ * invalidates its entire user turn. Entries removed from the input are released.
+ */
+export function createChatDisplayProjector() {
+  type Entry = {
+    sources: ChatMessage[];
+    status: BuildChatDisplayMessagesOptions["runtimeStatus"];
+    display: ChatMessage[];
+  };
+  let entries = new Map<string, Entry>();
+  let previous: ChatMessage[] = [];
+  return (messages: ChatMessage[], options: BuildChatDisplayMessagesOptions = {}) => {
+    const nextEntries = new Map<string, Entry>();
+    const result: ChatMessage[] = [];
+    let start = 0;
+    for (let end = 1; end <= messages.length; end += 1) {
+      if (end < messages.length && messages[end].role !== "user") continue;
+      const key = messages[start].id;
+      // Every preceding turn is closed, independently of the current run.
+      const status = end === messages.length ? options.runtimeStatus : "idle";
+      let entry = entries.get(key);
+      if (!entry || entry.status !== status || entry.sources.length !== end - start
+        || entry.sources.some((source, index) => source !== messages[start + index])) {
+        const sources = messages.slice(start, end);
+        entry = { sources, status, display: buildChatDisplayMessages(sources, { runtimeStatus: status }) };
+      }
+      nextEntries.set(key, entry);
+      for (const message of entry.display) result.push(message);
+      start = end;
+    }
+    entries = nextEntries;
+    if (result.length === previous.length && result.every((message, index) => message === previous[index])) {
+      return previous;
+    }
+    previous = result;
+    return result;
+  };
+}
+
 export function buildChatDisplayMessages(
   messages: ChatMessage[],
   options: BuildChatDisplayMessagesOptions = {},
 ) {
-  const groupedMessages = groupToolMessagesWithAssistant(messages);
-  const displayMessages = coalesceAssistantTurnProcesses(
-    groupedMessages,
-    options.runtimeStatus,
-  );
-  return finalizeTerminalConversationTurns(displayMessages, options.runtimeStatus);
+  const visibleMessages = messages.filter((message) => !message.notificationPending);
+  const groupedMessages = groupToolMessagesWithAssistant(visibleMessages);
+  const displayMessages = coalesceAssistantTurnProcesses(groupedMessages);
+  const finalized = finalizeTerminalConversationTurns(displayMessages, options.runtimeStatus);
+  if (options.runtimeStatus !== "running") return finalized;
+  const lastUser = finalized.reduce((last, message, index) => message.role === "user" ? index : last, -1);
+  const activeIndex = finalized.reduce((last, message, index) => message.role === "assistant" && message.finishReason !== "output_limit" ? index : last, -1);
+  if (activeIndex <= lastUser || finalized[activeIndex].status === "running"
+    || finalized[activeIndex].status === "cancelled" || finalized[activeIndex].status === "error") return finalized;
+  return finalized.map((message, index) => index === activeIndex ? { ...message, status: "running" } : message);
 }
 
 export function resolveAssistantBodyContent(message: ChatMessage) {
@@ -71,14 +115,15 @@ function groupToolMessagesWithAssistant(messages: ChatMessage[]) {
         grouped.push(message);
         return;
       }
-      const previousMessage = grouped[grouped.length - 1];
+      const previousIndex = findToolOwnerIndex(grouped, item);
+      const previousMessage = grouped[previousIndex];
       if (
         previousMessage &&
         (previousMessage.role === "assistant" || previousMessage.role === "error") &&
         !previousMessage.runAttemptFailure &&
         hasMatchingToolCall(previousMessage, item.callId, item.name)
       ) {
-        grouped[grouped.length - 1] = upsertToolResultIntoAssistant(
+        grouped[previousIndex] = upsertToolResultIntoAssistant(
           previousMessage,
           item,
         );
@@ -91,10 +136,17 @@ function groupToolMessagesWithAssistant(messages: ChatMessage[]) {
       return;
     }
 
+    if (pendingItems.length > 0 && isChatNotificationMessage(message)) {
+      // Older histories can contain a tool result before its assistant row.
+      // Notices between them must not become a new tool-group boundary.
+      pendingMessages.push(message);
+      return;
+    }
+
     if (
       pendingItems.length > 0 &&
-      (message.role === "assistant" || message.role === "error") &&
-      !message.runAttemptFailure
+      message.role === "assistant" &&
+      message.finishReason !== "output_limit"
     ) {
       const nextToolCalls = pendingItems.reduce(
         (items, item) => upsertToolProcessItem(items, item),
@@ -103,6 +155,14 @@ function groupToolMessagesWithAssistant(messages: ChatMessage[]) {
       grouped.push({
         ...message,
         toolCalls: nextToolCalls,
+        ...(pendingMessages.some(isChatNotificationMessage) ? {
+          processItems: [
+            ...pendingMessages.flatMap((item) => buildProcessItemsForMergedAssistantMessage(item, false)),
+            ...(message.processItems ?? []).filter((item) => item.type !== "tool"
+              || !pendingItems.some((tool) => (tool.callId && tool.callId === item.tool.callId)
+                || (!tool.callId && tool.name === item.tool.name))),
+          ],
+        } : {}),
       });
       pendingMessages = [];
       pendingItems = [];
@@ -119,18 +179,14 @@ function groupToolMessagesWithAssistant(messages: ChatMessage[]) {
 
 function coalesceAssistantTurnProcesses(
   messages: ChatMessage[],
-  runtimeStatus: ConversationRuntimeStatus | null | undefined,
 ) {
   let changed = false;
   const result: ChatMessage[] = [];
   let assistantTurnMessages: ChatMessage[] = [];
 
-  const flushAssistantTurn = (isLastTurn: boolean) => {
+  const flushAssistantTurn = () => {
     if (assistantTurnMessages.length === 0) return;
-    const mergedTurn = mergeAssistantTurnMessages(
-      assistantTurnMessages,
-      isAssistantTurnClosed(runtimeStatus, isLastTurn),
-    );
+    const mergedTurn = mergeAssistantTurnMessages(assistantTurnMessages);
     if (mergedTurn.length !== assistantTurnMessages.length) {
       changed = true;
     }
@@ -139,43 +195,39 @@ function coalesceAssistantTurnProcesses(
   };
 
   messages.forEach((message) => {
-    if (message.runAttemptFailure) {
-      flushAssistantTurn(false);
+    if (message.finishReason === "output_limit") {
+      flushAssistantTurn();
       result.push(message);
       return;
     }
-    if (message.role === "assistant" || message.role === "error" || message.role === "tool") {
+    if (message.role === "assistant" || message.role === "tool" || isChatNotificationMessage(message)) {
       assistantTurnMessages.push(message);
       return;
     }
-    flushAssistantTurn(false);
+    flushAssistantTurn();
     result.push(message);
   });
 
-  flushAssistantTurn(true);
+  flushAssistantTurn();
   return changed ? result : messages;
 }
 
 function mergeAssistantTurnMessages(
   messages: ChatMessage[],
-  isTurnClosed: boolean,
 ) {
-  if (messages.length <= 1) return messages;
   const finalMessage = findLastAssistantLikeMessage(messages);
   if (!finalMessage) return messages;
-  if (finalMessage.status === "running") return messages;
-  if (
-    !resolveAssistantBodyContent(finalMessage).trim() &&
-    resolveMessageTerminalToolStatus(finalMessage) === null &&
-    !isTurnClosed
-  ) {
-    return messages;
-  }
+  const finalIndex = messages.indexOf(finalMessage);
+  const firstAssistant = messages.find((message) => message.role === "assistant")!;
+  const leading = messages.slice(0, messages.indexOf(firstAssistant));
+  const trailing = messages.slice(finalIndex + 1);
+  const turnMessages = messages.slice(messages.indexOf(firstAssistant), finalIndex + 1);
+  if (turnMessages.length === 1) return messages;
 
-  const processItems = messages.flatMap((message) =>
+  const processItems = turnMessages.flatMap((message) =>
     buildProcessItemsForMergedAssistantMessage(message, message.id === finalMessage.id),
   );
-  const toolCalls = messages.flatMap((message) => message.toolCalls ?? []);
+  const toolCalls = turnMessages.flatMap((message) => message.toolCalls ?? []);
   const terminalToolStatus = resolveMessageTerminalToolStatus(finalMessage);
   const finalizedProcessItems = terminalToolStatus
     ? finalizeUnresolvedProcessTools(processItems, terminalToolStatus, finalMessage)
@@ -183,15 +235,17 @@ function mergeAssistantTurnMessages(
   const finalizedToolCalls = terminalToolStatus
     ? toolCalls.map((tool) => finalizeUnresolvedTool(tool, terminalToolStatus, finalMessage))
     : toolCalls;
-  const turnUsage = mergeAssistantTurnUsage(messages);
+  const turnUsage = mergeAssistantTurnUsage(turnMessages.filter((message) => !isChatNotificationMessage(message)));
 
-  return [{
+  return [...leading, {
     ...finalMessage,
-    createdAt: messages[0].createdAt ?? finalMessage.createdAt,
+    // A notification or a new model round must never replace the mounted turn.
+    displayKey: firstAssistant.displayKey ?? firstAssistant.id,
+    createdAt: firstAssistant.createdAt ?? finalMessage.createdAt,
     processItems: finalizedProcessItems,
     toolCalls: finalizedToolCalls,
     usage: turnUsage,
-  }];
+  }, ...trailing];
 }
 
 const CHAT_USAGE_FIELDS = [
@@ -233,18 +287,10 @@ function mergeAssistantTurnUsage(messages: ChatMessage[]): ChatUsage | null {
   return merged;
 }
 
-function isAssistantTurnClosed(
-  runtimeStatus: ConversationRuntimeStatus | null | undefined,
-  isLastTurn: boolean,
-) {
-  if (!isLastTurn) return true;
-  return runtimeStatus === "idle" || runtimeStatus === "error";
-}
-
 function findLastAssistantLikeMessage(messages: ChatMessage[]) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (message.role === "assistant" || message.role === "error") {
+    if (message.role === "assistant") {
       return message;
     }
   }
@@ -255,6 +301,9 @@ function buildProcessItemsForMergedAssistantMessage(
   message: ChatMessage,
   isFinalMessage: boolean,
 ): ChatAssistantProcessItem[] {
+  if (isChatNotificationMessage(message)) {
+    return [{ id: message.id, type: "notification", message }];
+  }
   if (message.role === "tool") {
     const item = readToolProcessItemFromMessage(message);
     return item ? [{ id: item.id, type: "tool", tool: item }] : [];
@@ -282,6 +331,16 @@ function hasMatchingToolCall(
   return (message.toolCalls ?? []).some((item) =>
     (callId && item.callId === callId) || (!callId && item.name === name),
   );
+}
+
+function findToolOwnerIndex(messages: ChatMessage[], tool: ChatToolProcessItem) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role === "user" || message.finishReason === "output_limit") break;
+    if (message.role === "assistant" && hasMatchingToolCall(message, tool.callId, tool.name)) return index;
+    if (!isChatNotificationMessage(message) && message.role !== "assistant" && message.role !== "tool") break;
+  }
+  return -1;
 }
 
 function upsertToolResultIntoAssistant(
@@ -354,7 +413,9 @@ function finalizeTerminalConversationTurns(
 
   const finalizeTurn = (start: number, end: number, isLastTurn: boolean) => {
     const finalAssistant = findLastAssistantLikeMessage(messages.slice(start, end));
-    const explicitStatus = finalAssistant
+    const outcome = messages.slice(start, end).map((message) => message.runOutcome)
+      .find((value) => value?.status === "error" || value?.status === "cancelled");
+    const explicitStatus = outcome?.status === "error" || outcome?.status === "cancelled" ? outcome.status : finalAssistant
       ? resolveMessageTerminalToolStatus(finalAssistant)
       : null;
     const terminalStatus = explicitStatus ?? resolveRuntimeTerminalToolStatus(

@@ -12,7 +12,7 @@
     "content": "{\n  \"action\": \"zoom\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"view_id\": \"root\",\n  \"cell_id\": 6\n}"
   },
   {
-    "title": "等待界面稳定",
+    "title": "等待画面稳定（仍须确认业务结果）",
     "content": "{\n  \"action\": \"wait\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"mode\": \"stable\",\n  \"change_threshold_percent\": 0.5,\n  \"timeout_ms\": 5000,\n  \"interval_ms\": 250,\n  \"stable_checks\": 2\n}"
   },
   {
@@ -20,16 +20,16 @@
     "content": "{\n  \"action\": \"zoom\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"view_id\": \"root\",\n  \"cell_ids\": [\n    1,\n    2,\n    6,\n    7\n  ],\n  \"grid_mode\": \"fixed\",\n  \"grid_rows\": 4,\n  \"grid_cols\": 6\n}"
   },
   {
-    "title": "读取当前窗口控件第一页",
-    "content": "{\n  \"action\": \"elements\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"offset\": 0,\n  \"limit\": 100\n}"
-  },
-  {
-    "title": "重新激活原目标窗口并刷新坐标依据",
+    "title": "目标失去前台时激活，后续使用返回的新Frame",
     "content": "{\n  \"action\": \"activate\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\"\n}"
   },
   {
-    "title": "查看目标窗口（先list_windows取得真实句柄）",
+    "title": "直接观察目标窗口或空标题弹窗，不激活（先list_windows取得真实句柄）",
     "content": "{\n  \"action\": \"start\",\n  \"target\": \"window\",\n  \"hwnd\": 123456,\n  \"overlay\": \"labels+lines\"\n}"
+  },
+  {
+    "title": "需要时显式激活普通窗口后截图（会使某些菜单收起）",
+    "content": "{\n  \"action\": \"start\",\n  \"target\": \"window\",\n  \"hwnd\": 123456,\n  \"activate\": true\n}"
   },
   {
     "title": "返回根视图并仅保留网格线（使用当前Frame）",

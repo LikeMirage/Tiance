@@ -1,3 +1,4 @@
+import { DEFAULT_OUTPUT_LIMIT_POLICY, type OutputLimitPolicy } from "../../llm-chat/model/outputLimitPolicy";
 export const ROLE_CONFIGURATION_SECTIONS = [
   "profile",
   "model",
@@ -31,9 +32,7 @@ export type RolePromptConfiguration = {
   system_prompt: string;
 };
 
-export type RoleResponseConfiguration = {
-  return_cancelled_messages: boolean;
-  return_user_before_cancelled: boolean;
+export type RoleResponseConfiguration = OutputLimitPolicy & {
   streaming_enabled: boolean;
   auto_collapse_assistant_process: boolean;
   malformed_tool_call_recovery_enabled: boolean;
@@ -157,8 +156,14 @@ function parseSectionPayload<Section extends RoleConfigurationSection>(
       } as RoleConfigurationSectionValueMap[Section];
     case "response":
       return {
-        return_cancelled_messages: booleanValue(payload.return_cancelled_messages),
-        return_user_before_cancelled: booleanValue(payload.return_user_before_cancelled),
+        ...DEFAULT_OUTPUT_LIMIT_POLICY,
+        output_limit_action: ["stop", "retry", "send_message"].includes(String(payload.output_limit_action))
+          ? payload.output_limit_action : "retry",
+        output_limit_save_partial: payload.output_limit_save_partial === true,
+        output_limit_message: typeof payload.output_limit_message === "string"
+          ? payload.output_limit_message : DEFAULT_OUTPUT_LIMIT_POLICY.output_limit_message,
+        output_limit_max_recoveries: typeof payload.output_limit_max_recoveries === "number"
+          ? integerValue(payload.output_limit_max_recoveries, 0) : null,
         streaming_enabled: booleanValue(payload.streaming_enabled),
         auto_collapse_assistant_process: booleanValue(payload.auto_collapse_assistant_process),
         malformed_tool_call_recovery_enabled: booleanValue(

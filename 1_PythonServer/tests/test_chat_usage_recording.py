@@ -58,7 +58,8 @@ def test_complete_records_usage_in_chat_service_layer():
     result = asyncio.run(service.complete(_request(project_id=None, session_id=None)))
 
     assert result.usage == ChatUsage(prompt_tokens=3, completion_tokens=5, total_tokens=8)
-    assert usage_service.records == [
+    assert usage_service.records[0]["request_id"].startswith("request_")
+    assert [{key: value for key, value in record.items() if key != "request_id"} for record in usage_service.records] == [
         {
             "project_id": None,
             "session_id": None,
@@ -154,7 +155,8 @@ def test_stream_records_usage_in_chat_service_layer():
         ChatStreamEventKind.USAGE,
         ChatStreamEventKind.DONE,
     ]
-    assert usage_service.records == [
+    assert usage_service.records[0]["request_id"].startswith("request_")
+    assert [{key: value for key, value in record.items() if key != "request_id"} for record in usage_service.records] == [
         {
             "project_id": "p1",
             "session_id": "s1",
@@ -380,6 +382,7 @@ def test_stream_exhausts_retries_before_exposing_incomplete_response_error():
         ChatStreamEventKind.DELTA,
         ChatStreamEventKind.RETRY_RESET,
         ChatStreamEventKind.DELTA,
+        ChatStreamEventKind.USAGE,
         ChatStreamEventKind.ERROR,
     ]
     assert events[-1].error_code == "upstream_stream_incomplete"

@@ -1,4 +1,10 @@
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+
+from app.core.shell_lease import (
+    LEASE_INSTANCE_HEADER, LEASE_TOKEN_HEADER, is_managed_shell_request,
+)
+from app.core.shutdown_tasks import shutdown_tasks
+from app.schemas.desktop_exit import DesktopExitPreparationResponse
 
 from app.schemas.desktop_local_path import DesktopLocalPathRequest
 
@@ -17,6 +23,29 @@ from app.services.desktop_window_preferences import get_desktop_window_preferenc
 from app.services.desktop_local_path import get_desktop_local_path_service
 
 router = APIRouter(prefix="/desktop", tags=["desktop"])
+
+
+def _require_managed_shell(request: Request) -> None:
+    if not is_managed_shell_request(
+        request.headers.get(LEASE_INSTANCE_HEADER, ""),
+        request.headers.get(LEASE_TOKEN_HEADER, ""),
+    ):
+        raise HTTPException(status_code=403, detail="Only the owning desktop shell may prepare exit.")
+
+
+@router.post("/exit-preparation", response_model=DesktopExitPreparationResponse,
+             dependencies=[Depends(_require_managed_shell)])
+async def prepare_desktop_exit() -> DesktopExitPreparationResponse:
+    # Polling returns immediately, even while a critical disk commit is running.
+    pending = shutdown_tasks.begin_close()
+    return DesktopExitPreparationResponse(ready=pending == 0, pending_tasks=pending)
+
+
+@router.delete("/exit-preparation", status_code=204,
+               dependencies=[Depends(_require_managed_shell)])
+async def abandon_desktop_exit() -> Response:
+    shutdown_tasks.resume()
+    return Response(status_code=204)
 
 
 @router.get(

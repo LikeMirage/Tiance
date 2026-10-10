@@ -46,6 +46,17 @@
   min-height: 0;
 }
 
+.markdown-preview--responsive {
+  min-height: 0;
+}
+
+.markdown-preview__load-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-muted);
+}
+
 .markdown-preview__stream-pending-math {
   box-sizing: border-box;
   width: 100%;

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.services.project.conversation_notifications import conversation_notifications
+
 import asyncio
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -681,18 +683,9 @@ class ProjectConversationMemoryService:
         after_message_id: str,
         content: str,
     ) -> None:
-        try:
-            await asyncio.to_thread(
-                self._conversation_service.insert_system_message_after,
-                project_id,
-                session_id,
-                after_message_id=after_message_id,
-                content=content,
-                name=_COMPACTION_STATUS_MESSAGE_NAME,
-                status="running",
-            )
-        except (AppError, OSError, ValueError):
-            return
+        # The compression task keeps its snapshot boundary in the audit record.
+        # Its visible status belongs at the current complete-response boundary.
+        await self._append_compaction_status(project_id, session_id, content=content, status="running")
 
     async def _append_compaction_status(
         self,
@@ -702,19 +695,18 @@ class ProjectConversationMemoryService:
         content: str,
         status: str,
     ) -> None:
-        try:
-            await asyncio.to_thread(
-                self._conversation_service.append_message,
-                project_id,
-                session_id,
-                role="system",
-                content=content,
-                name=_COMPACTION_STATUS_MESSAGE_NAME,
-                status=status,
-                sync_session_model=False,
-            )
-        except (AppError, OSError, ValueError):
-            return
+        async def persist():
+            try:
+                return await asyncio.to_thread(
+                    self._conversation_service.append_message,
+                    project_id, session_id,
+                    role="system", content=content,
+                    name=_COMPACTION_STATUS_MESSAGE_NAME, status=status,
+                    sync_session_model=False, include_in_context=False,
+                )
+            except (AppError, OSError, ValueError):
+                return None
+        await conversation_notifications.submit(project_id, session_id, persist)
 
     async def _clear_manual_compaction_request(
         self,

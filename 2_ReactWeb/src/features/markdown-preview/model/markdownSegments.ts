@@ -64,6 +64,51 @@ export function buildStreamingMarkdownSegments(
   };
 }
 
+/** One renderer's derived cache, never a copy of the message authority.
+ * Keep the last packing chunk and all open syntax in the rescan region. Edits,
+ * retry resets and shorter replacements invalidate the cache without truncation.
+ */
+export function createStreamingMarkdownSegmenter(maxChunkChars = MAX_STREAM_MARKDOWN_CHUNK_CHARS) {
+  let previousContent = "";
+  let frozen: MarkdownSegment[] = [];
+  let scanStart = 0;
+  let previousResult: StreamingMarkdownSegments = { chunks: [], tail: "" };
+  return (content: string): StreamingMarkdownSegments => {
+    if (content === previousContent) return previousResult;
+    if (!content.startsWith(previousContent)) {
+      frozen = [];
+      scanStart = 0;
+    }
+    const suffix = content.slice(scanStart);
+    let reusableEnd = suffix.length;
+    const protectedRanges: { start: number; end: number }[] = [];
+    const boundaries = findStableMarkdownBoundaries(suffix, (offset) => {
+      reusableEnd = Math.min(reusableEnd, offset);
+    }, (range) => protectedRanges.push(range));
+    const stableLength = boundaries[boundaries.length - 1] ?? 0;
+    const chunks = buildMarkdownSegments(
+      suffix, boundaries, stableLength, maxChunkChars, "stream-md", scanStart,
+    );
+    previousResult = { chunks: [...frozen, ...chunks], tail: suffix.slice(stableLength) };
+    let consumed = 0;
+    let reusableCount = 0;
+    let reusableLength = 0;
+    for (let index = 0; index < chunks.length - 1; index += 1) {
+      const end = consumed + chunks[index].content.length;
+      if (end > reusableEnd) break;
+      if (suffix[end - 1] === "\n" && !protectedRanges.some((range) => range.start < end && end < range.end)) {
+        reusableCount = index + 1;
+        reusableLength = end;
+      }
+      consumed = end;
+    }
+    for (let index = 0; index < reusableCount; index += 1) frozen.push(chunks[index]);
+    scanStart += reusableLength;
+    previousContent = content;
+    return previousResult;
+  };
+}
+
 /**
  * Keeps an unfinished standalone display formula out of the rich Markdown
  * parser. The source remains untouched in the conversation; only the growing
@@ -121,6 +166,7 @@ function buildMarkdownSegments(
   contentEnd: number,
   maxChunkChars: number,
   idPrefix: string,
+  idOffset = 0,
 ) {
   const chunks: MarkdownSegment[] = [];
   let chunkStart = 0;
@@ -132,7 +178,7 @@ function buildMarkdownSegments(
       previousBoundary > chunkStart
     ) {
       chunks.push({
-        id: `${idPrefix}-${chunkStart}`,
+        id: `${idPrefix}-${idOffset + chunkStart}`,
         content: content.slice(chunkStart, previousBoundary),
       });
       chunkStart = previousBoundary;
@@ -142,7 +188,7 @@ function buildMarkdownSegments(
 
   if (contentEnd > chunkStart) {
     chunks.push({
-      id: `${idPrefix}-${chunkStart}`,
+      id: `${idPrefix}-${idOffset + chunkStart}`,
       content: content.slice(chunkStart, contentEnd),
     });
   }
@@ -240,12 +286,17 @@ function hasUnescapedPipe(line: string) {
   return false;
 }
 
-function findStableMarkdownBoundaries(content: string) {
+function findStableMarkdownBoundaries(
+  content: string,
+  onUnstableStart?: (offset: number) => void,
+  onProtectedRange?: (range: { start: number; end: number }) => void,
+) {
   const boundaries: number[] = [];
-  const mathRanges = findMarkdownMathRanges(content);
+  const mathRanges = findMarkdownMathRanges(content, onUnstableStart, onProtectedRange);
   let inFence = false;
   let fenceMarker = "";
   let inDirectoryList = false;
+  let directoryStart = 0;
   const linePattern = /.*(?:\r?\n|$)/g;
   let match: RegExpExecArray | null;
 
@@ -261,8 +312,13 @@ function findStableMarkdownBoundaries(content: string) {
       const directory = explicitLocalDirectory(lineText.trim().replace(/^`([^`]+)`$/, "$1"));
       // Keep an explicit directory and its following list in the same render
       // segment, including the growing streaming tail and loose-list blanks.
-      if (directory) inDirectoryList = true;
-      else if (!/^(?:\s+|(?:[-+*]|\d+[.)])\s)/.test(lineText)) inDirectoryList = false;
+      if (directory && !inDirectoryList) {
+        inDirectoryList = true;
+        directoryStart = match.index;
+      } else if (!directory && !/^(?:\s+|(?:[-+*]|\d+[.)])\s)/.test(lineText)) {
+        if (inDirectoryList) onProtectedRange?.({ start: directoryStart, end: match.index });
+        inDirectoryList = false;
+      }
     }
 
     if (fenceMatch) {
@@ -286,5 +342,6 @@ function findStableMarkdownBoundaries(content: string) {
     }
   }
 
+  if (inDirectoryList) onUnstableStart?.(directoryStart);
   return boundaries;
 }

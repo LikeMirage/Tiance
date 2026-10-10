@@ -3,6 +3,11 @@ import asyncio
 from dataclasses import replace
 from functools import lru_cache
 import logging
+from uuid import uuid4
+
+from app.domain.llm.output_limit import OutputLimitRecoveryBudget, OUTPUT_LIMIT_MESSAGE_PREFIX
+from app.domain.llm.output_limit_error import OutputLimitError
+from app.services.llm.chat.output_limit import is_output_limit
 
 import httpx
 
@@ -106,48 +111,66 @@ class ChatCompletionService:
             raise BadRequestError(f"Provider config '{request.provider_id}' has no saved API key.")
 
         runtime_config, selected_api_key = runtime_credentials
-        attempt_count = max(1, request.upstream_retry_count + 1)
+        budget = request.output_limit_budget or OutputLimitRecoveryBudget()
+        maximum_recoveries = request.output_limit_max_recoveries if request.output_limit_max_recoveries is not None else request.upstream_retry_count
+        ordinary_failures = 0
+        attempt_index = 0
         result = None
-        for attempt_index in range(1, attempt_count + 1):
+        while True:
+            budget.last_round_usage_recorded = False
+            attempt_index += 1
             attempt_request = replace(
-                request,
-                upstream_attempt_index=attempt_index,
-                upstream_attempt_count=attempt_count,
+                request, upstream_attempt_index=attempt_index,
+                upstream_attempt_count=max(attempt_index, request.upstream_retry_count + 1),
+                usage_request_id=f"request_{uuid4().hex}",
             )
             try:
                 result = await self._remote_client.complete(
-                    provider_template=provider_template,
-                    runtime_config=runtime_config,
-                    api_key=selected_api_key.api_key,
-                    request=attempt_request,
+                    provider_template=provider_template, runtime_config=runtime_config,
+                    api_key=selected_api_key.api_key, request=attempt_request,
                     on_exchange=self._record_http_exchange,
                 )
                 if result is None:
                     raise RuntimeError("Upstream completion ended without a result.")
+                if result.finish_reason in {"length", "max_tokens", "MAX_TOKENS", "max_output_tokens"}:
+                    raise OutputLimitError(result)
             except asyncio.CancelledError:
                 await self._record_attempt_outcome(
-                    attempt_request,
-                    status="cancelled",
-                    error_code="request_cancelled",
+                    attempt_request, status="cancelled", error_code="request_cancelled",
                     error_message="Request cancelled locally.",
                 )
                 raise
+            except OutputLimitError as exc:
+                partial = exc.result
+                partial_usage = complete_usage_with_estimates(
+                    request=attempt_request, provider_usage=partial.usage,
+                    response_message=partial.message, thinking_content=partial.thinking_content,
+                    settings=self._estimation_settings_for(partial.usage),
+                )
+                self._record_usage_if_present(request=attempt_request, usage=partial_usage)
+                await self._record_attempt_outcome(
+                    attempt_request, status="failed", error_code=exc.code, error_message=exc.message,
+                )
+                if request.output_limit_action == "stop" or not budget.consume(maximum_recoveries):
+                    raise
+                if request.output_limit_action == "send_message":
+                    partial_messages = (replace(partial.message, tool_calls=(), protocol_continuation=None),) if request.output_limit_save_partial and partial.message.content.strip() else ()
+                    request = replace(request, messages=(
+                        *request.messages, *partial_messages,
+                        ChatMessage(role=ChatMessageRole.USER, content=OUTPUT_LIMIT_MESSAGE_PREFIX + request.output_limit_message),
+                    ))
+                continue
             except Exception as exc:
                 error_code, error_message = _attempt_error(exc)
                 await self._record_attempt_outcome(
-                    attempt_request,
-                    status="failed",
-                    error_code=error_code,
-                    error_message=error_message,
+                    attempt_request, status="failed", error_code=error_code, error_message=error_message,
                 )
-                if attempt_index >= attempt_count:
+                if ordinary_failures >= request.upstream_retry_count:
                     raise
+                ordinary_failures += 1
                 continue
             await self._record_attempt_outcome(
-                attempt_request,
-                status="completed",
-                error_code=None,
-                error_message=None,
+                attempt_request, status="completed", error_code=None, error_message=None,
             )
             break
         if result is None:
@@ -159,7 +182,7 @@ class ChatCompletionService:
             thinking_content=result.thinking_content,
             settings=self._estimation_settings_for(result.usage),
         )
-        self._record_usage_if_present(request=request, usage=usage)
+        self._record_usage_if_present(request=attempt_request, usage=usage)
         return ChatCompletionResult(
             provider_id=result.provider_id,
             model_id=result.model_id,
@@ -197,12 +220,23 @@ class ChatCompletionService:
             raise BadRequestError(f"Provider config '{request.provider_id}' has no saved API key.")
 
         runtime_config, selected_api_key = runtime_credentials
-        attempt_count = max(1, request.upstream_retry_count + 1)
-        for attempt_index in range(1, attempt_count + 1):
+        budget = request.output_limit_budget or OutputLimitRecoveryBudget()
+        maximum_recoveries = (
+            request.output_limit_max_recoveries
+            if request.output_limit_max_recoveries is not None
+            else request.upstream_retry_count
+        )
+        ordinary_failures = 0
+        attempt_index = 0
+        while True:
+            budget.last_round_usage_recorded = False
+            attempt_index += 1
+            attempt_count = max(attempt_index, request.upstream_retry_count + 1)
             attempt_request = replace(
                 request,
                 upstream_attempt_index=attempt_index,
                 upstream_attempt_count=attempt_count,
+                usage_request_id=f"request_{uuid4().hex}",
             )
             provider_usage: ChatUsage | None = None
             done_event: ChatStreamEvent | None = None
@@ -210,7 +244,10 @@ class ChatCompletionService:
             content_parts: list[str] = []
             thinking_parts: list[str] = []
             tool_calls: list[ChatToolCall] = []
+            partial_tool_calls: dict[str, ChatToolCall] = {}
             protocol_continuation: ChatProtocolContinuation | None = None
+            if request.emit_response_boundaries:
+                yield ChatStreamEvent(kind=ChatStreamEventKind.MODEL_RESPONSE_STARTED)
             try:
                 async for event in self._remote_client.stream(
                     provider_template=provider_template,
@@ -234,88 +271,111 @@ class ChatCompletionService:
                         thinking_parts.append(event.content)
                     elif event.kind == ChatStreamEventKind.TOOL_CALL and event.tool_call is not None:
                         tool_calls.append(event.tool_call)
-                    elif (
-                        event.kind == ChatStreamEventKind.PROTOCOL_CONTINUATION
-                        and event.protocol_continuation is not None
-                    ):
+                    elif event.kind == ChatStreamEventKind.TOOL_CALL_DELTA and event.tool_call is not None:
+                        partial_tool_calls[event.tool_call.call_id] = event.tool_call
+                    elif event.kind == ChatStreamEventKind.PROTOCOL_CONTINUATION:
                         protocol_continuation = event.protocol_continuation
                     yield event
             except asyncio.CancelledError:
+                if provider_usage is not None or content_parts or thinking_parts or partial_tool_calls:
+                    cancelled_usage = complete_usage_with_estimates(
+                        request=attempt_request,
+                        provider_usage=provider_usage,
+                        response_message=ChatMessage(
+                            role=ChatMessageRole.ASSISTANT,
+                            content="".join(content_parts),
+                            thinking_content="".join(thinking_parts),
+                            tool_calls=tuple(partial_tool_calls.values()) or tuple(tool_calls),
+                        ),
+                        settings=self._estimation_settings_for(provider_usage),
+                    )
+                    self._record_usage_if_present(request=attempt_request, usage=cancelled_usage)
                 await self._record_attempt_outcome(
-                    attempt_request,
-                    status="cancelled",
-                    error_code="request_cancelled",
+                    attempt_request, status="cancelled", error_code="request_cancelled",
                     error_message="Request cancelled locally.",
                 )
                 raise
             except Exception as exc:
                 error_code, error_message = _attempt_error(exc)
-                await self._record_attempt_outcome(
-                    attempt_request,
-                    status="failed",
-                    error_code=error_code,
-                    error_message=error_message,
+                error_event = ChatStreamEvent(
+                    kind=ChatStreamEventKind.ERROR, error=error_message, error_code=error_code,
                 )
-                if attempt_index < attempt_count:
-                    yield ChatStreamEvent(
-                        kind=ChatStreamEventKind.RETRY_RESET,
-                        error=error_message,
-                        error_code=error_code,
-                        attempt_index=attempt_index + 1,
-                        attempt_count=attempt_count,
-                    )
-                    continue
-                raise
 
+            if error_event is None and done_event is not None and done_event.finish_reason in {
+                "length", "max_tokens", "MAX_TOKENS", "max_output_tokens",
+            }:
+                error_event = replace(done_event, kind=ChatStreamEventKind.ERROR,
+                    error="上游生成达到最大输出长度，回复未完成。", error_code="upstream_output_limit")
             if error_event is None and done_event is None:
                 error_event = ChatStreamEvent(
                     kind=ChatStreamEventKind.ERROR,
                     error="上游响应在完成标记前结束。",
                     error_code="upstream_stream_incomplete",
                 )
+            partial_message = ChatMessage(
+                role=ChatMessageRole.ASSISTANT,
+                content="".join(content_parts), thinking_content="".join(thinking_parts),
+            )
+            usage = None
+            if error_event is None or provider_usage is not None or content_parts or thinking_parts or partial_tool_calls:
+                usage = complete_usage_with_estimates(
+                    request=attempt_request,
+                    provider_usage=provider_usage,
+                    response_message=replace(
+                        partial_message,
+                        tool_calls=tuple(partial_tool_calls.values()) or tuple(tool_calls),
+                        protocol_continuation=protocol_continuation,
+                    ),
+                    settings=self._estimation_settings_for(provider_usage),
+                )
+                self._record_usage_if_present(request=attempt_request, usage=usage)
 
             if error_event is not None:
+                limited = is_output_limit(attempt_request, error_event, provider_usage)
+                error_code = "upstream_output_limit" if limited else error_event.error_code
                 await self._record_attempt_outcome(
-                    attempt_request,
-                    status="failed",
-                    error_code=error_event.error_code,
+                    attempt_request, status="failed", error_code=error_code,
                     error_message=error_event.error,
                 )
-                if attempt_index < attempt_count:
+                if request.emit_response_boundaries:
+                    yield ChatStreamEvent(kind=ChatStreamEventKind.MODEL_RESPONSE_FINISHED,
+                        error_code=error_code or "upstream_response_failed")
+                if limited:
+                    action = request.output_limit_action
+                    recover = action != "stop" and budget.consume(maximum_recoveries)
                     yield ChatStreamEvent(
-                        kind=ChatStreamEventKind.RETRY_RESET,
-                        error=error_event.error,
-                        error_code=error_event.error_code,
-                        attempt_index=attempt_index + 1,
-                        attempt_count=attempt_count,
+                        kind=ChatStreamEventKind.OUTPUT_LIMIT,
+                        error=error_event.error, error_code=error_code,
+                        finish_reason=error_event.finish_reason or "output_limit",
+                        usage=usage, partial_message=partial_message,
+                        recovery_action=action, will_recover=recover,
+                        attempt_index=attempt_index, attempt_count=attempt_count,
                     )
-                    continue
-                if provider_usage is not None:
-                    self._record_usage_if_present(request=request, usage=provider_usage)
-                    yield ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=provider_usage)
-                yield error_event
-                return
+                    if not recover or action != "retry":
+                        return
+                else:
+                    if ordinary_failures >= request.upstream_retry_count:
+                        if usage is not None:
+                            yield ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=usage)
+                        yield error_event
+                        return
+                    ordinary_failures += 1
+                yield ChatStreamEvent(
+                    kind=ChatStreamEventKind.RETRY_RESET,
+                    error=error_event.error, error_code=error_code,
+                    attempt_index=attempt_index + 1,
+                    attempt_count=max(attempt_count, attempt_index + 1),
+                )
+                continue
 
-            usage = complete_usage_with_estimates(
-                request=request,
-                provider_usage=provider_usage,
-                response_message=ChatMessage(
-                    role=ChatMessageRole.ASSISTANT,
-                    content="".join(content_parts),
-                    thinking_content="".join(thinking_parts),
-                    tool_calls=tuple(tool_calls),
-                    protocol_continuation=protocol_continuation,
-                ),
-                settings=self._estimation_settings_for(provider_usage),
-            )
-            self._record_usage_if_present(request=request, usage=usage)
             await self._record_attempt_outcome(
-                attempt_request,
-                status="completed",
-                error_code=None,
-                error_message=None,
+                attempt_request, status="completed", error_code=None, error_message=None,
             )
-            yield ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=usage)
+            if usage is not None:
+                yield ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=usage)
+            if request.emit_response_boundaries:
+                yield ChatStreamEvent(kind=ChatStreamEventKind.MODEL_RESPONSE_FINISHED,
+                    has_tool_calls=bool(tool_calls), finish_reason=done_event.finish_reason if done_event else None)
             if done_event is not None:
                 yield done_event
             return
@@ -326,18 +386,21 @@ class ChatCompletionService:
         request: ChatCompletionRequest,
         usage: ChatUsage | None,
     ) -> None:
-        if usage is None or not request.record_usage:
+        if usage is None or not (request.record_usage or request.record_attempt_usage):
             return
         try:
             self._usage_service.record_message_usage(
                 project_id=request.project_id,
                 session_id=request.session_id,
                 message_id=request.usage_message_id,
+                **({"request_id": request.usage_request_id} if request.usage_request_id else {}),
                 provider_id=request.provider_id,
                 model_id=request.model_id,
                 usage=usage,
                 usage_feature_key=request.usage_feature_key,
             )
+            if request.record_attempt_usage and request.output_limit_budget is not None:
+                request.output_limit_budget.last_round_usage_recorded = True
         except Exception:
             logger.exception("Failed to record usage for a completed model request.")
 

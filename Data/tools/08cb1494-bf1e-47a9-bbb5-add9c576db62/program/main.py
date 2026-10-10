@@ -136,7 +136,17 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
         workspace, state = context_and_state()
         response = call_helper(state, payload)
         # 失败结果也可能包含部分执行信息和最新截图，必须完整保留。
-        return attach_image(response, workspace)
+        try:
+            return attach_image(response, workspace)
+        except (ToolError, OSError) as image_error:
+            if not response.get("data", {}).get("execution_status"):
+                raise
+            # Image delivery failure must not erase already-confirmed input.
+            response["data"].update({"observation_status": "unavailable", "frame_id": None,
+                                     "observation_error": {"code": getattr(image_error, "code", "GUI_IMAGE_UNAVAILABLE"), "message": str(image_error)}})
+            response.setdefault("warnings", []).append("动作执行结果已保留，但截图未能交付；请重新观察，勿重放已完成的动作。")
+            response["summary"] = "动作执行结果已保留，截图交付失败；请查看execution_status，勿重放已完成的动作。"
+            return response
     except ToolError as exc:
         return failure(exc)
     except Exception as exc:

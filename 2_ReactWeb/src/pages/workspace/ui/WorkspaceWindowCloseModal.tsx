@@ -4,6 +4,7 @@ import { ConfirmModal } from "../../../shared/ui/confirm-modal/ConfirmModal";
 type WorkspaceWindowCloseModalProps = {
   error: string | null;
   isBusy: boolean;
+  isExiting: boolean;
   isOpen: boolean;
   onCancel: () => void;
   onExit: () => void;
@@ -13,6 +14,7 @@ type WorkspaceWindowCloseModalProps = {
 export function WorkspaceWindowCloseModal({
   error,
   isBusy,
+  isExiting,
   isOpen,
   onCancel,
   onExit,
@@ -26,7 +28,7 @@ export function WorkspaceWindowCloseModal({
       cancelDisabled={isBusy}
       confirmDisabled={isBusy}
       confirmLabel={t("common.windowClosePrompt.hideToTray")}
-      message={error ?? t("common.windowClosePrompt.message")}
+      message={error ?? t(isExiting ? "common.windowClosePrompt.exiting" : "common.windowClosePrompt.message")}
       onCancel={onCancel}
       onConfirm={onHideToTray}
       onSecondary={onExit}

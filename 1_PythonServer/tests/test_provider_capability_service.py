@@ -132,6 +132,7 @@ def test_provider_capability_service_uses_grant_context_and_records_separate_usa
     call = remote.calls[0]
     assert call["model_id"] == "model-1"
     assert call["query"] == "latest information"
+    assert call["session_id"] == "session-1"
     assert call["api_key"] == ""
     assert len(usage.records) == 1
     assert usage.records[0]["project_id"] == "project-1"

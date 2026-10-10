@@ -58,6 +58,10 @@ export function normalizeLatexForKatex(latex: string) {
     .trim();
 }
 
+export function shouldRenderTableMathAsDisplay(displayMode: boolean, latex: string) {
+  return displayMode || /\\begin\{(?:aligned|alignedat|align|align\*|eqnarray|eqnarray\*|cases|matrix|pmatrix|bmatrix)\}/.test(latex);
+}
+
 function replaceMathRanges(content: string, ranges: MarkdownMathRange[]) {
   let output = "";
   let cursor = 0;

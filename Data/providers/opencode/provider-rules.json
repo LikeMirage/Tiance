@@ -1,6 +1,11 @@
 {
   "schemaVersion": 1,
   "capabilities": {},
-  "request": {},
+  "request": {
+    "headers": {
+      "x-opencode-session": {"source": "session_id"},
+      "User-Agent": {"source": "client_user_agent"}
+    }
+  },
   "behavior": {}
 }

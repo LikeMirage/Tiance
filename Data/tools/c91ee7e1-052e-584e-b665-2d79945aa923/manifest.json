@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "parse_document_mineru_dmx",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "author": {
     "name": "LikeMirage"
   },

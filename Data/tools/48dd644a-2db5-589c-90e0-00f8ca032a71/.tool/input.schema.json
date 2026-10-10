@@ -22,6 +22,55 @@
           "reason"
         ]
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "add"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "update",
+              "delete"
+            ]
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "required": [
+          "memory_id"
+        ],
+        "properties": {
+          "memory_id": {
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        }
+      }
     }
   ],
   "description": "管理长期记忆。list/search 自动返回全部当前有效的全局记忆和项目记忆；写入操作使用 scope 指定范围。",
@@ -83,20 +132,23 @@
     },
     "memory_id": {
       "permission_type": "tiance_data_read",
-      "description": "update/delete 时填写目标记忆 ID，例如 pm_xxx 或 gm_xxx。",
+      "description": "update/delete 必填，从 list/search 结果取得目标记忆 ID，例如 pm_xxx 或 gm_xxx；最多 200 个字符。",
+      "maxLength": 200,
       "title": "记忆 ID",
       "type": "string"
     },
     "content": {
       "permission_type": "tiance_data_write",
-      "description": "add/update 时填写记忆内容。update 时不填写 content 则保留原内容，仅更新关键词。",
+      "description": "add 必填非空记忆内容；update 可提供替换后的完整内容，省略时保留原内容。最多 200000 个字符，字符串中的双引号、反斜杠和换行须按 JSON 规则转义。",
+      "maxLength": 200000,
       "title": "记忆内容",
       "type": "string"
     },
     "keywords": {
       "permission_type": "tiance_data_write",
       "default": [],
-      "description": "add/update 时填写关键词数组，用于后续检索和识别。",
+      "description": "add/update 可填写关键词数组，最多 100 项。update 省略时保留原关键词，显式传空数组则清空关键词。",
+      "maxItems": 100,
       "items": {
         "type": "string"
       },
@@ -105,14 +157,18 @@
     },
     "reason": {
       "permission_type": "tiance_data_write",
-      "description": "add/update/delete 时填写本次变更所依据的明确事实；不要推测用户动机。",
+      "description": "add/update/delete 必填本次变更所依据的明确事实，不得仅含空白；最多 2000 个字符，不要推测用户动机。",
       "minLength": 1,
+      "maxLength": 2000,
+      "pattern": "\\S",
       "title": "变更依据",
       "type": "string"
     },
     "query": {
       "permission_type": "tiance_data_read",
-      "description": "search 时填写搜索词，同时搜索全局记忆和项目记忆。",
+      "description": "search 时填写搜索词，同时搜索全局记忆和项目记忆；最多 1000 个字符，空字符串返回全部有效记忆。",
+      "default": "",
+      "maxLength": 1000,
       "title": "搜索词",
       "type": "string"
     }

@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, WebSocket, status
+from contextlib import aclosing
 import json
 
 from fastapi.responses import FileResponse, StreamingResponse
+from app.api.event_socket import serve_event_socket
 
 from app.schemas.themes import (
     ThemeDefinition,
@@ -119,12 +121,10 @@ def update_active_theme(payload: ThemeSelectionUpdateRequest) -> ThemeDefinition
 
 @router.get("/events", summary="Watch theme workspace changes")
 async def watch_theme_events() -> StreamingResponse:
-    changes = get_theme_workspace_event_broker().subscribe()
-
     async def event_generator():
-        yield _sse_event({"kind": "ready"})
-        async for paths in changes:
-            yield _sse_event({"kind": "changed", "paths": paths})
+        async with aclosing(_theme_workspace_events()) as events:
+            async for payload in events:
+                yield _sse_event(payload)
 
     return StreamingResponse(
         event_generator(),
@@ -134,6 +134,18 @@ async def watch_theme_events() -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.websocket("/events")
+async def watch_theme_events_socket(websocket: WebSocket) -> None:
+    await serve_event_socket(websocket, _theme_workspace_events())
+
+
+async def _theme_workspace_events():
+    async with aclosing(get_theme_workspace_event_broker().subscribe()) as changes:
+        yield {"kind": "ready"}
+        async for paths in changes:
+            yield {"kind": "changed", "paths": paths}
 
 
 @router.get("/assets/{asset_path:path}", response_class=FileResponse)

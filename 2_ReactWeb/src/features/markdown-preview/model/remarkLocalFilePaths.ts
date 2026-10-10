@@ -1,4 +1,4 @@
-import { encodeLocalPathLink } from "../../../entities/local-file/model/localFileReference";
+import { encodeAbsoluteLocalPathHref, encodeLocalPathLink } from "../../../entities/local-file/model/localFileReference";
 
 type MdastNode = {
   children?: MdastNode[];
@@ -22,6 +22,9 @@ function transformChildren(node: MdastNode, parentType: string | null, directory
   for (const child of node.children) {
     // Read the original paragraph before its code/text becomes a link.
     const childDirectory = standaloneDirectory(child);
+    if (child.type === "link" && child.url) {
+      child.url = encodeAbsoluteLocalPathHref(child.url) ?? child.url;
+    }
     if (child.type === "inlineCode" && child.value && looksLikeInlineLocalPath(child.value)) {
       const path = child.value.trim();
       nextChildren.push({
@@ -64,7 +67,7 @@ function looksLikeInlineLocalPath(value: string) {
   const trimmed = value.trim();
   return /^(?:[A-Za-z]:[\\/]|\\\\)[^\r\n]+$/.test(trimmed)
     || /^(?![A-Za-z][A-Za-z\d+.-]*:)[^\r\n]+[\\/][^\r\n]+$/.test(trimmed)
-    || /^(?![A-Za-z][A-Za-z\d+.-]*:)[^\r\n\\/]+\.[A-Za-z\d_-]{1,12}(?::\d+)?$/.test(trimmed);
+    || /^[^\r\n\\/:]+\.[A-Za-z\d_-]{1,12}(?::\d+)?$/.test(trimmed);
 }
 
 function splitTextNode(value: string): MdastNode[] {

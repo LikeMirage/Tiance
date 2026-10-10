@@ -10,6 +10,7 @@ from app.core.bootstrap import bootstrap_application
 from app.core.config import get_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
+from app.core.shutdown_tasks import shutdown_tasks
 from app.infra.http_client import (
     close_shared_http_clients,
     configure_shared_http_client,
@@ -43,6 +44,7 @@ from app.static_frontend import mount_frontend_dist
 
 @asynccontextmanager
 async def _lifespan(_application: FastAPI):
+    shutdown_tasks.resume()
     settings = get_settings()
     bootstrap_application()
     configure_shared_http_client(get_network_settings_service().get_settings())
@@ -68,6 +70,7 @@ async def _lifespan(_application: FastAPI):
     try:
         yield
     finally:
+        await shutdown_tasks.close()
         project_workspace_watch_task.cancel()
         with suppress(asyncio.CancelledError):
             await project_workspace_watch_task

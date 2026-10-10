@@ -1,11 +1,60 @@
 {
   "additionalProperties": false,
-  "description": "提交当前记忆压缩任务的结构化结果。",
+  "description": "提交记忆压缩任务的结构化结果。压缩功能会话必须提供 result；普通会话仅在用户明确要求手动压缩时使用空对象 {} 登记请求。",
   "properties": {
     "result": {
       "permission_type": "tiance_data_write",
-      "description": "按本次记忆压缩任务要求生成的完整 JSON 对象。",
-      "type": "object"
+      "description": "压缩功能会话生成的完整累计摘要对象，必须包含 items 和 handoff。传入对象，不传 JSON 字符串或 Markdown 代码块；字符串中的双引号、反斜杠和换行须按 JSON 规则转义。",
+      "title": "压缩结果",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "description": "至少一个摘要事项。每个事项必须包含 content 和 keywords；按任务要求保留具体事实、状态、约束和依据。",
+          "title": "摘要事项",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "content": {
+                "description": "该事项的具体摘要，不得为空或仅含空白。允许正文换行，须正确进行 JSON 字符串转义。",
+                "title": "事项内容",
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "keywords": {
+                "description": "该事项的关键词数组，可为空。每项去除首尾空白后须非空且不重复。",
+                "title": "关键词",
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                }
+              }
+            },
+            "required": [
+              "content",
+              "keywords"
+            ]
+          }
+        },
+        "handoff": {
+          "description": "面向接手者的交接总结，说明当前目标、已完成状态、关键约束和未完成事项；按任务要求保留最近用户请求，不得为空或仅含空白。",
+          "title": "交接总结",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "items",
+        "handoff"
+      ]
     }
   },
   "type": "object"

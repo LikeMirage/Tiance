@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "fallback": "ask",
+  "policies": {
+    "unknown": {
+      "all": "ask"
+    },
+    "filesystem_read": {
+      "workspace_inside": "allow",
+      "workspace_outside": "allow",
+      "unresolved": "ask"
+    },
+    "filesystem_write": {
+      "workspace_inside": "allow",
+      "workspace_outside": "ask",
+      "unresolved": "ask"
+    },
+    "filesystem_delete": {
+      "workspace_inside": "allow",
+      "workspace_outside": "ask",
+      "unresolved": "ask"
+    },
+    "program_execute": {
+      "workspace_program": "ask",
+      "system_program": "ask",
+      "unresolved": "ask"
+    },
+    "process_control": {
+      "all": "ask"
+    },
+    "runtime_modify": {
+      "all": "ask"
+    },
+    "network_access": {
+      "loopback": "allow",
+      "private_network": "ask",
+      "public_network": "ask",
+      "unresolved": "ask"
+    },
+    "credential_use": {
+      "all": "ask"
+    },
+    "external_data_read": {
+      "all": "ask"
+    },
+    "external_data_modify": {
+      "all": "ask"
+    },
+    "tiance_data_read": {
+      "current_project": "ask",
+      "other_project": "ask",
+      "global_data": "ask",
+      "unresolved": "ask"
+    },
+    "tiance_data_write": {
+      "current_project": "ask",
+      "other_project": "ask",
+      "global_data": "ask",
+      "unresolved": "ask"
+    },
+    "tiance_data_delete": {
+      "current_project": "ask",
+      "other_project": "ask",
+      "global_data": "ask",
+      "unresolved": "ask"
+    },
+    "ui_control": {
+      "all": "allow"
+    }
+  }
+}

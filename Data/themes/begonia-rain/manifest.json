@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "version": "1.0.1",
+  "author": {
+    "name": "LikeMirage"
+  },
+  "summary": "以海棠花影和朦胧春雨为意象的温润主题。",
+  "license": "CC0-1.0",
+  "baseColors": [
+    "white",
+    "pink",
+    "red"
+  ],
+  "preview": "preview.webp",
+  "compatibility": {
+    "themeSchemaVersion": 2,
+    "minTianceVersion": "0.3.20"
+  }
+}

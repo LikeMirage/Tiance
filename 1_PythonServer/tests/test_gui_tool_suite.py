@@ -23,6 +23,7 @@ _TOOL_IDS = {
     "gui_mouse": "08cb1494-bf1e-47a9-bbb5-add9c576db62",
     "gui_keyboard": "e587b268-479e-4513-bab8-f20a459d0b25",
     "gui_batch": "64893807-4ab4-432e-ae8d-f27e57ff7b54",
+    "gui_uia": "2801cda8-2e87-4a50-969c-9e8067470834",
 }
 
 
@@ -34,6 +35,30 @@ def _schema(name: str) -> dict:
     return loads((_tool_root(name) / ".tool" / "input.schema.json").read_text(encoding="utf-8"))
 
 
+def test_gui_visual_only_contract():
+    context = {"gui_session_id": "gui_" + "a" * 32, "frame_id": 0}
+    point = {**context, "view_id": "root", "cell_id": 1, "x": 0.5, "y": 0.5}
+    mouse = {**point, "action": "click"}
+    keyboard = {**context, "action": "type_text", "text": "测试文本"}
+    batch = {**context, "actions": [{"type": "click", **{k: v for k, v in point.items() if k != "gui_session_id"}},
+                                   {"type": "type_text", "text": "测试文本"}]}
+    for name, arguments in (("gui_mouse", mouse), ("gui_keyboard", keyboard), ("gui_batch", batch)):
+        assert validate_tool_arguments(arguments, _schema(name)) == []
+    removed = [
+        ("gui_inspect", {**context, "action": "elements"}),
+        ("gui_mouse", {**context, "action": "click", "element_id": "old_reference"}),
+        ("gui_mouse", {**mouse, "expected_elements": []}),
+        ("gui_keyboard", {**keyboard, "element_id": "old_reference"}),
+        ("gui_keyboard", {**keyboard, "action": "set_value"}),
+        ("gui_batch", {**context, "actions": [{"type": "set_value", "text": "x"}]}),
+        ("gui_batch", {**context, "actions": [{**batch["actions"][0], "postconditions": []}]}),
+        ("gui_mouse", {**point, "action": "drag", "to": {"element_id": "old_reference"}}),
+    ]
+    for name, arguments in removed:
+        assert validate_tool_arguments(arguments, _schema(name)), (name, arguments)
+    assert not (_tool_root("gui_runtime") / "program" / "uia_bridge.ps1").exists()
+
+
 def test_inspect_view_overlay_schema():
     schema = _schema("gui_inspect")
     view = {"action": "view", "gui_session_id": "gui_" + "a" * 32, "frame_id": 0, "view_id": "root"}
@@ -43,6 +68,12 @@ def test_inspect_view_overlay_schema():
                       {"action": "list_windows", "overlay": "none"},
                       {key: value for key, value in view.items() if key != "frame_id"}):
         assert validate_tool_arguments(arguments, schema)
+    assert not validate_tool_arguments({"action": "activate", "gui_session_id": view["gui_session_id"],
+                                        "activation_timeout_ms": 500}, schema)
+    for args in ({"action": "start", "target": "screen", "activation_timeout_ms": 500},
+                 {"action": "activate", "gui_session_id": view["gui_session_id"], "activation_timeout_ms": 0},
+                 {"action": "activate", "gui_session_id": view["gui_session_id"], "hwnd": 123}):
+        assert validate_tool_arguments(args, schema)
 
 
 def _load_program(name: str) -> ModuleType:
@@ -61,6 +92,20 @@ def _load_overlay_helper() -> ModuleType:
     module = module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+@pytest.fixture(autouse=True)
+def no_native_input(monkeypatch):
+    if os.name != "nt":
+        yield
+        return
+    attempts = []
+    def forbidden(*args):
+        attempts.append(True)
+        raise AssertionError("Tests must mock input; native SendInput is forbidden")
+    monkeypatch.setattr(ctypes.windll.user32, "SendInput", forbidden)
+    yield
+    assert not attempts, "A test attempted to send input to the real desktop"
 
 
 def test_gui_tools_are_static_serial_ui_control_tools() -> None:
@@ -399,6 +444,7 @@ def test_coordinate_preview_marks_point_without_creating_frame(tmp_path: Path) -
     }
     frame = {
         "frame_id": 0,
+        "foreground_window": {"hwnd": 123, "process_id": 7, "exists": True},
         "capture_rect": {"left": 100, "top": 200, "width": 100, "height": 80},
         "views": {"root": view},
     }
@@ -410,6 +456,7 @@ def test_coordinate_preview_marks_point_without_creating_frame(tmp_path: Path) -
         external_mouse_events = 0
         external_keyboard_events = 0
         cancel_event = threading.Event()
+        block_user_input = True
 
         @staticmethod
         def _session_dir(_gui_session_id: str) -> Path:
@@ -422,7 +469,6 @@ def test_coordinate_preview_marks_point_without_creating_frame(tmp_path: Path) -
         arguments={"view_id": "root", "cell_id": 1, "x": 0.25, "y": 0.375},
         screen_x=125,
         screen_y=250,
-        difference=0.0,
         mouse_before=0,
         keyboard_before=0,
     )
@@ -460,6 +506,7 @@ def test_nested_zoom_preview_and_input_share_physical_point(tmp_path: Path, firs
     service.lock_id = "test_lock"
     service.external_mouse_events = service.external_keyboard_events = 0
     service.cancel_event = threading.Event()
+    service.block_user_input = True
     gui_id = "gui_" + "a" * 32
     folder = service._session_dir(gui_id)
     folder.mkdir()
@@ -478,9 +525,13 @@ def test_nested_zoom_preview_and_input_share_physical_point(tmp_path: Path, firs
     with helper.Image.open(folder / view["raw_image"]) as cropped:
         assert cropped.size == (201, 150)
         assert cropped.tobytes() == raw.crop((601, 301, 802, 451)).tobytes()
-    preview = service._preview_coordinate(session=session, frame=frame, arguments=point_args, screen_x=x, screen_y=y, difference=0, mouse_before=0, keyboard_before=0)
+    preview = service._preview_coordinate(session=session, frame=frame, arguments=point_args, screen_x=x, screen_y=y, mouse_before=0, keyboard_before=0)
     with helper.Image.open(preview["image_path"]) as marked:
-        assert marked.size == (round(2.01 * second_scale), round(1.5 * second_scale))
+        first_view = frame["views"][first["data"]["view_id"]]
+        parent_scale_x = first_view["image_size"]["width"] / first_view["source_rect_absolute"]["width"]
+        parent_scale_y = first_view["image_size"]["height"] / first_view["source_rect_absolute"]["height"]
+        assert marked.size == (round(201 * parent_scale_x * second_scale / 100),
+                               round(150 * parent_scale_y * second_scale / 100))
         marker = preview["data"]["marker"]
         assert marked.getpixel((marker["center_x"], marker["center_y"])) == helper.COORDINATE_PREVIEW_COLOR
         assert int(marker["center_x"] * 201 / marked.width) + 101 == x
@@ -533,22 +584,15 @@ def test_lock_blocks_all_user_mouse_input_and_only_escape_exits(monkeypatch: pyt
 
 
 @pytest.mark.skipif(os.name != "nt", reason="GUI工具只支持Windows")
-def test_target_cell_check_ignores_unrelated_animation_but_detects_target_changes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    helper = _load_overlay_helper()
-    service = helper.GuiService.__new__(helper.GuiService)
-    service.gui_root = tmp_path
-    gui_id = "gui_" + "b" * 32
-    source = {"left": 0, "top": 0, "width": 200, "height": 200}
-    raw = helper.Image.new("RGB", (200, 200))
-    session = {"gui_session_id": gui_id, "target": {"type": "screen"}, "frames": []}
-    service._create_frame(session, reason="test", raw=raw, source_rect=source, grid_mode="fixed", grid_rows=2, grid_cols=2)
-    animated = raw.copy()
-    animated.paste((255, 255, 255), (150, 150, 200, 200))
-    monkeypatch.setattr(service, "_capture_target", lambda target: (animated, source))
-    assert service._preflight(session)[3] == 6.25
-    assert service._preflight(session, [{"view_id": "root", "cell_id": 1}])[3] == 0
-    animated.paste((255, 255, 255), (10, 10, 30, 30))
-    assert service._preflight(session, [{"view_id": "root", "cell_id": 1}])[3] == 4
+def test_preflight_keeps_geometry_check_without_taking_screenshot(mouse_preview_service, monkeypatch):
+    helper, service, point, inputs, raw, rect = mouse_preview_service
+    session = service._load_session(point["gui_session_id"])
+    monkeypatch.setattr(service, "_capture_target", lambda target: pytest.fail("preflight must not capture pixels"))
+    assert service._preflight(session)[1] == rect
+    rect["width"] += 1
+    with pytest.raises(helper.GuiError) as failure:
+        service._preflight(session)
+    assert failure.value.code == "TARGET_GEOMETRY_CHANGED" and not inputs
 
 
 @pytest.mark.skipif(os.name != "nt", reason="GUI工具只支持Windows")
@@ -572,6 +616,11 @@ def mouse_preview_service(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     rect = {"left": 100, "top": 200, "width": 400, "height": 300}
     session = {"gui_session_id": gui_id, "lock_id": service.lock_id, "status": "active", "target": {"type": "screen"}, "frames": []}
     monkeypatch.setattr(service, "_native_focus", lambda: 123)
+    monkeypatch.setattr(helper.user32, "GetForegroundWindow", lambda: 123)
+    monkeypatch.setattr(helper, "foreground_window", lambda: {"hwnd": int(helper.user32.GetForegroundWindow()),
+                         "process_id": 7, "exists": True, "title": "Test window", "rect": rect.copy()})
+    monkeypatch.setattr(helper, "window_diagnostics", lambda hwnd: {"hwnd": hwnd, "process_id": 7, "exists": True})
+    monkeypatch.setattr(service, "_target_rect", lambda target: rect.copy())
     monkeypatch.setattr(helper, "drag_window_snapshot", lambda excluded: [
         {"hwnd": 123, "pid": 7, "thread_id": 8, "rect": rect.copy()},
     ])
@@ -590,7 +639,7 @@ def mouse_preview_service(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             service.input_events_sent += 1
         return execute
 
-    for name in ("_mouse_move", "_mouse_click", "_mouse_drag", "_mouse_scroll", "_mouse_flag", "_key_event"):
+    for name in ("_mouse_move", "_mouse_click", "_mouse_drag", "_mouse_scroll", "_mouse_flag", "_key_event", "_send_input"):
         monkeypatch.setattr(service, name, spy(name))
     point = {"gui_session_id": gui_id, "frame_id": 0, "view_id": "root", "cell_id": 1, "x": 0.3, "y": 0.6}
     try:
@@ -622,7 +671,7 @@ def test_action_waits_once_before_final_capture(mouse_preview_service, monkeypat
         arguments["screenshot_delay_seconds"] = delay
     result = getattr(service, method)(arguments)
     expected = 1 if delay is None else delay
-    assert events == [("capture", 0), ("wait", expected), ("capture", len(inputs))]
+    assert events == [("wait", expected), ("capture", len(inputs))]
     assert inputs and result["data"]["screenshot_delay_seconds"] == expected
 
 
@@ -664,10 +713,11 @@ def test_escape_cancels_screenshot_wait_without_capturing(mouse_preview_service,
         assert waiting.wait(2)
         key = helper.KBDLLHOOKSTRUCT(vkCode=helper.VK_CODES["esc"])
         service._keyboard_hook(0, helper.WM_KEYUP, ctypes.addressof(key))
-        with pytest.raises(helper.GuiError) as failure:
-            future.result(timeout=1)
-        assert failure.value.code == "GUI_RUNTIME_STOPPED"
-    assert captured == [True]  # 只有操作前检查，退出后不再截图。
+        result = future.result(timeout=1)
+        assert result["data"]["execution_status"] == "completed"
+        assert result["data"]["observation_error"]["code"] == "GUI_RUNTIME_STOPPED"
+        assert not result["data"]["interface_state"]["lock_active"]
+    assert captured == []  # 退出后不再截图，但已经执行的点击仍准确报告。
     with pytest.raises(helper.GuiError):
         helper.GuiService._interruptible_sleep(service, 0)
 
@@ -727,7 +777,7 @@ def test_preview_drag_between_zoom_views_shows_both_endpoints(mouse_preview_serv
         service.inspect({"action": "zoom", "gui_session_id": point["gui_session_id"], "frame_id": 0, "view_id": "root", "cell_id": cell})
     result = service.mouse({**point, "action": "preview", "preview_action": "drag", "view_id": "1", "cell_id": 1, "to": {"view_id": "4", "cell_id": 1, "x": 0.5, "y": 0.5}})
     assert result["data"]["view_id"] == "root" and inputs == []
-    assert result["data"]["operation"]["change_check_scope"] == "target_cell"
+    assert "change_check_scope" not in result["data"]["operation"]
     with helper.Image.open(result["image_path"]) as image:
         start = result["data"]["marker"]
         assert image.getpixel((start["center_x"], start["center_y"])) == helper.COORDINATE_PREVIEW_COLOR
@@ -741,7 +791,7 @@ def test_drag_ignores_unrelated_pixels_and_returns_new_screenshot(mouse_preview_
     changed = helper.Image.new("RGB", raw.size, "white")
     monkeypatch.setattr(service, "_capture_target", lambda target: (changed, rect.copy()))
     item = {**point, "action": "drag", "to": {"view_id": "root", "cell_id": 4, "x": 0.5, "y": 0.5}}
-    # A post-action difference is still reported, but no pre-action pixel comparison occurs.
+    # Action control no longer compares screenshot pixels.
     comparisons = []
     original_difference = helper.image_difference_percent
     monkeypatch.setattr(helper, "image_difference_percent", lambda a, b: (comparisons.append(True) or original_difference(a, b)))
@@ -756,11 +806,11 @@ def test_drag_ignores_unrelated_pixels_and_returns_new_screenshot(mouse_preview_
     assert result["data"]["performed"] and result["data"]["frame_id"] == 1
     assert Path(result["image_path"]).is_file()
     assert [item[0] for item in inputs] == ["_mouse_drag"]
-    assert comparisons == [True]
+    assert comparisons == []
     details = result["data"]["action"]
     if mode == "batch":
         details = details["actions"][0]
-    assert details["change_check_scope"] == "origin_window"
+    assert "change_check_scope" not in details
 
 
 @pytest.mark.parametrize("mode", ["direct", "preview", "batch"])
@@ -839,10 +889,20 @@ def test_drag_frame_preserves_capture_time_window_evidence(mouse_preview_service
     assert failure.value.code == "DRAG_ORIGIN_CHANGED"
 
 
-@pytest.mark.skipif(os.name != "nt", reason="Windows native drag-origin validation")
-def test_native_drag_origin_ignores_own_overlay_and_detects_untitled_occluder(tmp_path, monkeypatch):
-    # Show only small, nonactivating test windows; never install hooks or inject input.
+@pytest.fixture
+def native_physical_gui():
     helper = _load_overlay_helper()
+    with helper.physical_coordinates():
+        yield helper
+
+
+@pytest.mark.skipif(
+    os.name != "nt" or os.environ.get("TIANCE_TEST_GUI_NATIVE") != "1",
+    reason="Set TIANCE_TEST_GUI_NATIVE=1 for native desktop hit-testing",
+)
+def test_native_drag_origin_ignores_own_overlay_and_detects_untitled_occluder(tmp_path, monkeypatch, native_physical_gui):
+    # Show only small, nonactivating test windows; never install hooks or inject input.
+    helper = native_physical_gui
     service = helper.GuiService(SimpleNamespace(workspace=str(tmp_path), state_file=str(tmp_path / "active.json"),
         lock_id="lock_test", token="test", marker=123, project_id="project", session_id="session"))
     rect = {"left": 40, "top": 80, "width": 320, "height": 200}
@@ -862,8 +922,12 @@ def test_native_drag_origin_ignores_own_overlay_and_detects_untitled_occluder(tm
         assert service._check_drag_origin(frame, 100, 180)["hwnd"] == original
         service._create_windows()
         # Hit-test from the same worker-thread arrangement used by GUI RPC handling.
+        def check_origin():
+            with helper.physical_coordinates():
+                return service._check_drag_origin(frame, 100, 180)
+
         with ThreadPoolExecutor(max_workers=1) as pool:
-            future = pool.submit(service._check_drag_origin, frame, 100, 180)
+            future = pool.submit(check_origin)
             while not future.done():
                 message = helper.wintypes.MSG()
                 while native.PeekMessageW(ctypes.byref(message), 0, 0, 0, 1):
@@ -879,10 +943,13 @@ def test_native_drag_origin_ignores_own_overlay_and_detects_untitled_occluder(tm
         service._destroy_windows()
         for hwnd in reversed(handles):
             native.DestroyWindow(hwnd)
+        if getattr(service, "overlay_class", None):
+            native.UnregisterClassW.argtypes = [helper.wintypes.LPCWSTR, helper.wintypes.HINSTANCE]
+            native.UnregisterClassW(service.overlay_class, helper.kernel32.GetModuleHandleW(None))
         service.server_socket.close()
 
 
-def test_drag_pixel_exemption_does_not_disable_click_or_mixed_batch_check(mouse_preview_service, monkeypatch):
+def test_pixel_changes_do_not_block_click_or_mixed_batch(mouse_preview_service, monkeypatch):
     helper, service, point, inputs, raw, rect = mouse_preview_service
     changed = helper.Image.new("RGB", raw.size, "white")
     monkeypatch.setattr(service, "_capture_target", lambda target: (changed, rect.copy()))
@@ -890,28 +957,26 @@ def test_drag_pixel_exemption_does_not_disable_click_or_mixed_batch_check(mouse_
         {**point, "type": "drag", "to": {"view_id": "root", "cell_id": 4, "x": 0.5, "y": 0.5}},
         {**point, "type": "click"},
     ]})
-    assert not result["data"]["performed"] and inputs == []
-    # The blocked batch returns the new observed frame; change the image again.
+    assert result["data"]["performed"] and len(inputs) == 2
+    # Use the new frame; another pixel change still does not block the click.
     monkeypatch.setattr(service, "_capture_target", lambda target: (raw, rect.copy()))
     result = service.mouse({**point, "frame_id": 1, "action": "click"})
-    assert not result["data"]["performed"] and inputs == []
+    assert result["data"]["performed"] and len(inputs) == 3
 
 
 @pytest.mark.skipif(os.name != "nt", reason="GUI工具只支持Windows")
-@pytest.mark.parametrize("change", ["new_frame", "pixels", "window_move", "window_resize"])
+@pytest.mark.parametrize("change", ["new_frame", "window_move", "window_resize"])
 def test_preview_expiry_never_inputs_and_returns_current_frame(mouse_preview_service, monkeypatch: pytest.MonkeyPatch, change: str) -> None:
     helper, service, point, inputs, raw, rect = mouse_preview_service
     if change.startswith("window"):
         session = service._load_session(point["gui_session_id"])
-        session["target"] = {"type": "window", "hwnd": 42}
+        session["target"] = {"type": "window", "hwnd": 42, "process_id": 7}
         service._save_session(session)
         monkeypatch.setattr(helper, "window_rect", lambda hwnd: rect.copy())
         monkeypatch.setattr(helper.user32, "GetForegroundWindow", lambda: 42)
     preview = service.mouse({**point, "action": "preview", "preview_action": "click"})
     if change == "new_frame":
         service._create_frame(service._load_session(point["gui_session_id"]), reason="refresh", raw=raw, source_rect=rect)
-    elif change == "pixels":
-        raw.paste((255, 255, 255), (5, 5, 100, 100))
     elif change == "window_move":
         rect["left"] += 10
     else:
@@ -953,7 +1018,7 @@ def test_preview_failure_preserves_execution_progress_and_never_replays(mouse_pr
     assert not result["ok"]
     assert result["data"]["performed"] is after_input
     assert result["data"]["execution_status"] == ("partial" if after_input else "not_started")
-    assert not result["data"]["interface_state"]["safe_to_continue"]
+    assert result["data"]["interface_state"]["observation_only"]
     assert Path(result["image_path"]).is_file()
     repeated = service.mouse(execute)
     assert repeated["data"]["preview_reused"] and inputs == ["attempt"]
@@ -1032,6 +1097,9 @@ def test_lock_overlay_uploads_to_hidden_native_window_and_releases_gdi(monkeypat
     service = helper.GuiService.__new__(helper.GuiService)
     service.window_proc = helper.WNDPROC(service._window_proc)
     service.overlay_windows = []
+    service.cancel_event = threading.Event()
+    service.lock_started_at = None
+    service.last_notice_second = 0
     monkeypatch.setattr(helper, "monitor_rects", lambda: [{"left": -900, "top": -600, "width": 640, "height": 400}])
     monkeypatch.setattr(helper.user32, "ShowWindow", lambda *args: True)
     helper.user32.GetWindow.argtypes = [helper.wintypes.HWND, helper.wintypes.UINT]
@@ -1049,12 +1117,38 @@ def test_lock_overlay_uploads_to_hidden_native_window_and_releases_gdi(monkeypat
         assert child
         service._exclude_window_from_capture(hwnd)
         assert not helper.user32.IsWindowVisible(hwnd)
-        assert len(deleted) == 1
+        assert len(deleted) == 2  # Static glow and independently updated notice.
+        notice = service.overlay_notices[0][0]
+        host_bounds, notice_bounds = helper.wintypes.RECT(), helper.wintypes.RECT()
+        assert helper.user32.GetWindowRect(hwnd, ctypes.byref(host_bounds))
+        assert helper.user32.GetWindowRect(notice, ctypes.byref(notice_bounds))
+        assert notice_bounds.top == host_bounds.top
+        assert notice_bounds.left == host_bounds.left + (640 - (notice_bounds.right - notice_bounds.left)) // 2
+        # Exercise native WM_TIMER delivery and a real small-layer upload, while
+        # all test windows stay hidden and no input hooks are installed.
+        updates, stops = [], []
+        update = service._update_lock_notice
+        def track_notice(hwnd, rect, elapsed):
+            updates.append(elapsed)
+            update(hwnd, rect, elapsed)
+        monkeypatch.setattr(service, "_update_lock_notice", track_notice)
+        monkeypatch.setattr(service, "request_stop", stops.append)
+        service.lock_started_at = helper.time.monotonic() - 60
+        service._start_overlay_timer()
+        deadline = helper.time.monotonic() + 3
+        while not updates and not stops and helper.time.monotonic() < deadline:
+            message = helper.wintypes.MSG()
+            if helper.user32.PeekMessageW(ctypes.byref(message), hwnd, helper.WM_TIMER, helper.WM_TIMER, 1):
+                helper.user32.DispatchMessageW(ctypes.byref(message))
+            else:
+                threading.Event().wait(0.01)
+        assert not stops and updates and updates[0] >= 60
+        assert len(deleted) == 3
         monkeypatch.setattr(helper.user32, "UpdateLayeredWindow", lambda *args: False)
         with pytest.raises(helper.GuiError) as failure:
             service._update_overlay(child, {"left": 0, "top": 0, "width": 640, "height": 400})
         assert failure.value.code == "OVERLAY_RENDER_FAILED"
-        assert len(deleted) == 2
+        assert len(deleted) == 4
     finally:
         service._destroy_windows()
         assert not service.overlay_windows
@@ -1112,7 +1206,6 @@ def test_owner_end_or_change_releases_even_during_action(mouse_preview_service, 
         assert not watcher.is_alive()
     assert service.cancel_event.is_set()
     assert service.stop_reason in {"owner_run_changed", "owner_stopped_or_disconnected"}
-
 
 
 @pytest.mark.parametrize("advance", ["click", "refresh"])
@@ -1272,7 +1365,7 @@ def test_activate_window_refreshes_frame_and_expires_preview(mouse_preview_servi
     monkeypatch.setattr(helper, "window_rect", lambda hwnd: rect.copy())
     preview = service.mouse({**point, "action": "preview", "preview_action": "click"})
     foreground[0] = 456
-    def activate(hwnd):
+    def activate(hwnd, **kwargs):
         foreground[0] = hwnd
         return True
     monkeypatch.setattr(helper, "activate_window", activate)
@@ -1282,6 +1375,158 @@ def test_activate_window_refreshes_frame_and_expires_preview(mouse_preview_servi
     expired = service.mouse({"action": "execute_preview", "preview_id": preview["data"]["preview_id"]})
     assert not expired["ok"] and expired["error_info"]["code"] == "STALE_FRAME"
     assert inputs == []
+
+
+def test_screen_capture_survives_unknown_focus_but_keyboard_does_not(mouse_preview_service, monkeypatch):
+    helper, service, point, inputs, raw, rect = mouse_preview_service
+    def unavailable():
+        raise helper.GuiError("GUI_FOCUS_UNAVAILABLE", "focus unavailable", {"winerror": 5})
+    monkeypatch.setattr(service, "_native_focus", unavailable)
+    session = service._load_session(point["gui_session_id"])
+    frame, image = service._create_frame(session, reason="focus_missing", raw=raw, source_rect=rect)
+    assert image.exists() and frame["focus_window"] is None
+    assert frame["focus_error"]["details"]["winerror"] == 5
+    result = service._result_with_image(summary="test", session=session, frame=frame,
+                                       view=frame["views"]["root"], image_path=image)
+    assert result["ok"] and result["data"]["focus"]["hwnd"] is None and result["warnings"]
+    with pytest.raises(helper.GuiError) as failure:
+        service.keyboard({"action": "press_key", "key": "enter", "gui_session_id": point["gui_session_id"],
+                          "frame_id": frame["frame_id"]})
+    assert failure.value.code == "GUI_FOCUS_UNAVAILABLE"
+    assert inputs == []
+
+
+def test_window_list_omits_shell_cloaked_windows(monkeypatch):
+    helper = _load_overlay_helper()
+    monkeypatch.setattr(helper.user32, "EnumWindows", lambda callback, data: callback(123, data))
+    monkeypatch.setattr(helper.user32, "IsWindowVisible", lambda hwnd: True)
+    monkeypatch.setattr(helper.user32, "IsIconic", lambda hwnd: False)
+    monkeypatch.setattr(helper.user32, "GetWindowTextLengthW", lambda hwnd: 4)
+    monkeypatch.setattr(helper.user32, "GetWindowTextW", lambda hwnd, buf, size: setattr(buf, "value", "Test"))
+    monkeypatch.setattr(helper, "window_rect", lambda hwnd: {"left": 0, "top": 0, "width": 100, "height": 80})
+    def cloaked(hwnd, attribute, output, size):
+        ctypes.cast(output, ctypes.POINTER(helper.wintypes.DWORD)).contents.value = 2
+        return 0
+    monkeypatch.setattr(helper.dwmapi, "DwmGetWindowAttribute", cloaked)
+    assert helper.visible_windows() == []
+
+
+@pytest.fixture
+def activation_probe(monkeypatch):
+    helper = _load_overlay_helper()
+    clock = [0.0]
+    calls = []
+    foreground = [456]
+    target = {"hwnd": 123, "exists": True, "visible": True, "minimized": False,
+              "cloaked": 0, "process_id": 7, "thread_id": 8}
+    monkeypatch.setattr(helper, "window_diagnostics", lambda hwnd: dict(target) if hwnd == 123 else {"hwnd": hwnd})
+    monkeypatch.setattr(helper, "desktop_diagnostics", lambda: {"input": {"name": "Default"}})
+    monkeypatch.setattr(helper.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(helper.time, "sleep", lambda value: clock.__setitem__(0, clock[0] + value))
+    monkeypatch.setattr(helper.user32, "GetForegroundWindow", lambda: foreground[0])
+    def pid(hwnd, output):
+        if output is not None:
+            ctypes.cast(output, ctypes.POINTER(helper.wintypes.DWORD)).contents.value = 7
+        return 8
+    monkeypatch.setattr(helper.user32, "GetWindowThreadProcessId", pid)
+    monkeypatch.setattr(helper.kernel32, "GetCurrentThreadId", lambda: 8)
+    monkeypatch.setattr(helper.user32, "IsIconic", lambda hwnd: target["minimized"])
+    monkeypatch.setattr(helper.user32, "ShowWindowAsync", lambda hwnd, how: calls.append("restore") or True)
+    monkeypatch.setattr(helper.user32, "BringWindowToTop", lambda hwnd: calls.append("top") or True)
+    monkeypatch.setattr(helper.user32, "SetForegroundWindow", lambda hwnd: calls.append("activate") or True)
+    return helper, clock, calls, foreground, target
+
+
+def test_activation_waits_for_delayed_foreground_without_restoring_maximized(activation_probe, monkeypatch):
+    helper, clock, calls, foreground, target = activation_probe
+    monkeypatch.setattr(helper.user32, "GetForegroundWindow", lambda: 123 if clock[0] >= 0.12 else 456)
+    assert helper.activate_window(123, timeout_ms=500)
+    assert 0.12 <= clock[0] < 0.5
+    assert calls == ["top", "activate"]
+
+
+def test_activation_timeout_reports_actual_state_without_accepting_wrong_window(activation_probe):
+    helper, clock, calls, foreground, target = activation_probe
+    with pytest.raises(helper.GuiError) as caught:
+        helper.activate_window(123, timeout_ms=100)
+    assert caught.value.code == "WINDOW_ACTIVATION_FAILED"
+    details = caught.value.details
+    assert details["foreground_after"]["hwnd"] == 456
+    assert details["set_foreground_returned"] is True
+    assert details["timeout_ms"] == 100 and clock[0] == 0.1
+    assert details["desktops"]["input"]["name"] == "Default"
+
+
+@pytest.mark.parametrize("condition", ["cloaked", "cancelled"])
+def test_activation_does_not_touch_cloaked_or_cancelled_target(activation_probe, condition):
+    helper, clock, calls, foreground, target = activation_probe
+    cancel = threading.Event()
+    if condition == "cloaked":
+        target["cloaked"] = 2
+    else:
+        cancel.set()
+    with pytest.raises(helper.GuiError) as caught:
+        helper.activate_window(123, cancel_event=cancel)
+    assert caught.value.code == ("WINDOW_CLOAKED" if condition == "cloaked" else "GUI_RUNTIME_STOPPED")
+    assert calls == []
+
+
+def test_activation_cancel_during_confirmation_stops_wait(activation_probe, monkeypatch):
+    helper, clock, calls, foreground, target = activation_probe
+    cancel = threading.Event()
+    monkeypatch.setattr(cancel, "wait", lambda seconds: cancel.set())
+    with pytest.raises(helper.GuiError) as caught:
+        helper.activate_window(123, cancel_event=cancel)
+    assert caught.value.code == "GUI_RUNTIME_STOPPED"
+    assert calls.count("activate") == 1
+
+
+def test_nonkeyboard_batch_survives_focus_query_failure_and_keyboard_stops(mouse_preview_service, monkeypatch):
+    helper, service, point, inputs, raw, rect = mouse_preview_service
+    def unavailable():
+        raise helper.GuiError("GUI_FOCUS_UNAVAILABLE", "focus unavailable")
+    monkeypatch.setattr(service, "_native_focus", unavailable)
+    monkeypatch.setattr(service, "_execute_batch_item", lambda session, item: {"type": item["type"]})
+    args = {"gui_session_id": point["gui_session_id"], "frame_id": 0,
+            "actions": [{"type": "wait", "duration_ms": 0}, {"type": "wait", "duration_ms": 0}]}
+    assert service.batch(args)["ok"]
+    args["frame_id"] = 1
+    args["actions"][1] = {"type": "press_key", "key": "enter"}
+    with pytest.raises(helper.GuiError) as caught:
+        service.batch(args)
+    assert caught.value.code == "GUI_FOCUS_UNAVAILABLE"
+    assert caught.value.details["completed_actions"] == 1
+    assert inputs == []
+
+
+@pytest.mark.parametrize("focus", [None, 0])
+def test_unknown_or_absent_focus_never_authorizes_untargeted_keyboard(mouse_preview_service, monkeypatch, focus):
+    helper, service, point, inputs, raw, rect = mouse_preview_service
+    monkeypatch.setattr(service, "_native_focus", lambda: 0)
+    with pytest.raises(helper.GuiError) as caught:
+        frame = service._load_session(point["gui_session_id"])["frames"][0]
+        frame["focus_window"] = focus
+        service._check_keyboard_target(frame)
+    assert caught.value.code == "GUI_FOCUS_UNAVAILABLE" and not inputs
+
+
+def test_keyboard_accepts_child_focus_change_but_rejects_other_window(mouse_preview_service, monkeypatch):
+    helper, service, point, inputs, raw, rect = mouse_preview_service
+    monkeypatch.setattr(service, "_send_input", lambda event, **kwargs: inputs.append(event))
+    args = {"gui_session_id": point["gui_session_id"], "action": "type_text", "text": "hello"}
+    with pytest.raises(helper.GuiError) as caught:
+        service.keyboard(args)
+    assert caught.value.code == "STALE_FRAME"
+    monkeypatch.setattr(helper.user32, "GetForegroundWindow", lambda: 999)
+    monkeypatch.setattr(service, "_native_focus", lambda: 456)
+    with pytest.raises(helper.GuiError) as caught:
+        service.keyboard({**args, "frame_id": 0})
+    assert caught.value.code == "GUI_FOCUS_CHANGED" and not inputs
+    assert caught.value.details["foreground_window"]["hwnd"] == 999
+    monkeypatch.setattr(helper.user32, "GetForegroundWindow", lambda: 123)
+    result = service.keyboard({**args, "frame_id": 0})
+    assert result["data"]["performed"] and result["data"]["frame_id"] == 1
+    assert inputs
 
 
 @pytest.mark.parametrize("failure_kind", ["screen", "closed", "pid_changed", "activation_failed"])
@@ -1296,7 +1541,7 @@ def test_activate_refuses_invalid_target(mouse_preview_service, monkeypatch, fai
         return 1
     monkeypatch.setattr(helper.user32, "GetWindowThreadProcessId", pid)
     monkeypatch.setattr(helper.user32, "IsWindow", lambda hwnd: failure_kind != "closed")
-    monkeypatch.setattr(helper, "activate_window", lambda hwnd: False)
+    monkeypatch.setattr(helper, "activate_window", lambda hwnd, **kwargs: False)
     with pytest.raises(helper.GuiError) as failure:
         service.inspect({"action": "activate", "gui_session_id": point["gui_session_id"]})
     assert failure.value.code == {"screen": "WINDOW_TARGET_REQUIRED", "closed": "WINDOW_NOT_AVAILABLE",
@@ -1319,121 +1564,149 @@ def test_tool_disconnect_releases_control(mouse_preview_service, monkeypatch):
         left.close()
 
 
-@pytest.mark.skipif(os.name != "nt", reason="Windows UIAutomation integration")
-def test_uia_bridge_reads_own_hidden_test_window(mouse_preview_service):
-    # No foreground changes, input injection or user windows: read a window created by this test.
-    import time
-    helper, service, *_ = mouse_preview_service
-    user32 = helper.user32
-    create = user32.CreateWindowExW
-    create.argtypes = [helper.wintypes.DWORD, helper.wintypes.LPCWSTR, helper.wintypes.LPCWSTR,
-                      helper.wintypes.DWORD, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
-                      helper.wintypes.HWND, helper.wintypes.HMENU, helper.wintypes.HINSTANCE, ctypes.c_void_p]
-    create.restype = helper.wintypes.HWND
-    hwnd = create(0, "STATIC", "Tiance isolated UIA test", 0, 0, 0, 200, 100, 0, 0, 0, None)
-    assert hwnd
-    try:
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            future = pool.submit(service._uia_query, int(hwnd))
-            while not future.done():
-                message = helper.wintypes.MSG()
-                while user32.PeekMessageW(ctypes.byref(message), 0, 0, 0, 1):
-                    user32.TranslateMessage(ctypes.byref(message))
-                    user32.DispatchMessageW(ctypes.byref(message))
-                time.sleep(0.01)
-            records = future.result()
-        assert records and records[0]["name"] == "Tiance isolated UIA test"
-        assert records[0]["process_id"] == os.getpid()
-        assert records[0]["runtime_id"] and records[0]["hwnd"] == int(hwnd)
-    finally:
-        user32.DestroyWindow(hwnd)
-
-
-@pytest.fixture
-def uia_service(mouse_preview_service, monkeypatch):
-    helper, service, point, inputs, raw, rect = mouse_preview_service
-    records = [
-        {"runtime_id": "42," + str(i), "process_id": 7, "hwnd": 123, "name": name,
-         "automation_id": str(i), "control_type": "ControlType.Edit", "class_name": "Edit",
-         "enabled": True, "offscreen": False, "focused": True, "value": "",
-         "rect": {"left": 120 + i * 50, "top": 230, "width": 40, "height": 20}}
-        for i, name in enumerate(("Recipient", "Message", "Send"))
-    ]
-    monkeypatch.setattr(helper.user32, "GetForegroundWindow", lambda: 123)
-    def query(hwnd, runtime_ids=None, **options):
-        matches = [r for r in records if not runtime_ids or r["runtime_id"] in runtime_ids]
-        if options.get("operation") == "set_value":
-            matches[0]["value"] = options["value"]
-            matches[0]["performed"] = True
-        return [dict(r) for r in matches]
-    monkeypatch.setattr(service, "_uia_query", query)
-    args = {"action": "elements", "gui_session_id": point["gui_session_id"], "frame_id": 0}
-    first = service.inspect({**args, "limit": 1})
-    assert not first["data"]["complete"] and first["data"]["next_offset"] == 1
-    rest = service.inspect({**args, "offset": 1})
-    assert rest["data"]["complete"] and rest["data"]["total"] == 3
-    elements = first["data"]["elements"] + rest["data"]["elements"]
-    yield helper, service, point, inputs, records, elements
-
-
-def test_uia_target_and_live_identity_validation(uia_service):
-    helper, service, point, inputs, records, elements = uia_service
-    target = {"gui_session_id": point["gui_session_id"], "frame_id": 0,
-              "element_id": elements[2]["element_id"]}
-    preview = service.mouse({**target, "action": "preview", "preview_action": "click"})
-    assert preview["data"]["selected_coordinate"]["screen_x"] == 240
-    records[2]["name"] = "Different recipient"
-    result = service.mouse({"action": "execute_preview", "preview_id": preview["data"]["preview_id"]})
-    assert not result["ok"] and result["error_info"]["code"] == "UIA_ELEMENT_CHANGED"
-    assert inputs == []
-
-
-def test_keyboard_requires_observed_frame_and_live_focus(uia_service):
-    helper, service, point, inputs, records, elements = uia_service
-    args = {"gui_session_id": point["gui_session_id"], "action": "type_text",
-            "text": "hello", "element_id": elements[1]["element_id"]}
-    with pytest.raises(helper.GuiError) as failure:
-        service.keyboard(args)
-    assert failure.value.code == "STALE_FRAME"
-    records[1]["focused"] = False
-    with pytest.raises(helper.GuiError) as failure:
-        service.keyboard({**args, "frame_id": 0})
-    assert failure.value.code == "UIA_FOCUS_CHANGED"
-    assert inputs == []
-    result = service.keyboard({**args, "frame_id": 0, "action": "set_value"})
-    assert result["data"]["performed"] and records[1]["value"] == "hello"
-
-
-def test_batch_checks_conditions_and_stops_after_partial_progress(uia_service):
-    helper, service, point, inputs, records, elements = uia_service
-    actions = [
-        {"type": "set_value", "element_id": elements[1]["element_id"], "text": "hello",
-         "postconditions": [{"element_id": elements[1]["element_id"], "value": "hello"}]},
-        {"type": "click", "frame_id": 0, "element_id": elements[2]["element_id"],
-         "expected_elements": [{"element_id": elements[0]["element_id"], "value": "Expected person"}]},
-        {"type": "press_key", "key": "enter"},
-    ]
-    with pytest.raises(helper.GuiError) as failure:
-        service.batch({"gui_session_id": point["gui_session_id"], "frame_id": 0, "actions": actions})
-    assert failure.value.code == "UIA_CONDITION_FAILED"
-    assert failure.value.details["completed_actions"] == 1
-    assert failure.value.details["failed_action_index"] == 1
-    assert failure.value.details["execution_status"] == "partial"
-    assert records[1]["value"] == "hello" and inputs == []
-
-
-def test_batch_rechecks_pixels_after_previous_action(mouse_preview_service, monkeypatch):
+def test_batch_continues_after_own_pixel_changes(mouse_preview_service, monkeypatch):
     helper, service, point, inputs, raw, rect = mouse_preview_service
     def click(*args):
         inputs.append(args)
         raw.paste((255, 255, 255), (0, 0, 400, 300))
         service.input_events_sent += 1
     monkeypatch.setattr(service, "_mouse_click", click)
+    result = service.batch({"gui_session_id": point["gui_session_id"], "frame_id": 0,
+                            "actions": [{**{k: v for k, v in point.items() if k != "gui_session_id"}, "type": "click"}] * 2})
+    assert result["data"]["execution_status"] == "completed"
+    assert result["data"]["completed_actions"] == 2 and len(inputs) == 2
+
+
+@pytest.mark.parametrize("method", ["mouse", "keyboard", "batch", "preview"])
+@pytest.mark.parametrize("failure_code", ["WINDOW_NOT_AVAILABLE", "CAPTURE_FAILED"])
+def test_completed_action_survives_observation_failure(mouse_preview_service, monkeypatch, method, failure_code):
+    helper, service, point, inputs, raw, rect = mouse_preview_service
+    if failure_code == "WINDOW_NOT_AVAILABLE":
+        session = service._load_session(point["gui_session_id"])
+        session["target"] = {"type": "window", "hwnd": 123, "process_id": 7}
+        service._save_session(session)
+    args = {
+        "mouse": {**point, "action": "click"},
+        "keyboard": {**point, "action": "type_text", "text": "isolated text"},
+        "batch": {**point, "actions": [{**point, "type": "click"}, {"type": "press_key", "key": "enter"}]},
+    }
+    if method == "preview":
+        preview = service.mouse({**point, "action": "preview", "preview_action": "click"})
+        arguments = {"action": "execute_preview", "preview_id": preview["data"]["preview_id"]}
+    else:
+        arguments = args[method]
+    def capture_failed(target):
+        raise helper.GuiError(failure_code, "目标已关闭" if failure_code == "WINDOW_NOT_AVAILABLE" else "截图失败")
+    monkeypatch.setattr(service, "_capture_target", capture_failed)
+    result = getattr(service, "mouse" if method == "preview" else method)(arguments)
+    assert result["ok"] and result["data"]["performed"] and inputs
+    assert result["data"]["execution_status"] == "completed"
+    assert result["data"]["observation_status"] == "unavailable"
+    assert result["data"]["observation_error"]["code"] == failure_code
+    assert result["data"]["frame_id"] is None and "image_path" not in result
+    session = service._load_session(point["gui_session_id"])
+    assert session["latest_frame_id"] == -1
+    sent = len(inputs)
+    with pytest.raises(helper.GuiError) as stale:
+        service.mouse({**point, "action": "click"})
+    assert stale.value.code == "STALE_FRAME" and len(inputs) == sent
+    if method == "batch":
+        assert result["data"]["completed_actions"] == 2
+    if method == "preview":
+        repeated = service.mouse(arguments)
+        assert repeated["data"]["preview_reused"] and len(inputs) == sent
+        assert repeated["data"]["execution_status"] == "completed"
+    # A failed screenshot does not prevent explicit refresh from recovering.
+    monkeypatch.setattr(service, "_capture_target", lambda target: (raw, rect.copy()))
+    recovered = service.inspect({"action": "refresh", "gui_session_id": point["gui_session_id"]})
+    assert recovered["data"]["frame_id"] == 1
+
+
+def test_action_returns_new_foreground_without_changing_target(mouse_preview_service, monkeypatch):
+    helper, service, point, inputs, raw, rect = mouse_preview_service
+    session = service._load_session(point["gui_session_id"])
+    session["target"] = {"type": "window", "hwnd": 123, "process_id": 7}
+    service._save_session(session)
+    original = service._mouse_click
+    def popup(*args):
+        original(*args)
+        monkeypatch.setattr(helper.user32, "GetForegroundWindow", lambda: 456)
+    monkeypatch.setattr(service, "_mouse_click", popup)
+    result = service.mouse({**point, "action": "click"})
+    assert result["data"]["execution_status"] == "completed"
+    assert result["data"]["foreground_changed"]
+    assert result["data"]["foreground_window"]["hwnd"] == 456
+    assert result["data"]["foreground_window"]["title"] == "Test window"
+    assert result["data"]["target"]["hwnd"] == 123
     with pytest.raises(helper.GuiError) as failure:
-        service.batch({"gui_session_id": point["gui_session_id"], "frame_id": 0,
-                       "actions": [{**{k: v for k, v in point.items() if k != "gui_session_id"}, "type": "click"}] * 2})
-    assert failure.value.code == "GUI_BATCH_TARGET_CHANGED"
-    assert failure.value.details["completed_actions"] == 1 and len(inputs) == 1
+        service.keyboard({**point, "frame_id": 1, "action": "press_key", "key": "enter"})
+    assert failure.value.code == "TARGET_NOT_FOREGROUND"
+    assert failure.value.details["foreground_window"]["hwnd"] == 456
+    assert len(inputs) == 1
+
+
+@pytest.mark.parametrize("target", ["screen", "window"])
+def test_batch_stops_at_new_window_and_preserves_completed_steps(mouse_preview_service, monkeypatch, target):
+    helper, service, point, inputs, raw, rect = mouse_preview_service
+    if target == "window":
+        session = service._load_session(point["gui_session_id"])
+        session["target"] = {"type": "window", "hwnd": 123, "process_id": 7}
+        service._save_session(session)
+    original = service._mouse_click
+    def popup(*args):
+        original(*args)
+        monkeypatch.setattr(helper.user32, "GetForegroundWindow", lambda: 456)
+    monkeypatch.setattr(service, "_mouse_click", popup)
+    with pytest.raises(helper.GuiError) as failure:
+        service.batch({**point, "actions": [{**point, "type": "click"}, {"type": "press_key", "key": "enter"}]})
+    detail = failure.value.details
+    assert detail["execution_status"] == "partial" and detail["performed"]
+    assert detail["completed_actions"] == 1 and detail["failed_action_index"] == 1
+    assert detail["foreground_window"]["hwnd"] == 456 and len(inputs) == 1
+    assert service._load_session(point["gui_session_id"])["latest_frame_id"] == -1
+
+
+@pytest.mark.parametrize("name", ["gui_mouse", "gui_keyboard", "gui_batch"])
+def test_action_wrapper_preserves_completion_when_image_is_missing(tmp_path, monkeypatch, name):
+    program = _load_program(name)
+    response = {"ok": True, "data": {"execution_status": "completed", "performed": True,
+                                    "frame_id": 1, "observation_status": "captured"},
+                "image_path": str(tmp_path / ".Tiance/gui-temp/missing.png")}
+    monkeypatch.setattr(program, "context_and_state", lambda: (tmp_path, {}))
+    monkeypatch.setattr(program, "call_helper", lambda *args: response)
+    result = program.run({})
+    assert result["ok"] and result["data"]["execution_status"] == "completed"
+    assert result["data"]["observation_status"] == "unavailable" and result["warnings"]
+    assert result["data"]["frame_id"] is None
+
+
+def test_action_contract_removes_pixel_blocking_parameters():
+    point = {"gui_session_id": "gui_" + "a" * 32, "frame_id": 0, "view_id": "root", "cell_id": 1, "x": 0.5, "y": 0.5}
+    calls = {"gui_mouse": {**point, "action": "click"},
+             "gui_keyboard": {"gui_session_id": point["gui_session_id"], "frame_id": 0, "action": "press_key", "key": "enter"},
+             "gui_batch": {"gui_session_id": point["gui_session_id"], "frame_id": 0, "actions": [{"type": "press_key", "key": "enter"}]}}
+    for name, args in calls.items():
+        assert validate_tool_arguments(args, _schema(name)) == []
+        for removed in ("change_check_scope", "change_threshold_percent"):
+            assert removed not in _schema(name)["properties"]
+            assert validate_tool_arguments({**args, removed: 0.5}, _schema(name))
+    assert "change_threshold_percent" in _schema("gui_inspect")["properties"]  # Explicit wait still compares images.
+
+
+def test_action_state_write_failure_reports_completion_and_stops_queue(mouse_preview_service, monkeypatch):
+    helper, service, point, inputs, raw, rect = mouse_preview_service
+    def fail_save(session):
+        raise OSError("state file unavailable")
+    monkeypatch.setattr(service, "_save_session", fail_save)
+    monkeypatch.setattr(service, "request_stop", lambda reason: service.cancel_event.set())
+    result = service.mouse({**point, "action": "click"})
+    assert result["ok"] and result["data"]["execution_status"] == "completed" and len(inputs) == 1
+    assert result["data"]["observation_error"]["code"] == "GUI_STATE_WRITE_FAILED"
+    assert service.cancel_event.is_set() and not result["data"]["interface_state"]["lock_active"]
+    with pytest.raises(helper.GuiError) as failure:
+        service._dispatch({"token": service.token, "project_id": service.project_id, "session_id": service.session_id,
+                           "method": "mouse", "payload": {**point, "action": "click"}})
+    assert failure.value.code == "GUI_RUNTIME_STOPPED" and len(inputs) == 1
 
 
 @pytest.mark.skipif(os.name != "nt", reason="GUI工具只支持Windows")

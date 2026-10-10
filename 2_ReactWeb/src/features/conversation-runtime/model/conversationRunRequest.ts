@@ -27,6 +27,10 @@ export function buildConversationRunRequest(input: {
       input.settings.malformed_tool_call_recovery_enabled
     ),
     upstream_retry_count: input.settings.upstream_retry_count,
+    output_limit_action: input.settings.output_limit_action,
+    output_limit_save_partial: input.settings.output_limit_save_partial,
+    output_limit_message: input.settings.output_limit_message,
+    output_limit_max_recoveries: input.settings.output_limit_max_recoveries,
     max_tool_calls: input.settings.max_tool_calls,
     client_capabilities: [...input.clientCapabilities],
     generation: buildGenerationParams(input.settings, input.reasoningMode),

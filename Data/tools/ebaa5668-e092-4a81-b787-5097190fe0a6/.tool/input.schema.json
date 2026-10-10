@@ -1,0 +1,939 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "description": "通用屏幕标注：draw添加网格框、箭头、文字；update按annotation_id部分修改，未传字段保留；delete删除指定标注；list读取标注与显示状态；close关闭显示并保留数据；show重新显示。除draw/update/delete必须指定gui_session_id外，其他动作可指定会话或作用于当前项目全部标注。draw批量追加，不替换已有标注，返回稳定标注ID，重试前先list避免重复。来源为gui_inspect返回的gui_session_id/frame_id/view_id，允许读取已关闭会话保存的Frame；本工具不锁键鼠，不要求gui_runtime保持运行，工具返回和解锁后标注继续显示。获取新截图仍先gui_runtime start，再gui_inspect start/refresh；GUI阶段结束立即stop，标注不占界面锁。grid只需提供来源View的cell_ids，完整连续矩形合并外框，其他选格逐格框选。arrow提供tail和head；text提供text和position，position为第一行左上起点，支持\\n换行。点位沿用GUI网格比例坐标：cell_id、x向右、y从底向上，x/y均0到1；可为点另指定view_id。颜色默认red，支持颜色名或#RRGGBB；size默认auto，显式值为最终屏幕物理像素，箭头size仅指杆宽，头部固定按杆宽比例，短箭头自动缩短头部。文字size为字体像素，框选size为线宽。update可提供新的frame_id/view_id和点位，保持原标注类型。用户全部关闭后update不重新显示，需明确show；数据保存于对应GUI目录annotations.json。返回的效果图以保存的Frame为底图，不是实时截图；标注固定在屏幕物理坐标，界面移动、滚动或缩放后须重新观察并更新。标注层鼠标穿透、不抢焦点，只有关闭按钮接收点击；层和按钮排除于后续GUI截图。",
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "draw",
+        "update",
+        "delete",
+        "list",
+        "close",
+        "show"
+      ],
+      "permission_type": "ui_control"
+    },
+    "gui_session_id": {
+      "type": "string",
+      "pattern": "^gui_[a-f0-9]{32}$",
+      "permission_type": "none"
+    },
+    "frame_id": {
+      "type": "integer",
+      "minimum": 0,
+      "permission_type": "none"
+    },
+    "view_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "default": "root",
+      "permission_type": "none"
+    },
+    "annotations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "grid"
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^(#[0-9a-fA-F]{6}|[A-Za-z]+)$",
+                "default": "red"
+              },
+              "size": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 256
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "auto"
+                    ]
+                  }
+                ],
+                "default": "auto"
+              },
+              "cell_ids": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 256,
+                "uniqueItems": true,
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "required": [
+              "type",
+              "cell_ids"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "arrow"
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^(#[0-9a-fA-F]{6}|[A-Za-z]+)$",
+                "default": "red"
+              },
+              "size": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 256
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "auto"
+                    ]
+                  }
+                ],
+                "default": "auto"
+              },
+              "tail": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "cell_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "x": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "view_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "required": [
+                  "cell_id",
+                  "x",
+                  "y"
+                ]
+              },
+              "head": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "cell_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "x": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "view_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "required": [
+                  "cell_id",
+                  "x",
+                  "y"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "tail",
+              "head"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "text"
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^(#[0-9a-fA-F]{6}|[A-Za-z]+)$",
+                "default": "red"
+              },
+              "size": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 256
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "auto"
+                    ]
+                  }
+                ],
+                "default": "auto"
+              },
+              "position": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "cell_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "x": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "view_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "required": [
+                  "cell_id",
+                  "x",
+                  "y"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "type",
+              "position",
+              "text"
+            ]
+          }
+        ]
+      },
+      "permission_type": "none"
+    },
+    "updates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 2,
+        "properties": {
+          "annotation_id": {
+            "type": "string",
+            "pattern": "^ann_[a-f0-9]{32}$"
+          },
+          "frame_id": {
+            "type": "integer",
+            "minimum": 0,
+            "permission_type": "none"
+          },
+          "view_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "default": "root",
+            "permission_type": "none"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^(#[0-9a-fA-F]{6}|[A-Za-z]+)$",
+            "default": "red"
+          },
+          "size": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 256
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "auto"
+                ]
+              }
+            ],
+            "default": "auto"
+          },
+          "cell_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 256,
+            "uniqueItems": true,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "tail": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "cell_id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "x": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "y": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "view_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            "required": [
+              "cell_id",
+              "x",
+              "y"
+            ]
+          },
+          "head": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "cell_id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "x": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "y": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "view_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            "required": [
+              "cell_id",
+              "x",
+              "y"
+            ]
+          },
+          "position": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "cell_id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "x": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "y": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "view_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            "required": [
+              "cell_id",
+              "x",
+              "y"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "annotation_id"
+        ]
+      },
+      "permission_type": "none"
+    },
+    "annotation_ids": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^ann_[a-f0-9]{32}$"
+      },
+      "permission_type": "none"
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "draw"
+        },
+        "gui_session_id": {
+          "type": "string",
+          "pattern": "^gui_[a-f0-9]{32}$",
+          "permission_type": "none"
+        },
+        "frame_id": {
+          "type": "integer",
+          "minimum": 0,
+          "permission_type": "none"
+        },
+        "view_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "default": "root",
+          "permission_type": "none"
+        },
+        "annotations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "type": {
+                    "const": "grid"
+                  },
+                  "color": {
+                    "type": "string",
+                    "pattern": "^(#[0-9a-fA-F]{6}|[A-Za-z]+)$",
+                    "default": "red"
+                  },
+                  "size": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 256
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "auto"
+                        ]
+                      }
+                    ],
+                    "default": "auto"
+                  },
+                  "cell_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 256,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  }
+                },
+                "required": [
+                  "type",
+                  "cell_ids"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "type": {
+                    "const": "arrow"
+                  },
+                  "color": {
+                    "type": "string",
+                    "pattern": "^(#[0-9a-fA-F]{6}|[A-Za-z]+)$",
+                    "default": "red"
+                  },
+                  "size": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 256
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "auto"
+                        ]
+                      }
+                    ],
+                    "default": "auto"
+                  },
+                  "tail": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "cell_id": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "x": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "view_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160
+                      }
+                    },
+                    "required": [
+                      "cell_id",
+                      "x",
+                      "y"
+                    ]
+                  },
+                  "head": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "cell_id": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "x": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "view_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160
+                      }
+                    },
+                    "required": [
+                      "cell_id",
+                      "x",
+                      "y"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "tail",
+                  "head"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "type": {
+                    "const": "text"
+                  },
+                  "color": {
+                    "type": "string",
+                    "pattern": "^(#[0-9a-fA-F]{6}|[A-Za-z]+)$",
+                    "default": "red"
+                  },
+                  "size": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 256
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "auto"
+                        ]
+                      }
+                    ],
+                    "default": "auto"
+                  },
+                  "position": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "cell_id": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "x": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "view_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160
+                      }
+                    },
+                    "required": [
+                      "cell_id",
+                      "x",
+                      "y"
+                    ]
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "type",
+                  "position",
+                  "text"
+                ]
+              }
+            ]
+          },
+          "permission_type": "none"
+        }
+      },
+      "required": [
+        "action",
+        "gui_session_id",
+        "frame_id",
+        "annotations"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "update"
+        },
+        "gui_session_id": {
+          "type": "string",
+          "pattern": "^gui_[a-f0-9]{32}$",
+          "permission_type": "none"
+        },
+        "updates": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "minProperties": 2,
+            "properties": {
+              "annotation_id": {
+                "type": "string",
+                "pattern": "^ann_[a-f0-9]{32}$"
+              },
+              "frame_id": {
+                "type": "integer",
+                "minimum": 0,
+                "permission_type": "none"
+              },
+              "view_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160,
+                "default": "root",
+                "permission_type": "none"
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^(#[0-9a-fA-F]{6}|[A-Za-z]+)$",
+                "default": "red"
+              },
+              "size": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 256
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "auto"
+                    ]
+                  }
+                ],
+                "default": "auto"
+              },
+              "cell_ids": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 256,
+                "uniqueItems": true,
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "tail": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "cell_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "x": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "view_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "required": [
+                  "cell_id",
+                  "x",
+                  "y"
+                ]
+              },
+              "head": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "cell_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "x": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "view_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "required": [
+                  "cell_id",
+                  "x",
+                  "y"
+                ]
+              },
+              "position": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "cell_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "x": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "view_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "required": [
+                  "cell_id",
+                  "x",
+                  "y"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "annotation_id"
+            ]
+          },
+          "permission_type": "none"
+        }
+      },
+      "required": [
+        "action",
+        "gui_session_id",
+        "updates"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "delete"
+        },
+        "gui_session_id": {
+          "type": "string",
+          "pattern": "^gui_[a-f0-9]{32}$",
+          "permission_type": "none"
+        },
+        "annotation_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^ann_[a-f0-9]{32}$"
+          },
+          "permission_type": "none"
+        }
+      },
+      "required": [
+        "action",
+        "gui_session_id",
+        "annotation_ids"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "list"
+        },
+        "gui_session_id": {
+          "type": "string",
+          "pattern": "^gui_[a-f0-9]{32}$",
+          "permission_type": "none"
+        }
+      },
+      "required": [
+        "action"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "close"
+        },
+        "gui_session_id": {
+          "type": "string",
+          "pattern": "^gui_[a-f0-9]{32}$",
+          "permission_type": "none"
+        }
+      },
+      "required": [
+        "action"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "show"
+        },
+        "gui_session_id": {
+          "type": "string",
+          "pattern": "^gui_[a-f0-9]{32}$",
+          "permission_type": "none"
+        }
+      },
+      "required": [
+        "action"
+      ]
+    }
+  ]
+}

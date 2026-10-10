@@ -1,0 +1,22 @@
+[
+  {
+    "title": "表单控件优先UIA：查找保存按钮并查看支持的patterns",
+    "content": "{\n  \"action\": \"inspect\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"query\": \"保存\",\n  \"limit\": 100\n}"
+  },
+  {
+    "title": "继续读取同一快照",
+    "content": "{\n  \"action\": \"inspect\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"snapshot_id\": \"uia_0123456789abcdef0123456789abcdef\",\n  \"query\": \"保存\",\n  \"offset\": 100,\n  \"limit\": 100\n}"
+  },
+  {
+    "title": "控件支持ValuePattern时完整替换输入框内容",
+    "content": "{\n  \"action\": \"set_value\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"element_id\": \"uia_0123456789abcdef0123456789abcdef:3\",\n  \"text\": \"测试文件.pptx\"\n}"
+  },
+  {
+    "title": "控件支持InvokePattern时触发按钮",
+    "content": "{\n  \"action\": \"invoke\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"element_id\": \"uia_0123456789abcdef0123456789abcdef:4\"\n}"
+  },
+  {
+    "title": "读取控件实时状态，再确认应用业务结果",
+    "content": "{\n  \"action\": \"read\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"element_id\": \"uia_0123456789abcdef0123456789abcdef:3\"\n}"
+  }
+]

@@ -37,14 +37,14 @@
     "analyze_images": {
       "permission_type": "none",
       "default": true,
-      "description": "是否通过 DMXAPI 调用豆包视觉模型还原 MinerU 解析结果中的图片信息，并把结果插入到 Markdown 对应图片下方。",
+      "description": "是否通过 DeepSeek 官方接口调用 deepseek-flash 还原 MinerU 解析结果中的图片信息，并把结果插入到 Markdown 对应图片下方。",
       "title": "分析图片",
       "type": "boolean"
     },
     "analyze_full_page_images": {
       "permission_type": "none",
       "default": false,
-      "description": "是否允许 DMXAPI 分析批量出现的整页图片。默认关闭，避免扫描型 PDF 的整页底图被当作普通插图重复分析。",
+      "description": "是否允许 DeepSeek 分析批量出现的整页图片。默认关闭，避免扫描型 PDF 的整页底图被当作普通插图重复分析。",
       "title": "分析整页图片",
       "type": "boolean"
     },
@@ -63,7 +63,7 @@
     "image_concurrency": {
       "permission_type": "none",
       "default": 50,
-      "description": "DMXAPI 图片分析的最大同时请求数。总图片数量不受限制。",
+      "description": "DeepSeek 图片分析的最大同时请求数。总图片数量不受限制。",
       "maximum": 50,
       "minimum": 1,
       "title": "图片并发数",

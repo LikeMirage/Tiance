@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from contextlib import suppress
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -12,6 +11,7 @@ from uuid import uuid4
 
 from app.core.atomic_replace import atomic_replace_path
 from app.core.config import get_settings
+from app.core.shutdown_tasks import finish_thread, shutdown_tasks
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.domain.llm.provider_catalog import ProviderProtocolFamily
 from app.infra.provider_market import (
@@ -113,14 +113,17 @@ class ProviderMarketApplicationService:
     ) -> ProviderMarketSettingsResponse:
         return self._settings_repository.save_filters(_normalize_filters(filters))
 
+    @shutdown_tasks.request
     async def connect(self, source: str) -> ProviderMarketIndexResponse:
         loaded = await self._index_gateway.connect(source)
         return await loaded.build_response(self._to_response)
 
+    @shutdown_tasks.request
     async def get_index(self) -> ProviderMarketIndexResponse:
         loaded = await self._index_gateway.get_index()
         return await loaded.build_response(self._to_response)
 
+    @shutdown_tasks.request
     async def install_provider(
         self,
         *,
@@ -163,14 +166,15 @@ class ProviderMarketApplicationService:
                 expected_sha256=entry.sha256,
                 target=archive_path,
             )
-            package_root = await asyncio.to_thread(
+            shutdown_tasks.commit_started()
+            package_root = await finish_thread(
                 self._archive.validate_and_extract,
                 archive_path=archive_path,
                 staging_root=staging_root,
                 market_entry=entry,
             )
             if local_exists:
-                await asyncio.to_thread(
+                await finish_thread(
                     self._update_installed_provider,
                     provider_id=provider_id,
                     package_root=package_root,
@@ -178,7 +182,7 @@ class ProviderMarketApplicationService:
                 )
                 updated = True
             else:
-                await asyncio.to_thread(
+                await finish_thread(
                     self._install_new_provider,
                     provider_id=provider_id,
                     package_root=package_root,
@@ -196,7 +200,7 @@ class ProviderMarketApplicationService:
                 updated=updated,
             )
         finally:
-            await asyncio.to_thread(
+            await finish_thread(
                 remove_provider_staging_path,
                 operation_root,
                 allowed_root=self._downloads_root,

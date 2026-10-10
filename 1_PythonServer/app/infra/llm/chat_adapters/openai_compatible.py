@@ -1,3 +1,4 @@
+from app.domain.llm.output_limit_error import OutputLimitError
 from collections.abc import AsyncGenerator
 
 from app.core.errors import UpstreamProviderError
@@ -151,6 +152,7 @@ class OpenAICompatibleChatAdapter:
             yield ChatStreamEvent(
                 kind=ChatStreamEventKind.ERROR,
                 error=f"上游生成未完整结束：{finish_reason}。",
+                finish_reason=finish_reason,
                 error_code="upstream_response_incomplete",
             )
             return
@@ -211,6 +213,15 @@ def _parse_response(
         )
 
     finish_reason = _optional_str(first_choice.get("finish_reason"))
+    if finish_reason == "length":
+        raise OutputLimitError(ChatCompletionResult(
+            provider_id=request.provider_id, model_id=request.model_id,
+            message=ChatMessage(role=ChatMessageRole.ASSISTANT,
+                content=str(upstream_message.get("content") or ""),
+                thinking_content=_extract_thinking_content(upstream_message)),
+            thinking_content=_extract_thinking_content(upstream_message),
+            finish_reason=finish_reason, usage=provider_profile.parse_usage(payload.get("usage")), raw_response=payload,
+        ))
     if finish_reason in {"length", "content_filter"}:
         raise UpstreamProviderError(
             f"上游生成未完整结束：{finish_reason}。",

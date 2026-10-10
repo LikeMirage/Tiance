@@ -3,7 +3,6 @@ import {
   CaretLeft,
   CaretRight,
   Check,
-  CheckCircle,
   Copy,
   DownloadSimple,
   File,
@@ -13,11 +12,11 @@ import {
   ArrowsClockwise,
   PencilSimple,
   Quotes,
-  WarningCircle,
 } from "@phosphor-icons/react";
 import {
   memo,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -26,15 +25,14 @@ import {
 import type { ChatUsage } from "../../../entities/llm-chat/model/chatCompletion";
 import { LazyMarkdownPreview } from "../../markdown-preview/ui/LazyMarkdownPreview";
 import { resolveAssistantBodyContent } from "../model/chatDisplayMessages";
-import { ConversationEventNotice, RunFailureNotice } from "./ChatRunNotices";
+import { ChatProcessFoldScope } from "../model/chatProcessFoldState";
+import { ConversationEventNotice, RunFailureNotice, MemoryCompactionNotice } from "./ChatRunNotices";
 import { createWorkspaceAssetUrl } from "../../document-editor-canvas/model/documentAssetUrls";
 import {
   buildChatMessageClass,
   formatChatRetryNotice,
   readToolProcessItemFromMessage,
   resolveThinkingElapsedSeconds,
-  shouldOfferUserMessageExpand,
-  shouldOfferUserMessageExpandFromParts,
   type ChatMessage,
 } from "../model/chatMessage";
 import {
@@ -44,6 +42,7 @@ import {
   type UserMessageReferenceDisplay,
 } from "../model/userMessageReferences";
 import { formatTokenCount } from "../model/usageSummary";
+import { formatChatMessageTimestamp } from "../model/chatMessageTimestamp";
 import { AssistantProcessTimeline } from "./ChatAssistantProcessTimeline";
 import {
   formatToolPayload,
@@ -63,6 +62,8 @@ type ChatMessageItemProps = {
   isSessionStreaming: boolean;
   message: ChatMessage;
   modelSwitchModelId: string | null;
+  foldTurnId: string;
+  foldThinkingOffset: number;
 };
 
 export const ChatMessageItem = memo(function ChatMessageItem({
@@ -70,27 +71,20 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   clockTick,
   expandedUserMessageIds,
   interactions,
-  isLastMessage,
   isSessionStreaming,
   message,
   modelSwitchModelId,
+  foldTurnId,
+  foldThinkingOffset,
 }: ChatMessageItemProps) {
   const isStreamingMessage =
     isSessionStreaming &&
-    isLastMessage &&
     message.role === "assistant" &&
     message.status === "running";
   const referencedUserMessage = useMemo(
     () => message.role === "user" ? buildReferencedUserMessage(message) : null,
     [message.content, message.references, message.role],
   );
-  const canExpandUserMessage = useMemo(() => (
-    message.role === "user" && (
-      referencedUserMessage
-        ? shouldOfferReferencedUserMessageExpand(referencedUserMessage)
-        : shouldOfferUserMessageExpand(message.content)
-    )
-  ), [message.content, message.role, referencedUserMessage]);
   const isUserMessageExpanded = expandedUserMessageIds.has(message.id);
   const isBodyStreaming =
     isStreamingMessage && message.content.trim().length > 0;
@@ -113,7 +107,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
     message.role === "system" && message.name === "memory_compaction";
 
   return (
-    <>
+    <ChatProcessFoldScope turnId={foldTurnId} thinkingOffset={foldThinkingOffset}>
       {modelSwitchModelId ? <ModelSwitchNotice modelId={modelSwitchModelId} /> : null}
       {isMemoryCompactionStatus ? (
         <MemoryCompactionNotice message={message} />
@@ -148,9 +142,9 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             />
           ) : null}
           <MessageBody
-            canExpandUserMessage={canExpandUserMessage}
             interactions={interactions}
             isBodyStreaming={isBodyStreaming}
+            isSessionStreaming={isSessionStreaming}
             isUserMessageExpanded={isUserMessageExpanded}
             message={message}
             referencedUserMessage={referencedUserMessage}
@@ -160,18 +154,14 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             isStreamingMessage={isStreamingMessage}
             message={message}
           />
-          <UserActions
-            interactions={interactions}
-            isSessionStreaming={isSessionStreaming}
-            message={message}
-          />
+          {message.finishReason === "output_limit" ? <div className="chat-msg__usage">输出已截断</div> : null}
           {message.retryStatus ? <RetryNotice message={message} /> : null}
           {usageToRender ? (
             <div className="chat-msg__usage">{formatChatUsage(usageToRender)}</div>
           ) : null}
         </div>
       )}
-    </>
+    </ChatProcessFoldScope>
   );
 }, areChatMessageItemPropsEqual);
 
@@ -199,28 +189,6 @@ function ModelSwitchNotice({ modelId }: { modelId: string }) {
   );
 }
 
-function MemoryCompactionNotice({ message }: { message: ChatMessage }) {
-  const variant = message.status === "error"
-    ? "error"
-    : message.status === "done"
-      ? "done"
-      : "running";
-  const icon = variant === "error"
-    ? <WarningCircle size={12} weight="fill" aria-hidden="true" />
-    : variant === "done"
-      ? <CheckCircle size={12} weight="fill" aria-hidden="true" />
-      : <ArrowsClockwise size={12} weight="bold" aria-hidden="true" />;
-
-  return (
-    <ConversationEventNotice
-      className={`chat-msg__memory-compaction chat-msg__memory-compaction--${variant}`}
-      icon={icon}
-      messageId={message.id}
-      text={message.content}
-    />
-  );
-}
-
 function areChatMessageItemPropsEqual(
   previous: ChatMessageItemProps,
   next: ChatMessageItemProps,
@@ -229,15 +197,16 @@ function areChatMessageItemPropsEqual(
   const nextExpanded = next.expandedUserMessageIds.has(next.message.id);
   const previousIsStreamingMessage =
     previous.isSessionStreaming &&
-    previous.isLastMessage &&
     previous.message.role === "assistant" &&
     previous.message.status === "running";
   const nextIsStreamingMessage =
     next.isSessionStreaming &&
-    next.isLastMessage &&
     next.message.role === "assistant" &&
     next.message.status === "running";
   const needsClockTick =
+    (next.message.processItems ?? []).some((item) =>
+      item.type === "thinking" && item.status === "running" && item.startedAt !== null,
+    ) ||
     (
       next.message.thinkingStartedAt !== null &&
       next.message.thinkingFinishedAt === null &&
@@ -247,6 +216,8 @@ function areChatMessageItemPropsEqual(
 
   return (
     previous.message === next.message &&
+    previous.foldTurnId === next.foldTurnId &&
+    previous.foldThinkingOffset === next.foldThinkingOffset &&
     previous.interactions === next.interactions &&
     previous.isLastMessage === next.isLastMessage &&
     previous.autoCollapseAssistantProcess === next.autoCollapseAssistantProcess &&
@@ -319,6 +290,7 @@ function ThinkingBlock({
           <LazyMarkdownPreview
             content={message.thinkingContent}
             isStreaming={isStreaming}
+            renderStrategy="responsive"
             mathErrorMode="neutral"
             localFileActions={interactions.localFileActions}
             onPreviewHtmlCode={interactions.onPreviewHtmlCode}
@@ -332,18 +304,18 @@ function ThinkingBlock({
 }
 
 type MessageBodyProps = {
-  canExpandUserMessage: boolean;
   interactions: ChatMessageItemInteractions;
   isBodyStreaming: boolean;
+  isSessionStreaming: boolean;
   isUserMessageExpanded: boolean;
   message: ChatMessage;
   referencedUserMessage: ReferencedUserMessage | null;
 };
 
 function MessageBody({
-  canExpandUserMessage,
   interactions,
   isBodyStreaming,
+  isSessionStreaming,
   isUserMessageExpanded,
   message,
   referencedUserMessage,
@@ -367,6 +339,7 @@ function MessageBody({
             <LazyMarkdownPreview
               content={bodyContent}
               isStreaming={isBodyStreaming}
+              renderStrategy="responsive"
               mathErrorMode="neutral"
               localFileActions={interactions.localFileActions}
               onPreviewHtmlCode={interactions.onPreviewHtmlCode}
@@ -401,10 +374,10 @@ function MessageBody({
 
   return message.role === "user" ? (
     <UserMessageBody
-      canExpand={canExpandUserMessage}
       isExpanded={isUserMessageExpanded}
+      isSessionStreaming={isSessionStreaming}
+      interactions={interactions}
       message={message}
-      onToggleExpanded={interactions.onToggleUserMessageExpanded}
       onOpenReference={interactions.onOpenReference
         ? (reference) => {
           interactions.onOpenReference?.(reference.viewerPayload);
@@ -476,68 +449,85 @@ function ToolMessageBody({ message }: { message: ChatMessage }) {
 }
 
 type UserMessageBodyProps = {
-  canExpand: boolean;
+  interactions: ChatMessageItemInteractions;
   isExpanded: boolean;
+  isSessionStreaming: boolean;
   message: ChatMessage;
   onOpenReference?: (reference: UserMessageReferenceDisplay) => void;
-  onToggleExpanded: (messageId: string) => void;
   referencedMessage: ReferencedUserMessage | null;
 };
 
 function UserMessageBody({
-  canExpand,
+  interactions,
   isExpanded,
+  isSessionStreaming,
   message,
   onOpenReference,
-  onToggleExpanded,
   referencedMessage,
 }: UserMessageBodyProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [canExpand, setCanExpand] = useState(false);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const content = contentRef.current;
+    if (!container || !content) return;
+    // Measure natural content height independently of the expanded state.
+    // Wrapping, references and font changes all affect this.
+    const measure = () => {
+      const limit = Number.parseFloat(getComputedStyle(container).getPropertyValue("--chat-user-message-preview-height"));
+      setCanExpand(Number.isFinite(limit) && content.scrollHeight > limit);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [message.content, referencedMessage]);
+
   return (
-    <div
-      className={[
-        "chat-msg__user-content",
-        canExpand ? "chat-msg__user-content--limited" : "",
-        isExpanded ? "chat-msg__user-content--expanded" : "",
-      ].filter(Boolean).join(" ")}
-    >
-      {referencedMessage ? (
-        <ReferencedUserMessageView
-          onOpenReference={onOpenReference}
-          references={referencedMessage.references}
-          userContent={referencedMessage.userContent}
-        />
-      ) : (
-        <p className="chat-msg__text">{resolveUserMessageContent(message)}</p>
-      )}
-      {canExpand ? (
-        <button
-          className="chat-msg__expand-overlay"
-          type="button"
-          aria-label={isExpanded ? "收起用户消息" : "展开完整用户消息"}
-          title={isExpanded ? "收起" : "展开"}
-          onClick={() => onToggleExpanded(message.id)}
-        >
-          <span
-            className={
-              isExpanded
-                ? "chat-msg__expand-caret chat-msg__expand-caret--collapse"
-                : "chat-msg__expand-caret"
-            }
-            aria-hidden="true"
-          />
-        </button>
-      ) : null}
-    </div>
+    <>
+      <div
+        ref={containerRef}
+        className={[
+          "chat-msg__user-content",
+          isExpanded ? "chat-msg__user-content--expanded" : "",
+        ].filter(Boolean).join(" ")}
+      >
+        <div ref={contentRef} className="chat-msg__user-content-inner">
+          {referencedMessage ? (
+            <ReferencedUserMessageView
+              onOpenReference={onOpenReference}
+              references={referencedMessage.references}
+              userContent={referencedMessage.userContent}
+            />
+          ) : (
+            <p className="chat-msg__text">{resolveUserMessageContent(message)}</p>
+          )}
+        </div>
+      </div>
+      <UserActions canExpand={canExpand} interactions={interactions} isExpanded={isExpanded}
+        isSessionStreaming={isSessionStreaming} message={message} />
+    </>
   );
 }
 
-function shouldOfferReferencedUserMessageExpand(message: ReferencedUserMessage) {
-  return shouldOfferUserMessageExpandFromParts([
-    ...message.references.map((reference) =>
-      [reference.title, reference.meta, reference.detail].filter(Boolean).join(" "),
-    ),
-    message.userContent,
-  ]);
+function UserMessageExpandButton({ isExpanded, onClick }: { isExpanded: boolean; onClick: () => void }) {
+  return (
+    <button
+      className="chat-msg__expand-toggle"
+      type="button"
+      aria-label={isExpanded ? "收起用户消息" : "展开完整用户消息"}
+      aria-expanded={isExpanded}
+      title={isExpanded ? "收起" : "展开"}
+      onClick={onClick}
+    >
+      <span
+        className={isExpanded ? "chat-msg__expand-caret chat-msg__expand-caret--collapse" : "chat-msg__expand-caret"}
+        aria-hidden="true"
+      />
+    </button>
+  );
 }
 
 function ReferencedUserMessageView({
@@ -629,57 +619,58 @@ function AssistantActions({
 }
 
 function UserActions({
+  canExpand,
   interactions,
+  isExpanded,
   isSessionStreaming,
   message,
 }: {
+  canExpand: boolean;
   interactions: ChatMessageItemInteractions;
+  isExpanded: boolean;
   isSessionStreaming: boolean;
   message: ChatMessage;
 }) {
-  if (message.role !== "user" || message.status !== "done") return null;
-  const variantNavigation = interactions.getVariantNavigation?.(message) ?? null;
+  if (message.role !== "user") return null;
+  const sentAt = formatChatMessageTimestamp(message.createdAt);
+  const showActions = message.status === "done";
+  const variantNavigation = showActions ? interactions.getVariantNavigation?.(message) ?? null : null;
+  if (!showActions && !sentAt && !canExpand) return null;
   return (
     <div className="chat-msg__user-actions" aria-label="用户消息操作">
-      <CopyMessageButton
-        label="复制用户消息"
-        text={resolveUserMessageContent(message)}
-      />
-      {interactions.onForkUserMessage ? (
-        <button
-          className="chat-msg__action"
-          type="button"
-          aria-label="编辑并创建分支"
-          title="编辑并创建分支"
-          disabled={isSessionStreaming}
-          onClick={() => interactions.onForkUserMessage?.(message)}
-        >
-          <PencilSimple size={14} weight="regular" aria-hidden="true" />
-        </button>
-      ) : null}
-      {variantNavigation ? (
-        <div className="chat-msg__variant-switcher" aria-label="消息版本">
+      {sentAt ? <time className="chat-msg__timestamp" dateTime={sentAt.dateTime} title={`发送时间：${sentAt.label}`}>
+        {sentAt.label}
+      </time> : null}
+      {canExpand ? <UserMessageExpandButton isExpanded={isExpanded}
+        onClick={() => interactions.onToggleUserMessageExpanded(message.id)} /> : null}
+      {showActions ? <div className="chat-msg__user-actions-end">
+        <CopyMessageButton label="复制用户消息" text={resolveUserMessageContent(message)} />
+        {interactions.onForkUserMessage ? (
           <button
-            className="chat-msg__variant-button"
+            className="chat-msg__action"
             type="button"
-            aria-label="上一个版本"
-            title="上一个版本"
-            onClick={variantNavigation.onPrevious}
+            aria-label="编辑并创建分支"
+            title="编辑并创建分支"
+            disabled={isSessionStreaming}
+            onClick={() => interactions.onForkUserMessage?.(message)}
           >
-            <CaretLeft size={14} weight="bold" aria-hidden="true" />
+            <PencilSimple size={14} weight="regular" aria-hidden="true" />
           </button>
-          <span>{variantNavigation.currentPosition}/{variantNavigation.count}</span>
-          <button
-            className="chat-msg__variant-button"
-            type="button"
-            aria-label="下一个版本"
-            title="下一个版本"
-            onClick={variantNavigation.onNext}
-          >
-            <CaretRight size={14} weight="bold" aria-hidden="true" />
-          </button>
-        </div>
-      ) : null}
+        ) : null}
+        {variantNavigation ? (
+          <div className="chat-msg__variant-switcher" aria-label="消息版本">
+            <button className="chat-msg__variant-button" type="button" aria-label="上一个版本"
+              title="上一个版本" onClick={variantNavigation.onPrevious}>
+              <CaretLeft size={14} weight="bold" aria-hidden="true" />
+            </button>
+            <span>{variantNavigation.currentPosition}/{variantNavigation.count}</span>
+            <button className="chat-msg__variant-button" type="button" aria-label="下一个版本"
+              title="下一个版本" onClick={variantNavigation.onNext}>
+              <CaretRight size={14} weight="bold" aria-hidden="true" />
+            </button>
+          </div>
+        ) : null}
+      </div> : null}
     </div>
   );
 }

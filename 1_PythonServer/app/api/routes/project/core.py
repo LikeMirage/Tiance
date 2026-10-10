@@ -1,7 +1,9 @@
 import json
+from contextlib import aclosing
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Query, Response, WebSocket, status
 from fastapi.responses import StreamingResponse
+from app.api.event_socket import serve_event_socket
 
 from app.schemas.project import (
     ProjectCategoryAssignRequest,
@@ -47,12 +49,10 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 @router.get("/events", summary="Watch ordinary project workspace changes")
 async def watch_project_events() -> StreamingResponse:
-    changes = get_project_workspace_event_broker().subscribe()
-
     async def event_generator():
-        yield _sse_event({"kind": "ready"})
-        async for paths in changes:
-            yield _sse_event({"kind": "changed", "paths": paths})
+        async with aclosing(_project_workspace_events()) as events:
+            async for payload in events:
+                yield _sse_event(payload)
 
     return StreamingResponse(
         event_generator(),
@@ -62,6 +62,18 @@ async def watch_project_events() -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.websocket("/events")
+async def watch_project_events_socket(websocket: WebSocket) -> None:
+    await serve_event_socket(websocket, _project_workspace_events())
+
+
+async def _project_workspace_events():
+    async with aclosing(get_project_workspace_event_broker().subscribe()) as changes:
+        yield {"kind": "ready"}
+        async for paths in changes:
+            yield {"kind": "changed", "paths": paths}
 
 
 @router.get("", response_model=ProjectListResponse, summary="List projects")

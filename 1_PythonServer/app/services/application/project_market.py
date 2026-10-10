@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 from app.core.config import get_settings
+from app.core.shutdown_tasks import finish_thread, shutdown_tasks
 from app.core.errors import AppError, BadRequestError, ConflictError, NotFoundError
 from app.domain.project import ProjectKind
 from app.infra.project_market.package_archive import (
@@ -149,7 +150,7 @@ class ProjectMarketApplicationService:
             with suppress(asyncio.CancelledError, Exception):
                 await task
             state = self._operations.get(operation_id)
-            if state is not None and task.cancelled() and state.phase != "failed":
+            if state is not None and task.cancelled() and state.phase not in {"failed", "completed"}:
                 state.phase = "failed"
                 state.error = "项目安装已停止。"
                 self._active_market_projects.discard(state.market_project_id)
@@ -172,6 +173,7 @@ class ProjectMarketApplicationService:
     def select_source(self, source: str) -> ProjectMarketSettingsResponse:
         return self._settings_repository.save_source(normalize_project_market_source(source))
 
+    @shutdown_tasks.request
     async def connect(self, source: str) -> ProjectMarketIndexResponse:
         loaded = await self._index_gateway.connect(source)
         return await loaded.build_response(self._to_response)
@@ -179,10 +181,12 @@ class ProjectMarketApplicationService:
     async def restore_default_source(self) -> ProjectMarketIndexResponse:
         return await self.connect(self._policy.default_source)
 
+    @shutdown_tasks.request
     async def get_index(self) -> ProjectMarketIndexResponse:
         loaded = await self._index_gateway.get_index()
         return await loaded.build_response(self._to_response)
 
+    @shutdown_tasks.request
     async def get_preview_path(self, market_project_id: str) -> Path:
         _require_market_project_id(market_project_id)
         source = normalize_project_market_source(self.get_settings().source)
@@ -229,6 +233,7 @@ class ProjectMarketApplicationService:
             raise BadRequestError(self._policy.category_error)
 
         async with self._operation_lock:
+            shutdown_tasks.require_accepting()
             if market_project_id in self._active_market_projects:
                 raise ConflictError("该项目正在安装，请勿重复操作。")
             source = normalize_project_market_source(self.get_settings().source)
@@ -253,10 +258,20 @@ class ProjectMarketApplicationService:
                 )
             )
             self._tasks[operation_id] = task
+            shutdown_tasks.track(task)
             task.add_done_callback(
-                lambda _task, key=operation_id: self._tasks.pop(key, None)
+                lambda finished, key=operation_id: self._finish_task(key, finished)
             )
             return state.response()
+
+    def _finish_task(self, operation_id: str, task: asyncio.Task) -> None:
+        self._tasks.pop(operation_id, None)
+        state = self._operations[operation_id]
+        # A queued task can be cancelled before its coroutine/finally runs.
+        if task.cancelled() and state.phase == "queued":
+            state.phase = "failed"
+            state.error = "项目安装已停止。"
+            self._active_market_projects.discard(state.market_project_id)
 
     def get_operation(self, operation_id: str) -> ProjectMarketInstallOperation:
         state = self._operations.get(operation_id)
@@ -272,8 +287,7 @@ class ProjectMarketApplicationService:
         category_id: str,
     ) -> None:
         operation_root = self._cache_repository.operations_root / state.operation_id
-        installed_project_id: str | None = None
-        staged_project_root: Path | None = None
+        committing = False
         try:
             operation_root.mkdir(parents=True, exist_ok=False)
             remote_index = (await self._index_gateway.fetch(source)).index
@@ -293,9 +307,49 @@ class ProjectMarketApplicationService:
                 default_ref=remote_index.default_ref,
                 target=archive_path,
             )
+            shutdown_tasks.commit_started()
+            committing = True
+            await finish_thread(
+                self._commit_install,
+                state=state,
+                operation_root=operation_root,
+                archive_path=archive_path,
+                source_path=source_path,
+                source=source,
+                entry=entry,
+                category_id=category_id,
+            )
+        except asyncio.CancelledError:
+            if state.phase != "completed":
+                state.phase = "failed"
+                state.error = "项目安装已停止。"
+            raise
+        except Exception as exc:
+            state.phase = "failed"
+            state.error = exc.message if isinstance(exc, AppError) else "项目安装失败。"
+        finally:
+            self._active_market_projects.discard(state.market_project_id)
+            if not committing:
+                remove_project_market_staging_path(
+                    operation_root,
+                    allowed_root=self._cache_repository.operations_root,
+                )
+
+    def _commit_install(
+        self,
+        *,
+        state: _InstallOperationState,
+        operation_root: Path,
+        archive_path: Path,
+        source_path: str | None,
+        source: str,
+        entry: ProjectMarketProjectEntry,
+        category_id: str,
+    ) -> None:
+        installed_project_id: str | None = None
+        try:
             state.phase = "extracting"
-            staged_project_root = await asyncio.to_thread(
-                self._archive.validate_and_extract,
+            staged_project_root = self._archive.validate_and_extract(
                 archive_path=archive_path,
                 staging_root=operation_root,
                 source_path=source_path,
@@ -303,8 +357,7 @@ class ProjectMarketApplicationService:
             state.phase = "importing"
             installed_at = datetime.now(UTC).isoformat()
             installed_project_id = str(uuid4())
-            await asyncio.to_thread(
-                prepare_project_market_snapshot,
+            prepare_project_market_snapshot(
                 staged_project_root,
                 project_id=installed_project_id,
                 project_name=entry.name,
@@ -314,8 +367,7 @@ class ProjectMarketApplicationService:
                 installed_at=installed_at,
                 project_kind=self._policy.project_kind,
             )
-            project = await asyncio.to_thread(
-                self._project_service.install_managed_project_snapshot,
+            project = self._project_service.install_managed_project_snapshot(
                 staged_root=staged_project_root,
                 project_id=installed_project_id,
                 name=entry.name,
@@ -323,13 +375,9 @@ class ProjectMarketApplicationService:
                 project_kind=self._policy.project_kind,
             )
             try:
-                await asyncio.to_thread(
-                    self._creation_service.ensure_initial_conversation,
-                    project.project_id,
-                )
+                self._creation_service.ensure_initial_conversation(project.project_id)
             except Exception:
-                await asyncio.to_thread(
-                    self._project_service.rollback_managed_project_snapshot,
+                self._project_service.rollback_managed_project_snapshot(
                     project.project_id,
                     staged_root=staged_project_root,
                     project_kind=self._policy.project_kind,
@@ -343,15 +391,7 @@ class ProjectMarketApplicationService:
                 version=entry.version,
             )
             state.phase = "completed"
-        except asyncio.CancelledError:
-            state.phase = "failed"
-            state.error = "项目安装已停止。"
-            raise
-        except Exception as exc:
-            state.phase = "failed"
-            state.error = exc.message if isinstance(exc, AppError) else "项目安装失败。"
         finally:
-            self._active_market_projects.discard(state.market_project_id)
             if installed_project_id is None or state.phase == "completed":
                 remove_project_market_staging_path(
                     operation_root,

@@ -124,36 +124,48 @@ def test_missing_or_invalid_policy_stops_packaging(package_repo, policy):
 
 
 @pytest.mark.parametrize("package_kind", ["release", "test"])
-def test_database_search_config_is_excluded_even_if_committed(package_repo, package_kind):
+def test_tool_config_templates_are_published_but_backups_are_excluded(package_repo, package_kind):
     repo = package_repo
     program = "Data/tools/ea5cace1-0644-4ecf-ac63-02e4b88b05b4/program/"
+    tool_ids = (
+        "ea5cace1-0644-4ecf-ac63-02e4b88b05b4",
+        "c91ee7e1-052e-584e-b665-2d79945aa923",
+        "31084ec1-b544-4654-a09a-2021b6406a70",
+        "d915c8c7-8315-4de1-b61c-c29b77a5a6d5",
+    )
+    public_files = [f"Data/tools/{tool_id}/program/config.json" for tool_id in tool_ids]
     private_files = [
         f"Data/tools/{tool_id}/program/{name}"
-        for tool_id in (
-            "ea5cace1-0644-4ecf-ac63-02e4b88b05b4",
-            "c91ee7e1-052e-584e-b665-2d79945aa923",
-            "31084ec1-b544-4654-a09a-2021b6406a70",
-            "d915c8c7-8315-4de1-b61c-c29b77a5a6d5",
-        )
-        for name in ("config.json", "config.json.bak", "config.json.backup")
+        for tool_id in tool_ids
+        for name in ("config.json.bak", "config.json.backup")
     ]
+    private_files.append(".Tiance/tool-config-backups/fixture/" + program + "config.json")
+    template = {"provider": {"api_key": "", "base_url": "https://example.invalid/v1", "model": "fixture-model"}}
+    for name in public_files:
+        _write(repo, name, json.dumps(template))
     for name in private_files:
-        _write(repo, name, '{"siliconflow":{"api_key":"fixture-secret"}}')
+        _write(repo, name, '{"provider":{"api_key":"fixture-secret"}}')
     _write(repo, program + "main.py", "# public tool entry")
     _write(repo, program + "config_loader.py", "# public configuration loader")
-    # Deliberately track the secrets: archive exclusion must not rely on .gitignore.
+    # Deliberately track the backups: archive exclusion must not rely on .gitignore.
     _commit(repo)
     _run(repo, "git", "tag", "v0.2.1")
-    before = {name: (repo / name).read_bytes() for name in private_files}
+    before = {name: (repo / name).read_bytes() for name in public_files + private_files}
     if package_kind == "release":
         _package(repo, "package-release.ps1", "-Version", "0.2.0", "-Tag", "v0.2.1",
                  "-PreviousTag", "v0.2.0", "-OutputDirectory", "tool-release")
         with zipfile.ZipFile(repo / "tool-release/Tiance.zip") as archive:
             names = {name.removeprefix("Tiance/") for name in archive.namelist()}
+            assert all(json.loads(archive.read("Tiance/" + name)) == template for name in public_files)
+        for name in ("Tiance-update.zip", "Tiance-update-incremental.zip"):
+            with zipfile.ZipFile(repo / "tool-release" / name) as archive:
+                assert not any("/Data/" in path for path in archive.namelist())
     else:
         _package(repo, "package-test.ps1", "-WorkingTreePaths", "Data/tools", "-OutputDirectory", "tool-test")
         target = repo / "tool-test/Tiance"
         names = {path.relative_to(target).as_posix() for path in target.rglob("*") if path.is_file()}
+        assert all(json.loads((target / name).read_text(encoding="utf-8")) == template for name in public_files)
+    assert set(public_files).issubset(names)
     assert not set(private_files).intersection(names)
     assert program + "main.py" in names
     assert program + "config_loader.py" in names

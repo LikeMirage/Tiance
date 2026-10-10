@@ -11,7 +11,7 @@ import {
   DESKTOP_WINDOW_SIZE_DEFAULTS,
   normalizeDesktopWindowSizePreferences,
 } from "../../../entities/desktop-shell/model/desktopWindowSizePreferences";
-import { saveDesktopWindowSizePreferences } from "../../../services/desktop/desktopWindowSizePreferences";
+import { saveDesktopWindowSizePreferences, withinDesktopWindowSizeDeadline } from "../../../services/desktop/desktopWindowSizePreferences";
 import {
   defaultDesktopShellCapabilities,
   defaultDesktopShellState,
@@ -251,16 +251,20 @@ export async function persistDesktopShellWindowSizePreferences() {
   }
 
   try {
-    const state = await api.get_window_state();
-    applyWindowState(state);
-    if (state.maximized) {
-      await persistKnownDesktopWindowSizePreferences(true);
-      return;
-    }
+    await withinDesktopWindowSizeDeadline(async (signal) => {
+      const state = await api.get_window_state();
+      signal.throwIfAborted();
+      applyWindowState(state);
+      if (state.maximized) {
+        await persistKnownDesktopWindowSizePreferences(true, signal);
+        return;
+      }
 
-    const bounds = await api.get_window_bounds();
-    rememberNormalWindowSize(bounds);
-    await persistKnownDesktopWindowSizePreferences(false);
+      const bounds = await api.get_window_bounds();
+      signal.throwIfAborted();
+      rememberNormalWindowSize(bounds);
+      await persistKnownDesktopWindowSizePreferences(false, signal);
+    });
   } catch (error) {
     console.warn("Failed to persist desktop window size preferences.", error);
   }
@@ -444,13 +448,13 @@ function rememberNormalWindowSize(size: { width: number; height: number }) {
   };
 }
 
-async function persistKnownDesktopWindowSizePreferences(maximized: boolean) {
+async function persistKnownDesktopWindowSizePreferences(maximized: boolean, signal?: AbortSignal) {
   try {
     await saveDesktopWindowSizePreferences({
       height: lastNormalWindowSize.height,
       maximized,
       width: lastNormalWindowSize.width,
-    });
+    }, signal);
   } catch (error) {
     console.warn("Failed to save desktop window size preferences.", error);
   }

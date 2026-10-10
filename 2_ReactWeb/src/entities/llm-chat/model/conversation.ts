@@ -3,7 +3,8 @@ import type {
   ChatCompletionMessageContentPart,
   ConversationMessageReferences,
 } from "./chatCompletion";
-export type ConversationSessionSettings = {
+import type { OutputLimitPolicy } from "./outputLimitPolicy";
+export type ConversationSessionSettings = OutputLimitPolicy & {
   global_memory_enabled: boolean;
   global_memory_extraction_enabled: boolean;
   memory_compression_enabled: boolean;
@@ -11,8 +12,6 @@ export type ConversationSessionSettings = {
   memory_raw_context_token_reserve: number;
   project_memory_enabled: boolean;
   project_memory_extraction_enabled: boolean;
-  return_cancelled_messages: boolean;
-  return_user_before_cancelled: boolean;
   streaming_enabled: boolean;
   auto_collapse_assistant_process: boolean;
   malformed_tool_call_recovery_enabled: boolean;
@@ -108,6 +107,10 @@ export type ConversationMessage = {
   content_parts?: ChatCompletionMessageContentPart[];
   references?: ConversationMessageReferences;
   thinking_content?: string;
+  finish_reason?: string | null;
+  include_in_context?: boolean;
+  message_source?: string | null;
+  continuation_of?: string | null;
   name?: string | null;
   tool_call_id?: string | null;
   tool_calls?: Array<{

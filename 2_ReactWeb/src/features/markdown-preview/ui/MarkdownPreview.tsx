@@ -2,15 +2,15 @@ import { memo, useLayoutEffect, useMemo, useRef } from "react";
 import type { ReactNode, TdHTMLAttributes, ThHTMLAttributes } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import rehypeRaw from "rehype-raw";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import "katex/dist/katex.min.css";
 
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
-import type { LocalFileReference } from "../../../entities/local-file/model/localFileReference";
+import { isEncodedLocalPathLink, isLocalFileHref, type LocalFileReference } from "../../../entities/local-file/model/localFileReference";
 import type { CodeBlockSavePayload } from "../model/codeBlockFile";
 import {
-  buildStreamingMarkdownSegments,
+  createStreamingMarkdownSegmenter,
   splitStreamingMarkdownTail,
   type MarkdownSegment,
 } from "../model/markdownSegments";
@@ -19,6 +19,7 @@ import {
   markdownMathRehypePlugins,
   markdownMathRemarkPlugins,
   normalizeMarkdownMath,
+  shouldRenderTableMathAsDisplay,
 } from "../model/markdownMath";
 import { renderMarkdownKatex } from "../model/markdownKatex";
 import { useProgressiveMarkdownSegments } from "../model/useProgressiveMarkdownSegments";
@@ -28,6 +29,8 @@ import {
   type MarkdownLocalFileActions,
 } from "./MarkdownLocalFileLink";
 import { remarkLocalFilePaths } from "../model/remarkLocalFilePaths";
+import { markdownHtmlSanitizeSchema } from "../model/markdownHtmlSanitizeSchema";
+import { DeferredMarkdownContent } from "./DeferredMarkdownContent";
 import "./markdown-preview.css";
 
 export type MarkdownPreviewProps = {
@@ -37,56 +40,12 @@ export type MarkdownPreviewProps = {
   onPreviewHtmlCode?: (html: string) => void;
   onSaveCodeBlock?: (payload: CodeBlockSavePayload) => Promise<string>;
   localFileActions?: MarkdownLocalFileActions;
-  renderStrategy?: "complete" | "progressive";
+  renderStrategy?: "complete" | "progressive" | "responsive";
   resolveAssetUrl?: (src: string | undefined) => string | undefined;
   resolveLocalFileReference?: (href: string) => LocalFileReference | null;
 };
 
 const MAX_RICH_MARKDOWN_CHARS = 180_000;
-const markdownHtmlSanitizeSchema = {
-  ...defaultSchema,
-  protocols: {
-    ...defaultSchema.protocols,
-    href: [
-      ...(defaultSchema.protocols?.href ?? []),
-      "tiance-local-path",
-    ],
-  },
-  tagNames: [
-    ...(defaultSchema.tagNames ?? []),
-    "center",
-    "details",
-    "summary",
-    "label",
-  ],
-  attributes: {
-    ...defaultSchema.attributes,
-    "*": [
-      ...(defaultSchema.attributes?.["*"] ?? []),
-      "align",
-      "className",
-      "style",
-      "title",
-    ],
-    a: [
-      ...(defaultSchema.attributes?.a ?? []),
-      "href",
-      "title",
-      "target",
-      "rel",
-    ],
-    img: [
-      ...(defaultSchema.attributes?.img ?? []),
-      "src",
-      "alt",
-      "title",
-      "width",
-      "height",
-    ],
-    td: [...(defaultSchema.attributes?.td ?? []), "align", "colSpan", "rowSpan"],
-    th: [...(defaultSchema.attributes?.th ?? []), "align", "colSpan", "rowSpan"],
-  },
-};
 
 export const MarkdownPreview = memo(function MarkdownPreview({
   content,
@@ -141,6 +100,13 @@ export const MarkdownPreview = memo(function MarkdownPreview({
     );
   }
 
+  if (renderStrategy === "responsive") {
+    return <ResponsiveMarkdownPreview content={content} mathErrorMode={mathErrorMode}
+      onPreviewHtmlCode={onPreviewHtmlCode} onSaveCodeBlock={onSaveCodeBlock}
+      localFileActions={localFileActions} resolveAssetUrl={resolveAssetUrl}
+      resolveLocalFileReference={resolveLocalFileReference} />;
+  }
+
   return (
     <div className={markdownPreviewClassName(undefined, mathErrorMode)}>
       <MarkdownRichContent
@@ -165,6 +131,7 @@ type MarkdownRichContentProps = {
   resolveAssetUrl?: (src: string | undefined) => string | undefined;
   resolveLocalFileReference?: (href: string) => LocalFileReference | null;
   tableFragment?: "continuation" | "first";
+  tableMathIsPrepared?: boolean;
 };
 
 const MarkdownRichContent = memo(function MarkdownRichContent({
@@ -181,16 +148,47 @@ const MarkdownRichContent = memo(function MarkdownRichContent({
     () => normalizeMarkdownMath(closeUnfinishedFence(content)),
     [content],
   );
-  const markdownComponents = useMemo(() => ({
+  const markdownComponents = useMarkdownComponents({ codeBlocksAreStreaming, onPreviewHtmlCode,
+    onSaveCodeBlock, localFileActions, resolveAssetUrl, resolveLocalFileReference, tableFragment });
+
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkLocalFilePaths, ...markdownMathRemarkPlugins]}
+      rehypePlugins={[
+        rehypeRaw,
+        [rehypeSanitize, markdownHtmlSanitizeSchema],
+        ...markdownMathRehypePlugins,
+      ]}
+      components={markdownComponents}
+      urlTransform={(url) => url.startsWith("tiance-local-path:")
+        ? url
+        : defaultUrlTransform(url)}
+    >
+      {renderContent}
+    </ReactMarkdown>
+  );
+});
+
+function ResponsiveMarkdownPreview({ content, mathErrorMode, ...props }: Omit<MarkdownPreviewProps, "isStreaming" | "renderStrategy">) {
+  const components = useMarkdownComponents({ ...props, codeBlocksAreStreaming: false, tableMathIsPrepared: true });
+  return <DeferredMarkdownContent content={content} components={components}
+    className={markdownPreviewClassName("markdown-preview--responsive", mathErrorMode)} />;
+}
+
+function useMarkdownComponents({ codeBlocksAreStreaming, onPreviewHtmlCode, onSaveCodeBlock,
+  localFileActions, resolveAssetUrl, resolveLocalFileReference, tableFragment, tableMathIsPrepared }: Omit<MarkdownRichContentProps, "content">) {
+  return useMemo(() => ({
     a: ({ href, children }: { href?: string; children?: ReactNode }) => {
       const localReference = href ? resolveLocalFileReference?.(href) : null;
-      return localReference && localFileActions ? (
-        <MarkdownLocalFileLink actions={localFileActions} reference={localReference}>
+      if (localReference && localFileActions) {
+        return <MarkdownLocalFileLink actions={localFileActions} reference={localReference}>
           {children}
-        </MarkdownLocalFileLink>
-      ) : (
-        <a href={href} target="_blank" rel="noreferrer">{children}</a>
-      );
+        </MarkdownLocalFileLink>;
+      }
+      if (href && (isEncodedLocalPathLink(href) || (resolveLocalFileReference && isLocalFileHref(href)))) {
+        return <span>{children}</span>;
+      }
+      return <a href={href} target="_blank" rel="noreferrer">{children}</a>;
     },
     img: ({
       alt,
@@ -233,10 +231,10 @@ const MarkdownRichContent = memo(function MarkdownRichContent({
       tableFragment === "continuation" ? null : <thead>{children}</thead>
     ),
     td: ({ children, ...props }: TdHTMLAttributes<HTMLTableCellElement>) => (
-      <td {...props}>{renderTableCellMath(children)}</td>
+      <td {...props}>{tableMathIsPrepared ? children : renderTableCellMath(children)}</td>
     ),
     th: ({ children, ...props }: ThHTMLAttributes<HTMLTableCellElement>) => (
-      <th {...props}>{renderTableCellMath(children)}</th>
+      <th {...props}>{tableMathIsPrepared ? children : renderTableCellMath(children)}</th>
     ),
   }), [
     codeBlocksAreStreaming,
@@ -246,25 +244,10 @@ const MarkdownRichContent = memo(function MarkdownRichContent({
     resolveAssetUrl,
     resolveLocalFileReference,
     tableFragment,
+    tableMathIsPrepared,
   ]);
 
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkLocalFilePaths, ...markdownMathRemarkPlugins]}
-      rehypePlugins={[
-        rehypeRaw,
-        [rehypeSanitize, markdownHtmlSanitizeSchema],
-        ...markdownMathRehypePlugins,
-      ]}
-      components={markdownComponents}
-      urlTransform={(url) => url.startsWith("tiance-local-path:")
-        ? url
-        : defaultUrlTransform(url)}
-    >
-      {renderContent}
-    </ReactMarkdown>
-  );
-});
+}
 
 function StreamingMarkdownPreview({
   content,
@@ -275,9 +258,10 @@ function StreamingMarkdownPreview({
   resolveAssetUrl,
   resolveLocalFileReference,
 }: Omit<MarkdownPreviewProps, "isStreaming">) {
+  const segment = useMemo(() => createStreamingMarkdownSegmenter(), []);
   const { chunks, tail } = useMemo(
-    () => buildStreamingMarkdownSegments(content),
-    [content],
+    () => segment(content),
+    [content, segment],
   );
   const { pendingDisplayMathBody, richContent } = useMemo(
     () => splitStreamingMarkdownTail(tail),
@@ -508,11 +492,6 @@ function renderKatexMathNode(latex: string, displayMode: boolean, key: string) {
       title={rendered.error ?? undefined}
     />
   );
-}
-
-function shouldRenderTableMathAsDisplay(displayMode: boolean, latex: string) {
-  if (displayMode) return true;
-  return /\\begin\{(?:aligned|alignedat|align|align\*|eqnarray|eqnarray\*|cases|matrix|pmatrix|bmatrix)\}/.test(latex);
 }
 
 function markdownPreviewClassName(

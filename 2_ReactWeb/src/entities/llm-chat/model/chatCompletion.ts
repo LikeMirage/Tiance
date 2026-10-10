@@ -57,6 +57,10 @@ export type ChatCompletionRequest = {
   messages: ChatCompletionMessageInput[];
   malformed_tool_call_recovery_enabled?: boolean;
   upstream_retry_count?: number;
+  output_limit_action?: import("./outputLimitPolicy").OutputLimitAction;
+  output_limit_save_partial?: boolean;
+  output_limit_message?: string;
+  output_limit_max_recoveries?: number | null;
   max_tool_calls?: number;
   client_capabilities?: ChatClientCapability[];
   generation?: {
@@ -163,13 +167,29 @@ export type ChatCompletionResponse = {
 export type ChatStreamEvent = (
   | { kind: "conversation_resume_reset" }
   | {
+    kind: "output_limit";
+    action: "stop" | "retry" | "send_message";
+    will_recover: boolean;
+    saved_message: import("./conversation").ConversationMessage | null;
+    next_user_message: import("./conversation").ConversationMessage | null;
+    usage?: ChatUsage | null;
+  }
+  | {
     kind: "retry_reset";
     error?: string | null;
     error_code?: string | null;
     attempt_index?: number | null;
     attempt_count?: number | null;
   }
-  | { kind: "conversation_run_started"; user_message_id: string }
+  | { kind: "conversation_run_started"; user_message_id: string; run_id?: string }
+  | { kind: "model_response_started" }
+  | { kind: "conversation_notice"; message: import("./conversation").ConversationMessage }
+  | {
+    kind: "model_response_finished";
+    has_tool_calls?: boolean;
+    error_code?: string | null;
+    notifications?: import("./conversation").ConversationMessage[];
+  }
   | {
     kind: "conversation_run_settled";
     user_message_id: string;

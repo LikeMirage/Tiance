@@ -6,6 +6,7 @@ import { getCachedProjectEntryWarmup } from "../../project-entry/model/projectEn
 import type { ChatMessage } from "./chatMessage";
 import { mapConversationMessages } from "./chatMessage";
 import { buildSessionKey } from "./sessionKey";
+import { mergeLiveChatNotifications, reuseChatMessageRevisions } from "./chatNotifications";
 
 type ReloadSessionMessagesOptions = {
   forceRefresh?: boolean;
@@ -13,6 +14,8 @@ type ReloadSessionMessagesOptions = {
   signal?: AbortSignal;
   shouldApply?: () => boolean;
   shouldPreserveLocal?: () => boolean;
+  /** Reconnect/reset reads replace transient fragments using a durable checkpoint. */
+  authoritative?: boolean;
 };
 
 type UseSessionMessagesOptions = {
@@ -38,6 +41,7 @@ export function useSessionMessages({
   isPresentationVisibleRef,
 }: UseSessionMessagesOptions) {
   const [sessionMessages, setSessionMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [loadingSessionKeys, setLoadingSessionKeys] = useState<Set<string>>(() => new Set());
   const sessionMessageSnapshotsRef = useRef<Record<string, ChatMessage[]>>({});
   const messageAccessedAtRef = useRef(new Map<string, number>());
   const reloadRequestIdsRef = useRef(new Map<string, number>());
@@ -130,6 +134,7 @@ export function useSessionMessages({
     reloadControllersRef.current.get(key)?.abort();
     const controller = new AbortController();
     reloadControllersRef.current.set(key, controller);
+    setLoadingSessionKeys((previous) => new Set(previous).add(key));
     const abortFromCaller = () => controller.abort();
     if (options.signal?.aborted) {
       controller.abort();
@@ -158,11 +163,13 @@ export function useSessionMessages({
       );
       messageAccessedAtRef.current.set(key, Date.now());
       const currentMessages = sessionMessageSnapshotsRef.current[key] ?? [];
-      if (options.shouldPreserveLocal?.() && currentMessages.length > 0) {
+      if ((options.shouldPreserveLocal?.() || (!options.authoritative && currentMessages.some((message) =>
+        message.role === "assistant" && message.status === "running"))) && currentMessages.length > 0) {
+        sessionMessageSnapshotsRef.current[key] = mergeLiveChatNotifications(currentMessages, nextMessages);
         publishSessionMessages(pid, sessionId);
         return true;
       }
-      if (options.preserveLocalIfShorter && currentMessages.length > nextMessages.length) {
+      if (!options.authoritative && options.preserveLocalIfShorter && currentMessages.length > nextMessages.length) {
         publishSessionMessages(pid, sessionId);
         return true;
       }
@@ -170,7 +177,7 @@ export function useSessionMessages({
         publishSessionMessages(pid, sessionId);
         return true;
       }
-      sessionMessageSnapshotsRef.current[key] = nextMessages;
+      sessionMessageSnapshotsRef.current[key] = reuseChatMessageRevisions(currentMessages, nextMessages);
       publishSessionMessages(pid, sessionId);
       return true;
     } finally {
@@ -178,6 +185,14 @@ export function useSessionMessages({
       options.signal?.removeEventListener("abort", abortFromCaller);
       if (reloadControllersRef.current.get(key) === controller) {
         reloadControllersRef.current.delete(key);
+      }
+      if (!reloadControllersRef.current.has(key)) {
+        setLoadingSessionKeys((previous) => {
+          if (!previous.has(key)) return previous;
+          const next = new Set(previous);
+          next.delete(key);
+          return next;
+        });
       }
     }
   }, [publishSessionMessages]);
@@ -258,6 +273,7 @@ export function useSessionMessages({
     reloadSessionMessages,
     replaceSessionMessages,
     sessionMessages,
+    loadingSessionKeys,
     updateSessionMessages,
   };
 }
@@ -297,6 +313,9 @@ function hasSameMessageRevisions(
   if (currentMessages.length !== nextMessages.length) return false;
   return currentMessages.every((message, index) => {
     const nextMessage = nextMessages[index];
-    return message.id === nextMessage.id && message.updatedAt === nextMessage.updatedAt;
+    return message.id === nextMessage.id && message.updatedAt === nextMessage.updatedAt
+      && message.status === nextMessage.status
+      && JSON.stringify(message.runOutcome) === JSON.stringify(nextMessage.runOutcome)
+      && !message.notificationPending && !message.modelResponseInFlight;
   });
 }

@@ -15,6 +15,8 @@ from importlib.util import module_from_spec, spec_from_file_location
 
 import pytest
 
+from app.services.tools.tool_execution_runtime import build_python_command, build_tool_python_paths
+
 
 @pytest.mark.skipif(os.name != "nt" or os.environ.get("TIANCE_GUI_DESKTOP_TEST") != "1", reason="需要显式选择真实桌面验证")
 def test_locked_nested_zoom_click_user_movement_and_exit(tmp_path: Path) -> None:
@@ -51,7 +53,10 @@ def test_locked_nested_zoom_click_user_movement_and_exit(tmp_path: Path) -> None
             hidden_overlays.append(int(hwnd))
 
     def call(entry: Path, payload: dict) -> dict:
-        completed = subprocess.run([str(python), str(entry)], input=json.dumps(payload), text=True, encoding="utf-8", capture_output=True, env=env, timeout=20, creationflags=0x08000000)
+        paths = build_tool_python_paths(entry_path=entry, tool_root=entry.parents[1],
+                                       backend_site_packages_path=root / "runtime/python-packages/backend/py313/site-packages")
+        command = build_python_command(python_executable=python, entry_path=entry, python_paths=paths)
+        completed = subprocess.run(command, input=json.dumps(payload), text=True, encoding="utf-8", capture_output=True, env=env, timeout=20, creationflags=0x08000000)
         assert completed.returncode == 0, completed.stdout + completed.stderr
         result = json.loads(completed.stdout)
         assert result.get("ok"), result
@@ -62,7 +67,9 @@ def test_locked_nested_zoom_click_user_movement_and_exit(tmp_path: Path) -> None
         while state_path.exists() and time.monotonic() < deadline:
             time.sleep(0.02)
         assert not state_path.exists(), "解锁后运行器未退出"
-        assert not list((tmp_path / ".Tiance/gui-temp").glob("gui_*"))
+        for folder in (tmp_path / ".Tiance/gui-temp").glob("gui_*"):
+            state = json.loads((folder / "session.json").read_text(encoding="utf-8"))
+            assert state["status"] == "closed", "解锁后关闭执行会话并保留GUI数据"
 
     def worker(hwnd: int) -> None:
         try:
@@ -75,7 +82,7 @@ def test_locked_nested_zoom_click_user_movement_and_exit(tmp_path: Path) -> None
                 assert overlay_hwnd and not exit_hwnd
                 monitored_overlays.add(int(overlay_hwnd))
                 checking_visibility.set()
-                first = call(inspect, {"action": "start", "target": "window", "hwnd": hwnd, "grid_mode": "fixed", "grid_rows": 2, "grid_cols": 2})
+                first = call(inspect, {"action": "start", "target": "window", "hwnd": hwnd, "activate": True, "grid_mode": "fixed", "grid_rows": 2, "grid_cols": 2})
                 gui_id = first["data"]["gui_session_id"]
                 with helper.Image.open(tmp_path / ".Tiance/gui-temp" / gui_id / "frame_000/root_raw.png") as captured:
                     assert captured.getpixel((10, 10)) == (44, 62, 85), "截图包含了覆盖层"

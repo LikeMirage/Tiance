@@ -165,6 +165,55 @@ def test_native_window_style_is_reapplied_without_duplicate_event_hooks(monkeypa
     assert len(deactivate.handlers) == 1
 
 
+@pytest.mark.parametrize("foreground_class,should_minimize", [
+    ("Shell_TrayWnd", False),
+    ("Shell_SecondaryTrayWnd", False),
+    ("OtherApplication", False),
+    ("Progman", True),
+    ("WorkerW", True),
+    ("TrayShowDesktopButtonWClass", True),
+])
+def test_deactivation_does_not_mistake_taskbar_focus_for_show_desktop(
+    monkeypatch, foreground_class, should_minimize,
+) -> None:
+    import ctypes
+
+    minimized: list[tuple[int, int]] = []
+    fake_user32 = SimpleNamespace(
+        GetForegroundWindow=lambda: 456,
+        IsIconic=lambda _hwnd: 0,
+        ShowWindow=lambda hwnd, command: minimized.append((hwnd.value, command)) or 0,
+    )
+    monkeypatch.setattr(ctypes, "windll", SimpleNamespace(user32=fake_user32), raising=False)
+    monkeypatch.setattr(api_module, "_get_windows_window_class_name", lambda _hwnd: foreground_class)
+    monkeypatch.setattr(api_module, "_get_native_window_handle", lambda _window: 123)
+    shell_api = ShellApi(SimpleNamespace(), SimpleNamespace())
+    shell_api._window = SimpleNamespace()
+
+    shell_api._minimize_if_windows_show_desktop_is_foreground()
+
+    assert minimized == ([(123, 6)] if should_minimize else [])
+
+
+@pytest.mark.parametrize("foreground,already_minimized", [(0, False), (123, False), (456, True)])
+def test_show_desktop_guard_ignores_no_foreground_self_and_minimized_window(
+    monkeypatch, foreground, already_minimized,
+) -> None:
+    import ctypes
+
+    fake_user32 = SimpleNamespace(
+        GetForegroundWindow=lambda: foreground,
+        IsIconic=lambda _hwnd: int(already_minimized),
+    )
+    monkeypatch.setattr(ctypes, "windll", SimpleNamespace(user32=fake_user32), raising=False)
+    monkeypatch.setattr(
+        api_module, "_get_windows_window_class_name",
+        lambda _hwnd: pytest.fail("Window class should not be inspected"),
+    )
+
+    assert api_module._is_windows_desktop_shell_foreground(123) is False
+
+
 def test_application_window_style_preserves_taskbar_without_native_resize_frame(monkeypatch) -> None:
     original_style = 0x16010000
     required_style = 0x00080000 | 0x00020000 | 0x00010000
@@ -234,9 +283,10 @@ def test_native_close_is_cancelled_until_frontend_confirms_exit(monkeypatch) -> 
 
 def test_explicit_close_bypasses_native_close_interception() -> None:
     destroyed: list[bool] = []
+    prepared: list[bool] = []
     shell_api = ShellApi(
         SimpleNamespace(allow_remote_shell_api=False),
-        SimpleNamespace(),
+        SimpleNamespace(prepare_exit=lambda: prepared.append(True)),
     )
     shell_api._window = SimpleNamespace(
         destroy=lambda: destroyed.append(True),
@@ -246,6 +296,7 @@ def test_explicit_close_bypasses_native_close_interception() -> None:
     shell_api.close_window()
 
     assert destroyed == [True]
+    assert prepared == [True]
     assert shell_api._handle_window_closing() is None
 
 

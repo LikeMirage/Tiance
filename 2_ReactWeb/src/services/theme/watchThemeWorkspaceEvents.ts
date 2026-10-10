@@ -1,4 +1,5 @@
 import { env } from "../../shared/config/env";
+import { watchEventSocket } from "../http/watchEventSocket";
 
 const ACTIVE_THEME_SETTINGS_PATH = "theme-settings.json";
 
@@ -8,15 +9,19 @@ export type ThemeWorkspaceEvent = {
 };
 
 export function watchThemeWorkspaceEvents(onChanged: (paths: string[]) => void) {
-  const source = new EventSource(`${env.apiBaseUrl}/api/themes/events`);
-
-  source.onmessage = (event) => {
-    const payload = parseThemeWorkspaceEvent(event.data);
-    if (!payload || payload.kind !== "changed") return;
-    onChanged(payload.paths ?? []);
-  };
-
-  return () => source.close();
+  let needsReconcile = false;
+  return watchEventSocket(`${env.apiBaseUrl}/api/themes/events`, {
+    onMessage: (data) => {
+      const payload = parseThemeWorkspaceEvent(data);
+      if (payload?.kind === "changed") onChanged(payload.paths ?? []);
+      if (payload?.kind === "ready" && needsReconcile) {
+        needsReconcile = false;
+        onChanged([]);
+      }
+    },
+    onReconnect: () => { needsReconcile = true; },
+    onDisconnect: () => { needsReconcile = true; },
+  });
 }
 
 export function shouldRefreshThemeWorkspace(paths: string[]): boolean {

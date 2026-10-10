@@ -586,7 +586,7 @@ export function useDocumentTabs() {
             ...tab,
             isMissing: true,
             saveState: tab.saveState === "saving" ? "saving" : "error",
-            saveError: "文件已被删除。",
+            saveError: "找不到文件，请检查路径或确认文件是否已移动、删除。",
           }
           : tab,
       ),

@@ -18,6 +18,7 @@ from app.infra.llm.chat_adapters import (
     OpenAICompatibleChatAdapter,
     OpenAIResponsesChatAdapter,
 )
+from app.infra.llm.request_headers import merge_request_headers, resolve_request_headers
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,11 @@ class ChatRemoteClient:
             raise BadRequestError(
                 f"Protocol family '{provider_template.protocol_family.value}' does not support chat completions yet."
             )
+        declared_headers = resolve_request_headers(
+            provider_template,
+            model_id=request.model_id,
+            session_id=request.session_id or request.transport_session_id,
+        )
         async def post_json(
             url: str,
             headers: dict[str, str],
@@ -57,7 +63,7 @@ class ChatRemoteClient:
         ) -> dict[str, object]:
             return await self._post_json(
                 url,
-                headers,
+                merge_request_headers(headers, declared_headers),
                 body,
                 request=request,
                 on_exchange=on_exchange,
@@ -85,6 +91,11 @@ class ChatRemoteClient:
             raise BadRequestError(
                 f"Protocol family '{provider_template.protocol_family.value}' does not support chat completions yet."
             )
+        declared_headers = resolve_request_headers(
+            provider_template,
+            model_id=request.model_id,
+            session_id=request.session_id or request.transport_session_id,
+        )
         async def stream_body(
             url: str,
             headers: dict[str, str],
@@ -92,7 +103,7 @@ class ChatRemoteClient:
         ) -> AsyncGenerator[bytes, None]:
             async for chunk in self._stream_body(
                 url,
-                headers,
+                merge_request_headers(headers, declared_headers),
                 body,
                 request=request,
                 on_exchange=on_exchange,
@@ -238,6 +249,7 @@ _SENSITIVE_NAMES = {
     "authorization",
     "proxy-authorization",
     "x-api-key",
+    "x-goog-api-key",
     "api-key",
     "api_key",
     "apikey",

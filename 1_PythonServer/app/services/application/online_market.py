@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 from typing import Callable, Generic, Protocol, TypeVar
 
 from app.core.errors import BadRequestError
+from app.core.shutdown_tasks import finish_thread
 
 
 IndexT = TypeVar("IndexT")
@@ -39,7 +39,7 @@ class OnlineMarketIndexLoad(Generic[IndexT]):
         self,
         builder: Callable[..., ResponseT],
     ) -> ResponseT:
-        return await asyncio.to_thread(
+        return await finish_thread(
             builder,
             self.index,
             source=self.source,
@@ -70,17 +70,17 @@ class OnlineMarketIndexGateway(Generic[IndexT]):
     async def connect(self, raw_source: str) -> OnlineMarketIndexLoad[IndexT]:
         source = self._normalize_source(raw_source)
         index = await self._fetch_remote_index(source)
-        await asyncio.to_thread(self._settings_repository.save_source, source)
+        await finish_thread(self._settings_repository.save_source, source)
         return OnlineMarketIndexLoad(index=index, source=source, cached=False)
 
     async def get_index(self) -> OnlineMarketIndexLoad[IndexT]:
-        settings = await asyncio.to_thread(self._settings_repository.get_settings)
+        settings = await finish_thread(self._settings_repository.get_settings)
         source = self._normalize_source(settings.source)
         try:
             index = await self._fetch_remote_index(source)
             return OnlineMarketIndexLoad(index=index, source=source, cached=False)
         except self._fallback_errors:
-            index = await asyncio.to_thread(self._read_cached_index, source)
+            index = await finish_thread(self._read_cached_index, source)
             if index is None:
                 raise
             return OnlineMarketIndexLoad(index=index, source=source, cached=True)
@@ -92,15 +92,15 @@ class OnlineMarketIndexGateway(Generic[IndexT]):
 
     async def read_cached(self, raw_source: str) -> OnlineMarketIndexLoad[IndexT] | None:
         source = self._normalize_source(raw_source)
-        index = await asyncio.to_thread(self._read_cached_index, source)
+        index = await finish_thread(self._read_cached_index, source)
         if index is None:
             return None
         return OnlineMarketIndexLoad(index=index, source=source, cached=True)
 
     async def _fetch_remote_index(self, source: str) -> IndexT:
         payload = await self._remote_client.fetch_index(source)
-        index = await asyncio.to_thread(self._validate_index, source, payload)
-        await asyncio.to_thread(self._cache_repository.save_index, source, payload)
+        index = await finish_thread(self._validate_index, source, payload)
+        await finish_thread(self._cache_repository.save_index, source, payload)
         return index
 
     def _read_cached_index(self, source: str) -> IndexT | None:

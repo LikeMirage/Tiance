@@ -13,6 +13,7 @@ import {
 } from "../../../shared/ui/context-menu";
 import { OptionSelect, type OptionSelectItem } from "../../../shared/ui/option-select/OptionSelect";
 import { SettingsIntegerInput, SettingsNumberInput, SettingsToggle } from "./ChatSettingControls";
+import { OutputLimitSettings } from "../../output-limit-settings/ui/OutputLimitSettings";
 import { ChatRoleSelector } from "./ChatRoleSelector";
 
 type Props = {
@@ -181,6 +182,9 @@ export function ChatBasicSettingsPanel({
         value={activeSessionSettings.max_output_tokens}
         onCommit={(value) => onUpdateSessionSettings({ max_output_tokens: value })}
       />
+      <OutputLimitSettings value={activeSessionSettings}
+        fallbackRecoveryCount={activeSessionSettings.upstream_retry_count}
+        onChange={onUpdateSessionSettings} />
       <SettingsIntegerInput
         label={t("aiPanel.basicSettings.upstreamRetryCount")}
         min={0}
@@ -188,20 +192,6 @@ export function ChatBasicSettingsPanel({
         onCommit={(value) => onUpdateSessionSettings({ upstream_retry_count: value })}
       />
 
-      <SettingsToggle
-        checked={activeSessionSettings.return_cancelled_messages}
-        label={t("aiPanel.basicSettings.returnCancelledMessages")}
-        onChange={(checked) => onUpdateSessionSettings({
-          return_cancelled_messages: checked,
-        })}
-      />
-      <SettingsToggle
-        checked={activeSessionSettings.return_user_before_cancelled}
-        label={t("aiPanel.basicSettings.returnUserBeforeCancelled")}
-        onChange={(checked) => onUpdateSessionSettings({
-          return_user_before_cancelled: checked,
-        })}
-      />
       <SettingsToggle
         checked={activeSessionSettings.streaming_enabled}
         label={t("aiPanel.basicSettings.streamingOutput")}

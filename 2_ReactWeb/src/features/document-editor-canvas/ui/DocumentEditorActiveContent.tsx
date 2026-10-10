@@ -163,7 +163,7 @@ export function DocumentEditorActiveContent({
   }
 
   if (activeTab.isMissing && !activeTab.isDirty) {
-    return <div className="doc-editor__empty">文件已被删除。</div>;
+    return <div className="doc-editor__empty">找不到文件：{activeTab.displayPath}。请检查路径，或确认文件是否已移动、删除。</div>;
   }
 
   if (activeTab.kind === "text" && activeTab.textContentUnavailable?.reason === "too_large") {

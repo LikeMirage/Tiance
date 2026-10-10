@@ -1,14 +1,23 @@
 export type LocalFileReference = {
-  absolutePath: string;
   line: number | null;
   projectPath: string | null;
   rawPath: string;
   scope: "workspace" | "external";
-};
+} & (
+  | { lookup: "path"; absolutePath: string }
+  | { lookup: "name"; name: string; absolutePath: null }
+);
 
 export type LocalFileReferenceContext = {
   projectId: string | null;
   projectRootPath: string;
+};
+
+export type LocalFileNameIndex = ReadonlyMap<string, Extract<LocalFileReference, { lookup: "path" }>>;
+
+export type LocalFileNameAvailability = {
+  getSnapshot: () => LocalFileNameIndex | null;
+  subscribe: (listener: () => void) => () => void;
 };
 
 const LOCAL_LINK_PREFIX = "tiance-local-path:";
@@ -19,6 +28,19 @@ export function encodeLocalPathLink(path: string) {
 
 export function isEncodedLocalPathLink(href: string) {
   return href.startsWith(LOCAL_LINK_PREFIX);
+}
+
+/** Preserve explicit absolute Markdown destinations through URL sanitization. */
+export function encodeAbsoluteLocalPathHref(href: string) {
+  const decoded = decodeLocalPathHref(href);
+  return decoded !== null && isWindowsAbsolutePath(decoded) ? encodeLocalPathLink(decoded) : null;
+}
+
+export function isLocalFileHref(href: string) {
+  const decoded = decodeLocalPathHref(href);
+  if (decoded === null) return false;
+  const { path } = splitLineSuffix(decoded);
+  return isWindowsAbsolutePath(path) || isProjectRelativePath(path);
 }
 
 export function resolveLocalFileReference(
@@ -35,6 +57,13 @@ export function resolveLocalFileReference(
     return null;
   }
 
+  // A bare filename is a lookup within the current project, including bare
+  // Markdown destinations. ./a.md and paths with directories remain exact.
+  if (!absoluteInput && !/[\\/]/.test(path)) {
+    return { lookup: "name", name: path, absolutePath: null, line,
+      projectPath: null, rawPath: decoded, scope: "workspace" };
+  }
+
   const absolutePath = absoluteInput
     ? normalizeWindowsPath(path)
     : resolveRelativeWindowsPath(normalizedRoot, path);
@@ -45,6 +74,7 @@ export function resolveLocalFileReference(
     : null;
   if (!absoluteInput && projectPath === null) return null;
   return {
+    lookup: "path",
     absolutePath,
     line,
     projectPath,

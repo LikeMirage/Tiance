@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 2,
+  "id": "cinnabar-scroll",
+  "mode": "light",
+  "tokens": {
+    "color": {
+      "surface": {
+        "base": "#F2E6CE",
+        "panel": "rgba(250, 243, 226, 0.91)",
+        "panelAlt": "rgba(245, 235, 214, 0.93)",
+        "toolbar": "rgba(241, 230, 207, 0.96)",
+        "titlebar": "rgba(235, 221, 195, 0.97)",
+        "statusbar": "#E7D6B8",
+        "sidebar": "rgba(239, 226, 202, 0.95)",
+        "canvas": "rgba(252, 246, 232, 0.82)",
+        "elevated": "rgba(255, 249, 235, 0.98)",
+        "muted": "#EEE0C5",
+        "overlay": "rgba(63, 42, 27, 0.22)",
+        "menu": "rgba(255, 248, 232, 0.99)",
+        "input": "rgba(255, 250, 238, 0.94)",
+        "inputHover": "#FFFDF4",
+        "itemHover": "rgba(164, 68, 45, 0.08)",
+        "itemHoverStrong": "rgba(164, 68, 45, 0.15)"
+      },
+      "text": {
+        "primary": "#3D3228",
+        "secondary": "#69594A",
+        "muted": "#8C7A68",
+        "heading": "#2D241D",
+        "headingAccent": "#A44532",
+        "inverse": "#FFF8E8",
+        "selectionText": "#FFFDF8"
+      },
+      "border": {
+        "soft": "rgba(91, 69, 49, 0.18)",
+        "subtle": "rgba(91, 69, 49, 0.11)",
+        "strong": "rgba(119, 76, 49, 0.31)",
+        "focus": "#B24D36",
+        "separator": "rgba(91, 69, 49, 0.14)"
+      },
+      "accent": {
+        "base": "#A94733",
+        "rgb": "169, 71, 51",
+        "hover": "#8E3828",
+        "text": "#A44532",
+        "softText": "#B36D5B",
+        "selectionText": "#FFF9EC",
+        "selectionBgSubtle": "rgba(169, 71, 51, 0.10)",
+        "selectionBg": "#A94733",
+        "selectionBgHover": "#8E3828",
+        "selectionBorder": "rgba(169, 71, 51, 0.58)",
+        "textSelectionBg": "rgba(169, 71, 51, 0.76)"
+      },
+      "state": {
+        "danger": "#C3463F",
+        "dangerText": "#A3322D",
+        "dangerSoftText": "#B95D56",
+        "dangerBg": "#FCEBE5",
+        "dangerBorder": "#E3AEA4",
+        "warning": "#B57A2C",
+        "warningText": "#86561B",
+        "success": "#547B50",
+        "successText": "#3F643D"
+      },
+      "collapse": {
+        "fadeStart": "rgba(252, 246, 232, 0)",
+        "fadeMid": "rgba(252, 246, 232, 0.75)",
+        "fadeEnd": "rgba(252, 246, 232, 1)",
+        "caret": "#7A6959"
+      },
+      "scrollbar": {
+        "track": "transparent",
+        "thumb": "rgba(96, 73, 52, 0.26)",
+        "thumbHover": "rgba(169, 71, 51, 0.48)"
+      }
+    },
+    "structure": {
+      "color": "rgba(97, 73, 52, 0.15)",
+      "hoverColor": "rgba(178, 77, 54, 0.43)",
+      "activeColor": "#B24D36",
+      "enabled": true,
+      "lines": {
+        "titlebarBottom": true,
+        "statusbarTop": true,
+        "navigationRight": true,
+        "sidePanelRight": true,
+        "assistantPanelLeft": true,
+        "contentSplit": true
+      },
+      "width": 1
+    },
+    "shadow": {
+      "floating": "0 16px 42px rgba(79, 53, 31, 0.18)",
+      "panel": "0 4px 18px rgba(79, 53, 31, 0.10)"
+    },
+    "editor": {
+      "background": "#FBF4E4",
+      "foreground": "#40352B",
+      "gutterBackground": "#F1E4CC",
+      "gutterForeground": "#94806B",
+      "activeLine": "rgba(169, 71, 51, 0.065)",
+      "selectionMatch": "rgba(174, 123, 45, 0.25)",
+      "tooltipBackground": "#FFF9EA"
+    },
+    "background": {
+      "image": "assets/cinnabar-scroll-theme-background-6635a2c2a5.png",
+      "opacity": 0.58,
+      "blur": 1,
+      "overlay": "rgba(248, 238, 217, 0.10)",
+      "position": "center",
+      "size": "cover",
+      "repeat": "no-repeat"
+    }
+  },
+  "integrations": {
+    "codeMirror": "light",
+    "shiki": "github-light-default",
+    "mermaid": "neutral",
+    "milkdown": "light"
+  },
+  "registrationName": "丹霞书卷"
+}

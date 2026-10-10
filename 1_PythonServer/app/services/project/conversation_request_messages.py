@@ -24,19 +24,12 @@ def build_conversation_request_messages(
     next_user_message_id: str | None = None,
     next_user_created_at: str | None = None,
 ) -> tuple[ChatMessage, ...]:
-    skipped_user_ids = (
-        set()
-        if settings.return_user_before_cancelled
-        else _user_messages_before_cancelled_assistant(messages)
-    )
     request_messages: list[ChatMessage] = []
     system_prompt = settings.system_prompt.strip()
     if system_prompt:
         request_messages.append(ChatMessage(role=ChatMessageRole.SYSTEM, content=system_prompt))
 
     for message in messages:
-        if message.role == "user" and message.message_id in skipped_user_ids:
-            continue
         request_message = _to_request_message(message, settings=settings)
         if request_message is not None:
             request_messages.append(request_message)
@@ -74,15 +67,8 @@ def _to_request_message(
     *,
     settings: ProjectConversationSessionSettings,
 ) -> ChatMessage | None:
-    if message.role in {"system", "error"} or message.status == "running":
+    if not message.include_in_context or message.role in {"system", "error"} or message.status == "running":
         return None
-    if (
-        message.status == "cancelled"
-        and not settings.return_cancelled_messages
-        and not _is_committed_tool_protocol_message(message)
-    ):
-        return None
-
     role = _request_role(message.role)
     if role is None:
         return None
@@ -167,37 +153,6 @@ def _normalize_tool_message_pairs(
         index += 1
 
     return tuple(normalized)
-
-
-def _user_messages_before_cancelled_assistant(
-    messages: tuple[ProjectConversationMessage, ...],
-) -> set[str]:
-    user_ids: set[str] = set()
-    last_user_id: str | None = None
-    for message in messages:
-        if message.role == "user":
-            last_user_id = message.message_id
-            continue
-        if (
-            message.role == "assistant"
-            and message.status == "cancelled"
-            and not message.tool_calls
-            and last_user_id
-        ):
-            user_ids.add(last_user_id)
-            last_user_id = None
-            continue
-        if message.role == "assistant" and message.status != "cancelled":
-            last_user_id = None
-    return user_ids
-
-
-def _is_committed_tool_protocol_message(message: ProjectConversationMessage) -> bool:
-    if message.role == "assistant":
-        return bool(message.tool_calls)
-    if message.role == "tool":
-        return bool(message.tool_call_id)
-    return False
 
 
 def _request_role(role: str) -> ChatMessageRole | None:

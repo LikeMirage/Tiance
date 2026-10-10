@@ -20,6 +20,7 @@ class LlmUsageRecord:
     cost_currency: str | None
     is_estimated: bool
     created_at: str
+    request_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

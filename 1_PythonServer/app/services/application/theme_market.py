@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from contextlib import suppress
 from functools import lru_cache
 import json
@@ -11,6 +10,7 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 from app.core.config import get_settings
+from app.core.shutdown_tasks import finish_thread, shutdown_tasks
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.domain.project import ProjectKind
 from app.infra.theme_market import ThemeMarketRemoteClient, ThemePackageArchive
@@ -88,14 +88,17 @@ class ThemeMarketApplicationService:
     ) -> ThemeMarketSettingsResponse:
         return self._settings_repository.save_filters(_normalize_filters(filters))
 
+    @shutdown_tasks.request
     async def connect(self, source: str) -> ThemeMarketIndexResponse:
         loaded = await self._index_gateway.connect(source)
         return await loaded.build_response(self._to_response)
 
+    @shutdown_tasks.request
     async def get_index(self) -> ThemeMarketIndexResponse:
         loaded = await self._index_gateway.get_index()
         return await loaded.build_response(self._to_response)
 
+    @shutdown_tasks.request
     async def get_preview_path(self, theme_id: str) -> Path:
         source = normalize_market_source(self.get_settings().source)
         loaded = await self._index_gateway.read_cached(source)
@@ -126,6 +129,7 @@ class ThemeMarketApplicationService:
                 temporary_path.unlink(missing_ok=True)
         return cache_path
 
+    @shutdown_tasks.request
     async def install_theme(
         self,
         *,
@@ -178,7 +182,8 @@ class ThemeMarketApplicationService:
                 expected_sha256=entry.sha256,
                 target=archive_path,
             )
-            return await asyncio.to_thread(
+            shutdown_tasks.commit_started()
+            return await finish_thread(
                 self._commit_theme_install,
                 archive_path=archive_path,
                 staging_root=staging_root,
@@ -188,7 +193,7 @@ class ThemeMarketApplicationService:
                 category_id=category.category_id if category is not None else None,
             )
         finally:
-            await asyncio.to_thread(
+            await finish_thread(
                 remove_theme_staging_path,
                 operation_root,
                 allowed_root=self._downloads_root,

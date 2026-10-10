@@ -1,6 +1,6 @@
 {
-  "description": "调用 MinerU 解析 PDF、Word、PPT、HTML 和图片等文档；自动识别扫描型 PDF 并开启 OCR，过滤批量整页扫描底图，再通过 DMXAPI 还原真正插图承载的信息。DMX 图片总量不限，最多同时处理 50 张。生成原文件名.md、images、metadata.json 和 structure 结构数据；定位页码时读取 content_list_v2.json 或 content_list.json 的 page_idx（从 0 开始，实际页码为 page_idx + 1）。",
-  "registration_name": "MinerU 文档解析 + DMX 豆包视觉",
+  "description": "调用 MinerU 解析 PDF、Word、PPT、HTML 和图片等文档；自动识别扫描型 PDF 并开启 OCR，过滤批量整页扫描底图，再通过 DeepSeek 官方接口（deepseek-flash） 还原真正插图承载的信息。视觉图片总量不限，最多同时处理 50 张。生成原文件名.md、images、metadata.json 和 structure 结构数据；定位页码时读取 content_list_v2.json 或 content_list.json 的 page_idx（从 0 开始，实际页码为 page_idx + 1）。",
+  "registration_name": "MinerU 文档解析 + DeepSeek 视觉",
   "execution": {
     "parallel": true
   },
@@ -17,8 +17,8 @@
   "keywords": [
     "文档解析",
     "MinerU",
-    "DMXAPI",
-    "豆包",
+    "DeepSeek",
+    "deepseek-flash",
     "视觉还原",
     "PDF",
     "Word",

@@ -1,0 +1,91 @@
+{
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "snapshot_id": {"type": "string", "description": "本次完整控件快照，翻页传回同一编号。"},
+        "elements": {"type": "array", "items": {"type": "object"}, "description": "当前页控件，每个element_id均可用于read或支持的动作。"},
+        "element_id": {"type": "string"},
+        "window": {"type": "object", "description": "控件树所属窗口，包括hwnd和process_id。"},
+        "total": {"type": "integer"},
+        "complete": {"type": "boolean"},
+        "next_offset": {"type": ["integer", "null"]},
+        "screenshot_delay_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 30,
+          "description": "本次操作结束后实际采用的截图等待秒数。"
+        },
+        "execution_status": {
+          "type": "string",
+          "enum": [
+            "not_started",
+            "partial",
+            "completed",
+            "unknown"
+          ],
+          "description": "输入执行状态，不保证应用业务成功。completed表示动作已执行，后续截图失败也不会改成未执行。"
+        },
+        "observation_status": {
+          "type": "string",
+          "enum": [
+            "captured",
+            "unavailable"
+          ],
+          "description": "操作后截图取得与否；unavailable时重新观察，不要重放已完成动作。"
+        },
+        "observation_error": {
+          "type": "object"
+        },
+        "frame_id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "新截图编号；操作后未取得截图时为null，旧编号已失效。"
+        },
+        "foreground_window": {
+          "type": "object",
+          "description": "截图时或观察失败后的实际前台窗口：hwnd、process_id、title、rect、exists；不会自动切换截图目标。"
+        },
+        "foreground_changed": {
+          "type": "boolean"
+        },
+        "performed": {
+          "type": "boolean",
+          "description": "是否执行过输入；错误时的执行进度见error_info.details。"
+        }
+      }
+    },
+    "content": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "type": "object",
+      "description": "错误详情包含execution_status；unknown表示不能确定控件动作是否已经生效，先观察，不直接重试。"
+    }
+  },
+  "required": [
+    "ok"
+  ]
+}

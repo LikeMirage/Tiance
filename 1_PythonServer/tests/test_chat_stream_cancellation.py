@@ -199,6 +199,7 @@ def test_empty_successful_response_persists_error_and_emits_one_error_terminal()
         {
             "kind": "conversation_run_started",
             "user_message_id": "msg-1",
+            "run_id": "run_msg-1",
         },
         {
             "kind": "conversation_run_settled",
@@ -454,6 +455,7 @@ def test_stream_persists_client_message_id_and_replays_completed_request_idempot
         {
             "kind": "conversation_run_started",
             "user_message_id": "client-user-1",
+            "run_id": "run_client-user-1",
         },
         {
             "kind": "conversation_run_settled",
@@ -552,6 +554,7 @@ def test_completed_request_replay_repairs_runtime_without_model_or_memory_side_e
         {
             "kind": "conversation_run_started",
             "user_message_id": "client-user-1",
+            "run_id": "run_client-user-1",
         },
         {
             "kind": "conversation_run_settled",
@@ -2793,6 +2796,10 @@ class _StatefulFakeConversationService(_FakeConversationService):
             tool_call_id=kwargs.get("tool_call_id"),
             tool_calls=kwargs.get("tool_calls", ()),
             content_parts=kwargs.get("content_parts", ()),
+            finish_reason=kwargs.get("finish_reason"),
+            include_in_context=kwargs.get("include_in_context", True),
+            message_source=kwargs.get("message_source"),
+            continuation_of=kwargs.get("continuation_of"),
         )
         self.persisted_messages.append(message)
         return message

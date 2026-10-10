@@ -153,6 +153,20 @@
   overflow: hidden;
 }
 
+.ai-panel__body-frame[data-chat-loading="true"] .ai-panel__body {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ai-panel__session-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
 .ai-panel__body {
   position: relative;
   width: 100%;

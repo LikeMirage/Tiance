@@ -61,7 +61,7 @@ type UpdateSessionMessages = (
 type ReloadSessionMessages = (
   pid: string,
   sessionId: string,
-  options?: { forceRefresh?: boolean; preserveLocalIfShorter?: boolean },
+  options?: { forceRefresh?: boolean; preserveLocalIfShorter?: boolean; shouldPreserveLocal?: () => boolean; authoritative?: boolean },
 ) => Promise<boolean>;
 
 type SetSessionRuntimeStatus = (
@@ -90,6 +90,7 @@ type UseChatGenerationOptions = {
   draft: string;
   references: ConversationMessageReferences;
   isActiveSessionBusy: boolean;
+  stoppingSessionKeysRef: MutableRefObject<Set<string>>;
   isSessionMessagesPresented: (pid: string, sessionId: string) => boolean;
   isNotFoundRequestError: (error: unknown) => boolean;
   isThinkingStuckToBottom: (messageId: string) => boolean;
@@ -133,6 +134,7 @@ export function useChatGeneration({
   draft,
   references,
   isActiveSessionBusy,
+  stoppingSessionKeysRef,
   isSessionMessagesPresented,
   isNotFoundRequestError,
   isThinkingStuckToBottom,
@@ -248,7 +250,7 @@ export function useChatGeneration({
     ) ?? activeModel;
     const streamReasoningMode = streamSession.reasoning_mode;
     const streamSessionKey = buildSessionKey(streamProjectId, sessionId);
-    if (sendingSessionKeysRef.current.has(streamSessionKey)) {
+    if (sendingSessionKeysRef.current.has(streamSessionKey) || stoppingSessionKeysRef.current.has(streamSessionKey)) {
       sendStartupLockedRef.current = false;
       return;
     }
@@ -418,11 +420,13 @@ export function useChatGeneration({
       }, { signal: streamController.signal });
       shouldClearEventSequence = true;
       const streamHadError = streamAccumulator.hadError();
-      streamAccumulator.flushNow();
+      if (streamWasCancelled) streamAccumulator.flushNow();
+      else streamAccumulator.finalizeCompleted();
       updateSessionMessages(streamProjectId, sessionId, (prev) => prev.map((message) =>
-        message.id === assistantId
+        message.id === streamAccumulator.getAssistantId()
           ? {
               ...message,
+              modelResponseInFlight: false,
               status: streamWasCancelled
                 ? "cancelled"
                 : streamHadError
@@ -453,6 +457,7 @@ export function useChatGeneration({
           void reloadSessionMessages(streamProjectId, sessionId, {
             forceRefresh: true,
             preserveLocalIfShorter: true,
+            shouldPreserveLocal: () => sendingSessionKeysRef.current.has(streamSessionKey),
           }).catch(() => undefined);
           void reloadSessionUsageSummary(streamProjectId, sessionId, { forceRefresh: true }).catch(() => undefined);
           emitLlmUsageChanged();
@@ -481,6 +486,7 @@ export function useChatGeneration({
             void reloadSessionMessages(streamProjectId, sessionId, {
               forceRefresh: true,
               preserveLocalIfShorter: true,
+              shouldPreserveLocal: () => sendingSessionKeysRef.current.has(streamSessionKey),
             }).catch(() => undefined);
             void reloadSessionUsageSummary(streamProjectId, sessionId, { forceRefresh: true }).catch(() => undefined);
           }, delayMs);
@@ -493,6 +499,7 @@ export function useChatGeneration({
         await Promise.all([
           reloadSessionMessages(streamProjectId, sessionId, {
             forceRefresh: true,
+            authoritative: true,
             preserveLocalIfShorter: true,
           }).catch(() => undefined),
           reloadSessionUsageSummary(streamProjectId, sessionId, {
@@ -502,7 +509,7 @@ export function useChatGeneration({
       } else if (err instanceof HttpRequestError) {
         shouldClearEventSequence = true;
         updateSessionMessages(streamProjectId, sessionId, (prev) =>
-          prev.map((m) => m.id === assistantId ? {
+          prev.map((m) => m.id === streamAccumulator.getAssistantId() ? {
             ...m,
             role: "error",
             status: "error",
@@ -522,6 +529,7 @@ export function useChatGeneration({
           reloadSessionMessages(streamProjectId, sessionId, {
             forceRefresh: true,
             preserveLocalIfShorter: true,
+            shouldPreserveLocal: () => sendingSessionKeysRef.current.has(streamSessionKey),
           }).catch(() => undefined),
           reloadSessionUsageSummary(streamProjectId, sessionId, {
             forceRefresh: true,
@@ -567,6 +575,7 @@ export function useChatGeneration({
     ensureSession,
     references,
     isActiveSessionBusy,
+    stoppingSessionKeysRef,
     isSessionMessagesPresented,
     isThinkingStuckToBottom,
     markSessionStreaming,

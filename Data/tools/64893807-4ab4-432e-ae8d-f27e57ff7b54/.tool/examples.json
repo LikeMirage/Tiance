@@ -1,10 +1,6 @@
 [
   {
-    "title": "点击后输入",
-    "content": "{\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"change_threshold_percent\": 0.5,\n  \"actions\": [\n    {\n      \"type\": \"click\",\n      \"frame_id\": 0,\n      \"view_id\": \"root\",\n      \"cell_id\": 6,\n      \"x\": 0.5,\n      \"y\": 0.5,\n      \"button\": \"left\",\n      \"clicks\": 1,\n      \"click_hold_ms\": 80\n    },\n    {\n      \"type\": \"type_text\",\n      \"text\": \"测试文本\",\n      \"interval_ms\": 20\n    }\n  ],\n  \"frame_id\": 0\n}"
-  },
-  {
-    "title": "按已读取的控件顺序填写并点击",
-    "content": "{\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"actions\": [\n    {\n      \"type\": \"set_value\",\n      \"element_id\": \"uia_message\",\n      \"text\": \"确认文本\",\n      \"postconditions\": [\n        {\n          \"element_id\": \"uia_message\",\n          \"value\": \"确认文本\"\n        }\n      ]\n    },\n    {\n      \"type\": \"click\",\n      \"frame_id\": 0,\n      \"element_id\": \"uia_send\",\n      \"expected_elements\": [\n        {\n          \"element_id\": \"uia_recipient\",\n          \"name\": \"目标联系人\"\n        },\n        {\n          \"element_id\": \"uia_message\",\n          \"value\": \"确认文本\"\n        }\n      ]\n    }\n  ]\n}"
+    "title": "确认目标前台后批量点击并输入（顺序明确）",
+    "content": "{\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"actions\": [\n    {\n      \"type\": \"click\",\n      \"frame_id\": 0,\n      \"view_id\": \"root\",\n      \"cell_id\": 6,\n      \"x\": 0.5,\n      \"y\": 0.5,\n      \"button\": \"left\",\n      \"clicks\": 1,\n      \"click_hold_ms\": 80\n    },\n    {\n      \"type\": \"type_text\",\n      \"text\": \"测试文本\",\n      \"interval_ms\": 20\n    }\n  ],\n  \"frame_id\": 0\n}"
   }
 ]

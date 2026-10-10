@@ -122,11 +122,24 @@ const HTML_TAG_NAMES = new Set([
   "option",
 ]);
 
-export function findMarkdownMathRanges(content: string): MarkdownMathRange[] {
+export function findMarkdownMathRanges(
+  content: string,
+  onUnstableStart?: (offset: number) => void,
+  onProtectedRange?: (range: { start: number; end: number }) => void,
+): MarkdownMathRange[] {
   if (!content) return [];
-  const protectedRanges = collectProtectedMarkdownRanges(content);
+  const protectedRanges = collectProtectedMarkdownRanges(content, onUnstableStart);
   const ranges = findDelimitedMathRanges(content, protectedRanges);
   ranges.push(...findStandaloneEnvironmentRanges(content, protectedRanges, ranges));
+  if (onProtectedRange) {
+    protectedRanges.forEach(onProtectedRange);
+    ranges.forEach(onProtectedRange);
+  }
+  if (onUnstableStart) {
+    for (const range of ranges) {
+      if (!range.closed) onUnstableStart(range.start);
+    }
+  }
   return ranges.sort((left, right) => left.start - right.start);
 }
 
@@ -493,15 +506,16 @@ function startsLikeMathExpression(value: string) {
   return /^[A-Za-z0-9_{}()[\]^+\-=\\.,\s]+$/.test(value);
 }
 
-function collectProtectedMarkdownRanges(content: string) {
-  const fenceRanges = collectFenceRanges(content);
+function collectProtectedMarkdownRanges(content: string, onUnstableStart?: (offset: number) => void) {
+  const fenceRanges = collectFenceRanges(content, onUnstableStart);
   const htmlRanges = collectHtmlProtectedRanges(content);
+  if (onUnstableStart) reportUnclosedHtml(content, onUnstableStart);
   const protectedRanges = mergeTextRanges([...fenceRanges, ...htmlRanges]);
-  const inlineCodeRanges = collectInlineCodeRanges(content, protectedRanges);
+  const inlineCodeRanges = collectInlineCodeRanges(content, protectedRanges, onUnstableStart);
   return mergeTextRanges([...protectedRanges, ...inlineCodeRanges]);
 }
 
-function collectFenceRanges(content: string) {
+function collectFenceRanges(content: string, onUnstableStart?: (offset: number) => void) {
   const ranges: TextRange[] = [];
   const linePattern = /.*(?:\r?\n|$)/g;
   let active: { marker: string; size: number; start: number } | null = null;
@@ -523,7 +537,10 @@ function collectFenceRanges(content: string) {
       active = null;
     }
   }
-  if (active) ranges.push({ start: active.start, end: content.length });
+  if (active) {
+    ranges.push({ start: active.start, end: content.length });
+    onUnstableStart?.(active.start);
+  }
   return ranges;
 }
 
@@ -546,7 +563,29 @@ function collectHtmlProtectedRanges(content: string) {
   return ranges;
 }
 
-function collectInlineCodeRanges(content: string, protectedRanges: TextRange[]) {
+// Later closing delimiters can change how earlier math is parsed. A streaming
+// cache must retain these open regions even when they contain blank lines.
+function reportUnclosedHtml(content: string, onUnstableStart: (offset: number) => void) {
+  const openers = /<(pre|code|script|style)\b[^>]*>|<!--|<!\[CDATA\[|<\?/gi;
+  let match: RegExpExecArray | null;
+  while ((match = openers.exec(content)) !== null) {
+    const closer = match[1]
+      ? new RegExp(`<\\/${match[1]}\\s*>`, "gi")
+      : match[0] === "<!--" ? /-->/g
+        : match[0].toUpperCase() === "<![CDATA[" ? /\]\]>/g : /\?>/g;
+    closer.lastIndex = openers.lastIndex;
+    if (!closer.exec(content)) onUnstableStart(match.index);
+  }
+  // An incomplete multiline tag/attribute may later become a protected range.
+  const lastOpen = content.lastIndexOf("<");
+  if (lastOpen > content.lastIndexOf(">")) onUnstableStart(lastOpen);
+}
+
+function collectInlineCodeRanges(
+  content: string,
+  protectedRanges: TextRange[],
+  onUnstableStart?: (offset: number) => void,
+) {
   const ranges: TextRange[] = [];
   let cursor = 0;
   let protectedIndex = 0;
@@ -574,6 +613,7 @@ function collectInlineCodeRanges(content: string, protectedRanges: TextRange[]) 
       cursor = close + size;
       continue;
     }
+    onUnstableStart?.(cursor);
     cursor += size;
   }
   return ranges;

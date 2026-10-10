@@ -1,11 +1,6 @@
 runtime/** -text
-# Tool-local credentials must also be absent from archives of tracked files.
-Data/tools/c91ee7e1-052e-584e-b665-2d79945aa923/program/config.json export-ignore
-Data/tools/c91ee7e1-052e-584e-b665-2d79945aa923/program/config.json.* export-ignore
-Data/tools/31084ec1-b544-4654-a09a-2021b6406a70/program/config.json export-ignore
-Data/tools/31084ec1-b544-4654-a09a-2021b6406a70/program/config.json.* export-ignore
-Data/tools/d915c8c7-8315-4de1-b61c-c29b77a5a6d5/program/config.json export-ignore
-Data/tools/d915c8c7-8315-4de1-b61c-c29b77a5a6d5/program/config.json.* export-ignore
-# Structured database search keeps its configured embedding API key local.
-Data/tools/ea5cace1-0644-4ecf-ac63-02e4b88b05b4/program/config.json export-ignore
-Data/tools/ea5cace1-0644-4ecf-ac63-02e4b88b05b4/program/config.json.* export-ignore
+# Bundled JavaScript contains intentional whitespace inside string literals.
+2_ReactWeb/dist/** -whitespace
+# Empty-key tool config templates are published; backups remain local.
+Data/tools/**/program/config.json.* export-ignore
+.Tiance/** export-ignore

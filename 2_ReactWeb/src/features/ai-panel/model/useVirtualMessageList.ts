@@ -13,6 +13,8 @@ import type { ChatMessage } from "./chatMessage";
 
 type UseVirtualMessageListOptions = {
   enabled: boolean;
+  keepLastMessageMounted?: boolean;
+  keepMessageMountedId?: string | null;
   estimateSize?: number;
   messages: ChatMessage[];
   overscanPx?: number;
@@ -33,6 +35,8 @@ const DEFAULT_OVERSCAN_PX = 720;
 
 export function useVirtualMessageList({
   enabled,
+  keepLastMessageMounted = false,
+  keepMessageMountedId = null,
   estimateSize = DEFAULT_ESTIMATE_SIZE,
   messages,
   overscanPx = DEFAULT_OVERSCAN_PX,
@@ -111,7 +115,7 @@ export function useVirtualMessageList({
 
   useEffect(() => {
     if (!enabled || sizeCacheRef) return;
-    const messageIds = new Set(messages.map((message) => message.id));
+    const messageIds = new Set(messages.map((message) => message.displayKey ?? message.id));
     heightsRef.current.forEach((_, messageId) => {
       if (!messageIds.has(messageId)) {
         heightsRef.current.delete(messageId);
@@ -124,7 +128,7 @@ export function useVirtualMessageList({
     offsets[0] = 0;
     messages.forEach((message, index) => {
       offsets[index + 1] =
-        offsets[index] + (heightsRef.current.get(message.id) ?? estimateSize);
+        offsets[index] + (heightsRef.current.get(message.displayKey ?? message.id) ?? estimateSize);
     });
     offsetsRef.current = offsets;
     return {
@@ -153,16 +157,27 @@ export function useVirtualMessageList({
       if (!message) continue;
       items.push({
         index,
-        key: message.id,
+        key: message.displayKey ?? message.id,
         message,
         size: layout.offsets[index + 1] - layout.offsets[index],
         start: layout.offsets[index],
       });
     }
 
+    const pinnedIndexes = [keepLastMessageMounted ? messages.length - 1 : -1,
+      keepMessageMountedId ? messages.findIndex((message) => message.id === keepMessageMountedId) : -1];
+    for (const index of pinnedIndexes) {
+      if (index < 0 || items.some((item) => item.index === index)) continue;
+      items.push({ index, key: messages[index].displayKey ?? messages[index].id, message: messages[index],
+        size: layout.offsets[index + 1] - layout.offsets[index], start: layout.offsets[index] });
+    }
+    items.sort((left, right) => left.index - right.index);
+
     return items;
   }, [
     enabled,
+    keepLastMessageMounted,
+    keepMessageMountedId,
     layout.offsets,
     layout.totalSize,
     messages,

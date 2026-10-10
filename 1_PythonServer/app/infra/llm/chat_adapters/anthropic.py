@@ -1,3 +1,4 @@
+from app.domain.llm.output_limit_error import OutputLimitError
 from collections.abc import AsyncGenerator
 from json import loads as json_loads
 
@@ -74,10 +75,12 @@ class AnthropicMessagesChatAdapter:
         text, thinking = _extract_anthropic_content(content)
         stop_reason = _optional_str(payload.get("stop_reason"))
         if stop_reason == "max_tokens":
-            raise UpstreamProviderError(
-                "上游 Anthropic 达到最大输出 Token，回复不完整。",
-                code="upstream_response_incomplete",
-            )
+            raise OutputLimitError(ChatCompletionResult(
+                provider_id=request.provider_id, model_id=request.model_id,
+                message=ChatMessage(role=ChatMessageRole.ASSISTANT, content=text, thinking_content=thinking),
+                thinking_content=thinking, finish_reason=stop_reason,
+                usage=_parse_anthropic_usage(payload.get("usage")), raw_response=payload,
+            ))
         continuation = build_protocol_continuation(
             request,
             provider_template.protocol_family,
@@ -110,6 +113,7 @@ class AnthropicMessagesChatAdapter:
         stream_body: StreamBody,
     ) -> AsyncGenerator[ChatStreamEvent, None]:
         content_blocks: dict[int, dict[str, object]] = {}
+        malformed_tool_arguments = False
         finish_reason: str | None = None
         async for payload in _iter_sse_payloads(
             stream_body(
@@ -147,10 +151,8 @@ class AnthropicMessagesChatAdapter:
                 try:
                     tool_call = _anthropic_tool_call_from_block(payload, content_blocks)
                 except ValueError:
-                    yield _protocol_error_event(
-                        "上游 Anthropic 返回了不完整的工具参数。"
-                    )
-                    return
+                    malformed_tool_arguments = True
+                    continue
                 if tool_call is not None:
                     yield ChatStreamEvent(
                         kind=ChatStreamEventKind.TOOL_CALL,
@@ -178,8 +180,12 @@ class AnthropicMessagesChatAdapter:
                     yield ChatStreamEvent(
                         kind=ChatStreamEventKind.ERROR,
                         error="上游 Anthropic 达到最大输出 Token，回复不完整。",
+                        finish_reason="max_tokens",
                         error_code="upstream_response_incomplete",
                     )
+                    return
+                if malformed_tool_arguments:
+                    yield _protocol_error_event("上游 Anthropic 返回了不完整的工具参数。")
                     return
                 try:
                     continuation_items = tuple(
@@ -207,9 +213,13 @@ class AnthropicMessagesChatAdapter:
                     finish_reason=finish_reason,
                 )
                 return
+        if malformed_tool_arguments and finish_reason != "max_tokens":
+            yield _protocol_error_event("上游 Anthropic 返回了不完整的工具参数。")
+            return
         yield ChatStreamEvent(
             kind=ChatStreamEventKind.ERROR,
             error="上游 Anthropic 流在 message_stop 前意外结束，当前回答可能不完整。",
+            finish_reason=finish_reason,
             error_code="upstream_stream_incomplete",
         )
 

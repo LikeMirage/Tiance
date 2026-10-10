@@ -1,6 +1,10 @@
+import { releasePendingChatNotifications, mergeLiveChatNotifications } from "./chatNotifications";
+import { createUuid } from "../../../shared/model/createUuid";
 import type { ChatStreamEvent, ChatUsage } from "../../../entities/llm-chat/model/chatCompletion";
 import {
+  isChatNotificationMessage,
   appendAssistantContentProcess,
+  mapConversationMessages,
   appendThinkingProcessDelta,
   appendToolPreparingProcess,
   createFinishedToolProcessItem,
@@ -51,6 +55,9 @@ export function createChatStreamAccumulator({
   streamingEnabled,
   updateSessionMessages,
 }: ChatStreamAccumulatorOptions) {
+  let modelResponseInFlight = initialMessage?.modelResponseInFlight ?? false;
+  let runUserMessageId = "";
+  let runId = "";
   let contentBuffer = initialMessage?.content ?? "";
   let thinkingBuffer = initialMessage?.thinkingContent ?? "";
   let contentPartsBuffer = [...(initialMessage?.contentParts ?? [])];
@@ -89,6 +96,7 @@ export function createChatStreamAccumulator({
             thinkingContent: thinkingBuffer,
             status: streamRole === "error" ? "error" : "running",
             retryStatus,
+            modelResponseInFlight,
             processItems,
             toolCalls: streamHadError
               ? (message.toolCalls ?? []).map((tool) =>
@@ -127,6 +135,8 @@ export function createChatStreamAccumulator({
   };
 
   const finalizeCancelled = () => {
+    modelResponseInFlight = false;
+    updateSessionMessages(streamProjectId, sessionId, releasePendingChatNotifications);
     if (flushTimer !== null) {
       window.clearTimeout(flushTimer);
       flushTimer = null;
@@ -146,6 +156,7 @@ export function createChatStreamAccumulator({
             contentParts: contentPartsBuffer,
             thinkingContent: thinkingBuffer,
             status: "cancelled",
+            modelResponseInFlight: false,
             retryStatus: null,
             processItems,
             toolCalls: (message.toolCalls ?? []).map((tool) =>
@@ -202,9 +213,9 @@ export function createChatStreamAccumulator({
       originMessageId: `run-attempt-failure:live:${assistantId}:${attemptFailureSerial}`,
       runAttemptFailure: {
         event_id: -attemptFailureSerial,
-        run_id: assistantId,
+        run_id: runId || assistantId,
         session_id: sessionId,
-        user_message_id: "",
+        user_message_id: runUserMessageId,
         error_code: errorCode,
         error_message: error,
         attempt_index: normalizedAttemptIndex,
@@ -215,8 +226,118 @@ export function createChatStreamAccumulator({
     };
   };
 
+  const adoptTrailingNotifications = () => {
+    updateSessionMessages(streamProjectId, sessionId, (messages) => {
+      const index = messages.findIndex((message) => message.id === assistantId);
+      if (index < 0) return messages;
+      let end = index + 1;
+      while (end < messages.length && isChatNotificationMessage(messages[end]) && !messages[end].notificationPending) end += 1;
+      const notices = messages.slice(index + 1, end);
+      if (!notices.length) return messages;
+      moveBufferedContentToProcess();
+      const items = notices.map((message) => ({ id: message.id, type: "notification" as const, message }));
+      processItems = [...processItems, ...items];
+      // Notices are durable facts even when the next attempt rolls text back.
+      const committedIds = new Set(committedProcessItems.map((item) => item.id));
+      committedProcessItems = [...committedProcessItems, ...items.filter((item) => !committedIds.has(item.id))];
+      const next = [...messages.slice(0, index + 1), ...messages.slice(end)];
+      return updateAssistantProcessItems(next, assistantId, processItems, contentBuffer);
+    });
+  };
+
+  const finishModelResponse = (notifications = [] as ChatMessage[], hasTools = false) => {
+    flushNow();
+    modelResponseInFlight = false;
+    processItems = finishOpenThinkingProcess(processItems, Date.now());
+    updateSessionMessages(streamProjectId, sessionId, (messages) => {
+      const next = releasePendingChatNotifications(mergeLiveChatNotifications(messages, notifications));
+      return next.map((message) => message.id === assistantId
+        ? { ...message, modelResponseInFlight: false, processItems } : message);
+    });
+    if (hasTools) adoptTrailingNotifications();
+  };
+
+  const finalizeCompleted = () => {
+    finishModelResponse();
+    updateSessionMessages(streamProjectId, sessionId, (messages) => messages.map((message) =>
+      message.id === assistantId ? { ...message, status: streamHadError ? "error" : "done", modelResponseInFlight: false } : message));
+  };
+
+  let replayingEarlierAutomaticTurn = false;
   const handleEvent = (event: ChatStreamEvent) => {
+    if (event.kind === "conversation_run_started") {
+      runUserMessageId = event.user_message_id;
+      runId = event.run_id || `run_${runUserMessageId}`;
+      updateSessionMessages(streamProjectId, sessionId, (messages) => {
+        const lastUser = [...messages].reverse().find((message) => message.role === "user");
+        replayingEarlierAutomaticTurn = lastUser?.messageSource === "output_limit"
+          && lastUser.id !== event.user_message_id;
+        return messages;
+      });
+      return;
+    }
+    if (replayingEarlierAutomaticTurn) return;
+    if (event.kind === "conversation_notice") {
+      const notices = mapConversationMessages([event.message]);
+      updateSessionMessages(streamProjectId, sessionId, (messages) => mergeLiveChatNotifications(messages, notices));
+      return;
+    }
+    if (event.kind === "model_response_started") {
+      adoptTrailingNotifications();
+      modelResponseInFlight = true;
+      flushNow();
+      return;
+    }
+    if (event.kind === "model_response_finished") {
+      finishModelResponse(mapConversationMessages(event.notifications ?? []), Boolean(event.has_tool_calls));
+      return;
+    }
+    if (event.kind === "done") { finishModelResponse(); return; }
+
+    if (event.kind === "output_limit") {
+      finishModelResponse();
+      if (event.usage) onUsage(event.usage);
+      if (flushTimer !== null) { window.clearTimeout(flushTimer); flushTimer = null; }
+      const previousAssistantId = assistantId;
+      const nextAssistantId = event.will_recover ? createUuid() : assistantId;
+      const saved = event.saved_message ? mapConversationMessages([event.saved_message])[0] : null;
+      const nextUser = event.next_user_message ? mapConversationMessages([event.next_user_message])[0] : null;
+      const hasCommitted = Boolean(committedContentBuffer.trim() || committedThinkingBuffer.trim()
+        || committedProcessItems.length || committedToolCallIds.size);
+      updateSessionMessages(streamProjectId, sessionId, (messages) => {
+        const previous = messages.find((message) => message.id === previousAssistantId);
+        const alreadyPersisted = saved && messages.some((message) => message.id === saved.id);
+        const result = messages.flatMap((message) => {
+          if (message.id !== previousAssistantId) return [message];
+          const retained = hasCommitted && !alreadyPersisted ? [{ ...message, content: committedContentBuffer,
+            thinkingContent: committedThinkingBuffer, processItems: committedProcessItems,
+            toolCalls: (message.toolCalls ?? []).filter((tool) => committedToolCallIds.has(tool.callId)),
+            status: "done", retryStatus: null }] : [];
+          // Replace the streamed fragment at its own position. A queued notice
+          // belongs after that fragment, before any automatic continuation.
+          return saved && !alreadyPersisted ? [...retained, saved] : retained;
+        });
+        if (saved && !result.some((message) => message.id === saved.id)) result.push(saved);
+        if (nextUser && !result.some((message) => message.id === nextUser.id)) result.push(nextUser);
+        result.push({
+          id: nextAssistantId, role: "assistant", content: "", thinkingContent: "", status: "running", usage: null,
+          providerId: previous?.providerId, modelId: previous?.modelId,
+          isThinkingExpanded: true, thinkingStartedAt: Date.now(), thinkingFinishedAt: null, createdAt: Date.now(),
+        });
+        return result;
+      });
+      assistantId = nextAssistantId;
+      contentBuffer = ""; thinkingBuffer = ""; contentPartsBuffer = []; processItems = [];
+      committedContentBuffer = ""; committedThinkingBuffer = ""; committedContentPartsBuffer = []; committedProcessItems = [];
+      committedToolCallIds = new Set(); committedHasCollapsedThinking = false;
+      hasCollapsedThinkingOnBodyStart = false; retryStatus = null;
+      currentAttemptIndex = 1; currentAttemptCount = 1;
+      streamRole = "assistant"; streamHadError = false;
+      return;
+    }
     if (event.kind === "retry_reset") {
+      modelResponseInFlight = false;
+      updateSessionMessages(streamProjectId, sessionId, releasePendingChatNotifications);
       if (flushTimer !== null) {
         window.clearTimeout(flushTimer);
         flushTimer = null;
@@ -238,6 +359,7 @@ export function createChatStreamAccumulator({
         failedAttemptIndex,
         currentAttemptCount,
       );
+      adoptTrailingNotifications();
       retryStatus = {
         error: event.error || "",
         errorCode: event.error_code?.trim() || null,
@@ -414,6 +536,8 @@ export function createChatStreamAccumulator({
     }
 
     if (event.kind === "error") {
+      modelResponseInFlight = false;
+      updateSessionMessages(streamProjectId, sessionId, releasePendingChatNotifications);
       if (flushTimer !== null) {
         window.clearTimeout(flushTimer);
         flushTimer = null;
@@ -474,8 +598,10 @@ export function createChatStreamAccumulator({
       }
     },
     finalizeCancelled,
+    finalizeCompleted,
     flushNow,
     hadError: () => streamHadError,
+    getAssistantId: () => assistantId,
     handleEvent,
   };
 }

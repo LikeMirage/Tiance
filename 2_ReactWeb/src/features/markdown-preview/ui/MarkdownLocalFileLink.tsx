@@ -1,6 +1,6 @@
-import { useCallback, useState, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 
-import type { LocalFileReference } from "../../../entities/local-file/model/localFileReference";
+import type { LocalFileNameAvailability, LocalFileReference } from "../../../entities/local-file/model/localFileReference";
 import {
   ContextMenu,
   ContextMenuItem,
@@ -9,10 +9,17 @@ import {
 } from "../../../shared/ui/context-menu";
 
 export type MarkdownLocalFileActions = {
+  fileNames?: LocalFileNameAvailability;
   onError?: (message: string | null) => void;
   onOpenDefault: (reference: LocalFileReference) => Promise<void> | void;
   onOpenInWorkspace: (reference: LocalFileReference) => Promise<void> | void;
   onReveal: (reference: LocalFileReference) => Promise<void> | void;
+  onCopyPath: (reference: LocalFileReference) => Promise<void> | void;
+};
+
+const noFileNames: LocalFileNameAvailability = {
+  getSnapshot: () => null,
+  subscribe: () => () => undefined,
 };
 
 export function MarkdownLocalFileLink({
@@ -26,6 +33,11 @@ export function MarkdownLocalFileLink({
 }) {
   const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const fileNames = reference.lookup === "name" ? actions.fileNames ?? noFileNames : noFileNames;
+  const fileNameIndex = useSyncExternalStore(fileNames.subscribe, fileNames.getSnapshot, fileNames.getSnapshot);
+  const resolved = reference.lookup === "name" ? fileNameIndex?.get(reference.name.toLowerCase()) : reference;
+  const absolutePath = resolved?.absolutePath;
+  useEffect(() => { setMenuPosition(null); }, [absolutePath]);
 
   const run = useCallback(async (action: () => Promise<void> | void) => {
     if (isRunning) return;
@@ -51,13 +63,17 @@ export function MarkdownLocalFileLink({
     setMenuPosition({ x: event.clientX, y: event.clientY });
   };
 
+  // A name is just text until the current project's complete index proves a
+  // unique file exists. Keep click-time lookup to recheck moves or deletions.
+  if (!resolved) return <span>{children}</span>;
+
   return (
     <>
       <a
         aria-disabled={isRunning ? "true" : undefined}
         className="markdown-preview__local-file-link"
         href="#"
-        title={reference.absolutePath}
+        title={absolutePath}
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -88,9 +104,7 @@ export function MarkdownLocalFileLink({
             使用系统默认应用打开
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem onSelect={() => void run(async () => {
-            await navigator.clipboard.writeText(reference.absolutePath);
-          })}>
+          <ContextMenuItem onSelect={() => void run(() => actions.onCopyPath(reference))}>
             复制文件路径
           </ContextMenuItem>
         </ContextMenu>

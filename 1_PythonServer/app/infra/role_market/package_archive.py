@@ -107,7 +107,14 @@ class RolePackageArchive:
             path = package_root / file_name
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
-                model.model_validate(payload)
+                configuration = model.model_validate(payload)
+                if file_name == "response.json":
+                    normalized = configuration.model_dump(mode="json")
+                    if payload.keys() != normalized.keys():
+                        path.write_text(
+                            json.dumps(normalized, ensure_ascii=False, indent=2) + "\n",
+                            encoding="utf-8",
+                        )
             except UnicodeDecodeError as exc:
                 raise BadRequestError(f"{file_name} 必须是 UTF-8 JSON。") from exc
             except (OSError, ValueError) as exc:

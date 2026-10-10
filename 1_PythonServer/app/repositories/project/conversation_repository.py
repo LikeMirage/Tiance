@@ -842,6 +842,10 @@ class ProjectConversationRepository:
         status: ProjectConversationMessageStatus = "done",
         sync_session_model: bool = True,
         message_id: str | None = None,
+        finish_reason: str | None = None,
+        include_in_context: bool = True,
+        message_source: str | None = None,
+        continuation_of: str | None = None,
     ) -> ProjectConversationMessage:
         if role not in {"system", "user", "assistant", "tool", "error"}:
             raise BadRequestError("无效的会话消息角色。")
@@ -882,6 +886,10 @@ class ProjectConversationRepository:
             variant_index = pending_variant.variant_index if pending_variant is not None else 1
             message = ProjectConversationMessage(
                 message_id=resolved_message_id,
+                finish_reason=finish_reason,
+                include_in_context=include_in_context,
+                message_source=message_source,
+                continuation_of=continuation_of,
                 session_id=session_id,
                 role=role,
                 content=content,

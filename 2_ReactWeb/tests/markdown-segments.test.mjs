@@ -12,6 +12,7 @@ const vite = await createServer({
 const {
   buildProgressiveMarkdownSegments,
   buildStreamingMarkdownSegments,
+  createStreamingMarkdownSegmenter,
 } = await vite.ssrLoadModule(
   "/src/features/markdown-preview/model/markdownSegments.ts",
 );
@@ -27,6 +28,45 @@ const {
 
 after(async () => {
   await vite.close();
+});
+
+test("增量分段在逐字追加、跨块语法和替换时与完整分段完全一致", () => {
+  const paragraph = "普通段落与中文 abc。\n\n";
+  const samples = [
+    paragraph.repeat(12),
+    `${paragraph.repeat(3)}\`\`\`ts\nconst a = '$$';\n\n\`\`\`\n${paragraph.repeat(5)}`,
+    `${paragraph.repeat(3)}$$\nx+y\n\n= z\n$$\n\n${paragraph.repeat(5)}`,
+    `${paragraph.repeat(3)}<pre>\n\n${paragraph}$$\n\n</pre>\n\n${paragraph.repeat(5)}`,
+    `${paragraph.repeat(3)}<!--\n\n$$\n\n-->\n\n${paragraph.repeat(5)}`,
+    `${paragraph.repeat(3)}\`multiline\n\n$$\n\ncode\`\n\n${paragraph.repeat(5)}`,
+    `${paragraph.repeat(3)}<div title='\n\n$$\n\n'>text</div>\n\n${paragraph.repeat(5)}`,
+    `${paragraph.repeat(3)}C:\\work\\\n\n- file.md\n\n  \`\`\`\n  source\n  \`\`\`\n\n- other.md\n\nend\n\n${paragraph.repeat(5)}`,
+    `${paragraph.repeat(3)}\\begin{align}\nx&=y\n\\end{align}\n\n${paragraph.repeat(5)}`,
+    `# 标题\r\n\r\n${paragraph.repeat(8).replaceAll("\n", "\r\n")}`,
+  ];
+  for (const sample of samples) {
+    const segment = createStreamingMarkdownSegmenter(40);
+    for (let length = 1; length <= sample.length; length++) {
+      const content = sample.slice(0, length);
+      const actual = segment(content);
+      assert.deepEqual(actual, buildStreamingMarkdownSegments(content, 40), `prefix: ${JSON.stringify(content)}`);
+      assert.equal(actual.chunks.map((part) => part.content).join("") + actual.tail, content);
+    }
+    for (const content of [sample.slice(0, 20), "替换内容\n\n", "", sample]) {
+      assert.deepEqual(segment(content), buildStreamingMarkdownSegments(content, 40));
+    }
+  }
+});
+
+test("增量分段复用已完成块，并能从一开始跨过闭合 HTML 和代码的内部边界", () => {
+  const paragraph = "这是完整的一段正文。\n\n";
+  const source = `${paragraph.repeat(5)}<pre>\n\n$$\n\nbody\n\n</pre>\n\n${paragraph.repeat(8)}`;
+  const segment = createStreamingMarkdownSegmenter(25);
+  const first = segment(source);
+  const second = segment(source + "追加正文\n\n");
+  assert.strictEqual(first.chunks[0], second.chunks[0]);
+  assert.deepEqual(second, buildStreamingMarkdownSegments(source + "追加正文\n\n", 25));
+  assert.strictEqual(segment(source + "追加正文\n\n"), second);
 });
 
 test("渐进分块能够无损拼回完整 Markdown", () => {

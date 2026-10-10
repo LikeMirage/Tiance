@@ -127,6 +127,8 @@ class ConversationStreamPersistence:
             provider_id=request.provider_id,
             model_id=request.model_id,
             message_id=last_user_message.message_id,
+            message_source=last_user_message.internal_metadata.get("message_source"),
+            continuation_of=last_user_message.internal_metadata.get("continuation_of"),
         )
         self._conversation_service.record_user_message_sent(message)
         return message
@@ -178,6 +180,19 @@ class ConversationStreamPersistence:
             ):
                 reply = message
         return ExistingConversationRequestTurn(user=existing_user, reply=reply)
+
+    def output_limit_continuation(
+        self, request: ChatCompletionRequest,
+    ) -> tuple[ProjectConversationMessage, ProjectConversationMessage, ProjectConversationMessage | None] | None:
+        existing = self.existing_request_turn(request)
+        if existing is None or not request.project_id or not request.session_id:
+            return None
+        messages = self._conversation_service.list_messages(request.project_id, request.session_id)
+        next_user = next((message for message in messages
+            if message.role == "user" and message.message_source == "output_limit"
+            and message.continuation_of == existing.user.message_id), None)
+        saved = existing.reply if existing.reply and existing.reply.finish_reason == "output_limit" else None
+        return (existing.user, next_user, saved) if next_user else None
 
     def current_user_message(
         self,
@@ -315,6 +330,8 @@ class ConversationStreamPersistence:
         context_tokens_estimated: bool = False,
         status: str,
         sync_session_model: bool = False,
+        finish_reason: str | None = None,
+        include_in_context: bool = True,
     ) -> ProjectConversationMessage | None:
         if not request.project_id or not request.session_id:
             return None
@@ -324,6 +341,8 @@ class ConversationStreamPersistence:
             request.project_id,
             request.session_id,
             role="assistant" if status != "error" else "error",
+            finish_reason=finish_reason,
+            include_in_context=include_in_context,
             content=content,
             thinking_content=thinking_content,
             content_parts=content_parts,
@@ -448,7 +467,11 @@ class ConversationStreamPersistence:
         assistant_message: ProjectConversationMessage | None,
         usage: ChatUsage | None,
     ) -> None:
-        if usage is None or assistant_message is None:
+        if (
+            usage is None or assistant_message is None
+            or (request.record_attempt_usage and request.output_limit_budget is not None
+                and request.output_limit_budget.last_round_usage_recorded)
+        ):
             return
         if not request.project_id or not request.session_id:
             return

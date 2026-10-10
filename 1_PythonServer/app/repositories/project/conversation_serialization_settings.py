@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.domain.llm.output_limit import output_limit_settings_from_payload
+
 from app.domain.project.project_conversation import (
     ProjectConversationSessionSettings,
     ProjectConversationToolApprovalMode,
@@ -10,6 +12,7 @@ def _session_settings_from_payload(payload: object) -> ProjectConversationSessio
     if not isinstance(payload, dict):
         return ProjectConversationSessionSettings()
     return ProjectConversationSessionSettings(
+        **output_limit_settings_from_payload(payload),
         global_memory_enabled=_optional_bool(payload.get("global_memory_enabled"), default_value=True),
         global_memory_extraction_enabled=_optional_bool(
             payload.get("global_memory_extraction_enabled"),
@@ -29,14 +32,6 @@ def _session_settings_from_payload(payload: object) -> ProjectConversationSessio
         project_memory_enabled=_optional_bool(payload.get("project_memory_enabled"), default_value=True),
         project_memory_extraction_enabled=_optional_bool(
             payload.get("project_memory_extraction_enabled"),
-            default_value=True,
-        ),
-        return_cancelled_messages=_optional_bool(
-            payload.get("return_cancelled_messages"),
-            default_value=True,
-        ),
-        return_user_before_cancelled=_optional_bool(
-            payload.get("return_user_before_cancelled"),
             default_value=True,
         ),
         streaming_enabled=_optional_bool(payload.get("streaming_enabled"), default_value=True),
@@ -92,6 +87,7 @@ def _merge_session_settings(
     if not isinstance(payload, dict):
         return current
     return ProjectConversationSessionSettings(
+        **output_limit_settings_from_payload(payload, current),
         global_memory_enabled=_optional_bool(
             payload.get("global_memory_enabled"),
             default_value=current.global_memory_enabled,
@@ -129,14 +125,6 @@ def _merge_session_settings(
         project_memory_extraction_enabled=_optional_bool(
             payload.get("project_memory_extraction_enabled"),
             default_value=current.project_memory_extraction_enabled,
-        ),
-        return_cancelled_messages=_optional_bool(
-            payload.get("return_cancelled_messages"),
-            default_value=current.return_cancelled_messages,
-        ),
-        return_user_before_cancelled=_optional_bool(
-            payload.get("return_user_before_cancelled"),
-            default_value=current.return_user_before_cancelled,
         ),
         streaming_enabled=_optional_bool(
             payload.get("streaming_enabled"),
@@ -225,8 +213,6 @@ def _session_settings_to_payload(settings: ProjectConversationSessionSettings) -
         "memory_raw_context_token_reserve": settings.memory_raw_context_token_reserve,
         "project_memory_enabled": settings.project_memory_enabled,
         "project_memory_extraction_enabled": settings.project_memory_extraction_enabled,
-        "return_cancelled_messages": settings.return_cancelled_messages,
-        "return_user_before_cancelled": settings.return_user_before_cancelled,
         "streaming_enabled": settings.streaming_enabled,
         "auto_collapse_assistant_process": settings.auto_collapse_assistant_process,
         "malformed_tool_call_recovery_enabled": (
@@ -236,6 +222,10 @@ def _session_settings_to_payload(settings: ProjectConversationSessionSettings) -
         "inject_message_timestamps": settings.inject_message_timestamps,
         "system_prompt": settings.system_prompt,
         "max_output_tokens": settings.max_output_tokens,
+        "output_limit_action": settings.output_limit_action,
+        "output_limit_save_partial": settings.output_limit_save_partial,
+        "output_limit_message": settings.output_limit_message,
+        "output_limit_max_recoveries": settings.output_limit_max_recoveries,
         "temperature": settings.temperature,
         "top_p": settings.top_p,
         "tools_enabled": settings.tools_enabled,

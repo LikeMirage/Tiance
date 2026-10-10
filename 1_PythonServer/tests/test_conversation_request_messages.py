@@ -12,6 +12,12 @@ from app.domain.project.project_conversation import (
     ProjectConversationSessionSettings,
 )
 from app.domain.llm.message_timestamp import model_visible_message_content
+from app.repositories.project.conversation_serialization_settings import (
+    _merge_session_settings,
+    _session_settings_from_payload,
+    _session_settings_to_payload,
+)
+from app.schemas.project.project_conversations import ProjectConversationSessionSettingsPatch
 from app.services.project.conversation_request_messages import build_conversation_request_messages
 from app.services.project.conversation_request_provenance import conversation_message_id
 from app.services.project.conversation_references import build_referenced_user_content
@@ -44,13 +50,13 @@ def test_build_conversation_request_messages_matches_session_rules():
         "继续",
         ProjectConversationSessionSettings(
             system_prompt="系统提示词",
-            return_cancelled_messages=False,
-            return_user_before_cancelled=False,
         ),
     )
 
     assert [message.role for message in request_messages] == [
         ChatMessageRole.SYSTEM,
+        ChatMessageRole.USER,
+        ChatMessageRole.ASSISTANT,
         ChatMessageRole.USER,
         ChatMessageRole.ASSISTANT,
         ChatMessageRole.TOOL,
@@ -59,16 +65,18 @@ def test_build_conversation_request_messages_matches_session_rules():
     ]
     assert [message.content for message in request_messages] == [
         "系统提示词",
+        "第一轮",
+        "中断回复",
         "第二轮",
         "",
         "文件内容",
         "总结",
         "继续",
     ]
-    assert request_messages[2].thinking_content == "准备调用工具"
-    assert request_messages[2].tool_calls[0].call_id == "call_1"
-    assert request_messages[3].tool_call_id == "call_1"
-    assert [conversation_message_id(message) for message in request_messages[1:5]] == [
+    assert request_messages[4].thinking_content == "准备调用工具"
+    assert request_messages[4].tool_calls[0].call_id == "call_1"
+    assert request_messages[5].tool_call_id == "call_1"
+    assert [conversation_message_id(message) for message in request_messages[3:7]] == [
         "u2",
         "a2",
         "t1",
@@ -76,7 +84,7 @@ def test_build_conversation_request_messages_matches_session_rules():
     ]
 
 
-def test_build_conversation_request_messages_keeps_cancelled_turn_by_default():
+def test_build_conversation_request_messages_always_keeps_cancelled_turn():
     request_messages = build_conversation_request_messages(
         (
             _message("u1", "user", "保留这一轮"),
@@ -91,6 +99,34 @@ def test_build_conversation_request_messages_keeps_cancelled_turn_by_default():
         "取消但保留",
         "继续",
     ]
+
+
+def test_legacy_cancellation_options_cannot_hide_user_or_thinking_only_reply():
+    legacy_settings = {
+        "return_cancelled_messages": False,
+        "return_user_before_cancelled": False,
+    }
+    settings = _session_settings_from_payload(legacy_settings)
+    settings = _merge_session_settings(settings, legacy_settings)
+    request_messages = build_conversation_request_messages(
+        (
+            _message("u1", "user", "用户原来的任务"),
+            _message("a1", "assistant", "", thinking_content="已经生成的思考", status="cancelled"),
+        ),
+        "新指令",
+        settings,
+    )
+
+    assert [message.role for message in request_messages] == [
+        ChatMessageRole.USER, ChatMessageRole.ASSISTANT, ChatMessageRole.USER,
+    ]
+    assert request_messages[0].content == "用户原来的任务"
+    assert request_messages[1].thinking_content == "已经生成的思考"
+    assert request_messages[2].content == "新指令"
+    assert not legacy_settings.keys() & _session_settings_to_payload(settings).keys()
+    assert ProjectConversationSessionSettingsPatch.model_validate(legacy_settings).model_dump(
+        exclude_unset=True,
+    ) == {}
 
 
 def test_build_conversation_request_messages_drops_unpaired_tool_messages():

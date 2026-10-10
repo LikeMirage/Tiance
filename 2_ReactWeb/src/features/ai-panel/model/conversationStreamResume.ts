@@ -1,6 +1,7 @@
 import { buildChatDisplayMessages, resolveAssistantBodyContent } from "./chatDisplayMessages";
 import {
   appendAssistantContentProcess,
+  isChatNotificationMessage,
   getLastMessageContextMeasurement,
   readToolProcessItemFromMessage,
   reopenTrailingThinkingProcess,
@@ -22,9 +23,10 @@ export function prepareConversationStreamResume(
   fallbackAssistantId: string,
   now = Date.now(),
 ): ConversationStreamResumeSnapshot {
-  const lastMessage = messages[messages.length - 1] ?? null;
+  const lastMessage = [...messages].reverse().find((message) => !isChatNotificationMessage(message)) ?? null;
   const checkpointMessageId = lastMessage && (
     lastMessage.role === "assistant" || lastMessage.role === "tool"
+    || (lastMessage.role === "user" && lastMessage.messageSource === "output_limit")
   )
     ? lastMessage.id
     : null;
@@ -35,8 +37,12 @@ export function prepareConversationStreamResume(
   const runningTurnMessages = lastUserIndex >= 0
     ? messages.slice(lastUserIndex + 1)
     : [];
+  const lastTruncationIndex = runningTurnMessages.reduce((last, message, index) => message.finishReason === "output_limit" ? index : last, -1);
+  const retainedBeforeRecovery = runningTurnMessages.slice(0, lastTruncationIndex + 1);
+  const currentTurn = runningTurnMessages.slice(lastTruncationIndex + 1);
+  const external = extractStandaloneNotifications(currentTurn);
   const assistantMessage = buildResumedAssistantMessage(
-    runningTurnMessages,
+    currentTurn,
     fallbackAssistantId,
     now,
   );
@@ -44,7 +50,7 @@ export function prepareConversationStreamResume(
   return {
     assistantMessage,
     checkpointMessageId,
-    messages: [...preservedMessages, assistantMessage],
+    messages: [...preservedMessages, ...retainedBeforeRecovery, ...external.before, assistantMessage, ...external.after],
   };
 }
 
@@ -60,15 +66,19 @@ export function prepareConversationStreamFullReplay(
   const runningTurnMessages = lastUserIndex >= 0
     ? messages.slice(lastUserIndex + 1)
     : [];
+  const lastTruncationIndex = runningTurnMessages.reduce((last, message, index) => message.finishReason === "output_limit" ? index : last, -1);
+  const retainedBeforeRecovery = runningTurnMessages.slice(0, lastTruncationIndex + 1);
+  const currentTurn = runningTurnMessages.slice(lastTruncationIndex + 1);
+  const external = extractStandaloneNotifications(currentTurn);
   const assistantMessage = buildResumedAssistantMessage(
-    runningTurnMessages,
+    currentTurn,
     fallbackAssistantId,
     now,
   );
   return {
     assistantMessage,
     checkpointMessageId: null,
-    messages: [...preservedMessages, assistantMessage],
+    messages: [...preservedMessages, ...retainedBeforeRecovery, ...external.before, assistantMessage, ...external.after],
   };
 }
 
@@ -77,11 +87,10 @@ function buildResumedAssistantMessage(
   fallbackAssistantId: string,
   now: number,
 ): ChatMessage {
-  const displayMessages = buildChatDisplayMessages(messages);
+  const displayMessages = buildChatDisplayMessages(messages, { runtimeStatus: "running" });
   const assistantMessages = displayMessages.filter(
     (message) => (
-      (message.role === "assistant" || message.role === "error")
-      && !message.runAttemptFailure
+      message.role === "assistant"
     ),
   );
   const baseMessage = assistantMessages[assistantMessages.length - 1] ?? null;
@@ -89,8 +98,7 @@ function buildResumedAssistantMessage(
   let toolCalls: ChatToolProcessItem[] = [];
 
   displayMessages.forEach((message) => {
-    if (message.runAttemptFailure) {
-      processItems.push({ id: message.id, type: "attempt_failure", message });
+    if (isChatNotificationMessage(message)) {
       return;
     }
     if (message.role === "tool") {
@@ -124,6 +132,7 @@ function buildResumedAssistantMessage(
   processItems = reopenTrailingThinkingProcess(processItems);
   return {
     id: baseMessage?.id ?? fallbackAssistantId,
+    displayKey: baseMessage?.displayKey,
     role: "assistant",
     content: "",
     thinkingContent: "",
@@ -139,6 +148,18 @@ function buildResumedAssistantMessage(
     createdAt: findEarliestTimestamp(assistantMessages) ?? now,
     updatedAt: now,
   };
+}
+
+function extractStandaloneNotifications(messages: ChatMessage[]) {
+  const display = buildChatDisplayMessages(messages, { runtimeStatus: "running" });
+  const firstAssistant = display.findIndex((message) => message.role === "assistant");
+  const before: ChatMessage[] = [];
+  const after: ChatMessage[] = [];
+  display.forEach((message, index) => {
+    if (!isChatNotificationMessage(message)) return;
+    (firstAssistant < 0 || index < firstAssistant ? before : after).push({ ...message, notificationPending: false });
+  });
+  return { before, after };
 }
 
 function findLastUserMessageIndex(messages: ChatMessage[]) {

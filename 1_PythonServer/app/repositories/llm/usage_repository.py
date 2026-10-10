@@ -27,9 +27,11 @@ class LlmUsageRepository:
         cost_amount: float | None = None,
         cost_currency: str | None = None,
         is_estimated: bool = False,
+        request_id: str | None = None,
     ) -> LlmUsageRecord:
         record = LlmUsageRecord(
             usage_id=f"usage_{uuid4().hex[:16]}",
+            request_id=request_id,
             project_id=project_id,
             session_id=session_id,
             message_id=message_id,

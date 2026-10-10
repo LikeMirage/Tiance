@@ -418,7 +418,7 @@ test("重连恢复时失败记录留在工具轮次之后且不进入正文", ()
     message({ id: "next", content: "重试后正文" }),
   ], "fallback");
   assert.deepEqual(snapshot.assistantMessage.processItems.map((item) => item.type), [
-    "tool", "attempt_failure", "content",
+    "tool", "notification", "content",
   ]);
   assert.equal(snapshot.assistantMessage.content, "");
   assert.equal(snapshot.assistantMessage.processItems[1].message, failure);
@@ -426,11 +426,13 @@ test("重连恢复时失败记录留在工具轮次之后且不进入正文", ()
 
 test("重试动画的实际渲染顺序是已完成工具、失败记录、重试提示", async () => {
   const { ChatMessageItem } = await vite.ssrLoadModule("/src/features/ai-panel/ui/ChatMessageItem.tsx");
+  const { ChatProcessFoldProvider } = await vite.ssrLoadModule("/src/features/ai-panel/model/chatProcessFoldState.tsx");
   const failure = message({
     id: "failed-attempt", role: "error", content: "ConnectTimeout",
     runAttemptFailure: { attempt_index: 1, attempt_count: 2 },
   });
-  const html = renderToStaticMarkup(createElement(ChatMessageItem, {
+  const html = renderToStaticMarkup(createElement(ChatProcessFoldProvider, { sessionKey: "test-session" }, createElement(ChatMessageItem, {
+    foldTurnId: "test-user", foldThinkingOffset: 0,
     autoCollapseAssistantProcess: false, clockTick: 4000, expandedUserMessageIds: new Set(),
     interactions: { localFileActions: {}, projectId: null, resolveLocalFileReference: () => null },
     isLastMessage: true, isSessionStreaming: true, modelSwitchModelId: null,
@@ -442,7 +444,7 @@ test("重试动画的实际渲染顺序是已完成工具、失败记录、重�
         { id: "failed-attempt", type: "attempt_failure", message: failure },
       ],
     }),
-  }));
+  })));
   const toolPosition = html.indexOf("write_text_file");
   const failurePosition = html.indexOf("ConnectTimeout");
   const retryPosition = html.indexOf("chat-msg__upstream-retry");

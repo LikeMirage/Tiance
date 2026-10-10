@@ -2,10 +2,11 @@ from contextlib import aclosing
 import json
 import mimetypes
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Query, Response, WebSocket, status
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.api.event_stream import EventStreamResponse
+from app.api.event_socket import serve_event_socket
 from app.core.errors import BadRequestError
 from app.schemas.project import (
     ProjectContentFileResponse,
@@ -77,21 +78,30 @@ def list_project_content_files(project_id: str) -> ProjectContentFileSnapshotRes
     summary="Watch project file changes",
 )
 async def watch_project_files(project_id: str) -> StreamingResponse:
-    service = get_project_file_service()
-    file_changes = service.watch_file_changes(project_id)
-
     async def event_generator():
-        async with aclosing(file_changes):
-            async for event in file_changes:
-                payload = {"kind": event.kind}
-                if event.kind == "changed":
-                    payload["paths"] = event.paths
+        async with aclosing(_project_file_events(project_id)) as events:
+            async for payload in events:
                 yield _sse_event(payload)
 
     return EventStreamResponse(
         event_generator(),
         heartbeat_seconds=_FILE_EVENTS_HEARTBEAT_SECONDS,
     )
+
+
+@router.websocket("/{project_id}/files/events")
+async def watch_project_files_socket(websocket: WebSocket, project_id: str) -> None:
+    await serve_event_socket(websocket, _project_file_events(project_id))
+
+
+async def _project_file_events(project_id: str):
+    file_changes = get_project_file_service().watch_file_changes(project_id)
+    async with aclosing(file_changes):
+        async for event in file_changes:
+            payload = {"kind": event.kind}
+            if event.kind == "changed":
+                payload["paths"] = event.paths
+            yield payload
 
 
 @router.post(

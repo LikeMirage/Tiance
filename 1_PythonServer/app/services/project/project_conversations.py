@@ -429,6 +429,10 @@ class ProjectConversationService:
         status: ProjectConversationMessageStatus = "done",
         sync_session_model: bool = True,
         message_id: str | None = None,
+        finish_reason: str | None = None,
+        include_in_context: bool = True,
+        message_source: str | None = None,
+        continuation_of: str | None = None,
     ) -> ProjectConversationMessage:
         return self._repository.append_message(
             project_id,
@@ -450,6 +454,10 @@ class ProjectConversationService:
             status=status,
             sync_session_model=sync_session_model,
             message_id=message_id,
+            finish_reason=finish_reason,
+            include_in_context=include_in_context,
+            message_source=message_source,
+            continuation_of=continuation_of,
         )
 
     def insert_system_message_after(

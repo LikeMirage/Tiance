@@ -2,6 +2,7 @@
 # 根据协议族路由到对应的模型发现客户端，并提供 HTTP GET/POST 能力
 
 from functools import lru_cache
+from uuid import uuid4
 
 from app.domain.llm.provider_catalog import (
     ModelDiscoveryStrategy,
@@ -14,6 +15,7 @@ from app.infra.llm.anthropic_client import AnthropicModelDiscoveryClient
 from app.infra.llm.gemini_client import GeminiModelDiscoveryClient
 from app.infra.llm.openai_client import OpenAIModelDiscoveryClient
 from app.infra.llm.provider_model_probe_client import ProviderModelProbeClient
+from app.infra.llm.request_headers import merge_request_headers, resolve_request_headers
 
 
 class ProviderRemoteClient:
@@ -30,6 +32,13 @@ class ProviderRemoteClient:
         api_key: str,
     ) -> list[DiscoveredModel]:
         """根据独立的模型发现策略选择客户端。"""
+        declared_headers = resolve_request_headers(
+            provider_template, session_id=uuid4().hex,
+        )
+
+        async def get_json(url: str, headers: dict[str, str]) -> dict[str, object]:
+            return await self._get_json(url, merge_request_headers(headers, declared_headers))
+
         if (
             provider_template.model_discovery_strategy
             == ModelDiscoveryStrategy.ANTHROPIC_MODELS
@@ -38,7 +47,7 @@ class ProviderRemoteClient:
                 provider_template.model_discovery_auth_scheme,
                 runtime_config,
                 api_key,
-                self._get_json,
+                get_json,
             )
 
         if (
@@ -49,14 +58,14 @@ class ProviderRemoteClient:
                 provider_template.model_discovery_auth_scheme,
                 runtime_config,
                 api_key,
-                self._get_json,
+                get_json,
             )
 
         return await self._openai_client.discover_models(
             provider_template.model_discovery_auth_scheme,
             runtime_config,
             api_key,
-            self._get_json,
+            get_json,
         )
 
     async def check_model(
@@ -67,12 +76,21 @@ class ProviderRemoteClient:
         model_id: str,
     ) -> dict[str, object]:
         """探测模型是否可用"""
+        declared_headers = resolve_request_headers(
+            provider_template, model_id=model_id, session_id=uuid4().hex,
+        )
+
+        async def post_json(
+            url: str, headers: dict[str, str], body: dict[str, object],
+        ) -> dict[str, object]:
+            return await self._post_json(url, merge_request_headers(headers, declared_headers), body)
+
         return await self._model_probe_client.probe_model(
             provider_template,
             runtime_config,
             api_key,
             model_id,
-            self._post_json,
+            post_json,
         )
 
     async def _get_json(self, url: str, headers: dict[str, str]) -> dict[str, object]:

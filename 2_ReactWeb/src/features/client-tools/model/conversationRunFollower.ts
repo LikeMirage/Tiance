@@ -48,6 +48,8 @@ export async function followConversationRun(
     throw new Error("会话运行跟随器需要项目和会话标识。");
   }
 
+  let expectedUserMessageId = input.expectedUserMessageId;
+  const authorizedUserMessages = new Set([expectedUserMessageId]);
   let initialConnectionOpened = false;
   let runStarted = false;
   let settlement: ConversationRunSettlement | null = null;
@@ -55,7 +57,7 @@ export async function followConversationRun(
   const handleEvent = async (event: ChatStreamEvent) => {
     if (event.kind === "conversation_resume_reset") return;
     if (event.kind === "conversation_run_started") {
-      if (event.user_message_id !== input.expectedUserMessageId) {
+      if (event.user_message_id !== expectedUserMessageId && !authorizedUserMessages.has(event.user_message_id)) {
         throw new ConversationRunIdentityMismatchError("续接到了另一轮会话运行。");
       }
       if (!runStarted) {
@@ -64,8 +66,22 @@ export async function followConversationRun(
       }
       return;
     }
+    if (event.kind === "output_limit" && event.will_recover
+      && event.action === "send_message" && event.next_user_message) {
+      const next = event.next_user_message;
+      if (!authorizedUserMessages.has(next.message_id)) {
+        if (!runStarted || next.role !== "user" || next.message_source !== "output_limit"
+          || next.continuation_of !== expectedUserMessageId) {
+          throw new ConversationRunIdentityMismatchError("自动续接消息不属于当前会话运行。");
+        }
+        authorizedUserMessages.add(next.message_id);
+        expectedUserMessageId = next.message_id;
+        settlement = null;
+      }
+    }
     if (event.kind === "conversation_run_settled") {
-      if (!runStarted || event.user_message_id !== input.expectedUserMessageId) {
+      if (event.user_message_id !== expectedUserMessageId && authorizedUserMessages.has(event.user_message_id)) return;
+      if (!runStarted || event.user_message_id !== expectedUserMessageId) {
         throw new ConversationRunIdentityMismatchError("会话运行终态不属于本次工具请求。");
       }
       settlement = {

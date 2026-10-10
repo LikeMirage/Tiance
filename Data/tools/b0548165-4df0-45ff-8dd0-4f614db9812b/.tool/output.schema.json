@@ -2,13 +2,49 @@
   "type": "object",
   "additionalProperties": true,
   "properties": {
-    "ok": {"type": "boolean"},
-    "summary": {"type": "string"},
-    "data": {"type": "object"},
-    "content": {"type": "array", "items": {"type": "object"}},
-    "warnings": {"type": "array", "items": {"type": "string"}},
-    "error": {"type": "string"},
-    "error_info": {"type": "object"}
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {"type": "object"},
+          "description": "list_windows当前页：hwnd、title（可以为空）、class_name、process_id、owner_hwnd及矩形等。"
+        },
+        "total": {"type": "integer", "description": "本次枚举中符合筛选的窗口总数。"},
+        "complete": {"type": "boolean", "description": "是否已到本次窗口列表末尾。"},
+        "next_offset": {"type": ["integer", "null"], "description": "后续页起点；每次调用重新枚举实时窗口。"},
+        "foreground_window": {
+          "type": "object",
+          "description": "该Frame截图时的前台窗口：hwnd、process_id、title、rect、exists；返回旧View时仍是该Frame的观察记录。"
+        }
+      }
+    },
+    "content": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "type": "object"
+    }
   },
-  "required": ["ok"]
+  "required": [
+    "ok"
+  ]
 }

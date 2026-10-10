@@ -133,8 +133,6 @@ export function conversationSession(overrides = {}) {
       memory_compression_enabled: true,
       memory_raw_context_token_reserve: 0,
       project_memory_enabled: true,
-      return_cancelled_messages: false,
-      return_user_before_cancelled: false,
       streaming_enabled: true,
       auto_collapse_assistant_process: true,
       inject_message_timestamps: true,

@@ -267,13 +267,30 @@
               "minimum": 1,
               "type": "integer"
             },
-            "return_cancelled_messages": {
-              "description": "构建模型上下文时是否包含已取消的助手消息。",
-              "type": "boolean"
+            "output_limit_action": {
+              "type": "string",
+              "enum": [
+                "stop",
+                "retry",
+                "send_message"
+              ],
+              "description": "达到输出上限后的动作：stop 停止；retry 重试原请求；send_message 追加普通用户消息续接。"
             },
-            "return_user_before_cancelled": {
-              "description": "构建模型上下文时是否包含取消回复之前的用户消息。",
-              "type": "boolean"
+            "output_limit_save_partial": {
+              "type": "boolean",
+              "description": "是否保留截断正文和思考。未完整的工具调用不会执行或保存。retry 模式保留的片段仅供查看，不进入后续模型上下文。"
+            },
+            "output_limit_message": {
+              "type": "string",
+              "description": "send_message 模式追加的续接文字，自动标记天策通知来源。"
+            },
+            "output_limit_max_recoveries": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "description": "一次用户任务的最大输出上限恢复次数，跨工具轮次和续接累计。null 沿用 upstream_retry_count，0 不恢复。"
             }
           },
           "type": "object"

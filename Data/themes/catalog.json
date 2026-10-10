@@ -53,6 +53,26 @@
       "created_at": "2026-08-02T00:53:30.783664+00:00",
       "updated_at": "2026-08-02T00:53:30.800304+00:00",
       "root_name": "winter-snow"
+    },
+    {
+      "project_id": "e3c7d7f9-ca00-52b4-b555-de131527620f",
+      "name": "海棠春雨",
+      "category_id": "default-theme-category",
+      "is_default": false,
+      "sort_order": 4,
+      "created_at": "2026-10-02T12:43:12.760614+00:00",
+      "updated_at": "2026-10-02T12:43:12.760614+00:00",
+      "root_name": "begonia-rain"
+    },
+    {
+      "project_id": "2cfd0cba-034a-55f9-ae0b-3d3cba488a42",
+      "name": "丹霞书卷",
+      "category_id": "default-theme-category",
+      "is_default": false,
+      "sort_order": 5,
+      "created_at": "2026-10-02T12:43:27.372226+00:00",
+      "updated_at": "2026-10-02T12:43:27.372226+00:00",
+      "root_name": "cinnabar-scroll"
     }
   ]
 }

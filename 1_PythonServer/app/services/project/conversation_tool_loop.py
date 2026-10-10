@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextlib import aclosing
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import replace
 from time import monotonic
@@ -158,6 +159,7 @@ class ConversationToolLoop:
             round_thinking_parts: list[str] = []
             round_tool_calls: list[ChatToolCall] = []
             round_protocol_continuation: ChatProtocolContinuation | None = None
+            response_finished: ChatStreamEvent | None = None
             round_usage: ChatUsage | None = None
             round_context_tokens: int | None = None
             round_context_tokens_estimated = False
@@ -174,6 +176,18 @@ class ConversationToolLoop:
             if on_model_request is not None:
                 on_model_request(model_request)
             async for event in self._chat_service.stream(model_request):
+                if event.kind == ChatStreamEventKind.MODEL_RESPONSE_FINISHED and event.has_tool_calls and not event.error_code:
+                    # The notice queue must be drained after the response is durable,
+                    # before tools execute, even though DONE is consumed by this loop.
+                    response_finished = event
+                    continue
+                if event.kind == ChatStreamEventKind.OUTPUT_LIMIT:
+                    round_tool_calls.clear()
+                    round_protocol_continuation = None
+                    yield event
+                    if not event.will_recover or event.recovery_action != "retry":
+                        return
+                    continue
                 if event.kind == ChatStreamEventKind.RETRY_RESET:
                     round_answer_parts.clear()
                     round_thinking_parts.clear()
@@ -220,6 +234,8 @@ class ConversationToolLoop:
             if not round_tool_calls:
                 return
             if executed_tool_calls + len(round_tool_calls) > max_tool_calls:
+                if response_finished is not None:
+                    yield response_finished
                 yield ChatStreamEvent(
                     kind=ChatStreamEventKind.ERROR,
                     error=f"工具调用次数过多，已停止本轮生成。（上限 {max_tool_calls} 次）",
@@ -251,6 +267,8 @@ class ConversationToolLoop:
                         round_usage,
                     )
                 yield ConversationPersistenceCheckpoint(assistant_message.message_id)
+            if response_finished is not None:
+                yield response_finished
             next_messages = [
                 *current_request.messages,
                 tag_conversation_message(
@@ -315,39 +333,41 @@ class ConversationToolLoop:
                         kind=ChatStreamEventKind.TOOL_CALL,
                         tool_call=tool_call,
                     )
-                async for event in self._execute_streamed_tool_call_batch_events(
+                tool_events = self._execute_streamed_tool_call_batch_events(
                     original_request,
                     tool_call_batch,
                     on_tool_call_cancelled=on_tool_call_cancelled,
-                ):
-                    checkpoint = None
-                    if event.kind == ChatStreamEventKind.TOOL_RESULT and event.tool_result is not None:
-                        tool_result = event.tool_result
-                        tool_message = await self._persist_tool_result(
-                            original_request,
-                            tool_result,
-                        )
-                        if tool_message is not None:
-                            checkpoint = ConversationPersistenceCheckpoint(
-                                tool_message.message_id,
+                )
+                async with aclosing(tool_events):
+                    async for event in tool_events:
+                        checkpoint = None
+                        if event.kind == ChatStreamEventKind.TOOL_RESULT and event.tool_result is not None:
+                            tool_result = event.tool_result
+                            tool_message = await self._persist_tool_result(
+                                original_request,
+                                tool_result,
                             )
-                        next_messages.append(
-                            tag_conversation_message(
-                                ChatMessage(
-                                    role=ChatMessageRole.TOOL,
-                                    content=tool_result.content,
-                                    name=tool_result.name,
-                                    tool_call_id=tool_result.call_id,
-                                    content_parts=(),
-                                ),
-                                tool_message.message_id if tool_message is not None else None,
+                            if tool_message is not None:
+                                checkpoint = ConversationPersistenceCheckpoint(
+                                    tool_message.message_id,
+                                )
+                            next_messages.append(
+                                tag_conversation_message(
+                                    ChatMessage(
+                                        role=ChatMessageRole.TOOL,
+                                        content=tool_result.content,
+                                        name=tool_result.name,
+                                        tool_call_id=tool_result.call_id,
+                                        content_parts=(),
+                                    ),
+                                    tool_message.message_id if tool_message is not None else None,
+                                )
                             )
-                        )
-                        if tool_message is not None:
-                            round_resource_parts.extend(tool_message.content_parts)
-                    yield event
-                    if checkpoint is not None:
-                        yield checkpoint
+                            if tool_message is not None:
+                                round_resource_parts.extend(tool_message.content_parts)
+                        yield event
+                        if checkpoint is not None:
+                            yield checkpoint
             resource_message = tool_resource_message(
                 _deduplicate_image_parts(round_resource_parts)
             )
@@ -433,11 +453,13 @@ class ConversationToolLoop:
                     continue
                 yield event
             await asyncio.gather(*tasks)
-        except asyncio.CancelledError:
+        finally:
+            # Closing between yielded events must also finish cancellation callbacks
+            # before the conversation saves its interrupted tool results.
             for task in tasks:
-                task.cancel()
+                if not task.done():
+                    task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
-            raise
 
         if first_error is not None:
             raise first_error

@@ -99,6 +99,27 @@ def test_role_package_validates_exact_files_and_configuration(tmp_path) -> None:
     }
 
 
+def test_legacy_role_package_removes_cancellation_options_on_import(tmp_path) -> None:
+    files = _valid_files()
+    files["response.json"].update({
+        "return_cancelled_messages": False,
+        "return_user_before_cancelled": False,
+        "streaming_enabled": False,
+        "upstream_retry_count": 3,
+    })
+    extracted = RolePackageArchive().validate_and_extract(
+        archive_path=_write_role_archive(tmp_path, files),
+        staging_root=tmp_path / "staging",
+        market_entry=_entry(),
+    )
+    response = json.loads((extracted / "response.json").read_text(encoding="utf-8"))
+
+    assert "return_cancelled_messages" not in response
+    assert "return_user_before_cancelled" not in response
+    assert response["streaming_enabled"] is False
+    assert response["upstream_retry_count"] == 3
+
+
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
@@ -107,6 +128,10 @@ def test_role_package_validates_exact_files_and_configuration(tmp_path) -> None:
         (
             lambda files: files["prompt.json"].update({"unknown": True}),
             "prompt.json",
+        ),
+        (
+            lambda files: files["response.json"].update({"unknown": True}),
+            "response.json",
         ),
         (
             lambda files: files["generation.json"].update({"temperature": 3}),
@@ -225,8 +250,6 @@ def _valid_files() -> dict[str, dict[str, object]]:
         },
         "prompt.json": {"system_prompt": "You are helpful."},
         "response.json": {
-            "return_cancelled_messages": True,
-            "return_user_before_cancelled": False,
             "streaming_enabled": True,
             "auto_collapse_assistant_process": True,
             "malformed_tool_call_recovery_enabled": True,

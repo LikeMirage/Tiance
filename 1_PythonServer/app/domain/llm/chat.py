@@ -1,9 +1,11 @@
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+from uuid import uuid4
 
 from app.domain.llm.generation_params import LlmGenerationParams, LlmOutputOptions
 from app.domain.llm.reasoning_replay import ReasoningReplayMode
+from app.domain.llm.output_limit import DEFAULT_OUTPUT_LIMIT_MESSAGE, OutputLimitAction, OutputLimitRecoveryBudget
 
 
 class ChatMessageRole(StrEnum):
@@ -156,6 +158,14 @@ class ChatCompletionRequest:
     generation: LlmGenerationParams = field(default_factory=LlmGenerationParams)
     output: LlmOutputOptions = field(default_factory=LlmOutputOptions)
     record_usage: bool = True
+    record_attempt_usage: bool = False
+    emit_response_boundaries: bool = False
+    usage_request_id: str | None = None
+    output_limit_action: OutputLimitAction = "retry"
+    output_limit_save_partial: bool = False
+    output_limit_message: str = DEFAULT_OUTPUT_LIMIT_MESSAGE
+    output_limit_max_recoveries: int | None = None
+    output_limit_budget: OutputLimitRecoveryBudget | None = None
     usage_message_id: str | None = None
     usage_feature_key: str = "main_chat"
     reasoning_replay_mode: ReasoningReplayMode = ReasoningReplayMode.TOOL_CALL_ROUNDS
@@ -166,6 +176,9 @@ class ChatCompletionRequest:
     upstream_attempt_count: int = 1
     max_tool_calls: int = 99999
     client_capabilities: tuple[ChatClientCapability, ...] = ()
+    # An unsaved request still needs a stable transport session across retries.
+    # dataclasses.replace preserves this value through tool and recovery rounds.
+    transport_session_id: str = field(default_factory=lambda: uuid4().hex, repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,6 +206,8 @@ class ChatCompletionResult:
 
 
 class ChatStreamEventKind(StrEnum):
+    MODEL_RESPONSE_STARTED = "model_response_started"
+    MODEL_RESPONSE_FINISHED = "model_response_finished"
     DELTA = "delta"
     THINKING_DELTA = "thinking_delta"
     USAGE = "usage"
@@ -206,6 +221,7 @@ class ChatStreamEventKind(StrEnum):
     DONE = "done"
     ERROR = "error"
     RETRY_RESET = "retry_reset"
+    OUTPUT_LIMIT = "output_limit"
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,3 +240,7 @@ class ChatStreamEvent:
     protocol_continuation: ChatProtocolContinuation | None = None
     attempt_index: int | None = None
     attempt_count: int | None = None
+    partial_message: ChatMessage | None = None
+    recovery_action: OutputLimitAction | None = None
+    will_recover: bool = False
+    has_tool_calls: bool = False

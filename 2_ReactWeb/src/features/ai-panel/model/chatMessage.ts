@@ -45,6 +45,11 @@ export type ChatToolProcessItem = {
 export type ChatAssistantProcessItem =
   | {
       id: string;
+      type: "notification";
+      message: ChatMessage;
+    }
+  | {
+      id: string;
       type: "attempt_failure";
       message: ChatMessage;
     }
@@ -53,7 +58,7 @@ export type ChatAssistantProcessItem =
       type: "thinking";
       content: string;
       status: "running" | "done";
-      startedAt: number;
+      startedAt: number | null;
       finishedAt: number | null;
     }
   | {
@@ -74,6 +79,8 @@ export type ChatAssistantProcessItem =
 
 export type ChatMessage = {
   id: string;
+  /** Stable view identity; id remains the real message used by export/navigation. */
+  displayKey?: string;
   role: "system" | "user" | "assistant" | "error" | "tool";
   content: string;
   contentParts?: ChatCompletionMessageContentPart[];
@@ -83,6 +90,9 @@ export type ChatMessage = {
   targetProviderId?: string | null;
   targetModelId?: string | null;
   thinkingContent: string;
+  finishReason?: string | null;
+  includeInContext?: boolean;
+  messageSource?: string | null;
   status: string;
   usage: ChatUsage | null;
   contextTokens?: number | null;
@@ -103,7 +113,16 @@ export type ChatMessage = {
   runOutcome?: ConversationRunOutcome;
   runAttemptFailure?: ConversationRunAttemptFailure;
   retryStatus?: ChatRetryStatus | null;
+  /** A model response, rather than the whole tool loop, is being streamed. */
+  modelResponseInFlight?: boolean;
+  /** Display-only gate for notices received while that response is open. */
+  notificationPending?: boolean;
 };
+
+export function isChatNotificationMessage(message: ChatMessage) {
+  return message.role === "error"
+    || (message.role === "system" && message.name === "memory_compaction");
+}
 
 export function formatChatRetryNotice(retryStatus: ChatRetryStatus) {
   return `上游请求失败，正在进行第 ${retryStatus.attemptIndex}/${retryStatus.attemptCount} 次尝试`;
@@ -156,6 +175,9 @@ export function mapConversationMessages(
     targetProviderId: message.target_provider_id ?? null,
     targetModelId: message.target_model_id ?? null,
     thinkingContent: message.thinking_content ?? "",
+    finishReason: message.finish_reason,
+    includeInContext: message.include_in_context,
+    messageSource: message.message_source,
     status: message.status,
     usage: message.usage ?? null,
     contextTokens: message.context_tokens ?? null,
@@ -686,8 +708,9 @@ function buildProcessItemsFromConversationMessage(
       type: "thinking",
       content: thinkingContent,
       status: "done",
-      startedAt: 0,
-      finishedAt: 0,
+      // Persisted messages contain the reasoning text, not segment timings.
+      startedAt: null,
+      finishedAt: null,
     });
   }
   if (toolCalls.length > 0 && message.content.trim()) {

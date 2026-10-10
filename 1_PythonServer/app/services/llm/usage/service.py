@@ -44,6 +44,7 @@ class LlmUsageService:
         model_id: str,
         usage: ChatUsage,
         usage_feature_key: str = "main_chat",
+        request_id: str | None = None,
     ) -> LlmUsageRecord:
         cost_amount, cost_currency = self._calculate_usage_cost(
             provider_id=provider_id,
@@ -61,6 +62,7 @@ class LlmUsageService:
             cost_amount=cost_amount,
             cost_currency=cost_currency,
             is_estimated=bool(usage.estimated_fields),
+            **({"request_id": request_id} if request_id is not None else {}),
         )
 
     def get_session_summary(self, *, project_id: str, session_id: str) -> LlmSessionUsageSummary:

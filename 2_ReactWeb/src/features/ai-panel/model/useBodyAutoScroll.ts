@@ -41,6 +41,7 @@ export function useBodyAutoScroll({
   const navigationGuardTimerRef = useRef<number | null>(null);
   const settleTimerRef = useRef<number | null>(null);
   const maxSettleTimerRef = useRef<number | null>(null);
+  const settleFrameRef = useRef<number | null>(null);
   const [isSessionSettling, setIsSessionSettlingState] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [viewRestoreRequest, setViewRestoreRequest] =
@@ -57,6 +58,10 @@ export function useBodyAutoScroll({
   }, []);
 
   const clearSettleTimers = useCallback(() => {
+    if (settleFrameRef.current !== null) {
+      window.cancelAnimationFrame(settleFrameRef.current);
+      settleFrameRef.current = null;
+    }
     if (settleTimerRef.current !== null) {
       window.clearTimeout(settleTimerRef.current);
       settleTimerRef.current = null;
@@ -85,6 +90,7 @@ export function useBodyAutoScroll({
   }, [clearNavigationGuard]);
 
   const finishSessionSettle = useCallback(() => {
+    if (!isSessionSettlingRef.current) return;
     clearSettleTimers();
     setIsSessionSettling(false);
     scrollElementToBottom(bodyRef.current);
@@ -94,12 +100,19 @@ export function useBodyAutoScroll({
 
   const scheduleSessionSettleFinish = useCallback(() => {
     if (!isSessionSettlingRef.current) return;
+    if (settleFrameRef.current !== null) {
+      window.cancelAnimationFrame(settleFrameRef.current);
+      settleFrameRef.current = null;
+    }
     if (settleTimerRef.current !== null) {
       window.clearTimeout(settleTimerRef.current);
     }
     settleTimerRef.current = window.setTimeout(() => {
       settleTimerRef.current = null;
-      window.requestAnimationFrame(finishSessionSettle);
+      settleFrameRef.current = window.requestAnimationFrame(() => {
+        settleFrameRef.current = null;
+        finishSessionSettle();
+      });
     }, SESSION_SETTLE_QUIET_MS);
   }, [finishSessionSettle]);
 
@@ -130,6 +143,15 @@ export function useBodyAutoScroll({
     setIsSessionSettling,
     startNavigationGuard,
   ]);
+
+  const pauseForUserScroll = useCallback(() => {
+    clearSettleTimers();
+    clearNavigationGuard();
+    setIsSessionSettling(false);
+    setAutoScrollEnabled(false);
+    setShowScrollToBottom(true);
+    setViewRestoreRequest(null);
+  }, [clearSettleTimers, clearNavigationGuard, setIsSessionSettling, setAutoScrollEnabled]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     const el = bodyRef.current;
@@ -196,8 +218,18 @@ export function useBodyAutoScroll({
     setAutoScrollEnabled,
   ]);
 
+  // Neither delayed settling nor its queued animation frame may affect another
+  // conversation, the settings screen, or a view the user has taken over.
+  useLayoutEffect(() => () => {
+    clearSettleTimers();
+    clearNavigationGuard();
+    isSessionSettlingRef.current = false;
+    bottomFollowerRef.current?.cancel();
+  }, [activeSessionKey, isChatViewActive, clearSettleTimers, clearNavigationGuard]);
+
   useLayoutEffect(() => {
     if (!isChatViewActive) {
+      setIsSessionSettling(false);
       presentedSessionKeyRef.current = null;
       setViewRestoreRequest(null);
       return undefined;
@@ -205,6 +237,7 @@ export function useBodyAutoScroll({
 
     const el = bodyRef.current;
     if (!el || !activeSessionKey) {
+      setIsSessionSettling(false);
       return undefined;
     }
 
@@ -270,11 +303,15 @@ export function useBodyAutoScroll({
       return undefined;
     }
 
-    const frameId = window.requestAnimationFrame(() => {
+    settleFrameRef.current = window.requestAnimationFrame(() => {
+      settleFrameRef.current = null;
+      if (!isSessionSettlingRef.current) return;
       scrollToBottom("auto");
       scheduleSessionSettleFinish();
     });
-    return () => window.cancelAnimationFrame(frameId);
+    // Session/view lifecycle cleanup above owns cancellation. A navigation
+    // request for another session must not cancel this session's settle timers.
+    return undefined;
   }, [
     activeSessionKey,
     clearNavigationGuard,
@@ -295,6 +332,23 @@ export function useBodyAutoScroll({
     ));
     window.requestAnimationFrame(cacheCurrentView);
   }, [cacheCurrentView]);
+
+  const syncAfterContentReady = useCallback(() => {
+    const el = bodyRef.current;
+    if (!el || !activeSessionKey) return;
+    if (autoScrollEnabledRef.current || isSessionSettlingRef.current) {
+      if (isSessionSettlingRef.current) finishSessionSettle();
+      else scrollElementToBottom(el);
+      return;
+    }
+    if (isNavigationGuardedRef.current) return;
+    const position = scrollPositionsRef.current.get(activeSessionKey);
+    if (!position?.anchorMessageId) return;
+    const anchor = Array.from(el.querySelectorAll<HTMLElement>("[data-chat-message-id]"))
+      .find((element) => element.dataset.chatMessageId === position.anchorMessageId);
+    if (!anchor) return;
+    el.scrollTop += anchor.getBoundingClientRect().top - el.getBoundingClientRect().top - position.anchorViewportOffset;
+  }, [activeSessionKey, finishSessionSettle]);
 
   useLayoutEffect(() => {
     if (!isChatViewActive || !activeSessionKey) return undefined;
@@ -320,25 +374,19 @@ export function useBodyAutoScroll({
 
     const pauseForUpwardWheel = (event: WheelEvent) => {
       if (event.deltaY >= 0) return;
-      setAutoScrollEnabled(false);
-      setShowScrollToBottom(true);
+      pauseForUserScroll();
     };
     const pauseForScrollKey = (event: KeyboardEvent) => {
       if (!["ArrowUp", "Home", "PageUp"].includes(event.key)) return;
-      setAutoScrollEnabled(false);
-      setShowScrollToBottom(true);
+      pauseForUserScroll();
     };
     const pauseForScrollbarPointer = (event: PointerEvent) => {
       const rect = scrollEl.getBoundingClientRect();
       if (event.clientX < rect.right - scrollEl.offsetWidth + scrollEl.clientWidth) return;
-      setAutoScrollEnabled(false);
-      setShowScrollToBottom(true);
+      pauseForUserScroll();
     };
 
-    const pauseForTouchScroll = () => {
-      setAutoScrollEnabled(false);
-      setShowScrollToBottom(true);
-    };
+    const pauseForTouchScroll = pauseForUserScroll;
 
     const resizeObserver = new ResizeObserver(scheduleStickToBottom);
     const observedMessageElements = new Set<HTMLElement>();
@@ -395,6 +443,7 @@ export function useBodyAutoScroll({
     messages.length,
     scheduleSessionSettleFinish,
     setAutoScrollEnabled,
+    pauseForUserScroll,
   ]);
 
   useEffect(() => {
@@ -415,6 +464,7 @@ export function useBodyAutoScroll({
     showScrollToBottom,
     viewRestoreRequest,
     onViewRestoreHandled: handleViewRestoreHandled,
+    syncAfterContentReady,
   };
 }
 

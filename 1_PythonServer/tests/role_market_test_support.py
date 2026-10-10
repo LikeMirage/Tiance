@@ -148,8 +148,6 @@ def role_files(version: str = "1.0.0") -> dict[str, dict[str, object]]:
         "generation.json": {"temperature": 0.5, "top_p": 0.9, "max_output_tokens": 1000},
         "prompt.json": {"system_prompt": f"prompt {version}"},
         "response.json": {
-            "return_cancelled_messages": True,
-            "return_user_before_cancelled": False,
             "streaming_enabled": True,
             "auto_collapse_assistant_process": True,
             "malformed_tool_call_recovery_enabled": True,

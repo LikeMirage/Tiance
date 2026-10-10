@@ -210,6 +210,7 @@ export function ChatPanelController({
   }), []);
   const handledSessionSelectionRequestIdRef = useRef<number | null>(null);
   const stoppingSessionKeysRef = useRef(new Set<string>());
+  const [stoppingSessionKeys, setStoppingSessionKeys] = useState<Set<string>>(() => new Set());
   const {
     abortProjectStreams,
     abortSessionStream,
@@ -225,6 +226,7 @@ export function ChatPanelController({
     reloadSessionMessages,
     replaceSessionMessages,
     sessionMessages,
+    loadingSessionKeys,
     updateSessionMessages,
   } = useSessionMessages({
     activeProjectIdRef,
@@ -461,7 +463,8 @@ export function ChatPanelController({
     saveSessionReferences,
   });
   const isActiveSessionBusy =
-    isActiveSessionStreaming || activeSessionState?.runtime_status === "running";
+    isActiveSessionStreaming || activeSessionState?.runtime_status === "running"
+    || Boolean(activeSessionKey && stoppingSessionKeys.has(activeSessionKey));
   const navigateToMessageVariant = useCallback((target: MessageVariantTarget) => {
     queueMessageNavigation(target.sessionId, target.messageId);
   }, [queueMessageNavigation]);
@@ -506,6 +509,7 @@ export function ChatPanelController({
     showScrollToBottom,
     viewRestoreRequest,
     onViewRestoreHandled,
+    syncAfterContentReady,
   } = useBodyAutoScroll({
     activeSessionKey,
     isChatViewActive: activeView === "chat",
@@ -678,6 +682,7 @@ export function ChatPanelController({
     draft,
     references,
     isActiveSessionBusy,
+    stoppingSessionKeysRef,
     isSessionMessagesPresented,
     isNotFoundRequestError,
     isThinkingStuckToBottom,
@@ -711,6 +716,7 @@ export function ChatPanelController({
     if (!projectId || !activeSessionId || !activeSessionKey) return;
     if (stoppingSessionKeysRef.current.has(activeSessionKey)) return;
     stoppingSessionKeysRef.current.add(activeSessionKey);
+    setStoppingSessionKeys(new Set(stoppingSessionKeysRef.current));
     preserveCurrentView();
     abortSessionStream(activeSessionKey);
     void (async () => {
@@ -725,6 +731,7 @@ export function ChatPanelController({
         await reloadSessions(projectId).catch(() => undefined);
       } finally {
         stoppingSessionKeysRef.current.delete(activeSessionKey);
+        setStoppingSessionKeys(new Set(stoppingSessionKeysRef.current));
       }
     })();
   }, [
@@ -862,6 +869,7 @@ export function ChatPanelController({
         onMessageNavigationStart={pauseAutoScrollForNavigation}
         onExternalNavigationHandled={handleExternalNavigationHandled}
         onViewRestoreHandled={onViewRestoreHandled}
+        onContentReady={syncAfterContentReady}
         onBodyScroll={handleBodyScroll}
         chat={{
           autoCollapseAssistantProcess: activeSessionSettings.auto_collapse_assistant_process,
@@ -869,7 +877,10 @@ export function ChatPanelController({
           expandedUserMessageIds,
           interactions: messageInteractions,
           isActiveSessionStreaming: isActiveSessionRunningPresentation,
-          isLoadingSession: Boolean(projectId && isLoadingSessions && !activeSession),
+          isLoadingSession: Boolean(
+            (projectId && isLoadingSessions && !activeSession) ||
+            (activeSessionKey && loadingSessionKeys.has(activeSessionKey))
+          ),
           messages,
           runtimeStatus: isActiveSessionStreaming
             ? "running"

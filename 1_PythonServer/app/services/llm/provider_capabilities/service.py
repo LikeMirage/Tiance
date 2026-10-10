@@ -79,6 +79,7 @@ class ProviderCapabilityService:
                     api_key=selected_api_key.api_key,
                     model_id=grant.model_id,
                     query=query,
+                    session_id=grant.session_id,
                 )
         except TimeoutError as exc:
             raise UpstreamProviderError(

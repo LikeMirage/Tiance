@@ -1,10 +1,10 @@
 [
   {
-    "title": "预览双击",
-    "content": "{\n  \"action\": \"preview\",\n  \"preview_action\": \"click\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"view_id\": \"root\",\n  \"cell_id\": 6,\n  \"x\": 0.5,\n  \"y\": 0.5,\n  \"button\": \"left\",\n  \"clicks\": 2,\n  \"click_hold_ms\": 80\n}"
+    "title": "预览双击并保存截图等待时间",
+    "content": "{\n  \"action\": \"preview\",\n  \"preview_action\": \"click\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"view_id\": \"root\",\n  \"cell_id\": 6,\n  \"x\": 0.5,\n  \"y\": 0.5,\n  \"button\": \"left\",\n  \"clicks\": 2,\n  \"click_hold_ms\": 80,\n  \"screenshot_delay_seconds\": 1\n}"
   },
   {
-    "title": "按预览编号执行（编号取实际返回值）",
+    "title": "执行预览只传action与preview_id（使用实际返回编号）",
     "content": "{\n  \"action\": \"execute_preview\",\n  \"preview_id\": \"preview_0123456789abcdef0123456789abcdef_abcdef0123456789abcdef0123456789\"\n}"
   },
   {
@@ -12,15 +12,11 @@
     "content": "{\n  \"action\": \"preview\",\n  \"preview_action\": \"drag\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"view_id\": \"root\",\n  \"cell_id\": 1,\n  \"x\": 0.5,\n  \"y\": 0.5,\n  \"to\": {\n    \"view_id\": \"root\",\n    \"cell_id\": 6,\n    \"x\": 0.5,\n    \"y\": 0.5\n  },\n  \"duration_ms\": 300\n}"
   },
   {
-    "title": "单击网格中心",
+    "title": "确认目标前台后单击网格中心",
     "content": "{\n  \"action\": \"click\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"view_id\": \"root\",\n  \"cell_id\": 6,\n  \"x\": 0.5,\n  \"y\": 0.5,\n  \"button\": \"left\",\n  \"clicks\": 1,\n  \"click_hold_ms\": 80\n}"
   },
   {
     "title": "向下滚动",
     "content": "{\n  \"action\": \"scroll\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 1,\n  \"view_id\": \"root\",\n  \"cell_id\": 8,\n  \"x\": 0.5,\n  \"y\": 0.5,\n  \"direction\": \"down\",\n  \"notches\": 3\n}"
-  },
-  {
-    "title": "按控件引用点击并检查输入内容",
-    "content": "{\n  \"action\": \"click\",\n  \"gui_session_id\": \"gui_0123456789abcdef0123456789abcdef\",\n  \"frame_id\": 0,\n  \"element_id\": \"uia_send\",\n  \"expected_elements\": [\n    {\n      \"element_id\": \"uia_recipient\",\n      \"name\": \"目标联系人\"\n    },\n    {\n      \"element_id\": \"uia_message\",\n      \"value\": \"确认要发送的文本\"\n    }\n  ]\n}"
   }
 ]

@@ -31,6 +31,7 @@ from app.services.project.projects import (
 )
 
 DEFAULT_ROLE_NAME = "默认角色"
+DEFAULT_ROLE_MAX_OUTPUT_TOKENS = 128000
 _ROLE_CONFIGURATION_FILES = (
     "profile.json",
     "model.json",
@@ -100,7 +101,12 @@ class RoleConfigurationApplicationService:
                     provider_id=seed.provider_id,
                     model_id=seed.model_id,
                     reasoning_mode=seed.reasoning_mode,
-                    settings=seed.settings,
+                    settings={
+                        **seed.settings,
+                        "max_output_tokens": DEFAULT_ROLE_MAX_OUTPUT_TOKENS,
+                        "output_limit_action": "send_message",
+                        "output_limit_save_partial": True,
+                    },
                     role_project_id=project.project_id,
                 )
                 self.write_role_configuration(project.project_id, session)
@@ -244,8 +250,6 @@ class RoleConfigurationApplicationService:
             },
             "prompt.json": {"system_prompt": settings.system_prompt},
             "response.json": {
-                "return_cancelled_messages": settings.return_cancelled_messages,
-                "return_user_before_cancelled": settings.return_user_before_cancelled,
                 "streaming_enabled": settings.streaming_enabled,
                 "auto_collapse_assistant_process": (
                     settings.auto_collapse_assistant_process
@@ -254,6 +258,10 @@ class RoleConfigurationApplicationService:
                     settings.malformed_tool_call_recovery_enabled
                 ),
                 "upstream_retry_count": settings.upstream_retry_count,
+                "output_limit_action": settings.output_limit_action,
+                "output_limit_save_partial": settings.output_limit_save_partial,
+                "output_limit_message": settings.output_limit_message,
+                "output_limit_max_recoveries": settings.output_limit_max_recoveries,
             },
             "context.json": {
                 "inject_message_timestamps": settings.inject_message_timestamps,
@@ -448,17 +456,27 @@ class RoleConfigurationApplicationService:
             generation.get("max_output_tokens"),
         )
 
+        response = self._read_json_file(role_project_id, "response.json")
+        action = response.get("output_limit_action")
+        if isinstance(action, str) and action in {"stop", "retry", "send_message"}:
+            settings["output_limit_action"] = action
+        if isinstance(response.get("output_limit_message"), str):
+            settings["output_limit_message"] = response["output_limit_message"]
+        if "output_limit_max_recoveries" in response:
+            maximum = response["output_limit_max_recoveries"]
+            if maximum is None or (type(maximum) is int and maximum >= 0):
+                settings["output_limit_max_recoveries"] = maximum
+
         prompt = self._read_json_file(role_project_id, "prompt.json")
         if isinstance(prompt.get("system_prompt"), str):
             settings["system_prompt"] = prompt["system_prompt"]
 
         bool_files = {
             "response.json": (
-                "return_cancelled_messages",
-                "return_user_before_cancelled",
                 "streaming_enabled",
                 "auto_collapse_assistant_process",
                 "malformed_tool_call_recovery_enabled",
+                "output_limit_save_partial",
             ),
             "context.json": (
                 "inject_message_timestamps",

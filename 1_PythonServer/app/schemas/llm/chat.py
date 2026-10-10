@@ -24,6 +24,7 @@ from app.domain.llm.generation_params import (
     LlmReasoningOptions,
 )
 from app.schemas.conversation_references import ConversationReferences
+from app.domain.llm.output_limit import DEFAULT_OUTPUT_LIMIT_MESSAGE, OutputLimitAction
 
 
 class ChatClientCapabilityRequest(BaseModel):
@@ -201,6 +202,10 @@ class ChatCompletionRequestBody(BaseModel):
     messages: list[ChatMessageRequest] = Field(default_factory=list)
     malformed_tool_call_recovery_enabled: bool = True
     upstream_retry_count: int = Field(default=1, ge=0)
+    output_limit_action: OutputLimitAction = "retry"
+    output_limit_save_partial: bool = False
+    output_limit_message: str = DEFAULT_OUTPUT_LIMIT_MESSAGE
+    output_limit_max_recoveries: int | None = Field(default=None, ge=0)
     max_tool_calls: int = Field(default=99999, ge=1)
     tools: list[ChatToolDefinitionRequest] = Field(default_factory=list)
     generation: ChatGenerationParamsRequest | None = None
@@ -218,6 +223,10 @@ class ChatCompletionRequestBody(BaseModel):
                 self.malformed_tool_call_recovery_enabled
             ),
             upstream_retry_count=self.upstream_retry_count,
+            output_limit_action=self.output_limit_action,
+            output_limit_save_partial=self.output_limit_save_partial,
+            output_limit_message=self.output_limit_message,
+            output_limit_max_recoveries=self.output_limit_max_recoveries,
             tools=tuple(tool.to_domain() for tool in self.tools),
             generation=self.generation.to_domain() if self.generation else LlmGenerationParams(),
             output=self.output.to_domain() if self.output else LlmOutputOptions(),

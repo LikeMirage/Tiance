@@ -8,6 +8,7 @@ import {
 } from "../../llm-model-picker/model/llmModelPickerOption";
 import { LlmModelPicker } from "../../llm-model-picker/ui/LlmModelPicker";
 import type { RoleConfigurationEditor } from "../model/useRoleConfigurationEditor";
+import { OutputLimitSettings } from "../../output-limit-settings/ui/OutputLimitSettings";
 import { RoleField, RoleNumberInput, RoleSection } from "./RoleConfigurationFields";
 
 const REASONING_OPTIONS: Array<OptionSelectItem<string>> = [
@@ -139,6 +140,9 @@ export function RoleConfigurationBasicPanel({
               })}
             />
           </RoleField>
+          <OutputLimitSettings value={configuration.response}
+            fallbackRecoveryCount={configuration.response.upstream_retry_count}
+            onChange={(patch) => editor.updateSection("response", { ...configuration.response, ...patch })} />
         </div>
       </RoleSection>
     </div>

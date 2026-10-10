@@ -106,7 +106,7 @@
     },
     {
       "project_id": "c91ee7e1-052e-584e-b665-2d79945aa923",
-      "name": "MinerU 文档解析 + DMX 豆包视觉",
+      "name": "MinerU 文档解析 + DeepSeek 视觉",
       "category_id": "toolset_eff52b03022144539c1f7253131b3199",
       "is_default": false,
       "sort_order": 0,
@@ -139,6 +139,15 @@
       "sort_order": 0,
       "created_at": "2026-06-19T10:35:50.433904+00:00",
       "updated_at": "2026-08-02T01:06:49.373509+00:00"
+    },
+    {
+      "project_id": "a737ec05-d224-5299-8e37-abfdb14f4d27",
+      "name": "主题设计工具",
+      "category_id": "f7889dde-1a63-41bf-bf79-f55da3961be3",
+      "is_default": false,
+      "sort_order": 0,
+      "created_at": "2026-07-04T00:00:00+00:00",
+      "updated_at": "2026-08-02T01:06:51.354546+00:00"
     },
     {
       "project_id": "0510e798-3244-534d-84be-1c9ffa16cfd4",
@@ -204,15 +213,6 @@
       "updated_at": "2026-07-20T11:06:08.943668+00:00"
     },
     {
-      "project_id": "f9748927-58e5-56b8-b8ec-6c154365f0cc",
-      "name": "DMX 豆包视觉解析",
-      "category_id": "toolset_eff52b03022144539c1f7253131b3199",
-      "is_default": false,
-      "sort_order": 1,
-      "created_at": "2026-06-12T12:00:00+00:00",
-      "updated_at": "2026-06-12T12:00:00+00:00"
-    },
-    {
       "project_id": "41bb3f91-fe61-5f69-ba29-bcd98c4720b3",
       "name": "Word 文档编辑",
       "category_id": "c2c208d3-0003-4972-8bdf-55170f6d2abe",
@@ -220,15 +220,6 @@
       "sort_order": 1,
       "created_at": "2026-06-19T11:19:47.314498+00:00",
       "updated_at": "2026-08-12T08:52:50.650523+00:00"
-    },
-    {
-      "project_id": "a737ec05-d224-5299-8e37-abfdb14f4d27",
-      "name": "主题设计工具",
-      "category_id": "f7889dde-1a63-41bf-bf79-f55da3961be3",
-      "is_default": false,
-      "sort_order": 1,
-      "created_at": "2026-07-04T00:00:00+00:00",
-      "updated_at": "2026-08-02T01:06:51.354546+00:00"
     },
     {
       "project_id": "b0bd4302-4875-4e7a-94a2-07a21b130d4a",
@@ -256,6 +247,15 @@
       "sort_order": 1,
       "created_at": "2026-09-01T00:00:00+00:00",
       "updated_at": "2026-09-01T00:00:00+00:00"
+    },
+    {
+      "project_id": "31084ec1-b544-4654-a09a-2021b6406a70",
+      "name": "DMXAPI 绘图",
+      "category_id": "f7889dde-1a63-41bf-bf79-f55da3961be3",
+      "is_default": false,
+      "sort_order": 1,
+      "created_at": "2026-09-18T10:07:59.924197+00:00",
+      "updated_at": "2026-09-18T10:07:59.924197+00:00"
     },
     {
       "project_id": "59dfc998-de87-586a-a617-439dbaa2e3d8",
@@ -447,6 +447,15 @@
       "updated_at": "2026-08-03T00:00:00Z"
     },
     {
+      "project_id": "2801cda8-2e87-4a50-969c-9e8067470834",
+      "name": "GUI 控件操作",
+      "category_id": "de7ff9ea-e4d4-4965-8902-04037bfa3ae8",
+      "is_default": false,
+      "sort_order": 5,
+      "created_at": "2026-10-03T13:17:05.128056+00:00",
+      "updated_at": "2026-10-03T13:17:05.128056+00:00"
+    },
+    {
       "project_id": "698de2a9-ba9d-5f2c-a515-52b030688be9",
       "name": "文件写入",
       "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
@@ -463,6 +472,15 @@
       "sort_order": 6,
       "created_at": "2026-08-03T00:00:00Z",
       "updated_at": "2026-08-03T00:00:00Z"
+    },
+    {
+      "project_id": "ebaa5668-e092-4a81-b787-5097190fe0a6",
+      "name": "GUI 标注与编辑",
+      "category_id": "de7ff9ea-e4d4-4965-8902-04037bfa3ae8",
+      "is_default": false,
+      "sort_order": 6,
+      "created_at": "2026-10-09T00:00:00+00:00",
+      "updated_at": "2026-10-09T00:00:00+00:00"
     },
     {
       "project_id": "76688823-672e-5919-bc46-df9126744776",
@@ -517,15 +535,6 @@
       "sort_order": 12,
       "created_at": "2026-09-18T07:49:37.039741+00:00",
       "updated_at": "2026-09-18T07:49:37.039741+00:00"
-    },
-    {
-      "project_id": "31084ec1-b544-4654-a09a-2021b6406a70",
-      "name": "DMXAPI 绘图",
-      "category_id": "f7889dde-1a63-41bf-bf79-f55da3961be3",
-      "is_default": false,
-      "sort_order": 13,
-      "created_at": "2026-09-18T10:07:59.924197+00:00",
-      "updated_at": "2026-09-18T10:07:59.924197+00:00"
     }
   ]
 }

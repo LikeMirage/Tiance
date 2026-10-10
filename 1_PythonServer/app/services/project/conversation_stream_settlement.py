@@ -148,8 +148,9 @@ class ConversationStreamSettlement:
         usage_payload: dict[str, object] | None,
         context_tokens: int | None,
         context_tokens_estimated: bool,
+        keep_running: bool = False,
     ) -> tuple[ProjectConversationMessage | None, dict[str, object | None] | None]:
-        if user_message is not None:
+        if user_message is not None and not keep_running:
             await asyncio.to_thread(self._persistence.save_runtime_status, request, "error")
         await asyncio.to_thread(
             self._persistence.settle_run,

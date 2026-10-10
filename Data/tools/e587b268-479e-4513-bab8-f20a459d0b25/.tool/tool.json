@@ -1,5 +1,5 @@
 {
-  "description": "先调用gui_runtime start并等待成功锁定，再用gui_inspect start取得截图会话和坐标依据。依据明确的最新frame_id输入文本或按键。可引用elements返回的element_id；键盘输入前核查目标控件身份、可用状态和焦点；没有控件引用时核对所依据截图的焦点与画面。set_value通过UIAutomation直接设置可写非密码控件并校验结果。expected_elements可检查其他控件的名称、值、选中状态等；不能识别的区域用截图重新确认。",
+  "description": "【最短持锁】只在当前GUI操作及必要界面确认期间持锁。当前GUI阶段结束，或下一步不再需要GUI时，立即gui_runtime stop并核实释放；等待用户、失败或取消时也先解锁，不等整件任务结束或空闲超时。如需切换展示窗口，最多尝试一次，随后立即stop，不以切换成功作为解锁前提。解锁后继续GUI操作须重新gui_runtime start并用gui_inspect start建立新会话，不沿用旧Frame、预览或控件引用。 先调用gui_runtime start并等待成功锁定，再用gui_inspect start取得截图会话和坐标依据。依据最新frame_id输入文本或按键。先看截图确认输入位置，必要时用鼠标聚焦；同一前台窗口内换输入框不会被拦截。输入前核对前台窗口身份及当前是否有键盘焦点，不比较截图像素或旧输入框句柄。前台换成其他窗口时停止并返回该窗口信息，请重新观察；不自动改目标。操作后返回新截图和当前前台窗口；execution_status只表示输入是否完成，observation_status单独表示截图是否取得。输入已完成但截图失败时，不要重放动作，先重新观察。 GUI操作中收到用户新消息，表示用户已解除锁定并暂停上一轮AI对话；如需继续操作，必须重新调用gui_runtime start并等待成功，再调用gui_inspect start建立新会话并重新观察，不沿用旧会话、Frame、预览或控件引用。 输入前先确认目标前台与输入焦点；必要时激活并重新观察，使用新Frame。完整替换表单值且控件支持ValuePattern时优先gui_uia set_value；追加文本、按键和快捷键继续使用本工具。",
   "execution": {
     "parallel": false
   },

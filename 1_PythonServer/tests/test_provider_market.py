@@ -36,6 +36,9 @@ class _WorkspaceRegistry:
 def test_provider_market_package_accepts_only_declarative_public_files(tmp_path) -> None:
     archive_path = tmp_path / "provider.zip"
     files = _package_files("sample-provider", managed_model_ids=["sample-model"])
+    files["provider-rules.json"]["request"] = {
+        "headers": {"X-Package-Header": {"source": "session_id"}},
+    }
     with ZipFile(archive_path, "w", compression=ZIP_DEFLATED) as archive:
         for name, payload in files.items():
             archive.writestr(
@@ -118,6 +121,9 @@ def test_provider_market_update_only_replaces_manifest_and_adaptation_rules(tmp_
             )
             payload["generationAuthSchemes"]["openai_responses"] = "bearer_token"
         if name == "provider-rules.json":
+            payload["request"] = {
+                "headers": {"X-Package-Header": {"value": "updated"}},
+            }
             payload["behavior"] = {"streamUsage": "include_usage"}
         if name == "model-rules.json":
             payload["families"] = {"sample": {"capabilities": ["tools"]}}
@@ -159,6 +165,9 @@ def test_provider_market_update_only_replaces_manifest_and_adaptation_rules(tmp_
     assert json.loads((target / "provider-rules.json").read_text(encoding="utf-8"))[
         "behavior"
     ] == {"streamUsage": "include_usage"}
+    assert json.loads((target / "provider-rules.json").read_text(encoding="utf-8"))[
+        "request"
+    ]["headers"] == {"X-Package-Header": {"value": "updated"}}
     assert json.loads((target / "model-rules.json").read_text(encoding="utf-8"))[
         "families"
     ] == {"sample": {"capabilities": ["tools"]}}

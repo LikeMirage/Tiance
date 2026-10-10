@@ -8,7 +8,10 @@ import {
 } from "../../entities/desktop-shell/model/desktopWindowSizePreferences";
 import { fetchJson } from "../http/httpClient";
 
-const DESKTOP_WINDOW_SIZE_REQUEST_TIMEOUT_MS = 2500;
+// Best-effort window preferences only, never document or conversation saves.
+// Includes native bounds lookup on exit; expiry aborts HTTP and keeps the last
+// persisted size rather than preventing close/hide indefinitely.
+export const DESKTOP_WINDOW_SIZE_REQUEST_TIMEOUT_MS = 2500;
 
 type DesktopWindowSizePreferencesResponse = {
   height: number;
@@ -34,24 +37,37 @@ export async function getDesktopWindowSizePreferences(
 }
 
 export function getDesktopWindowSizePreferencesWithTimeout() {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => {
-    controller.abort();
-  }, DESKTOP_WINDOW_SIZE_REQUEST_TIMEOUT_MS);
+  return withinDesktopWindowSizeDeadline((signal) => getDesktopWindowSizePreferences({ signal }));
+}
 
-  return getDesktopWindowSizePreferences({ signal: controller.signal }).finally(() => {
-    window.clearTimeout(timeoutId);
+export async function withinDesktopWindowSizeDeadline<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  let timeoutId: number | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      controller.abort();
+      reject(new DOMException("Window preference save/read timed out", "TimeoutError"));
+    }, DESKTOP_WINDOW_SIZE_REQUEST_TIMEOUT_MS);
   });
+  try {
+    return await Promise.race([operation(controller.signal), timeout]);
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 export async function saveDesktopWindowSizePreferences(
   update: DesktopWindowSizePreferenceUpdate,
+  signal?: AbortSignal,
 ): Promise<DesktopWindowSizePreferences> {
   const normalized = normalizeDesktopWindowSizePreferenceUpdate(update);
   const response = await fetchJson<DesktopWindowSizePreferencesResponse>(
     "/api/desktop/window-size-preferences",
     {
       method: "PUT",
+      signal,
       body: JSON.stringify(mapDesktopWindowSizePreferenceUpdate(normalized)),
     },
   );

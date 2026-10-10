@@ -2,6 +2,10 @@ import { CaretDown } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type UIEventHandler } from "react";
 
 import { buildUserMessageNavigationItems } from "../model/userMessageNavigation";
+import { ChatProcessFoldProvider } from "../model/chatProcessFoldState";
+import { useChatContentReadiness } from "../model/useChatContentReadiness";
+import { ContentReadinessContext } from "../../../shared/lib/contentReadiness";
+import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import { useMessageNavigatorActiveTurn } from "../model/useMessageNavigatorActiveTurn";
 import type { ChatPanelView } from "./ChatHeader";
 import {
@@ -24,6 +28,7 @@ type ChatPanelBodyFrameProps = {
   onMessageNavigationStart: () => void;
   onExternalNavigationHandled?: (requestId: number) => void;
   onViewRestoreHandled?: (requestId: number) => void;
+  onContentReady?: () => void;
   scrollBottom: {
     isVisible: boolean;
     onClick: () => void;
@@ -44,9 +49,15 @@ export function ChatPanelBodyFrame({
   onMessageNavigationStart,
   onExternalNavigationHandled,
   onViewRestoreHandled,
+  onContentReady,
   scrollBottom,
   settings,
 }: ChatPanelBodyFrameProps) {
+  const { readiness, isPreparing } = useChatContentReadiness(
+    activeView === "chat" ? activeSessionKey : null,
+    Boolean(chat.isLoadingSession),
+    onContentReady,
+  );
   const navigationRequestIdRef = useRef(0);
   const [navigationRequest, setNavigationRequest] =
     useState<(ChatMessageNavigationRequest & { sessionKey: string }) | null>(null);
@@ -102,26 +113,33 @@ export function ChatPanelBodyFrame({
   };
 
   return (
-    <div className="ai-panel__body-frame">
+    <ContentReadinessContext.Provider value={readiness}>
+    <div className="ai-panel__body-frame" data-chat-loading={isPreparing || undefined} aria-busy={isPreparing}>
       <div
         id="ai-panel-message-scroll-region"
         className={hasMessageNavigator
           ? "ai-panel__body ai-panel__body--with-message-navigator"
           : "ai-panel__body"}
         ref={bodyRef}
+        aria-hidden={isPreparing || undefined}
         onScroll={handleBodyScroll}
       >
-        {activeView === "settings" ? (
-          <ChatSettingsView {...settings} />
-        ) : (
-          <ChatMessageList
-            {...chat}
-            navigationRequest={effectiveNavigationRequest}
-            onNavigationHandled={handleNavigationHandled}
-          />
-        )}
+        <ChatProcessFoldProvider sessionKey={activeSessionKey}>
+          {activeView === "settings" ? (
+            <ChatSettingsView {...settings} />
+          ) : (
+            <ChatMessageList
+              {...chat}
+              navigationRequest={effectiveNavigationRequest}
+              onNavigationHandled={handleNavigationHandled}
+            />
+          )}
+        </ChatProcessFoldProvider>
       </div>
-      {hasMessageNavigator ? (
+      {isPreparing ? <div className="ai-panel__session-loading">
+        <LoadingStrip ariaLabel="正在加载会话" label="正在加载会话" mode="fill" visual="bar" />
+      </div> : null}
+      {hasMessageNavigator && !isPreparing ? (
         <UserMessageNavigator
           activeTurnNumber={messageNavigator.activeTurnNumber}
           items={navigationItems}
@@ -142,7 +160,7 @@ export function ChatPanelBodyFrame({
           }}
         />
       ) : null}
-      {activeView === "chat" && scrollBottom.isVisible ? (
+      {activeView === "chat" && !isPreparing && scrollBottom.isVisible ? (
         <button
           className="ai-panel__scroll-bottom"
           type="button"
@@ -154,5 +172,6 @@ export function ChatPanelBodyFrame({
         </button>
       ) : null}
     </div>
+    </ContentReadinessContext.Provider>
   );
 }

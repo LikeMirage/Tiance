@@ -14,6 +14,7 @@ export function resolveProcessElapsedSeconds(
   item: Extract<ChatAssistantProcessItem, { type: "thinking" }>,
   clockTick: number,
 ) {
+  if (item.startedAt === null || (item.status === "done" && item.finishedAt === null)) return null;
   const end = item.finishedAt ?? clockTick;
   return Math.max(0, Math.floor((end - item.startedAt) / 1000));
 }
@@ -36,7 +37,7 @@ function findEarliestProcessTime(items: ChatAssistantProcessItem[]) {
   const times: number[] = [];
   items.forEach((item) => {
     if (item.type === "thinking" || item.type === "tool_preparing") {
-      times.push(item.startedAt);
+      if (item.startedAt !== null) times.push(item.startedAt);
       return;
     }
     if (item.type === "tool" && item.tool.startedAt !== null) {

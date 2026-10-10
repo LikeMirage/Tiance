@@ -9,8 +9,11 @@ from app.domain.llm.provider_adaptation import (
     DEFAULT_PROMPT_CACHE_RETENTION_SECONDS,
     LlmCapabilityRules,
     LlmProtocolBehaviorRules,
+    LlmRequestHeader,
     LlmRequestRules,
     ProviderAdaptationRules,
+    REQUEST_HEADER_SOURCES,
+    RESERVED_REQUEST_HEADERS,
     merge_adaptation_rules,
 )
 from app.repositories.llm.provider_file_store import (
@@ -275,6 +278,7 @@ def _parse_request(value: object, location: str) -> LlmRequestRules:
             "reasoningToggleParameter",
             "reasoningEnabledValue",
             "reasoningDisabledValue",
+            "headers",
         },
         f"{location}.request",
     )
@@ -327,7 +331,61 @@ def _parse_request(value: object, location: str) -> LlmRequestRules:
         reasoning_toggle_parameter=reasoning_toggle_parameter,
         reasoning_enabled_value=value.get("reasoningEnabledValue"),
         reasoning_disabled_value=value.get("reasoningDisabledValue"),
+        headers=_parse_request_headers(value, location),
     )
+
+
+def _parse_request_headers(
+    payload: dict[str, Any],
+    location: str,
+) -> tuple[LlmRequestHeader, ...] | None:
+    if "headers" not in payload:
+        return None
+    headers = payload["headers"]
+    if not isinstance(headers, dict):
+        raise ProviderFileStoreError(f"{location}.request.headers must be an object.")
+    result: list[LlmRequestHeader] = []
+    names: set[str] = set()
+    for name, declaration in headers.items():
+        if (
+            not isinstance(name, str)
+            or re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", name) is None
+        ):
+            raise ProviderFileStoreError(
+                f"{location}.request.headers contains an invalid header name."
+            )
+        normalized_name = name.lower()
+        if normalized_name in RESERVED_REQUEST_HEADERS:
+            raise ProviderFileStoreError(
+                f"{location}.request.headers cannot override reserved header: {name}"
+            )
+        if normalized_name in names:
+            raise ProviderFileStoreError(f"{location}.request.headers contains duplicate header: {name}")
+        names.add(normalized_name)
+        if not isinstance(declaration, dict):
+            raise ProviderFileStoreError(f"{location}.request.headers.{name} must be an object.")
+        _reject_unknown(declaration, {"value", "source"}, f"{location}.request.headers.{name}")
+        if set(declaration) not in ({"value"}, {"source"}):
+            raise ProviderFileStoreError(
+                f"{location}.request.headers.{name} must declare exactly one of value or source."
+            )
+        if "value" in declaration:
+            value = declaration["value"]
+            if (
+                not isinstance(value, str)
+                or not value.strip()
+                or any(not 32 <= ord(char) <= 126 for char in value)
+            ):
+                raise ProviderFileStoreError(
+                    f"{location}.request.headers.{name} value must be non-empty printable ASCII text."
+                )
+            result.append(LlmRequestHeader(name=name, value=value))
+        else:
+            source = declaration["source"]
+            if not isinstance(source, str) or source not in REQUEST_HEADER_SOURCES:
+                raise ProviderFileStoreError(f"{location}.request.headers.{name} contains an unsupported source.")
+            result.append(LlmRequestHeader(name=name, source=source))
+    return tuple(result)
 
 
 def _parse_behavior(value: object, location: str) -> LlmProtocolBehaviorRules:

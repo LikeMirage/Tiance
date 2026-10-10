@@ -43,23 +43,24 @@ SUPPORTED_EXTENSIONS = {
     ".bmp",
 }
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".jp2", ".webp", ".gif", ".bmp"}
-MAX_IMAGE_BYTES = 20 * 1024 * 1024
+MAX_IMAGE_BYTES = 32 * 1024 * 1024
+VISION_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[([^\]]*)]\(([^)]+)\)")
 MINERU_CONFIG_FIELDS = ["mineru.base_url", "mineru.api_key", "mineru.model_version", "mineru.html_model_version"]
-DMXAPI_CONFIG_FIELDS = [
-    "dmxapi.base_url",
-    "dmxapi.api_key",
-    "dmxapi.model",
-    "dmxapi.temperature",
-    "dmxapi.top_p",
-    "dmxapi.max_output_tokens",
-    "dmxapi.thinking.enabled",
-    "dmxapi.thinking.type",
-    "dmxapi.system_prompt",
-    "dmxapi.user_prompt",
+DEEPSEEK_CONFIG_FIELDS = [
+    "deepseek.base_url",
+    "deepseek.api_key",
+    "deepseek.model",
+    "deepseek.temperature",
+    "deepseek.top_p",
+    "deepseek.max_output_tokens",
+    "deepseek.thinking.enabled",
+    "deepseek.thinking.type",
+    "deepseek.system_prompt",
+    "deepseek.user_prompt",
 ]
-ALL_CONFIG_FIELDS = [*MINERU_CONFIG_FIELDS, *DMXAPI_CONFIG_FIELDS]
-DMXAPI_THINKING_TYPES = {"disabled", "auto", "enabled"}
+ALL_CONFIG_FIELDS = [*MINERU_CONFIG_FIELDS, *DEEPSEEK_CONFIG_FIELDS]
+DEEPSEEK_THINKING_TYPES = {"disabled", "enabled"}
 STRUCTURED_ARTIFACTS = (
     ("content_list_v2", "_content_list_v2.json", "content_list_v2.json"),
     ("content_list", "_content_list.json", "content_list.json"),
@@ -99,16 +100,16 @@ class ToolConfig:
     mineru_api_key: str
     mineru_model_version: str
     mineru_html_model_version: str
-    dmxapi_base_url: str
-    dmxapi_api_key: str
-    dmxapi_model: str
-    dmxapi_temperature: float | None
-    dmxapi_top_p: float | None
-    dmxapi_max_output_tokens: int | None
-    dmxapi_thinking_enabled: bool | None
-    dmxapi_thinking_type: str
-    dmxapi_system_prompt: str
-    dmxapi_user_prompt: str
+    deepseek_base_url: str
+    deepseek_api_key: str
+    deepseek_model: str
+    deepseek_temperature: float | None
+    deepseek_top_p: float | None
+    deepseek_max_output_tokens: int | None
+    deepseek_thinking_enabled: bool | None
+    deepseek_thinking_type: str
+    deepseek_system_prompt: str
+    deepseek_user_prompt: str
 
 
 @dataclass(frozen=True)
@@ -297,10 +298,10 @@ def default_config_payload() -> dict[str, Any]:
             "model_version": "pipeline",
             "html_model_version": "MinerU-HTML",
         },
-        "dmxapi": {
-            "base_url": "https://www.dmxapi.cn/v1",
+        "deepseek": {
+            "base_url": "https://api.deepseek.com",
             "api_key": "",
-            "model": "doubao-seed-1-6-flash-250828",
+            "model": "deepseek-flash",
             "temperature": 0.1,
             "top_p": 1,
             "max_output_tokens": 1200,
@@ -387,23 +388,23 @@ def load_tool_config() -> ToolConfig:
         )
 
     mineru = payload.get("mineru") if isinstance(payload.get("mineru"), dict) else {}
-    dmxapi = payload.get("dmxapi") if isinstance(payload.get("dmxapi"), dict) else {}
-    thinking = dmxapi.get("thinking") if isinstance(dmxapi.get("thinking"), dict) else {}
+    deepseek = payload.get("deepseek") if isinstance(payload.get("deepseek"), dict) else {}
+    thinking = deepseek.get("thinking") if isinstance(deepseek.get("thinking"), dict) else {}
     return ToolConfig(
         mineru_base_url=str(mineru.get("base_url") or "").strip(),
         mineru_api_key=str(mineru.get("api_key") or "").strip(),
         mineru_model_version=str(mineru.get("model_version") or "").strip(),
         mineru_html_model_version=str(mineru.get("html_model_version") or "").strip(),
-        dmxapi_base_url=str(dmxapi.get("base_url") or "").strip(),
-        dmxapi_api_key=str(dmxapi.get("api_key") or "").strip(),
-        dmxapi_model=str(dmxapi.get("model") or "").strip(),
-        dmxapi_temperature=read_optional_float(dmxapi.get("temperature")),
-        dmxapi_top_p=read_optional_float(dmxapi.get("top_p")),
-        dmxapi_max_output_tokens=read_optional_int(dmxapi.get("max_output_tokens")),
-        dmxapi_thinking_enabled=read_optional_bool(thinking.get("enabled")),
-        dmxapi_thinking_type=str(thinking.get("type") or "").strip(),
-        dmxapi_system_prompt=read_prompt_text(dmxapi.get("system_prompt")),
-        dmxapi_user_prompt=read_prompt_text(dmxapi.get("user_prompt")),
+        deepseek_base_url=str(deepseek.get("base_url") or "").strip(),
+        deepseek_api_key=str(deepseek.get("api_key") or "").strip(),
+        deepseek_model=str(deepseek.get("model") or "").strip(),
+        deepseek_temperature=read_optional_float(deepseek.get("temperature")),
+        deepseek_top_p=read_optional_float(deepseek.get("top_p")),
+        deepseek_max_output_tokens=read_optional_int(deepseek.get("max_output_tokens")),
+        deepseek_thinking_enabled=read_optional_bool(thinking.get("enabled")),
+        deepseek_thinking_type=str(thinking.get("type") or "").strip(),
+        deepseek_system_prompt=read_prompt_text(deepseek.get("system_prompt")),
+        deepseek_user_prompt=read_prompt_text(deepseek.get("user_prompt")),
     )
 
 
@@ -419,26 +420,26 @@ def ensure_tool_config(options: ParseOptions) -> ToolConfig:
     if options.source_file.suffix.lower() in {".html", ".htm"} and not config.mineru_html_model_version:
         missing.append("mineru.html_model_version")
     if options.analyze_images:
-        if not config.dmxapi_base_url:
-            missing.append("dmxapi.base_url")
-        if not config.dmxapi_api_key:
-            missing.append("dmxapi.api_key")
-        if not config.dmxapi_model:
-            missing.append("dmxapi.model")
-        if config.dmxapi_temperature is None:
-            missing.append("dmxapi.temperature")
-        if config.dmxapi_top_p is None:
-            missing.append("dmxapi.top_p")
-        if config.dmxapi_max_output_tokens is None:
-            missing.append("dmxapi.max_output_tokens")
-        if config.dmxapi_thinking_enabled is None:
-            missing.append("dmxapi.thinking.enabled")
-        if config.dmxapi_thinking_enabled and not config.dmxapi_thinking_type:
-            missing.append("dmxapi.thinking.type")
-        if not config.dmxapi_system_prompt:
-            missing.append("dmxapi.system_prompt")
-        if not config.dmxapi_user_prompt:
-            missing.append("dmxapi.user_prompt")
+        if not config.deepseek_base_url:
+            missing.append("deepseek.base_url")
+        if not config.deepseek_api_key:
+            missing.append("deepseek.api_key")
+        if not config.deepseek_model:
+            missing.append("deepseek.model")
+        if config.deepseek_temperature is None:
+            missing.append("deepseek.temperature")
+        if config.deepseek_top_p is None:
+            missing.append("deepseek.top_p")
+        if config.deepseek_max_output_tokens is None:
+            missing.append("deepseek.max_output_tokens")
+        if config.deepseek_thinking_enabled is None:
+            missing.append("deepseek.thinking.enabled")
+        if config.deepseek_thinking_enabled and not config.deepseek_thinking_type:
+            missing.append("deepseek.thinking.type")
+        if not config.deepseek_system_prompt:
+            missing.append("deepseek.system_prompt")
+        if not config.deepseek_user_prompt:
+            missing.append("deepseek.user_prompt")
     if missing:
         raise ToolError(
             "CONFIG_MISSING",
@@ -450,15 +451,15 @@ def ensure_tool_config(options: ParseOptions) -> ToolConfig:
         )
     if (
         options.analyze_images
-        and config.dmxapi_thinking_enabled
-        and config.dmxapi_thinking_type not in DMXAPI_THINKING_TYPES
+        and config.deepseek_thinking_enabled
+        and config.deepseek_thinking_type not in DEEPSEEK_THINKING_TYPES
     ):
         raise ToolError(
             "CONFIG_INVALID",
-            "dmxapi.thinking.type 只能是 disabled、auto 或 enabled。",
+            "deepseek.thinking.type 只能是 disabled 或 enabled。",
             config_guidance_details(
-                ["dmxapi.thinking.type"],
-                "请把 dmxapi.thinking.type 改为 disabled、auto 或 enabled。",
+                ["deepseek.thinking.type"],
+                "请把 deepseek.thinking.type 改为 disabled 或 enabled。",
             ),
         )
     return config
@@ -567,11 +568,11 @@ def http_request(
                     "MinerU 接口连接失败；如果网络正常，请检查配置文件中的 MinerU API Key。",
                 )
             )
-        elif service_name == "DMXAPI":
+        elif service_name == "DeepSeek":
             details.update(
                 config_guidance_details(
-                    DMXAPI_CONFIG_FIELDS,
-                    "DMXAPI接口连接失败；如果网络正常，请检查配置文件中的 API Key 和模型 ID。",
+                    DEEPSEEK_CONFIG_FIELDS,
+                    "DEEPSEEK接口连接失败；如果网络正常，请检查配置文件中的 API Key 和模型 ID。",
                 )
             )
         raise ToolError("HTTP_REQUEST_FAILED", f"请求 {service_name} 失败：{exc}", details) from exc
@@ -893,34 +894,42 @@ def analyze_single_image(image_path: Path, extracted_root: Path, timeout: int, c
             "error": f"图片超过 {MAX_IMAGE_BYTES} 字节，已跳过。",
         }
     mime_type = mimetypes.guess_type(str(image_path))[0] or "image/png"
+    if mime_type not in VISION_IMAGE_MIME_TYPES:
+        return {
+            "ok": False,
+            "image_path": relative_path,
+            "size_bytes": stat.st_size,
+            "error": "DeepSeek 视觉输入支持 JPEG、PNG、GIF 和 WebP，请先将图片转换为其中一种格式。",
+        }
     encoded = base64.b64encode(image_path.read_bytes()).decode("ascii")
     data_url = f"data:{mime_type};base64,{encoded}"
     payload = {
-        "model": config.dmxapi_model,
+        "model": config.deepseek_model,
         "messages": [
             {
                 "role": "system",
-                "content": config.dmxapi_system_prompt,
+                "content": config.deepseek_system_prompt,
             },
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": config.dmxapi_user_prompt},
+                    {"type": "text", "text": config.deepseek_user_prompt},
                     {"type": "image_url", "image_url": {"url": data_url}},
                 ],
             }
         ],
     }
-    if config.dmxapi_temperature is not None:
-        payload["temperature"] = config.dmxapi_temperature
-    if config.dmxapi_top_p is not None:
-        payload["top_p"] = config.dmxapi_top_p
-    if config.dmxapi_max_output_tokens is not None:
-        payload["max_completion_tokens"] = config.dmxapi_max_output_tokens
-    if config.dmxapi_thinking_enabled:
-        payload["thinking"] = {"type": config.dmxapi_thinking_type}
-    headers = {"Authorization": f"Bearer {config.dmxapi_api_key}", "Content-Type": "application/json"}
-    url = f"{config.dmxapi_base_url.rstrip('/')}/chat/completions"
+    if config.deepseek_temperature is not None:
+        payload["temperature"] = config.deepseek_temperature
+    if config.deepseek_top_p is not None:
+        payload["top_p"] = config.deepseek_top_p
+    if config.deepseek_max_output_tokens is not None:
+        payload["max_tokens"] = config.deepseek_max_output_tokens
+    payload["thinking"] = {
+        "type": config.deepseek_thinking_type if config.deepseek_thinking_enabled else "disabled"
+    }
+    headers = {"Authorization": f"Bearer {config.deepseek_api_key}", "Content-Type": "application/json"}
+    url = f"{config.deepseek_base_url.rstrip('/')}/chat/completions"
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     status_code = 0
     text = ""
@@ -933,7 +942,7 @@ def analyze_single_image(image_path: Path, extracted_root: Path, timeout: int, c
                 headers=headers,
                 body=body,
                 timeout=timeout,
-                service_name="DMXAPI",
+                service_name="DeepSeek",
             )
         except ToolError as exc:
             if exc.code != "HTTP_REQUEST_FAILED" or attempt == 2:
@@ -951,31 +960,31 @@ def analyze_single_image(image_path: Path, extracted_root: Path, timeout: int, c
         response_payload = json.loads(text)
     except ValueError as exc:
         raise ToolError(
-            "DMXAPI_INVALID_JSON",
-            f"DMXAPI返回了无效 JSON，HTTP {status_code}。",
+            "DEEPSEEK_INVALID_JSON",
+            f"DEEPSEEK返回了无效 JSON，HTTP {status_code}。",
             config_guidance_details(
-                DMXAPI_CONFIG_FIELDS,
-                "DMXAPI返回异常，请检查配置文件中的 API Key 和模型 ID，或稍后重试。",
+                DEEPSEEK_CONFIG_FIELDS,
+                "DEEPSEEK返回异常，请检查配置文件中的 API Key 和模型 ID，或稍后重试。",
             ),
         ) from exc
     if not isinstance(response_payload, dict):
         raise ToolError(
-            "DMXAPI_INVALID_RESPONSE",
-            "DMXAPI返回结构异常。",
+            "DEEPSEEK_INVALID_RESPONSE",
+            "DEEPSEEK返回结构异常。",
             config_guidance_details(
-                DMXAPI_CONFIG_FIELDS,
-                "DMXAPI返回结构异常，请检查配置文件中的 API Key 和模型 ID，或稍后重试。",
+                DEEPSEEK_CONFIG_FIELDS,
+                "DEEPSEEK返回结构异常，请检查配置文件中的 API Key 和模型 ID，或稍后重试。",
             ),
         )
     if status_code >= 400:
         error_payload = response_payload.get("error")
         message = str(error_payload.get("message") if isinstance(error_payload, dict) else response_payload.get("message") or text[:500])
         raise ToolError(
-            "DMXAPI_HTTP_ERROR",
-            f"DMXAPI请求失败，HTTP {status_code}：{message}",
+            "DEEPSEEK_HTTP_ERROR",
+            f"DEEPSEEK请求失败，HTTP {status_code}：{message}",
             config_guidance_details(
-                DMXAPI_CONFIG_FIELDS,
-                "DMXAPI接口请求失败，请检查配置文件中的 API Key 和模型 ID 是否正确、是否有权限或额度。",
+                DEEPSEEK_CONFIG_FIELDS,
+                "DEEPSEEK接口请求失败，请检查配置文件中的 API Key 和模型 ID 是否正确、是否有权限或额度。",
             ),
         )
     choices = response_payload.get("choices") if isinstance(response_payload, dict) else None
@@ -983,11 +992,11 @@ def analyze_single_image(image_path: Path, extracted_root: Path, timeout: int, c
         details = {"payload": safe_payload(response_payload)}
         details.update(
             config_guidance_details(
-                DMXAPI_CONFIG_FIELDS,
-                "DMXAPI未返回可用结果，请检查模型 ID 是否支持视觉输入、账号是否有权限或额度。",
+                DEEPSEEK_CONFIG_FIELDS,
+                "DEEPSEEK未返回可用结果，请检查模型 ID 是否支持视觉输入、账号是否有权限或额度。",
             )
         )
-        raise ToolError("DMXAPI_EMPTY_RESULT", "DMXAPI未返回可用结果。", details)
+        raise ToolError("DEEPSEEK_EMPTY_RESULT", "DEEPSEEK未返回可用结果。", details)
     message = choices[0].get("message") if isinstance(choices[0], dict) else {}
     content = message.get("content") if isinstance(message, dict) else ""
     if isinstance(content, list):
@@ -996,11 +1005,11 @@ def analyze_single_image(image_path: Path, extracted_root: Path, timeout: int, c
     content_text = str(content or "").strip()
     if not content_text:
         raise ToolError(
-            "DMXAPI_EMPTY_CONTENT",
-            "DMXAPI返回内容为空。",
+            "DEEPSEEK_EMPTY_CONTENT",
+            "DEEPSEEK返回内容为空。",
             config_guidance_details(
-                DMXAPI_CONFIG_FIELDS,
-                "DMXAPI返回空内容，请检查模型 ID 是否支持视觉输入，或换一个可用模型。",
+                DEEPSEEK_CONFIG_FIELDS,
+                "DEEPSEEK返回空内容，请检查模型 ID 是否支持视觉输入，或换一个可用模型。",
             ),
         )
     return {
@@ -1008,7 +1017,7 @@ def analyze_single_image(image_path: Path, extracted_root: Path, timeout: int, c
         "image_path": relative_path,
         "size_bytes": stat.st_size,
         "mime_type": mime_type,
-        "model": config.dmxapi_model,
+        "model": config.deepseek_model,
         "analysis": content_text,
         "retry_count": retry_count,
         "usage": response_payload.get("usage") if isinstance(response_payload.get("usage"), dict) else None,
@@ -1313,7 +1322,7 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
         )
         if vision_selection.skipped_full_page_paths:
             warnings.append(
-                f"已跳过 {len(vision_selection.skipped_full_page_paths)} 张疑似整页扫描图的 DMX 二次分析。"
+                f"已跳过 {len(vision_selection.skipped_full_page_paths)} 张疑似整页扫描图的 DeepSeek 二次分析。"
             )
         raw_markdown_path = options.output_dir / "full.md"
         raw_markdown_path.write_text(markdown, encoding="utf-8")
@@ -1370,15 +1379,15 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
                     for attempt in attempts
                 ],
             },
-            "dmxapi": {
-                "base_url": config.dmxapi_base_url,
-                "model": config.dmxapi_model,
-                "temperature": config.dmxapi_temperature,
-                "top_p": config.dmxapi_top_p,
-                "max_output_tokens": config.dmxapi_max_output_tokens,
+            "deepseek": {
+                "base_url": config.deepseek_base_url,
+                "model": config.deepseek_model,
+                "temperature": config.deepseek_temperature,
+                "top_p": config.deepseek_top_p,
+                "max_output_tokens": config.deepseek_max_output_tokens,
                 "thinking": {
-                    "enabled": config.dmxapi_thinking_enabled,
-                    "type": config.dmxapi_thinking_type,
+                    "enabled": config.deepseek_thinking_enabled,
+                    "type": config.deepseek_thinking_type,
                 },
                 "analyze_images": options.analyze_images,
                 "analyze_full_page_images": options.analyze_full_page_images,
