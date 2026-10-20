@@ -516,12 +516,22 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     }
   }, []);
   const dismissImportConflict = useCallback(() => setDuplicateImportConflict(null), []);
-  const expandProject = useCallback((projectId: string, sessionId?: string | null) => {
+  const selectProject = useCallback((projectId: string, sessionId?: string | null) => {
+    const project = itemsRef.current.find((item) => item.project_id === projectId);
+    if (project) {
+      // Kept-alive collections can still show this project while the catalog's
+      // active category belongs to another collection. Restore both together.
+      selectedCategoryIdRef.current = project.category_id;
+      setSelectedCategoryId(project.category_id);
+    }
     selectedProjectIdRef.current = projectId;
     setSelectedProjectId(projectId);
     setSelectedSessionId(sessionId ?? null);
-    setExpandedProjectId(projectId);
   }, []);
+  const expandProject = useCallback((projectId: string, sessionId?: string | null) => {
+    selectProject(projectId, sessionId);
+    setExpandedProjectId(projectId);
+  }, [selectProject]);
   const getReorderedProjectIds = useCallback((
     activeId: string,
     targetId: string,
@@ -691,11 +701,6 @@ export function useProjectCatalog(): UseProjectCatalogResult {
         category_id: categoryId,
       }).catch(() => undefined);
     }
-  }, []);
-  const selectProject = useCallback((projectId: string, sessionId?: string | null) => {
-    selectedProjectIdRef.current = projectId;
-    setSelectedProjectId(projectId);
-    setSelectedSessionId(sessionId ?? null);
   }, []);
   const confirmSessionSelection = useCallback((projectId: string, sessionId: string | null) => {
     if (selectedProjectIdRef.current !== projectId) return;

@@ -4,7 +4,7 @@
   "properties": {
     "result": {
       "permission_type": "tiance_data_write",
-      "description": "压缩功能会话生成的完整累计摘要对象，必须包含 items 和 handoff。传入对象，不传 JSON 字符串或 Markdown 代码块；字符串中的双引号、反斜杠和换行须按 JSON 规则转义。",
+      "description": "压缩功能会话生成的完整累计摘要对象，必须包含 items 和 handoff。传入对象，不传 JSON 字符串或 Markdown 代码块；字符串中的双引号、反斜杠和换行须按 JSON 规则转义。 items 与 handoff 是同级字段；items 数组结束后仍须填写 handoff，不能省略。",
       "title": "压缩结果",
       "type": "object",
       "additionalProperties": false,
@@ -44,7 +44,7 @@
           }
         },
         "handoff": {
-          "description": "面向接手者的交接总结，说明当前目标、已完成状态、关键约束和未完成事项；按任务要求保留最近用户请求，不得为空或仅含空白。",
+          "description": "面向接手者的交接总结，说明当前目标、已完成状态、关键约束和未完成事项；按任务要求保留最近用户请求，不得为空或仅含空白。 此字段属于 result 对象，与 items 同级，不属于 items 数组或数组内的事项。",
           "title": "交接总结",
           "type": "string",
           "minLength": 1,

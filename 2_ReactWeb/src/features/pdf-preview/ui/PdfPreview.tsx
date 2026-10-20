@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
+import { useDocumentReadingValue, useDocumentReadingScroll } from "../../../entities/editor/model/documentReadingState";
 import {
   CaretLeft,
   CaretRight,
@@ -47,18 +48,20 @@ export function PdfPreview({
   onRevealFile = null,
   src,
 }: PdfPreviewProps) {
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useDocumentReadingValue("pdf:page", 1);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [fitMode, setFitMode] = useState<"width" | "custom">("width");
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [fitMode, setFitMode] = useDocumentReadingValue<"width" | "custom">("pdf:fit", "width");
+  const [isSidebarOpen, setIsSidebarOpen] = useDocumentReadingValue("pdf:sidebar", true);
   const [isCreatingPageImage, setIsCreatingPageImage] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [numPages, setNumPages] = useState(0);
   const [pageImageMenu, setPageImageMenu] = useState<{ x: number; y: number } | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PdfDocumentProxy | null>(null);
   const [pdfjs, setPdfjs] = useState<PdfJsLib | null>(null);
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useDocumentReadingValue("pdf:scale", 1);
   const currentPageRef = useRef(currentPage);
+  const onMissingRef = useRef(onMissing);
+  onMissingRef.current = onMissing;
   const fitModeRef = useRef(fitMode);
   const fitWidthRequestIdRef = useRef(0);
   const pageSelectionRequestRef = useRef(0);
@@ -92,7 +95,6 @@ export function PdfPreview({
       setIsLoading(true);
       setErrorMessage(null);
       setPdfDocument(null);
-      setCurrentPage(1);
       setNumPages(0);
 
       try {
@@ -107,12 +109,13 @@ export function PdfPreview({
         }
         setPdfDocument(loadedDocument);
         setNumPages(loadedDocument.numPages);
+        setCurrentPage((page) => Math.max(1, Math.min(page, loadedDocument.numPages)));
         setIsLoading(false);
       } catch (err) {
         if (isCancelled) return;
         setIsLoading(false);
         if (isPdfMissingError(err)) {
-          onMissing?.();
+          onMissingRef.current?.();
           return;
         }
         setErrorMessage(err instanceof Error ? err.message : "PDF 加载失败。");
@@ -126,7 +129,7 @@ export function PdfPreview({
       fitWidthRequestIdRef.current += 1;
       void loadingTask?.destroy();
     };
-  }, [onMissing, src]);
+  }, [src]);
 
   const clampPage = useCallback((pageNumber: number) => (
     Math.max(1, Math.min(numPages || 1, pageNumber))
@@ -149,6 +152,7 @@ export function PdfPreview({
     shouldStartPan: shouldStartPdfPan,
     zoom: scale,
   });
+  useDocumentReadingScroll("pdf", panZoom.viewportRef, Boolean(pdfDocument) && !isLoadingVisible, src);
 
   const resolveFitWidthScale = useCallback(async (pageNumber: number) => {
     if (!pdfDocument || !panZoom.viewportRef.current) return;

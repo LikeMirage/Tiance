@@ -16,8 +16,8 @@ export function createProjectFileWorkspaceApi(projectId: string): FileWorkspaceA
     deleteEntry: (path) => deleteProjectFile(projectId, path),
     listTree: (options, init) => getProjectFiles(projectId, options, init),
     moveEntry: (payload) => moveProjectFile(projectId, payload),
-    readTextFile: async (path) => {
-      const response = await getProjectFileContent(projectId, path);
+    readTextFile: async (path, init) => {
+      const response = await getProjectFileContent(projectId, path, init);
       return {
         path: response.path,
         content: response.content,

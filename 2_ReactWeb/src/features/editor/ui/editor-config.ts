@@ -24,6 +24,7 @@ import { editorTheme } from "./editor-theme";
 
 type EditorConfigOptions = {
   readOnly?: boolean;
+  plainTextMode?: boolean;
   onSave?: () => void;
 };
 
@@ -60,18 +61,17 @@ export function createEditorExtensions(
     highlightActiveLineGutter(),
     drawSelection(),
     rectangularSelection(),
-    bracketMatching(),
-    closeBrackets(),
-    indentOnInput(),
-    highlightSelectionMatches(),
     history(),
     keymap.of(historyKeymap),
     editorTheme,
-    langFn(),
     saveKey,
-    EditorView.lineWrapping,
     EditorState.tabSize.of(2),
   ];
+
+  if (!options.plainTextMode) {
+    exts.push(bracketMatching(), closeBrackets(), indentOnInput(),
+      highlightSelectionMatches(), langFn(), EditorView.lineWrapping);
+  }
 
   if (options.readOnly) {
     exts.push(EditorState.readOnly.of(true));

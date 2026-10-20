@@ -2,7 +2,7 @@ from contextlib import aclosing
 import json
 import mimetypes
 
-from fastapi import APIRouter, Query, Response, WebSocket, status
+from fastapi import APIRouter, Query, Request, Response, WebSocket, status
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.api.event_stream import EventStreamResponse
@@ -30,8 +30,31 @@ from app.schemas.project import (
     ProjectUserFileUploadResponse,
 )
 from app.services.project import get_project_file_service
+from app.services.file_preview.runtime import preview_file, validate_asset_version
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+@router.get("/{project_id}/files/preview", summary="Inspect editor preview resources")
+async def inspect_project_preview(
+    request: Request, project_id: str, path: str,
+    encoding: str = Query("auto", max_length=16), delimiter: str = Query("auto", max_length=16),
+) -> dict:
+    file_path = get_project_file_service().get_file_path(project_id, target_path=path)
+    return await preview_file(request, file_path, encoding=encoding, delimiter=delimiter)
+
+
+@router.get("/{project_id}/files/preview/spreadsheet", summary="Read an editor spreadsheet rectangle")
+async def read_project_spreadsheet_page(
+    request: Request, project_id: str, path: str, version: str,
+    sheet: int = Query(0, ge=0), row: int = Query(0, ge=0, lt=1048576),
+    column: int = Query(0, ge=0, lt=16384),
+    encoding: str = Query("auto", max_length=16), delimiter: str = Query("auto", max_length=16),
+) -> dict:
+    file_path = get_project_file_service().get_file_path(project_id, target_path=path)
+    validate_asset_version(file_path, version)
+    return await preview_file(request, file_path, "spreadsheet", version=version, sheet=sheet, row=row, column=column,
+                              encoding=encoding, delimiter=delimiter)
 
 # Transport-only keepalive, below the gateway's 100-second idle timeout.
 # It neither refreshes files nor limits the lifetime of a subscription.
@@ -243,9 +266,11 @@ def read_project_file_content(
 def read_project_file_asset(
     project_id: str,
     path: str = Query(..., description="媒体文件路径"),
+    preview_version: str | None = Query(default=None),
 ) -> FileResponse:
     service = get_project_file_service()
     file_path = service.get_file_path(project_id, target_path=path)
+    validate_asset_version(file_path, preview_version)
     media_type = _asset_media_type(file_path)
     return FileResponse(
         file_path,

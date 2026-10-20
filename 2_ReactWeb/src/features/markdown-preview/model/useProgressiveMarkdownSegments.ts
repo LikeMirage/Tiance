@@ -8,15 +8,17 @@ export function useProgressiveMarkdownSegments(content: string) {
     [content],
   );
   const [progress, setProgress] = useState({ content, visibleCount: 0 });
-  const visibleCount = progress.content === content ? progress.visibleCount : 0;
+  // An external edit must not collapse an already visible document to zero height.
+  // Keep the visible prefix and progressively reveal only any additional segments.
+  const visibleCount = Math.min(progress.visibleCount, segments.length);
 
   useEffect(() => {
     let disposed = false;
     let frameId: number | null = null;
     let timerId: number | null = null;
-    let nextVisibleCount = 0;
+    let nextVisibleCount = Math.min(progress.visibleCount, segments.length);
 
-    setProgress({ content, visibleCount: 0 });
+    setProgress({ content, visibleCount: nextVisibleCount });
 
     const scheduleNextSegment = () => {
       timerId = window.setTimeout(() => {
@@ -31,7 +33,7 @@ export function useProgressiveMarkdownSegments(content: string) {
       }, 0);
     };
 
-    if (segments.length > 0) {
+    if (nextVisibleCount < segments.length) {
       scheduleNextSegment();
     }
 

@@ -4,7 +4,21 @@
   "properties": {
     "ok": {"type": "boolean"},
     "summary": {"type": "string"},
-    "data": {"type": "object"},
+    "data": {
+      "type": "object",
+      "properties": {
+        "activity": {
+          "type": "object",
+          "description": "本次运行器的最近观察与操作状态；只读查询不续期，不表示模型内部注意力。",
+          "properties": {
+            "revision": {"type": "integer"},
+            "observation": {"type": ["object", "null"], "description": "最近返回的gui_session_id、frame_id、view_id、parent_view_id、path、depth（root为0）、valid、物理source_rect_absolute及grid；不返回完整cells。"},
+            "pointer": {"type": ["object", "null"], "description": "物理屏幕x/y及phase：preview为未执行预览，moving/pressed/released为最近成功发送的鼠标输入。"},
+            "action": {"type": ["object", "null"], "description": "tool、name、phase（running/completed/failed）；批量步骤含step/total；不含输入正文。"}
+          }
+        }
+      }
+    },
     "warnings": {"type": "array", "items": {"type": "string"}},
     "error": {"type": "string"},
     "error_info": {"type": "object"}

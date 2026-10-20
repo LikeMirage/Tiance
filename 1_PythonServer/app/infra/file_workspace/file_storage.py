@@ -326,10 +326,25 @@ class FileWorkspaceStorage:
                 limit_bytes=max_size_bytes,
             )
         try:
-            content = file_path.read_text(encoding="utf-8")
+            if max_size_bytes is None:
+                content = file_path.read_text(encoding="utf-8")
+            else:
+                # Enforce the budget during reading too: a file can grow after stat.
+                with file_path.open("rb") as stream:
+                    opened_stat = os.fstat(stream.fileno())
+                    raw = stream.read(max_size_bytes + 1)
+                    read_stat = os.fstat(stream.fileno())
+                if len(raw) > max_size_bytes:
+                    raise TextFileReadLimitExceededError(size_bytes=len(raw), limit_bytes=max_size_bytes)
+                current_stat = file_path.stat()
+                def identity(stat):
+                    return (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+                if identity(opened_stat) != identity(read_stat) or identity(read_stat) != identity(current_stat):
+                    raise ConflictError("文件在读取期间发生变化，请重新打开。")
+                content = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
         except UnicodeDecodeError:
             raise BadRequestError("无法读取非文本文件。")
-        mtime_ms = int(file_path.stat().st_mtime * 1000)
+        mtime_ms = int((file_path.stat() if max_size_bytes is None else read_stat).st_mtime * 1000)
         return content, mtime_ms
 
     def resolve_file_path(self, workspace_root: str, target_path: str) -> Path:

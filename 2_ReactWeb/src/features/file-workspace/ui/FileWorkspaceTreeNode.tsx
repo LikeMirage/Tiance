@@ -182,7 +182,7 @@ export const FileWorkspaceTreeNode = memo(function FileWorkspaceTreeNode({
               <FolderIcon />
             )
           ) : (
-            <FileIcon />
+            <FileIcon fileName={node.name} />
           )}
         </span>
 

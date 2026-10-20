@@ -453,6 +453,8 @@ def test_coordinate_preview_marks_point_without_creating_frame(tmp_path: Path) -
     class FakePreview:
         _view = staticmethod(helper.GuiService._view)
         _result_with_image = helper.GuiService._result_with_image
+        _show_activity_view = helper.GuiService._show_activity_view
+        _publish_activity = helper.GuiService._publish_activity
         external_mouse_events = 0
         external_keyboard_events = 0
         cancel_event = threading.Event()
@@ -498,8 +500,8 @@ def test_gui_tools_require_explicit_lock_and_never_relock_after_user_exit(tmp_pa
 
 
 @pytest.mark.skipif(os.name != "nt", reason="GUI工具只支持Windows")
-@pytest.mark.parametrize("first_scale,second_scale", [(100, 400), (400, 600), (800, 100)])
-def test_nested_zoom_preview_and_input_share_physical_point(tmp_path: Path, first_scale: int, second_scale: int, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("first_scale,second_scale,expected_size", [(100, 400, (401, 299)), (400, 600, (802, 599)), (800, 100, (402, 300))])
+def test_nested_zoom_preview_and_input_share_physical_point(tmp_path: Path, first_scale: int, second_scale: int, expected_size: tuple[int, int], monkeypatch: pytest.MonkeyPatch) -> None:
     helper = _load_overlay_helper()
     service = helper.GuiService.__new__(helper.GuiService)
     service.gui_root = tmp_path
@@ -507,6 +509,7 @@ def test_nested_zoom_preview_and_input_share_physical_point(tmp_path: Path, firs
     service.external_mouse_events = service.external_keyboard_events = 0
     service.cancel_event = threading.Event()
     service.block_user_input = True
+    service.held_mouse_buttons = set()
     gui_id = "gui_" + "a" * 32
     folder = service._session_dir(gui_id)
     folder.mkdir()
@@ -528,10 +531,9 @@ def test_nested_zoom_preview_and_input_share_physical_point(tmp_path: Path, firs
     preview = service._preview_coordinate(session=session, frame=frame, arguments=point_args, screen_x=x, screen_y=y, mouse_before=0, keyboard_before=0)
     with helper.Image.open(preview["image_path"]) as marked:
         first_view = frame["views"][first["data"]["view_id"]]
-        parent_scale_x = first_view["image_size"]["width"] / first_view["source_rect_absolute"]["width"]
-        parent_scale_y = first_view["image_size"]["height"] / first_view["source_rect_absolute"]["height"]
-        assert marked.size == (round(201 * parent_scale_x * second_scale / 100),
-                               round(150 * parent_scale_y * second_scale / 100))
+        assert marked.size == expected_size
+        assert marked.width <= first_view["image_size"]["width"]
+        assert marked.height <= first_view["image_size"]["height"]
         marker = preview["data"]["marker"]
         assert marked.getpixel((marker["center_x"], marker["center_y"])) == helper.COORDINATE_PREVIEW_COLOR
         assert int(marker["center_x"] * 201 / marked.width) + 101 == x
@@ -1144,11 +1146,31 @@ def test_lock_overlay_uploads_to_hidden_native_window_and_releases_gdi(monkeypat
                 threading.Event().wait(0.01)
         assert not stops and updates and updates[0] >= 60
         assert len(deleted) == 3
+        # Exercise the new layers in the real window message loop, still hidden.
+        rect = {"left": -800, "top": -450, "width": 320, "height": 200}
+        observation = {"gui_session_id": "gui_test", "frame_id": 0, "view_id": "1", "depth": 1,
+                       "valid": True, "source_rect_absolute": rect, "grid": {"rows": 2, "columns": 2},
+                       "cells": helper.build_cells(rect, 2, 2)}
+        service._publish_activity(observation=observation, pointer={"x": -650, "y": -350, "phase": "pressed"},
+                                  action={"tool": "mouse", "name": "click", "phase": "completed"})
+        message = helper.wintypes.MSG()
+        assert helper.user32.PeekMessageW(ctypes.byref(message), hwnd, helper.WM_APP_ACTIVITY, helper.WM_APP_ACTIVITY, 1)
+        helper.user32.DispatchMessageW(ctypes.byref(message))
+        assert not stops and len(deleted) == 6  # Grid, small pointer, notice.
+        pointer = service.overlay_pointers[0][0]
+        pointer_bounds = helper.wintypes.RECT()
+        assert helper.user32.GetWindowRect(pointer, ctypes.byref(pointer_bounds))
+        dpi = helper.user32.GetDpiForWindow(pointer)
+        _, pad = helper.render_activity_pointer(dpi, {"phase": "pressed"})
+        assert (pointer_bounds.left + pad, pointer_bounds.top + pad) == (-650, -350)
+        assert helper.user32.GetAncestor(pointer, 2) == hwnd
+        assert not helper.user32.IsWindowVisible(pointer)
+        service._exclude_window_from_capture(hwnd)
         monkeypatch.setattr(helper.user32, "UpdateLayeredWindow", lambda *args: False)
         with pytest.raises(helper.GuiError) as failure:
             service._update_overlay(child, {"left": 0, "top": 0, "width": 640, "height": 400})
         assert failure.value.code == "OVERLAY_RENDER_FAILED"
-        assert len(deleted) == 4
+        assert len(deleted) == 7
     finally:
         service._destroy_windows()
         assert not service.overlay_windows

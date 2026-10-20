@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 
 import type { DocumentTab, EditorTabId } from "../../../entities/editor/model/editorDocument";
 import type { ExplorerNode } from "../../../entities/explorer-node/model/explorerNode";
@@ -31,12 +31,17 @@ export function useDocumentTabRestore({
   setActiveTabId,
   setTabs,
 }: UseDocumentTabRestoreOptions) {
+  const restoreControllerRef = useRef<AbortController | null>(null);
+  useEffect(() => () => restoreControllerRef.current?.abort(), []);
   const restoreWorkspaceTabs = useCallback(async (
     sourceRuntime: DocumentFileSourceRuntime,
     filePaths: string[],
     activeFilePath: string | null,
     options: RestoreWorkspaceTabsOptions = {},
   ) => {
+    restoreControllerRef.current?.abort();
+    const controller = new AbortController();
+    restoreControllerRef.current = controller;
     const runtime = registerFileSource(sourceRuntime);
     const restoreRequestId = restoreRequestIdRef.current + 1;
     restoreRequestIdRef.current = restoreRequestId;
@@ -61,10 +66,11 @@ export function useDocumentTabRestore({
         continue;
       }
       try {
-        const res = options.fileContents?.get(filePath) ?? await api.readTextFile(filePath);
+        const res = options.fileContents?.get(filePath) ?? await api.readTextFile(filePath, { signal: controller.signal });
         if (restoreRequestIdRef.current !== restoreRequestId) return;
         loadedTabs.push(hydrateWorkspaceFileTab(tab, runtime.source, filePath, res));
       } catch (err) {
+        if (controller.signal.aborted) return;
         if (restoreRequestIdRef.current !== restoreRequestId) return;
         if (err instanceof HttpRequestError && err.status === 404) {
           continue;

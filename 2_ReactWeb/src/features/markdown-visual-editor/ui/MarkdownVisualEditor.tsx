@@ -4,6 +4,7 @@ import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame-dark.css";
 import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
+import { useDocumentReadingScroll } from "../../../entities/editor/model/documentReadingState";
 import { markdownKatexOptions } from "../../markdown-preview/model/markdownMath";
 import { renderMarkdownKatex } from "../../markdown-preview/model/markdownKatex";
 import {
@@ -18,6 +19,7 @@ type MarkdownVisualEditorProps = {
   onChange: (value: string) => void;
   onDirty?: () => void;
   onSave?: (value: string) => void;
+  resolveAssetUrl?: (src: string | undefined) => string | undefined;
   value: string;
 };
 
@@ -28,9 +30,11 @@ export function MarkdownVisualEditor({
   onChange,
   onDirty,
   onSave,
+  resolveAssetUrl,
   value,
 }: MarkdownVisualEditorProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const crepeRef = useRef<Crepe | null>(null);
   const createdRef = useRef(false);
   const pendingChangeTimerRef = useRef<number | null>(null);
@@ -42,17 +46,20 @@ export function MarkdownVisualEditor({
   const onDirtyRef = useRef(onDirty);
   const onSaveRef = useRef(onSave);
   const latestValueRef = useRef(value);
+  const resolveAssetUrlRef = useRef(resolveAssetUrl);
   const [reloadKey, setReloadKey] = useState(0);
   const [isEditorReady, setIsEditorReady] = useState(false);
   const isEditorLoadingVisible = useMinimumLoading(
     !isEditorReady,
     VISUAL_EDITOR_MINIMUM_LOADING_MS,
   );
+  useDocumentReadingScroll("markdown-visual", scrollRef, isEditorReady && !isEditorLoadingVisible, reloadKey);
 
   onChangeRef.current = onChange;
   onDirtyRef.current = onDirty;
   onSaveRef.current = onSave;
   latestValueRef.current = value;
+  resolveAssetUrlRef.current = resolveAssetUrl;
 
   const restoreEditorContent = (content: string) => (
     editorSessionRef.current?.restore(content)
@@ -153,6 +160,10 @@ export function MarkdownVisualEditor({
         [Crepe.Feature.AI]: false,
       },
       featureConfigs: {
+        [Crepe.Feature.ImageBlock]: {
+          // Only the DOM URL changes; the document retains its original relative src.
+          proxyDomURL: (url) => resolveAssetUrlRef.current?.(url) ?? url,
+        },
         [Crepe.Feature.Latex]: {
           katexOptions: markdownKatexOptions,
         },
@@ -260,7 +271,7 @@ export function MarkdownVisualEditor({
   }, [isEditorReady]);
 
   return (
-    <div className="markdown-visual-editor" aria-busy={isEditorLoadingVisible}>
+    <div ref={scrollRef} className="markdown-visual-editor" aria-busy={isEditorLoadingVisible}>
       {isEditorLoadingVisible ? (
         <LoadingStrip
           ariaLabel="正在加载 Markdown 编辑器"

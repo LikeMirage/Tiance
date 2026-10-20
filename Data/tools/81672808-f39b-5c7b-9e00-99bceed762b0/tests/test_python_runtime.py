@@ -91,18 +91,30 @@ class PythonRuntimeTests(unittest.TestCase):
         )
         self.assertNotIn("PYTHONPATH", runtime.environment)
 
-    def test_inherits_home_directory_environment(self) -> None:
+    def test_inherits_platform_directory_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             dependencies = root / "dependencies"
             dependencies.mkdir()
             home_values = {
+                "ALLUSERSPROFILE": "C:\\ProgramData",
+                "APPDATA": str(root / "profile/AppData/Roaming"),
                 "HOME": str(root / "home"),
                 "USERPROFILE": str(root / "profile"),
                 "HOMEDRIVE": "C:",
                 "HOMEPATH": "\\Users\\Tester",
+                "LOCALAPPDATA": str(root / "profile/AppData/Local"),
+                "ProgramData": "C:\\ProgramData",
+                "PUBLIC": "C:\\Users\\Public",
+                "SystemDrive": "C:",
+                "SystemRoot": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
             }
-            with patch.dict(os.environ, home_values, clear=False), patch.object(
+            with patch.dict(
+                os.environ,
+                {**home_values, "TIANCE_PRIVATE_TOKEN": "must-not-inherit"},
+                clear=False,
+            ), patch.object(
                 python_runtime,
                 "resolve_dependency_site_packages_path",
                 return_value=dependencies,
@@ -111,6 +123,7 @@ class PythonRuntimeTests(unittest.TestCase):
 
         for key, value in home_values.items():
             self.assertEqual(runtime.environment[key], value)
+        self.assertNotIn("TIANCE_PRIVATE_TOKEN", runtime.environment)
 
     def test_prepared_runtime_holds_and_releases_environment_lease(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

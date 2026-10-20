@@ -21,7 +21,7 @@ class ShutdownTasks:
     def require_accepting(self) -> None:
         if self._closing:
             raise AppError(
-                "软件正在退出，已停止接受新的下载和安装。",
+                "软件正在退出，已停止接受新的后台操作。",
                 code="application_exiting", status_code=503,
             )
 

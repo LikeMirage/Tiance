@@ -8,7 +8,7 @@ from app.domain.project.conversation_memory_markers import (
 
 FUNCTIONAL_MODEL_SETTINGS_VERSION = 25
 DEFAULT_CONVERSATION_ROLE_SETTINGS_VERSION = 26
-MEMORY_COMPRESSION_SETTINGS_VERSION = 32
+MEMORY_COMPRESSION_SETTINGS_VERSION = 33
 NAMING_SETTINGS_VERSION = 28
 PROJECT_MEMORY_MANAGEMENT_SETTINGS_VERSION = 2
 GLOBAL_MEMORY_MANAGEMENT_SETTINGS_VERSION = 2
@@ -60,7 +60,7 @@ DEFAULT_NAMING_PROMPT = "\n".join(
     ]
 )
 
-DEFAULT_MEMORY_COMPRESSION_PROMPT = "\n".join(
+_MEMORY_COMPRESSION_RULES = "\n".join(
     [
         "将本次会话中已有的历史上下文压缩为一份可继续工作的累计摘要。",
         "",
@@ -91,7 +91,11 @@ DEFAULT_MEMORY_COMPRESSION_PROMPT = "\n".join(
         "- 复述最近用户请求时必须保留用户主体、动作、对象、约束、禁止项、验收标准、路径和数值；多项请求应分项表达，不得改写成助手自己的建议。",
         "",
         "工具调用要求：",
-        "只调用一次 submit_memory_compaction，并严格使用以下参数结构；result 必须是 JSON 对象：",
+    ]
+)
+
+_MEMORY_COMPRESSION_ARGUMENT_EXAMPLE = "\n".join(
+    [
         "{",
         '  "result": {',
         '    "items": [',
@@ -103,8 +107,28 @@ DEFAULT_MEMORY_COMPRESSION_PROMPT = "\n".join(
         '    "handoff": "面向接手者的交接总结"',
         "  }",
         "}",
+    ]
+)
+
+LEGACY_MEMORY_COMPRESSION_PROMPT_V32 = "\n".join(
+    [
+        _MEMORY_COMPRESSION_RULES,
+        "只调用一次 submit_memory_compaction，并严格使用以下参数结构；result 必须是 JSON 对象：",
+        _MEMORY_COMPRESSION_ARGUMENT_EXAMPLE,
         "字段不得增加、删除或改名。",
         "如果工具执行失败，立即停止；不得重试、修改参数、排查原因或调用其他工具，只简短说明失败结果。",
+    ]
+)
+
+DEFAULT_MEMORY_COMPRESSION_PROMPT = "\n".join(
+    [
+        _MEMORY_COMPRESSION_RULES
+        .replace("对应事项的 content", "对应摘要事项")
+        .replace("- content 使用", "- 摘要事项使用")
+        .replace("- handoff ", "- 交接总结")
+        .replace("工具调用要求：", "当前任务："),
+        "这是后台异步功能会话。此前历史仅作为压缩材料，不得继续、补做或验证历史任务，也不需要回复或解释本条任务消息。",
+        "当前只生成累计摘要，并按 submit_memory_compaction 的工具说明提交；不得执行其他无关操作。提交成功后结束当前任务。",
     ]
 )
 

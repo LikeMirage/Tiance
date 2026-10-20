@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useDocumentReadingScroll } from "../../../entities/editor/model/documentReadingState";
 
 import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
@@ -17,11 +18,13 @@ export function WordPreview({
   zoom: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const onMissingRef = useRef(onMissing);
   const renderedAssetIdentityRef = useRef<string | null>(null);
   const [state, setState] = useState<LoadState>(() => (src ? "loading" : "idle"));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const isLoadingVisible = useMinimumLoading(state === "loading", officePreviewMinimumLoadingMs);
+  useDocumentReadingScroll("word", scrollRef, state === "ready" && !isLoadingVisible, src);
 
   useEffect(() => {
     onLoadingVisibleChange?.(isLoadingVisible);
@@ -126,6 +129,7 @@ export function WordPreview({
         <div className="office-preview__status office-preview__status--error">{errorMessage}</div>
       ) : null}
       <div
+        ref={scrollRef}
         className={isLoadingVisible
           ? "office-preview__scroll office-preview__scroll--loading-hidden"
           : "office-preview__scroll"}

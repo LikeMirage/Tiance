@@ -7,6 +7,7 @@ from app.domain.llm.functional_model_defaults import (
     DEFAULT_CONVERSATION_ROLE_SETTINGS_VERSION,
     DEFAULT_FUNCTIONAL_MAX_OUTPUT_TOKENS,
     GLOBAL_MEMORY_MANAGEMENT_SETTINGS_VERSION,
+    LEGACY_MEMORY_COMPRESSION_PROMPT_V32,
     NAMING_SETTINGS_VERSION,
     PROJECT_MEMORY_MANAGEMENT_SETTINGS_VERSION,
     get_default_functional_model_profile_settings,
@@ -40,7 +41,7 @@ def test_empty_functional_model_response_keeps_backend_defaults():
 
 
 def test_memory_compression_uses_current_prompt_contract_version():
-    assert get_functional_model_profile_settings_version("memoryCompression") == 32
+    assert get_functional_model_profile_settings_version("memoryCompression") == 33
     assert get_functional_model_profile_settings_version("naming") == (
         NAMING_SETTINGS_VERSION
     )
@@ -67,7 +68,7 @@ def test_functional_model_old_version_resets_to_current_defaults(tmp_path):
     repository.save_settings(
         settings_id="memoryCompression",
         settings=old_settings,
-        version=expected_version - 1,
+        version=31,
     )
 
     settings = service.get_profile_settings("memoryCompression")
@@ -75,6 +76,29 @@ def test_functional_model_old_version_resets_to_current_defaults(tmp_path):
     assert settings is not None
     assert settings.version == expected_version
     assert settings.settings == get_default_functional_model_profile_settings("memoryCompression")
+
+
+@pytest.mark.parametrize("custom_prompt", [False, True])
+def test_compaction_prompt_upgrade_preserves_model_and_custom_settings(tmp_path, custom_prompt):
+    database_path = tmp_path / "tiance.db"
+    ensure_database_schema(database_path)
+    repository = LlmFunctionalModelSettingsRepository(database_path)
+    service = LlmFunctionalModelSettingsService(repository)
+    old = deepcopy(get_default_functional_model_profile_settings("memoryCompression"))
+    old.update(modelSource="dedicated", modelKey="test/model", blockingEnabled=True)
+    old["generation"]["maxOutputTokens"] = 45678
+    old["prompt"] = "自定义压缩要求" if custom_prompt else LEGACY_MEMORY_COMPRESSION_PROMPT_V32
+    repository.save_settings(settings_id="memoryCompression", settings=old, version=32)
+
+    migrated = service.get_profile_settings("memoryCompression")
+
+    expected = deepcopy(old)
+    if not custom_prompt:
+        expected["prompt"] = get_default_functional_model_profile_settings("memoryCompression")["prompt"]
+    assert migrated is not None
+    assert migrated.version == 33
+    assert migrated.settings == expected
+    assert service.get_profile_settings("memoryCompression").settings == expected
 
 
 def test_functional_model_save_rejects_stale_version(tmp_path):
@@ -174,16 +198,16 @@ def test_memory_compression_defaults_use_single_prompt_and_high_reasoning():
     assert "累计摘要" in defaults["prompt"]
     assert "交接总结" in defaults["prompt"]
     assert "最近用户请求：" in defaults["prompt"]
-    assert "只调用一次 submit_memory_compaction" in defaults["prompt"]
-    assert '"result": {' in defaults["prompt"]
-    assert "字段不得增加、删除或改名" in defaults["prompt"]
-    assert "如果工具执行失败，立即停止" in defaults["prompt"]
+    assert "按 submit_memory_compaction 的工具说明提交" in defaults["prompt"]
+    assert '"result": {' not in defaults["prompt"]
+    assert "最多提交两次" not in defaults["prompt"]
+    assert "纠正一次" not in defaults["prompt"]
     assert "不提出历史中没有的建议" in defaults["prompt"]
-    assert '"handoff"' in defaults["prompt"]
+    assert "交接总结" in defaults["prompt"]
     assert "【长期记忆变更开始｜在本条用户消息前生效】" in defaults["prompt"]
     assert "【长期记忆变更结束】" in defaults["prompt"]
     assert "逐字保留整个通知块" in defaults["prompt"]
-    assert "对应事项的 content" in defaults["prompt"]
+    assert "对应摘要事项" in defaults["prompt"]
     assert "retained_user_requests" not in defaults["prompt"]
     assert '"source"' not in defaults["prompt"]
     assert '"title"' not in defaults["prompt"]

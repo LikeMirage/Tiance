@@ -1,6 +1,6 @@
 import type { JsExcelPreview } from "@js-preview/excel";
 
-type ExcelRange = {
+export type ExcelRange = {
   eci: number;
   eri: number;
   sci: number;
@@ -28,7 +28,7 @@ type ExcelStyle = {
   valign?: "bottom" | "middle" | "top";
 };
 
-type RuntimeSheetData = {
+export type RuntimeSheetData = {
   cols?: {
     getWidth?: (colIndex: number) => number;
   };
@@ -82,7 +82,17 @@ export async function renderExcelSelectionToPngFile(
   previewer: JsExcelPreview | null,
   sourceFileName: string,
 ) {
-  const { canvas, range, sheet, sheetName } = renderExcelSelection(previewer);
+  const sheet = resolveActiveSheet(previewer as InternalExcelPreviewer | null);
+  const range = normalizeRange(sheet.selector?.range);
+  if (!range) throw new Error("当前没有可复制的 Excel 选区。");
+  return renderSheetRangeToPngFile(sheet, range, sourceFileName);
+}
+
+export async function renderSheetRangeToPngFile(
+  sheet: RuntimeSheetData, range: ExcelRange, sourceFileName: string,
+) {
+  const sheetName = resolveActiveSheetName(null, sheet);
+  const canvas = renderExcelSelectionToCanvas(sheet, range);
   try {
     const blob = await canvasToPngBlob(canvas);
     return {
@@ -147,6 +157,9 @@ function normalizeRange(range: ExcelRange | undefined): ExcelRange | null {
 }
 
 function renderExcelSelectionToCanvas(sheet: RuntimeSheetData, range: ExcelRange) {
+  if ((range.eri - range.sri + 1) * (range.eci - range.sci + 1) > 10_000) {
+    throw new Error("选区超过 10000 个单元格，请缩小选区后引用。");
+  }
   const rowHeights = collectSizes(range.sri, range.eri, (index) => sheet.rows?.getHeight?.(index) ?? defaultRowHeight);
   const columnWidths = collectSizes(range.sci, range.eci, (index) => sheet.cols?.getWidth?.(index) ?? defaultColumnWidth);
   const width = Math.max(1, Math.ceil(sum(columnWidths)));

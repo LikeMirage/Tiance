@@ -22,7 +22,7 @@ export type FileWorkspaceApi = {
     init?: Pick<RequestInit, "signal">,
   ) => Promise<FileWorkspaceTreeResponse>;
   moveEntry: (payload: FileWorkspaceMoveRequest) => Promise<FileWorkspaceNode>;
-  readTextFile: (path: string) => Promise<FileWorkspaceContentResponse>;
+  readTextFile: (path: string, init?: Pick<RequestInit, "signal">) => Promise<FileWorkspaceContentResponse>;
   renameEntry: (path: string, name: string) => Promise<FileWorkspaceNode>;
   revealEntry: (payload: FileWorkspaceRevealRequest) => Promise<void>;
   saveTextFile: (

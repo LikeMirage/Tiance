@@ -3,6 +3,8 @@ from typing import Any
 
 from app.core.errors import BadRequestError
 from app.domain.llm.functional_model_defaults import (
+    DEFAULT_MEMORY_COMPRESSION_PROMPT,
+    LEGACY_MEMORY_COMPRESSION_PROMPT_V32,
     get_default_functional_model_profile_settings,
     get_functional_model_profile_settings_version,
 )
@@ -34,6 +36,16 @@ class LlmFunctionalModelSettingsService:
         settings = self._repository.get_settings(profile_key)
         if settings is not None and settings.version == expected_version:
             return settings
+
+        if profile_key == "memoryCompression" and settings is not None and settings.version == 32:
+            migrated = dict(settings.settings)
+            if migrated.get("prompt") == LEGACY_MEMORY_COMPRESSION_PROMPT_V32:
+                migrated["prompt"] = DEFAULT_MEMORY_COMPRESSION_PROMPT
+            return self._repository.save_settings(
+                settings_id=profile_key,
+                settings=migrated,
+                version=expected_version,
+            )
 
         default_settings = get_default_functional_model_profile_settings(profile_key)
         if default_settings is None:

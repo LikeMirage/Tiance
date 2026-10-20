@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from json import dumps
+from json import JSONDecodeError, dumps
 
 from app.domain.llm.chat import ChatToolCall, ChatToolResult
 from app.services.tools.tool_execution_arguments import parse_tool_arguments
@@ -9,7 +9,7 @@ from app.services.tools.tool_execution_arguments import parse_tool_arguments
 
 INVALID_TOOL_ARGUMENTS = "INVALID_TOOL_ARGUMENTS"
 INVALID_TOOL_ARGUMENTS_MESSAGE = (
-    "本次工具指令参数不是合法 JSON，请检查并重新输出完整工具调用。"
+    "工具参数未通过 JSON 对象校验，工具尚未执行。"
 )
 
 
@@ -29,10 +29,10 @@ def prepare_tool_calls_for_replay(
     for tool_call in tool_calls:
         try:
             parse_tool_arguments(tool_call.arguments)
-        except ValueError:
+        except ValueError as error:
             replay_calls.append(replace(tool_call, arguments="{}"))
             invalid_results.append(
-                (tool_call, _invalid_tool_arguments_result(tool_call))
+                (tool_call, _invalid_tool_arguments_result(tool_call, error))
             )
             continue
         replay_calls.append(tool_call)
@@ -44,7 +44,24 @@ def prepare_tool_calls_for_replay(
     )
 
 
-def _invalid_tool_arguments_result(tool_call: ChatToolCall) -> ChatToolResult:
+def _invalid_tool_arguments_result(
+    tool_call: ChatToolCall,
+    error: ValueError,
+) -> ChatToolResult:
+    diagnostic: dict[str, object] = {"detail": str(error)}
+    cause = error.__cause__
+    if isinstance(cause, JSONDecodeError):
+        start = max(0, cause.pos - 80)
+        end = min(len(cause.doc), cause.pos + 80)
+        diagnostic.update(
+            line=cause.lineno,
+            column=cause.colno,
+            position=cause.pos,
+            at_end=cause.pos == len(cause.doc),
+            excerpt=cause.doc[start:end],
+            excerpt_start=start,
+        )
+    message = f"{INVALID_TOOL_ARGUMENTS_MESSAGE}{error}"
     return ChatToolResult(
         call_id=tool_call.call_id,
         name=tool_call.name,
@@ -54,11 +71,13 @@ def _invalid_tool_arguments_result(tool_call: ChatToolCall) -> ChatToolResult:
             {
                 "ok": False,
                 "error_code": INVALID_TOOL_ARGUMENTS,
-                "message": INVALID_TOOL_ARGUMENTS_MESSAGE,
+                "message": message,
+                "executed": False,
+                "diagnostic": diagnostic,
                 "received_arguments": tool_call.arguments,
             },
             ensure_ascii=False,
             separators=(",", ":"),
         ),
-        error=INVALID_TOOL_ARGUMENTS_MESSAGE,
+        error=message,
     )

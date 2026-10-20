@@ -19,6 +19,9 @@
         "total": {"type": "integer", "description": "本次枚举中符合筛选的窗口总数。"},
         "complete": {"type": "boolean", "description": "是否已到本次窗口列表末尾。"},
         "next_offset": {"type": ["integer", "null"], "description": "后续页起点；每次调用重新枚举实时窗口。"},
+        "zoom_scale_percent": {"type": "number", "description": "请求的相对父View选区显示倍率百分比；root为100。"},
+        "effective_zoom_scale_percent": {"type": "number", "description": "按父View图片宽高等比例约束后、像素取整前实际应用的相对倍率百分比；取整后的横向和纵向显示倍率见sampling。"},
+        "zoom_limited_by_parent": {"type": "boolean", "description": "请求的放大尺寸是否受到直接父View宽高上限约束。"},
         "foreground_window": {
           "type": "object",
           "description": "该Frame截图时的前台窗口：hwnd、process_id、title、rect、exists；返回旧View时仍是该Frame的观察记录。"

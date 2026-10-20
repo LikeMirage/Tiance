@@ -564,7 +564,12 @@ def test_compaction_creates_named_function_session_and_replaces_source_history(
 ):
     conversation, session, repository, memory = _create_services(
         tmp_path,
-        settings={"enabled_tool_names": ["read_file"]},
+        settings={
+            "enabled_tool_names": ["read_file"],
+            "max_tool_calls": 17,
+            "upstream_retry_count": 4,
+            "malformed_tool_call_recovery_enabled": False,
+        },
     )
     _append_turn(conversation, session.session_id, 1)
     _append_turn(conversation, session.session_id, 2)
@@ -603,6 +608,9 @@ def test_compaction_creates_named_function_session_and_replaces_source_history(
     assert function_node.history_mode == "copy"
     assert function_node.source_message_id == source_messages[-1].message_id
     assert function_session.settings.enabled_tool_names == ("read_file",)
+    assert function_session.settings.max_tool_calls == 17
+    assert function_session.settings.upstream_retry_count == 4
+    assert function_session.settings.malformed_tool_call_recovery_enabled is False
     assert conversation.get_cache_affinity_id(
         PROJECT_ID,
         function_session.session_id,
@@ -611,6 +619,8 @@ def test_compaction_creates_named_function_session_and_replaces_source_history(
         session.session_id,
     )
     assert len(calls) == 1
+    assert calls[0].max_tool_calls == 17
+    assert calls[0].upstream_retry_count == 4
     assert records[-1]["status"] == "completed"
     assert records[-1]["result"] == COMPACTION_RESULT
     assert records[-1]["source_token_count"] == 186558
@@ -697,10 +707,9 @@ def test_compaction_creates_named_function_session_and_replaces_source_history(
         and "submit_memory_compaction" in message.content
     )
     assert compaction_task_message.content == DEFAULT_MEMORY_COMPRESSION_PROMPT
-    assert "只调用一次 submit_memory_compaction" in compaction_task_message.content
-    assert '"result": {' in compaction_task_message.content
-    assert '"items": [' in compaction_task_message.content
-    assert "字段不得增加、删除或改名" in compaction_task_message.content
+    assert "按 submit_memory_compaction 的工具说明提交" in compaction_task_message.content
+    assert '"result": {' not in compaction_task_message.content
+    assert '"items": [' not in compaction_task_message.content
     assert "最近用户请求：" in compaction_task_message.content
 
 

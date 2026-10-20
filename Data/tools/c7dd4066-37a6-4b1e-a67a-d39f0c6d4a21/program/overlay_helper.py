@@ -5,6 +5,7 @@ import importlib.util
 import ctypes
 from ctypes import wintypes
 from contextlib import contextmanager
+from copy import deepcopy
 from datetime import datetime, timezone
 import json
 import math
@@ -258,6 +259,7 @@ WM_SYSKEYUP = 0x0105
 WM_QUIT = 0x0012
 WM_TIMER = 0x0113
 WM_APP_STOP = 0x8001
+WM_APP_ACTIVITY = 0x8002
 LOCK_NOTICE_TIMER_ID = 1
 HTTRANSPARENT = -1
 WH_KEYBOARD_LL = 13
@@ -849,7 +851,86 @@ def render_lock_overlay(width: int, height: int, dpi: int, elapsed_seconds: floa
     return image
 
 
-def render_lock_notice(width: int, height: int, dpi: int, elapsed_seconds: float) -> Image.Image:
+def render_activity_overlay(monitor: dict[str, int], dpi: int, observation: dict[str, Any] | None) -> Image.Image:
+    """Map the last returned view back to physical pixels, never to its enlarged PNG."""
+    width, height = monitor["width"], monitor["height"]
+    image = Image.new("RGBA", (width, height))
+    if observation and observation.get("valid"):
+        rect = observation["source_rect_absolute"]
+        left, top = rect["left"] - monitor["left"], rect["top"] - monitor["top"]
+        right, bottom = left + rect["width"], top + rect["height"]
+        # Nonblack RGB is intentional: the capture-excluded host uses black as color key.
+        image.paste((12, 17, 24, 140), (0, 0, width, height))
+        clip = (max(0, left), max(0, top), min(width, right), min(height, bottom))
+        if clip[0] < clip[2] and clip[1] < clip[3]:
+            image.paste((0, 0, 0, 0), clip)
+            draw = ImageDraw.Draw(image)
+            font = ImageFont.truetype(str(Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "msyh.ttc"), max(9, round(12 * dpi / 96)))
+            for cell in observation["cells"]:
+                cell_rect = cell["rect_absolute"]
+                x, y = cell_rect["left"] - monitor["left"], cell_rect["top"] - monitor["top"]
+                end_x, end_y = x + cell_rect["width"], y + cell_rect["height"]
+                if end_x <= 0 or end_y <= 0 or x >= width or y >= height:
+                    continue
+                draw.line((x, y, end_x - 1, y), fill=(115, 204, 255, 200))
+                draw.line((x, y, x, end_y - 1), fill=(115, 204, 255, 200))
+                label = str(cell["cell_id"])
+                box = draw.textbbox((0, 0), label, font=font)
+                label_width, label_height = box[2] + 8, box[3] - box[1] + 6
+                # On-screen cells can be much smaller than the model's enlarged image.
+                # Keep their geometry exact; don't cover tiny targets with large labels.
+                if cell_rect["width"] >= label_width + 6 and cell_rect["height"] >= label_height + 6:
+                    tx, ty = max(x + 3, 1), max(y + 3, 1)
+                    if tx + label_width < min(end_x, width) and ty + label_height < min(end_y, height):
+                        draw.rounded_rectangle((tx, ty, tx + label_width, ty + label_height), radius=3, fill=(17, 25, 36, 210))
+                        draw.text((tx + 4, ty + 3 - box[1]), label, font=font, fill=(220, 242, 255, 255))
+            draw.rectangle((left, top, right - 1, bottom - 1), outline=(133, 218, 255, 240), width=1)
+    image.alpha_composite(render_lock_overlay(width, height, dpi, include_notice=False))
+    return image
+
+
+def render_activity_pointer(dpi: int, pointer: dict[str, Any]) -> tuple[Image.Image, int]:
+    scale = dpi / 96
+    pad = max(10, round(14 * scale))
+    image = Image.new("RGBA", (max(36, round(48 * scale)), max(42, round(56 * scale))))
+    draw = ImageDraw.Draw(image)
+    preview = pointer.get("phase") == "preview"
+    color = (255, 190, 90, 255) if preview else (255, 65, 150, 255)
+    radius = max(5, round((11 if pointer.get("phase") == "pressed" else 7) * scale))
+    draw.ellipse((pad - radius, pad - radius, pad + radius, pad + radius), outline=color, width=max(1, round(2 * scale)))
+    points = [(pad + round(x * scale), pad + round(y * scale)) for x, y in
+              [(0, 0), (0, 25), (6, 19), (11, 30), (16, 28), (11, 17), (20, 17)]]
+    draw.polygon(points, fill=color)
+    draw.line(points + [points[0]], fill=(250, 250, 255, 255), width=max(1, round(scale)))
+    return image, pad
+
+
+def activity_notice_lines(activity: dict[str, Any]) -> tuple[str, str]:
+    observation = activity.get("observation")
+    action = activity.get("action") or {}
+    names = {"start": "开始观察", "zoom": "查看局部", "view": "切换视图", "refresh": "刷新画面",
+             "wait": "等待画面", "activate": "激活窗口", "close": "结束观察", "list_windows": "查找窗口",
+             "preview": "预览落点（未点击）", "execute_preview": "执行预览动作", "move": "移动鼠标",
+             "click": "点击", "drag": "拖动", "scroll": "滚动", "mouse_down": "按下鼠标",
+             "mouse_up": "松开鼠标", "type_text": "输入文字", "press_key": "按键", "hotkey": "组合键",
+             "batch": "批量操作", "inspect": "读取控件", "read": "读取控件", "invoke": "调用控件",
+             "set_value": "填写控件"}
+    name = names.get(action.get("name"), "控件操作" if action.get("tool") == "uia" else "等待下一步")
+    phase = {"running": "进行中", "completed": "已完成", "failed": "失败"}.get(action.get("phase"), "")
+    step = f" · {action['step']}/{action['total']}" if action.get("step") else ""
+    title = f"{name} · {phase}{step}" if phase else name
+    if not observation:
+        return title, "尚未读取画面"
+    grid = observation["grid"]
+    location = f"最近读取：第{observation['depth']}层 · {grid['rows']}行×{grid['columns']}列 · Frame {observation['frame_id']}"
+    if not observation.get("valid"):
+        location = "画面已变化，等待重新观察"
+    path = "全图" + (" › " + observation["view_id"].replace("/", " › ") if observation["view_id"] != "root" else "")
+    return f"{title}   |   {location}", path
+
+
+def render_lock_notice(width: int, height: int, dpi: int, elapsed_seconds: float,
+                       activity: dict[str, Any] | None = None) -> Image.Image:
     """Small separate layer: timer ticks never repaint the full monitor glow."""
     if width <= 0 or height <= 0 or dpi <= 0:
         raise GuiError("OVERLAY_GEOMETRY_INVALID", "无法取得界面提示层的尺寸或缩放比例。")
@@ -894,6 +975,20 @@ def render_lock_notice(width: int, height: int, dpi: int, elapsed_seconds: float
     ink.line((x, center_y - 7 * density, x, center_y + 7 * density), fill=(128, 151, 175, 90), width=density)
     x += 15 * density
     ink.text((x, center_y), duration, font=detail_font, anchor="lm", fill=(134, 216, 244, 255))
+    if activity:
+        lines = activity_notice_lines(activity)
+        panel_width = max(card.width, min(860 * density, max(math.ceil(detail_font.getlength(line)) for line in lines) + 40 * density))
+        expanded = Image.new("RGBA", (panel_width, card.height + 60 * density))
+        expanded.alpha_composite(card, ((panel_width - card.width) // 2, 0))
+        ink = ImageDraw.Draw(expanded)
+        y = card.height - 6 * density
+        ink.rounded_rectangle((margin, y, panel_width - margin, expanded.height - margin), radius=10 * density, fill=(17, 25, 36, 235))
+        for index, line in enumerate(lines):
+            budget = panel_width - 48 * density
+            while line and detail_font.getlength(line) > budget:
+                line = line[:-2] + "…"
+            ink.text((24 * density, y + (7 + 22 * index) * density), line, font=detail_font, fill=(209, 231, 249, 255))
+        card = expanded
     notice_scale = min(scale, width / (card.width / density), height / (card.height / density))
     card = card.resize((max(1, round(card.width * notice_scale / density)),
                         max(1, round(card.height * notice_scale / density))), Image.Resampling.LANCZOS)
@@ -915,6 +1010,7 @@ class GuiService:
         self.overlay_windows: list[int] = []
         self.overlay_notices: list[tuple[int, dict[str, int]]] = []
         self.overlay_timer_hwnd = 0
+        self._init_activity()
         self.lock_started_at: float | None = None
         self.last_notice_second = 0
         self.window_proc = WNDPROC(self._window_proc)
@@ -1132,7 +1228,105 @@ class GuiService:
             if error != 1410:
                 raise ctypes.WinError(error)
 
+    def _init_activity(self) -> None:
+        self.activity_lock = threading.Lock()
+        self.activity = {"revision": 0, "observation": None, "pointer": None, "action": None}
+        self.activity_pending = False
+        self.painted_activity: dict[str, Any] = {}
+        self.overlay_canvases: list[tuple[int, dict[str, int]]] = []
+        self.overlay_pointers: list[tuple[int, dict[str, int]]] = []
+
+    def _publish_activity(self, **changes: Any) -> None:
+        # RPC threads publish immutable snapshots. Only the window thread touches HWNDs.
+        # Lightweight service fixtures without a window controller need no notification.
+        if not hasattr(self, "activity_lock") or self.cancel_event.is_set():
+            return
+        with self.activity_lock:
+            self.activity = {**self.activity, **deepcopy(changes), "revision": self.activity["revision"] + 1}
+            hwnd = self.overlay_windows[0] if self.overlay_windows else 0
+            if hwnd and not self.activity_pending:
+                self.activity_pending = True
+                if not user32.PostMessageW(hwnd, WM_APP_ACTIVITY, 0, 0):
+                    self.activity_pending = False
+                    self.request_stop("overlay_activity_failed")
+
+    def _activity_status(self) -> dict[str, Any]:
+        if not hasattr(self, "activity_lock"):
+            return {}
+        with self.activity_lock:
+            state = self.activity
+            observation = state["observation"]
+            return deepcopy({**state, "observation": {k: v for k, v in observation.items() if k != "cells"} if observation else None})
+
+    def _show_activity_view(self, session: dict[str, Any], frame: dict[str, Any], view: dict[str, Any],
+                            *, offset: tuple[int, int] = (0, 0)) -> None:
+        if not hasattr(self, "activity_lock") or self.cancel_event.is_set():
+            return
+        path, node = [], view
+        while node is not None:
+            path.append(node["view_id"])
+            node = frame["views"].get(node.get("parent_view_id"))
+        observation = {"gui_session_id": session["gui_session_id"], "frame_id": frame["frame_id"],
+                       "view_id": view["view_id"], "parent_view_id": view.get("parent_view_id"),
+                       "path": list(reversed(path)), "depth": len(path) - 1, "valid": True,
+                       "source_rect_absolute": deepcopy(view["source_rect_absolute"]),
+                       "grid": deepcopy(view["grid"]), "cells": deepcopy(view["cells"])}
+        for rect in [observation["source_rect_absolute"], *(cell["rect_absolute"] for cell in observation["cells"])]:
+            rect["left"] += offset[0]
+            rect["top"] += offset[1]
+        previous = self._activity_status().get("observation")
+        changes = {"observation": observation}
+        if not previous or previous["gui_session_id"] != session["gui_session_id"]:
+            changes["pointer"] = None
+        self._publish_activity(**changes)
+
+    def _invalidate_activity_view(self, session: dict[str, Any], *, close: bool = False) -> None:
+        if not hasattr(self, "activity_lock"):
+            return
+        with self.activity_lock:
+            observation = self.activity["observation"]
+        if observation and observation["gui_session_id"] == session["gui_session_id"]:
+            self._publish_activity(observation=None if close else {**observation, "valid": False},
+                                   **({"pointer": None} if close else {}))
+
+    def _show_activity_input_view(self, session: dict[str, Any], frame: dict[str, Any], view_id: str) -> None:
+        if not hasattr(self, "activity_lock"):
+            return
+        current = self._target_rect(session["target"])
+        captured = frame["capture_rect"]
+        self._show_activity_view(session, frame, self._view(frame, view_id),
+                                 offset=(current["left"] - captured["left"], current["top"] - captured["top"]))
+
+    def _flush_activity(self) -> None:
+        if self.cancel_event.is_set():
+            return
+        with self.activity_lock:
+            state = self.activity
+            self.activity_pending = False
+        previous = self.painted_activity
+        if state["observation"] is not previous.get("observation"):
+            for hwnd, rect in self.overlay_canvases:
+                image = render_activity_overlay(rect, int(user32.GetDpiForWindow(hwnd)), state["observation"])
+                self._upload_overlay_image(hwnd, {"left": 0, "top": 0}, image)
+        if state["pointer"] is not previous.get("pointer"):
+            pointer = state["pointer"]
+            for hwnd, rect in self.overlay_pointers:
+                if pointer and rect["left"] <= pointer["x"] < rect["left"] + rect["width"] and rect["top"] <= pointer["y"] < rect["top"] + rect["height"]:
+                    image, pad = render_activity_pointer(int(user32.GetDpiForWindow(hwnd)), pointer)
+                    self._upload_overlay_image(hwnd, {"left": pointer["x"] - rect["left"] - pad,
+                                                       "top": pointer["y"] - rect["top"] - pad}, image)
+                    user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
+                else:
+                    user32.ShowWindow(hwnd, 0)
+        if state["action"] is not previous.get("action") or state["observation"] is not previous.get("observation"):
+            elapsed = max(0, time.monotonic() - self.lock_started_at) if self.lock_started_at is not None else 0
+            for hwnd, rect in self.overlay_notices:
+                self._update_lock_notice(hwnd, rect, elapsed)
+        self.painted_activity = state
+
     def _create_windows(self) -> None:
+        if not hasattr(self, "activity_lock"):
+            self._init_activity()
         self.overlay_notices = []
         self.overlay_timer_hwnd = 0
         self.overlay_class = f"TianceGuiOverlay_{os.getpid()}"
@@ -1166,6 +1360,15 @@ class GuiService:
             if not child:
                 raise GuiError("OVERLAY_RENDER_FAILED", "无法创建柔光提示层。")
             self._update_overlay(int(child), {**rect, "left": 0, "top": 0})
+            self.overlay_canvases.append((int(child), rect))
+            pointer = user32.CreateWindowExW(
+                WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
+                self.overlay_class, "Tiance AI Pointer", WS_CHILD,
+                0, 0, 1, 1, hwnd, 0, instance, None,
+            )
+            if not pointer:
+                raise GuiError("OVERLAY_RENDER_FAILED", "无法创建操作位置提示层。")
+            self.overlay_pointers.append((int(pointer), rect))
             notice = user32.CreateWindowExW(
                 WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
                 self.overlay_class, "Tiance AI Control Notice", WS_CHILD,
@@ -1189,6 +1392,8 @@ class GuiService:
                 user32.DestroyWindow(hwnd)
         self.overlay_windows.clear()
         self.overlay_notices.clear()
+        if hasattr(self, "activity_lock"):
+            self._init_activity()
 
     def _start_overlay_timer(self) -> None:
         if not self.overlay_windows:
@@ -1208,6 +1413,12 @@ class GuiService:
         self.last_notice_second = elapsed
 
     def _window_proc(self, hwnd: int, message: int, wparam: int, lparam: int) -> int:
+        if message == WM_APP_ACTIVITY:
+            try:
+                self._flush_activity()
+            except Exception:
+                self.request_stop("overlay_activity_failed")
+            return 0
         if message == WM_TIMER and hwnd == self.overlay_timer_hwnd and wparam == LOCK_NOTICE_TIMER_ID:
             try:
                 self._refresh_lock_notice()
@@ -1241,7 +1452,8 @@ class GuiService:
         self._upload_overlay_image(hwnd, rect, image)
 
     def _update_lock_notice(self, hwnd: int, rect: dict[str, int], elapsed_seconds: float) -> None:
-        image = render_lock_notice(rect["width"], rect["height"], int(user32.GetDpiForWindow(hwnd)), elapsed_seconds)
+        image = render_lock_notice(rect["width"], rect["height"], int(user32.GetDpiForWindow(hwnd)), elapsed_seconds,
+                                   activity=self._activity_status())
         self._upload_overlay_image(hwnd, {"left": (rect["width"] - image.width) // 2, "top": 0}, image)
 
     def _upload_overlay_image(self, hwnd: int, rect: dict[str, int], image: Image.Image) -> None:
@@ -1433,18 +1645,18 @@ class GuiService:
                 raise GuiError("GUI_RUNTIME_STOPPED", "GUI后台运行器已经退出。")
             if not self.block_user_input:
                 raise GuiError("GUI_LOCK_REQUIRED", "请先调用gui_runtime start锁定界面。")
-            if method == "inspect":
-                result = self.inspect(arguments)
-            elif method == "mouse":
-                result = self.mouse(arguments)
-            elif method == "keyboard":
-                result = self.keyboard(arguments)
-            elif method == "batch":
-                result = self.batch(arguments)
-            elif method == "uia":
-                result = self.uia(arguments)
-            else:
+            handlers = {"inspect": self.inspect, "mouse": self.mouse, "keyboard": self.keyboard,
+                        "batch": self.batch, "uia": self.uia}
+            if method not in handlers:
                 raise GuiError("INVALID_ARGUMENT", f"不支持的GUI方法：{method}")
+            activity_action = {"tool": method, "name": "batch" if method == "batch" else str(arguments.get("action") or "")}
+            self._publish_activity(action={**activity_action, "phase": "running"})
+            try:
+                result = handlers[method](arguments)
+            except Exception:
+                self._publish_activity(action={**activity_action, "phase": "failed"})
+                raise
+            self._publish_activity(action={**activity_action, "phase": "completed" if result.get("ok") else "failed"})
             if result.get("ok"):
                 self.last_activity = time.monotonic()
             return result
@@ -1470,6 +1682,7 @@ class GuiService:
                 "idle_remaining_seconds": max(0, self.idle_timeout_seconds - (time.monotonic() - self.last_activity)),
                 "stop_reason": self.stop_reason,
                 "coordinate_space": "physical_screen_pixels",
+                "activity": self._activity_status(),
                 "external_input_counts": {
                     "mouse": self.external_mouse_events,
                     "keyboard": self.external_keyboard_events,
@@ -1573,6 +1786,7 @@ class GuiService:
         overlay: str = DEFAULT_OVERLAY,
         parent_view_id: str | None = None,
         parent_display_scale: tuple[float, float] = (1.0, 1.0),
+        parent_image_size: tuple[int, int] | None = None,
     ) -> dict[str, Any]:
         if raw.size != (source_rect["width"], source_rect["height"]):
             raise GuiError("CAPTURE_GEOMETRY_MISMATCH", "截图像素尺寸与屏幕区域不一致，未建立坐标映射。")
@@ -1581,10 +1795,14 @@ class GuiService:
         if not 100 <= zoom_scale_percent <= 800:
             raise GuiError("INVALID_ARGUMENT", "zoom_scale_percent必须在100到800之间。")
         # Zoom the clean source to its final canvas before drawing any annotations.
-        # A child zoom multiplies the selected region's size in its parent view.
+        # Fit the requested child zoom inside its immediate parent's canvas before
+        # allocating the image. Use one factor for both axes, then redraw the grid.
         # Keep source pixels/cells unchanged: these remain the input coordinate authority.
-        display_size = (round(raw.width * parent_display_scale[0] * zoom_scale_percent / 100),
-                        round(raw.height * parent_display_scale[1] * zoom_scale_percent / 100))
+        requested_size = (raw.width * parent_display_scale[0] * zoom_scale_percent / 100,
+                          raw.height * parent_display_scale[1] * zoom_scale_percent / 100)
+        fit = (min(1.0, parent_image_size[0] / requested_size[0], parent_image_size[1] / requested_size[1])
+               if parent_image_size is not None else 1.0)
+        display_size = tuple(max(1, round(size * fit)) for size in requested_size)
         display = raw.resize(display_size, Image.Resampling.NEAREST) if display_size != raw.size else raw
         rendered = overlay_image(display, cells, source_rect, overlay)
         frame_folder = folder / f"frame_{frame_id:03d}"
@@ -1601,6 +1819,8 @@ class GuiService:
             "overlay": rendered.info["overlay"],
             "parent_view_id": parent_view_id,
             "zoom_scale_percent": zoom_scale_percent,
+            "effective_zoom_scale_percent": zoom_scale_percent * fit,
+            "zoom_limited_by_parent": fit < 1.0,
             "grid": {"rows": rows, "columns": cols},
             "cells": cells,
             "raw_image": raw_path.relative_to(folder).as_posix(),
@@ -1696,6 +1916,7 @@ class GuiService:
         interface_state: dict[str, Any] | None = None,
         performed: bool = True,
     ) -> dict[str, Any]:
+        self._show_activity_view(session, frame, view)
         return {
             "ok": True,
             "summary": summary,
@@ -1715,6 +1936,8 @@ class GuiService:
                 "source_rect_absolute": view["source_rect_absolute"],
                 "image_size": view["image_size"],
                 "zoom_scale_percent": view["zoom_scale_percent"],
+                "effective_zoom_scale_percent": view.get("effective_zoom_scale_percent", view["zoom_scale_percent"]),
+                "zoom_limited_by_parent": view.get("zoom_limited_by_parent", False),
                 "sampling": {
                     "source_pixels": {"width": view["source_rect_absolute"]["width"], "height": view["source_rect_absolute"]["height"]},
                     "display_pixels_per_screen_pixel": view["image_size"]["width"] / view["source_rect_absolute"]["width"],
@@ -1727,7 +1950,9 @@ class GuiService:
                 },
             },
             "image_path": str(image_path),
-            "warnings": (["底图已放大至像素级观察；继续放大会增大显示尺寸，但不增加原始细节。网格和编号在底图放大后重新绘制。"]
+            "warnings": (["请求倍率已按父View尺寸等比例约束，输出宽高均不超过父View；需要进一步放大目标时请缩小选区。"]
+                         if view.get("zoom_limited_by_parent", False) else [])
+                        + (["底图已放大至像素级观察，不增加原始细节。网格和编号在最终尺寸的底图上重新绘制。"]
                          if max(view["image_size"][axis] / view["source_rect_absolute"][axis]
                                 for axis in ("width", "height")) >= 8 else [])
                         + (["截图时键盘焦点未知或不存在；输入前会核对当前前台窗口及实时焦点。"]
@@ -1846,6 +2071,7 @@ class GuiService:
         if action == "close":
             session["status"] = "closed"
             session["closed_at"] = now_iso()
+            self._invalidate_activity_view(session, close=True)
             self._save_session(session)
             self.created_gui_sessions.discard(gui_session_id)
             return {
@@ -1909,6 +2135,7 @@ class GuiService:
                 parent_view_id=parent["view_id"],
                 parent_display_scale=(parent["image_size"]["width"] / parent_rect["width"],
                                       parent["image_size"]["height"] / parent_rect["height"]),
+                parent_image_size=(parent["image_size"]["width"], parent["image_size"]["height"]),
             )
             frame["views"][view_id] = view
             self._save_session(session)
@@ -2149,6 +2376,8 @@ class GuiService:
             interface_state=state,
             performed=False,
         )
+        self._show_activity_view(session, frame, view, offset=(screen_x - captured_x, screen_y - captured_y))
+        self._publish_activity(pointer={"x": screen_x, "y": screen_y, "phase": "preview"})
         result["data"].update({
             "previewed": True,
             "selected_coordinate": {
@@ -2265,6 +2494,7 @@ class GuiService:
 
     def _invalidate_frame(self, session: dict[str, Any]) -> None:
         session["latest_frame_id"] = -1
+        self._invalidate_activity_view(session)
         self._save_session(session)
 
     @contextmanager
@@ -2397,6 +2627,8 @@ class GuiService:
                 end_point=end_point,
             )
             return self._save_mouse_preview(session, arguments, result, rect, (x, y), end_point)
+        self._show_activity_view(session, frame, self._view(frame, str(arguments.get("view_id") or "root")),
+                                 offset=(rect["left"] - frame["capture_rect"]["left"], rect["top"] - frame["capture_rect"]["top"]))
         action_data: dict[str, Any] = {"type": action, "screen_point": {"x": x, "y": y}}
         with self._ai_input(session) as counters:
             if action == "move":
@@ -2515,6 +2747,8 @@ class GuiService:
                         self._check_keyboard_target(frame)
                     elif kind != "wait":
                         self._require_frame(session, item)
+                    self._publish_activity(action={"tool": "batch", "name": kind, "phase": "running",
+                                                   "step": index + 1, "total": len(actions)})
                     result = self._execute_batch_item(session, item)
                     results.append(result)
                 except Exception as error:
@@ -2532,6 +2766,7 @@ class GuiService:
         action = str(item.get("type") or "")
         if action in {"move", "click", "scroll", "mouse_down", "mouse_up"}:
             _frame, x, y = self._resolve_point(session, item)
+            self._show_activity_input_view(session, _frame, str(item.get("view_id") or "root"))
             if action == "move":
                 self._mouse_move(x, y, int(item.get("duration_ms", 0)))
             elif action == "click":
@@ -2560,6 +2795,7 @@ class GuiService:
                 raise GuiError("INVALID_ARGUMENT", "批量drag缺少to。")
             _target_frame, end_x, end_y = self._resolve_point(session, {"frame_id": item.get("frame_id"), **target})
             self._check_drag_origin(_frame, x, y)
+            self._show_activity_input_view(session, _frame, str(item.get("view_id") or "root"))
             with self._hold_modifiers(self._normalize_modifiers(item.get("modifiers"))):
                 self._mouse_drag(x, y, end_x, end_y, str(item.get("button") or "left"), int(item.get("duration_ms", 0)), origin_frame=_frame)
             return {"type": action, "from": {"x": x, "y": y}, "to": {"x": end_x, "y": end_y}}
@@ -2601,6 +2837,7 @@ class GuiService:
         normalized_y = min(65535, int((y - top + 0.5) * 65536 / height))
         flags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK
         self._send_input(INPUT(type=INPUT_MOUSE, mi=MOUSEINPUT(normalized_x, normalized_y, 0, flags, 0, self.marker)))
+        self._publish_activity(pointer={"x": x, "y": y, "phase": "pressed" if self.held_mouse_buttons else "moving"})
 
     def _mouse_move(self, x: int, y: int, duration_ms: int) -> None:
         duration = max(0, min(int(duration_ms), 10000))
@@ -2647,6 +2884,9 @@ class GuiService:
                 self.held_mouse_buttons.add(button)
             elif flag == up:
                 self.held_mouse_buttons.discard(button)
+            pointer = self._activity_status().get("pointer")
+            if pointer and pointer.get("phase") != "preview":
+                self._publish_activity(pointer={**pointer, "phase": "pressed" if self.held_mouse_buttons else "released", "button": button})
 
     @staticmethod
     def _button(value: Any) -> str:

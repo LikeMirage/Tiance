@@ -21,8 +21,8 @@ from app.repositories.project.conversation_database import (
     transaction_for_conversations,
     write_artifact_record,
 )
-from app.repositories.project.conversation_audit_payloads import (
-    externalize_audit_payload,
+from app.repositories.project.conversation_audit_snapshots import (
+    store_audit_snapshot,
 )
 from app.repositories.project.conversation_storage import (
     ProjectWorkspaceDirectoryResolver,
@@ -160,19 +160,19 @@ class ConversationAuditService:
                 ensure_ascii=False,
                 separators=(",", ":"),
             ).encode("utf-8")
-            manifest = externalize_audit_payload(workspace_dir, payload)
-            stored_content = dumps(
-                manifest,
-                ensure_ascii=False,
-                separators=(",", ":"),
-            ).encode("utf-8")
-            compressed_content = gzip_compress(stored_content, mtime=0)
             completed_metadata = {
                 **metadata,
-                "storage": "content_addressed_audit_manifest_v1",
+                "storage": "incremental_audit_manifest_v2",
             }
             with conversation_write_lock(conversations_dir):
-                with transaction_for_conversations(conversations_dir):
+                with transaction_for_conversations(conversations_dir) as connection:
+                    manifest = store_audit_snapshot(
+                        connection, request.session_id, "model_http_exchange", payload,
+                    )
+                    compressed_content = gzip_compress(
+                        dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
+                        mtime=0,
+                    )
                     complete_artifact_record(
                         workspace_dir,
                         artifact_id=artifact_id,
@@ -180,7 +180,7 @@ class ConversationAuditService:
                         sha256=sha256(content).hexdigest(),
                         metadata=completed_metadata,
                         payload_blob=compressed_content,
-                        compression="gzip+audit-manifest-v1",
+                        compression="gzip+audit-manifest-v2",
                     )
                     append_journal_event(
                         workspace_dir,

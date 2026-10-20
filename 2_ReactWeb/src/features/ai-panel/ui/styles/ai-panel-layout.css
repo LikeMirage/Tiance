@@ -145,6 +145,31 @@
   cursor: pointer;
 }
 
+.ai-panel__inline-error-message {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ai-panel__inline-error .ai-panel__inline-error-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-color: transparent;
+}
+
+.ai-panel__inline-error-dismiss:hover {
+  background: var(--color-danger-bg);
+}
+
+.ai-panel__inline-error button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
 .ai-panel__body-frame {
   position: relative;
   flex: 1 1 0;

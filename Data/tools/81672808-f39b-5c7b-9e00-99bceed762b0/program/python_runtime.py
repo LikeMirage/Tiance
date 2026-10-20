@@ -48,12 +48,18 @@ finally:
 """.strip()
 
 _INHERITED_ENV_KEYS = {
+    "ALLUSERSPROFILE",
+    "APPDATA",
     "COMSPEC",
     "HOME",
     "HOMEDRIVE",
     "HOMEPATH",
+    "LOCALAPPDATA",
     "PATH",
     "PATHEXT",
+    "ProgramData",
+    "PUBLIC",
+    "SystemDrive",
     "SystemRoot",
     "TEMP",
     "TMP",

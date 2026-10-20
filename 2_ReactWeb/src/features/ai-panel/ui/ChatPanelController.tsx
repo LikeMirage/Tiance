@@ -62,6 +62,7 @@ import {
 import { ChatComposer } from "./ChatComposer";
 import { ChatHeader, type ChatPanelView } from "./ChatHeader";
 import { ChatPanelBodyFrame } from "./ChatPanelBodyFrame";
+import { ChatPanelErrorNotice } from "./ChatPanelErrorNotice";
 import type { ConversationDataFileName } from "./ChatDataDashboardPanel";
 import { ChatSettingsTabs } from "./ChatSettingsTabs";
 import type { ChatSettingsPanel } from "./ChatSettingsView";
@@ -556,6 +557,7 @@ export function ChatPanelController({
     onOpenProjectFile,
     projectId,
     projectRootPath,
+    sessionId: activeSessionId,
   });
   const {
     expandedUserMessageIds,
@@ -817,36 +819,11 @@ export function ChatPanelController({
         }}
       />
 
-      {createConversationError ? (
-        <div className="ai-panel__inline-error" role="status">
-          {createConversationError}
-        </div>
-      ) : null}
-
-      {sessionLoadError ? (
-        <div className="ai-panel__inline-error" role="status">
-          <span>{sessionLoadError}</span>
-          <button type="button" onClick={retryLoadSessions}>重试</button>
-        </div>
-      ) : null}
-
-      {sessionSelectionError ? (
-        <div className="ai-panel__inline-error" role="status">
-          {sessionSelectionError}
-        </div>
-      ) : null}
-
-      {branchError ? (
-        <div className="ai-panel__inline-error" role="status">
-          {branchError}
-        </div>
-      ) : null}
-
-      {localFileActionError ? (
-        <div className="ai-panel__inline-error" role="status">
-          {localFileActionError}
-        </div>
-      ) : null}
+      <ChatPanelErrorNotice message={createConversationError} scopeKey={activeSessionKey ?? projectId} />
+      <ChatPanelErrorNotice message={sessionLoadError} scopeKey={projectId} onRetry={retryLoadSessions} />
+      <ChatPanelErrorNotice message={sessionSelectionError} scopeKey={activeSessionKey ?? projectId} />
+      <ChatPanelErrorNotice message={branchError} scopeKey={activeSessionKey ?? projectId} />
+      <ChatPanelErrorNotice message={localFileActionError} scopeKey={activeSessionKey ?? projectId} />
 
       {activeView === "settings" && (
         <ChatSettingsTabs

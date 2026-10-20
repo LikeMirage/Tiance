@@ -3,6 +3,7 @@ import type { JsExcelPreview, Options as JsExcelPreviewOptions } from "@js-previ
 import "@js-preview/excel/lib/index.css";
 
 import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
+import { useDocumentReadingValue } from "../../../entities/editor/model/documentReadingState";
 import { ContextMenu, ContextMenuItem } from "../../../shared/ui/context-menu";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import type { OfficeLoadingVisibilityChange } from "./officePreviewTypes";
@@ -42,8 +43,14 @@ type ExcelPreviewOptions = JsExcelPreviewOptions & {
 type InternalExcelPreviewer = JsExcelPreview & {
   sheetIndex?: number;
   xs?: {
+    sheet?: {
+      data?: { name?: string; scroll?: { x: number; y: number } };
+      verticalScrollbar?: { move: (position: { top: number }) => void };
+      horizontalScrollbar?: { move: (position: { left: number }) => void };
+    };
     bottombar?: {
-      swapFunc?: (index: number) => void;
+      items?: unknown[];
+      clickSwap2?: (item: unknown) => void;
     };
     loadData?: (data: ExcelWorkbookData) => void;
     reRender?: () => void;
@@ -78,6 +85,9 @@ export function ExcelPreview({
   const selectionReferenceRunIdRef = useRef(0);
   const workbookDataRef = useRef<ExcelWorkbookData | null>(null);
   const zoomRef = useRef(zoom);
+  const [reading, setReading] = useDocumentReadingValue("excel:formatted-position", { sheet: "", top: 0, left: 0 });
+  const readingRef = useRef(reading);
+  readingRef.current = reading;
   const [copyErrorMessage, setCopyErrorMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCreatingSelectionReference, setIsCreatingSelectionReference] = useState(false);
@@ -290,6 +300,42 @@ export function ExcelPreview({
     };
   }, [src]);
 
+  useEffect(() => {
+    if (state !== "ready" || isLoadingVisible) return;
+    const shell = shellRef.current;
+    const runtime = previewerRef.current as InternalExcelPreviewer | null;
+    if (!shell || !runtime?.xs) return;
+    let frame = 0;
+    const restore = () => {
+      const target = readingRef.current;
+      const index = workbookDataRef.current?.findIndex((sheet) => sheet.name === target.sheet) ?? -1;
+      if (index >= 0 && index !== runtime.sheetIndex) activateExcelSheet(runtime, index);
+      runtime.xs?.sheet?.verticalScrollbar?.move({ top: target.top });
+      runtime.xs?.sheet?.horizontalScrollbar?.move({ left: target.left });
+    };
+    restore();
+    frame = requestAnimationFrame(restore);
+    const capture = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const data = runtime.xs?.sheet?.data;
+        if (!data?.scroll) return;
+        const next = { sheet: data.name ?? "", top: data.scroll.y, left: data.scroll.x };
+        const old = readingRef.current;
+        if (next.sheet !== old.sheet || next.top !== old.top || next.left !== old.left) setReading(next);
+      });
+    };
+    shell.addEventListener("scroll", capture, true);
+    shell.addEventListener("click", capture, true);
+    shell.addEventListener("keyup", capture, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      shell.removeEventListener("scroll", capture, true);
+      shell.removeEventListener("click", capture, true);
+      shell.removeEventListener("keyup", capture, true);
+    };
+  }, [state, isLoadingVisible, zoom, setReading]);
+
   const handleContextMenu = (event: MouseEvent<HTMLElement>) => {
     if (state !== "ready" || !onCreateSelectionImageReference) return;
     event.preventDefault();
@@ -376,13 +422,26 @@ export function ExcelPreview({
   );
 }
 
+function activateExcelSheet(previewer: InternalExcelPreviewer, index: number) {
+  const bar = previewer.xs?.bottombar;
+  const item = bar?.items?.[index];
+  // swapFunc changes data only; clickSwap2 also updates the visible active tab.
+  if (item && bar?.clickSwap2) bar.clickSwap2(item);
+}
+
 function refreshExcelPreview(previewer: JsExcelPreview | null, workbookData: ExcelWorkbookData) {
   const internalPreviewer = previewer as InternalExcelPreviewer | null;
   if (!internalPreviewer?.xs?.loadData) return;
 
   const sheetIndex = typeof internalPreviewer.sheetIndex === "number" ? internalPreviewer.sheetIndex : 0;
+  const scroll = internalPreviewer.xs.sheet?.data?.scroll;
+  const position = scroll ? { top: scroll.y, left: scroll.x } : null;
   internalPreviewer.xs.loadData(workbookData);
-  internalPreviewer.xs.bottombar?.swapFunc?.(sheetIndex);
+  activateExcelSheet(internalPreviewer, sheetIndex);
+  if (position) {
+    internalPreviewer.xs.sheet?.verticalScrollbar?.move({ top: position.top });
+    internalPreviewer.xs.sheet?.horizontalScrollbar?.move({ left: position.left });
+  }
   internalPreviewer.xs.reRender?.();
 }
 

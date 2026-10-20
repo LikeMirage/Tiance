@@ -1,6 +1,18 @@
 /* 通用文件工作区树样式 */
 
 .fwt-shell {
+  --fwt-file-word: #2563b8;
+  --fwt-file-spreadsheet: #21804a;
+  --fwt-file-presentation: #ba5425;
+  --fwt-file-pdf: #cf3838;
+  --fwt-file-image: #8054b8;
+  --fwt-file-video: #b04486;
+  --fwt-file-audio: #168078;
+  --fwt-file-markdown: #386c9c;
+  --fwt-file-archive: #9b741b;
+  --fwt-file-database: #327b91;
+  --fwt-file-code: #6472b5;
+
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -9,6 +21,20 @@
   min-height: 100%;
   height: 100%;
   user-select: none;
+}
+
+:root[data-theme-mode="dark"] .fwt-shell {
+  --fwt-file-word: #79aaff;
+  --fwt-file-spreadsheet: #6acb92;
+  --fwt-file-presentation: #f2a06f;
+  --fwt-file-pdf: #f58282;
+  --fwt-file-image: #bd96ef;
+  --fwt-file-video: #e58ac1;
+  --fwt-file-audio: #65c9c0;
+  --fwt-file-markdown: #8fb9df;
+  --fwt-file-archive: #dabb6c;
+  --fwt-file-database: #77bdd0;
+  --fwt-file-code: #a4adee;
 }
 
 .fwt-tree {
@@ -112,6 +138,51 @@
   flex-shrink: 0;
   color: var(--color-text-muted);
 }
+
+.fwt-file-icon { flex-shrink: 0; }
+.fwt-file-icon--word { color: var(--fwt-file-word); }
+.fwt-file-icon--spreadsheet { color: var(--fwt-file-spreadsheet); }
+.fwt-file-icon--presentation { color: var(--fwt-file-presentation); }
+.fwt-file-icon--pdf { color: var(--fwt-file-pdf); }
+.fwt-file-icon--image { color: var(--fwt-file-image); }
+.fwt-file-icon--video { color: var(--fwt-file-video); }
+.fwt-file-icon--audio { color: var(--fwt-file-audio); }
+.fwt-file-icon--text { color: var(--color-text-secondary); }
+.fwt-file-icon--markdown { color: var(--fwt-file-markdown); }
+.fwt-file-icon--archive { color: var(--fwt-file-archive); }
+.fwt-file-icon--database { color: var(--fwt-file-database); }
+.fwt-file-icon--code { color: var(--fwt-file-code); }
+
+/* 语言图标沿用深浅主题配色，字母标识提供独立于颜色的辨识方式。 */
+.fwt-file-icon--python,
+.fwt-file-icon--typescript,
+.fwt-file-icon--c,
+.fwt-file-icon--cpp,
+.fwt-file-icon--powershell,
+.fwt-file-icon--r { color: var(--fwt-file-word); }
+.fwt-file-icon--javascript,
+.fwt-file-icon--json { color: var(--fwt-file-archive); }
+.fwt-file-icon--react,
+.fwt-file-icon--go,
+.fwt-file-icon--dart,
+.fwt-file-icon--sql { color: var(--fwt-file-database); }
+.fwt-file-icon--html,
+.fwt-file-icon--java,
+.fwt-file-icon--rust,
+.fwt-file-icon--swift,
+.fwt-file-icon--svelte { color: var(--fwt-file-presentation); }
+.fwt-file-icon--css,
+.fwt-file-icon--php,
+.fwt-file-icon--lua { color: var(--fwt-file-code); }
+.fwt-file-icon--sass,
+.fwt-file-icon--kotlin { color: var(--fwt-file-video); }
+.fwt-file-icon--vue,
+.fwt-file-icon--shell,
+.fwt-file-icon--tex { color: var(--fwt-file-spreadsheet); }
+.fwt-file-icon--csharp { color: var(--fwt-file-image); }
+.fwt-file-icon--ruby,
+.fwt-file-icon--yaml { color: var(--fwt-file-pdf); }
+.fwt-file-icon--config { color: var(--color-text-secondary); }
 
 /* 名称 */
 .fwt-name {

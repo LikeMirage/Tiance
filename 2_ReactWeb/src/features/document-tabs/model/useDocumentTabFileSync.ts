@@ -51,6 +51,18 @@ export function useDocumentTabFileSync({
   tabsRef,
 }: UseDocumentTabFileSyncOptions) {
   const fileSourceRuntimesRef = useRef(new Map<string, DocumentFileSourceRuntime>());
+  const readControllersRef = useRef(new Map<EditorTabId, AbortController>());
+
+  useEffect(() => {
+    const open = new Set(tabs.map((tab) => tab.id));
+    for (const [id, controller] of readControllersRef.current) {
+      if (!open.has(id)) { controller.abort(); readControllersRef.current.delete(id); }
+    }
+  }, [tabs]);
+  useEffect(() => () => {
+    for (const controller of readControllersRef.current.values()) controller.abort();
+    readControllersRef.current.clear();
+  }, []);
 
   const registerFileSource = useCallback((runtime: DocumentFileSourceRuntime) => {
     fileSourceRuntimesRef.current.set(runtime.source.key, runtime);
@@ -97,9 +109,15 @@ export function useDocumentTabFileSync({
 
     const requestId = (fileLoadRequestIdsRef.current.get(tabId) ?? 0) + 1;
     fileLoadRequestIdsRef.current.set(tabId, requestId);
+    readControllersRef.current.get(tabId)?.abort();
+    const controller = new AbortController();
+    readControllersRef.current.set(tabId, controller);
+    if (!currentTab?.textContentLoaded) {
+      setTabs((prev) => prev.map((tab) => tab.id === tabId ? { ...tab, saveError: null } : tab));
+    }
 
     try {
-      const res = await runtime.getApi().readTextFile(normalizedFilePath);
+      const res = await runtime.getApi().readTextFile(normalizedFilePath, { signal: controller.signal });
       const resolvedPath = normalizeWorkspacePath(res.path || normalizedFilePath);
       if (fileLoadRequestIdsRef.current.get(tabId) !== requestId) return;
       setTabs((prev) =>
@@ -166,21 +184,36 @@ export function useDocumentTabFileSync({
         }),
       );
     } catch (err) {
+      if (controller.signal.aborted || fileLoadRequestIdsRef.current.get(tabId) !== requestId) return;
       if (err instanceof HttpRequestError && err.status === 404) {
         markDeletedWorkspacePath(runtime.source.key, normalizedFilePath);
         return;
       }
       const unavailable = getTextContentUnavailable(err);
-      if (!unavailable || fileLoadRequestIdsRef.current.get(tabId) !== requestId) return;
-      setTabs((prev) => prev.map((tab) => tab.id === tabId
+      if (!unavailable) {
+        setTabs((prev) => prev.map((tab) => tab.id === tabId && !tab.textContentLoaded
+          ? { ...tab, saveState: "error", saveError: err instanceof Error ? err.message : "文件读取失败。" } : tab));
+        return;
+      }
+      setTabs((prev) => prev.map((tab) => tab.id !== tabId ? tab : tab.isDirty
         ? {
+          ...tab,
+          externalChange: {
+            kind: "conflict" as const, detectedAt: Date.now(),
+            filePath: normalizedFilePath, mtimeMs: tab.mtimeMs,
+          },
+          saveState: "error" as const,
+          saveError: "磁盘文件已超过编辑器读取预算，当前未保存的内容仍保留，请另存或处理磁盘文件。",
+        }
+        : {
           ...tab,
           textContentLoaded: false,
           textContentUnavailable: unavailable,
           saveState: "idle" as const,
           saveError: null,
-        }
-        : tab));
+        }));
+    } finally {
+      if (readControllersRef.current.get(tabId) === controller) readControllersRef.current.delete(tabId);
     }
   }, [fileLoadRequestIdsRef, markDeletedWorkspacePath, setTabs]);
 
@@ -194,7 +227,6 @@ export function useDocumentTabFileSync({
     const normalizedChangedPaths = changedPaths
       .map(normalizeWorkspacePath)
       .filter(Boolean);
-    const hasDetailedChange = normalizedChangedPaths.length > 0;
     const candidateTabs = tabsRef.current.filter((tab) => {
       const filePath = getTabFilePath(tab);
       if (getTabSourceKey(tab) !== sourceKey || !filePath) return false;
@@ -203,6 +235,7 @@ export function useDocumentTabFileSync({
 
     const assetRefreshCandidates: Array<{
       filePath: string;
+      hasDirectChange: boolean;
       mtimeMs: number | null;
       tabId: EditorTabId;
     }> = [];
@@ -214,7 +247,10 @@ export function useDocumentTabFileSync({
         }
         void refreshTabContent(tab.id, runtime, filePath);
       } else if (tab.kind !== "text" && filePath) {
-        assetRefreshCandidates.push({ filePath, mtimeMs: tab.mtimeMs, tabId: tab.id });
+        assetRefreshCandidates.push({
+          filePath, mtimeMs: tab.mtimeMs, tabId: tab.id,
+          hasDirectChange: normalizedChangedPaths.includes(normalizeWorkspacePath(filePath)),
+        });
       }
     }
 
@@ -227,7 +263,7 @@ export function useDocumentTabFileSync({
           const metadata = await workspaceFileMetadata(runtime, candidate.filePath);
           const decision = decideAssetRefresh({
             currentMtimeMs: candidate.mtimeMs,
-            hasDetailedChange,
+            hasDetailedChange: candidate.hasDirectChange,
             metadata,
           });
           if (decision.kind === "mark-missing") {

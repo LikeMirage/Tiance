@@ -40,11 +40,12 @@ export function OfficePreviewToolbar({
 }: OfficePreviewToolbarProps) {
   const NativeOpenIcon = nativeOpenIcon(officeKind);
   const showZoomControls = officeKind === "word" || officeKind === "spreadsheet" || officeKind === "presentation";
+  const label = /\.(csv|tsv)$/i.test(fileName) ? fileName.split(".").at(-1)!.toUpperCase() : officeKindLabel(officeKind);
 
   return (
     <div className="office-preview__toolbar">
       <div className="office-preview__meta">
-        <span className="office-preview__type">{officeKindLabel(officeKind)}</span>
+        <span className="office-preview__type">{label}</span>
         <span className="office-preview__name">{fileName}</span>
         <span className="office-preview__path" title={displayPath}>{displayPath}</span>
       </div>
@@ -52,7 +53,7 @@ export function OfficePreviewToolbar({
         {showZoomControls ? (
           <>
             <PreviewZoomControl
-              ariaLabel={`${officeKindLabel(officeKind)} 预览缩放`}
+              ariaLabel={`${label} 预览缩放`}
               max={OFFICE_PREVIEW_MAX_ZOOM}
               min={OFFICE_PREVIEW_MIN_ZOOM}
               step={0.01}

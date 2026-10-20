@@ -21,8 +21,7 @@
 }
 
 .office-preview--content-loading .office-preview__toolbar {
-  visibility: hidden;
-  pointer-events: none;
+  opacity: 0.8;
 }
 
 .office-preview__meta {
@@ -158,6 +157,8 @@
 .office-preview__word .office-docx {
   color: #111827;
   line-height: 1.42;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1100px;
 }
 
 .office-preview__word .office-docx :where(p, li) {

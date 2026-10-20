@@ -26,8 +26,8 @@ export function createToolFolderFileWorkspaceApi(
     deleteEntry: (path) => deleteToolFolderFile(toolsetId, folderId, path),
     listTree: (options, init) => getToolFolderFiles(toolsetId, folderId, options, init),
     moveEntry: (payload) => moveToolFolderFile(toolsetId, folderId, payload),
-    readTextFile: async (path) => {
-      const response = await getToolFolderFileContent(toolsetId, folderId, path);
+    readTextFile: async (path, init) => {
+      const response = await getToolFolderFileContent(toolsetId, folderId, path, init);
       return {
         path: response.path,
         content: response.content,
@@ -152,9 +152,10 @@ export function openToolFolderFileExternal(
   );
 }
 
-function getToolFolderFileContent(toolsetId: string, folderId: string, path: string) {
+function getToolFolderFileContent(toolsetId: string, folderId: string, path: string, init?: Pick<RequestInit, "signal">) {
   return fetchJson<FileWorkspaceContentResponse>(
     `${toolFolderFilesPath(toolsetId, folderId)}/content?path=${encodeURIComponent(path)}`,
+    init,
   );
 }
 

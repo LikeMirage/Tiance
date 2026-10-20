@@ -61,6 +61,8 @@ const videoFileExtensions = new Set([
 ]);
 
 const officeFileExtensions = new Set([
+  "csv",
+  "tsv",
   "docx",
   "xls",
   "xlsx",

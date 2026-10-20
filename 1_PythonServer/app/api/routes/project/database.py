@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from app.schemas.project import (
     ProjectDatabaseOverviewResponse,
@@ -7,9 +7,20 @@ from app.schemas.project import (
     ProjectDatabaseRowsResponse,
     ProjectDatabaseTableSchemaResponse,
 )
-from app.services.project.project_database import get_project_database_service
+from app.core.errors import AppError
+from app.services.project.project_files import get_project_file_service
+from app.services.file_preview.runtime import preview_file
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+async def _database_preview(request: Request, project_id: str, path: str, method: str, **arguments) -> dict:
+    file_path = get_project_file_service().get_file_path(project_id, path)
+    result = await preview_file(request, file_path, "database", method=method,
+                                project_id=project_id, target_path=path, arguments=arguments)
+    if result.get("mode") == "blocked":
+        raise AppError(result["message"], code="preview_result_limit", status_code=422)
+    return result
 
 
 @router.get(
@@ -17,12 +28,12 @@ router = APIRouter(prefix="/projects", tags=["projects"])
     response_model=ProjectDatabaseOverviewResponse,
     summary="Read SQLite database overview",
 )
-def read_project_database_overview(
+async def read_project_database_overview(
+    request: Request,
     project_id: str,
     path: str = Query(..., description="SQLite 数据库文件路径"),
 ) -> ProjectDatabaseOverviewResponse:
-    service = get_project_database_service()
-    return service.overview(project_id, target_path=path)
+    return ProjectDatabaseOverviewResponse.model_validate(await _database_preview(request, project_id, path, "overview"))
 
 
 @router.get(
@@ -30,21 +41,20 @@ def read_project_database_overview(
     response_model=ProjectDatabaseRowsResponse,
     summary="Read SQLite table rows",
 )
-def read_project_database_table_data(
+async def read_project_database_table_data(
+    request: Request,
     project_id: str,
     path: str = Query(..., description="SQLite 数据库文件路径"),
     object_name: str = Query(..., min_length=1, description="表或视图名称"),
     limit: int = Query(default=100, ge=1),
     offset: int = Query(default=0, ge=0),
 ) -> ProjectDatabaseRowsResponse:
-    service = get_project_database_service()
-    return service.table_rows(
-        project_id,
-        target_path=path,
+    return ProjectDatabaseRowsResponse.model_validate(await _database_preview(
+        request, project_id, path, "table_rows",
         object_name=object_name,
         limit=limit,
         offset=offset,
-    )
+    ))
 
 
 @router.get(
@@ -52,17 +62,16 @@ def read_project_database_table_data(
     response_model=ProjectDatabaseTableSchemaResponse,
     summary="Read SQLite table schema",
 )
-def read_project_database_table_schema(
+async def read_project_database_table_schema(
+    request: Request,
     project_id: str,
     path: str = Query(..., description="SQLite 数据库文件路径"),
     object_name: str = Query(..., min_length=1, description="表或视图名称"),
 ) -> ProjectDatabaseTableSchemaResponse:
-    service = get_project_database_service()
-    return service.table_schema(
-        project_id,
-        target_path=path,
+    return ProjectDatabaseTableSchemaResponse.model_validate(await _database_preview(
+        request, project_id, path, "table_schema",
         object_name=object_name,
-    )
+    ))
 
 
 @router.post(
@@ -70,14 +79,13 @@ def read_project_database_table_schema(
     response_model=ProjectDatabaseQueryResponse,
     summary="Run read-only SQLite query",
 )
-def run_project_database_query(
+async def run_project_database_query(
+    request: Request,
     project_id: str,
     payload: ProjectDatabaseQueryRequest,
 ) -> ProjectDatabaseQueryResponse:
-    service = get_project_database_service()
-    return service.query(
-        project_id,
-        target_path=payload.path,
+    return ProjectDatabaseQueryResponse.model_validate(await _database_preview(
+        request, project_id, payload.path, "query",
         sql=payload.sql,
         limit=payload.limit,
-    )
+    ))

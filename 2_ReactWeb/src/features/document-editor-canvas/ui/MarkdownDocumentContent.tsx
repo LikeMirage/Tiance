@@ -9,6 +9,8 @@ import type { CodeBlockSavePayload } from "../../markdown-preview/model/codeBloc
 import { LazyMarkdownPreview } from "../../markdown-preview/ui/LazyMarkdownPreview";
 import type { CodeEditorTextSelectionContextMenu } from "../../editor/ui/CodeEditor";
 import { EditorLazyBoundary } from "./EditorContentBoundary";
+import { previewPolicy } from "../../file-preview/model/previewPolicy";
+import { useDocumentReadingScroll } from "../../../entities/editor/model/documentReadingState";
 
 const CodeEditor = lazy(() =>
   import("../../editor/ui/CodeEditor").then((module) => ({ default: module.CodeEditor })),
@@ -64,6 +66,8 @@ export function MarkdownDocumentContent({
   onUpdateContent: (id: string, content: string) => void;
   setMarkdownMode: Dispatch<SetStateAction<MarkdownEditorMode>>;
 }) {
+  const visualBudgetExceeded = activeTab.content.length > previewPolicy.richTextCharacters;
+  const effectiveMode = visualBudgetExceeded && markdownMode === "visual" ? "source" : markdownMode;
   const [renderMode, setRenderMode] = useState<MarkdownEditorMode | null>(
     markdownMode === "source" ? "source" : null,
   );
@@ -75,6 +79,9 @@ export function MarkdownDocumentContent({
   const isPreparingModeVisible = useMinimumLoading(isPreparingMode, MARKDOWN_MODE_MINIMUM_LOADING_MS);
   const renderRunIdRef = useRef(0);
   const docxStatusTimerRef = useRef<number | null>(null);
+  const previewScrollRef = useRef<HTMLDivElement>(null);
+  useDocumentReadingScroll("markdown-preview", previewScrollRef,
+    renderMode === "preview" && !isPreparingModeVisible, activeTab.content);
   const updateCurrentContent = (content: string) => onUpdateContent(activeTab.id, content);
   const markCurrentDirty = () => onMarkDirty(activeTab.id);
   const saveCurrentTab = (content: string) => void onSaveTab(activeTab.id, content);
@@ -120,7 +127,7 @@ export function MarkdownDocumentContent({
     renderRunIdRef.current += 1;
     const runId = renderRunIdRef.current;
 
-    if (markdownMode === "source") {
+    if (effectiveMode === "source") {
       setRenderMode("source");
       setIsPreparingMode(false);
       return;
@@ -132,7 +139,7 @@ export function MarkdownDocumentContent({
     firstFrame = window.requestAnimationFrame(() => {
       secondFrame = window.requestAnimationFrame(() => {
         if (renderRunIdRef.current === runId) {
-          setRenderMode(markdownMode);
+          setRenderMode(effectiveMode);
           setIsPreparingMode(false);
         }
       });
@@ -142,7 +149,7 @@ export function MarkdownDocumentContent({
       window.cancelAnimationFrame(firstFrame);
       window.cancelAnimationFrame(secondFrame);
     };
-  }, [activeTab.id, markdownMode]);
+  }, [activeTab.id, effectiveMode]);
 
   useEffect(() => () => {
     if (docxStatusTimerRef.current !== null) {
@@ -160,10 +167,14 @@ export function MarkdownDocumentContent({
 
   return (
     <>
+      {visualBudgetExceeded && markdownMode === "visual" ? (
+        <div className="preview-budget-notice" role="status">内容超过 20 万字符，使用完整源码编辑；仍可切换到后台解析的 Markdown 预览。</div>
+      ) : null}
       {renderMode === null || isPreparingModeVisible ? (
         <MarkdownLoadingPanel />
       ) : renderMode === "preview" ? (
         <div
+          ref={previewScrollRef}
           className="doc-editor__preview doc-editor__preview--markdown-full"
           onContextMenu={(event) => onRenderedTextContextMenu(event, "markdown_preview")}
         >
@@ -174,7 +185,7 @@ export function MarkdownDocumentContent({
             resolveAssetUrl={markdownAssetUrlResolver}
           />
         </div>
-      ) : renderMode === "visual" ? (
+      ) : renderMode === "visual" && !visualBudgetExceeded ? (
         <div
           className="doc-editor__markdown-visual"
           onContextMenu={(event) => onRenderedTextContextMenu(event, "markdown_visual")}
@@ -182,6 +193,7 @@ export function MarkdownDocumentContent({
           <EditorLazyBoundary resetKey={boundaryKey}>
             <MarkdownVisualEditor
               value={activeTab.content}
+              resolveAssetUrl={markdownAssetUrlResolver}
               onChange={updateCurrentContent}
               onDirty={markCurrentDirty}
               onSave={saveCurrentTab}

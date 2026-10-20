@@ -6,6 +6,7 @@ import { useHorizontalScrollAnimation } from "../../../shared/model/horizontal-s
 import { ConfirmModal } from "../../../shared/ui/confirm-modal/ConfirmModal";
 import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "../../../shared/ui/context-menu";
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
+import { DocumentReadingStateProvider } from "../../../entities/editor/model/documentReadingState";
 import type { EditorWorkspaceFileReference } from "../../../entities/editor/model/editorWorkspaceFileReference";
 import type {
   EditorPdfPageImageReferenceRequest,
@@ -463,6 +464,7 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
               }
               aria-hidden={persistentEmptyContentVisible ? "true" : undefined}
             >
+              <DocumentReadingStateProvider activeKey={activeTabId ?? ""} openKeys={tabs.map((tab) => tab.id)}>
               <DocumentEditorActiveContent
                 activeConversationMessageId={activeConversationMessageId}
                 activeConversationSessionId={activeConversationSessionId}
@@ -517,6 +519,7 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
                 toolDependencyTarget={toolDependencyTarget}
                 toolEntryCandidates={toolEntryCandidates}
               />
+              </DocumentReadingStateProvider>
             </div>
           </div>
         </div>

@@ -347,7 +347,7 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
         return (
           <WorkspaceEditorCanvasPanel
             categories={projectCategories}
-            projectMarketScope="project"
+            projectMarketScope={null}
             expandedProjectId={expandedProjectId}
             documentTabs={projectDocumentTabs}
             isActive={isSectionActive}

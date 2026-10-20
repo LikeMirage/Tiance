@@ -1,9 +1,11 @@
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useDocumentReadingScroll } from "../../../entities/editor/model/documentReadingState";
 
 import type { DocumentLanguage } from "../../../entities/editor/model/editorDocument";
 import { createEditorExtensions } from "./editor-config";
+import { needsPlainTextMode } from "../../file-preview/model/previewPolicy";
 import "./editor.css";
 
 export type CodeEditorTextSelectionContextMenu = {
@@ -39,8 +41,12 @@ export function CodeEditor({
   onTextSelectionContextMenu,
   readOnly,
 }: CodeEditorProps) {
+  const plainTextMode = useMemo(() => needsPlainTextMode(value), [value]);
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const scrollRef = useRef<HTMLElement | null>(null);
+  const [editorReady, setEditorReady] = useState(false);
+  useDocumentReadingScroll("source", scrollRef, editorReady);
   const onChangeRef = useRef(onChange);
   const onDirtyRef = useRef(onDirty);
   const onSaveRef = useRef(onSave);
@@ -105,13 +111,15 @@ export function CodeEditor({
     const state = EditorState.create({
       doc: value,
       extensions: [
-        langCompartmentRef.current.of(createEditorExtensions(languageId, { readOnly, onSave: saveCurrentDocument })),
+        langCompartmentRef.current.of(createEditorExtensions(languageId, { readOnly, plainTextMode, onSave: saveCurrentDocument })),
         updateListener,
       ],
     });
 
     const view = new EditorView({ state, parent: container });
     viewRef.current = view;
+    scrollRef.current = view.scrollDOM;
+    setEditorReady(true);
     onScrollerReadyRef.current?.(view.scrollDOM);
 
     const handleScroll = () => onScrollRef.current?.(view.scrollDOM);
@@ -168,9 +176,20 @@ export function CodeEditor({
     const committedValue =
       pendingChangeTimerRef.current !== null ? flushPendingChange() : lastCommittedValueRef.current;
     if (value !== committedValue) {
+      const previous = view.state.doc.toString();
+      let from = 0;
+      while (from < previous.length && from < value.length && previous[from] === value[from]) from += 1;
+      let oldEnd = previous.length;
+      let newEnd = value.length;
+      while (oldEnd > from && newEnd > from && previous[oldEnd - 1] === value[newEnd - 1]) {
+        oldEnd -= 1;
+        newEnd -= 1;
+      }
       applyingExternalValueRef.current = true;
+      const changes = view.state.changes({ from, to: oldEnd, insert: value.slice(from, newEnd) });
       view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: value },
+        changes,
+        effects: view.scrollSnapshot().map(changes),
       });
       applyingExternalValueRef.current = false;
       lastCommittedValueRef.current = value;
@@ -183,11 +202,14 @@ export function CodeEditor({
     if (!view) return;
     view.dispatch({
       effects: langCompartmentRef.current.reconfigure(
-        createEditorExtensions(languageId, { readOnly, onSave: saveCurrentDocument }),
+        createEditorExtensions(languageId, { readOnly, plainTextMode, onSave: saveCurrentDocument }),
       ),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [languageId, readOnly]);
+  }, [languageId, readOnly, plainTextMode]);
 
-  return <div ref={containerRef} className="code-editor" />;
+  return <div className="code-editor-shell">
+    {plainTextMode ? <div className="preview-budget-notice" role="status">大文本模式：关闭语法分析和自动折行，完整内容仍可编辑和保存。</div> : null}
+    <div ref={containerRef} className="code-editor" />
+  </div>;
 }

@@ -10,15 +10,16 @@ from threading import Lock, local
 from typing import Any, Iterator
 from zlib import error as zlib_error
 
-from app.repositories.project.conversation_audit_payloads import (
-    externalize_audit_payload,
-    is_audit_manifest,
-    restore_audit_payload,
+from app.repositories.project.conversation_audit_snapshots import (
+    collect_unreferenced_audit_blocks,
+    create_audit_snapshot_schema,
+    restore_audit_snapshot,
+    store_audit_snapshot,
 )
 
 
 DATABASE_FILE = "tiance.db"
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 _thread_state = local()
 _database_initialization_lock = Lock()
 _initialized_database_paths: set[Path] = set()
@@ -249,6 +250,7 @@ def delete_session(conversations_dir: Path, session_id: str) -> None:
             "DELETE FROM conversation_sessions WHERE session_id = ?",
             (session_id,),
         )
+        collect_unreferenced_audit_blocks(connection)
 
 
 def session_exists(conversations_dir: Path, session_id: str) -> bool:
@@ -541,12 +543,13 @@ def replace_message_payloads(session_dir: Path, payloads: list[dict[str, Any]]) 
 
 def append_event(session_dir: Path, kind: str, payload: dict[str, Any]) -> None:
     session_id = session_id_from_session_dir(session_dir)
-    stored_payload = (
-        externalize_audit_payload(session_dir.parents[2], payload)
-        if kind == "model_exchanges"
-        else payload
-    )
     with connection_for_path(database_path_from_session(session_dir)) as connection:
+        if not connection.in_transaction:
+            connection.execute("BEGIN IMMEDIATE")
+        stored_payload = (
+            store_audit_snapshot(connection, session_id, kind, payload)
+            if kind == "model_exchanges" else payload
+        )
         ordinal = connection.execute(
             """
             SELECT COALESCE(MAX(ordinal), -1) + 1 FROM conversation_session_events
@@ -567,6 +570,8 @@ def read_events(session_dir: Path, kind: str) -> list[dict[str, Any]]:
     with read_connection_for_path(database_path_from_session(session_dir)) as connection:
         if connection is None:
             return []
+        if not connection.in_transaction:
+            connection.execute("BEGIN")
         rows = connection.execute(
             """
             SELECT payload_json FROM conversation_session_events
@@ -574,11 +579,11 @@ def read_events(session_dir: Path, kind: str) -> list[dict[str, Any]]:
             """,
             (session_id_from_session_dir(session_dir), kind),
         ).fetchall()
-    return [
-        _restore_session_event(session_dir, kind, value)
-        for row in rows
-        if isinstance((value := _decode(row[0])), dict)
-    ]
+        return [
+            _restore_session_event(connection, session_dir, kind, value)
+            for row in rows
+            if isinstance((value := _decode(row[0])), dict)
+        ]
 
 
 def count_events(session_dir: Path, kind: str) -> int:
@@ -605,6 +610,8 @@ def list_events_range(
     with read_connection_for_path(database_path_from_session(session_dir)) as connection:
         if connection is None:
             return []
+        if not connection.in_transaction:
+            connection.execute("BEGIN")
         rows = connection.execute(
             """
             SELECT payload_json FROM conversation_session_events
@@ -618,24 +625,31 @@ def list_events_range(
                 end_ordinal,
             ),
         ).fetchall()
-    return [
-        _restore_session_event(session_dir, kind, value)
-        for row in rows
-        if isinstance((value := _decode(row[0])), dict)
-    ]
+        return [
+            _restore_session_event(connection, session_dir, kind, value)
+            for row in rows
+            if isinstance((value := _decode(row[0])), dict)
+        ]
 
 
 def replace_events(session_dir: Path, kind: str, payloads: list[dict[str, Any]]) -> None:
-    stored_payloads = (
-        [externalize_audit_payload(session_dir.parents[2], payload) for payload in payloads]
-        if kind == "model_exchanges"
-        else payloads
-    )
+    session_id = session_id_from_session_dir(session_dir)
     with connection_for_path(database_path_from_session(session_dir)) as connection:
+        if not connection.in_transaction:
+            connection.execute("BEGIN IMMEDIATE")
         connection.execute(
             "DELETE FROM conversation_session_events WHERE session_id = ? AND kind = ?",
             (session_id_from_session_dir(session_dir), kind),
         )
+        if kind == "model_exchanges":
+            connection.execute(
+                "DELETE FROM conversation_audit_snapshots WHERE session_id = ? AND stream = ?",
+                (session_id, kind),
+            )
+            stored_payloads = [store_audit_snapshot(connection, session_id, kind, payload) for payload in payloads]
+            collect_unreferenced_audit_blocks(connection)
+        else:
+            stored_payloads = payloads
         connection.executemany(
             """
             INSERT INTO conversation_session_events(session_id, kind, ordinal, payload_json)
@@ -1179,6 +1193,9 @@ def list_embedded_artifacts_range(
     with read_connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
         if connection is None:
             return []
+        # Roots, delta chains and shared blocks must belong to one read snapshot.
+        if not connection.in_transaction:
+            connection.execute("BEGIN")
         rows = connection.execute(
             """
             SELECT artifact.artifact_id, artifact.created_at, artifact.media_type,
@@ -1194,7 +1211,7 @@ def list_embedded_artifacts_range(
             """,
             (session_id, kind, limit, offset),
         ).fetchall()
-    return [_restore_embedded_artifact(workspace_dir, row) for row in rows]
+        return [_restore_embedded_artifact(connection, session_id, kind, row) for row in rows]
 
 
 def journal_mode(database_path: Path) -> str:
@@ -1288,6 +1305,17 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
     if current_version < 5:
         _migrate_schema_v4_to_v5(connection)
         current_version = 5
+    if current_version < 6:
+        connection.execute("SAVEPOINT audit_schema_v6")
+        try:
+            create_audit_snapshot_schema(connection)
+            connection.execute("UPDATE conversation_schema SET version = 6")
+            connection.execute("RELEASE audit_schema_v6")
+        except Exception:
+            connection.execute("ROLLBACK TO audit_schema_v6")
+            connection.execute("RELEASE audit_schema_v6")
+            raise
+        current_version = 6
     if current_version != SCHEMA_VERSION:
         raise RuntimeError(f"Unsupported project conversation database version: {current_version}")
 
@@ -1497,7 +1525,9 @@ def _conversation_run_from_row(row: sqlite3.Row | tuple[Any, ...]) -> dict[str, 
 
 
 def _restore_embedded_artifact(
-    workspace_dir: Path,
+    connection: sqlite3.Connection,
+    session_id: str,
+    kind: str,
     row: sqlite3.Row | tuple[Any, ...],
 ) -> dict[str, Any]:
     artifact_id = str(row[0])
@@ -1506,7 +1536,7 @@ def _restore_embedded_artifact(
     stored_size_bytes = int(row[9])
     if len(stored_payload) != stored_size_bytes:
         raise RuntimeError(f"Artifact {artifact_id} stored size validation failed.")
-    if compression not in {"gzip", "gzip+audit-manifest-v1"}:
+    if compression != "gzip+audit-manifest-v2":
         raise RuntimeError(f"Artifact {artifact_id} uses unsupported compression: {compression}.")
     try:
         content = gzip_decompress(stored_payload)
@@ -1517,11 +1547,8 @@ def _restore_embedded_artifact(
         payload = loads(content.decode(encoding))
     except (UnicodeDecodeError, ValueError) as error:
         raise RuntimeError(f"Artifact {artifact_id} does not contain valid JSON.") from error
-    if compression == "gzip+audit-manifest-v1":
-        if not isinstance(payload, dict) or not is_audit_manifest(payload):
-            raise RuntimeError(f"Artifact {artifact_id} does not contain an audit manifest.")
-        payload = restore_audit_payload(workspace_dir, payload)
-        content = dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(encoding)
+    payload = restore_audit_snapshot(connection, session_id, kind, payload)
+    content = dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(encoding)
     if len(content) != int(row[4]):
         raise RuntimeError(f"Artifact {artifact_id} original size validation failed.")
     if sha256(content).hexdigest() != str(row[5]):
@@ -1542,13 +1569,14 @@ def _restore_embedded_artifact(
 
 
 def _restore_session_event(
+    connection: sqlite3.Connection,
     session_dir: Path,
     kind: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    if kind != "model_exchanges" or not is_audit_manifest(payload):
-        return payload
-    return restore_audit_payload(session_dir.parents[2], payload)
+    if kind == "model_exchanges":
+        return restore_audit_snapshot(connection, session_id_from_session_dir(session_dir), kind, payload)
+    return payload
 
 
 def _encode(value: Any) -> str:

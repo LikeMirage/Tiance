@@ -1,0 +1,57 @@
+.file-preview-session {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+}
+.file-preview-session__bar, .spreadsheet-pages__controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 10px;
+  font-size: 12px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-color, #444);
+}
+.file-preview-session__bar > span { flex: 1; }
+.file-preview-session__content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.file-preview-session__waiting { margin: auto; padding: 24px; }
+.file-preview-session button, .file-preview-session select, .spreadsheet-pages button, .spreadsheet-pages select {
+  font: inherit;
+  color: inherit;
+  background: var(--surface-color, #292929);
+  border: 1px solid var(--border-color, #666);
+  border-radius: 3px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.file-preview-session button:disabled { opacity: .4; cursor: default; }
+.spreadsheet-pages { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.spreadsheet-pages__note { padding: 6px 10px; font-size: 12px; opacity: .8; }
+.spreadsheet-pages__scroll { flex: 1; min-height: 0; overflow: auto; }
+.spreadsheet-pages table { border-collapse: collapse; table-layout: fixed; background: #fff; color: #111; user-select: none; }
+.spreadsheet-pages td, .spreadsheet-pages th {
+  border: 1px solid #ccc;
+  padding: 4px 8px;
+  min-width: 110px;
+  max-width: 220px;
+  height: 26px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.spreadsheet-pages--delimited td { white-space: pre-wrap; overflow-wrap: anywhere; }
+.spreadsheet-pages th { position: sticky; top: 0; background: #ececec; z-index: 1; }
+.spreadsheet-pages th:first-child { min-width: 48px; left: 0; }
+.spreadsheet-pages td[aria-selected="true"] { background: #c9defa; }
+.preview-budget-notice { padding: 6px 12px; font-size: 12px; flex-shrink: 0; }

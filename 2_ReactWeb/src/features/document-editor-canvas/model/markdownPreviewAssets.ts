@@ -34,9 +34,17 @@ function resolveMarkdownAssetPath(currentFilePath: string, src: string | undefin
     return null;
   }
 
-  const cleanSrc = stripUrlSuffix(src.trim());
-  if (!cleanSrc || isExternalAssetSrc(cleanSrc)) {
+  const rawSrc = stripUrlSuffix(src.trim());
+  if (!rawSrc || isExternalAssetSrc(rawSrc) || rawSrc.startsWith("//")) {
     return null;
+  }
+  // Markdown parsers URI-encode Unicode and spaces before invoking an image renderer.
+  // Decode exactly once, then let the workspace URL builder encode the query value.
+  let cleanSrc: string;
+  try {
+    cleanSrc = decodeURIComponent(rawSrc);
+  } catch {
+    cleanSrc = rawSrc;
   }
 
   const baseParts = cleanSrc.startsWith("/")

@@ -8,12 +8,15 @@ import sys
 import threading
 import time
 
+import pytest
+
 from app.domain.llm.chat import ChatToolCall
 from app.domain.tools import ToolMetadataSnapshot, ToolRegistryEntry
 from app.core.config import get_settings
 from app.services.tools.tool_execution import ToolExecutionContext, ToolExecutionService
 from app.services.tools.tool_execution_runtime import (
     ToolExecutionCancellation,
+    build_tool_env,
     resolve_backend_api_base_url,
     run_command,
     runtime_timeout_seconds,
@@ -28,8 +31,22 @@ from app.services.tools.tool_metadata import load_tool
 def test_tool_execution_runs_python_entry_with_json_stdin(tmp_path, monkeypatch):
     monkeypatch.setenv("TIANCE_API_HOST", "127.0.0.2")
     monkeypatch.setenv("TIANCE_API_PORT", "19000")
-    monkeypatch.setenv("APPDATA", "C:/Users/test/AppData/Roaming")
-    monkeypatch.setenv("LOCALAPPDATA", "C:/Users/test/AppData/Local")
+    directory_env = {
+        "ALLUSERSPROFILE": "C:/ProgramData",
+        "APPDATA": "C:/Users/test/AppData/Roaming",
+        "HOME": "C:/Users/test",
+        "HOMEDRIVE": "C:",
+        "HOMEPATH": "/Users/test",
+        "LOCALAPPDATA": "C:/Users/test/AppData/Local",
+        "ProgramData": "C:/ProgramData",
+        "PUBLIC": "C:/Users/Public",
+        "SystemDrive": "C:",
+        "SystemRoot": "C:/Windows",
+        "USERPROFILE": "C:/Users/test",
+        "WINDIR": "C:/Windows",
+    }
+    for key, value in directory_env.items():
+        monkeypatch.setenv(key, value)
     tool_root = _create_tool_root(tmp_path)
     completed_commands: list[tuple[list[str], str, Path, dict[str, str], int]] = []
 
@@ -76,8 +93,8 @@ def test_tool_execution_runs_python_entry_with_json_stdin(tmp_path, monkeypatch)
     assert completed_commands[0][3]["TIANCE_PROJECT_ID"] == "project-1"
     assert completed_commands[0][3]["TIANCE_SESSION_ID"] == "session-1"
     assert completed_commands[0][3]["TIANCE_API_BASE_URL"] == "http://127.0.0.2:19000/api"
-    assert completed_commands[0][3]["APPDATA"] == "C:/Users/test/AppData/Roaming"
-    assert completed_commands[0][3]["LOCALAPPDATA"] == "C:/Users/test/AppData/Local"
+    for key, value in directory_env.items():
+        assert completed_commands[0][3][key] == value
     assert loads(completed_commands[0][3]["TIANCE_MODEL_CONTEXT"]) == {
         "provider_id": "provider-1",
         "model_id": "model-1",
@@ -103,6 +120,45 @@ def test_tool_execution_runs_python_entry_with_json_stdin(tmp_path, monkeypatch)
     assert str(legacy_backend_site_packages) not in command
     assert str(tool_root / "program") in completed_commands[0][3]["PYTHONPATH"]
     assert "TIANCE_HOST_CAPABILITY_TOKEN" not in completed_commands[0][3]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Uses Windows system directory resolution")
+def test_tool_process_resolves_windows_common_appdata(tmp_path):
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import ctypes
+import json
+
+buffer = ctypes.create_unicode_buffer(32768)
+ctypes.windll.kernel32.ExpandEnvironmentStringsW(
+    r"%SystemDrive%\\ProgramData", buffer, len(buffer),
+)
+expanded_path = buffer.value
+hresult = ctypes.windll.shell32.SHGetFolderPathW(None, 35, None, 0, buffer)
+print(json.dumps({
+    "expanded_path": expanded_path,
+    "common_appdata": buffer.value,
+    "hresult": hresult,
+}))
+""",
+        ],
+        cwd=tmp_path,
+        env=build_tool_env(python_paths=(), workspace_root=tmp_path),
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+
+    result = loads(completed.stdout)
+    assert result["hresult"] == 0
+    assert result["expanded_path"] == os.environ["SystemDrive"] + "\\ProgramData"
+    assert Path(result["common_appdata"]) == Path(os.environ["ProgramData"])
+    assert not (tmp_path / "%SystemDrive%").exists()
 
 
 def test_network_search_receives_process_scoped_capability_grant(tmp_path):

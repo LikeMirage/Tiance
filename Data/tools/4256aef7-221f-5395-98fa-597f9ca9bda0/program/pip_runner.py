@@ -33,12 +33,22 @@ def install_packages(
     env = {
         key: value
         for key in (
+            "ALLUSERSPROFILE",
+            "APPDATA",
             "COMSPEC",
+            "HOME",
+            "HOMEDRIVE",
+            "HOMEPATH",
+            "LOCALAPPDATA",
             "PATH",
             "PATHEXT",
+            "ProgramData",
+            "PUBLIC",
+            "SystemDrive",
             "SystemRoot",
             "TEMP",
             "TMP",
+            "USERPROFILE",
             "WINDIR",
         )
         if (value := os.environ.get(key))

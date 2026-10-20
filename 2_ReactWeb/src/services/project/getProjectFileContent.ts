@@ -7,8 +7,9 @@ export type ProjectFileContentResponse = {
   mtime_ms: number;
 };
 
-export function getProjectFileContent(projectId: string, path: string) {
+export function getProjectFileContent(projectId: string, path: string, init?: Pick<RequestInit, "signal">) {
   return fetchJson<ProjectFileContentResponse>(
     `/api/projects/${encodeURIComponent(projectId)}/files/content?path=${encodeURIComponent(path)}`,
+    init,
   );
 }

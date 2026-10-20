@@ -7,6 +7,10 @@ const require = createRequire(import.meta.url);
 
 export default defineConfig(({ command }) => ({
   base: command === "build" ? "./" : "/",
+  // The desktop server serves dist in place. Open windows may still lazy-load
+  // chunks from the previous build, so retain their content-hashed assets.
+  // Use `vite build --emptyOutDir` only when deliberately making a clean build.
+  build: { emptyOutDir: false },
   plugins: [react()],
   resolve: {
     alias: {

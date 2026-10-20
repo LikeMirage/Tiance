@@ -1,4 +1,5 @@
 import sqlite3
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
@@ -18,6 +19,11 @@ from app.schemas.project.project_database import (
     ProjectDatabaseTableSchemaResponse,
 )
 from app.services.project.project_files import ProjectFileService, get_project_file_service
+from app.services.file_preview.policy import (
+    DATABASE_QUERY_SECONDS as _PREVIEW_QUERY_SECONDS,
+    DATABASE_RESULT_BYTES as _PREVIEW_RESULT_BYTES,
+    DATABASE_OBJECTS as _PREVIEW_OBJECTS,
+)
 
 _SQLITE_HEADER = b"SQLite format 3\x00"
 _SQLITE_EXTENSIONS = {".db", ".sqlite", ".sqlite3"}
@@ -187,7 +193,8 @@ class ProjectDatabaseService:
         if stat.st_size == 0 and file_path.suffix.lower() in _SQLITE_EXTENSIONS:
             return ResolvedSqliteFile(path=file_path, is_empty=True)
         try:
-            header = file_path.read_bytes()[: len(_SQLITE_HEADER)]
+            with file_path.open("rb") as stream:
+                header = stream.read(len(_SQLITE_HEADER))
         except OSError as exc:
             raise BadRequestError(f"数据库文件读取失败：{exc}") from exc
         if header != _SQLITE_HEADER:
@@ -197,14 +204,19 @@ class ProjectDatabaseService:
     @contextmanager
     def _connect_readonly(self, db_path: Path) -> Iterator[sqlite3.Connection]:
         uri = f"{db_path.resolve().as_uri()}?mode=ro"
+        deadline = time.monotonic() + _PREVIEW_QUERY_SECONDS
         try:
             connection = sqlite3.connect(uri, uri=True)
+            connection.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, _PREVIEW_RESULT_BYTES)
+            connection.set_progress_handler(lambda: int(time.monotonic() >= deadline), 1000)
             connection.execute("PRAGMA query_only = ON")
             try:
                 yield connection
             finally:
                 connection.close()
         except sqlite3.DatabaseError as exc:
+            if time.monotonic() >= deadline:
+                raise BadRequestError("数据库预览查询超过 10 秒，已中止。请缩小查询范围。") from exc
             raise BadRequestError(f"SQLite 读取失败：{exc}") from exc
 
     def _list_objects(self, connection: sqlite3.Connection) -> list[ProjectDatabaseObjectResponse]:
@@ -223,9 +235,13 @@ class ProjectDatabaseService:
             """
         )
         objects: list[ProjectDatabaseObjectResponse] = []
+        size = 0
         for name, object_type, table_name, sql in rows:
             if object_type not in _OBJECT_TYPES:
                 continue
+            size += sum(len(str(value).encode("utf-8")) for value in (name, object_type, table_name, sql))
+            if size > _PREVIEW_RESULT_BYTES or len(objects) >= _PREVIEW_OBJECTS:
+                raise BadRequestError("数据库对象清单超过预览预算（2000 个对象 / 4 MiB），请用默认应用打开。")
             objects.append(
                 ProjectDatabaseObjectResponse(
                     name=str(name),
@@ -257,9 +273,14 @@ class ProjectDatabaseService:
 def _read_rows(cursor: sqlite3.Cursor, *, limit: int) -> tuple[list[str], list[list[ProjectDatabaseCellResponse]]]:
     columns = [description[0] for description in cursor.description or []]
     rows: list[list[ProjectDatabaseCellResponse]] = []
+    size = 0
     for index, row in enumerate(cursor):
         if index > limit:
             break
+        size += sum(len(value.encode("utf-8")) if isinstance(value, str) else
+                    len(value) if isinstance(value, bytes) else 16 for value in row)
+        if size > _PREVIEW_RESULT_BYTES:
+            raise BadRequestError("本页数据库结果超过 4 MiB，请减少行数或选择较小的字段。")
         rows.append([_cell_response(value) for value in row])
     return columns, rows
 

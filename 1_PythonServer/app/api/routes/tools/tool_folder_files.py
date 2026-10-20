@@ -1,6 +1,6 @@
 import mimetypes
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Query, Request, Response, status
 from fastapi.responses import FileResponse
 
 from app.core.errors import BadRequestError
@@ -18,8 +18,31 @@ from app.schemas.tools import (
     ToolFolderFileTreeResponse,
 )
 from app.services.tools import get_tool_folder_file_service
+from app.services.file_preview.runtime import preview_file, validate_asset_version
 
 router = APIRouter(prefix="/tools/categories", tags=["tools"])
+
+
+@router.get("/{category_id}/projects/{project_id}/files/preview", summary="Inspect tool file preview resources")
+async def inspect_tool_file_preview(
+    request: Request, category_id: str, project_id: str, path: str,
+    encoding: str = Query("auto", max_length=16), delimiter: str = Query("auto", max_length=16),
+) -> dict:
+    file_path = get_tool_folder_file_service().get_file_path(category_id, project_id, target_path=path)
+    return await preview_file(request, file_path, encoding=encoding, delimiter=delimiter)
+
+
+@router.get("/{category_id}/projects/{project_id}/files/preview/spreadsheet")
+async def read_tool_spreadsheet_page(
+    request: Request, category_id: str, project_id: str, path: str, version: str,
+    sheet: int = Query(0, ge=0), row: int = Query(0, ge=0, lt=1048576),
+    column: int = Query(0, ge=0, lt=16384),
+    encoding: str = Query("auto", max_length=16), delimiter: str = Query("auto", max_length=16),
+) -> dict:
+    file_path = get_tool_folder_file_service().get_file_path(category_id, project_id, target_path=path)
+    validate_asset_version(file_path, version)
+    return await preview_file(request, file_path, "spreadsheet", version=version, sheet=sheet, row=row, column=column,
+                              encoding=encoding, delimiter=delimiter)
 
 
 @router.get(
@@ -211,9 +234,11 @@ def read_tool_folder_file_asset(
     category_id: str,
     project_id: str,
     path: str = Query(..., description="媒体文件路径"),
+    preview_version: str | None = Query(default=None),
 ) -> FileResponse:
     service = get_tool_folder_file_service()
     file_path = service.get_file_path(category_id, project_id, target_path=path)
+    validate_asset_version(file_path, preview_version)
     media_type = _asset_media_type(file_path)
     return FileResponse(
         file_path,

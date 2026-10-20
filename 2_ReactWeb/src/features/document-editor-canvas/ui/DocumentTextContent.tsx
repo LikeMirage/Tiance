@@ -6,6 +6,7 @@ import type { CodeEditorTextSelectionContextMenu } from "../../editor/ui/CodeEdi
 import { PaginationControls } from "../../../shared/ui/pagination-controls/PaginationControls";
 import { getPreviewToggleLabel } from "../model/previewToggleLabel";
 import { EditorLazyBoundary, PreviewMountGate } from "./EditorContentBoundary";
+import { previewPolicy } from "../../file-preview/model/previewPolicy";
 
 const CodeEditor = lazy(() =>
   import("../../editor/ui/CodeEditor").then((module) => ({ default: module.CodeEditor })),
@@ -89,6 +90,7 @@ export function DocumentTextContent({
   previewOpen: boolean;
   setPreviewOpen: Dispatch<SetStateAction<boolean>>;
 }) {
+  const htmlBudgetExceeded = isHtml && activeTab.content.length > previewPolicy.richTextCharacters;
   const [isPageLoading, setIsPageLoading] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const dataView = activeTab.conversationDataView;
@@ -105,7 +107,7 @@ export function DocumentTextContent({
     }
   };
   const isSystemPreviewOpen = previewOpen && (
-    isHtml ||
+    (isHtml && !htmlBudgetExceeded) ||
     isCompressionLog ||
     isConversationIndex ||
     isConversationInjectionPreview ||
@@ -117,6 +119,9 @@ export function DocumentTextContent({
 
   return (
     <div className="doc-editor__text-content">
+      {previewOpen && htmlBudgetExceeded ? <div className="preview-budget-notice" role="status">
+        HTML 超过 20 万字符，已使用完整源码编辑，避免页面排版占用过多资源。
+      </div> : null}
       {dataView && (!isSystemPreviewOpen || !isProjectMemory) ? (
         <>
           <PaginationControls
@@ -173,7 +178,7 @@ export function DocumentTextContent({
         </div>
       )}
 
-      {previewOpen && isHtml && (
+      {previewOpen && isHtml && !htmlBudgetExceeded && (
         <div className="doc-editor__html-preview">
           <EditorLazyBoundary resetKey={boundaryKey}>
             <HtmlPreview htmlContent={activeTab.content} />

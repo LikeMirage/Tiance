@@ -16,6 +16,8 @@ import type {
 import { createDocumentExternalFileActions } from "../model/documentExternalFileActions";
 import { resolveDocumentAssetUrl } from "../model/documentAssetUrls";
 import { buildEditorContentResetKey, EditorLazyBoundary, PreviewMountGate } from "./EditorContentBoundary";
+import { FilePreviewGate } from "../../file-preview/ui/FilePreviewGate";
+import type { FilePreviewInspection } from "../../file-preview/model/filePreview";
 
 const DatabasePreview = lazy(() =>
   import("../../database-preview/ui/DatabasePreview").then((module) => ({ default: module.DatabasePreview })),
@@ -41,7 +43,27 @@ export function isDocumentAssetPreviewKind(kind: DocumentTab["kind"]) {
     || kind === "office";
 }
 
-export function DocumentAssetPreviewContent({
+export function DocumentAssetPreviewContent(props: DocumentAssetPreviewProps) {
+  const src = resolveDocumentAssetUrl(props.activeTab);
+  if (!src) return <div className="doc-editor__empty">文件来源无效，无法预览。</div>;
+  return (
+    <FilePreviewGate key={props.activeTab.id} src={src} tab={props.activeTab} onMissing={props.onMissing}>
+      {(inspection, checkedSrc) => <PreparedDocumentAssetPreview {...props} inspection={inspection} assetSrc={checkedSrc} />}
+    </FilePreviewGate>
+  );
+}
+
+type DocumentAssetPreviewProps = {
+  activeTab: DocumentTab;
+  onCreatePdfPageImageReference?: (request: EditorPdfPageImageReferenceRequest) => Promise<void>;
+  onCreatePresentationSlideImageReference?: (request: EditorPresentationSlideImageReferenceRequest) => Promise<void>;
+  onCreateSpreadsheetRangeImageReference?: (request: EditorSpreadsheetRangeImageReferenceRequest) => Promise<void>;
+  onMissing?: () => void;
+  onReferenceWorkspaceFile?: (file: EditorWorkspaceFileReference) => void;
+  onRenderedTextContextMenu: (event: MouseEvent<HTMLElement>, source: EditorTextReferenceSource) => void;
+};
+
+function PreparedDocumentAssetPreview({
   activeTab,
   onCreatePdfPageImageReference,
   onCreatePresentationSlideImageReference,
@@ -49,18 +71,9 @@ export function DocumentAssetPreviewContent({
   onMissing,
   onReferenceWorkspaceFile,
   onRenderedTextContextMenu,
-}: {
-  activeTab: DocumentTab;
-  onCreatePdfPageImageReference?: (request: EditorPdfPageImageReferenceRequest) => Promise<void>;
-  onCreatePresentationSlideImageReference?: (request: EditorPresentationSlideImageReferenceRequest) => Promise<void>;
-  onCreateSpreadsheetRangeImageReference?: (request: EditorSpreadsheetRangeImageReferenceRequest) => Promise<void>;
-  onMissing?: () => void;
-  onReferenceWorkspaceFile?: (file: EditorWorkspaceFileReference) => void;
-  onRenderedTextContextMenu: (
-    event: MouseEvent<HTMLElement>,
-    source: EditorTextReferenceSource,
-  ) => void;
-}) {
+  inspection,
+  assetSrc,
+}: DocumentAssetPreviewProps & { inspection: FilePreviewInspection; assetSrc: string }) {
   const boundaryKey = buildEditorContentResetKey(activeTab);
   const externalFileActions = createDocumentExternalFileActions(activeTab);
   const sourceFilePath = getEditorDocumentPath(activeTab);
@@ -75,7 +88,7 @@ export function DocumentAssetPreviewContent({
           onReferenceImage={onReferenceWorkspaceFile && workspaceFileReference
             ? () => onReferenceWorkspaceFile(workspaceFileReference)
             : null}
-          src={resolveDocumentAssetUrl(activeTab)}
+          src={assetSrc}
         />
       </EditorLazyBoundary>
     );
@@ -87,7 +100,7 @@ export function DocumentAssetPreviewContent({
         <VideoPreview
           displayPath={activeTab.displayPath}
           fileName={activeTab.title}
-          src={resolveDocumentAssetUrl(activeTab)}
+          src={assetSrc}
         />
       </EditorLazyBoundary>
     );
@@ -112,7 +125,7 @@ export function DocumentAssetPreviewContent({
               : null}
             onRevealFile={externalFileActions.revealFile}
             onMissing={onMissing}
-            src={resolveDocumentAssetUrl(activeTab)}
+            src={assetSrc}
           />
         </EditorLazyBoundary>
       </PreviewMountGate>
@@ -143,6 +156,7 @@ export function DocumentAssetPreviewContent({
       >
         <EditorLazyBoundary resetKey={boundaryKey}>
           <OfficePreview
+            inspection={inspection}
             displayPath={activeTab.displayPath}
             fileName={activeTab.title}
             onCreatePresentationSlideImageReference={onCreatePresentationSlideImageReference
@@ -170,7 +184,7 @@ export function DocumentAssetPreviewContent({
             onOpenNativeFile={externalFileActions.openNativeFile}
             onRevealFile={externalFileActions.revealFile}
             onMissing={onMissing}
-            src={resolveDocumentAssetUrl(activeTab)}
+            src={assetSrc}
           />
         </EditorLazyBoundary>
       </div>

@@ -177,6 +177,9 @@ export function DocumentEditorActiveContent({
   }
 
   if (activeTab.kind === "text" && !activeTab.textContentLoaded) {
+    if (activeTab.saveError) {
+      return <DocumentOpenFallbackContent activeTab={activeTab} heading="文件读取失败" detail={activeTab.saveError} />;
+    }
     return <LoadingStrip ariaLabel="正在加载文件内容" mode="fill" surface="dark" visual="ring" />;
   }
 

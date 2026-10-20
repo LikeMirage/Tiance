@@ -2,9 +2,7 @@ from fastapi import status
 
 from app.core.errors import AppError
 from app.infra.file_workspace import FileWorkspaceStorage, TextFileReadLimitExceededError
-
-
-MAX_EDITOR_TEXT_FILE_SIZE_BYTES = 20 * 1024 * 1024
+from app.services.file_preview.policy import MAX_EDITOR_TEXT_FILE_SIZE_BYTES
 
 
 def read_editor_text_file(

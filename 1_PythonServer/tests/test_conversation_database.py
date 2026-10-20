@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from hashlib import sha256
 from pathlib import Path
 from json import dumps, loads
 import sqlite3
@@ -21,7 +20,6 @@ from app.repositories.project.conversation_database import (
     read_session_state_payloads,
     write_artifact_record,
 )
-from app.repositories.project.conversation_audit_payloads import audit_blob_path
 from app.domain.project import Project
 from app.domain.llm.chat import ChatCompletionRequest, ChatMessage, ChatMessageRole, ChatUsage
 from app.domain.llm.chat_http_exchange import ChatHttpExchange
@@ -30,6 +28,7 @@ from app.repositories.project.conversation_data_view_repository import Conversat
 from app.repositories.project.conversation_repository import ProjectConversationRepository
 from app.services.project.conversation_model_exchange import build_model_exchange_record
 from app.services.project.conversation_audit import ConversationAuditService
+from app.repositories.project.conversation_audit_snapshots import store_audit_snapshot
 
 
 class _Projects:
@@ -131,7 +130,7 @@ def test_version_one_database_migrates_to_current_audit_schema(tmp_path: Path) -
 
     connection = sqlite3.connect(database_path)
     try:
-        assert connection.execute("SELECT version FROM conversation_schema").fetchone()[0] == 5
+        assert connection.execute("SELECT version FROM conversation_schema").fetchone()[0] == 6
         tables = {
             row[0]
             for row in connection.execute(
@@ -204,7 +203,7 @@ def test_version_two_database_migrates_to_embedded_artifact_payloads(tmp_path: P
         }
     finally:
         connection.close()
-    assert version == 5
+    assert version == 6
     assert payload_columns == {
         "artifact_id",
         "compression",
@@ -249,6 +248,9 @@ def test_version_three_database_migrates_session_state_and_removes_duplicate_ind
             DROP TABLE conversation_session_runtime_states;
             DROP TABLE conversation_session_drafts;
             DROP TABLE conversation_session_references;
+            DROP TABLE conversation_audit_snapshot_blocks;
+            DROP TABLE conversation_audit_snapshots;
+            DROP TABLE conversation_audit_blocks;
             UPDATE conversation_schema SET version = 3;
             """
         )
@@ -596,17 +598,16 @@ def test_model_exchange_externalizes_repeated_large_values_without_changing_view
         page_size=2,
     )
     records = [loads(line) for line in view.content.splitlines()]
-    digest = sha256(large_value.encode("utf-8")).hexdigest()
 
     assert [record["request"]["image"] for record in records] == [
         large_value,
         large_value,
     ]
-    assert audit_blob_path(tmp_path / ".Tiance", digest).is_file()
-    assert len(list((tmp_path / ".Tiance" / "conversations" / "audit_blobs").rglob("*.blob"))) == 1
+    assert not (tmp_path / ".Tiance" / "conversations" / "audit_blobs").exists()
 
     connection = sqlite3.connect(database_path_from_workspace(tmp_path / ".Tiance"))
     try:
+        assert connection.execute("SELECT COUNT(*) FROM conversation_audit_blocks").fetchone()[0] == 1
         stored_lengths = [
             int(row[0])
             for row in connection.execute(
@@ -745,7 +746,7 @@ def test_http_exchange_is_stored_in_database_and_linked_from_journal(tmp_path: P
     ) == 1
     assert len(artifacts) == 1
     assert artifacts[0]["artifact_id"] == exchange_event["artifact_id"]
-    assert artifacts[0]["compression"] == "gzip+audit-manifest-v1"
+    assert artifacts[0]["compression"] == "gzip+audit-manifest-v2"
     assert 0 < artifacts[0]["stored_size_bytes"] < 4096
     assert artifacts[0]["content"]["request"]["body"]["input"] == large_input
     assert artifacts[0]["content"]["response"]["body"]["content"] == '{"output":"answer"}'
@@ -769,9 +770,7 @@ def test_http_exchange_is_stored_in_database_and_linked_from_journal(tmp_path: P
     assert view.total_count == 1
     assert view_payload["artifact_id"] == exchange_event["artifact_id"]
     assert view_payload["content"]["request"]["body"]["input"] == large_input
-    assert len(
-        list((tmp_path / ".Tiance" / "conversations" / "audit_blobs").rglob("*.blob"))
-    ) == 1
+    assert not (tmp_path / ".Tiance" / "conversations" / "audit_blobs").exists()
 
 
 def test_deleting_session_cascades_embedded_http_exchange(tmp_path: Path) -> None:
@@ -840,3 +839,57 @@ def test_deleting_session_cascades_embedded_http_exchange(tmp_path: Path) -> Non
     assert artifact_count == 0
     assert payload_count == 0
     assert journal_count == 0
+
+
+def test_upstream_error_survives_incremental_audit_write_failure(tmp_path: Path, monkeypatch) -> None:
+    projects = _Projects(tmp_path)
+    conversations = ProjectConversationRepository(projects)
+    session = conversations.create_session(
+        "project-1", title="audit failure", provider_id="provider", model_id="model", reasoning_mode=None,
+    )
+    user_message = conversations.append_message(
+        "project-1", session.session_id, role="user", content="question",
+    )
+    conversations.begin_run(
+        "project-1", session.session_id, run_id="run-1",
+        user_message_id=user_message.message_id, started_at="2026-10-19T00:00:00Z",
+    )
+    request = ChatCompletionRequest(
+        provider_id="provider", model_id="model", project_id="project-1",
+        session_id=session.session_id, run_id="run-1",
+        messages=(ChatMessage(role=ChatMessageRole.USER, content="question", message_id=user_message.message_id),),
+    )
+    error_text = '{"error":{"message":"raw upstream error"}}'
+    exchange = ChatHttpExchange(
+        started_at="2026-10-19T00:00:00Z", completed_at="2026-10-19T00:00:01Z",
+        request_url="https://example.test/v1/chat/completions", request_headers={},
+        request_body={"messages": [{"role": "user", "content": "large input" * 1000}]},
+        response_status=503, response_headers={}, response_body=error_text.encode(),
+        error_type="HTTPStatusError", error_message=error_text,
+    )
+
+    def fail_after_storing(*args, **kwargs):
+        store_audit_snapshot(*args, **kwargs)
+        raise RuntimeError("simulated audit failure before artifact completion")
+
+    monkeypatch.setattr("app.services.project.conversation_audit.store_audit_snapshot", fail_after_storing)
+    audit = ConversationAuditService(projects)
+
+    async def run() -> None:
+        await audit.record_http_exchange(request, exchange)
+        await audit.close()
+        audit.record_attempt_outcome(
+            request, status="failed", error_code="upstream_http_error", error_message=error_text,
+        )
+
+    asyncio.run(run())
+    page = conversations.list_messages_page("project-1", session.session_id, limit=20)
+    assert page.run_attempt_failures[0].error_message == error_text
+    events = list_journal_events_range(tmp_path / ".Tiance", session_id=session.session_id, offset=0, limit=10)
+    audit_failure = next(event for event in events if event["event_type"] == "model.http_exchange.audit_failed")
+    attempt_failure = next(event for event in events if event["event_type"] == "model.request_attempt.failed")
+    assert attempt_failure["artifact_id"] == audit_failure["artifact_id"]
+    with sqlite3.connect(database_path_from_workspace(tmp_path / ".Tiance")) as connection:
+        for table in ("conversation_audit_snapshots", "conversation_audit_blocks", "conversation_artifact_payloads"):
+            assert connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
+        assert connection.execute("SELECT status FROM conversation_artifacts").fetchone()[0] == "failed"

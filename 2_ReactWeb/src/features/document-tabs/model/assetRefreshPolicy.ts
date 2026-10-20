@@ -23,6 +23,8 @@ export function decideAssetRefresh({
   }
 
   if (hasDetailedChange) {
+    // Only an exact file notification is authoritative here. An ancestor directory
+    // notification must take the same metadata reconciliation path as overflow.
     return { kind: "refresh", mtimeMs: metadata.mtimeMs };
   }
 

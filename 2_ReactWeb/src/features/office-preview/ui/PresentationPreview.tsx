@@ -13,6 +13,7 @@ import {
 } from "@phosphor-icons/react";
 
 import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
+import { useDocumentReadingValue, useDocumentReadingScroll } from "../../../entities/editor/model/documentReadingState";
 import { ContextMenu, ContextMenuItem } from "../../../shared/ui/context-menu";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import type {
@@ -61,7 +62,8 @@ export function PresentationPreview({
   onZoomChange,
 }: PresentationPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const didApplyInitialZoomRef = useRef(false);
+  const [hasInitialZoom, setHasInitialZoom] = useDocumentReadingValue("ppt:initial-zoom", false);
+  const didApplyInitialZoomRef = useRef(hasInitialZoom);
   const onMissingRef = useRef(onMissing);
   const dragStateRef = useRef<{
     pointerId: number;
@@ -81,7 +83,9 @@ export function PresentationPreview({
   const slideRenderRunIdRef = useRef(0);
   const viewerRef = useRef<PPTXViewerWithDimensions | null>(null);
   const zoomRef = useRef(zoom);
-  const [currentSlide, setCurrentSlide] = useState(0);
+  const [currentSlide, setCurrentSlide] = useDocumentReadingValue("ppt:slide", 0);
+  const currentSlideRef = useRef(currentSlide);
+  currentSlideRef.current = currentSlide;
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [slideReferenceMenu, setSlideReferenceMenu] = useState<{ x: number; y: number } | null>(null);
@@ -90,6 +94,7 @@ export function PresentationPreview({
   const [state, setState] = useState<LoadState>(() => (src ? "loading" : "idle"));
   const [visibleThumbnailIndexes, setVisibleThumbnailIndexes] = useState<Set<number>>(() => new Set());
   const isLoadingVisible = useMinimumLoading(state === "loading", officePreviewMinimumLoadingMs);
+  useDocumentReadingScroll("ppt", scrollRef, state === "ready" && !isLoadingVisible, src);
 
   useEffect(() => {
     onMissingRef.current = onMissing;
@@ -148,7 +153,6 @@ export function PresentationPreview({
       setSlideDimensions(null);
       slideDimensionsRef.current = null;
       setSlideCount(0);
-      setCurrentSlide(0);
       setSlideReferenceMenu(null);
       thumbnailButtonRefs.current = [];
       thumbnailCanvasRefs.current = [];
@@ -156,7 +160,6 @@ export function PresentationPreview({
       thumbnailRenderRunIdRef.current += 1;
       slideRenderRunIdRef.current += 1;
       setVisibleThumbnailIndexes(new Set());
-      didApplyInitialZoomRef.current = false;
       return undefined;
     }
 
@@ -169,7 +172,6 @@ export function PresentationPreview({
       setSlideDimensions(null);
       slideDimensionsRef.current = null;
       setSlideCount(0);
-      setCurrentSlide(0);
       setSlideReferenceMenu(null);
       thumbnailButtonRefs.current = [];
       thumbnailCanvasRefs.current = [];
@@ -210,7 +212,9 @@ export function PresentationPreview({
         const count = viewer.getSlideCount();
         setSlideDimensions(dimensions);
         setSlideCount(count);
-        const didRender = await renderSlide(0, zoomRef.current);
+        const restoredSlide = Math.max(0, Math.min(currentSlideRef.current, count - 1));
+        setCurrentSlide(restoredSlide);
+        const didRender = await renderSlide(restoredSlide, zoomRef.current);
         if (isCancelled) return;
         if (!didRender) return;
         setState("ready");
@@ -249,6 +253,7 @@ export function PresentationPreview({
       const baseWidth = slideCssSize(slideDimensions).width;
       const nextZoom = clampOfficeZoom((viewportWidth - 96) / baseWidth);
       didApplyInitialZoomRef.current = true;
+      setHasInitialZoom(true);
       zoomRef.current = nextZoom;
       onZoomChange(nextZoom);
     };

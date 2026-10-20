@@ -1804,12 +1804,14 @@ def test_malformed_tool_call_is_not_executed_and_is_replayed_as_empty_object():
         message for message in replay_messages if message.role == ChatMessageRole.TOOL
     )
     tool_payload = json.loads(tool_message.content)
-    assert tool_payload == {
-        "ok": False,
-        "error_code": "INVALID_TOOL_ARGUMENTS",
-        "message": "本次工具指令参数不是合法 JSON，请检查并重新输出完整工具调用。",
-        "received_arguments": '{"file_path":',
-    }
+    assert tool_payload["ok"] is False
+    assert tool_payload["error_code"] == "INVALID_TOOL_ARGUMENTS"
+    assert tool_payload["executed"] is False
+    assert tool_payload["received_arguments"] == '{"file_path":'
+    assert tool_payload["diagnostic"]["at_end"] is True
+    assert tool_payload["diagnostic"]["position"] == len('{"file_path":')
+    assert "工具尚未执行" in tool_payload["message"]
+    assert "Expecting value" in tool_payload["message"]
     assert any(payload["kind"] == "delta" for payload in payloads)
 
 

@@ -100,7 +100,7 @@ test("online project view does not require activating a project target", async (
   assert.match(keepAliveSource, /marketScope=\{marketScope/);
 });
 
-test("workspace exposes the matching online market for project collections", async () => {
+test("workspace hides the ordinary project market and keeps knowledge and experience markets", async () => {
   const canvasSource = await readFile(
     new URL("../src/pages/workspace/ui/WorkspaceCanvasPanel.tsx", import.meta.url),
     "utf8",
@@ -109,7 +109,8 @@ test("workspace exposes the matching online market for project collections", asy
     new URL("../src/features/project-category-overview/ui/ProjectOverviewViewTabs.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(canvasSource, /projectMarketScope="project"/);
+  assert.doesNotMatch(canvasSource, /projectMarketScope="project"/);
+  assert.match(canvasSource, /categories=\{projectCategories\}\s+projectMarketScope=\{null\}/);
   assert.match(canvasSource, /projectMarketScope="knowledge"/);
   assert.match(canvasSource, /projectMarketScope="experience"/);
   assert.match(tabsSource, /projectOverview\.views\.onlineKnowledge/);

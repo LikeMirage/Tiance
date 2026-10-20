@@ -6,6 +6,9 @@ import {
 } from "react";
 
 import { ExcelPreview } from "./ExcelPreview";
+import { useDocumentReadingValue } from "../../../entities/editor/model/documentReadingState";
+import { PagedTablePreview } from "../../file-preview/ui/PagedTablePreview";
+import type { FilePreviewInspection } from "../../file-preview/model/filePreview";
 import type { ExcelSelectionImageReferencePayload } from "./excelSelectionImage";
 import { OfficePreviewToolbar } from "./OfficePreviewToolbar";
 import type { OfficeKind, PresentationSlideImageReferencePayload } from "./officePreviewTypes";
@@ -18,6 +21,7 @@ import { WordPreview } from "./WordPreview";
 import "./office-preview.css";
 
 type OfficePreviewProps = {
+  inspection: FilePreviewInspection;
   displayPath: string;
   fileName: string;
   onCreatePresentationSlideImageReference?: ((payload: PresentationSlideImageReferencePayload) => Promise<void>) | null;
@@ -29,6 +33,7 @@ type OfficePreviewProps = {
 };
 
 export function OfficePreview({
+  inspection,
   displayPath,
   fileName,
   onCreatePresentationSlideImageReference = null,
@@ -43,7 +48,7 @@ export function OfficePreview({
   const [isContentLoadingVisible, setIsContentLoadingVisible] = useState(() =>
     isLoadableOfficeKind(officeKind) && Boolean(src),
   );
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useDocumentReadingValue("office:zoom", 1);
   const zoomIn = useCallback(() => setZoom((value) => clampOfficeZoom(value + 0.1)), []);
   const zoomOut = useCallback(() => setZoom((value) => clampOfficeZoom(value - 0.1)), []);
   const zoomByWheel = useCallback((deltaY: number) => {
@@ -93,6 +98,17 @@ export function OfficePreview({
         <WordPreview
           onLoadingVisibleChange={setIsContentLoadingVisible}
           onMissing={onMissing}
+          src={src}
+          zoom={zoom}
+        />
+      ) : officeKind === "spreadsheet" && inspection.mode === "paged" && src ? (
+        <PagedTablePreview
+          key={src}
+          displayPath={displayPath}
+          fileName={fileName}
+          inspection={inspection}
+          onCreateSelectionImageReference={onCreateSpreadsheetRangeImageReference}
+          onLoadingVisibleChange={setIsContentLoadingVisible}
           src={src}
           zoom={zoom}
         />
