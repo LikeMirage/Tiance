@@ -3,7 +3,6 @@ from datetime import UTC, datetime
 from functools import lru_cache
 import logging
 from tempfile import SpooledTemporaryFile
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from app.core.errors import BadRequestError
 from app.domain.llm.chat import ChatCompletionRequest, ChatCompletionResult, ChatStreamEvent
@@ -19,6 +18,7 @@ from app.infra.llm.chat_adapters import (
     OpenAIResponsesChatAdapter,
 )
 from app.infra.llm.request_headers import merge_request_headers, resolve_request_headers
+from app.infra.llm.redaction import SENSITIVE_NAMES as _SENSITIVE_NAMES, redact_url as _redact_url
 
 
 logger = logging.getLogger(__name__)
@@ -245,38 +245,11 @@ async def _notify_exchange(
         logger.exception("Failed to persist a model HTTP exchange audit record.")
 
 
-_SENSITIVE_NAMES = {
-    "authorization",
-    "proxy-authorization",
-    "x-api-key",
-    "x-goog-api-key",
-    "api-key",
-    "api_key",
-    "apikey",
-    "access_token",
-    "token",
-    "key",
-    "cookie",
-    "set-cookie",
-}
-
-
 def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
     return {
         key: "[REDACTED]" if key.lower() in _SENSITIVE_NAMES else value
         for key, value in headers.items()
     }
-
-
-def _redact_url(url: str) -> str:
-    parts = urlsplit(url)
-    query = urlencode(
-        [
-            (key, "[REDACTED]" if key.lower() in _SENSITIVE_NAMES else value)
-            for key, value in parse_qsl(parts.query, keep_blank_values=True)
-        ]
-    )
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
 
 
 def _redact_mapping(value: dict[str, object]) -> dict[str, object]:

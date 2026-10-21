@@ -13,16 +13,6 @@
     "input": "client_json",
     "output": "client_json"
   },
-  "keywords": [
-    "AI会话",
-    "会话交互",
-    "发送消息",
-    "文件路径",
-    "图片路径",
-    "等待回复",
-    "后台运行",
-    "前端能力"
-  ],
   "loading": {
     "dynamic": false
   },

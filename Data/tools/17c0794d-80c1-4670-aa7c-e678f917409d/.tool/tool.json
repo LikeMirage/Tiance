@@ -1,5 +1,5 @@
 {
-  "description": "使用工具自带Everything搜索Windows本机文件及目录。支持原生搜索语法、限定目录和显式分页。首次搜索会请求Windows管理员授权，仅提升Everything，不安装服务；之后复用本工具独立实例，不影响已有Everything。返回has_more和next_offset，按完整路径升序实时分页。status不启动程序，stop只停止本工具实例。UAC需用户在本机确认，天策自动允许不能代替；无人值守应先在本机授权启动。",
+  "description": "使用自带Everything搜索Windows文件及目录，支持原生语法、限定目录、分页及content:正文搜索。文件名查询利用索引；正文临时读取，先限定目录和类型，不保证秒搜，Word/PDF等依赖系统iFilter。返回文件路径、类型、大小，不返回命中正文；已知目录内的纯文本逐行检索优先用rg。首次搜索请求Windows管理员授权，仅提升独立Everything，不安装服务。status返回运行状态、索引就绪状态和版本且不启动程序；stop只停止本工具实例。按完整路径升序实时分页，使用has_more和next_offset继续。UAC需本机确认，无人值守前先授权启动。",
   "execution": {
     "parallel": false
   },
@@ -13,13 +13,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "Everything",
-    "文件搜索",
-    "全盘搜索",
-    "文件名",
-    "目录"
-  ],
   "loading": {
     "dynamic": false
   },

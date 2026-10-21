@@ -1,9 +1,12 @@
 import sqlite3
 
+import pytest
+
 from app.domain.llm.chat import ChatUsage
 from app.infra.database import ensure_database_schema, run_database_migrations
 from app.infra.database.schema import MIGRATIONS
 from app.repositories.llm.usage_repository import LlmUsageRepository
+from app.repositories.llm.usage_file_store import UsageFileStore
 from app.services.application.usage_file_migration import ensure_usage_file_storage
 
 
@@ -103,3 +106,90 @@ def test_usage_event_replay_preserves_upsert_and_model_delete_semantics(tmp_path
     )
     assert deleted_summary.total.record_count == 0
     assert deleted_summary.total.total_tokens == 0
+
+
+def _record_usage(repository, message_id="message-1"):
+    return repository.record_usage(
+        project_id="project-1", session_id="session-1", message_id=message_id,
+        provider_id="provider-1", model_id="model-1",
+        usage=ChatUsage(prompt_tokens=10, completion_tokens=2, total_tokens=12),
+    )
+
+
+@pytest.mark.parametrize("tail", [b'{"version":1,"record":', b'{"text":"\xe4\xb8', b'\x00\x00'])
+def test_startup_recovers_only_torn_tail_and_can_append_again(tmp_path, tail):
+    usage_path = tmp_path / "usage"
+    _record_usage(LlmUsageRepository(usage_path))
+    ledger = usage_path / "usage_records.jsonl"
+    healthy = ledger.read_bytes()
+    with ledger.open("ab") as output:
+        output.write(tail)
+
+    ensure_usage_file_storage(tmp_path / "unused.db", usage_path)
+
+    assert ledger.read_bytes() == healthy
+    backups = list(usage_path.glob("*.corrupt-tail"))
+    assert len(backups) == 1
+    assert backups[0].read_bytes() == tail
+    _record_usage(LlmUsageRepository(usage_path), message_id="message-2")
+    assert len(UsageFileStore(usage_path).list_records()) == 2
+    ensure_usage_file_storage(tmp_path / "unused.db", usage_path)
+    assert list(usage_path.glob("*.corrupt-tail")) == backups
+
+
+def test_complete_event_without_newline_is_preserved_before_next_append(tmp_path):
+    _record_usage(LlmUsageRepository(tmp_path))
+    ledger = tmp_path / "usage_records.jsonl"
+    ledger.write_bytes(ledger.read_bytes().rstrip(b"\r\n"))
+    _record_usage(LlmUsageRepository(tmp_path), message_id="message-2")
+    assert len(UsageFileStore(tmp_path).list_records()) == 2
+    assert not list(tmp_path.glob("*.corrupt-tail"))
+
+
+@pytest.mark.parametrize("suffix", [b'\n', b'\n{"version":1}\n'])
+def test_complete_corrupt_line_is_not_silently_discarded(tmp_path, suffix):
+    _record_usage(LlmUsageRepository(tmp_path))
+    ledger = tmp_path / "usage_records.jsonl"
+    content = ledger.read_bytes() + b'{"partial":' + suffix
+    ledger.write_bytes(content)
+    with pytest.raises(ValueError, match="line 2"):
+        UsageFileStore(tmp_path).list_records()
+    assert ledger.read_bytes() == content
+    assert not list(tmp_path.glob("*.corrupt-tail"))
+
+
+@pytest.mark.parametrize("tail", [b'{"version":2}', b'{"version":1,"operation":"unknown"}', b'{"version":1,"operation":"upsert","record":{}}'])
+def test_semantically_invalid_tail_is_not_mistaken_for_torn_json(tmp_path, tail):
+    ledger = tmp_path / "usage_records.jsonl"
+    ledger.write_bytes(tail)
+    with pytest.raises(ValueError):
+        UsageFileStore(tmp_path).list_records()
+    assert ledger.read_bytes() == tail
+    assert not list(tmp_path.glob("*.corrupt-tail"))
+
+
+def test_failure_to_backup_torn_tail_leaves_original_untouched(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    _record_usage(LlmUsageRepository(tmp_path))
+    ledger = tmp_path / "usage_records.jsonl"
+    content = ledger.read_bytes() + b'{"partial":'
+    ledger.write_bytes(content)
+    real_open = Path.open
+
+    def failing_backup(path, *args, **kwargs):
+        if path.name.endswith(".corrupt-tail"):
+            raise OSError("backup disk full")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", failing_backup)
+    with pytest.raises(OSError, match="disk full"):
+        UsageFileStore(tmp_path).list_records()
+    assert ledger.read_bytes() == content
+
+
+def test_single_partial_first_record_does_not_prevent_startup(tmp_path):
+    (tmp_path / "usage_records.jsonl").write_bytes(b'{"version":')
+    ensure_usage_file_storage(tmp_path / "unused.db", tmp_path)
+    _record_usage(LlmUsageRepository(tmp_path))
+    assert len(UsageFileStore(tmp_path).list_records()) == 1

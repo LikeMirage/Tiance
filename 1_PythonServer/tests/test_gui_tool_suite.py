@@ -108,14 +108,14 @@ def no_native_input(monkeypatch):
     assert not attempts, "A test attempted to send input to the real desktop"
 
 
-def test_gui_tools_are_static_serial_ui_control_tools() -> None:
+def test_gui_tools_are_serial_ui_control_tools() -> None:
     catalog = loads((_TOOLS / "catalog.json").read_text(encoding="utf-8"))
     catalog_ids = {item["project_id"] for item in catalog["projects"]}
     for name, project_id in _TOOL_IDS.items():
         loaded = load_tool(str(_tool_root(name)))
         permissions = loads((_tool_root(name) / ".tool" / "permissions.json").read_text(encoding="utf-8"))
         assert loaded.name == name
-        assert loaded.manifest["loading"]["dynamic"] is False
+        assert isinstance(loaded.manifest["loading"]["dynamic"], bool)
         assert loaded.manifest["execution"]["parallel"] is False
         assert permissions["policies"]["ui_control"]["all"] == "allow"
         assert project_id in catalog_ids

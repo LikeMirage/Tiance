@@ -52,6 +52,7 @@ def test_tool_project_manifest_save_keeps_registration_and_project_names_indepen
     assert storage.get_tool_folder(toolset.category_id, folder.project_id).name == "脚本工具"
     assert "summary" not in saved
     assert "ui" not in saved
+    assert "keywords" not in saved
 
 
 def test_tool_project_manifest_rejects_placeholder_call_name(tmp_path):

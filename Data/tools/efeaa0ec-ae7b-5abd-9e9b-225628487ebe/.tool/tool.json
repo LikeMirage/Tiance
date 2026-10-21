@@ -14,13 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "工具",
-    "信息加载",
-    "动态加载",
-    "参数",
-    "示例"
-  ],
   "loading": {
     "dynamic": false
   },

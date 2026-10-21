@@ -30,7 +30,6 @@ def test_tool_registry_rebuild_populates_searchable_memory_index(tmp_path):
             "name": "read_text_file",
             "registration_name": "工具包注册名称",
             "description": "读取本地纯文本文件。",
-            "keywords": ["文本", "源码"],
             "execution": {"parallel": True},
             "state": {"enabled": True},
         }
@@ -87,7 +86,8 @@ def test_tool_registry_rebuild_populates_searchable_memory_index(tmp_path):
     assert metadata.input_schema["required"] == ["file_path"]
     assert metadata.output_schema["properties"]["content"]["type"] == "string"
     assert metadata.examples[0][1]["content"] == "先确认文件大小。"
-    assert service.search_entries("源码")[0].tool_name == "read_text_file"
+    for query in ("read_text_file", "文本读取", "纯文本", "基础工具", "file_path", "查看文件元信息"):
+        assert service.search_entries(query)[0].tool_name == "read_text_file"
 
 
 def test_tool_catalog_can_read_summaries_from_registry(tmp_path):
@@ -102,7 +102,6 @@ def test_tool_catalog_can_read_summaries_from_registry(tmp_path):
             "name": "read_text_file",
             "registration_name": "文本读取",
             "description": "读取本地纯文本文件。",
-            "keywords": ["文本"],
             "state": {"enabled": True},
         }
     )

@@ -9,7 +9,6 @@ import {
   createPdfLinkService,
 } from "../model/pdfLinkAdapter";
 import { resolvePdfCanvasOutputScale } from "../model/pdfCanvasScale";
-import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 
 type PdfPageViewProps = {
@@ -41,7 +40,7 @@ export function PdfPageView({
   const [annotationError, setAnnotationError] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [isPageLoading, setIsPageLoading] = useState(true);
-  const isPageLoadingVisible = useMinimumLoading(isPageLoading);
+  const isPageLoadingVisible = isPageLoading;
 
   useEffect(() => {
     let isCancelled = false;

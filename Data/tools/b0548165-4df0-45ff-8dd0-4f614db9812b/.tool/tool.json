@@ -13,15 +13,8 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "GUI",
-    "截图",
-    "窗口",
-    "网格定位",
-    "界面查看"
-  ],
   "loading": {
-    "dynamic": false
+    "dynamic": true
   },
   "name": "gui_inspect",
   "registration_name": "GUI 界面查看",

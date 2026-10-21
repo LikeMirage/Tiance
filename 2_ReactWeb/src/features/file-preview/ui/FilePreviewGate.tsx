@@ -3,6 +3,7 @@ import { Fragment, useEffect, useState, type ReactNode } from "react";
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import { useDocumentReadingValue } from "../../../entities/editor/model/documentReadingState";
 import { HttpRequestError } from "../../../services/http/httpClient";
+import { LoadingBoundary } from "../../../shared/ui/loading-strip";
 import { DocumentOpenFallbackContent } from "../../document-editor-canvas/ui/UnsupportedDocumentContent";
 import { checkedPreviewUrl, delimitedPreviewUrl, inspectFilePreview, isDelimitedFile, type FilePreviewInspection } from "../model/filePreview";
 import "./file-preview.css";
@@ -49,10 +50,11 @@ export function FilePreviewGate({ tab, src: sourceSrc, children, onMissing }: {
   const inspection = state.inspection;
   const pending = !current;
   const stopped = cancelled || current?.error || inspection?.mode === "blocked";
+  const loading = !stopped && (pending || !inspection);
   const checkedSrc = state.checkedSrc ?? src;
   return (
     <div className="file-preview-session">
-      <div className="file-preview-session__bar" role="status">
+      {delimited || stopped ? <div className="file-preview-session__bar" role={stopped ? "status" : undefined}>
         {delimited ? <>
           <label>编码 <select aria-label="文本编码" value={encoding} onChange={(event) => {
             setEncoding(event.target.value); setCancelled(false);
@@ -67,26 +69,26 @@ export function FilePreviewGate({ tab, src: sourceSrc, children, onMissing }: {
             <option value="tab">制表符</option><option value="semicolon">分号</option><option value="pipe">竖线</option>
           </select></label>
         </> : null}
-        <span>{cancelled ? "预览已停止" : current?.error ? "预览失败"
-          : inspection?.mode === "blocked" ? "已超过内置预览预算"
-            : inspection && !pending ? "文件检查完成" : "正在检查文件与解压开销…"}</span>
+        {stopped ? <span>{cancelled ? "已取消加载" : current?.error ? "预览失败"
+          : "已超过内置预览预算"}</span> : null}
         {stopped ? <button type="button" onClick={() => {
           setCancelled(false); setAttempt((value) => value + 1);
-        }}>重新检查</button> : <button type="button" onClick={() => setCancelled(true)}>停止预览</button>}
-      </div>
+        }}>重新加载</button> : null}
+      </div> : null}
       {stopped ? (
         <DocumentOpenFallbackContent activeTab={tab}
           heading={cancelled ? "已停止本次预览" : "无法继续内置预览"}
           detail={current?.error ?? inspection?.message} />
-      ) : inspection ? (
-        <div className="file-preview-session__content" inert={pending} aria-busy={pending}>
-          <Fragment key={`${inspection.version ?? checkedSrc}:${state.formatKey}:${attempt}`}>
-            {children(inspection, checkedSrc)}
-          </Fragment>
-        </div>
-      ) : (
-        <div className="file-preview-session__waiting">正在准备文件，可以取消或切换到其他文件。</div>
-      )}
+      ) : <LoadingBoundary pending={loading}
+        actions={<button type="button" onClick={() => setCancelled(true)}>取消加载</button>}>
+        {inspection ? (
+          <div className="file-preview-session__content" inert={pending} aria-busy={pending}>
+            <Fragment key={`${inspection.version ?? checkedSrc}:${state.formatKey}:${attempt}`}>
+              {children(inspection, checkedSrc)}
+            </Fragment>
+          </div>
+        ) : null}
+      </LoadingBoundary>}
     </div>
   );
 }

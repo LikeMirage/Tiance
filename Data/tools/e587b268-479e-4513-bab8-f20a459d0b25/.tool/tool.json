@@ -13,15 +13,8 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "GUI",
-    "键盘",
-    "文本输入",
-    "按键",
-    "快捷键"
-  ],
   "loading": {
-    "dynamic": false
+    "dynamic": true
   },
   "name": "gui_keyboard",
   "registration_name": "GUI 键盘操作",

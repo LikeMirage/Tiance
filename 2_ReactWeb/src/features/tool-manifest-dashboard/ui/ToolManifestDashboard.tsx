@@ -5,7 +5,6 @@ import { OptionSelect, type OptionSelectItem } from "../../../shared/ui/option-s
 import {
   asRequiredSet,
   asString,
-  asStringArray,
   parseToolManifest,
 } from "../model/toolManifest";
 import type {
@@ -16,8 +15,6 @@ import { useToolManifestAutoSave } from "../model/useToolManifestAutoSave";
 import {
   DashboardSection,
   Field,
-  KeywordButtons,
-  KeywordDialog,
 } from "./ToolManifestFields";
 import {
   getExamples,
@@ -49,7 +46,6 @@ export function ToolManifestDashboard({
 }: ToolManifestDashboardProps) {
   const parsed = parseToolManifest(content);
   const manifest = parsed.ok ? parsed.manifest : {};
-  const keywords = getKeywords(manifest);
   const parameters = Object.entries(manifest.input_schema?.properties ?? {});
   const required = asRequiredSet(manifest.input_schema?.required);
   const inputCallRules = asString(manifest.input_schema?.description);
@@ -62,7 +58,6 @@ export function ToolManifestDashboard({
   const isToolEnabled = getToolEnabled(manifest);
   const runtimeEntry = asString(manifest.runtime?.entry);
   const runtimeEntryOptions = buildRuntimeEntryOptions(entryCandidates, runtimeEntry);
-  const [isKeywordDialogOpen, setIsKeywordDialogOpen] = useState(false);
   const [expandedParameterNames, setExpandedParameterNames] = useState<Set<string>>(() => new Set());
   const markPendingAutoSave = useToolManifestAutoSave({
     canSave: parsed.ok,
@@ -213,29 +208,7 @@ export function ToolManifestDashboard({
                 })}
               />
             </Field>
-            <Field className="tool-dashboard__field--wide" label="关键词">
-              <KeywordButtons
-                keywords={keywords}
-                onAdd={() => setIsKeywordDialogOpen(true)}
-                onRemove={(keyword) => updateManifest((draft) => {
-                  draft.keywords = keywords.filter((item: string) => item !== keyword);
-                })}
-              />
-            </Field>
           </section>
-
-          {isKeywordDialogOpen ? (
-            <KeywordDialog
-              existingKeywords={keywords}
-              onCancel={() => setIsKeywordDialogOpen(false)}
-              onConfirm={(keyword) => {
-                updateManifest((draft) => {
-                  draft.keywords = [...keywords, keyword];
-                });
-                setIsKeywordDialogOpen(false);
-              }}
-            />
-          ) : null}
 
           <ToolManifestParametersSection
             expandedParameterNames={expandedParameterNames}
@@ -369,10 +342,6 @@ function getToolEnabled(manifest: { state?: unknown }) {
 function setToolEnabled(draft: JsonObject, enabled: boolean) {
   const state = ensureObject(draft, "state");
   state.enabled = enabled;
-}
-
-function getKeywords(manifest: { keywords?: unknown }) {
-  return asStringArray(manifest.keywords);
 }
 
 function ensureObject(target: JsonObject, key: string): JsonObject {

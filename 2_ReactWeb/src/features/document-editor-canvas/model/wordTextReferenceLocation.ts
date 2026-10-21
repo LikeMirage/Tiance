@@ -17,9 +17,9 @@ export function readWordTextReferenceLocation(
   const endOffset = textOffset(endParagraph, range.endContainer, range.endOffset);
   return compactLocation({
     kind: "word_range",
-    start: { ...start, characterOffset: startOffset },
-    end: { ...end, characterOffset: endOffset },
-    nearestHeading: nearestHeading(surface, startParagraph),
+    start: { ...start, characterOffset: startOffset + Number(startParagraph?.dataset.wordOffset ?? 0) },
+    end: { ...end, characterOffset: endOffset + Number(endParagraph?.dataset.wordOffset ?? 0) },
+    nearestHeading: sourcePosition(startParagraph)?.nearestHeading ?? nearestHeading(surface, startParagraph),
     prefix: contextBefore(startParagraph, startOffset),
     suffix: contextAfter(endParagraph, endOffset),
   });
@@ -31,6 +31,16 @@ function locatePosition(
   offset: number,
 ): EditorWordTextReferencePosition {
   const element = node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement;
+  const source = sourcePosition(element?.closest<HTMLElement>("p") ?? null);
+  if (source) return compactPosition({
+    container: source.container,
+    characterOffset: offset,
+    paragraphIndex: source.paragraphIndex,
+    tableIndex: source.tableIndex,
+    rowIndex: source.rowIndex,
+    columnIndex: source.columnIndex,
+    cellParagraphIndex: source.cellParagraphIndex,
+  });
   const page = element?.closest("section.office-docx");
   const paragraph = element?.closest("p");
   const cell = element?.closest("td, th") as HTMLTableCellElement | null;
@@ -48,13 +58,18 @@ function locatePosition(
   return compactPosition({
     container,
     characterOffset: offset,
-    pageNumber: ordinal(surface.querySelectorAll("section.office-docx"), page),
-    paragraphIndex: ordinal(wordParagraphs(surface), paragraph),
-    tableIndex: ordinal(wordTables(surface), table),
+    pageNumber: page?.hasAttribute("data-preview-page") ? undefined : ordinal(surface.querySelectorAll("section.office-docx"), page),
+    paragraphIndex: container === "body" || container === "table" ? undefined : ordinal(wordParagraphs(surface), paragraph),
+    tableIndex: container === "body" || container === "table" ? undefined : ordinal(wordTables(surface), table),
     rowIndex: row && table ? ordinalTableRow(table, row) : undefined,
     columnIndex: cell && row && table ? tableGridColumnIndex(table, row, cell) : undefined,
     cellParagraphIndex: cell && paragraph ? ordinal(cell.querySelectorAll("p"), paragraph) : undefined,
   });
+}
+
+function sourcePosition(paragraph: HTMLElement | null): (EditorWordTextReferencePosition & { nearestHeading?: string }) | undefined {
+  const value = paragraph?.dataset.wordPosition;
+  return value ? JSON.parse(value) : undefined;
 }
 
 function wordParagraphs(surface: HTMLElement) {

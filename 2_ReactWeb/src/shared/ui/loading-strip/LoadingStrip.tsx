@@ -1,3 +1,5 @@
+import { useContext, useLayoutEffect } from "react";
+import { LoadingBoundaryContext } from "./loadingBoundaryContext";
 import "./loading-strip.css";
 
 type LoadingStripMode = "inline" | "fill" | "overlay";
@@ -21,6 +23,10 @@ export function LoadingStrip({
   surface = "none",
   visual = "bar",
 }: LoadingStripProps) {
+  const register = useContext(LoadingBoundaryContext);
+  useLayoutEffect(() => register?.(), [register]);
+  if (register) return null;
+
   const resolvedLabel = label ?? (visual === "ring" ? "Tiance" : "Loading...");
   const classes = [
     "ds-loading-strip",

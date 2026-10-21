@@ -61,6 +61,7 @@ export function ProviderApiKeySection({
         <button
           className="provider-canvas__canvas-plus"
           type="button"
+          disabled={providerConfigState.savingProviderId !== null}
           onClick={providerConfigState.addSelectedApiKey}
           aria-label={t("providerCanvas.apiKey.add")}
         >
@@ -84,6 +85,7 @@ export function ProviderApiKeySection({
                 className="provider-canvas__canvas-input provider-canvas__canvas-input--with-button"
                 type="password"
                 autoComplete="off"
+                disabled={providerConfigState.savingProviderId !== null}
                 aria-label={`${providerDisplayName} API KEY ${index + 1}`}
                 value={apiKey.value}
                 placeholder={
@@ -108,6 +110,7 @@ export function ProviderApiKeySection({
               <button
                 className="provider-canvas__canvas-input-action provider-canvas__canvas-input-action--clear"
                 type="button"
+                disabled={providerConfigState.savingProviderId !== null}
                 aria-label={t("providerCanvas.apiKey.clearAria", {
                   index: index + 1,
                   provider: providerDisplayName,
@@ -133,6 +136,7 @@ export function ProviderApiKeySection({
                   className="provider-canvas__api-key-poll-input"
                   type="number"
                   inputMode="numeric"
+                  disabled={providerConfigState.savingProviderId !== null}
                   min="0"
                   aria-label={t("providerCanvas.apiKey.pollAria", {
                     index: index + 1,
@@ -254,7 +258,7 @@ export function ProviderApiBaseUrlSection({
           <OptionSelect
             ariaLabel={t("providerCanvas.selectProviderProtocol")}
             className="provider-canvas__provider-protocol-select"
-            disabled={isUpdatingProviderProtocol}
+            disabled={isUpdatingProviderProtocol || providerConfigState.savingProviderId !== null}
             options={protocolFamilyOptions}
             value={protocolFamily}
             variant="integrated-overlay"
@@ -278,6 +282,7 @@ export function ProviderApiBaseUrlSection({
               type="text"
               autoComplete="off"
               aria-label={`${providerDisplayName} API Base URL`}
+              disabled={providerConfigState.savingProviderId !== null}
               value={selectedProviderDraft.apiBaseUrl}
               placeholder={t("providerCanvas.apiAddress.placeholder")}
               onBlur={() => {
@@ -293,6 +298,7 @@ export function ProviderApiBaseUrlSection({
                 type="button"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={providerConfigState.resetSelectedApiBaseUrl}
+                disabled={providerConfigState.savingProviderId !== null}
               >
                 {t("common.actions.reset")}
               </button>
@@ -348,6 +354,7 @@ export function ProviderApiBaseUrlSection({
               autoComplete="off"
               aria-label={`${providerDisplayName} model discovery URL`}
               value={selectedProviderDraft.modelDiscoveryUrl}
+              disabled={providerConfigState.savingProviderId !== null}
               placeholder={t("providerCanvas.apiAddress.modelsPlaceholder")}
               onBlur={() => {
                 void providerConfigState.saveSelectedProviderConfig();
@@ -362,6 +369,7 @@ export function ProviderApiBaseUrlSection({
                 type="button"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={providerConfigState.resetSelectedModelDiscoveryUrl}
+                disabled={providerConfigState.savingProviderId !== null}
               >
                 {t("common.actions.reset")}
               </button>

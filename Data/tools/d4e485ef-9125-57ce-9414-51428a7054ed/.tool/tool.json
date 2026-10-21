@@ -14,11 +14,6 @@
     "input": "internal_json",
     "output": "internal_json"
   },
-  "keywords": [
-    "动态工具",
-    "工具执行",
-    "统一调用"
-  ],
   "loading": {
     "dynamic": false
   },

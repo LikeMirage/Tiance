@@ -13,15 +13,8 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "GUI",
-    "后台运行器",
-    "AI操控",
-    "屏幕",
-    "Windows"
-  ],
   "loading": {
-    "dynamic": false
+    "dynamic": true
   },
   "name": "gui_runtime",
   "registration_name": "GUI 界面锁",

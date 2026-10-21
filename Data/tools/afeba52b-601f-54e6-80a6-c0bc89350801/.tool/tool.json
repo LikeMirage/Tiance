@@ -14,14 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "收尾检查",
-    "验收",
-    "pnpm",
-    "环境变量",
-    "临时文件",
-    "验证命令"
-  ],
   "loading": {
     "dynamic": true
   },

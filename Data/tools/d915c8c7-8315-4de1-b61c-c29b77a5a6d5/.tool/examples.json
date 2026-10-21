@@ -1,10 +1,26 @@
 [
   {
-    "title": "首次使用前配置",
-    "content": "用户提供 DeepSeek 官方 API Key 后调用：\n{\n  \"action\": \"configure\",\n  \"api_key\": \"用户提供的密钥\"\n}\n\n工具只更新自身 config.json 中的 deepseek.api_key，返回结果不会回显密钥。也可调用 action=config_info 查看配置文件路径，或设置环境变量 DEEPSEEK_API_KEY。"
+    "title": "搜索三条结果",
+    "content": "{\n  \"action\": \"search\",\n  \"query\": \"DeepSeek 搜索接口 site:api-docs.deepseek.com\",\n  \"count\": 3\n}"
   },
   {
-    "title": "搜索最新公开信息",
-    "content": "输入：\n{\n  \"action\": \"search\",\n  \"query\": \"查询今天发布的 DeepSeek API 官方更新，概括主要变化并列出来源。\"\n}\n\n工具直接请求 config.json 中的 Responses 地址，并强制使用服务端 web_search；不会调用天策内置搜索、免费搜索或当前会话模型。"
+    "title": "搜索并附带正文",
+    "content": "{\n  \"action\": \"search\",\n  \"query\": \"Python pathlib site:docs.python.org\",\n  \"count\": 3,\n  \"need_content\": true\n}\n\n较长字段保存为文件；通过 text_files 中的路径继续读取，不能把省略的字段当作空内容。"
+  },
+  {
+    "title": "读取指定网页",
+    "content": "{\n  \"action\": \"fetch\",\n  \"url\": \"https://api-docs.deepseek.com/zh-cn/guides/search/\"\n}\n\n保留请求网址。上游 HTTP 成功并不保证页面内容相关；应检查正文，可能是站点错误页。"
+  },
+  {
+    "title": "配置工具 Key",
+    "content": "{\n  \"action\": \"configure\",\n  \"api_key\": \"用户提供的 DeepSeek 官方 Key\"\n}\n\n只写入本工具 config.json，不回显 Key。已填写的 Key 无效或余额不足时不会自动改用模型集。"
+  },
+  {
+    "title": "恢复使用模型集 Key",
+    "content": "{\n  \"action\": \"configure\",\n  \"api_key\": \"\"\n}\n\n清除 JSON Key，后续请求通过能力桥使用模型集 DeepSeek 的可用 Key，与当前对话模型无关。"
+  },
+  {
+    "title": "查看配置",
+    "content": "{\"action\":\"config_info\"}\n\n返回配置路径、JSON Key 是否已填写和输出阈值；不会发起搜索，也不返回密钥。"
   }
 ]

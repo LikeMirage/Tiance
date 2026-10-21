@@ -125,6 +125,12 @@ class _FakeUsageService:
             if session_id in self._usage_by_session
         }
 
+    def get_projects_session_totals(self, project_sessions):
+        return {
+            project_id: self.get_session_totals(project_id=project_id, session_ids=session_ids)
+            for project_id, session_ids in project_sessions.items()
+        }
+
 
 def _session(
     session_id: str,

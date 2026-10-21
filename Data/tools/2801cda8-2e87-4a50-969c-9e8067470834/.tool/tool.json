@@ -13,15 +13,8 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "GUI",
-    "UIAutomation",
-    "控件",
-    "按钮",
-    "输入框"
-  ],
   "loading": {
-    "dynamic": false
+    "dynamic": true
   },
   "name": "gui_uia",
   "registration_name": "GUI 控件操作",

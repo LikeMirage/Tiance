@@ -14,14 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "glob",
-    "文件匹配",
-    "按模式找文件",
-    "路径",
-    "文件列表",
-    "目录"
-  ],
   "loading": {
     "dynamic": false
   },

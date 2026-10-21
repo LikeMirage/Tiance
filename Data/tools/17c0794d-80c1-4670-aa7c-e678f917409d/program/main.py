@@ -61,7 +61,11 @@ def es(args, cfg, *, timeout=None, search_text=None):
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), env=env,
         )
     except subprocess.TimeoutExpired as exc:
-        raise ToolError("SEARCH_TIMEOUT", "Everything操作超时，未返回不完整结果。", timeout_seconds=exc.timeout) from exc
+        # subprocess.run超时时会结束并回收ES；Everything 1.4.1.838起会取消
+        # 已退出IPC客户端的查询。不能另开一个ES发空查询：它不是同一个客户端。
+        code = "SEARCH_TIMEOUT" if search_text is not None else "COMMAND_TIMEOUT"
+        message = "Everything查询超时，请缩小目录、类型或大小范围后重试；未返回部分结果。" if search_text is not None else "Everything控制命令超时。"
+        raise ToolError(code, message, timeout_seconds=exc.timeout) from exc
 
 
 def checked(cp):
@@ -77,6 +81,60 @@ def running(cfg):
         return False
     checked(cp)
     return True
+
+
+def database_loaded(*, timeout_seconds=1.0):
+    # 官方Everything_IPC.h：WM_USER / EVERYTHING_IPC_IS_DB_LOADED。
+    # 直接读取命名实例状态，不发搜索、不启动进程；SendMessageTimeout防止挂起。
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
+    user32.FindWindowW.restype = wintypes.HWND
+    user32.SendMessageTimeoutW.argtypes = [
+        wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM,
+        wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t),
+    ]
+    user32.SendMessageTimeoutW.restype = wintypes.LPARAM
+    hwnd = user32.FindWindowW(f"EVERYTHING_TASKBAR_NOTIFICATION_({INSTANCE})", None)
+    if not hwnd:
+        raise ToolError("INSTANCE_UNAVAILABLE", "本工具Everything实例已退出，请重新搜索。")
+    value = ctypes.c_size_t()
+    ctypes.set_last_error(0)
+    if not user32.SendMessageTimeoutW(
+        hwnd, 0x0400, 401, 0, 0x0002 | 0x0020,
+        max(1, math.ceil(timeout_seconds * 1000)), ctypes.byref(value),
+    ):
+        raise ToolError("IPC_UNRESPONSIVE", "Everything未响应索引状态查询。", windows_error=ctypes.get_last_error())
+    return bool(value.value)
+
+
+def wait_for_index(cfg):
+    deadline = time.monotonic() + cfg["startup_timeout_seconds"]
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ToolError("INDEX_NOT_READY", "Everything索引尚未就绪，请稍后通过status检查；未执行搜索。")
+        if database_loaded(timeout_seconds=min(1.0, remaining)):
+            return
+        time.sleep(min(cfg["poll_interval_seconds"], max(0, deadline - time.monotonic())))
+
+
+def status(cfg):
+    cp = es(["-get-everything-version"], cfg, timeout=min(2.0, cfg["query_timeout_seconds"]))
+    active = cp.returncode != 8
+    if active:
+        checked(cp)
+    ready = database_loaded() if active else False
+    version = cp.stdout.decode("utf-8-sig").strip() if active else None
+    return {
+        "ok": True,
+        "summary": "Everything正在运行，索引已就绪。" if ready else ("Everything正在运行，索引尚未就绪。" if active else "Everything尚未运行。"),
+        "data": {
+            "active": active, "index_ready": ready, "instance": INSTANCE,
+            "everything_version": version, "state_directory": str(STATE),
+            "search_scope": "everything_index", "content_search": "on_demand",
+        },
+        "warnings": ["索引就绪不代表全盘覆盖；结果只包含本实例已索引位置，内容搜索还取决于文件可读性及系统文本提取组件。"],
+    }
 
 
 @contextmanager
@@ -188,11 +246,13 @@ def search_arguments(payload, cfg):
 def search(payload, cfg):
     query, size, offset, base = search_arguments(payload, cfg)
     started = ensure_running(cfg)
+    wait_for_index(cfg)
     # 多取一条判断下一页，不假装这一页等于全部匹配；临时CSV只做传输解码。
     with tempfile.TemporaryDirectory(prefix="query_", dir=STATE) as folder:
         output = Path(folder) / "results.csv"
         args = [
-            "-ipc2", "-timeout", str(int(cfg["startup_timeout_seconds"] * 1000)),
+            # 索引等待已单独完成；若此时又开始重建，失败而非返回假空结果。
+            "-ipc2", "-timeout", "1",
             "-n", str(offset + size + 1), "-viewport-offset", str(offset),
             "-viewport-count", str(size + 1), "-s",
             "-full-path-and-name", "-size", "-size-format", "1",
@@ -201,7 +261,7 @@ def search(payload, cfg):
         ]
         if base is not None:
             args.extend(["-path", base])
-        checked(es(args, cfg, timeout=cfg["startup_timeout_seconds"] + cfg["query_timeout_seconds"], search_text=query))
+        checked(es(args, cfg, timeout=cfg["query_timeout_seconds"], search_text=query))
         if not output.is_file():
             raise ToolError("INVALID_RESPONSE", "Everything未生成查询结果。")
         with output.open(encoding="utf-8-sig", newline="") as stream:
@@ -238,8 +298,7 @@ def run(payload):
         if action not in {"search", "status", "stop"}:
             raise ToolError("INVALID_ARGUMENT", "action必须为search、status或stop。")
         if action == "status":
-            active = running(cfg)
-            return {"ok": True, "summary": "Everything正在运行。" if active else "Everything尚未运行。", "data": {"active": active, "instance": INSTANCE}, "warnings": []}
+            return status(cfg)
         if action == "search":
             search_arguments(payload, cfg)  # 参数错误时不创建状态、不启动提权。
         elif not running(cfg):

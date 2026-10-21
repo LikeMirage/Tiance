@@ -13,21 +13,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "SQLite",
-    "数据库检索",
-    "全文检索",
-    "FTS5",
-    "sqlite-vec",
-    "向量检索",
-    "混合检索",
-    "动态权重",
-    "精确门控",
-    "共识检索",
-    "文献数据库",
-    "引文溯源",
-    "字面证据"
-  ],
   "loading": {
     "dynamic": false
   },

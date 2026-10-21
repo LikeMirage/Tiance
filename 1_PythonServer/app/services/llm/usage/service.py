@@ -92,6 +92,13 @@ class LlmUsageService:
             session_ids=session_ids,
         )
 
+    def get_projects_session_totals(
+        self, project_sessions: dict[str, tuple[str, ...]]
+    ) -> dict[str, dict[str, LlmUsageSummary]]:
+        for project_id in project_sessions:
+            self._ensure_project(project_id)
+        return self._repository.get_projects_session_totals(project_sessions)
+
     def get_provider_model_summary(
         self,
         *,

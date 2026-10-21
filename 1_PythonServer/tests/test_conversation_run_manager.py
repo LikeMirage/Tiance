@@ -501,8 +501,12 @@ def test_unclaimed_client_tool_request_settles_without_waiting_for_tool_timeout(
     asyncio.run(run_test())
 
 
-def test_client_tool_lease_renewal_keeps_request_active_for_its_owner():
+def test_client_tool_lease_renewal_keeps_request_active_for_its_owner(monkeypatch):
     async def run_test():
+        loop = asyncio.get_running_loop()
+        now = [loop.time()]
+        # Exercise lease boundaries independently of Windows scheduling delays.
+        monkeypatch.setattr(loop, "time", lambda: now[0])
         bridge = ClientToolBridgeService(lease_duration_seconds=0.04)
         client_request = await bridge.create_request(
             ChatToolCall(call_id="call-1", name="open_editor", arguments="{}"),
@@ -514,13 +518,13 @@ def test_client_tool_lease_renewal_keeps_request_active_for_its_owner():
             client_request.request_id,
             executor_id="frontend-1",
         )
-        await asyncio.sleep(0.025)
+        now[0] += 0.025
         assert await bridge.renew_claim(
             client_request.request_id,
             executor_id="frontend-1",
             claim_id=lease.claim_id or "",
         ) is True
-        await asyncio.sleep(0.025)
+        now[0] += 0.025
         assert await bridge.submit_result(
             client_request.request_id,
             ClientToolResultPayload(ok=True, content={"opened": True}),

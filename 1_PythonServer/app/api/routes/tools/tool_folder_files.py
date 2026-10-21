@@ -45,6 +45,16 @@ async def read_tool_spreadsheet_page(
                               encoding=encoding, delimiter=delimiter)
 
 
+@router.get("/{category_id}/projects/{project_id}/files/preview/word")
+async def read_tool_word_chunk(
+    request: Request, category_id: str, project_id: str, path: str, version: str,
+    chunk: int = Query(0, ge=0),
+) -> dict:
+    file_path = get_tool_folder_file_service().get_file_path(category_id, project_id, target_path=path)
+    validate_asset_version(file_path, version)
+    return await preview_file(request, file_path, "word", version=version, chunk=chunk)
+
+
 @router.get(
     "/{category_id}/projects/{project_id}/files",
     response_model=ToolFolderFileTreeResponse,

@@ -10,6 +10,7 @@ export type FilePreviewInspection = {
   page_rows?: number;
   page_columns?: number;
   delimited?: { encoding: string; delimiter: string };
+  word?: { chunks: number; fingerprint: string };
 };
 
 export function isDelimitedFile(fileName: string) {
@@ -65,5 +66,33 @@ export async function readSpreadsheetPage(
   const result = await fetchJson<SpreadsheetPage & { mode?: string; message?: string }>(url.toString(), { signal });
   if (result.mode === "blocked") throw new Error(result.message);
   if (result.version !== version) throw new Error("文件版本已变化，请重新打开预览。");
+  return result;
+}
+
+export type WordSourceLocation = {
+  container: "body" | "table";
+  paragraphIndex: number;
+  tableIndex?: number;
+  rowIndex?: number;
+  columnIndex?: number;
+  cellParagraphIndex?: number;
+  nearestHeading?: string;
+  numbering?: { id: string; level: string; preceding: number };
+};
+
+export type WordChunk = {
+  version: string;
+  chunk: number;
+  package_base64: string;
+  locations: Record<string, WordSourceLocation>;
+};
+
+export async function readWordChunk(src: string, version: string, chunk: number, signal: AbortSignal) {
+  const url = new URL(previewEndpoint(src, "/word"));
+  url.searchParams.set("version", version);
+  url.searchParams.set("chunk", String(chunk));
+  const result = await fetchJson<WordChunk & { mode?: string; message?: string }>(url.toString(), { signal });
+  if (result.mode === "blocked") throw new Error(result.message);
+  if (result.version !== version || result.chunk !== chunk) throw new Error("文件版本已变化，请重新打开预览。");
   return result;
 }

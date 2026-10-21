@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
+from packaging.version import InvalidVersion, Version
+
 from app.core.errors import BadRequestError
 from app.domain.tools import ToolDependency
 
@@ -13,7 +16,6 @@ _REQUIREMENT_RE = re.compile(
     r"(?P<extras>\[[A-Za-z0-9_,.\-\s]+\])?"
     r"(?P<specifier>.*)$"
 )
-_SPECIFIER_RE = re.compile(r"^(==|!=|>=|<=|~=|>|<)\s*([^,\s]+)$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -181,43 +183,15 @@ def _compact_specifier(raw_specifier: str) -> str:
 
 
 def _is_supported_specifier(specifier: str) -> bool:
-    return all(_SPECIFIER_RE.match(part) is not None for part in specifier.split(","))
-
-
-def _matches_specifier(version: str, specifier: str) -> bool:
-    for part in specifier.split(","):
-        match = _SPECIFIER_RE.match(part)
-        if match is None:
-            return True
-        operator, expected = match.groups()
-        comparison = _compare_versions(version, expected)
-        if operator == "==" and comparison != 0:
-            return False
-        if operator == "!=" and comparison == 0:
-            return False
-        if operator == ">=" and comparison < 0:
-            return False
-        if operator == "<=" and comparison > 0:
-            return False
-        if operator == ">" and comparison <= 0:
-            return False
-        if operator == "<" and comparison >= 0:
-            return False
-        if operator == "~=" and comparison < 0:
-            return False
+    try:
+        SpecifierSet(specifier)
+    except InvalidSpecifier:
+        return False
     return True
 
 
-def _compare_versions(left: str, right: str) -> int:
-    left_parts = _version_parts(left)
-    right_parts = _version_parts(right)
-    max_len = max(len(left_parts), len(right_parts))
-    left_parts.extend([0] * (max_len - len(left_parts)))
-    right_parts.extend([0] * (max_len - len(right_parts)))
-    if left_parts == right_parts:
-        return 0
-    return 1 if left_parts > right_parts else -1
-
-
-def _version_parts(version: str) -> list[int]:
-    return [int(part) for part in re.findall(r"\d+", version)]
+def _matches_specifier(version: str, specifier: str) -> bool:
+    try:
+        return SpecifierSet(specifier).contains(Version(version))
+    except (InvalidSpecifier, InvalidVersion):
+        return False

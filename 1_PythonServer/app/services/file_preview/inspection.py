@@ -178,6 +178,9 @@ def inspect_file(path: Path) -> dict:
         try:
             if extension == ".xlsx":
                 result.update(inspect_workbook(package))
+            elif extension == ".docx":
+                from .word import inspect_word
+                result.update(inspect_word(path, package))
             else:
                 xml_bytes = sum(i.file_size for i in package.archive.infolist() if i.filename.lower().endswith((".xml", ".svg")))
                 if xml_bytes > policy.MAX_RENDER_XML_BYTES or package.expanded_bytes > policy.MAX_RENDER_PACKAGE_BYTES:
@@ -186,18 +189,12 @@ def inspect_file(path: Path) -> dict:
                 if slides > policy.MAX_PRESENTATION_SLIDES:
                     raise policy.PreviewLimit("演示文稿超过 40 页，请用默认应用打开。")
                 image_pixels = 0
-                paragraphs = table_cells = 0
                 for info in package.archive.infolist():
                     if info.filename.lower().endswith((".xml", ".svg")):
                         root = None
                         for event, element in package.events(info.filename):
                             if root is None:
                                 root = element
-                            if event == "start" and extension == ".docx":
-                                paragraphs += tag_name(element) == "p"
-                                table_cells += tag_name(element) == "tc"
-                                if paragraphs > policy.MAX_WORD_PARAGRAPHS or table_cells > policy.MAX_WORD_TABLE_CELLS:
-                                    raise policy.PreviewLimit("Word 超过内置排版预算（1500 段 / 2000 个表格单元格），请用默认应用打开。")
                             if event == "end":
                                 element.clear()
                                 root.clear()

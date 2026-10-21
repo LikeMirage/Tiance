@@ -8,6 +8,7 @@ from pathlib import Path
 from threading import RLock
 from uuid import uuid4
 
+from app.core.jsonl_tail import repair_jsonl_tail
 from app.domain.tools import ToolCallRecord, ToolCallRecordDraft
 
 
@@ -42,14 +43,20 @@ class ToolCallRecordRepository:
         serialized = json.dumps(_record_to_payload(record), ensure_ascii=False, separators=(",", ":"))
         with self._write_lock:
             records_path.parent.mkdir(parents=True, exist_ok=True)
-            with records_path.open("a", encoding="utf-8", newline="\n") as stream:
-                stream.write(serialized + "\n")
+            repair_jsonl_tail(records_path, _payload_to_record)
+            with records_path.open("ab") as stream:
+                stream.write((serialized + "\n").encode("utf-8"))
                 stream.flush()
                 os.fsync(stream.fileno())
         return record
 
     def list_project_records(self, project_root: str | Path) -> tuple[ToolCallRecord, ...]:
         records_path = self.records_path(project_root)
+        with self._write_lock:
+            repair_jsonl_tail(records_path, _payload_to_record)
+            return self._read_records(records_path)
+
+    def _read_records(self, records_path: Path) -> tuple[ToolCallRecord, ...]:
         if not records_path.is_file():
             return ()
         records: list[ToolCallRecord] = []

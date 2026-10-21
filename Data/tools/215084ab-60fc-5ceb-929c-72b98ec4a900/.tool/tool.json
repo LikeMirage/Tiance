@@ -13,17 +13,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "Python",
-    "后台进程",
-    "进程状态",
-    "PID",
-    "日志",
-    "停止进程",
-    "清理记录",
-    "失联记录",
-    "批量清理"
-  ],
   "loading": {
     "dynamic": false
   },

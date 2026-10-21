@@ -247,7 +247,6 @@ class _FakeToolRegistryService:
                 tool_name="read_text_file" if project.project_id == "tool-1" else "write_text_file",
                 display_name=project.name,
                 description="",
-                keywords=(),
                 enabled=True,
                 dynamic=True,
                 root_path=project.root_path,

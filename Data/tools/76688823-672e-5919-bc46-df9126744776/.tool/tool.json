@@ -14,15 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "替换",
-    "精准替换",
-    "字符串",
-    "编辑",
-    "hash",
-    "备份",
-    "原子替换"
-  ],
   "loading": {
     "dynamic": false
   },

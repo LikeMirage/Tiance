@@ -14,14 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "记忆",
-    "长期记忆",
-    "全局记忆",
-    "项目记忆",
-    "上下文",
-    "管理"
-  ],
   "loading": {
     "dynamic": false
   },

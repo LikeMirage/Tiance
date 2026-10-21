@@ -14,14 +14,6 @@
     "input": "client_json",
     "output": "client_json"
   },
-  "keywords": [
-    "编辑器",
-    "标签页",
-    "打开文件",
-    "聚焦文件",
-    "关闭标签",
-    "前端能力"
-  ],
   "loading": {
     "dynamic": false
   },

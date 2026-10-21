@@ -13,15 +13,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "patch",
-    "diff",
-    "补丁",
-    "编辑",
-    "多文件",
-    "安全写入",
-    "unified diff"
-  ],
   "loading": {
     "dynamic": false
   },

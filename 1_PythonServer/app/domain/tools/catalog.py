@@ -7,7 +7,6 @@ class ToolSummary:
     name: str
     display_name: str
     description: str
-    keywords: tuple[str, ...]
     category: str
     dynamic: bool
     parameter_names: tuple[str, ...]
@@ -34,7 +33,6 @@ class ToolRegistryEntry:
     tool_name: str
     display_name: str
     description: str
-    keywords: tuple[str, ...]
     enabled: bool
     dynamic: bool
     root_path: str
@@ -54,7 +52,6 @@ class ToolRegistryEntry:
             name=self.tool_name,
             display_name=self.display_name,
             description=self.description,
-            keywords=self.keywords,
             category=self.category_name,
             dynamic=self.dynamic,
             parameter_names=self.parameter_names,

@@ -132,7 +132,6 @@ def _write_tool_files(
         "name": f"custom_tool_{project_id.replace('-', '_')}",
         "registration_name": display_name,
         "description": "",
-        "keywords": [],
         "loading": {"dynamic": True},
         "execution": {"parallel": True},
         "files": {

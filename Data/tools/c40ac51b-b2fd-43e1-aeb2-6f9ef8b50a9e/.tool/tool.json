@@ -13,13 +13,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "GitHub",
-    "Release",
-    "发布",
-    "版本",
-    "附件"
-  ],
   "loading": {
     "dynamic": true
   },

@@ -132,22 +132,22 @@ class LlmUsageRepository:
         project_id: str,
         session_ids: tuple[str, ...],
     ) -> dict[str, LlmUsageSummary]:
-        if not session_ids:
-            return {}
-        requested_ids = set(session_ids)
-        groups = _group_records(
-            tuple(
-                record
-                for record in self._store.list_records()
-                if record.project_id == project_id and record.session_id in requested_ids
-            ),
-            lambda record: record.session_id,
-        )
-        return {
-            session_id: _summarize(records)
-            for session_id, records in groups.items()
-            if session_id is not None
-        }
+        return self.get_projects_session_totals({project_id: session_ids})[project_id]
+
+    def get_projects_session_totals(
+        self, project_sessions: dict[str, tuple[str, ...]]
+    ) -> dict[str, dict[str, LlmUsageSummary]]:
+        result: dict[str, dict[str, LlmUsageSummary]] = {project_id: {} for project_id in project_sessions}
+        requested = {project_id: set(ids) for project_id, ids in project_sessions.items() if ids}
+        if not requested:
+            return result
+        groups = defaultdict(list)
+        for record in self._store.list_records():
+            if record.project_id in requested and record.session_id in requested[record.project_id]:
+                groups[(record.project_id, record.session_id)].append(record)
+        for (project_id, session_id), records in groups.items():
+            result[project_id][session_id] = _summarize(records)
+        return result
 
 
 def _group_records(records, key_factory):

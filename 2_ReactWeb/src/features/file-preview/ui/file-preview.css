@@ -25,7 +25,6 @@
   min-width: 0;
   overflow: hidden;
 }
-.file-preview-session__waiting { margin: auto; padding: 24px; }
 .file-preview-session button, .file-preview-session select, .spreadsheet-pages button, .spreadsheet-pages select {
   font: inherit;
   color: inherit;
@@ -36,7 +35,7 @@
   cursor: pointer;
 }
 .file-preview-session button:disabled { opacity: .4; cursor: default; }
-.spreadsheet-pages { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.spreadsheet-pages { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
 .spreadsheet-pages__note { padding: 6px 10px; font-size: 12px; opacity: .8; }
 .spreadsheet-pages__scroll { flex: 1; min-height: 0; overflow: auto; }
 .spreadsheet-pages table { border-collapse: collapse; table-layout: fixed; background: #fff; color: #111; user-select: none; }
@@ -54,4 +53,3 @@
 .spreadsheet-pages th { position: sticky; top: 0; background: #ececec; z-index: 1; }
 .spreadsheet-pages th:first-child { min-width: 48px; left: 0; }
 .spreadsheet-pages td[aria-selected="true"] { background: #c9defa; }
-.preview-budget-notice { padding: 6px 12px; font-size: 12px; flex-shrink: 0; }

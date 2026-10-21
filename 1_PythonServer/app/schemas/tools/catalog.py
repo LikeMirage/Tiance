@@ -14,7 +14,6 @@ class ToolSummaryResponse(BaseModel):
     name: str
     display_name: str
     description: str
-    keywords: list[str] = Field(default_factory=list)
     category: str
     dynamic: bool
     parallel: bool = False
@@ -27,7 +26,6 @@ class ToolSummaryResponse(BaseModel):
             name=summary.name,
             display_name=summary.display_name,
             description=summary.description,
-            keywords=list(summary.keywords),
             category=summary.category,
             dynamic=summary.dynamic,
             parallel=summary.parallel,

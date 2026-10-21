@@ -14,18 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "Python",
-    "脚本",
-    "执行",
-    "固定解释器",
-    "独立依赖",
-    "stdout",
-    "stderr",
-    "后台运行",
-    "自动分离",
-    "验证"
-  ],
   "loading": {
     "dynamic": false
   },

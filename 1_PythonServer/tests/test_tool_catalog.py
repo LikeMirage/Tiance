@@ -13,6 +13,7 @@ from app.infra.tools.tool_project_config_constants import (
 )
 from app.services.tools.catalog import ToolCatalogService
 from app.services.tools.tool_registry import ToolRegistryService
+from app.schemas.tools.catalog import ToolSummaryResponse
 from tests.tool_project_test_support import ToolProjectFixture
 
 
@@ -36,7 +37,6 @@ def _create_catalog_tool(
             "name": call_name,
             "registration_name": folder_name,
             "description": "读取本地纯文本文件，支持元信息、按行读取和关键词搜索。",
-            "keywords": ["文本", "读取", "源码"],
             "loading": {
                 "dynamic": True,
             },
@@ -126,9 +126,9 @@ def test_tool_catalog_lists_lightweight_summaries_for_enabled_tools(tmp_path):
     assert summary.category == "基础工具"
     assert summary.dynamic is True
     assert summary.parallel is True
-    assert summary.keywords == ("文本", "读取", "源码")
     assert summary.parameter_names == ("file_path", "mode", "query")
     assert summary.example_titles == ("查看文件元信息", "搜索关键词")
+    assert "keywords" not in ToolSummaryResponse.from_domain(summary).model_dump()
 
 
 def test_tool_catalog_reads_split_metadata_with_utf8_bom(tmp_path):

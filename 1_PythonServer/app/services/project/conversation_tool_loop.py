@@ -461,13 +461,17 @@ class ConversationToolLoop:
                     task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
 
-        if first_error is not None:
-            raise first_error
+        # The caller persists each yielded result. Drain every completed result
+        # before propagating a batch error, including results after a missing one.
         for index in range(len(tool_calls)):
             result_event = results.get(index)
             if result_event is None:
-                raise RuntimeError("工具调用未返回结果。")
+                if first_error is None:
+                    first_error = RuntimeError("工具调用未返回结果。")
+                continue
             yield result_event
+        if first_error is not None:
+            raise first_error
 
     async def _execute_tool_call_events(
         self,

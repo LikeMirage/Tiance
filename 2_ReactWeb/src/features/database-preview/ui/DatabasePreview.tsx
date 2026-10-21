@@ -15,7 +15,6 @@ import {
   getProjectDatabaseTableSchema,
   queryProjectDatabase,
 } from "../../../services/project/projectDatabase";
-import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 
 import "./database-preview.css";
@@ -42,7 +41,7 @@ export function DatabasePreview({
 }: DatabasePreviewProps) {
   const [manualRefreshKey, setManualRefreshKey] = useState(0);
   const [overview, setOverview] = useState<ProjectDatabaseOverview | null>(null);
-  const [overviewState, setOverviewState] = useState<LoadState>("idle");
+  const [overviewState, setOverviewState] = useState<LoadState>("loading");
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [selectedObjectName, setSelectedObjectName] = useState<string | null>(null);
   const [mode, setMode] = useState<DatabasePanelMode>("data");
@@ -59,7 +58,7 @@ export function DatabasePreview({
   const [queryError, setQueryError] = useState<string | null>(null);
   const queryRequestSeqRef = useRef(0);
   const queryAbortControllerRef = useRef<AbortController | null>(null);
-  const isOverviewLoadingVisible = useMinimumLoading(overviewState === "loading" && Boolean(overview));
+  const isOverviewLoadingVisible = overviewState === "loading";
 
   const reloadKey = `${refreshKey ?? 0}:${manualRefreshKey}`;
 
@@ -385,7 +384,7 @@ function DataPanel({
   rows: ProjectDatabaseRows | null;
   state: LoadState;
 }) {
-  const isLoadingVisible = useMinimumLoading(state === "loading");
+  const isLoadingVisible = state === "loading" || state === "idle";
 
   return (
     <section className="database-preview__panel">
@@ -421,7 +420,7 @@ function SchemaPanel({
   schema: ProjectDatabaseTableSchema | null;
   state: LoadState;
 }) {
-  const isLoadingVisible = useMinimumLoading(state === "loading");
+  const isLoadingVisible = state === "loading";
 
   return (
     <section className="database-preview__panel">
@@ -507,7 +506,7 @@ function QueryPanel({
   sql: string;
   state: LoadState;
 }) {
-  const isLoadingVisible = useMinimumLoading(state === "loading");
+  const isLoadingVisible = state === "loading";
 
   return (
     <section className="database-preview__panel">

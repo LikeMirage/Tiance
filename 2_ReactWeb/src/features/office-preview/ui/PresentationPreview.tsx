@@ -12,7 +12,6 @@ import {
   CaretRight,
 } from "@phosphor-icons/react";
 
-import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
 import { useDocumentReadingValue, useDocumentReadingScroll } from "../../../entities/editor/model/documentReadingState";
 import { ContextMenu, ContextMenuItem } from "../../../shared/ui/context-menu";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
@@ -24,7 +23,6 @@ import type {
   PresentationZoomAnchor,
   SlideDimensions,
 } from "./officePreviewTypes";
-import { officePreviewMinimumLoadingMs } from "./officePreviewTypes";
 import { clampOfficeZoom } from "./officePreviewUtils";
 import {
   buildPresentationSlideImageFileName,
@@ -93,7 +91,7 @@ export function PresentationPreview({
   const [slideCount, setSlideCount] = useState(0);
   const [state, setState] = useState<LoadState>(() => (src ? "loading" : "idle"));
   const [visibleThumbnailIndexes, setVisibleThumbnailIndexes] = useState<Set<number>>(() => new Set());
-  const isLoadingVisible = useMinimumLoading(state === "loading", officePreviewMinimumLoadingMs);
+  const isLoadingVisible = state === "loading";
   useDocumentReadingScroll("ppt", scrollRef, state === "ready" && !isLoadingVisible, src);
 
   useEffect(() => {

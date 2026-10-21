@@ -51,7 +51,20 @@ class ProjectCategoryOverviewService:
             for project in self._project_service.list_projects()
             if project.category_id == category.category_id
         )
-        items = tuple(self._build_project_overview(project) for project in projects)
+        session_data = {
+            project.project_id: self._conversation_service.get_overview_data(project.project_id)
+            for project in projects
+        }
+        project_usage = self._usage_service.get_projects_session_totals({
+            project_id: tuple(session.session_id for session in data[0])
+            for project_id, data in session_data.items()
+        })
+        items = tuple(
+            self._build_project_overview(
+                project, session_data[project.project_id], project_usage.get(project.project_id, {})
+            )
+            for project in projects
+        )
         return ProjectCategoryOverview(
             category_id=category.category_id,
             category_name=category.name,
@@ -67,16 +80,23 @@ class ProjectCategoryOverviewService:
         project = self._project_service.get_project(project_id)
         if project is None:
             raise NotFoundError(f"项目 '{project_id}' 不存在。")
-        return self._build_project_overview(project)
-
-    def _build_project_overview(self, project: Project) -> ProjectOverviewItem:
-        sessions, session_relations, active_session_id, session_states = (
-            self._conversation_service.get_overview_data(project.project_id)
-        )
+        session_data = self._conversation_service.get_overview_data(project.project_id)
         session_usage = self._usage_service.get_session_totals(
             project_id=project.project_id,
-            session_ids=tuple(session.session_id for session in sessions),
+            session_ids=tuple(session.session_id for session in session_data[0]),
         )
+        return self._build_project_overview(project, session_data, session_usage)
+
+    def _build_project_overview(
+        self,
+        project: Project,
+        session_data: tuple[
+            tuple[ProjectConversationSession, ...], tuple, str | None,
+            dict[str, ProjectConversationSessionState],
+        ],
+        session_usage: dict[str, LlmUsageSummary],
+    ) -> ProjectOverviewItem:
+        sessions, session_relations, active_session_id, session_states = session_data
         overview_sessions = tuple(
             _session_to_overview(
                 session,

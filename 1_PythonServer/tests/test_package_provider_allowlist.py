@@ -30,7 +30,9 @@ def package_repo(tmp_path):
     _run(repo, "git", "init", "-q")
     _write(repo, ".gitattributes", (ROOT / ".gitattributes").read_text(encoding="utf-8-sig"))
     for name in ("package-release.ps1", "package-test.ps1", "package-providers.ps1"):
-        _write(repo, f"scripts/{name}", (ROOT / "scripts" / name).read_text(encoding="utf-8-sig"))
+        target = repo / "scripts" / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / "scripts" / name, target)
     _write(repo, "scripts/package-providers.json", json.dumps({"schemaVersion": 1, "providerIds": ["public"]}))
     for relative in ("Tiance.exe", "LICENSE", "runtime/gateway/TianceRemoteGateway.exe",
                      "1_PythonServer/run.py", "2_ReactWeb/dist/index.html", "3_PyWebView/run.py"):
@@ -59,16 +61,23 @@ def _commit(repo):
          "commit", "-qm", "fixture")
 
 
-def _package(repo, script, *args, check=True):
-    shell = shutil.which("pwsh") or shutil.which("powershell")
+def _package(repo, script, *args, check=True, shell_name=None):
+    shell = shutil.which(shell_name) if shell_name else (shutil.which("pwsh") or shutil.which("powershell"))
     if shell is None:
         pytest.skip("PowerShell is required for packaging tests")
     environment = os.environ.copy()
     environment.pop("GIT_INDEX_FILE", None)
-    return subprocess.run(
+    # A Python child of pwsh otherwise forwards PS7 module paths into Windows PowerShell 5.1.
+    for key in list(environment):
+        if key.casefold() == "psmodulepath":
+            environment.pop(key)
+    result = subprocess.run(
         [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(repo / "scripts" / script), *args],
-        cwd=repo, env=environment, capture_output=True, text=True, encoding="utf-8", errors="replace", check=check,
+        cwd=repo, env=environment, capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
+    if check:
+        assert result.returncode == 0, result.stdout + result.stderr
+    return result
 
 
 def _assert_public_files(names, read):
@@ -95,6 +104,22 @@ def test_release_filters_even_committed_private_files_without_changing_source(pa
             assert not any("/Data/" in path for path in archive.namelist())
     assert all(p.read_bytes() == content for p, content in before.items())
     assert (repo / ".git/index").read_bytes() == index_before
+
+
+@pytest.mark.parametrize("shell_name", ["powershell", "pwsh"])
+def test_release_json_is_accepted_by_current_updater(package_repo, shell_name):
+    from app.services.application.software_update import _extract_update_archive, _validate_staged_payload
+
+    repo = package_repo
+    _package(repo, "package-release.ps1", "-Version", "0.2.0", "-Tag", "v0.2.0",
+             "-PreviousTag", "v0.1.0", "-OutputDirectory", "output", shell_name=shell_name)
+    index = json.loads((repo / "output/update.json").read_text(encoding="utf-8"))
+    assert index["version"] == "0.2.0"
+    for name in ("Tiance-update.zip", "Tiance-update-incremental.zip"):
+        stage = repo / f"stage-{name}"
+        _extract_update_archive(repo / "output" / name, stage)
+        _validate_staged_payload(stage / "Tiance", "0.2.0")
+        assert (stage / "Tiance/.tiance-update-ready").read_text(encoding="utf-8") == "0.2.0"
 
 
 def test_working_tree_test_package_filters_providers_and_preserves_local_edits(package_repo):

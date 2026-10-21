@@ -123,7 +123,7 @@ export function ProviderCanvasPanel({
             aria-pressed={selectedProviderDraft.enabled}
             aria-label={`${enableToggleActionLabel} ${selectedProvider.display_name}`}
             disabled={
-              isSavingSelectedProvider
+              providerConfigState.savingProviderId !== null
               || (!selectedProviderDraft.enabled
                 && selectedProviderDraft.apiBaseUrl.trim().length === 0)
             }

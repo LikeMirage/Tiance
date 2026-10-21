@@ -22,7 +22,7 @@ internal static class PasswordService
 
     public static async Task<bool> VerifyAsync(string password, GatewaySettings settings)
     {
-        if (!settings.HasPassword || string.IsNullOrEmpty(password)) return false;
+        if (!settings.HasPassword || string.IsNullOrEmpty(password) || password.Length > 256) return false;
         try
         {
             var salt = Convert.FromBase64String(settings.PasswordSalt!);

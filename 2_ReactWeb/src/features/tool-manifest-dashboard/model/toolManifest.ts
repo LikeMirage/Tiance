@@ -24,7 +24,6 @@ export type ToolManifest = {
   state?: {
     enabled?: unknown;
   };
-  keywords?: unknown;
 };
 
 export type JsonSchemaObject = {

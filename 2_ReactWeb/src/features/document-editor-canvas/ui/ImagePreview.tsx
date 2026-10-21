@@ -6,7 +6,6 @@ import {
 } from "@phosphor-icons/react";
 
 import { ContextMenu, ContextMenuItem } from "../../../shared/ui/context-menu";
-import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import { PreviewZoomControl } from "../../../shared/ui/preview-zoom-control";
 import "./image-preview.css";
@@ -55,7 +54,7 @@ export function ImagePreview({
   } | null>(null);
   const [fitToView, setFitToView] = useState(true);
   const [isPanning, setIsPanning] = useState(false);
-  const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">(src ? "loading" : "idle");
   const [loadedImage, setLoadedImage] = useState<LoadedImage | null>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [referenceMenu, setReferenceMenu] = useState<ReferenceMenuState>(null);
@@ -64,7 +63,7 @@ export function ImagePreview({
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const loadRequestRef = useRef(0);
 
-  const isLoadingVisible = useMinimumLoading(loadState === "loading", 180);
+  const isLoadingVisible = loadState === "loading";
   const canShowImage = loadState === "ready" && loadedImage !== null && !isLoadingVisible;
   const fitZoom = getFitZoom(viewportSize, loadedImage);
   const zoomLabel = fitToView ? "适应" : `${Math.round(zoom * 100)}%`;

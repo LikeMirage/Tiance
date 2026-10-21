@@ -206,7 +206,6 @@ def _tool_entry(
         tool_name=tool_name,
         display_name=display_name,
         description="工具说明。",
-        keywords=(),
         enabled=True,
         dynamic=dynamic,
         root_path="C:/tool",

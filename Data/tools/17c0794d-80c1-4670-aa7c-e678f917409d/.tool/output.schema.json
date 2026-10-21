@@ -23,7 +23,30 @@
         "items": {
           "type": "array",
           "items": {
-            "type": "object"
+            "type": "object",
+            "required": [
+              "path",
+              "type",
+              "size_bytes"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "file",
+                  "directory"
+                ]
+              },
+              "size_bytes": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            }
           }
         },
         "count": {
@@ -49,6 +72,28 @@
         },
         "active": {
           "type": "boolean"
+        },
+        "index_ready": {
+          "type": "boolean",
+          "description": "Everything数据库是否已就绪；不表示全盘均已索引。"
+        },
+        "everything_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "instance": {
+          "type": "string"
+        },
+        "state_directory": {
+          "type": "string"
+        },
+        "search_scope": {
+          "const": "everything_index"
+        },
+        "content_search": {
+          "const": "on_demand"
         }
       }
     },

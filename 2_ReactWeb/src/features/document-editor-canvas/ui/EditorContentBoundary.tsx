@@ -1,11 +1,8 @@
-import { Component, Suspense, useEffect, useState } from "react";
+import { Component, Suspense } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
-import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
-
-const EDITOR_CONTENT_MINIMUM_LOADING_MS = 260;
 
 export function buildEditorContentResetKey(tab: DocumentTab) {
   return [
@@ -25,53 +22,6 @@ function hashContent(content: string) {
     hash = Math.imul(31, hash) + content.charCodeAt(index) | 0;
   }
   return `${content.length}:${hash.toString(36)}`;
-}
-
-export function PreviewMountGate({
-  ariaLabel,
-  children,
-  gateKey,
-}: {
-  ariaLabel: string;
-  children: ReactNode;
-  gateKey: string;
-}) {
-  const [isReadyToMount, setIsReadyToMount] = useState(false);
-  const isLoadingVisible = useMinimumLoading(!isReadyToMount, EDITOR_CONTENT_MINIMUM_LOADING_MS);
-
-  useEffect(() => {
-    let firstFrame = 0;
-    let secondFrame = 0;
-    let isCancelled = false;
-
-    setIsReadyToMount(false);
-    firstFrame = window.requestAnimationFrame(() => {
-      secondFrame = window.requestAnimationFrame(() => {
-        if (!isCancelled) {
-          setIsReadyToMount(true);
-        }
-      });
-    });
-
-    return () => {
-      isCancelled = true;
-      window.cancelAnimationFrame(firstFrame);
-      window.cancelAnimationFrame(secondFrame);
-    };
-  }, [gateKey]);
-
-  if (isLoadingVisible) {
-    return (
-      <LoadingStrip
-        ariaLabel={ariaLabel}
-        mode="fill"
-        surface="dark"
-        visual="ring"
-      />
-    );
-  }
-
-  return <>{children}</>;
 }
 
 export function EditorLazyBoundary({ children, resetKey }: { children: ReactNode; resetKey: string }) {

@@ -14,10 +14,15 @@ from app.infra.tools.tool_project_config_constants import (
     TOOL_REQUIREMENTS_FILE,
 )
 from app.services.tools.tool_dependency_requirements import (
+    ParsedRequirement,
     parse_requirements_file,
     resolve_dependency_status,
     select_install_targets,
     select_uninstall_target,
+)
+from app.services.tools.tool_dependency_environment import (
+    dependency_environment_lock,
+    install_staged_environment,
 )
 from app.services.tools.tool_dependency_runtime import (
     CommandRunner,
@@ -93,6 +98,20 @@ class ToolDependencyService:
         requirement: str | None = None,
         index_url: str | None = None,
     ) -> ToolDependencyInstallResult:
+        target = self._target_site_packages(self._project_root(category_id, project_id))
+        with dependency_environment_lock(target):
+            return self._install_dependencies(
+                category_id, project_id, requirement=requirement, index_url=index_url
+            )
+
+    def _install_dependencies(
+        self,
+        category_id: str,
+        project_id: str,
+        *,
+        requirement: str | None,
+        index_url: str | None,
+    ) -> ToolDependencyInstallResult:
         report = self.list_dependencies(category_id, project_id)
         install_targets = select_install_targets(report.items, requirement=requirement)
         if not install_targets:
@@ -107,27 +126,40 @@ class ToolDependencyService:
 
         resolved_index_url = normalize_index_url(index_url or self._default_index_url)
         target_site_packages = Path(report.target_path)
-        target_site_packages.mkdir(parents=True, exist_ok=True)
-        for target in install_targets:
-            remove_installed_distribution(target_site_packages, target.name)
 
-        command = [
-            str(self._python_executable),
-            str(self._pip_runner),
-            "install",
-            "--disable-pip-version-check",
-            "--no-input",
-            "--upgrade",
-            "--target",
-            str(target_site_packages),
-            "--index-url",
-            resolved_index_url,
-            *[target.requirement for target in install_targets],
-        ]
-        completed = self._command_runner(command, self._install_timeout_seconds)
-        if completed.returncode != 0:
-            message = (completed.stderr or completed.stdout or "").strip()
-            raise BadRequestError(message or "安装依赖失败。")
+        def install(incoming: Path) -> None:
+            command = [
+                str(self._python_executable),
+                str(self._pip_runner),
+                "install",
+                "--disable-pip-version-check",
+                "--no-input",
+                "--upgrade",
+                "--target",
+                str(incoming),
+                "--index-url",
+                resolved_index_url,
+                *[target.requirement for target in install_targets],
+            ]
+            completed = self._command_runner(command, self._install_timeout_seconds)
+            if completed.returncode != 0:
+                message = (completed.stderr or completed.stdout or "").strip()
+                raise BadRequestError(message or "安装依赖失败。")
+
+        required = tuple(
+            ParsedRequirement(item.line_number, item.requirement, item.name, item.specifier)
+            for item in report.items
+            if item in install_targets or item.status == "installed"
+        )
+
+        def validate(prepared: Path) -> None:
+            versions = read_installed_versions(prepared)
+            for item in required:
+                status = resolve_dependency_status(item, versions)
+                if status.status != "installed":
+                    raise BadRequestError(f"安装结果未满足依赖 {item.requirement}，原有依赖已保留。")
+
+        install_staged_environment(target_site_packages, install=install, validate=validate)
 
         return ToolDependencyInstallResult(
             ok=True,
@@ -137,6 +169,17 @@ class ToolDependencyService:
         )
 
     def uninstall_dependency(
+        self,
+        category_id: str,
+        project_id: str,
+        *,
+        requirement: str,
+    ) -> ToolDependencyUninstallResult:
+        target = self._target_site_packages(self._project_root(category_id, project_id))
+        with dependency_environment_lock(target):
+            return self._uninstall_dependency(category_id, project_id, requirement=requirement)
+
+    def _uninstall_dependency(
         self,
         category_id: str,
         project_id: str,

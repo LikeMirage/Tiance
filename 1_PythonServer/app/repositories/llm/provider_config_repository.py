@@ -52,18 +52,13 @@ class ProviderConfigRepository:
         return tuple(configs), tuple(failures)
 
     def get_config(self, provider_id: str) -> ProviderConfig | None:
-        manifest = self._store.read_provider_file(
-            provider_id,
-            PROVIDER_MANIFEST_FILE,
-            required=False,
+        files = self._store.read_provider_files(
+            provider_id, (PROVIDER_MANIFEST_FILE, PROVIDER_CREDENTIALS_FILE)
         )
+        manifest = files[PROVIDER_MANIFEST_FILE]
         if manifest is None:
             return None
-        credentials = self._store.read_provider_file(
-            provider_id,
-            PROVIDER_CREDENTIALS_FILE,
-            required=False,
-        ) or {"items": []}
+        credentials = files[PROVIDER_CREDENTIALS_FILE] or {"items": []}
         raw_items = credentials.get("items")
         if not isinstance(raw_items, list):
             raise ProviderFileStoreError("Provider credentials items must be a list.")
@@ -115,13 +110,25 @@ class ProviderConfigRepository:
         return () if config is None else config.api_keys
 
     def save_config(self, config: ProviderConfig) -> ProviderConfig:
-        credentials = {
-            "schemaVersion": PROVIDER_SCHEMA_VERSION,
-            "items": [self._from_api_key_domain(item) for item in config.api_keys],
-        }
-        self._store.write_provider_file(config.provider_id, PROVIDER_CREDENTIALS_FILE, credentials)
+        def update_credentials(current: dict[str, Any] | None) -> dict[str, Any]:
+            current = current or {"schemaVersion": PROVIDER_SCHEMA_VERSION, "items": []}
+            previous_items = {
+                item.get("keyId"): item for item in current.get("items", [])
+                if isinstance(item, dict)
+            }
+            items = []
+            for key in config.api_keys:
+                item = self._from_api_key_domain(key)
+                previous = previous_items.get(key.key_id)
+                if previous is not None and _without_timestamps(item) == _without_timestamps(previous):
+                    item = previous
+                items.append(item)
+            return {**current, "schemaVersion": PROVIDER_SCHEMA_VERSION, "items": items}
 
-        def update_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+        def update_manifest(manifest: dict[str, Any] | None) -> dict[str, Any]:
+            if manifest is None:
+                raise ProviderFileStoreError(f"Provider config not found: {config.provider_id}")
+            previous = dict(manifest)
             protocol_family = ProviderProtocolFamily(
                 config.protocol_family or _required_text(manifest, "protocolFamily")
             )
@@ -182,12 +189,16 @@ class ProviderConfigRepository:
                     "reasoningReplayMode": config.reasoning_replay_mode.value,
                 }
             )
+            if _without_timestamps(manifest) == _without_timestamps(previous):
+                return previous
             return manifest
 
-        self._store.update_provider_file(
+        self._store.update_provider_files(
             config.provider_id,
-            PROVIDER_MANIFEST_FILE,
-            update_manifest,
+            {
+                PROVIDER_CREDENTIALS_FILE: update_credentials,
+                PROVIDER_MANIFEST_FILE: update_manifest,
+            },
         )
         saved = self.get_config(config.provider_id)
         if saved is None:
@@ -243,6 +254,10 @@ class ProviderConfigRepository:
             created_at=_required_text(payload, "createdAt"),
             updated_at=_required_text(payload, "updatedAt"),
         )
+
+
+def _without_timestamps(payload: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in payload.items() if key not in {"createdAt", "updatedAt"}}
 
 
 def _required_text(payload: dict[str, Any], key: str) -> str:

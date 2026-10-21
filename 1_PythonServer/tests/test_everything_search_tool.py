@@ -34,6 +34,8 @@ def test_registration_and_examples():
 
 def test_status_and_invalid_input_do_not_create_state(tool, monkeypatch):
     monkeypatch.setattr(tool, "running", lambda cfg: False)
+    monkeypatch.setattr(tool, "es", lambda *a, **kw: SimpleNamespace(returncode=8))
+    monkeypatch.setattr(tool, "database_loaded", lambda **kw: pytest.fail("未运行时不能查询索引"))
     assert tool.run({"action": "status"})["data"]["active"] is False
     assert tool.run({"action": "stop"})["ok"]
     assert not tool.STATE.exists()
@@ -65,8 +67,11 @@ def test_missing_instance_only_code_eight(tool, monkeypatch):
 ])
 def test_pagination_unicode_and_index_metadata(tool, monkeypatch, rows, size, offset, more, next_offset):
     monkeypatch.setattr(tool, "ensure_running", lambda cfg: False)
+    monkeypatch.setattr(tool, "database_loaded", lambda **kw: True)
     def fake_es(args, cfg, **kw):
         assert kw["search_text"] == '-exit | "中文 文件"'
+        assert kw["timeout"] == cfg["query_timeout_seconds"]
+        assert args[args.index("-timeout") + 1] == "1"
         assert args[args.index("-viewport-offset") + 1] == str(offset)
         assert args[args.index("-viewport-count") + 1] == str(size + 1)
         with Path(args[args.index("-export-csv") + 1]).open("w", encoding="utf-8-sig", newline="") as stream:
@@ -128,3 +133,76 @@ def test_raw_search_preserves_syntax_and_cannot_become_es_option(tool, monkeypat
     command, kwargs = seen[0]
     assert command.endswith(" -search* " + query)
     assert not kwargs.get("shell")
+
+
+@pytest.mark.parametrize("ready", [True, False])
+def test_status_distinguishes_running_and_index_ready(tool, monkeypatch, ready):
+    monkeypatch.setattr(tool, "es", lambda *a, **kw: SimpleNamespace(returncode=0, stdout=b"1.4.1.1032\r\n"))
+    monkeypatch.setattr(tool, "database_loaded", lambda **kw: ready)
+    result = tool.run({"action": "status"})
+    assert result["ok"]
+    assert result["data"]["active"] is True
+    assert result["data"]["index_ready"] is ready
+    assert result["data"]["everything_version"] == "1.4.1.1032"
+    assert not tool.STATE.exists()
+
+
+def test_index_wait_times_out_without_submitting_search(tool, monkeypatch):
+    cfg = {**tool.config(), "startup_timeout_seconds": 0.01, "poll_interval_seconds": 0.001}
+    monkeypatch.setattr(tool, "ensure_running", lambda cfg: False)
+    monkeypatch.setattr(tool, "database_loaded", lambda **kw: False)
+    monkeypatch.setattr(tool, "es", lambda *a, **kw: pytest.fail("索引未就绪时不应发出查询"))
+    with pytest.raises(tool.ToolError) as error:
+        tool.search({"query": "*"}, cfg)
+    assert error.value.code == "INDEX_NOT_READY"
+    assert not tool.STATE.exists()
+
+
+def test_index_wait_resumes_when_ready(tool, monkeypatch):
+    states = iter([False, False, True])
+    monkeypatch.setattr(tool, "database_loaded", lambda **kw: next(states))
+    tool.wait_for_index({**tool.config(), "poll_interval_seconds": 0.001})
+
+
+def test_status_ipc_failure_is_not_reported_as_loading(tool, monkeypatch):
+    monkeypatch.setattr(tool, "es", lambda *a, **kw: SimpleNamespace(returncode=0, stdout=b"1.4.1.1032"))
+    def unresponsive(**kw):
+        raise tool.ToolError("IPC_UNRESPONSIVE", "Everything未响应索引状态查询。")
+    monkeypatch.setattr(tool, "database_loaded", unresponsive)
+    result = tool.run({"action": "status"})
+    assert not result["ok"]
+    assert result["error_info"]["code"] == "IPC_UNRESPONSIVE"
+
+
+def test_database_loaded_uses_named_instance_and_bounded_ipc(tool, monkeypatch):
+    class NativeCall:
+        def __init__(self, fn):
+            self.fn = fn
+        def __call__(self, *args):
+            return self.fn(*args)
+    calls = []
+    def find_window(name, title):
+        assert name == f"EVERYTHING_TASKBAR_NOTIFICATION_({tool.INSTANCE})"
+        return 123
+    def send(hwnd, message, command, arg, flags, milliseconds, value):
+        assert (hwnd, message, command, arg) == (123, 0x0400, 401, 0)
+        assert milliseconds == 250
+        calls.append(True)
+        value._obj.value = 1
+        return 1
+    fake = SimpleNamespace(FindWindowW=NativeCall(find_window), SendMessageTimeoutW=NativeCall(send))
+    monkeypatch.setattr(tool.ctypes, "WinDLL", lambda *a, **kw: fake)
+    assert tool.database_loaded(timeout_seconds=0.25)
+    assert calls == [True]
+
+
+@pytest.mark.parametrize("query,expected", [("content:needle", "SEARCH_TIMEOUT"), (None, "COMMAND_TIMEOUT")])
+def test_timeout_reports_correct_phase(tool, monkeypatch, query, expected):
+    import subprocess
+    def timeout(*a, **kw):
+        raise subprocess.TimeoutExpired(a[0], kw["timeout"])
+    monkeypatch.setattr(tool.subprocess, "run", timeout)
+    with pytest.raises(tool.ToolError) as error:
+        tool.es([], tool.config(), timeout=0.01, search_text=query)
+    assert error.value.code == expected
+    assert error.value.details["timeout_seconds"] == 0.01

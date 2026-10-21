@@ -14,11 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "记忆压缩",
-    "摘要",
-    "提交"
-  ],
   "loading": {
     "dynamic": false
   },

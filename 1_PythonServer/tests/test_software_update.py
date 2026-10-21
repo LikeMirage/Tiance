@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.errors import ConflictError
 from app.services.application import software_update as software_update_module
 from app.services.application.software_update import (
@@ -26,6 +26,31 @@ def test_application_version_comes_from_system_version_file() -> None:
     expected = json.loads((root / "system" / "version.json").read_text(encoding="utf-8"))["version"]
 
     assert get_settings().app_version == expected
+
+
+def test_application_version_ignores_legacy_configuration(monkeypatch, tmp_path) -> None:
+    expected = json.loads(
+        (get_settings().project_root_path / "system/version.json").read_text(encoding="utf-8")
+    )["version"]
+    legacy_env = tmp_path / ".env"
+    legacy_env.write_text("APP_VERSION=0.1.0\nAPP_NAME=Legacy configured name\n", encoding="utf-8")
+    monkeypatch.setenv("APP_VERSION", "9.9.9")
+    settings = Settings(_env_file=legacy_env, app_version="8.8.8")
+    assert settings.app_version == expected
+    assert settings.app_name == "Legacy configured name"
+    with pytest.raises(AttributeError):
+        settings.app_version = "7.7.7"
+    monkeypatch.delenv("APP_VERSION")
+    assert Settings(_env_file=legacy_env).app_version == expected
+
+
+def test_application_version_rejects_invalid_version_file(monkeypatch, tmp_path) -> None:
+    from app.core import config
+
+    monkeypatch.setattr(config, "_find_project_root", lambda: tmp_path)
+    monkeypatch.setenv("APP_VERSION", "0.1.0")
+    with pytest.raises(RuntimeError, match="version file"):
+        Settings(_env_file=None)
 
 
 def test_semantic_version_comparison_is_numeric() -> None:

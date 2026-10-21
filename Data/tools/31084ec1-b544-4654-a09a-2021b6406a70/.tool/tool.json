@@ -14,14 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "DMXAPI",
-    "绘图",
-    "图片生成",
-    "gpt-image-2-03",
-    "文生图",
-    "OpenAI兼容"
-  ],
   "loading": {
     "dynamic": true
   },

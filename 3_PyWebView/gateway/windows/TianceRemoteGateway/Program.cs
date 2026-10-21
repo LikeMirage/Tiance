@@ -3,7 +3,6 @@ using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -41,12 +40,15 @@ internal static class Program
         }));
         builder.Services.AddSingleton(settingsStore);
         builder.Services.AddSingleton(sessions);
+        builder.Services.AddRateLimiter(LoginRateLimiting.Configure);
         builder.Services.AddReverseProxy().LoadFromMemory(
             new[] { new RouteConfig { RouteId = "backend", ClusterId = "backend", Match = new RouteMatch { Path = "{**catch-all}" } } },
             new[] { new ClusterConfig { ClusterId = "backend", Destinations = new Dictionary<string, DestinationConfig> { ["backend"] = new() { Address = options.BackendUrl } } } });
 
         var app = builder.Build();
+        app.UseRouting();
         app.UseCors();
+        app.UseRateLimiter();
         app.UseWebSockets();
         app.Use(async (context, next) =>
         {
@@ -95,7 +97,7 @@ internal static class Program
                 return Results.Json(new { error = new { code = "INVALID_PASSWORD", message = "密码错误。" } }, statusCode: 401);
             AppendSessionCookie(context, sessions.Create(), context.Request.IsHttps);
             return Results.Ok(new { authenticated = true });
-        });
+        }).RequireRateLimiting(LoginRateLimiting.PolicyName);
         app.MapPost("/gateway/security/logout", (HttpContext context) =>
         {
             sessions.Remove(context.Request.Cookies[SessionStore.CookieName]);

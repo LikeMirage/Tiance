@@ -13,14 +13,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "网络搜索",
-    "实时信息",
-    "供应商内置工具",
-    "Responses",
-    "Google Search",
-    "Anthropic Web Search"
-  ],
   "loading": {
     "dynamic": true
   },

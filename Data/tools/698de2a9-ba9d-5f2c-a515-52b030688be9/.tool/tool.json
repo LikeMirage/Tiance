@@ -14,15 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "写入",
-    "创建文件",
-    "覆盖文件",
-    "追加",
-    "文本",
-    "备份",
-    "hash"
-  ],
   "loading": {
     "dynamic": false
   },

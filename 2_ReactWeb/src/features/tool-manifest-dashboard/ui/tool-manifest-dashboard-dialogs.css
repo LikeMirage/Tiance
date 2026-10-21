@@ -21,11 +21,6 @@
   margin-bottom: 12px;
 }
 
-.tool-dashboard__dialog-error {
-  margin-top: 8px;
-  color: var(--color-danger-soft-text);
-}
-
 .tool-dashboard__dialog-actions {
   display: flex;
   justify-content: flex-end;

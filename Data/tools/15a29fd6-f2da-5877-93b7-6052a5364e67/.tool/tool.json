@@ -13,15 +13,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "命令行",
-    "终端",
-    "shell",
-    "测试",
-    "构建",
-    "执行",
-    "验证"
-  ],
   "loading": {
     "dynamic": false
   },

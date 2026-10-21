@@ -1,10 +1,6 @@
 {
   "deepseek": {
-    "responses_url": "https://api.deepseek.com/v1/responses",
-    "api_key": "",
-    "model": "deepseek-v4-flash",
-    "reasoning_effort": "high",
-    "max_output_tokens": 32768,
-    "request_timeout_seconds": 165
-  }
+    "api_key": ""
+  },
+  "output": {"inline_field_chars": 4000, "inline_text_budget": 12000}
 }

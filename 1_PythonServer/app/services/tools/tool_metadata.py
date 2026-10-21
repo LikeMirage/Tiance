@@ -68,7 +68,6 @@ def build_summary(
         name=loaded_tool.name,
         display_name=display_name,
         description=_read_string(manifest, "description"),
-        keywords=tuple(_read_string_list(manifest.get("keywords"))),
         category=category,
         dynamic=_read_dynamic_flag(loading),
         parameter_names=tuple(_read_parameter_names(loaded_tool.input_schema)),
@@ -230,9 +229,3 @@ def _read_parameter_names(input_schema: dict[str, Any]) -> list[str]:
 def _read_string(payload: dict[str, Any], key: str) -> str:
     value = payload.get(key)
     return value.strip() if isinstance(value, str) else ""
-
-
-def _read_string_list(value: object) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return [item.strip() for item in value if isinstance(item, str) and item.strip()]

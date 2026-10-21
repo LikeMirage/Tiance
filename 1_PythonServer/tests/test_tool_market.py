@@ -424,7 +424,6 @@ def _package_files(*, version: str) -> dict[str, str]:
                 "name": "sample_tool",
                 "registration_name": "示例工具",
                 "description": "用于测试在线工具包。",
-                "keywords": [],
                 "loading": {"dynamic": False},
                 "execution": {"parallel": False},
                 "runtime": {

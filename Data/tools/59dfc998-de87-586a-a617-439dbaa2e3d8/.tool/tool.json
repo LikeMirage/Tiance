@@ -13,16 +13,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "批量读取",
-    "多文件",
-    "上下文",
-    "源码",
-    "文档",
-    "配置"
-    ,"图片"
-    ,"批量图片"
-  ],
   "loading": {
     "dynamic": false
   },

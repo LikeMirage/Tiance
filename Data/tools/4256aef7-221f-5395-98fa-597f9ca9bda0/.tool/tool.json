@@ -13,19 +13,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "PIP",
-    "Python",
-    "依赖",
-    "工具依赖",
-    "requirements.txt",
-    "安装",
-    "卸载",
-    "环境检查",
-    "权限修复",
-    "包管理",
-    "ModuleNotFoundError"
-  ],
   "loading": {
     "dynamic": false
   },

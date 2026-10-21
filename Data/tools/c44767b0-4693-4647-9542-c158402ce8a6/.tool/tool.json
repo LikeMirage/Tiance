@@ -14,16 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "GitHub",
-    "Git",
-    "私人仓库",
-    "同步",
-    "提交",
-    "拉取",
-    "备份",
-    "多地同步"
-  ],
   "loading": {
     "dynamic": true
   },

@@ -15,7 +15,7 @@ import type {
 } from "../../../entities/editor/model/editorReference";
 import { createDocumentExternalFileActions } from "../model/documentExternalFileActions";
 import { resolveDocumentAssetUrl } from "../model/documentAssetUrls";
-import { buildEditorContentResetKey, EditorLazyBoundary, PreviewMountGate } from "./EditorContentBoundary";
+import { buildEditorContentResetKey, EditorLazyBoundary } from "./EditorContentBoundary";
 import { FilePreviewGate } from "../../file-preview/ui/FilePreviewGate";
 import type { FilePreviewInspection } from "../../file-preview/model/filePreview";
 
@@ -108,43 +108,39 @@ function PreparedDocumentAssetPreview({
 
   if (activeTab.kind === "pdf") {
     return (
-      <PreviewMountGate ariaLabel="正在加载文件预览" gateKey={`${activeTab.id}:pdf`}>
-        <EditorLazyBoundary resetKey={boundaryKey}>
-          <PdfPreview
-            displayPath={activeTab.displayPath}
-            fileName={activeTab.title}
-            onCreatePageImageReference={onCreatePdfPageImageReference
-              ? (payload) => onCreatePdfPageImageReference({
-                file: payload.file,
-                pageNumber: payload.pageNumber,
-                projectId: activeTab.projectId,
-                sourceDisplayPath: payload.sourceDisplayPath,
-                sourceFileName: payload.sourceFileName,
-                sourceFilePath,
-              })
-              : null}
-            onRevealFile={externalFileActions.revealFile}
-            onMissing={onMissing}
-            src={assetSrc}
-          />
-        </EditorLazyBoundary>
-      </PreviewMountGate>
+      <EditorLazyBoundary resetKey={boundaryKey}>
+        <PdfPreview
+          displayPath={activeTab.displayPath}
+          fileName={activeTab.title}
+          onCreatePageImageReference={onCreatePdfPageImageReference
+            ? (payload) => onCreatePdfPageImageReference({
+              file: payload.file,
+              pageNumber: payload.pageNumber,
+              projectId: activeTab.projectId,
+              sourceDisplayPath: payload.sourceDisplayPath,
+              sourceFileName: payload.sourceFileName,
+              sourceFilePath,
+            })
+            : null}
+          onRevealFile={externalFileActions.revealFile}
+          onMissing={onMissing}
+          src={assetSrc}
+        />
+      </EditorLazyBoundary>
     );
   }
 
   if (activeTab.kind === "database") {
     return (
-      <PreviewMountGate ariaLabel="正在加载数据库看板" gateKey={`${activeTab.id}:database`}>
-        <EditorLazyBoundary resetKey={boundaryKey}>
-          <DatabasePreview
-            displayPath={activeTab.displayPath}
-            fileName={activeTab.title}
-            path={sourceFilePath}
-            projectId={activeTab.projectId}
-            refreshKey={activeTab.assetVersion ?? activeTab.mtimeMs}
-          />
-        </EditorLazyBoundary>
-      </PreviewMountGate>
+      <EditorLazyBoundary resetKey={boundaryKey}>
+        <DatabasePreview
+          displayPath={activeTab.displayPath}
+          fileName={activeTab.title}
+          path={sourceFilePath}
+          projectId={activeTab.projectId}
+          refreshKey={activeTab.assetVersion ?? activeTab.mtimeMs}
+        />
+      </EditorLazyBoundary>
     );
   }
 

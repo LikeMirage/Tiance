@@ -13,15 +13,6 @@
     "input": "client_json",
     "output": "client_json"
   },
-  "keywords": [
-    "AI会话",
-    "会话管理",
-    "模型查询",
-    "模型参数",
-    "消息记录",
-    "用量统计",
-    "前端能力"
-  ],
   "loading": {
     "dynamic": false
   },

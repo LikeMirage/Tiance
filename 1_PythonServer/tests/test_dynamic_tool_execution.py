@@ -198,7 +198,6 @@ class _GatewayRegistry:
             tool_name=tool_name,
             display_name=tool_name,
             description=tool_name,
-            keywords=(),
             enabled=True,
             dynamic=tool_name == "theme_designer",
             root_path=str(root),

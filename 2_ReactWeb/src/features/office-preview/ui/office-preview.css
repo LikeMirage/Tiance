@@ -152,14 +152,20 @@
 
 .office-preview__word .office-docx-wrapper {
   background: transparent;
+  padding: 0;
 }
 
 .office-preview__word .office-docx {
   color: #111827;
   line-height: 1.42;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 1100px;
+  overflow: visible;
 }
+
+.office-preview__word-scroll { padding: 0 18px; }
+.office-word-chunk { position: relative; min-width: 816px; }
+.office-word-chunk__measuring { position: absolute; visibility: hidden; top: 0; left: 0; }
+.office-word-chunk__placeholder { padding: 24px; color: var(--color-text-muted); font-size: 0.75rem; }
+.office-word-chunk__content { display: flow-root; }
 
 .office-preview__word .office-docx :where(p, li) {
   line-height: 1.48 !important;

@@ -2,12 +2,10 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { JsExcelPreview, Options as JsExcelPreviewOptions } from "@js-preview/excel";
 import "@js-preview/excel/lib/index.css";
 
-import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
 import { useDocumentReadingValue } from "../../../entities/editor/model/documentReadingState";
 import { ContextMenu, ContextMenuItem } from "../../../shared/ui/context-menu";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import type { OfficeLoadingVisibilityChange } from "./officePreviewTypes";
-import { officePreviewMinimumLoadingMs } from "./officePreviewTypes";
 import { removeUnsupportedExcelDrawings } from "./excelPreviewBuffer";
 import {
   copyExcelSelectionAsImage,
@@ -93,7 +91,7 @@ export function ExcelPreview({
   const [isCreatingSelectionReference, setIsCreatingSelectionReference] = useState(false);
   const [selectionReferenceMenu, setSelectionReferenceMenu] = useState<SelectionReferenceMenuState>(null);
   const [state, setState] = useState<LoadState>(() => (src ? "loading" : "idle"));
-  const isLoadingVisible = useMinimumLoading(state === "loading", officePreviewMinimumLoadingMs);
+  const isLoadingVisible = state === "loading";
   const excelShellClassName = [
     "office-preview__excel-shell",
     state === "ready" && !isLoadingVisible ? "" : "office-preview__excel-shell--loading",

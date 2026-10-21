@@ -36,7 +36,6 @@ def test_load_tool_info_reads_parameters_from_backend_api(monkeypatch):
                         "name": "read_text_file",
                         "display_name": "文本读取",
                         "description": "读取文件。",
-                        "keywords": ["文件"],
                         "category": "基础工具",
                         "dynamic": True,
                         "parallel": False,
@@ -55,6 +54,7 @@ def test_load_tool_info_reads_parameters_from_backend_api(monkeypatch):
 
     assert result["ok"] is True
     assert result["data"]["input_schema"]["required"] == ["file_path"]
+    assert "keywords" not in result["data"]
     assert calls[0] == (
         "GET",
         "/tools/catalog/read_text_file/parameters",

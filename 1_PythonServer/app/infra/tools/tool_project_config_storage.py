@@ -16,7 +16,6 @@ from app.infra.tools.tool_project_config_helpers import (
     _normalize_input_schema_content,
     _normalize_output_schema_content,
     _normalize_permissions_content,
-    _normalize_string_list,
     _normalize_tool_call_name,
     _normalize_tool_execution,
     _normalize_tool_loading,
@@ -91,7 +90,6 @@ class ToolProjectConfigStorage:
             payload["description"] = ""
         payload["name"] = call_name
         payload["registration_name"] = registration_name.strip()
-        payload["keywords"] = _normalize_string_list(payload.get("keywords"))
         _normalize_tool_loading(payload)
         _normalize_tool_execution(payload)
         _normalize_tool_state(payload)

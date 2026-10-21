@@ -80,6 +80,13 @@ const filePreview = load("src/features/file-preview/model/filePreview.ts", {
   "../../../services/http/httpClient": {},
 });
 const empty = () => null;
+const loadingContext = load("src/shared/ui/loading-strip/loadingBoundaryContext.ts");
+const { LoadingStrip } = load("src/shared/ui/loading-strip/LoadingStrip.tsx", {
+  "./loadingBoundaryContext": loadingContext, "./loading-strip.css": {},
+});
+const { LoadingBoundary } = load("src/shared/ui/loading-strip/LoadingBoundary.tsx", {
+  "./loadingBoundaryContext": loadingContext, "./LoadingStrip": { LoadingStrip },
+});
 
 test("PDF retains page on parent rerender and new version, clamps to a shorter document", async () => {
   let loads = 0, pages = 8;
@@ -92,7 +99,6 @@ test("PDF retains page on parent rerender and new version, clamps to a shorter d
       loads++; return { promise: Promise.resolve({ numPages: pages }), destroy: async () => {} };
     } }) },
     "./PdfPageView": { PdfPageView: empty }, "./PdfThumbnailStrip": { PdfThumbnailStrip: empty },
-    "../../../shared/model/loading/useMinimumLoading": { useMinimumLoading: x => x },
     "../../../shared/model/pan-zoom/usePanZoomViewport": { usePanZoomViewport: () => panZoom },
     "../../../shared/ui/context-menu": { ContextMenu: empty, ContextMenuItem: empty },
     "../../../shared/ui/loading-strip": { LoadingStrip: empty },
@@ -144,6 +150,7 @@ test("preview gate preserves an unchanged rendering, replaces new versions and i
   const checks = [];
   let mounts = 0, releases = 0;
   const { FilePreviewGate } = load("src/features/file-preview/ui/FilePreviewGate.tsx", {
+    "../../../shared/ui/loading-strip": { LoadingBoundary },
     "../../../entities/editor/model/documentReadingState": reading,
     "../../../services/http/httpClient": { HttpRequestError: class extends Error {} },
     "../../document-editor-canvas/ui/UnsupportedDocumentContent": { DocumentOpenFallbackContent: empty },
@@ -162,6 +169,7 @@ test("preview gate preserves an unchanged rendering, replaces new versions and i
   let root;
   await act(async () => { root = TestRenderer.create(view(1)); });
   await act(async () => checks[0].resolve(result("a")));
+  assert.equal(root.root.findAllByProps({ className: "file-preview-session__bar" }).length, 0);
   const original = root.root.findByType("output").children.join("");
   await act(async () => root.update(view(2)));
   assert.equal(mounts, 1);
@@ -179,7 +187,10 @@ test("preview gate preserves an unchanged rendering, replaces new versions and i
   await act(async () => checks[4].resolve(result("c")));
   await act(async () => checks[3].resolve(result("stale")));
   assert.match(root.root.findByType("output").children.join(""), /preview_version=c$/);
-  await act(async () => root.root.findAllByType("button").find(b => b.children[0] === "停止预览").props.onClick());
+  await act(async () => root.update(view(6)));
+  await act(async () => root.root.findAllByType("button").find(b => b.children[0] === "取消加载").props.onClick());
+  assert.equal(checks[5].signal.aborted, true);
+  await act(async () => checks[5].resolve(result("cancelled")));
   assert.equal(root.root.findAllByType("output").length, 0);
   assert.equal(releases, mounts);
   await act(async () => root.unmount());

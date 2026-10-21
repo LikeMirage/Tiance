@@ -12,7 +12,6 @@ export type OfficeKind = "word" | "spreadsheet" | "presentation" | "unsupported"
 export type OfficeLoadingVisibilityChange = (visible: boolean) => void;
 export type SlideDimensions = { cx: number; cy: number };
 
-export const officePreviewMinimumLoadingMs = 260;
 
 export type PPTXViewerWithDimensions = PPTXViewerInstance & {
   getSlideDimensions?: () => SlideDimensions;

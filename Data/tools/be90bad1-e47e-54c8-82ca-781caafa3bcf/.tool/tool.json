@@ -14,15 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "工作区",
-    "路径",
-    "目录树",
-    "文件树",
-    "文件搜索",
-    "项目结构",
-    "定位"
-  ],
   "loading": {
     "dynamic": false
   },

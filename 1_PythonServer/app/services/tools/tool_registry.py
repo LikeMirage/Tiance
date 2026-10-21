@@ -138,7 +138,6 @@ class ToolRegistryService:
                         tool_name=summary.name,
                         display_name=summary.display_name,
                         description=summary.description,
-                        keywords=summary.keywords,
                         enabled=is_enabled(loaded_tool.manifest),
                         dynamic=summary.dynamic,
                         root_path=project.root_path,
@@ -209,7 +208,6 @@ def _build_search_text(entry: ToolRegistryEntry) -> str:
             entry.display_name,
             entry.description,
             entry.category_name,
-            *entry.keywords,
             *entry.parameter_names,
             *entry.example_titles,
         )

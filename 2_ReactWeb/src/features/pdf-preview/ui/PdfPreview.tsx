@@ -21,7 +21,6 @@ import {
 } from "../model/pdfjsLoader";
 import { PdfPageView } from "./PdfPageView";
 import { PdfThumbnailStrip } from "./PdfThumbnailStrip";
-import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
 import { usePanZoomViewport } from "../../../shared/model/pan-zoom/usePanZoomViewport";
 import { ContextMenu, ContextMenuItem } from "../../../shared/ui/context-menu";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
@@ -53,7 +52,7 @@ export function PdfPreview({
   const [fitMode, setFitMode] = useDocumentReadingValue<"width" | "custom">("pdf:fit", "width");
   const [isSidebarOpen, setIsSidebarOpen] = useDocumentReadingValue("pdf:sidebar", true);
   const [isCreatingPageImage, setIsCreatingPageImage] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(Boolean(src));
   const [numPages, setNumPages] = useState(0);
   const [pageImageMenu, setPageImageMenu] = useState<{ x: number; y: number } | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PdfDocumentProxy | null>(null);
@@ -65,7 +64,7 @@ export function PdfPreview({
   const fitModeRef = useRef(fitMode);
   const fitWidthRequestIdRef = useRef(0);
   const pageSelectionRequestRef = useRef(0);
-  const isLoadingVisible = useMinimumLoading(isLoading);
+  const isLoadingVisible = isLoading;
 
   useEffect(() => {
     currentPageRef.current = currentPage;

@@ -13,13 +13,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "GitHub",
-    "Pull Request",
-    "PR",
-    "代码审查",
-    "合并"
-  ],
   "loading": {
     "dynamic": true
   },

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { subscribeLlmUsageChanged } from "../../../entities/llm-usage/model/usageRefreshEvents";
 import type { ProviderCatalogEntry } from "../../../entities/llm-provider/model/providerCatalog";
@@ -68,6 +68,8 @@ export function useProviderConfigState(
   const [providerLoadErrors, setProviderLoadErrors] = useState<Record<string, string>>({});
   const [reloadToken, setReloadToken] = useState(0);
   const [savingProviderId, setSavingProviderId] = useState<string | null>(null);
+  // Also gate handlers before React commits the disabled controls.
+  const savingProviderIdRef = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -174,7 +176,7 @@ export function useProviderConfigState(
     : null;
 
   const updateSelectedApiKey = (apiKeyId: string, value: string) => {
-    if (!selectedProviderId) {
+    if (!selectedProviderId || savingProviderIdRef.current !== null) {
       return;
     }
 
@@ -211,7 +213,7 @@ export function useProviderConfigState(
   };
 
   const updateSelectedApiKeyPollWeight = (apiKeyId: string, value: string) => {
-    if (!selectedProviderId) {
+    if (!selectedProviderId || savingProviderIdRef.current !== null) {
       return;
     }
 
@@ -245,7 +247,7 @@ export function useProviderConfigState(
   };
 
   const clearSelectedApiKey = (apiKeyId: string) => {
-    if (!selectedProviderId || !selectedDraft) {
+    if (!selectedProviderId || !selectedDraft || savingProviderIdRef.current !== null) {
       return;
     }
 
@@ -272,7 +274,7 @@ export function useProviderConfigState(
   };
 
   const updateSelectedApiBaseUrl = (value: string) => {
-    if (!selectedProviderId) {
+    if (!selectedProviderId || savingProviderIdRef.current !== null) {
       return;
     }
 
@@ -302,7 +304,7 @@ export function useProviderConfigState(
   };
 
   const updateSelectedModelDiscoveryUrl = (value: string) => {
-    if (!selectedProviderId) {
+    if (!selectedProviderId || savingProviderIdRef.current !== null) {
       return;
     }
 
@@ -326,7 +328,7 @@ export function useProviderConfigState(
   };
 
   const updateSelectedPromptCacheRetentionValue = (value: string) => {
-    if (!selectedProviderId) {
+    if (!selectedProviderId || savingProviderIdRef.current !== null) {
       return;
     }
     setDrafts((current) => {
@@ -345,7 +347,7 @@ export function useProviderConfigState(
   };
 
   const resetSelectedApiBaseUrl = () => {
-    if (!selectedProviderId || !selectedDraft) {
+    if (!selectedProviderId || !selectedDraft || savingProviderIdRef.current !== null) {
       return;
     }
 
@@ -379,7 +381,7 @@ export function useProviderConfigState(
   };
 
   const resetSelectedModelDiscoveryUrl = () => {
-    if (!selectedProviderId || !selectedDraft) {
+    if (!selectedProviderId || !selectedDraft || savingProviderIdRef.current !== null) {
       return;
     }
     if (selectedDraft.modelDiscoveryUrlAuto) {
@@ -404,7 +406,7 @@ export function useProviderConfigState(
   };
 
   const toggleSelectedEnabled = () => {
-    if (!selectedProviderId || !selectedDraft) {
+    if (!selectedProviderId || !selectedDraft || savingProviderIdRef.current !== null) {
       return;
     }
 
@@ -432,7 +434,7 @@ export function useProviderConfigState(
   };
 
   const addSelectedApiKey = () => {
-    if (!selectedProviderId) {
+    if (!selectedProviderId || savingProviderIdRef.current !== null) {
       return;
     }
 
@@ -460,7 +462,7 @@ export function useProviderConfigState(
   };
 
   const removeSelectedApiKeyIfEmpty = (apiKeyId: string) => {
-    if (!selectedProviderId || !selectedDraft) {
+    if (!selectedProviderId || !selectedDraft || savingProviderIdRef.current !== null) {
       return;
     }
 
@@ -496,6 +498,7 @@ export function useProviderConfigState(
     providerId: string,
     draft: ProviderConfigDraft,
   ) => {
+    if (savingProviderIdRef.current !== null) return false;
     if (!hasLoadedProviderConfigs) {
       setError("供应商配置仍在载入，暂不能保存。");
       return false;
@@ -506,6 +509,7 @@ export function useProviderConfigState(
       return false;
     }
 
+    savingProviderIdRef.current = providerId;
     setSavingProviderId(providerId);
     try {
       const apiKeysToSave = draft.apiKeys
@@ -543,7 +547,8 @@ export function useProviderConfigState(
       setError(saveError instanceof Error ? saveError.message : "供应商配置保存失败。");
       return false;
     } finally {
-      setSavingProviderId((current) => (current === providerId ? null : current));
+      savingProviderIdRef.current = null;
+      setSavingProviderId(null);
     }
   };
 
@@ -559,6 +564,7 @@ export function useProviderConfigState(
     providerId: string,
     draft: ProviderConfigDraft,
   ) => {
+    if (savingProviderIdRef.current !== null) return false;
     const seconds = parsePromptCacheRetentionSeconds(
       draft.promptCacheRetentionValue,
       draft.promptCacheRetentionUnit,
@@ -568,6 +574,7 @@ export function useProviderConfigState(
       return false;
     }
 
+    savingProviderIdRef.current = providerId;
     setSavingProviderId(providerId);
     try {
       const saved = await saveProviderPromptCachePolicy(providerId, seconds);
@@ -612,7 +619,8 @@ export function useProviderConfigState(
       );
       return false;
     } finally {
-      setSavingProviderId((current) => (current === providerId ? null : current));
+      savingProviderIdRef.current = null;
+      setSavingProviderId(null);
     }
   };
 
@@ -626,7 +634,7 @@ export function useProviderConfigState(
   const updateSelectedPromptCacheRetentionUnit = (
     value: "hours" | "minutes",
   ) => {
-    if (!selectedProviderId || !selectedDraft) {
+    if (!selectedProviderId || !selectedDraft || savingProviderIdRef.current !== null) {
       return;
     }
     const nextDraft = {
@@ -643,7 +651,7 @@ export function useProviderConfigState(
   const persistSelectedDraftUpdate = (
     patch: Partial<ProviderConfigDraft>,
   ) => {
-    if (!selectedProviderId || !selectedDraft) {
+    if (!selectedProviderId || !selectedDraft || savingProviderIdRef.current !== null) {
       return;
     }
     const nextDraft = { ...selectedDraft, ...patch };

@@ -14,17 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "文档解析",
-    "MinerU",
-    "DeepSeek",
-    "deepseek-flash",
-    "视觉还原",
-    "PDF",
-    "Word",
-    "PPT",
-    "Markdown"
-  ],
   "loading": {
     "dynamic": true
   },

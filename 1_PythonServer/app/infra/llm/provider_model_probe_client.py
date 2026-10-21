@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from app.domain.llm.provider_catalog import ProviderCatalogEntry, ProviderProtocolFamily
 from app.domain.llm.provider_runtime import ProviderRuntimeConfig
 from app.infra.llm.anthropic_auth import build_anthropic_auth_headers
+from app.infra.llm.redaction import redact_url as _redact_url
 from app.infra.llm.request_auth import apply_auth_to_url, build_auth_headers
 from app.infra.llm.url_utils import render_generation_url
 
@@ -143,5 +144,3 @@ def _build_probe_request(
             "max_tokens": 1,
         },
     )
-def _redact_url(url: str) -> str:
-    return url.replace("key=", "key=***")

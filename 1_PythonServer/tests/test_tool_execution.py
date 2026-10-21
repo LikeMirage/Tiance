@@ -161,8 +161,12 @@ print(json.dumps({
     assert not (tmp_path / "%SystemDrive%").exists()
 
 
-def test_network_search_receives_process_scoped_capability_grant(tmp_path):
-    tool_root = _create_tool_root(tmp_path, tool_name="network_search")
+@pytest.mark.parametrize("tool_name,capability", [
+    ("network_search", HostCapability.WEB_SEARCH),
+    ("deepseek_official_web_search", HostCapability.DEEPSEEK_WEB),
+])
+def test_network_search_receives_process_scoped_capability_grant(tmp_path, tool_name, capability):
+    tool_root = _create_tool_root(tmp_path, tool_name=tool_name)
     access = HostCapabilityAccessService()
     issued_token: str | None = None
 
@@ -170,9 +174,9 @@ def test_network_search_receives_process_scoped_capability_grant(tmp_path):
         nonlocal issued_token
         issued_token = env.get("TIANCE_HOST_CAPABILITY_TOKEN")
         assert issued_token
-        grant = access.authorize(issued_token, HostCapability.WEB_SEARCH)
+        grant = access.authorize(issued_token, capability)
         assert grant is not None
-        assert grant.tool_name == "network_search"
+        assert grant.tool_name == tool_name
         assert grant.tool_call_id == "call-search"
         assert grant.provider_id == "provider-1"
         assert grant.model_id == "model-1"
@@ -193,7 +197,7 @@ def test_network_search_receives_process_scoped_capability_grant(tmp_path):
     result = service.execute(
         ChatToolCall(
             call_id="call-search",
-            name="network_search",
+            name=tool_name,
             arguments='{"query":"latest update"}',
         ),
         context=ToolExecutionContext(
@@ -206,7 +210,23 @@ def test_network_search_receives_process_scoped_capability_grant(tmp_path):
 
     assert result.ok is True
     assert issued_token is not None
-    assert access.authorize(issued_token, HostCapability.WEB_SEARCH) is None
+    assert access.authorize(issued_token, capability) is None
+
+
+def test_formal_deepseek_tool_runs_through_standard_python_runtime(tmp_path):
+    from tests.formal_tool_paths import resolve_formal_tool_root
+
+    tool_root = resolve_formal_tool_root("deepseek_official_web_search")
+    service = ToolExecutionService(_FakeRegistry(tool_root), python_executable=Path(sys.executable))
+    result = service.execute(
+        ChatToolCall(call_id="inspect-search", name="deepseek_official_web_search",
+                     arguments='{"action":"config_info"}'),
+        context=ToolExecutionContext(workspace_root=str(tmp_path)),
+    )
+    assert result.ok, result.content
+    data = loads(result.content)["data"]
+    assert data["key_priority"] == ["config.json:deepseek.api_key", "模型集:DeepSeek"]
+    assert "api_key" not in data
 
 
 def test_network_search_capability_grant_follows_model_switch(tmp_path):
@@ -704,7 +724,6 @@ class _FakeRegistry:
             tool_name=tool_name,
             display_name="文本读取",
             description="读取文件。",
-            keywords=(),
             enabled=self._entry_enabled,
             dynamic=False,
             root_path=str(self._tool_root),

@@ -144,7 +144,7 @@ def get_theme_asset_path(asset_path: str) -> Path:
 
 def _load_theme_file(theme_file: Path) -> ThemePackageDefinition:
     try:
-        payload: Any = json.loads(theme_file.read_text(encoding="utf-8"))
+        payload: Any = json.loads(theme_file.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError as exc:
         raise ThemeCatalogError(f"Invalid theme JSON: {theme_file.name}") from exc
     except OSError as exc:

@@ -209,7 +209,6 @@ export function CodeEditor({
   }, [languageId, readOnly, plainTextMode]);
 
   return <div className="code-editor-shell">
-    {plainTextMode ? <div className="preview-budget-notice" role="status">大文本模式：关闭语法分析和自动折行，完整内容仍可编辑和保存。</div> : null}
     <div ref={containerRef} className="code-editor" />
   </div>;
 }

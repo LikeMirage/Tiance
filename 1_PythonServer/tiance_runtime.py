@@ -19,6 +19,7 @@ API_BASE_URL_ENV = "TIANCE_API_BASE_URL"
 
 _HOST_CAPABILITY_PATHS = {
     "web_search": "/llm/provider-capabilities/web-search",
+    "deepseek_web": "/llm/provider-capabilities/deepseek-web",
     "github_sync": "/github/sync/tool",
     "git_repository": "/git/repository/tool",
     "github_platform": "/github/platform/tool",

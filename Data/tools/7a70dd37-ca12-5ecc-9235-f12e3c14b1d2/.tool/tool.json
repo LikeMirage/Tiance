@@ -14,19 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "读取",
-    "文件",
-    "文本",
-    "行号",
-    "源码",
-    "配置",
-    "Markdown",
-    "图片",
-    "视觉理解",
-    "PNG",
-    "JPEG"
-  ],
   "loading": {
     "dynamic": false
   },

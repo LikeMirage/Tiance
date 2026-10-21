@@ -13,17 +13,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "grep",
-    "ripgrep",
-    "rg",
-    "搜索",
-    "内容搜索",
-    "正则",
-    "源码",
-    "关键词",
-    "上下文"
-  ],
   "loading": {
     "dynamic": false
   },

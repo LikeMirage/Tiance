@@ -3,8 +3,6 @@ import type { Dispatch, MouseEvent, SetStateAction } from "react";
 
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import type { EditorTextReferenceSource } from "../../../entities/editor/model/editorReference";
-import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
-import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import type { CodeBlockSavePayload } from "../../markdown-preview/model/codeBlockFile";
 import { LazyMarkdownPreview } from "../../markdown-preview/ui/LazyMarkdownPreview";
 import type { CodeEditorTextSelectionContextMenu } from "../../editor/ui/CodeEditor";
@@ -20,8 +18,6 @@ const MarkdownVisualEditor = lazy(() =>
     default: module.MarkdownVisualEditor,
   })),
 );
-
-const MARKDOWN_MODE_MINIMUM_LOADING_MS = 260;
 
 export type MarkdownEditorMode = "source" | "preview" | "visual";
 export type MarkdownDocxGenerationResult = {
@@ -68,33 +64,19 @@ export function MarkdownDocumentContent({
 }) {
   const visualBudgetExceeded = activeTab.content.length > previewPolicy.richTextCharacters;
   const effectiveMode = visualBudgetExceeded && markdownMode === "visual" ? "source" : markdownMode;
-  const [renderMode, setRenderMode] = useState<MarkdownEditorMode | null>(
-    markdownMode === "source" ? "source" : null,
-  );
-  const [isPreparingMode, setIsPreparingMode] = useState(markdownMode !== "source");
+  const renderMode = effectiveMode;
   const [docxState, setDocxState] = useState<{
     message: string;
     state: "idle" | "running" | "success" | "error";
   }>({ message: "", state: "idle" });
-  const isPreparingModeVisible = useMinimumLoading(isPreparingMode, MARKDOWN_MODE_MINIMUM_LOADING_MS);
-  const renderRunIdRef = useRef(0);
   const docxStatusTimerRef = useRef<number | null>(null);
   const previewScrollRef = useRef<HTMLDivElement>(null);
   useDocumentReadingScroll("markdown-preview", previewScrollRef,
-    renderMode === "preview" && !isPreparingModeVisible, activeTab.content);
+    renderMode === "preview", activeTab.content);
   const updateCurrentContent = (content: string) => onUpdateContent(activeTab.id, content);
   const markCurrentDirty = () => onMarkDirty(activeTab.id);
   const saveCurrentTab = (content: string) => void onSaveTab(activeTab.id, content);
-  const requestMarkdownMode = (nextMode: MarkdownEditorMode) => {
-    if (nextMode === markdownMode && renderMode === nextMode) return;
-    if (nextMode === "source") {
-      setRenderMode("source");
-      setIsPreparingMode(false);
-    } else {
-      setIsPreparingMode(true);
-    }
-    setMarkdownMode(nextMode);
-  };
+  const requestMarkdownMode = (nextMode: MarkdownEditorMode) => setMarkdownMode(nextMode);
 
   const setTemporaryDocxState = (state: "success" | "error", message: string) => {
     if (docxStatusTimerRef.current !== null) {
@@ -123,34 +105,6 @@ export function MarkdownDocumentContent({
     }
   };
 
-  useEffect(() => {
-    renderRunIdRef.current += 1;
-    const runId = renderRunIdRef.current;
-
-    if (effectiveMode === "source") {
-      setRenderMode("source");
-      setIsPreparingMode(false);
-      return;
-    }
-
-    let firstFrame = 0;
-    let secondFrame = 0;
-    setIsPreparingMode(true);
-    firstFrame = window.requestAnimationFrame(() => {
-      secondFrame = window.requestAnimationFrame(() => {
-        if (renderRunIdRef.current === runId) {
-          setRenderMode(effectiveMode);
-          setIsPreparingMode(false);
-        }
-      });
-    });
-
-    return () => {
-      window.cancelAnimationFrame(firstFrame);
-      window.cancelAnimationFrame(secondFrame);
-    };
-  }, [activeTab.id, effectiveMode]);
-
   useEffect(() => () => {
     if (docxStatusTimerRef.current !== null) {
       window.clearTimeout(docxStatusTimerRef.current);
@@ -167,12 +121,7 @@ export function MarkdownDocumentContent({
 
   return (
     <>
-      {visualBudgetExceeded && markdownMode === "visual" ? (
-        <div className="preview-budget-notice" role="status">内容超过 20 万字符，使用完整源码编辑；仍可切换到后台解析的 Markdown 预览。</div>
-      ) : null}
-      {renderMode === null || isPreparingModeVisible ? (
-        <MarkdownLoadingPanel />
-      ) : renderMode === "preview" ? (
+      {renderMode === "preview" ? (
         <div
           ref={previewScrollRef}
           className="doc-editor__preview doc-editor__preview--markdown-full"
@@ -246,17 +195,6 @@ export function MarkdownDocumentContent({
         ) : null}
       </div>
     </>
-  );
-}
-
-function MarkdownLoadingPanel() {
-  return (
-    <LoadingStrip
-      ariaLabel="正在加载 Markdown 内容"
-      mode="fill"
-      surface="dark"
-      visual="ring"
-    />
   );
 }
 

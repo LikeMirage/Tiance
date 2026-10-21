@@ -96,6 +96,7 @@ export function OfficePreview({
 
       {officeKind === "word" ? (
         <WordPreview
+          inspection={inspection}
           onLoadingVisibleChange={setIsContentLoadingVisible}
           onMissing={onMissing}
           src={src}

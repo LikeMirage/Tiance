@@ -11,6 +11,7 @@ from uuid import uuid4
 
 class HostCapability(StrEnum):
     WEB_SEARCH = "web_search"
+    DEEPSEEK_WEB = "deepseek_web"
     GITHUB_SYNC = "github_sync"
     GIT_REPOSITORY = "git_repository"
     GITHUB_PLATFORM = "github_platform"
@@ -33,6 +34,7 @@ class HostCapabilityGrant:
 
 _TOOL_CAPABILITY_POLICY: dict[str, frozenset[HostCapability]] = {
     "network_search": frozenset({HostCapability.WEB_SEARCH}),
+    "deepseek_official_web_search": frozenset({HostCapability.DEEPSEEK_WEB}),
     "github_repository_sync": frozenset({HostCapability.GITHUB_SYNC}),
     "git_repository": frozenset({HostCapability.GIT_REPOSITORY}),
     "github_repository": frozenset({HostCapability.GITHUB_PLATFORM}),

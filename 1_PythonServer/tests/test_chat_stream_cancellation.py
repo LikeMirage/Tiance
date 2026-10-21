@@ -1228,6 +1228,88 @@ def test_multiround_tool_cancellation_keeps_each_completed_model_round_usage():
     ]
 
 
+@pytest.mark.parametrize("failed_call_id", ["call-1", "call-2", "call-3"])
+@pytest.mark.parametrize("failure_mode", ["exception", "missing_result", "exception_after_result"])
+def test_parallel_batch_persists_completed_results_before_failing(
+    monkeypatch, failed_call_id, failure_mode,
+):
+    call_ids = ["call-1", "call-2", "call-3"]
+    executed = []
+
+    class ChatService:
+        request_count = 0
+
+        async def stream(self, request):
+            self.request_count += 1
+            assert self.request_count == 1, "An internal tool error must not restart generation."
+            for call_id in call_ids:
+                yield ChatStreamEvent(
+                    kind=ChatStreamEventKind.TOOL_CALL,
+                    tool_call=ChatToolCall(call_id=call_id, name="parallel_tool", arguments="{}"),
+                )
+            yield ChatStreamEvent(kind=ChatStreamEventKind.DONE, finish_reason="tool_calls")
+
+    class ParallelTools(_FakeToolExecutionService):
+        def is_parallel_tool(self, tool_name):
+            return True
+
+    async def execute(request, call, **kwargs):
+        if call.call_id == failed_call_id and failure_mode != "exception_after_result":
+            if failure_mode == "exception":
+                raise RuntimeError("simulated orchestration failure")
+            return
+        # Successful siblings finish after the failed branch, exercising the batch drain.
+        await asyncio.sleep(0)
+        executed.append(call.call_id)
+        yield ChatStreamEvent(
+            kind=ChatStreamEventKind.TOOL_RESULT,
+            tool_result=ChatToolResult(
+                call_id=call.call_id, name=call.name, arguments=call.arguments,
+                ok=True, content=f"completed {call.call_id}",
+            ),
+        )
+        if call.call_id == failed_call_id:
+            raise RuntimeError("simulated cleanup failure after success")
+
+    conversation_service = _FakeConversationService()
+    chat_service = ChatService()
+    service = ProjectConversationStreamService(
+        chat_service, conversation_service, _FakeUsageService(),
+        _FakeNamingService(), _FakeMemoryService(),
+        tool_execution_service=ParallelTools(), project_service=_FakeProjectService(),
+    )
+    monkeypatch.setattr(service._tool_loop, "_execute_tool_call_events_impl", execute)
+    request = replace(_request(), tools=(_tool_definition("parallel_tool"),))
+
+    payloads = []
+
+    async def collect_until_failure():
+        expected_error = {
+            "exception": "simulated orchestration failure",
+            "missing_result": "工具调用未返回结果。",
+            "exception_after_result": "simulated cleanup failure after success",
+        }[failure_mode]
+        with pytest.raises(RuntimeError, match=expected_error):
+            async for payload in service.stream_payloads(request):
+                payloads.append(payload)
+
+    asyncio.run(collect_until_failure())
+
+    expected = [call_id for call_id in call_ids
+                if call_id != failed_call_id or failure_mode == "exception_after_result"]
+    persisted = [item for item in conversation_service.appended if item["role"] == "tool"]
+    assert [item["tool_call_id"] for item in persisted] == expected
+    assert [json.loads(item["content"])["result"] for item in persisted] == [
+        f"completed {call_id}" for call_id in expected
+    ]
+    assert [event["tool_result"]["call_id"] for event in payloads
+            if event["kind"] == "tool_result"] == expected
+    assert sorted(executed) == expected
+    assert chat_service.request_count == 1
+    assert payloads[-1]["kind"] == "conversation_run_settled"
+    assert payloads[-1]["status"] == "error"
+
+
 def test_stream_batches_parallel_tool_calls_without_reordering():
     conversation_service = _FakeConversationService()
     chat_service = _MixedToolBatchChatService()

@@ -14,15 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "AI会话",
-    "会话桥",
-    "AI协作",
-    "发送消息",
-    "会话历史",
-    "MCP",
-    "远程协作"
-  ],
   "loading": {
     "dynamic": false
   },

@@ -131,12 +131,11 @@ def test_xml_entity_declarations_are_rejected_before_expansion(tmp_path, encodin
         inspect_file(path)
 
 
-def test_word_limits_layout_before_browser_receives_file(tmp_path, monkeypatch):
+def test_word_rejects_invalid_body_before_browser_receives_file(tmp_path):
     path = tmp_path / "large.docx"
     with ZipFile(path, "w") as archive:
         archive.writestr("word/document.xml", "<document>" + "<p/>" * 12 + "</document>")
-    monkeypatch.setattr(policy, "MAX_RENDER_NODES", 10)
-    with pytest.raises(policy.PreviewLimit, match="排版节点"):
+    with pytest.raises(ValueError, match="正文结构"):
         inspect_file(path)
 
 

@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)] [string]$Version,
     [Parameter(Mandatory = $true)] [string]$Tag,
     [Parameter(Mandatory = $true)] [string]$PreviousTag,
@@ -64,7 +64,9 @@ function Write-UpdateManifest(
     }
     $manifestPath = Join-Path $DestinationTree "Tiance/system/update-manifest.json"
     New-Item -ItemType Directory -Force -Path (Split-Path $manifestPath) | Out-Null
-    $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+    [IO.File]::WriteAllText(
+        $manifestPath, ($manifest | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false)
+    )
 }
 
 function Get-PackageMetadata([string]$Path, [string]$AssetName) {
@@ -167,7 +169,7 @@ try {
     $fullMetadata = Get-PackageMetadata $fullUpdate "Tiance-update.zip"
     $incrementalMetadata = Get-PackageMetadata $incrementalUpdate "Tiance-update-incremental.zip"
     $incrementalMetadata["fromVersion"] = $PreviousTag.TrimStart("v")
-    [ordered]@{
+    $updateIndex = [ordered]@{
         # 顶层字段保留给旧客户端；旧客户端始终下载可跳版本的完整程序包。
         schemaVersion = 1
         version = $Version
@@ -176,7 +178,10 @@ try {
         size = $fullMetadata.size
         full = $fullMetadata
         incremental = $incrementalMetadata
-    } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output "update.json") -Encoding utf8
+    }
+    [IO.File]::WriteAllText(
+        (Join-Path $output "update.json"), ($updateIndex | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false)
+    )
 
     Write-Output "完整安装包：$fullInstall"
     Write-Output "跳版本程序包：$fullUpdate"

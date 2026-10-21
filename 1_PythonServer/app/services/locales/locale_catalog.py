@@ -401,7 +401,7 @@ def _reference_messages(packages: dict[str, dict[str, Any]]) -> dict[str, Any]:
 
 def _read_json_file(path: Path) -> Any:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError as exc:
         raise LocaleCatalogError(f"Invalid JSON file: {path.name}") from exc
     except OSError as exc:

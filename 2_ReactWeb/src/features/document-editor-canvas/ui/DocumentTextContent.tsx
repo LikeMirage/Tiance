@@ -5,7 +5,7 @@ import type { DocumentTab } from "../../../entities/editor/model/editorDocument"
 import type { CodeEditorTextSelectionContextMenu } from "../../editor/ui/CodeEditor";
 import { PaginationControls } from "../../../shared/ui/pagination-controls/PaginationControls";
 import { getPreviewToggleLabel } from "../model/previewToggleLabel";
-import { EditorLazyBoundary, PreviewMountGate } from "./EditorContentBoundary";
+import { EditorLazyBoundary } from "./EditorContentBoundary";
 import { previewPolicy } from "../../file-preview/model/previewPolicy";
 
 const CodeEditor = lazy(() =>
@@ -119,9 +119,6 @@ export function DocumentTextContent({
 
   return (
     <div className="doc-editor__text-content">
-      {previewOpen && htmlBudgetExceeded ? <div className="preview-budget-notice" role="status">
-        HTML 超过 20 万字符，已使用完整源码编辑，避免页面排版占用过多资源。
-      </div> : null}
       {dataView && (!isSystemPreviewOpen || !isProjectMemory) ? (
         <>
           <PaginationControls
@@ -188,70 +185,58 @@ export function DocumentTextContent({
 
       {previewOpen && isCompressionLog && (
         <div className="doc-editor__compression-preview">
-          <PreviewMountGate ariaLabel="正在加载看板" gateKey={`${activeTab.id}:compression`}>
-            <EditorLazyBoundary resetKey={boundaryKey}>
-              <CompressionLogPreview
-                content={activeTab.content}
-                tabId={activeTab.id}
-                onMarkDirty={onMarkDirty}
-                onSaveContent={(contentSnapshot) => onSaveTab(activeTab.id, contentSnapshot)}
-                onUpdateContent={onUpdateContent}
-              />
-            </EditorLazyBoundary>
-          </PreviewMountGate>
+          <EditorLazyBoundary resetKey={boundaryKey}>
+            <CompressionLogPreview
+              content={activeTab.content}
+              tabId={activeTab.id}
+              onMarkDirty={onMarkDirty}
+              onSaveContent={(contentSnapshot) => onSaveTab(activeTab.id, contentSnapshot)}
+              onUpdateContent={onUpdateContent}
+            />
+          </EditorLazyBoundary>
         </div>
       )}
 
       {previewOpen && isConversationInjectionPreview && (
         <div className="doc-editor__conversation-injection-preview">
-          <PreviewMountGate ariaLabel="正在加载看板" gateKey={`${activeTab.id}:injection`}>
-            <EditorLazyBoundary resetKey={boundaryKey}>
-              <ConversationInjectionPreview content={activeTab.content} />
-            </EditorLazyBoundary>
-          </PreviewMountGate>
+          <EditorLazyBoundary resetKey={boundaryKey}>
+            <ConversationInjectionPreview content={activeTab.content} />
+          </EditorLazyBoundary>
         </div>
       )}
 
       {previewOpen && isConversationMessages && (
         <div className="doc-editor__conversation-messages-preview">
-          <PreviewMountGate ariaLabel="正在加载看板" gateKey={`${activeTab.id}:messages`}>
-            <EditorLazyBoundary resetKey={boundaryKey}>
-              <ConversationMessagesPreview content={activeTab.content} />
-            </EditorLazyBoundary>
-          </PreviewMountGate>
+          <EditorLazyBoundary resetKey={boundaryKey}>
+            <ConversationMessagesPreview content={activeTab.content} />
+          </EditorLazyBoundary>
         </div>
       )}
 
       {previewOpen && isConversationSession && (
         <div className="doc-editor__conversation-session-preview">
-          <PreviewMountGate ariaLabel="正在加载看板" gateKey={`${activeTab.id}:session`}>
-            <EditorLazyBoundary resetKey={boundaryKey}>
-              <ConversationSessionPreview content={activeTab.content} />
-            </EditorLazyBoundary>
-          </PreviewMountGate>
+          <EditorLazyBoundary resetKey={boundaryKey}>
+            <ConversationSessionPreview content={activeTab.content} />
+          </EditorLazyBoundary>
         </div>
       )}
 
       {previewOpen && isConversationIndex && (
         <div className="doc-editor__conversation-index-preview">
-          <PreviewMountGate ariaLabel="正在加载看板" gateKey={`${activeTab.id}:index`}>
-            <EditorLazyBoundary resetKey={boundaryKey}>
-              <ConversationIndexPreview content={activeTab.content} />
-            </EditorLazyBoundary>
-          </PreviewMountGate>
+          <EditorLazyBoundary resetKey={boundaryKey}>
+            <ConversationIndexPreview content={activeTab.content} />
+          </EditorLazyBoundary>
         </div>
       )}
 
       {previewOpen && (isProjectMemory || isGlobalMemory) && (
         <div className="doc-editor__project-memory-preview">
-          <PreviewMountGate ariaLabel="正在加载看板" gateKey={`${activeTab.id}:memory`}>
-            <EditorLazyBoundary resetKey={boundaryKey}>
-              <ProjectMemoryPreview
-                projectId={activeTab.projectId}
-                scope={isGlobalMemory ? "global" : "project"}
-              />
-            </EditorLazyBoundary>
-          </PreviewMountGate>
+          <EditorLazyBoundary resetKey={boundaryKey}>
+            <ProjectMemoryPreview
+              projectId={activeTab.projectId}
+              scope={isGlobalMemory ? "global" : "project"}
+            />
+          </EditorLazyBoundary>
         </div>
       )}
       </div>

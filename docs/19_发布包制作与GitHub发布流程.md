@@ -88,6 +88,16 @@ git diff --check
 
 访问网关源码发生变化时，发布提交前运行 `scripts/build-remote-gateway.ps1`，并将生成的 `runtime/gateway/TianceRemoteGateway.exe` 纳入发布提交。发布脚本会检查标签中是否存在该程序，缺失时直接停止。
 
+登录接口按实际连接来源 IP 限制每分钟最多 5 次（成功、失败均计入），并且全局最多同时执行 2 次登录验证，不排队。超限返回 HTTP 429、明确错误消息和 `Retry-After`。转发头不作为限流身份；反向代理后的请求会按代理连接地址合并计数。状态查询和普通会话请求不受登录限流影响。
+
+网关限流回归测试：
+
+```powershell
+dotnet test 3_PyWebView/gateway/windows/TianceRemoteGateway.Tests/TianceRemoteGateway.Tests.csproj --configuration Release
+```
+
+需要 .NET 8 SDK；如果 SDK 安装在独立目录，用该目录下的 `dotnet.exe` 执行，构建脚本也可通过 `-DotnetPath` 指定。
+
 ## 三、提交正式版本
 
 审查改动后提交并推送：

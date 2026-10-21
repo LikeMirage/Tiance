@@ -5,7 +5,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Tiance API Server"
-    app_version: str = Field(default_factory=_read_application_version)
+    _application_version: str = PrivateAttr(default_factory=_read_application_version)
     environment: str = "development"
     log_level: str = "INFO"
     api_prefix: str = "/api"
@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     allowed_origin_regex: str | None = None
     allow_null_origin: bool = False
     allow_file_origin: bool = False
+
+    @property
+    def app_version(self) -> str:
+        """The installed version is not a user-configurable setting."""
+        return self._application_version
 
     @property
     def cors_origins(self) -> list[str]:

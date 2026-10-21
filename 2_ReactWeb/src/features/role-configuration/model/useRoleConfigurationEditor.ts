@@ -14,7 +14,7 @@ import {
 type EditorState = "idle" | "loading" | "ready" | "error";
 type SaveState = "idle" | "saving" | "saved" | "error";
 
-const SAVE_DELAY_MS = 500;
+const SAVE_DELAY_MS = 250;
 
 export function useRoleConfigurationEditor(projectId: string | null) {
   const [configuration, setConfiguration] = useState<RoleConfiguration | null>(null);

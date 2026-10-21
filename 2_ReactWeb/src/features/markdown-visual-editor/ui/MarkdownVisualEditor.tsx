@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Crepe } from "@milkdown/crepe";
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame-dark.css";
-import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import { useDocumentReadingScroll } from "../../../entities/editor/model/documentReadingState";
 import { markdownKatexOptions } from "../../markdown-preview/model/markdownMath";
@@ -24,7 +23,6 @@ type MarkdownVisualEditorProps = {
 };
 
 const CHANGE_COMMIT_DELAY_MS = 220;
-const VISUAL_EDITOR_MINIMUM_LOADING_MS = 260;
 
 export function MarkdownVisualEditor({
   onChange,
@@ -49,10 +47,7 @@ export function MarkdownVisualEditor({
   const resolveAssetUrlRef = useRef(resolveAssetUrl);
   const [reloadKey, setReloadKey] = useState(0);
   const [isEditorReady, setIsEditorReady] = useState(false);
-  const isEditorLoadingVisible = useMinimumLoading(
-    !isEditorReady,
-    VISUAL_EDITOR_MINIMUM_LOADING_MS,
-  );
+  const isEditorLoadingVisible = !isEditorReady;
   useDocumentReadingScroll("markdown-visual", scrollRef, isEditorReady && !isEditorLoadingVisible, reloadKey);
 
   onChangeRef.current = onChange;

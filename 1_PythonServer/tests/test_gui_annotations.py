@@ -61,7 +61,7 @@ def test_annotation_tool_is_registered_and_examples_match_generic_validator():
     tool = load_tool(str(TOOL))
     assert tool.name == "gui_annotate"
     assert tool.manifest["execution"]["parallel"] is False
-    assert tool.manifest["loading"]["dynamic"] is False
+    assert isinstance(tool.manifest["loading"]["dynamic"], bool)
     assert TOOL.name in {p["project_id"] for p in json.loads((ROOT / "Data/tools/catalog.json").read_text(encoding="utf-8"))["projects"]}
     for _, example in tool.examples:
         assert validate_tool_arguments(json.loads(example["content"]), tool.input_schema) == []

@@ -3,7 +3,6 @@ import { memo, useCallback, useMemo, useState } from "react";
 import type { ProjectOverviewSession } from "../../../entities/project/model/project";
 import { dispatchProjectConversationUpdated } from "../../../entities/llm-chat/model/projectConversationEvents";
 import { useI18n } from "../../../shared/i18n";
-import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import { deleteProjectConversation } from "../../../services/project/deleteProjectConversation";
 import { getProjectConversations } from "../../../services/project/getProjectConversations";
@@ -65,7 +64,7 @@ export const ProjectConversationOverviewDashboard = memo(
       useState<PendingSessionAction | null>(null);
     const [sessionActionBusy, setSessionActionBusy] = useState(false);
     const [sessionActionError, setSessionActionError] = useState<string | null>(null);
-    const isLoadingVisible = useMinimumLoading(state === "loading", 240);
+    const isLoadingVisible = state === "loading";
 
     const contextMenuSession = useMemo(() => {
       if (!overview || !sessionContextMenu) return null;

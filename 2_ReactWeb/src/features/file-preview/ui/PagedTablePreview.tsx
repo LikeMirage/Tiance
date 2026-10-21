@@ -3,6 +3,7 @@ import { useDocumentReadingValue, useDocumentReadingScroll } from "../../../enti
 
 import { readSpreadsheetPage, type FilePreviewInspection, type SpreadsheetPage } from "../model/filePreview";
 import { ContextMenu, ContextMenuItem } from "../../../shared/ui/context-menu";
+import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import { renderSheetRangeToPngFile, type ExcelRange, type ExcelSelectionImageReferencePayload } from "../../office-preview/ui/excelSelectionImage";
 
 export function PagedTablePreview({
@@ -81,11 +82,6 @@ export function PagedTablePreview({
   };
   return (
     <div className={inspection.delimited ? "spreadsheet-pages spreadsheet-pages--delimited" : "spreadsheet-pages"}>
-      <div className="spreadsheet-pages__note">
-        {inspection.delimited
-          ? `按原始行列分页显示，首行保留为数据，数值和公式样式文本均原样展示。当前编码：${inspection.delimited.encoding}。`
-          : "大型工作簿使用分页数据视图。显示已保存的单元格值；合并区域、图表和原始排版请用默认应用查看。引用保留原工作表及单元格地址。"}
-      </div>
       <div className="spreadsheet-pages__controls">
         {inspection.delimited ? null : <select aria-label="工作表" value={sheet} onChange={(event) => {
           setSheetName(sheets[Number(event.target.value)]?.name ?? ""); setRow(0); setColumn(0);
@@ -100,7 +96,7 @@ export function PagedTablePreview({
           ? <button disabled={busy || !current} onClick={() => void exportSelection(true)}>引用选区</button> : null}
       </div>
       {error ? <div role="alert" className="spreadsheet-pages__note">{error} <button onClick={() => setAttempt(attempt + 1)}>重试</button></div> : null}
-      {!current && !error ? <div className="spreadsheet-pages__note" role="status">正在读取此页…</div> : null}
+      {!current && !error ? <LoadingStrip ariaLabel="正在读取此页" mode="overlay" surface="dark" visual="ring" /> : null}
       {current && !sheetInfo?.rows ? <div className="spreadsheet-pages__note">文件为空。</div> : null}
       <div className="spreadsheet-pages__scroll" tabIndex={0} ref={scrollerRef}
         onKeyDown={(event) => {

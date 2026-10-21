@@ -12,7 +12,7 @@ import type {
 import type { CodeBlockSavePayload } from "../../markdown-preview/model/codeBlockFile";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import { DocumentAssetPreviewContent, isDocumentAssetPreviewKind } from "./DocumentAssetPreviewContent";
-import { buildEditorContentResetKey, EditorLazyBoundary, PreviewMountGate } from "./EditorContentBoundary";
+import { buildEditorContentResetKey, EditorLazyBoundary } from "./EditorContentBoundary";
 import {
   MarkdownDocumentContent,
   type MarkdownDocxGenerationResult,
@@ -220,29 +220,25 @@ export function DocumentEditorActiveContent({
   if (isReferenceViewer) {
     return (
       <div className="doc-editor__reference-viewer">
-        <PreviewMountGate ariaLabel="正在加载引用内容" gateKey={`${activeTab.id}:reference-viewer`}>
-          <EditorLazyBoundary resetKey={boundaryKey}>
-            <ReferenceViewer content={activeTab.content} />
-          </EditorLazyBoundary>
-        </PreviewMountGate>
+        <EditorLazyBoundary resetKey={boundaryKey}>
+          <ReferenceViewer content={activeTab.content} />
+        </EditorLazyBoundary>
       </div>
     );
   }
 
   if (isConversationBranches) {
     return (
-      <PreviewMountGate ariaLabel="正在加载会话分支" gateKey={`${activeTab.id}:conversation-branches`}>
-        <EditorLazyBoundary resetKey={boundaryKey}>
-          <ConversationBranchDashboard
-            activeMessageId={activeConversationMessageId}
-            activeSessionId={activeConversationSessionId}
-            onSelectMessage={onSelectConversationMessage}
-            onSelectExportDirectory={onSelectExportDirectory}
-            projectId={activeTab.projectId}
-            projectRootPath={projectRootPath}
-          />
-        </EditorLazyBoundary>
-      </PreviewMountGate>
+      <EditorLazyBoundary resetKey={boundaryKey}>
+        <ConversationBranchDashboard
+          activeMessageId={activeConversationMessageId}
+          activeSessionId={activeConversationSessionId}
+          onSelectMessage={onSelectConversationMessage}
+          onSelectExportDirectory={onSelectExportDirectory}
+          projectId={activeTab.projectId}
+          projectRootPath={projectRootPath}
+        />
+      </EditorLazyBoundary>
     );
   }
 
@@ -268,11 +264,9 @@ export function DocumentEditorActiveContent({
   if (isGlobalMemory) {
     return (
       <div className="doc-editor__project-memory-preview">
-        <PreviewMountGate ariaLabel="正在加载看板" gateKey={`${activeTab.id}:global-memory`}>
-          <EditorLazyBoundary resetKey={boundaryKey}>
-            <ProjectMemoryPreview projectId={activeTab.projectId} scope="global" />
-          </EditorLazyBoundary>
-        </PreviewMountGate>
+        <EditorLazyBoundary resetKey={boundaryKey}>
+          <ProjectMemoryPreview projectId={activeTab.projectId} scope="global" />
+        </EditorLazyBoundary>
       </div>
     );
   }

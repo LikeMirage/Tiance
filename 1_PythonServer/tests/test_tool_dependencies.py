@@ -164,7 +164,8 @@ def test_tool_dependency_service_installs_missing_dependency_to_tools_target(tmp
         if command[-1] == "--version":
             return subprocess.CompletedProcess(command, 0, stdout="pip 25.0")
         if "install" in command:
-            _write_dist_info(site_packages, name="psutil", version="5.9.6")
+            incoming = Path(command[command.index("--target") + 1])
+            _write_dist_info(incoming, name="psutil", version="5.9.6")
             return subprocess.CompletedProcess(command, 0, stdout="ok")
         return subprocess.CompletedProcess(command, 1)
 
@@ -184,7 +185,8 @@ def test_tool_dependency_service_installs_missing_dependency_to_tools_target(tmp
     assert result.installed == ("psutil>=5.9.0",)
     assert result.report.items[0].status == "installed"
     assert "--target" in install_command
-    assert str(site_packages) in install_command
+    assert str(site_packages) not in install_command
+    assert Path(install_command[install_command.index("--target") + 1]).parent.parent == site_packages.parent
     assert "--index-url" in install_command
     assert "https://mirrors.aliyun.com/pypi/simple/" in install_command
 
@@ -205,8 +207,9 @@ def test_tool_dependency_service_installs_all_missing_dependencies_in_one_pip_ca
         if command[-1] == "--version":
             return subprocess.CompletedProcess(command, 0, stdout="pip 25.0")
         if "install" in command:
-            _write_dist_info(site_packages, name="psutil", version="5.9.6")
-            _write_dist_info(site_packages, name="pillow", version="10.0.0")
+            incoming = Path(command[command.index("--target") + 1])
+            _write_dist_info(incoming, name="psutil", version="5.9.6")
+            _write_dist_info(incoming, name="pillow", version="10.0.0")
             return subprocess.CompletedProcess(command, 0, stdout="ok")
         return subprocess.CompletedProcess(command, 1)
 
@@ -252,10 +255,13 @@ def test_tool_dependency_service_cleans_existing_distribution_before_reinstall(t
         if command[-1] == "--version":
             return subprocess.CompletedProcess(command, 0, stdout="pip 25.0")
         if "install" in command:
-            package_dir.mkdir(parents=True)
-            (package_dir / "__init__.py").write_text("__version__ = '14.3.4'\n", encoding="utf-8")
+            assert (package_dir / "__init__.py").read_text(encoding="utf-8") == "__version__ = '15.0.0'\n"
+            incoming = Path(command[command.index("--target") + 1])
+            incoming_package = incoming / "rich"
+            incoming_package.mkdir(parents=True)
+            (incoming_package / "__init__.py").write_text("__version__ = '14.3.4'\n", encoding="utf-8")
             _write_dist_info(
-                site_packages,
+                incoming,
                 name="rich",
                 version="14.3.4",
                 files=["rich/__init__.py"],
@@ -417,7 +423,8 @@ def test_tool_dependency_task_service_runs_install_in_background(tmp_path):
         if command[-1] == "--version":
             return subprocess.CompletedProcess(command, 0, stdout="pip 25.0")
         if "install" in command:
-            _write_dist_info(site_packages, name="psutil", version="5.9.6")
+            incoming = Path(command[command.index("--target") + 1])
+            _write_dist_info(incoming, name="psutil", version="5.9.6")
             return subprocess.CompletedProcess(command, 0, stdout="ok")
         return subprocess.CompletedProcess(command, 1)
 

@@ -30,6 +30,9 @@ def main():
                 raise policy.PreviewLimit("分页读取仅支持 64 MiB 以内的 XLSX 文件。")
             else:
                 result = spreadsheet_page(path, request["sheet"], request["row"], request["column"])
+        elif request["operation"] == "word":
+            from app.services.file_preview.word import word_chunk
+            result = word_chunk(path, request["chunk"])
         elif request["operation"] == "database":
             from app.services.project.project_database import ProjectDatabaseService
             class ResolvedFile:

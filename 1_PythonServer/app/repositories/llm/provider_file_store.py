@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from functools import lru_cache
 import json
+import logging
+import os
 from pathlib import Path
 import re
 import shutil
 from threading import RLock
+from tempfile import mkdtemp
 from collections.abc import Callable
 from typing import Any
 from uuid import uuid4
@@ -23,6 +26,7 @@ PROVIDER_MODEL_RULES_FILE = "model-rules.json"
 PROVIDER_SETTINGS_FILE = "provider-settings.json"
 PROVIDER_SCHEMA_VERSION = 1
 _PROVIDER_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
+logger = logging.getLogger(__name__)
 
 
 class ProviderFileStoreError(RuntimeError):
@@ -65,7 +69,73 @@ class ProviderFileStore:
         required: bool = True,
     ) -> dict[str, Any] | None:
         path = self.provider_file(provider_id, file_name)
-        return self._read_json(path, required=required)
+        with self._lock:
+            return self._read_json(path, required=required)
+
+    def read_provider_files(
+        self, provider_id: str, file_names: tuple[str, ...]
+    ) -> dict[str, dict[str, Any] | None]:
+        with self._lock:
+            return {
+                name: self._read_json(self.provider_file(provider_id, name), required=False)
+                for name in file_names
+            }
+
+    def update_provider_files(
+        self,
+        provider_id: str,
+        updates: dict[str, Callable[[dict[str, Any] | None], dict[str, Any]]],
+    ) -> None:
+        """Prepare all changed files first; roll back published files on failure."""
+        with self._lock:
+            changes = {}
+            for name, update in updates.items():
+                path = self.provider_file(provider_id, name)
+                current = self._read_json(path, required=False)
+                updated = update(None if current is None else dict(current))
+                if updated != current:
+                    changes[name] = (path, updated)
+            if not changes:
+                return
+            provider_dir = self.provider_dir(provider_id)
+            provider_dir.mkdir(parents=True, exist_ok=True)
+            staging = Path(mkdtemp(prefix=".config-save-", dir=provider_dir)).resolve()
+            published: list[str] = []
+            retain_backup = False
+            try:
+                for name, (path, payload) in changes.items():
+                    if path.exists():
+                        _write_durable_bytes(staging / f"{name}.previous", path.read_bytes())
+                    _write_durable_bytes(
+                        staging / name,
+                        (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+                    )
+                for name, (path, _) in changes.items():
+                    atomic_replace_path(staging / name, path)
+                    published.append(name)
+            except OSError as exc:
+                for name in reversed(published):
+                    path = changes[name][0]
+                    backup = staging / f"{name}.previous"
+                    try:
+                        if backup.exists():
+                            atomic_replace_path(backup, path)
+                        else:
+                            path.unlink(missing_ok=True)
+                    except OSError:
+                        retain_backup = True
+                        logger.exception("Could not restore provider file %s", path)
+                if retain_backup:
+                    raise ProviderFileStoreError(
+                        f"供应商配置保存及恢复失败，恢复文件保留在 {staging}。"
+                    ) from exc
+                raise ProviderFileStoreError("供应商配置保存失败，原有配置已保留。") from exc
+            finally:
+                if not retain_backup:
+                    try:
+                        shutil.rmtree(staging)
+                    except OSError:
+                        logger.warning("Could not clean provider staging directory %s", staging, exc_info=True)
 
     def write_provider_file(
         self,
@@ -189,3 +259,10 @@ class ProviderFileStore:
 @lru_cache
 def get_provider_file_store() -> ProviderFileStore:
     return ProviderFileStore(get_settings().providers_data_path)
+
+
+def _write_durable_bytes(path: Path, content: bytes) -> None:
+    with path.open("xb") as stream:
+        stream.write(content)
+        stream.flush()
+        os.fsync(stream.fileno())

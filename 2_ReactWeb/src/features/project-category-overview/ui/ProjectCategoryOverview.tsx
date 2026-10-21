@@ -10,7 +10,6 @@ import type {
   ProjectOverviewItem,
 } from "../../../entities/project/model/project";
 import { useDesktopShell } from "../../desktop-shell/model/useDesktopShell";
-import { useMinimumLoading } from "../../../shared/model/loading/useMinimumLoading";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import { OptionSelect, type OptionSelectItem } from "../../../shared/ui/option-select/OptionSelect";
 import { useI18n } from "../../../shared/i18n";
@@ -128,7 +127,7 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
     updateActiveSession,
     visibleSession,
   });
-  const isOverviewLoadingVisible = useMinimumLoading(state === "loading", 320);
+  const isOverviewLoadingVisible = state === "loading";
   const projectIdsKey = projects.map((item) => item.project.project_id).join("|");
   useEffect(() => {
     if (layoutMode !== "roller" && layoutMode !== "stack") return;

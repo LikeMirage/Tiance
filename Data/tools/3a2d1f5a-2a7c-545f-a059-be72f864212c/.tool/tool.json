@@ -13,20 +13,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "Excel",
-    "xlsx",
-    "工作簿",
-    "多sheet",
-    "样式",
-    "公式",
-    "图表",
-    "条件格式",
-    "数据验证",
-    "看板",
-    "编辑",
-    "读取摘要"
-  ],
   "loading": {
     "dynamic": true
   },

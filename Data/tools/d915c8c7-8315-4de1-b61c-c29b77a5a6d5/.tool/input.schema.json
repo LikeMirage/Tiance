@@ -1,33 +1,76 @@
 {
+  "type": "object",
   "additionalProperties": false,
-  "description": "search 把完整问题交给 DeepSeek V4 Flash 并强制使用官方服务端网络搜索；configure 把 API Key 写入本工具自己的配置文件；config_info 返回配置文件路径与配置方法。",
+  "description": "直接使用 DeepSeek Search/Fetch，不调用对话模型。JSON Key 优先，否则通过能力桥使用模型集 DeepSeek 的 Key。短文本直接返回；长文本完整保存到工作区 web_searches，text_files 给出文件路径、字节数和字符数，可用文件读取工具按需读取。",
   "properties": {
     "action": {
-      "permission_type": "network_access",
-      "default": "search",
-      "description": "search 执行网络搜索；configure 保存 API Key；config_info 查看配置路径和方法。",
+      "type": "string",
       "enum": [
         "search",
+        "fetch",
         "configure",
         "config_info"
       ],
+      "default": "search",
       "title": "操作",
-      "type": "string"
+      "description": "search 搜索；fetch 读取网页；configure 配置或清除工具 Key；config_info 查看配置。",
+      "permission_type": "none"
     },
     "query": {
-      "permission_type": "network_access",
-      "description": "search 时必填，需要联网搜索并回答的完整问题。应包含必要的时间、地区、对象和输出要求；config_info 时可不填。",
+      "type": "string",
       "minLength": 1,
-      "title": "搜索问题",
-      "type": "string"
+      "maxLength": 128,
+      "title": "搜索词",
+      "description": "search 必填。支持 site:、-site:、引号、lang:、after:、before: 等搜索语法。",
+      "permission_type": "network_access",
+      "permission_scope": "unresolved"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 10,
+      "title": "结果条数",
+      "description": "希望返回的结果条数；实际结果可能更少。",
+      "permission_type": "none"
+    },
+    "need_content": {
+      "type": "boolean",
+      "default": false,
+      "title": "附带正文",
+      "description": "搜索时是否同时返回可用正文；需要进一步读取某网页时使用 fetch。",
+      "permission_type": "none"
+    },
+    "ori_question": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 128,
+      "title": "原始问题",
+      "description": "可选，帮助搜索服务理解意图；最多 128 字符，null 表示不提供。",
+      "permission_type": "none"
+    },
+    "localization": {
+      "type": "string",
+      "title": "定位 IP",
+      "description": "可选，显式提供用于优先本地化结果的 IP；工具不会自动采集用户 IP。",
+      "permission_type": "none"
+    },
+    "url": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8192,
+      "title": "网页地址",
+      "description": "fetch 必填，没有账号密码的 HTTP/HTTPS 网址。",
+      "permission_type": "network_access"
     },
     "api_key": {
-      "permission_type": "credential_use",
-      "description": "configure 时必填，DeepSeek 官方 API Key。工具会写入自己的 config.json，返回结果不会回显该值。",
-      "minLength": 1,
+      "type": "string",
       "title": "DeepSeek API Key",
-      "type": "string"
+      "description": "仅 configure 使用。写入 config.json 后优先于模型集；空字符串清除工具 Key，恢复能力桥取凭据。",
+      "permission_type": "credential_use"
     }
-  },
-  "type": "object"
+  }
 }

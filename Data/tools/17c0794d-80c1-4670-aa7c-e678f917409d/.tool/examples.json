@@ -18,5 +18,17 @@
   {
     "title": "停止本工具后台",
     "content": "{\"action\":\"stop\"}"
+  },
+  {
+    "title": "按类型、日期和大小筛选",
+    "content": "{\"action\": \"search\", \"query\": \"ext:pdf;docx dm:thisyear size:<20mb\", \"page_size\": 20}"
+  },
+  {
+    "title": "限定目录搜索正文",
+    "content": "{\"action\": \"search\", \"base_path\": \"C:\\\\Users\\\\Public\\\\Documents\", \"query\": \"ext:md;txt content:\\\"能力桥\\\"\", \"page_size\": 20}"
+  },
+  {
+    "title": "搜索UTF-8日志中的短语",
+    "content": "{\"action\": \"search\", \"base_path\": \"C:\\\\Users\\\\Public\\\\Documents\", \"query\": \"ext:log utf8content:\\\"connection refused\\\"\", \"page_size\": 20}"
   }
 ]

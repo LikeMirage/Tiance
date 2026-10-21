@@ -1,6 +1,10 @@
 {
+  "type": "object",
+  "required": [
+    "ok"
+  ],
   "additionalProperties": true,
-  "description": "成功时返回 DeepSeek 生成的答案、实际搜索词、来源、服务端搜索动作和用量；失败时返回 ok=false、稳定错误码和配置指引。",
+  "description": "搜索返回 data.results，抓取返回 data.page。保留标题、网址和来源评分等元数据；短 snippet/summary/content 为原文，长字段移到 text_files 对应字段的文件描述（path、size_bytes、character_count、line_count）。有文件时返回 index_file，索引只引用已落盘长文本，不重复存正文。data.key_source 为 config 或 provider。空搜索结果仍为成功。失败保留 error_info.code、HTTP 状态及凭据来源，不自动切换账号。",
   "properties": {
     "ok": {
       "type": "boolean"
@@ -17,9 +21,5 @@
     "error_info": {
       "type": "object"
     }
-  },
-  "required": [
-    "ok"
-  ],
-  "type": "object"
+  }
 }

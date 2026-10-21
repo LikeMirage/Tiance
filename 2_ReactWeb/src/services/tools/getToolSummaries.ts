@@ -4,7 +4,6 @@ export type ToolSummary = {
   name: string;
   display_name: string;
   description: string;
-  keywords: string[];
   category: string;
   dynamic: boolean;
   parallel: boolean;

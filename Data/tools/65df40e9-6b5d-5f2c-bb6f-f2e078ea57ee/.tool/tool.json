@@ -13,14 +13,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "全文检索",
-    "FTS5",
-    "SQLite",
-    "文本索引",
-    "过期检查",
-    "增量索引"
-  ],
   "loading": {
     "dynamic": false
   },

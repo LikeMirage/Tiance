@@ -56,6 +56,16 @@ async def read_project_spreadsheet_page(
     return await preview_file(request, file_path, "spreadsheet", version=version, sheet=sheet, row=row, column=column,
                               encoding=encoding, delimiter=delimiter)
 
+@router.get("/{project_id}/files/preview/word", summary="Read a Word preview chunk")
+async def read_project_word_chunk(
+    request: Request, project_id: str, path: str, version: str,
+    chunk: int = Query(0, ge=0),
+) -> dict:
+    file_path = get_project_file_service().get_file_path(project_id, target_path=path)
+    validate_asset_version(file_path, version)
+    return await preview_file(request, file_path, "word", version=version, chunk=chunk)
+
+
 # Transport-only keepalive, below the gateway's 100-second idle timeout.
 # It neither refreshes files nor limits the lifetime of a subscription.
 _FILE_EVENTS_HEARTBEAT_SECONDS = 15.0

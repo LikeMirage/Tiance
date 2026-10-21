@@ -9,13 +9,13 @@
         "status",
         "stop"
       ],
-      "description": "search按需启动管理员Everything并查询；status只检查运行状态；stop停止本工具实例，保留索引。",
+      "description": "search按需启动本工具Everything，等待索引就绪后查询；status只读取运行、索引就绪状态和版本；stop停止本工具实例，保留索引。",
       "permission_type": "process_control"
     },
     "query": {
       "type": "string",
       "minLength": 1,
-      "description": "Everything搜索表达式，如ext:pdf或ESP32。search必填。默认搜索已索引本机文件，不局限于当前项目。",
+      "description": "search必填，Everything原生表达式。普通词匹配文件名；可组合ext:pdf;docx、dm:thisyear、size:<20mb；正文用content:\"关键词\"，UTF-8纯文本可用utf8content:\"短语\"。正文临时读取，应先用base_path和类型缩小范围；Office/PDF依赖系统iFilter。只返回匹配文件，不返回命中行。默认范围为本实例已索引位置。",
       "permission_type": "filesystem_read"
     },
     "base_path": {
@@ -29,7 +29,7 @@
       "minimum": 1,
       "maximum": 5000,
       "default": 200,
-      "description": "每页条数，仅限制本次传输，不限制可翻页总量。",
+      "description": "每页条数，仅限制结果传输，不限制候选文件或正文扫描量。",
       "permission_type": "none"
     },
     "offset": {

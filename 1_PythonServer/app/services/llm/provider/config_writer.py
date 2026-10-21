@@ -15,7 +15,7 @@ from app.domain.llm.provider_catalog import (
 )
 from app.domain.llm.provider_config import ProviderApiKeyConfig, ProviderConfig
 from app.domain.llm.reasoning_replay import ReasoningReplayMode
-from app.infra.secrets.secret_codec import encrypt_secret
+from app.infra.secrets.secret_codec import decrypt_secret, encrypt_secret
 from app.repositories.llm.provider_cloud_model_repository import ProviderCloudModelRepository
 from app.repositories.llm.provider_config_repository import ProviderConfigRepository
 from app.services.llm.provider.api_base_url_validation import normalize_provider_api_base_url
@@ -79,7 +79,7 @@ class ProviderConfigWriter:
             )
             created_at = existing_key.created_at if existing_key is not None else now
 
-            if normalized_key_value:
+            if normalized_key_value and not _matches_stored_key(normalized_key_value, api_key_ciphertext):
                 api_key_hint = _mask_api_key(normalized_key_value)
                 api_key_ciphertext = encrypt_secret(normalized_key_value)
                 if api_key_ciphertext is None:
@@ -190,6 +190,16 @@ class ProviderConfigWriter:
             self._cloud_model_repository.delete_provider_cache(saved_config.provider_id)
 
         return saved_config
+
+def _matches_stored_key(value: str, ciphertext: str | None) -> bool:
+    if not ciphertext:
+        return False
+    try:
+        return decrypt_secret(ciphertext) == value
+    except (ValueError, OSError, RuntimeError):
+        # Re-entering a key must still allow replacing unreadable old credentials.
+        return False
+
 
 def _resolve_key_id(key_id: str | None, seen_key_ids: set[str]) -> str:
     """解析或生成密钥 ID（保证不重复）"""

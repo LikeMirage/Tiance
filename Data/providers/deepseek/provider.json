@@ -3,7 +3,7 @@
   "id": "deepseek",
   "displayName": "DeepSeek",
   "profileId": "deepseek",
-  "protocolFamily": "openai_compatible",
+  "protocolFamily": "openai_responses",
   "generationAuthSchemes": {
     "anthropic_messages": "x_api_key",
     "openai_compatible": "bearer_token",
@@ -20,5 +20,5 @@
   "enabled": true,
   "reasoningReplayMode": "tool_call_rounds",
   "createdAt": "2026-08-21T16:16:51.681401+00:00",
-  "updatedAt": "2026-08-21T16:17:57.560784+00:00"
+  "updatedAt": "2026-10-16T08:42:38.255480+00:00"
 }

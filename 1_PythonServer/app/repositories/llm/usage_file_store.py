@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, replace
 from json import JSONDecodeError, dumps, loads
+import logging
 import os
 from pathlib import Path
 from threading import RLock
@@ -13,6 +14,7 @@ from app.domain.llm.usage import LlmUsageRecord
 
 USAGE_EVENTS_FILE = "usage_records.jsonl"
 _EVENT_VERSION = 1
+logger = logging.getLogger(__name__)
 
 
 class UsageFileStore:
@@ -80,13 +82,18 @@ class UsageFileStore:
                 temporary_path.unlink(missing_ok=True)
 
     def _append_event_unlocked(self, event: dict[str, object]) -> None:
-        encoded = dumps(event, ensure_ascii=False, separators=(",", ":"))
+        encoded = (dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
         self.root_path.mkdir(parents=True, exist_ok=True)
-        with self.events_path.open("a", encoding="utf-8") as output:
-            output.write(encoded)
-            output.write("\n")
-            output.flush()
-            os.fsync(output.fileno())
+        try:
+            with self.events_path.open("ab") as output:
+                output.write(encoded)
+                output.flush()
+                os.fsync(output.fileno())
+        except OSError:
+            # The next operation must replay/repair a possibly partial write.
+            self._records_cache = None
+            self._message_usage_ids_cache = None
+            raise
 
     def _ensure_cache_unlocked(
         self,
@@ -101,14 +108,24 @@ class UsageFileStore:
         if not self.events_path.is_file():
             return records, message_usage_ids
 
-        with self.events_path.open("r", encoding="utf-8") as source:
+        tail: tuple[int, bytes] | None = None
+        needs_newline = False
+        offset = 0
+        with self.events_path.open("rb") as source:
             for line_number, raw_line in enumerate(source, start=1):
+                line_start = offset
+                offset += len(raw_line)
+                needs_newline = not raw_line.endswith(b"\n")
                 line = raw_line.strip()
                 if not line:
                     continue
                 try:
-                    event = loads(line)
-                except JSONDecodeError as exc:
+                    event = loads(line.decode("utf-8"))
+                except (JSONDecodeError, UnicodeDecodeError) as exc:
+                    if needs_newline:
+                        # Only an unterminated final line can be a torn append.
+                        tail = (line_start, raw_line)
+                        break
                     raise ValueError(
                         f"Invalid usage event JSON at line {line_number}."
                     ) from exc
@@ -127,7 +144,30 @@ class UsageFileStore:
                     _apply_model_delete(records, message_usage_ids, provider_id, model_id)
                     continue
                 raise ValueError(f"Unknown usage event operation at line {line_number}.")
+        if tail is not None:
+            self._recover_tail_unlocked(*tail)
+        elif needs_newline:
+            # A complete JSON event without its final newline must be retained.
+            with self.events_path.open("ab") as output:
+                output.write(b"\n")
+                output.flush()
+                os.fsync(output.fileno())
         return records, message_usage_ids
+
+    def _recover_tail_unlocked(self, offset: int, tail: bytes) -> None:
+        backup_path = self.events_path.with_name(
+            f"{self.events_path.name}.{uuid4().hex}.corrupt-tail"
+        )
+        # Persist evidence before removing any bytes from the ledger.
+        with backup_path.open("xb") as backup:
+            backup.write(tail)
+            backup.flush()
+            os.fsync(backup.fileno())
+        with self.events_path.open("r+b") as output:
+            output.truncate(offset)
+            output.flush()
+            os.fsync(output.fileno())
+        logger.warning("Recovered incomplete usage tail; original bytes saved to %s", backup_path)
 
 
 def _usage_identity(record: LlmUsageRecord) -> str | None:

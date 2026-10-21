@@ -14,13 +14,6 @@
     "input": "stdin_json",
     "output": "stdout_json"
   },
-  "keywords": [
-    "等待",
-    "延时",
-    "暂停",
-    "稍后重试",
-    "阻塞"
-  ],
   "loading": {
     "dynamic": false
   },
