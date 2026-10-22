@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Query
 
 from app.schemas.workspace import (
+    WorkspaceStorageResponse,
+    WorkspaceStatisticsResponse,
     ServerDirectoryEntryResponse,
     ServerDirectoryListingResponse,
     WorkspaceActivitySummaryResponse,
@@ -17,8 +19,24 @@ from app.services.workspace_activity import (
     get_workspace_activity_management_service,
     get_workspace_activity_service,
 )
+from app.services.workspace_statistics import StatisticsKind, get_workspace_statistics_service
+from app.services.workspace_storage import get_workspace_storage_service
 
 router = APIRouter(prefix="/workspace", tags=["workspace"])
+
+
+@router.get("/storage", response_model=WorkspaceStorageResponse)
+def get_workspace_storage() -> WorkspaceStorageResponse:
+    return WorkspaceStorageResponse(**get_workspace_storage_service().get_storage())
+
+
+@router.get("/statistics/{kind}", response_model=WorkspaceStatisticsResponse)
+def get_workspace_statistics(
+    kind: StatisticsKind,
+    month: str = Query(pattern=r"^\d{4}-\d{2}$"),
+    timezone: str = Query(default="UTC", max_length=100),
+) -> WorkspaceStatisticsResponse:
+    return WorkspaceStatisticsResponse(**get_workspace_statistics_service().get_statistics(kind, month, timezone))
 
 
 @router.get(

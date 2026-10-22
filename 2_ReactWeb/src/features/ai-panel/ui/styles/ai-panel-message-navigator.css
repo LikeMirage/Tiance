@@ -169,7 +169,3 @@ html.ds-window-resizing .ai-panel__message-navigator-track,
 html.ds-window-resizing .ai-panel__message-navigator-tick {
   transition: none;
 }
-
-.ai-panel__message-navigator + .ai-panel__scroll-bottom {
-  right: 42px;
-}

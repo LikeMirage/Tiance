@@ -43,15 +43,21 @@ class WorkspaceActivityRepository:
     def record_ai_run_elapsed(
         self,
         *,
+        run_id: str,
+        project_id: str,
+        session_id: str,
         user_message_id: str,
         elapsed_ms: int,
         finished_at: str,
     ) -> None:
         self._record_activity(
             activity_type=AI_RUN_ELAPSED_MS,
-            source_id=user_message_id,
+            source_id=run_id,
             amount=max(0, int(elapsed_ms)),
             occurred_at=finished_at,
+            project_id=project_id,
+            session_id=session_id,
+            user_message_id=user_message_id,
         )
 
     def _record_activity(
@@ -61,6 +67,9 @@ class WorkspaceActivityRepository:
         source_id: str,
         occurred_at: str,
         amount: int = 1,
+        project_id: str | None = None,
+        session_id: str | None = None,
+        user_message_id: str | None = None,
     ) -> None:
         with database_transaction(self._database_path) as connection:
             connection.execute(
@@ -69,11 +78,34 @@ class WorkspaceActivityRepository:
                     activity_type,
                     source_id,
                     amount,
-                    occurred_at
-                ) VALUES (?, ?, ?, ?)
+                    occurred_at, project_id, session_id, user_message_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (activity_type, source_id, amount, occurred_at),
+                (activity_type, source_id, amount, occurred_at, project_id, session_id, user_message_id),
             )
+
+    def runtime_statistics(self, day_bounds: tuple[tuple[str, str], ...]) -> dict:
+        # One read transaction keeps the total, daily values and ranking consistent.
+        with database_transaction(self._database_path) as connection:
+            total = connection.execute(
+                "SELECT COALESCE(SUM(amount), 0) FROM workspace_activity_records WHERE activity_type = ?",
+                (AI_RUN_ELAPSED_MS,),
+            ).fetchone()[0]
+            daily = [
+                int(connection.execute(
+                    """SELECT COALESCE(SUM(amount), 0) FROM workspace_activity_records
+                       WHERE activity_type = ? AND occurred_at >= ? AND occurred_at < ?""",
+                    (AI_RUN_ELAPSED_MS, start, end),
+                ).fetchone()[0])
+                for start, end in day_bounds
+            ]
+            top = connection.execute(
+                """SELECT source_id, amount, project_id, session_id, user_message_id
+                   FROM workspace_activity_records WHERE activity_type = ?
+                   ORDER BY amount DESC, source_id LIMIT 3""",
+                (AI_RUN_ELAPSED_MS,),
+            ).fetchall()
+        return {"total": int(total), "daily": daily, "top": [dict(row) for row in top]}
 
     def count_conversations_created(self) -> int:
         return self._count_activity(CONVERSATION_CREATED)

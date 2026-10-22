@@ -12,7 +12,10 @@
             "off"
           ]
         }
-      }
+      },
+      "capabilityTags": [
+        "reasoning"
+      ]
     }
   }
 }

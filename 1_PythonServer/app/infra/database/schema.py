@@ -2456,6 +2456,23 @@ MIGRATIONS: tuple[Migration, ...] = (
 )
 
 
+MIGRATIONS += (
+    Migration(
+        version=49,
+        name="workspace_activity_run_identity",
+        statements=(
+            "ALTER TABLE workspace_activity_records ADD COLUMN project_id TEXT",
+            "ALTER TABLE workspace_activity_records ADD COLUMN session_id TEXT",
+            "ALTER TABLE workspace_activity_records ADD COLUMN user_message_id TEXT",
+            """
+            CREATE INDEX idx_workspace_activity_duration
+            ON workspace_activity_records(activity_type, amount DESC, source_id)
+            """,
+        ),
+    ),
+)
+
+
 def ensure_database_schema(database_path: Path) -> None:
     """确保数据库 Schema 已创建并应用所有待迁移"""
     run_database_migrations(database_path, MIGRATIONS)

@@ -5,10 +5,15 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+from threading import RLock
 from uuid import uuid4
 
 from app.core.atomic_replace import atomic_replace_path
 from app.infra.secrets import decrypt_secret, encrypt_secret
+
+
+# The app has one credential file; share the lock across repository instances too.
+_CREDENTIALS_LOCK = RLock()
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +29,10 @@ class GithubAuthRepository:
         self._credentials_path = credentials_path
 
     def read(self) -> GithubCredentials | None:
+        with _CREDENTIALS_LOCK:
+            return self._read()
+
+    def _read(self) -> GithubCredentials | None:
         try:
             payload = json.loads(self._credentials_path.read_text(encoding="utf-8"))
         except FileNotFoundError:
@@ -51,6 +60,10 @@ class GithubAuthRepository:
             return None
 
     def save(self, credentials: GithubCredentials) -> None:
+        with _CREDENTIALS_LOCK:
+            self._save(credentials)
+
+    def _save(self, credentials: GithubCredentials) -> None:
         access_ciphertext = encrypt_secret(credentials.access_token)
         refresh_ciphertext = (
             encrypt_secret(credentials.refresh_token)
@@ -81,8 +94,14 @@ class GithubAuthRepository:
                 temporary.unlink(missing_ok=True)
 
     def delete(self) -> None:
-        with suppress(OSError):
+        with _CREDENTIALS_LOCK, suppress(OSError):
             self._credentials_path.unlink(missing_ok=True)
+
+    def delete_if_access_token_matches(self, access_token: str) -> None:
+        with _CREDENTIALS_LOCK:
+            current = self._read()
+            if current is not None and current.access_token == access_token:
+                self.delete()
 
 
 def _parse_datetime(value: object) -> datetime | None:

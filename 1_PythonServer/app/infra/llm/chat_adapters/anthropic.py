@@ -32,6 +32,7 @@ from app.infra.llm.chat_adapters.continuation import (
     build_protocol_continuation,
     matching_continuation_items,
 )
+from app.infra.llm.chat_adapters.reasoning_replay import should_replay_reasoning
 from app.infra.llm.chat_adapters.payloads import (
     _extract_thinking_delta,
     _json_arguments,
@@ -227,9 +228,10 @@ def _build_anthropic_body(request: ChatCompletionRequest, *, stream: bool) -> di
     body: dict[str, object] = {
         "model": request.model_id,
         "messages": [
-            _message_to_anthropic_payload_for_request(message, request)
+            payload
             for message in request.messages
             if message.role != ChatMessageRole.SYSTEM
+            if (payload := _message_to_anthropic_payload_for_request(message, request)) is not None
         ],
         "max_tokens": _max_output_tokens(request, default=1024),
         "stream": stream,
@@ -288,7 +290,7 @@ def _message_to_anthropic_payload(message: ChatMessage) -> dict[str, object]:
 def _message_to_anthropic_payload_for_request(
     message: ChatMessage,
     request: ChatCompletionRequest,
-) -> dict[str, object]:
+) -> dict[str, object] | None:
     if message.role == ChatMessageRole.ASSISTANT:
         items = matching_continuation_items(
             message,
@@ -297,6 +299,11 @@ def _message_to_anthropic_payload_for_request(
             ChatProtocolContinuationKind.ANTHROPIC_CONTENT,
         )
         if items:
+            if not should_replay_reasoning(message, request.reasoning_replay_mode):
+                items = tuple(item for item in items if item.get("type") not in {"thinking", "redacted_thinking"})
+            # Filtering a reasoning-only reply must not leave an invalid empty assistant turn.
+            if not items:
+                return None
             return {"role": "assistant", "content": list(items)}
     return _message_to_anthropic_payload(message)
 

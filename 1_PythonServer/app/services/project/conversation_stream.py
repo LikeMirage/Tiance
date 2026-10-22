@@ -230,7 +230,7 @@ class ProjectConversationStreamService:
         include_persistence_checkpoints: bool = False,
     ) -> AsyncGenerator[dict[str, object | None], None]:
         # One manager task owns all automatic user turns, so stop cancels the chain.
-        request = replace(request, output_limit_budget=OutputLimitRecoveryBudget(), record_attempt_usage=True, emit_response_boundaries=True)
+        request = replace(request, run_id=request.run_id or uuid4().hex, output_limit_budget=OutputLimitRecoveryBudget(), record_attempt_usage=True, emit_response_boundaries=True)
         pending_user: dict | None = None
         conversation_notifications.open(request.project_id, request.session_id)
         try:
@@ -456,11 +456,6 @@ class ProjectConversationStreamService:
                     self._persistence.save_runtime_status,
                     request,
                     "error" if existing_status == "error" else "idle",
-                )
-                await self._settlement.record_ai_run_elapsed(
-                    run_user_message,
-                    existing_turn.reply,
-                    run_started_at=None,
                 )
                 started_payload = conversation_run_started_payload(run_user_message)
                 if started_payload is not None:
@@ -817,6 +812,7 @@ class ProjectConversationStreamService:
 
             if await self._discard_removed_conversation(request):
                 await self._settlement.record_ai_run_elapsed(
+                    request,
                     run_user_message,
                     None,
                     run_started_at=run_started_at,
@@ -867,11 +863,6 @@ class ProjectConversationStreamService:
                     "error_code": "empty_model_response",
                 }
                 return
-            await self._settlement.record_ai_run_elapsed(
-                run_user_message,
-                assistant_message,
-                run_started_at=run_started_at,
-            )
             await self._settlement.record_assistant_usage_best_effort(
                 request,
                 assistant_message,
@@ -940,6 +931,12 @@ class ProjectConversationStreamService:
                 status="done",
                 attempt_count=upstream_attempt_index,
             )
+            await self._settlement.record_ai_run_elapsed(
+                request,
+                run_user_message,
+                assistant_message,
+                run_started_at=run_started_at,
+            )
             settled_payload = conversation_run_settled_payload(
                 run_user_message,
                 assistant_message,
@@ -1000,6 +997,7 @@ class ProjectConversationStreamService:
         except httpx.HTTPStatusError as exc:
             if await self._discard_removed_conversation(request):
                 await self._settlement.record_ai_run_elapsed(
+                    request,
                     run_user_message,
                     None,
                     run_started_at=run_started_at,
@@ -1035,6 +1033,7 @@ class ProjectConversationStreamService:
         except httpx.RequestError as exc:
             if await self._discard_removed_conversation(request):
                 await self._settlement.record_ai_run_elapsed(
+                    request,
                     run_user_message,
                     None,
                     run_started_at=run_started_at,
@@ -1070,6 +1069,7 @@ class ProjectConversationStreamService:
         except AppError as exc:
             if await self._discard_removed_conversation(request):
                 await self._settlement.record_ai_run_elapsed(
+                    request,
                     run_user_message,
                     None,
                     run_started_at=run_started_at,
@@ -1108,6 +1108,7 @@ class ProjectConversationStreamService:
                     attempt_count=upstream_attempt_index,
                 )
                 await self._settlement.record_ai_run_elapsed(
+                    request,
                     run_user_message,
                     final_assistant_message,
                     run_started_at=run_started_at,

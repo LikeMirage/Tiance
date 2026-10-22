@@ -1,4 +1,3 @@
-import { CaretDown } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type UIEventHandler } from "react";
 
 import { buildUserMessageNavigationItems } from "../model/userMessageNavigation";
@@ -29,10 +28,6 @@ type ChatPanelBodyFrameProps = {
   onExternalNavigationHandled?: (requestId: number) => void;
   onViewRestoreHandled?: (requestId: number) => void;
   onContentReady?: () => void;
-  scrollBottom: {
-    isVisible: boolean;
-    onClick: () => void;
-  };
   settings: Parameters<typeof ChatSettingsView>[0];
 };
 
@@ -50,7 +45,6 @@ export function ChatPanelBodyFrame({
   onExternalNavigationHandled,
   onViewRestoreHandled,
   onContentReady,
-  scrollBottom,
   settings,
 }: ChatPanelBodyFrameProps) {
   const { readiness, isPreparing } = useChatContentReadiness(
@@ -159,17 +153,6 @@ export function ChatPanelBodyFrame({
             });
           }}
         />
-      ) : null}
-      {activeView === "chat" && !isPreparing && scrollBottom.isVisible ? (
-        <button
-          className="ai-panel__scroll-bottom"
-          type="button"
-          aria-label="回到底部"
-          title="回到底部"
-          onClick={scrollBottom.onClick}
-        >
-          <CaretDown size={18} weight="bold" aria-hidden="true" />
-        </button>
       ) : null}
     </div>
     </ContentReadinessContext.Provider>

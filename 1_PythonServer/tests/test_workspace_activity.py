@@ -184,18 +184,21 @@ def test_ai_runtime_activity_is_idempotent_and_sums_elapsed_milliseconds(tmp_pat
     service = WorkspaceActivityService(repository)
 
     assert service.record_ai_run_elapsed(
+        run_id="run-1", project_id="project-1", session_id="session-1",
         user_message_id="user-message-1",
         started_at="2026-01-01T00:00:00+00:00",
         finished_at="2026-01-01T00:00:02.500000+00:00",
         elapsed_ms=None,
     )
     assert service.record_ai_run_elapsed(
+        run_id="run-1", project_id="project-1", session_id="session-1",
         user_message_id="user-message-1",
         started_at="2026-01-01T00:00:00+00:00",
         finished_at="2026-01-01T00:00:09+00:00",
         elapsed_ms=None,
     )
     assert service.record_ai_run_elapsed(
+        run_id="run-2", project_id="project-1", session_id="session-1",
         user_message_id="user-message-2",
         started_at="2026-01-01T00:00:00+00:00",
         finished_at="2026-01-01T00:00:01+00:00",

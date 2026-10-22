@@ -26,6 +26,10 @@ from app.services.llm.provider.api_key_scheduler import (
 from app.services.llm.provider.api_base_url_validation import normalize_provider_api_base_url
 from app.services.llm.provider.config_runtime import ProviderConfigRuntimeResolver
 from app.services.llm.provider.discovered_model_metadata import enrich_discovered_models
+from app.repositories.llm.provider_adaptation_rules_repository import (
+    ProviderAdaptationRulesRepository,
+    get_provider_adaptation_rules_repository,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,10 +46,12 @@ class ProviderCatalogDiscoveryService:
         config_repository: ProviderConfigRepository,
         remote_client: ProviderRemoteClient,
         api_key_scheduler: ProviderApiKeyScheduler,
+        adaptation_rules_repository: ProviderAdaptationRulesRepository,
     ) -> None:
         self._catalog_repository = catalog_repository
         self._config_repository = config_repository
         self._remote_client = remote_client
+        self._adaptation_rules_repository = adaptation_rules_repository
         self._runtime_resolver = ProviderConfigRuntimeResolver(
             api_key_scheduler,
         )
@@ -71,7 +77,10 @@ class ProviderCatalogDiscoveryService:
             context.runtime_config,
             context.selected_api_key.api_key,
         )
-        return enrich_discovered_models(discovered_models)
+        return await asyncio.to_thread(
+            enrich_discovered_models, discovered_models,
+            rules_repository=self._adaptation_rules_repository,
+        )
 
     def _resolve_discovery_context(
         self,
@@ -124,4 +133,5 @@ def get_provider_catalog_discovery_service() -> ProviderCatalogDiscoveryService:
         get_provider_config_repository(),
         get_provider_remote_client(),
         get_provider_api_key_scheduler(),
+        get_provider_adaptation_rules_repository(),
     )

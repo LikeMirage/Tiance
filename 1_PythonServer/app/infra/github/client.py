@@ -9,7 +9,7 @@ import hashlib
 from pathlib import Path, PurePosixPath
 import re
 from typing import Any
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import httpx
 
@@ -77,34 +77,70 @@ def normalize_github_repository_source(source: str) -> str | None:
     return parsed.canonical_url if parsed is not None else None
 
 
-def resolve_github_repository_path(source: str, raw_resource: str) -> str:
+def _github_repository_resource_parts(source: str, raw_resource: str) -> tuple[str, ...] | None:
+    """Validate repository ownership; retain the entire ref/path boundary for resolution."""
     repository = parse_github_repository_source(source)
     if repository is None:
         raise GithubApiError("GitHub 仓库地址无效。")
     raw = raw_resource.strip()
-    parts = urlsplit(raw)
-    if parts.scheme:
+    try:
+        parts = urlsplit(raw)
+    except ValueError as exc:
+        raise GithubApiError("GitHub 仓库资源地址无效。") from exc
+    if parts.scheme or parts.netloc:
         host = (parts.hostname or "").lower()
-        if parts.scheme != "https" or host not in {
-            "github.com",
-            "raw.githubusercontent.com",
-        }:
+        if (
+            parts.scheme != "https"
+            or host not in {"github.com", "raw.githubusercontent.com"}
+            or parts.netloc.lower() not in {host, f"{host}:443"}
+        ):
             raise GithubApiError("GitHub 仓库资源地址无效。")
-        segments = [segment for segment in parts.path.split("/") if segment]
+        segments = [unquote(segment) for segment in parts.path.strip("/").split("/")]
+        if [segment.casefold() for segment in segments[:2]] != [
+            repository.owner.casefold(), repository.repository.casefold(),
+        ]:
+            raise GithubApiError("GitHub 仓库资源不属于当前仓库。")
         if host == "github.com":
-            if len(segments) < 5 or segments[:2] != [repository.owner, repository.repository]:
-                raise GithubApiError("GitHub 仓库资源不属于当前仓库。")
-            if segments[2] not in {"blob", "raw"}:
+            if len(segments) < 5 or segments[2] not in {"blob", "raw"}:
                 raise GithubApiError("GitHub 仓库资源地址无效。")
-            raw = "/".join(segments[4:])
+            resource_parts = tuple(segments[3:])
         else:
-            if len(segments) < 4 or segments[:2] != [repository.owner, repository.repository]:
-                raise GithubApiError("GitHub 仓库资源不属于当前仓库。")
-            raw = "/".join(segments[3:])
+            if len(segments) < 4:
+                raise GithubApiError("GitHub 仓库资源地址无效。")
+            resource_parts = tuple(segments[2:])
+        for segment in resource_parts:
+            if (
+                not segment or "\\" in segment
+                or any(part in {"", ".", ".."} for part in segment.split("/"))
+                or any(ord(char) < 32 for char in segment)
+            ):
+                raise GithubApiError("GitHub 仓库资源路径无效。")
+        return resource_parts
+    _relative_repository_path(raw)
+    return None
+
+
+def _relative_repository_path(raw: str) -> str:
     path = PurePosixPath(raw.replace("\\", "/").strip("/"))
     if not path.parts or path.is_absolute() or ".." in path.parts:
         raise GithubApiError("GitHub 仓库资源路径无效。")
     return path.as_posix()
+
+
+def normalize_github_repository_resource(source: str, raw_resource: str) -> str:
+    """Validate a market resource without discarding its URL's branch or tag."""
+    parts = _github_repository_resource_parts(source, raw_resource)
+    return raw_resource.strip() if parts is not None else _relative_repository_path(raw_resource.strip())
+
+
+def resolve_github_repository_path(source: str, raw_resource: str, *, ref: str | None = None) -> str:
+    parts = _github_repository_resource_parts(source, raw_resource)
+    if parts is None:
+        return _relative_repository_path(raw_resource.strip())
+    tail = "/".join(parts)
+    if ref and tail.startswith(f"{ref}/"):
+        return _relative_repository_path(tail[len(ref) + 1:])
+    raise GithubApiError("GitHub 资源链接需要先确认完整的分支、标签或提交。")
 
 
 class GithubClient:
@@ -166,7 +202,7 @@ class GithubClient:
             if not _is_expiring(current.access_expires_at, within_seconds=90):
                 return current.access_token
             if not current.refresh_token or _is_expiring(current.refresh_expires_at, within_seconds=0):
-                await asyncio.to_thread(self._auth_repository.delete)
+                await asyncio.to_thread(self._auth_repository.delete_if_access_token_matches, current.access_token)
                 if required:
                     raise GithubAuthenticationRequiredError("GitHub 登录已过期，请重新登录。")
                 return None
@@ -179,7 +215,7 @@ class GithubClient:
                 },
             )
             if "error" in payload:
-                await asyncio.to_thread(self._auth_repository.delete)
+                await asyncio.to_thread(self._auth_repository.delete_if_access_token_matches, current.access_token)
                 if required:
                     raise GithubAuthenticationRequiredError("GitHub 登录已过期，请重新登录。")
                 return None
@@ -454,6 +490,7 @@ class GithubClient:
         maximum_bytes: int,
         ref: str | None = None,
     ) -> bytes:
+        path, ref = await self._resolve_repository_resource(repository, path, ref=ref)
         url = self._contents_url(repository, path, ref=ref)
         return await self._fetch_bytes(
             url,
@@ -471,6 +508,7 @@ class GithubClient:
         maximum_bytes: int,
         ref: str | None = None,
     ) -> tuple[int, str]:
+        path, ref = await self._resolve_repository_resource(repository, path, ref=ref)
         return await self._download_to_file(
             self._contents_url(repository, path, ref=ref),
             target=target,
@@ -478,6 +516,43 @@ class GithubClient:
             accept="application/vnd.github.raw+json",
             required_auth=False,
         )
+
+    async def _resolve_repository_resource(
+        self,
+        repository: GithubRepositorySource,
+        resource: str,
+        *,
+        ref: str | None,
+    ) -> tuple[str, str | None]:
+        parts = _github_repository_resource_parts(repository.canonical_url, resource)
+        if parts is None:
+            return _relative_repository_path(resource.strip()), ref
+        tail = "/".join(parts)
+        # An explicit ref supplied by the index resolves slash-containing names
+        # without additional API calls. The URL remains authoritative on mismatch.
+        if ref and tail.startswith(f"{ref}/"):
+            return _relative_repository_path(tail[len(ref) + 1:]), ref
+        if "/" in parts[0]:  # A percent-encoded slash makes the boundary explicit.
+            return _relative_repository_path("/".join(parts[1:])), parts[0]
+        # A URL alone cannot distinguish a branch slash from a directory slash.
+        # Resolve candidate prefixes against GitHub, longest first. Never retry
+        # auth/rate-limit/server failures as if they were a missing ref.
+        for boundary in range(len(parts) - 1, 0, -1):
+            candidate = "/".join(parts[:boundary])
+            for namespace in ("heads", "tags"):
+                try:
+                    await self._get_json(
+                        f"{self._repository_api_path(repository)}/git/ref/{namespace}/{quote(candidate, safe='')}",
+                        required_auth=False,
+                    )
+                except GithubApiError as exc:
+                    if exc.status_code == 404:
+                        continue
+                    raise
+                return _relative_repository_path("/".join(parts[boundary:])), candidate
+        if parts[0] == "HEAD" or re.fullmatch(r"[0-9a-fA-F]{7,40}", parts[0]):
+            return _relative_repository_path("/".join(parts[1:])), parts[0]
+        raise GithubApiError("GitHub 资源链接中的分支、标签或提交不存在。", status_code=404)
 
     async def download_repository_archive(
         self,
@@ -564,7 +639,7 @@ class GithubClient:
                 headers=self._headers(access_token, accept=accept),
                 timeout=get_http_timeout(stream=True),
             ) as response:
-                await self._raise_for_status(response, had_token=True)
+                await self._raise_for_status(response, token=access_token)
                 self._require_safe_download_url(response.url)
                 async for chunk in response.aiter_bytes():
                     downloaded += len(chunk)
@@ -615,7 +690,7 @@ class GithubClient:
             )
         except httpx.RequestError as exc:
             raise GithubApiError("无法上传 GitHub Release 附件。") from exc
-        await self._raise_for_status(response, had_token=True)
+        await self._raise_for_status(response, token=access_token)
         try:
             payload = response.json()
         except ValueError as exc:
@@ -732,7 +807,7 @@ class GithubClient:
                 headers=self._headers(token, accept=accept),
                 timeout=get_http_timeout(stream=True),
             ) as response:
-                await self._raise_for_status(response, had_token=token is not None)
+                await self._raise_for_status(response, token=token)
                 self._require_safe_download_url(response.url)
                 async for chunk in response.aiter_bytes():
                     downloaded += len(chunk)
@@ -766,7 +841,7 @@ class GithubClient:
                     headers=self._headers(token, accept=accept),
                     timeout=get_http_timeout(stream=True),
                 ) as response:
-                    await self._raise_for_status(response, had_token=token is not None)
+                    await self._raise_for_status(response, token=token)
                     self._require_safe_download_url(response.url)
                     async for chunk in response.aiter_bytes():
                         downloaded += len(chunk)
@@ -799,19 +874,20 @@ class GithubClient:
             )
         except httpx.RequestError as exc:
             raise GithubApiError("无法连接 GitHub。") from exc
-        await self._raise_for_status(response, had_token=token is not None)
+        await self._raise_for_status(response, token=token)
         return response
 
-    async def _raise_for_status(self, response: httpx.Response, *, had_token: bool) -> None:
+    async def _raise_for_status(self, response: httpx.Response, *, token: str | None) -> None:
         if response.status_code < 400:
             return
         if response.status_code == 401:
-            await asyncio.to_thread(self._auth_repository.delete)
+            if token is not None:
+                await asyncio.to_thread(self._auth_repository.delete_if_access_token_matches, token)
             raise GithubAuthenticationRequiredError("GitHub 登录已失效，请重新登录。")
         if response.status_code == 404:
             message = (
                 "GitHub 仓库不存在、未授权给 Tiance Desktop，或缺少请求的文件。"
-                if had_token
+                if token is not None
                 else "GitHub 仓库不存在或是私人仓库，请先登录 GitHub。"
             )
             raise GithubApiError(message, status_code=404)

@@ -5,6 +5,7 @@ import type { DiscoveredModelEntry } from "../../../entities/llm-provider/model/
 import { emitLlmModelCatalogChanged } from "../../../entities/llm-provider/model/modelCatalogEvents";
 import { emitLlmUsageChanged } from "../../../entities/llm-usage/model/usageRefreshEvents";
 import { saveProviderCustomModel } from "../../../services/llm/saveProviderCustomModel";
+import { inferProviderModelMetadata } from "../../../services/llm/inferProviderModelMetadata";
 import { normalizeCustomModelCapabilityTags } from "./customModelCapabilities";
 import { DEFAULT_CUSTOM_MODEL_PRICE_CURRENCY } from "./customModelPricing";
 import {
@@ -61,10 +62,16 @@ export function useDiscoveredModelImport({
     setAddingDiscoveredModelIds((current) => [...current, modelId]);
 
     try {
-      const savedModel = await saveProviderCustomModel(providerId, {
-        capability_tags: normalizeCustomModelCapabilityTags(model.capability_tags),
+      const metadata = await inferProviderModelMetadata(providerId, {
+        model_id: modelId,
         display_name: model.display_name.trim(),
-        family_group: model.family_group.trim() || model.provider_id,
+        family_group: model.family_group.trim(),
+        capability_tags: model.capability_tags,
+      });
+      const savedModel = await saveProviderCustomModel(providerId, {
+        capability_tags: normalizeCustomModelCapabilityTags(metadata.capability_tags),
+        display_name: model.display_name.trim(),
+        family_group: metadata.family_group,
         input_price_per_million: null,
         cache_hit_price_per_million: null,
         model_id: modelId,

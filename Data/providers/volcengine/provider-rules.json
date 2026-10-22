@@ -29,10 +29,7 @@
     },
     "toolCalling": {
       "supported": true
-    },
-    "inputModalities": [
-      "text"
-    ]
+    }
   },
   "request": {
     "maxOutputTokensParameter": "max_completion_tokens",

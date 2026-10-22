@@ -14,7 +14,6 @@ from app.infra.github import (
     GithubApiError,
     get_github_client,
     parse_github_repository_source,
-    resolve_github_repository_path,
 )
 from app.infra.online_market import normalize_market_source, resolve_market_asset_url
 from app.schemas.project.project_market import ProjectMarketDownload
@@ -95,7 +94,7 @@ class ProjectMarketRemoteClient:
             try:
                 downloaded, actual_sha256 = await get_github_client().download_repository_file(
                     github,
-                    resolve_github_repository_path(normalized_source, download.url or ""),
+                    download.url or "",
                     target=target,
                     maximum_bytes=MAX_PROJECT_PACKAGE_BYTES,
                     ref=_safe_ref(download.ref or default_ref),
@@ -162,7 +161,7 @@ class ProjectMarketRemoteClient:
             try:
                 return await get_github_client().fetch_repository_file(
                     github,
-                    resolve_github_repository_path(normalized_source, preview_url),
+                    preview_url,
                     maximum_bytes=MAX_PROJECT_PREVIEW_BYTES,
                     ref=_safe_ref(default_ref),
                 )

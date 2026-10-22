@@ -5,6 +5,7 @@ from dataclasses import replace
 from functools import lru_cache
 
 from app.domain.llm.chat import ChatToolResult
+from app.domain.usage_statistics import StatisticsMonth
 from app.domain.tools import (
     ToolCallRecord,
     ToolCallRecordDraft,
@@ -88,10 +89,10 @@ class ToolCallRecordService:
         return tuple(self._with_current_names(record) for record in records)
 
     def get_total_call_count(self) -> int:
-        return len(self._all_records())
+        return len(self._repository.list_statistics(self._project_roots()))
 
     def summarize_global_records(self) -> ToolCallRecordOverview:
-        records = self._all_records()
+        records = self._repository.list_statistics(self._project_roots())
         counts = Counter(record.tool_name for record in records)
         display_names = {
             entry.tool_name: entry.display_name or entry.tool_name
@@ -111,6 +112,26 @@ class ToolCallRecordService:
                 for tool_name, call_count in top_tools
             ),
         )
+
+    def monthly_statistics(self, month: StatisticsMonth) -> dict:
+        records = self._repository.list_statistics(self._project_roots())
+        daily = [0] * len(month.dates)
+        counts: Counter[str] = Counter()
+        success_count = 0
+        for record in records:
+            counts[record.tool_name] += 1
+            success_count += int(record.ok)
+            day = month.day_index(record.created_at)
+            if day is not None:
+                daily[day] += 1
+        names = {entry.tool_name: entry.display_name or entry.tool_name
+                 for entry in self._tool_registry_service.list_entries(enabled_only=False)}
+        return {
+            "total": len(records), "daily": daily,
+            "success_count": success_count, "failure_count": len(records) - success_count,
+            "ranking": [{"id": name, "label": names.get(name, name), "value": count}
+                        for name, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:3]],
+        }
 
     def summarize_category_records(self, category_id: str) -> ToolCallRecordSummary:
         projects = self._tool_projects.list_tool_folders(category_id)
@@ -144,12 +165,14 @@ class ToolCallRecordService:
         )
 
     def _all_records(self) -> tuple[ToolCallRecord, ...]:
-        roots = tuple(
+        return self._repository.list_all(self._project_roots())
+
+    def _project_roots(self) -> tuple[str, ...]:
+        return tuple(
             project.root_path
             for category in self._tool_projects.list_toolsets()
             for project in self._tool_projects.list_tool_folders(category.category_id)
         )
-        return self._repository.list_all(roots)
 
     def _with_current_names(self, record: ToolCallRecord) -> ToolCallRecord:
         return replace(

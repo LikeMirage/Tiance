@@ -146,6 +146,41 @@ class WorkspaceActivitySummaryResponse(BaseModel):
     ai_runtime_ms: int
 
 
+class WorkspaceStorageResponse(BaseModel):
+    total_bytes: int
+    database_bytes: int
+    other_bytes: int
+    complete: bool
+    sampled_at: str
+
+
+class WorkspaceDailyStatistic(BaseModel):
+    date: str
+    value: int
+
+
+class WorkspaceStatisticRanking(BaseModel):
+    id: str
+    value: int
+    label: str | None = None
+    detail: str | None = None
+    project_id: str | None = None
+    session_id: str | None = None
+    user_message_id: str | None = None
+    provider_id: str | None = None
+    model_id: str | None = None
+
+
+class WorkspaceStatisticsResponse(BaseModel):
+    total: int
+    daily: list[WorkspaceDailyStatistic]
+    ranking: list[WorkspaceStatisticRanking] = Field(default_factory=list)
+    conversation_count: int | None = None
+    sent_message_count: int | None = None
+    success_count: int | None = None
+    failure_count: int | None = None
+
+
 class ServerDirectoryEntryResponse(BaseModel):
     name: str
     path: str

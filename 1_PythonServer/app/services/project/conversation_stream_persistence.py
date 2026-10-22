@@ -83,7 +83,8 @@ class ConversationStreamPersistence:
     def validate_conversation_target(self, request: ChatCompletionRequest) -> None:
         if not request.project_id or not request.session_id:
             return
-        self._conversation_service.list_messages(request.project_id, request.session_id)
+        if self._conversation_service.get_session(request.project_id, request.session_id) is None:
+            raise NotFoundError(f"Conversation session '{request.session_id}' was not found.")
 
     def sync_session_metadata(self, request: ChatCompletionRequest) -> None:
         if not request.project_id or not request.session_id:
@@ -208,15 +209,18 @@ class ConversationStreamPersistence:
 
     def record_ai_run_elapsed(
         self,
+        request: ChatCompletionRequest,
         user_message: ProjectConversationMessage | None,
         assistant_message: ProjectConversationMessage | None,
         *,
         elapsed_ms: int | None,
     ) -> None:
-        if user_message is None:
+        if user_message is None or not request.run_id or not request.project_id:
             return
         self._conversation_service.record_ai_run_elapsed(
             user_message,
+            run_id=request.run_id,
+            project_id=request.project_id,
             assistant_message=assistant_message,
             elapsed_ms=elapsed_ms,
         )
@@ -831,15 +835,14 @@ class ConversationStreamPersistence:
         if not request.project_id or not request.session_id:
             return None
         try:
-            existing_messages = self._conversation_service.list_messages(
+            last_existing_message = self._conversation_service.get_latest_message(
                 request.project_id,
                 request.session_id,
             )
         except AppError:
             return None
-        if not existing_messages:
+        if last_existing_message is None:
             return None
-        last_existing_message = existing_messages[-1]
         requested_references = references_from_chat_message(last_user_message)
         matches = (
             last_existing_message.role == "user"

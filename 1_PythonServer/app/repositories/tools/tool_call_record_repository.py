@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from threading import RLock
 from uuid import uuid4
+from dataclasses import dataclass
 
 from app.core.jsonl_tail import repair_jsonl_tail
 from app.domain.tools import ToolCallRecord, ToolCallRecordDraft
@@ -15,11 +16,57 @@ from app.domain.tools import ToolCallRecord, ToolCallRecordDraft
 _RECORDS_RELATIVE_PATH = Path(".Tiance") / "tool-calls" / "records.jsonl"
 
 
+@dataclass(frozen=True)
+class ToolCallStatistic:
+    tool_name: str
+    created_at: str
+    ok: bool
+
+
+@dataclass
+class _StatisticsCache:
+    signature: tuple[int, int, int]
+    rows: list[ToolCallStatistic]
+
+
 class ToolCallRecordRepository:
     """Persist each tool project's calls inside that project directory."""
 
     def __init__(self) -> None:
         self._write_lock = RLock()
+        self._statistics_cache: dict[Path, _StatisticsCache] = {}
+
+    def list_statistics(self, project_roots: tuple[str, ...]) -> tuple[ToolCallStatistic, ...]:
+        paths = {self.records_path(root) for root in project_roots}
+        with self._write_lock:
+            for removed in self._statistics_cache.keys() - paths:
+                self._statistics_cache.pop(removed, None)
+            return tuple(row for path in paths for row in self._statistics_rows(path))
+
+    def _statistics_rows(self, path: Path) -> list[ToolCallStatistic]:
+        if not path.is_file():
+            self._statistics_cache.pop(path, None)
+            return []
+        repair_jsonl_tail(path, _payload_to_record)
+        stat = path.stat()
+        signature = (stat.st_ino, stat.st_size, stat.st_mtime_ns)
+        cached = self._statistics_cache.get(path)
+        if cached and cached.signature == signature:
+            return cached.rows
+        # Tool logs are append-only. Replaced/truncated files rebuild this disposable cache.
+        append_only = cached is not None and cached.signature[0] == stat.st_ino and cached.signature[1] < stat.st_size
+        offset = cached.signature[1] if append_only else 0
+        added: list[ToolCallStatistic] = []
+        with path.open("rb") as stream:
+            stream.seek(offset)
+            for line in stream:
+                if line.strip():
+                    record = _payload_to_record(json.loads(line))
+                    added.append(ToolCallStatistic(record.tool_name, record.created_at, record.ok))
+        rows = cached.rows if append_only else []
+        rows.extend(added)
+        self._statistics_cache[path] = _StatisticsCache(signature, rows)
+        return rows
 
     def append(self, project_root: str | Path, draft: ToolCallRecordDraft) -> ToolCallRecord:
         record = ToolCallRecord(

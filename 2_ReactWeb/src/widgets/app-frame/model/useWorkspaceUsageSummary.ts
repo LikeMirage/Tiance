@@ -1,161 +1,66 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { subscribeLlmUsageChanged } from "../../../entities/llm-usage/model/usageRefreshEvents";
+import { getWorkspaceStatistics, type WorkspaceStatistics, type WorkspaceStatisticsKind } from "../../../services/workspace/getWorkspaceStatistics";
 
-import type { ToolCallRecordTopTool } from "../../../entities/tool/model/toolCallRecord";
-import { getProviderModelUsageSummary } from "../../../services/llm/getProviderModelUsageSummary";
-import { getToolCallRecordOverview } from "../../../services/tools/toolCallRecords";
-import { getWorkspaceActivitySummary } from "../../../services/workspace/getWorkspaceActivitySummary";
+type State = { key: string; data: WorkspaceStatistics | null; error: boolean };
 
-export type UsageMetricState =
-  | { state: "loading" }
-  | { state: "ready"; value: number }
-  | { state: "error" };
-
-export type TopToolsState =
-  | { state: "loading" }
-  | { state: "ready"; items: ToolCallRecordTopTool[] }
-  | { state: "error" };
-
-export type WorkspaceUsageSummary = {
-  aiRuntimeTotal: UsageMetricState;
-  conversationTotal: UsageMetricState;
-  sentMessageTotal: UsageMetricState;
-  tokenTotal: UsageMetricState;
-  toolCallTotal: UsageMetricState;
-  topTools: TopToolsState;
-};
-
-export type WorkspaceUsageSummaryModel = {
-  setConversationTotal: (value: number) => void;
-  summary: WorkspaceUsageSummary;
-};
-
-const LOADING_STATE = { state: "loading" } as const;
-
-export function useWorkspaceUsageSummary(enabled: boolean): WorkspaceUsageSummaryModel {
-  const [summary, setSummary] = useState<WorkspaceUsageSummary>({
-    aiRuntimeTotal: LOADING_STATE,
-    conversationTotal: LOADING_STATE,
-    sentMessageTotal: LOADING_STATE,
-    tokenTotal: LOADING_STATE,
-    toolCallTotal: LOADING_STATE,
-    topTools: LOADING_STATE,
-  });
+export function useWorkspaceUsageSummary(kind: WorkspaceStatisticsKind, month: string, enabled: boolean) {
+  const key = `${kind}:${month}`;
+  const [state, setState] = useState<State>({ key, data: null, error: false });
+  const refreshRef = useRef<() => void>(() => {});
 
   useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-
-    const controller = new AbortController();
+    if (!enabled) return;
     let cancelled = false;
-    setSummary({
-      aiRuntimeTotal: LOADING_STATE,
-      conversationTotal: LOADING_STATE,
-      sentMessageTotal: LOADING_STATE,
-      tokenTotal: LOADING_STATE,
-      toolCallTotal: LOADING_STATE,
-      topTools: LOADING_STATE,
-    });
-
-    void getProviderModelUsageSummary(null, { signal: controller.signal })
-      .then((response) => {
-        if (cancelled) {
-          return;
+    let inFlight = false;
+    let timer = 0;
+    let serial = 0;
+    let controller: AbortController | null = null;
+    const load = async (force = false) => {
+      if (cancelled || (inFlight && !force) || document.visibilityState === "hidden") return;
+      controller?.abort();
+      controller = new AbortController();
+      const requestSerial = ++serial;
+      inFlight = true;
+      window.clearTimeout(timer);
+      try {
+        const data = await getWorkspaceStatistics(kind, month, controller.signal);
+        if (!cancelled && serial === requestSerial) setState({ key, data, error: false });
+      } catch {
+        if (!cancelled && serial === requestSerial) setState(current => ({ key, data: current.key === key ? current.data : null, error: true }));
+      } finally {
+        if (serial === requestSerial) {
+          inFlight = false;
+          if (!cancelled) timer = window.setTimeout(() => void load(), 30_000);
         }
-        const value = response.providers.reduce(
-          (total, provider) => total + normalizeCount(provider.total_tokens),
-          0,
-        );
-        setSummary((current) => ({
-          ...current,
-          tokenTotal: { state: "ready", value },
-        }));
-      })
-      .catch((error: unknown) => {
-        if (!cancelled && !isAbortError(error)) {
-          setSummary((current) => ({ ...current, tokenTotal: { state: "error" } }));
-        }
-      });
-
-    void getToolCallRecordOverview({ signal: controller.signal })
-      .then((response) => {
-        if (cancelled) {
-          return;
-        }
-        setSummary((current) => ({
-          ...current,
-          toolCallTotal: {
-            state: "ready",
-            value: normalizeCount(response.total_call_count),
-          },
-          topTools: {
-            state: "ready",
-            items: response.top_tools,
-          },
-        }));
-      })
-      .catch((error: unknown) => {
-        if (!cancelled && !isAbortError(error)) {
-          setSummary((current) => ({
-            ...current,
-            toolCallTotal: { state: "error" },
-            topTools: { state: "error" },
-          }));
-        }
-      });
-
-    void getWorkspaceActivitySummary({ signal: controller.signal })
-      .then((response) => {
-        if (cancelled) {
-          return;
-        }
-        setSummary((current) => ({
-          ...current,
-          aiRuntimeTotal: {
-            state: "ready",
-            value: normalizeCount(response.ai_runtime_ms),
-          },
-          conversationTotal: {
-            state: "ready",
-            value: normalizeCount(response.conversation_count),
-          },
-          sentMessageTotal: {
-            state: "ready",
-            value: normalizeCount(response.sent_message_count),
-          },
-        }));
-      })
-      .catch((error: unknown) => {
-        if (!cancelled && !isAbortError(error)) {
-          setSummary((current) => ({
-            ...current,
-            aiRuntimeTotal: { state: "error" },
-            conversationTotal: { state: "error" },
-            sentMessageTotal: { state: "error" },
-          }));
-        }
-      });
-
+      }
+    };
+    const refresh = () => { void load(); };
+    refreshRef.current = () => { void load(true); };
+    const unsubscribe = subscribeLlmUsageChanged(refresh);
+    document.addEventListener("visibilitychange", refresh);
+    refresh();
     return () => {
       cancelled = true;
-      controller.abort();
+      controller?.abort();
+      window.clearTimeout(timer);
+      unsubscribe();
+      document.removeEventListener("visibilitychange", refresh);
+      refreshRef.current = () => {};
     };
-  }, [enabled]);
+  }, [enabled, key, kind, month]);
 
   const setConversationTotal = useCallback((value: number) => {
-    setSummary((current) => ({
-      ...current,
-      conversationTotal: { state: "ready", value: normalizeCount(value) },
-    }));
+    setState(current => current.data ? {
+      ...current, data: { ...current.data, conversation_count: value },
+    } : current);
+    refreshRef.current();
   }, []);
 
-  return { setConversationTotal, summary };
-}
-
-function normalizeCount(value: number) {
-  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
-}
-
-function isAbortError(error: unknown) {
-  return error instanceof DOMException && error.name === "AbortError";
+  return {
+    data: state.key === key ? state.data : null,
+    error: state.key === key && state.error,
+    refresh: () => refreshRef.current(),
+    setConversationTotal,
+  };
 }

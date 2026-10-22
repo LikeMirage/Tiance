@@ -43,7 +43,6 @@ class LlmCapabilityRules:
     max_output_tokens_min: int | None = None
     max_output_tokens_max: int | None = None
     tool_calling_supported: bool | None = None
-    input_modalities: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +67,7 @@ class LlmProtocolBehaviorRules:
 
 @dataclass(frozen=True, slots=True)
 class ProviderAdaptationRules:
+    capability_tags: tuple[str, ...] | None = None
     capabilities: LlmCapabilityRules = LlmCapabilityRules()
     request: LlmRequestRules = LlmRequestRules()
     behavior: LlmProtocolBehaviorRules = LlmProtocolBehaviorRules()
@@ -78,6 +78,11 @@ def merge_adaptation_rules(
     override: ProviderAdaptationRules,
 ) -> ProviderAdaptationRules:
     return ProviderAdaptationRules(
+        capability_tags=(
+            override.capability_tags
+            if override.capability_tags is not None
+            else base.capability_tags
+        ),
         capabilities=_merge_dataclass(base.capabilities, override.capabilities),
         request=replace(
             _merge_dataclass(base.request, override.request),
@@ -171,11 +176,6 @@ def apply_capability_rules(
         sampling=sampling,
         max_output_tokens=max_output_tokens,
         tool_calling=tool_calling,
-        input_modalities=(
-            rules.input_modalities
-            if rules.input_modalities is not None
-            else capabilities.input_modalities
-        ),
     )
 
 

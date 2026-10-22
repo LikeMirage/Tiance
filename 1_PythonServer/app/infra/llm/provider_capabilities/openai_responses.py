@@ -20,6 +20,7 @@ from app.infra.llm.chat_adapters.openai_responses_parsing import (
 )
 from app.infra.llm.provider_capabilities.base import build_web_search_prompt
 from app.infra.llm.provider_profiles import resolve_provider_profile
+from app.infra.llm.request_auth import apply_auth_to_url
 
 
 class OpenAIResponsesWebSearchAdapter:
@@ -43,7 +44,7 @@ class OpenAIResponsesWebSearchAdapter:
         if provider_profile.include_responses_web_search_sources:
             request_body["include"] = ["web_search_call.action.sources"]
         payload = await post_json(
-            runtime_config.api_base_url,
+            apply_auth_to_url(runtime_config.api_base_url, provider_template.auth_scheme, api_key),
             _build_headers(provider_template.auth_scheme, api_key),
             request_body,
         )

@@ -36,6 +36,7 @@ class _WorkspaceRegistry:
 def test_provider_market_package_accepts_only_declarative_public_files(tmp_path) -> None:
     archive_path = tmp_path / "provider.zip"
     files = _package_files("sample-provider", managed_model_ids=["sample-model"])
+    files["provider-rules.json"]["capabilityTags"] = ["vision", "function_calling"]
     files["provider-rules.json"]["request"] = {
         "headers": {"X-Package-Header": {"source": "session_id"}},
     }

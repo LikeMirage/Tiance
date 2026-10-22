@@ -1,6 +1,28 @@
 {
   "schemaVersion": 1,
-  "families": {},
+  "families": {
+    "deepseek-v4.1": {
+      "capabilities": {
+        "reasoning": {
+          "supported": true,
+          "modes": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      },
+      "request": {
+        "reasoningEffortParameter": "reasoning_effort"
+      },
+      "behavior": {},
+      "capabilityTags": [
+        "reasoning",
+        "vision",
+        "function_calling"
+      ]
+    }
+  },
   "models": {
     "deepseek-v4-flash": {
       "capabilities": {
@@ -26,10 +48,7 @@
         },
         "toolCalling": {
           "supported": true
-        },
-        "inputModalities": [
-          "text"
-        ]
+        }
       },
       "request": {
         "omitParameters": [
@@ -40,7 +59,11 @@
         "streamUsage": true,
         "reasoningEffortParameter": "reasoning_effort"
       },
-      "behavior": {}
+      "behavior": {},
+      "capabilityTags": [
+        "reasoning",
+        "function_calling"
+      ]
     },
     "mimo-v2.5": {
       "capabilities": {
@@ -64,7 +87,10 @@
           "type": "disabled"
         }
       },
-      "behavior": {}
+      "behavior": {},
+      "capabilityTags": [
+        "reasoning"
+      ]
     }
   }
 }

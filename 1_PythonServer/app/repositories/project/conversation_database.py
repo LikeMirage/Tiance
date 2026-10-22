@@ -179,6 +179,44 @@ def read_sessions(conversations_dir: Path) -> dict[str, dict[str, Any]]:
     return result
 
 
+def read_next_session_sequence_number(conversations_dir: Path) -> int:
+    """Calculate numbering without materializing session settings or objects."""
+    with read_connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        if connection is None:
+            return 1
+        row = connection.execute(
+            """
+            SELECT MAX(CASE WHEN json_type(payload_json, '$.sequence_number') = 'integer'
+                       AND typeof(json_extract(payload_json, '$.sequence_number')) = 'integer'
+                       THEN json_extract(payload_json, '$.sequence_number') END),
+                   COUNT(*),
+                   COUNT(CASE WHEN json_type(payload_json, '$.sequence_number') = 'integer'
+                         AND typeof(json_extract(payload_json, '$.sequence_number')) = 'integer'
+                         THEN 1 END)
+            FROM conversation_sessions
+            WHERE json_type(payload_json) = 'object'
+            """
+        ).fetchone()
+        if row[1] == row[2]:
+            return (int(row[0]) if row[0] is not None else 0) + 1
+
+        # Preserve normalization for exceptional older/imported values. Only
+        # those records need decoding; ordinary sessions stay inside SQLite.
+        from app.repositories.project.conversation_serialization import _payload_int
+
+        legacy_rows = connection.execute(
+            """
+            SELECT payload_json FROM conversation_sessions
+            WHERE json_type(payload_json) = 'object'
+              AND (json_type(payload_json, '$.sequence_number') IS NOT 'integer'
+                   OR typeof(json_extract(payload_json, '$.sequence_number')) != 'integer')
+            """
+        ).fetchall()
+        values = [int(row[0])] if row[0] is not None else []
+        values.extend(_payload_int(_decode(item[0]).get("sequence_number")) for item in legacy_rows)
+        return max(values, default=0) + 1
+
+
 def read_conversation_list_snapshot(
     conversations_dir: Path,
 ) -> tuple[int, Any, dict[str, dict[str, Any]], dict[str, dict[str, Any]], Any]:
@@ -268,32 +306,31 @@ def read_session_state_payloads(
     conversations_dir: Path,
     session_ids: set[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
+    if session_ids is not None and not session_ids:
+        return {}
+    query = """
+        SELECT session.session_id,
+               runtime.runtime_status, runtime.updated_at,
+               draft.draft, draft.updated_at,
+               reference.payload_json, reference.updated_at
+        FROM conversation_sessions AS session
+        LEFT JOIN conversation_session_runtime_states AS runtime
+            ON runtime.session_id = session.session_id
+        LEFT JOIN conversation_session_drafts AS draft
+            ON draft.session_id = session.session_id
+        LEFT JOIN conversation_session_references AS reference
+            ON reference.session_id = session.session_id
+    """
+    parameters: tuple[str, ...] = ()
+    if session_ids is not None:
+        # A single JSON parameter also handles selections above SQLite's bind limit.
+        query += " WHERE session.session_id IN (SELECT value FROM json_each(?))"
+        parameters = (dumps(tuple(session_ids), ensure_ascii=False),)
     with read_connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
         if connection is None:
             return {}
-        rows = connection.execute(
-            """
-            SELECT session.session_id,
-                   runtime.runtime_status, runtime.updated_at,
-                   draft.draft, draft.updated_at,
-                   reference.payload_json, reference.updated_at
-            FROM conversation_sessions AS session
-            LEFT JOIN conversation_session_runtime_states AS runtime
-                ON runtime.session_id = session.session_id
-            LEFT JOIN conversation_session_drafts AS draft
-                ON draft.session_id = session.session_id
-            LEFT JOIN conversation_session_references AS reference
-                ON reference.session_id = session.session_id
-            """
-        ).fetchall()
-    result = _session_state_payloads_from_rows(rows)
-    if session_ids is None:
-        return result
-    return {
-        session_id: payload
-        for session_id, payload in result.items()
-        if session_id in session_ids
-    }
+        rows = connection.execute(query, parameters).fetchall()
+    return _session_state_payloads_from_rows(rows)
 
 
 def _session_state_payloads_from_rows(
@@ -388,6 +425,21 @@ def list_message_payloads(session_dir: Path) -> list[dict[str, Any]]:
     return [value for row in rows if isinstance((value := _decode(row[0])), dict)]
 
 
+def read_latest_message_payload(session_dir: Path) -> dict[str, Any] | None:
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return None
+        row = connection.execute(
+            """
+            SELECT payload_json FROM conversation_messages
+            WHERE session_id = ? ORDER BY ordinal DESC LIMIT 1
+            """,
+            (session_id_from_session_dir(session_dir),),
+        ).fetchone()
+    payload = _decode(row[0]) if row is not None else None
+    return payload if isinstance(payload, dict) else None
+
+
 def count_message_payloads(session_dir: Path) -> int:
     with read_connection_for_path(database_path_from_session(session_dir)) as connection:
         if connection is None:
@@ -411,6 +463,22 @@ def find_message_ordinal(session_dir: Path, message_id: str) -> int | None:
             (session_id_from_session_dir(session_dir), message_id),
         ).fetchone()
     return int(row[0]) if row is not None else None
+
+
+def read_task_excerpt(session_dir: Path, message_id: str) -> str | None:
+    """Read only the ranked task's display excerpt, never its reply or tool results."""
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return None
+        row = connection.execute(
+            """SELECT substr(json_extract(payload_json, '$.content'), 1, 161)
+               FROM conversation_messages WHERE session_id = ? AND message_id = ?""",
+            (session_id_from_session_dir(session_dir), message_id),
+        ).fetchone()
+    if row is None or not row[0]:
+        return None
+    value = str(row[0])
+    return value[:160] + ("…" if len(value) > 160 else "")
 
 
 def latest_user_message_id(session_dir: Path) -> str | None:

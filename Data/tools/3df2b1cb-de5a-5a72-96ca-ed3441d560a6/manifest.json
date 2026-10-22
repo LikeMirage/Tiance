@@ -8,7 +8,7 @@
   },
   "license": "CC0-1.0",
   "compatibility": {
-    "minTianceVersion": "0.3.23",
+    "minTianceVersion": "0.3.31",
     "platforms": [
       "windows-x64"
     ]

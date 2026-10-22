@@ -1,3 +1,4 @@
+import { CaretDown } from "@phosphor-icons/react";
 import { useState } from "react";
 import type { CSSProperties } from "react";
 
@@ -37,6 +38,7 @@ type ChatComposerProps = {
   input: ChatComposerInputState;
   layout: ChatComposerLayoutState;
   modelPicker: ChatComposerModelPickerState;
+  onScrollToBottom: () => void;
   reasoning: ChatComposerReasoningState;
   usage: ChatComposerUsageState;
 };
@@ -46,6 +48,7 @@ export function ChatComposer({
   input,
   layout,
   modelPicker,
+  onScrollToBottom,
   reasoning,
   usage,
 }: ChatComposerProps) {
@@ -93,6 +96,25 @@ export function ChatComposer({
         aria-label="调整输入区高度"
         onPointerDown={layout.onResizeStart}
       />
+      <div className="ai-panel__composer-toolbar">
+        <ChatComposerAddMenu
+          isOpen={isAddMenuOpen}
+          onOpenChange={(nextOpen) => {
+            if (nextOpen) modelPicker.onToggleOpen(() => false);
+            setIsAddMenuOpen(nextOpen);
+          }}
+          onSelectFiles={input.onSelectExternalFiles}
+        />
+        <button
+          className="ai-panel__composer-scroll-bottom"
+          type="button"
+          aria-label="回到底部"
+          title="回到底部"
+          onClick={onScrollToBottom}
+        >
+          <CaretDown size={18} weight="bold" aria-hidden="true" />
+        </button>
+      </div>
       <ChatComposerReferences
         references={input.references}
         onRemoveFile={input.onRemoveFileReference}
@@ -103,14 +125,6 @@ export function ChatComposer({
       <div className="ai-panel__composer-box">
         <ChatComposerTextArea input={input} />
         <div className="ai-panel__composer-actions">
-          <ChatComposerAddMenu
-            isOpen={isAddMenuOpen}
-            onOpenChange={(nextOpen) => {
-              if (nextOpen) modelPicker.onToggleOpen(() => false);
-              setIsAddMenuOpen(nextOpen);
-            }}
-            onSelectFiles={input.onSelectExternalFiles}
-          />
           <ChatModelPicker
             modelPicker={{
               ...modelPicker,

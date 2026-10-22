@@ -205,6 +205,15 @@ class ProjectConversationLongTermMemoryService:
         prompt = string_setting(settings, "prompt")
         if not prompt:
             return
+        is_blocking = bool_setting(
+            settings,
+            "blockingEnabled",
+            default_value=False,
+        )
+        # The request runs separate blocking and background passes. Only the
+        # matching pass should load history and calculate the extraction plan.
+        if blocking is not None and is_blocking != blocking:
+            return
         threshold = int_setting(
             settings,
             "triggerTokenThreshold",
@@ -252,13 +261,6 @@ class ProjectConversationLongTermMemoryService:
             task_prompt=prompt,
         )
         if target is None:
-            return
-        is_blocking = bool_setting(
-            settings,
-            "blockingEnabled",
-            default_value=False,
-        )
-        if blocking is not None and is_blocking != blocking:
             return
         trigger = {
             "trigger_type": "incremental_token_threshold",

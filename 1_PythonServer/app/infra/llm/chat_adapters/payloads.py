@@ -10,6 +10,7 @@ from app.domain.llm.chat import (
 )
 from app.domain.llm.message_timestamp import model_visible_message_content
 from app.domain.llm.reasoning_replay import ReasoningReplayMode
+from app.infra.llm.chat_adapters.reasoning_replay import should_replay_reasoning
 from json import dumps, loads
 from re import fullmatch
 
@@ -51,14 +52,7 @@ def _message_to_openai_payload(
         payload["tool_call_id"] = message.tool_call_id
     if message.tool_calls:
         payload["tool_calls"] = [_tool_call_to_openai_payload(tool_call) for tool_call in message.tool_calls]
-    if (
-        reasoning_replay_mode != ReasoningReplayMode.NEVER
-        and message.role == ChatMessageRole.ASSISTANT
-        and (
-            reasoning_replay_mode == ReasoningReplayMode.ALWAYS
-            or bool(message.tool_calls)
-        )
-    ):
+    if should_replay_reasoning(message, reasoning_replay_mode):
         payload["reasoning_content"] = message.thinking_content
     return payload
 

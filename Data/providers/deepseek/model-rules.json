@@ -1,5 +1,13 @@
 {
   "schemaVersion": 1,
   "families": {},
-  "models": {}
+  "models": {
+    "deepseek-flash": {
+      "capabilityTags": [
+        "reasoning",
+        "vision",
+        "function_calling"
+      ]
+    }
+  }
 }

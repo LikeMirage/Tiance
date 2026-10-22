@@ -61,6 +61,7 @@ from app.repositories.project.conversation_database import (
     list_conversation_run_attempt_failures,
     list_conversation_run_outcomes,
     read_conversation_run,
+    read_task_excerpt,
     settle_conversation_run,
     write_document,
 )
@@ -686,6 +687,16 @@ class ProjectConversationRepository:
     ) -> tuple[ProjectConversationMessage, ...]:
         session_dir = self._session_store.require_session_dir(project_id, session_id)
         return self._message_store.list_messages(session_dir)
+
+    def get_task_excerpt(self, project_id: str, session_id: str, message_id: str) -> str | None:
+        session_dir = self._session_store.require_session_dir(project_id, session_id)
+        return read_task_excerpt(session_dir, message_id)
+
+    def get_latest_message(
+        self, project_id: str, session_id: str,
+    ) -> ProjectConversationMessage | None:
+        session_dir = self._session_store.require_session_dir(project_id, session_id)
+        return self._message_store.get_latest_message(session_dir)
 
     def list_messages_page(
         self,

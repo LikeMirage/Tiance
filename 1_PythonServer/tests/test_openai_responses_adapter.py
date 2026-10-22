@@ -610,10 +610,12 @@ def test_responses_completed_backfills_text_and_reasoning_when_proxy_omits_delta
     assert [event.kind for event in events] == [
         ChatStreamEventKind.DELTA,
         ChatStreamEventKind.THINKING_DELTA,
+        ChatStreamEventKind.PROTOCOL_CONTINUATION,
         ChatStreamEventKind.DONE,
     ]
     assert events[0].content == "Final answer."
     assert events[1].content == "Checked the inputs."
+    assert events[2].protocol_continuation.items == (payloads[0]["response"]["output"][0],)
 
 
 def test_responses_completed_prefers_reasoning_text_over_summary():
@@ -642,9 +644,11 @@ def test_responses_completed_prefers_reasoning_text_over_summary():
 
     assert [event.kind for event in events] == [
         ChatStreamEventKind.THINKING_DELTA,
+        ChatStreamEventKind.PROTOCOL_CONTINUATION,
         ChatStreamEventKind.DONE,
     ]
     assert events[0].content == "Full reasoning."
+    assert events[1].protocol_continuation.items == (payloads[0]["response"]["output"][0],)
 
 
 def test_responses_stream_does_not_duplicate_completed_text_after_deltas():

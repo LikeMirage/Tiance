@@ -4,6 +4,7 @@
     "deepseek": {
       "providerRules": {
         "schemaVersion": 1,
+        "capabilityTags": ["reasoning", "function_calling"],
         "capabilities": {
           "outputFormats": ["text", "json_object"],
           "reasoning": {
@@ -21,8 +22,7 @@
             "min": 32,
             "max": 384000
           },
-          "toolCalling": {"supported": true},
-          "inputModalities": ["text"]
+          "toolCalling": {"supported": true}
         },
         "request": {
           "omitParameters": ["presence_penalty", "frequency_penalty"],
@@ -38,7 +38,11 @@
       "modelRules": {
         "schemaVersion": 1,
         "families": {},
-        "models": {}
+        "models": {
+          "deepseek-flash": {
+            "capabilityTags": ["reasoning", "vision", "function_calling"]
+          }
+        }
       }
     },
     "volcengine": {
@@ -58,8 +62,7 @@
             "supported": true,
             "min": 1
           },
-          "toolCalling": {"supported": true},
-          "inputModalities": ["text"]
+          "toolCalling": {"supported": true}
         },
         "request": {
           "maxOutputTokensParameter": "max_completion_tokens",
@@ -76,6 +79,7 @@
         "families": {},
         "models": {
           "doubao-seed-2-0-pro-260215": {
+            "capabilityTags": ["reasoning", "vision", "function_calling"],
             "capabilities": {
               "reasoning": {
                 "supported": true,
@@ -103,8 +107,7 @@
             "supported": true,
             "min": 1
           },
-          "toolCalling": {"supported": true},
-          "inputModalities": ["text"]
+          "toolCalling": {"supported": true}
         },
         "request": {},
         "behavior": {

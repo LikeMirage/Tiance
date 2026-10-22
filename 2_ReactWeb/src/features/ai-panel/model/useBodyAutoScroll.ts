@@ -43,7 +43,6 @@ export function useBodyAutoScroll({
   const maxSettleTimerRef = useRef<number | null>(null);
   const settleFrameRef = useRef<number | null>(null);
   const [isSessionSettling, setIsSessionSettlingState] = useState(false);
-  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [viewRestoreRequest, setViewRestoreRequest] =
     useState<ChatScrollRestoreRequest | null>(null);
 
@@ -95,7 +94,6 @@ export function useBodyAutoScroll({
     setIsSessionSettling(false);
     scrollElementToBottom(bodyRef.current);
     setAutoScrollEnabled(true);
-    setShowScrollToBottom(false);
   }, [clearSettleTimers, setAutoScrollEnabled, setIsSessionSettling]);
 
   const scheduleSessionSettleFinish = useCallback(() => {
@@ -128,7 +126,6 @@ export function useBodyAutoScroll({
     const position = cacheCurrentView();
     if (!position) return;
     setAutoScrollEnabled(position.isFollowingBottom);
-    setShowScrollToBottom(!position.isFollowingBottom);
   }, [cacheCurrentView, setAutoScrollEnabled]);
 
   const pauseAutoScrollForNavigation = useCallback(() => {
@@ -136,7 +133,6 @@ export function useBodyAutoScroll({
     startNavigationGuard();
     setIsSessionSettling(false);
     setAutoScrollEnabled(false);
-    setShowScrollToBottom(true);
   }, [
     clearSettleTimers,
     setAutoScrollEnabled,
@@ -149,7 +145,6 @@ export function useBodyAutoScroll({
     clearNavigationGuard();
     setIsSessionSettling(false);
     setAutoScrollEnabled(false);
-    setShowScrollToBottom(true);
     setViewRestoreRequest(null);
   }, [clearSettleTimers, clearNavigationGuard, setIsSessionSettling, setAutoScrollEnabled]);
 
@@ -158,7 +153,6 @@ export function useBodyAutoScroll({
     if (!el) return;
     clearNavigationGuard();
     setAutoScrollEnabled(true);
-    setShowScrollToBottom(false);
     if (behavior === "smooth" && bottomFollowerRef.current) {
       bottomFollowerRef.current.request();
     } else {
@@ -180,7 +174,6 @@ export function useBodyAutoScroll({
     if (!el || !isChatViewActive) return;
     if (isSessionSettlingRef.current) {
       setAutoScrollEnabled(true);
-      setShowScrollToBottom(false);
       return;
     }
     if (bottomFollowerRef.current?.isActive()) return;
@@ -189,7 +182,6 @@ export function useBodyAutoScroll({
     if (isNavigationGuardedRef.current) {
       cacheCurrentView();
       setAutoScrollEnabled(false);
-      setShowScrollToBottom(true);
       if (!isNearBottom) {
         clearNavigationGuard();
       }
@@ -202,7 +194,6 @@ export function useBodyAutoScroll({
     // generated scroll event must not turn following off by itself.
     if (autoScrollEnabledRef.current) {
       if (isNearBottom) cacheCurrentView();
-      setShowScrollToBottom(false);
       if (!isNearBottom) {
         bottomFollowerRef.current?.request();
       }
@@ -210,7 +201,6 @@ export function useBodyAutoScroll({
     }
     cacheCurrentView();
     setAutoScrollEnabled(isNearBottom);
-    setShowScrollToBottom(!isNearBottom);
   }, [
     cacheCurrentView,
     clearNavigationGuard,
@@ -254,7 +244,6 @@ export function useBodyAutoScroll({
       restoredSessionKeyRef.current = activeSessionKey;
       setIsSessionSettling(false);
       setAutoScrollEnabled(false);
-      setShowScrollToBottom(true);
       setViewRestoreRequest(null);
       return undefined;
     }
@@ -269,7 +258,6 @@ export function useBodyAutoScroll({
       restoredSessionKeyRef.current = activeSessionKey;
       setIsSessionSettling(false);
       setAutoScrollEnabled(false);
-      setShowScrollToBottom(true);
       el.scrollTop = Math.min(
         cachedPosition.scrollTop,
         Math.max(0, el.scrollHeight - el.clientHeight),
@@ -292,7 +280,6 @@ export function useBodyAutoScroll({
       clearNavigationGuard();
       setIsSessionSettling(true);
       setAutoScrollEnabled(true);
-      setShowScrollToBottom(false);
       setViewRestoreRequest(null);
       restoredSessionKeyRef.current = activeSessionKey;
       maxSettleTimerRef.current = window.setTimeout(
@@ -461,7 +448,6 @@ export function useBodyAutoScroll({
     pauseAutoScrollForNavigation,
     preserveCurrentView,
     scrollToBottom,
-    showScrollToBottom,
     viewRestoreRequest,
     onViewRestoreHandled: handleViewRestoreHandled,
     syncAfterContentReady,

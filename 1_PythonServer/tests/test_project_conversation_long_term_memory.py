@@ -1,6 +1,8 @@
 import asyncio
 from datetime import UTC, datetime
 
+import pytest
+
 from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatMessage,
@@ -386,6 +388,114 @@ def test_queued_checks_honor_current_disabled_settings(tmp_path):
         stale_session_snapshot.session_id,
     ) is None
     assert runner_calls == []
+
+
+@pytest.mark.parametrize("project_blocking,global_blocking", [
+    (False, False), (True, True), (True, False), (False, True),
+])
+@pytest.mark.parametrize("first_turn", [True, False])
+def test_request_checks_only_read_history_in_matching_mode(
+    tmp_path, monkeypatch, project_blocking, global_blocking, first_turn,
+):
+    from app.services.project.conversation_background_tasks import ConversationBackgroundTaskRegistry
+    from app.services.project.conversation_stream_persistence import ConversationStreamPersistence
+
+    conversation, session, project_repo, global_repo, service = _create_services(
+        tmp_path,
+        settings_overrides={"blockingEnabled": project_blocking, "triggerTokenThreshold": 10**9},
+        global_settings_overrides={"blockingEnabled": global_blocking, "triggerTokenThreshold": 10**9},
+    )
+    if not first_turn:
+        for i in range(10):
+            _append_turn(conversation, session.session_id, i)
+    conversation.append_message(PROJECT_ID, session.session_id, role="user", content="next request")
+    runner_calls = []
+    service.set_functional_conversation_runner(_successful_runner(conversation, runner_calls))
+    history_reads = []
+    original_list = conversation.list_messages
+
+    def list_messages(*args, **kwargs):
+        messages = original_list(*args, **kwargs)
+        history_reads.append(len(messages))
+        return messages
+
+    state_reads = []
+    for scope, repository in [("project", project_repo), ("global", global_repo)]:
+        original = repository.read_state
+
+        def read_state(*args, _scope=scope, _original=original, **kwargs):
+            state_reads.append(_scope)
+            return _original(*args, **kwargs)
+
+        monkeypatch.setattr(repository, "read_state", read_state)
+    monkeypatch.setattr(conversation, "list_messages", list_messages)
+    persistence = ConversationStreamPersistence(
+        conversation_service=conversation, usage_service=None, naming_service=None,
+        memory_service=None, background_task_registry=ConversationBackgroundTaskRegistry(),
+        long_term_memory_service=service,
+    )
+
+    async def run_checks():
+        request = ChatCompletionRequest(provider_id="codex", model_id="gpt-5.6-sol",
+                                       project_id=PROJECT_ID, session_id=session.session_id, messages=())
+        await persistence.run_long_term_memory_request_check(request, request, session_snapshot=session)
+        expected_blocking = {scope for scope, enabled in [("project", project_blocking), ("global", global_blocking)] if enabled}
+        assert set(state_reads) == expected_blocking
+        assert len(history_reads) == len(expected_blocking)
+        task = persistence.schedule_long_term_memory_request_check(request, request, session_snapshot=session)
+        assert task is not None
+        await task
+
+    asyncio.run(run_checks())
+    assert sorted(state_reads) == ["global", "project"]
+    assert history_reads == [1 if first_turn else 21] * 2
+    assert runner_calls == []
+
+
+@pytest.mark.parametrize("project_blocking,global_blocking", [
+    (False, False), (True, True), (True, False), (False, True),
+])
+def test_memory_modes_preserve_extraction_and_independent_boundaries(
+    tmp_path, project_blocking, global_blocking,
+):
+    conversation, session, project_repo, global_repo, service = _create_services(
+        tmp_path,
+        settings_overrides={"blockingEnabled": project_blocking},
+        global_settings_overrides={"blockingEnabled": global_blocking, "triggerTokenThreshold": 1},
+    )
+    _, assistant = _append_turn(conversation, session.session_id, 1)
+    snapshot = _snapshot(conversation, session.session_id)
+    runner_calls = []
+    service.set_functional_conversation_runner(_successful_runner(conversation, runner_calls))
+
+    async def run_checks():
+        await service.manage_context_if_enabled(PROJECT_ID, session.session_id, blocking=True, run_snapshot=snapshot)
+        assert {request.usage_feature_key for request in runner_calls} == {
+            feature for feature, enabled in [
+                ("project_memory_management", project_blocking),
+                ("global_memory_management", global_blocking),
+            ] if enabled
+        }
+        await service.manage_context_if_enabled(PROJECT_ID, session.session_id, blocking=False, run_snapshot=snapshot)
+
+    asyncio.run(run_checks())
+    assert sorted(request.usage_feature_key for request in runner_calls) == ["global_memory_management", "project_memory_management"]
+    for repository in (project_repo, global_repo):
+        assert repository.read_state(PROJECT_ID, session.session_id)["last_completed_boundary_message_id"] == assistant.message_id
+
+
+def test_unspecified_memory_mode_still_checks_both_profiles(tmp_path):
+    conversation, session, _, _, service = _create_services(
+        tmp_path, settings_overrides={"blockingEnabled": True},
+        global_settings_overrides={"blockingEnabled": False, "triggerTokenThreshold": 1},
+    )
+    _append_turn(conversation, session.session_id, 1)
+    runner_calls = []
+    service.set_functional_conversation_runner(_successful_runner(conversation, runner_calls))
+    asyncio.run(service.manage_context_if_enabled(
+        PROJECT_ID, session.session_id, run_snapshot=_snapshot(conversation, session.session_id),
+    ))
+    assert sorted(request.usage_feature_key for request in runner_calls) == ["global_memory_management", "project_memory_management"]
 
 
 def _create_services(

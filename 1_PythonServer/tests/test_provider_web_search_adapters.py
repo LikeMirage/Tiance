@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -13,6 +15,7 @@ from app.domain.llm.provider_catalog import (
     default_model_discovery_strategy,
 )
 from app.domain.llm.provider_runtime import ProviderRuntimeConfig
+from app.infra.llm.provider_profiles.base import GenericOpenAICompatibleProfile
 from app.infra.llm.provider_capabilities.anthropic import (
     ANTHROPIC_WEB_SEARCH_MAX_OUTPUT_TOKENS,
     AnthropicWebSearchAdapter,
@@ -55,6 +58,42 @@ def _runtime(
         display_name="Provider",
         api_base_url=api_base_url,
     )
+
+
+@pytest.mark.parametrize("auth_scheme,header", [
+    (AuthScheme.API_KEY_QUERY, None),
+    (AuthScheme.BEARER_TOKEN, "Authorization"),
+    (AuthScheme.X_API_KEY, "x-api-key"),
+    (AuthScheme.X_GOOG_API_KEY, "x-goog-api-key"),
+])
+def test_responses_search_applies_selected_authentication(monkeypatch, auth_scheme, header):
+    monkeypatch.setattr(
+        "app.infra.llm.provider_capabilities.openai_responses.resolve_provider_profile",
+        lambda _: GenericOpenAICompatibleProfile(),
+    )
+    captured = {}
+    async def post_json(url, headers, body):
+        captured.update(url=url, headers=headers)
+        return {"status": "completed", "output": [
+            {"type": "web_search_call", "action": {"type": "search", "query": "test"}},
+            {"type": "message", "content": [{"type": "output_text", "text": "answer"}]},
+        ]}
+    protocol = ProviderProtocolFamily.OPENAI_RESPONSES
+    provider = replace(_provider(protocol), generation_auth_schemes={protocol: auth_scheme})
+    key = "fake-key+with/&characters"
+    asyncio.run(OpenAIResponsesWebSearchAdapter().search(
+        provider_template=provider,
+        runtime_config=_runtime("https://provider.example/responses?version=test"),
+        api_key=key, model_id="test", query="test", post_json=post_json,
+    ))
+    query = parse_qs(urlsplit(captured["url"]).query)
+    assert query["version"] == ["test"]
+    if header is None:
+        assert query["key"] == [key]
+        assert "Authorization" not in captured["headers"]
+    else:
+        assert "key" not in query
+        assert captured["headers"][header] == (f"Bearer {key}" if header == "Authorization" else key)
 
 
 def test_openai_responses_search_preserves_every_query_source_and_citation():

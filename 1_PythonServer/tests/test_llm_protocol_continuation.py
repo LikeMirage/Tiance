@@ -1,5 +1,6 @@
 import asyncio
 import json
+from dataclasses import replace
 
 import pytest
 from pydantic import ValidationError
@@ -22,6 +23,7 @@ from app.domain.llm.provider_catalog import (
     default_model_discovery_strategy,
 )
 from app.domain.llm.provider_runtime import ProviderRuntimeConfig
+from app.domain.llm.reasoning_replay import ReasoningReplayMode
 from app.domain.project.project_conversation import ProjectConversationMessage
 from app.infra.llm.chat_adapters.anthropic import (
     AnthropicMessagesChatAdapter,
@@ -262,8 +264,11 @@ def test_anthropic_replays_private_state_only_for_same_provider_and_model():
         content="",
         protocol_continuation=continuation,
     )
-    matching = _request("anthropic", "claude-test", messages=(assistant,))
-    switched = _request("anthropic", "claude-other", messages=(assistant,))
+    matching = replace(
+        _request("anthropic", "claude-test", messages=(assistant,)),
+        reasoning_replay_mode=ReasoningReplayMode.ALWAYS,
+    )
+    switched = replace(matching, model_id="claude-other")
 
     assert _build_anthropic_body(matching, stream=False)["messages"][0]["content"] == list(
         continuation.items

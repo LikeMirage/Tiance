@@ -159,7 +159,9 @@ class ProviderConfigService:
             context.runtime_config,
             context.selected_api_key.api_key,
         )
-        return enrich_discovered_models(models)
+        return await asyncio.to_thread(
+            enrich_discovered_models, models, rules_repository=self._adaptation_rules_repository,
+        )
 
     async def check_model(
         self,
@@ -218,7 +220,9 @@ class ProviderConfigService:
             context.runtime_config,
             context.selected_api_key.api_key,
         )
-        models = enrich_discovered_models(models)
+        models = await asyncio.to_thread(
+            enrich_discovered_models, models, rules_repository=self._adaptation_rules_repository,
+        )
 
         cache = ProviderCloudModelCache(
             provider_id=context.provider_template.provider_id,

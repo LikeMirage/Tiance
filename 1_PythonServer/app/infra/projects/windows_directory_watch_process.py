@@ -3,7 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 import queue
 
-from app.infra.projects.windows_directory_watcher import WindowsDirectoryChangeReader
+from app.infra.projects.windows_directory_watcher import (
+    WindowsDirectoryChangeReader,
+    WindowsDirectoryOverflowError,
+)
 from app.infra.projects.project_file_watcher import is_external_project_watch_path
 
 
@@ -14,7 +17,11 @@ def run_windows_directory_watch_worker(root: str, event_queue) -> None:
         reader = WindowsDirectoryChangeReader(root_path)
         _offer_event(event_queue, ("ready", ()))
         while True:
-            changes = reader.read()
+            try:
+                changes = reader.read()
+            except WindowsDirectoryOverflowError:
+                _offer_event(event_queue, ("overflow", ()))
+                continue
             external_paths = _external_change_paths(root_path, changes)
             if external_paths:
                 _offer_event(

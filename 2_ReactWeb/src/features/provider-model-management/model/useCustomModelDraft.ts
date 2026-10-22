@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { emitLlmModelCatalogChanged } from "../../../entities/llm-provider/model/modelCatalogEvents";
 import { emitLlmUsageChanged } from "../../../entities/llm-usage/model/usageRefreshEvents";
 import { saveProviderCustomModel } from "../../../services/llm/saveProviderCustomModel";
+import { inferProviderModelMetadata } from "../../../services/llm/inferProviderModelMetadata";
 import { useI18n } from "../../../shared/i18n";
 import {
   DEFAULT_CUSTOM_MODEL_PRICE_CURRENCY,
@@ -58,6 +59,11 @@ export function useCustomModelDraft({
     Record<string, string | null>
   >({});
   const [isSavingCustomModel, setIsSavingCustomModel] = useState(false);
+  const inferenceSeq = useRef(0);
+  useEffect(() => {
+    inferenceSeq.current += 1;
+    return () => { inferenceSeq.current += 1; };
+  }, [selectedProviderId]);
 
   const customModelDraft = useMemo(() => {
     if (!selectedProviderId) {
@@ -79,6 +85,10 @@ export function useCustomModelDraft({
   ) => {
     if (!selectedProviderId) {
       return;
+    }
+
+    if (field === "modelId" || field === "displayName" || field === "familyGroup") {
+      inferenceSeq.current += 1;
     }
 
     setCustomModelDrafts((current) => {
@@ -113,30 +123,36 @@ export function useCustomModelDraft({
     });
   };
 
-  const inferCustomModelCapabilities = () => {
-    if (!selectedProviderId) {
+  const inferCustomModelCapabilities = async () => {
+    if (!selectedProviderId || editingCustomModelId || !customModelDraft.modelId.trim()) {
       return;
     }
-
-    setCustomModelDrafts((current) => {
-      const currentDraft = current[selectedProviderId] ?? EMPTY_CUSTOM_MODEL_DRAFT;
-      const nextCapabilityTags = inferCustomModelCapabilityTags(currentDraft);
-
-      if (areCapabilityTagsEqual(currentDraft.capabilityTags, nextCapabilityTags)) {
-        return current;
+    const providerId = selectedProviderId;
+    const seq = ++inferenceSeq.current;
+    const draft = customModelDraft;
+    try {
+      const metadata = await inferProviderModelMetadata(providerId, {
+        model_id: draft.modelId.trim(), display_name: draft.displayName.trim(),
+        family_group: draft.familyGroup.trim(),
+      });
+      if (seq !== inferenceSeq.current || selectedProviderIdRef.current !== providerId) return;
+      setCustomModelError(null);
+      setCustomModelDrafts((current) => {
+        if (seq !== inferenceSeq.current) return current;
+        const currentDraft = current[providerId] ?? EMPTY_CUSTOM_MODEL_DRAFT;
+        const nextCapabilityTags = inferCustomModelCapabilityTags(currentDraft, metadata.capability_tags);
+        if (areCapabilityTagsEqual(currentDraft.capabilityTags, nextCapabilityTags)) return current;
+        return { ...current, [providerId]: { ...currentDraft, capabilityTags: nextCapabilityTags } };
+      });
+    } catch (error) {
+      if (seq === inferenceSeq.current && selectedProviderIdRef.current === providerId) {
+        setCustomModelError(error instanceof Error ? error.message : "模型能力识别失败。");
       }
-
-      return {
-        ...current,
-        [selectedProviderId]: {
-          ...currentDraft,
-          capabilityTags: nextCapabilityTags,
-        },
-      };
-    });
+    }
   };
 
   const clearCustomModelDraft = () => {
+    inferenceSeq.current += 1;
     if (!selectedProviderId) {
       return;
     }
@@ -176,6 +192,7 @@ export function useCustomModelDraft({
   };
 
   const startEditingCustomModel = (modelId: string) => {
+    inferenceSeq.current += 1;
     if (!selectedProviderId) {
       return;
     }
@@ -205,6 +222,7 @@ export function useCustomModelDraft({
   };
 
   const clearDeletedEditingModel = (providerId: string, modelId: string) => {
+    inferenceSeq.current += 1;
     if (editingCustomModelIds[providerId] !== modelId) {
       return;
     }
@@ -270,12 +288,24 @@ export function useCustomModelDraft({
 
     setCustomModelError(null);
     setIsSavingCustomModel(true);
+    inferenceSeq.current += 1;
     try {
+      // Initial defaults are resolved before saving; saved models keep the user's exact labels.
+      let metadata = null;
+      if (!editingModelId) {
+        try {
+          metadata = await inferProviderModelMetadata(providerId, {
+            model_id: modelId, display_name: draft.displayName.trim(), family_group: draft.familyGroup.trim(),
+          });
+        } catch {
+          // Inference supplies defaults; it must not prevent saving explicit user choices.
+        }
+      }
       const savedModel = await saveProviderCustomModel(providerId, {
-        capability_tags: draft.capabilityTags,
+        capability_tags: metadata ? inferCustomModelCapabilityTags(draft, metadata.capability_tags) : draft.capabilityTags,
         cache_hit_price_per_million: cacheHitPricePerMillion,
         display_name: draft.displayName.trim(),
-        family_group: draft.familyGroup.trim(),
+        family_group: draft.familyGroup.trim() || metadata?.family_group || "",
         input_price_per_million: inputPricePerMillion,
         model_id: modelId,
         note: draft.note.trim(),

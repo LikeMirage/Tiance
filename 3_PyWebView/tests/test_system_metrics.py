@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 from types import SimpleNamespace
+from concurrent.futures import ThreadPoolExecutor
 import unittest
 from unittest.mock import patch
 
@@ -59,7 +60,7 @@ class _FakeProcess:
         return SimpleNamespace(rss=self._memory_bytes)
 
     def name(self) -> str:
-        return self._name
+        raise AssertionError("The summary must not query process names.")
 
 
 class _FakePsutil:
@@ -69,6 +70,7 @@ class _FakePsutil:
 
     def __init__(self, current_process: _FakeProcess) -> None:
         self.current_process = current_process
+        self.cpu_samples = 0
 
     def Process(self, pid: int) -> _FakeProcess:
         if pid != self.current_process.pid:
@@ -79,8 +81,13 @@ class _FakePsutil:
         return 4
 
     def cpu_percent(self, *, interval: None) -> float:
-        assert interval is None
-        return 42.5
+        raise AssertionError("A thread-local CPU baseline is unsuitable for bridge calls.")
+
+    def cpu_times(self):
+        self.cpu_samples += 1
+        sample = self.cpu_samples
+        return SimpleNamespace(_asdict=lambda: dict(user=20.0*sample, system=14.0*sample,
+            idle=46.0*sample, interrupt=6.0*sample, dpc=2.0*sample))
 
     def virtual_memory(self) -> SimpleNamespace:
         return SimpleNamespace(
@@ -122,15 +129,20 @@ class SystemMetricsSamplerTests(unittest.TestCase):
         return sampler
 
     def test_snapshot_only_uses_shell_process_tree(self) -> None:
-        with patch.object(system_metrics, "psutil", self.fake_psutil):
-            snapshot = self._sampler().snapshot()
+        with patch.object(system_metrics, "psutil", self.fake_psutil), patch.object(system_metrics, "monotonic", return_value=0) as clock:
+            sampler = self._sampler()
+            initial = sampler.snapshot()
+            self.assertIsNone(initial["app"]["cpuPercent"])
+            self.assertIsNone(initial["system"]["cpuPercent"])
+            clock.return_value = 5
+            snapshot = sampler.snapshot()
 
         self.assertEqual(
             snapshot["app"],
             {"cpuPercent": 5.0, "memoryBytes": 400, "processCount": 2},
         )
         self.assertEqual(snapshot["system"]["cpuPercent"], 42.5)
-        self.assertEqual([item["pid"] for item in snapshot["processes"]], [101, 100])
+        self.assertNotIn("processes", snapshot)
 
     def test_process_outside_shell_tree_is_not_included(self) -> None:
         external_process = _FakeProcess(
@@ -146,10 +158,10 @@ class SystemMetricsSamplerTests(unittest.TestCase):
             snapshot = self._sampler().snapshot()
 
         self.assertEqual(snapshot["app"]["processCount"], 2)
-        self.assertNotIn(external_process.pid, [item["pid"] for item in snapshot["processes"]])
+        self.assertEqual(snapshot["app"]["memoryBytes"], 400)
 
     def test_reused_pid_replaces_stale_cached_process(self) -> None:
-        with patch.object(system_metrics, "psutil", self.fake_psutil):
+        with patch.object(system_metrics, "psutil", self.fake_psutil), patch.object(system_metrics, "monotonic", return_value=0) as clock:
             sampler = self._sampler()
             sampler.snapshot()
             replacement = _FakeProcess(
@@ -161,11 +173,33 @@ class SystemMetricsSamplerTests(unittest.TestCase):
                 cwd=self.project_root / "1_PythonServer",
             )
             self.shell._children = [replacement]
+            clock.return_value = 5
             snapshot = sampler.snapshot()
 
-        process = next(item for item in snapshot["processes"] if item["pid"] == 101)
-        self.assertEqual(process["name"], "replacement")
-        self.assertEqual(process["memoryBytes"], 700)
+        self.assertEqual(snapshot["app"]["memoryBytes"], 800)
+        self.assertEqual(snapshot["app"]["cpuPercent"], 3.0)
+
+    def test_repeated_and_concurrent_calls_reuse_five_second_snapshot(self):
+        with patch.object(system_metrics, "psutil", self.fake_psutil), patch.object(system_metrics, "monotonic", return_value=0) as clock:
+            sampler = self._sampler()
+            with ThreadPoolExecutor(max_workers=4) as workers:
+                results = list(workers.map(lambda _: sampler.snapshot(), range(20)))
+            self.assertTrue(all(result is results[0] for result in results))
+            self.assertEqual(self.fake_psutil.cpu_samples, 1)
+            clock.return_value = 4.9
+            self.assertIs(sampler.snapshot(), results[0])
+            clock.return_value = 5
+            self.assertIsNot(sampler.snapshot(), results[0])
+            self.assertEqual(self.fake_psutil.cpu_samples, 2)
+
+    def test_cpu_baseline_survives_different_bridge_threads(self):
+        with patch.object(system_metrics, "psutil", self.fake_psutil), patch.object(system_metrics, "monotonic", return_value=0) as clock:
+            sampler = self._sampler()
+            with ThreadPoolExecutor(max_workers=1) as worker:
+                worker.submit(sampler.snapshot).result()
+            clock.return_value = 10
+            snapshot = sampler.snapshot()
+            self.assertEqual(snapshot["system"]["cpuPercent"], 42.5)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type {
   ConversationForkResponse,
@@ -47,10 +47,13 @@ export function useConversationBranching({
   const [branchError, setBranchError] = useState<string | null>(null);
   const operationIdRef = useRef(0);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     operationIdRef.current += 1;
     setForkingMessageId(null);
     setBranchError(null);
+    return () => {
+      operationIdRef.current += 1;
+    };
   }, [activeSessionId, projectId]);
 
   const forkUserMessage = useCallback(async (message: ChatMessage) => {
@@ -75,6 +78,8 @@ export function useConversationBranching({
         draft: forkDraft.draft,
         references: forkDraft.references,
       });
+      // A completed fork must not take over a conversation the user switched to.
+      if (operationIdRef.current !== operationId) return;
       applyForkResult(response);
       onDraftReferencesChange?.(forkDraft.references);
       await reloadSessionMessages(projectId, response.session.session_id, {

@@ -29,10 +29,7 @@
     },
     "toolCalling": {
       "supported": true
-    },
-    "inputModalities": [
-      "text"
-    ]
+    }
   },
   "request": {
     "omitParameters": [
@@ -46,5 +43,9 @@
     "includeResponsesMessagePhase": false,
     "includeResponsesWebSearchSources": false,
     "promptCacheRetentionSeconds": 21600
-  }
+  },
+  "capabilityTags": [
+    "reasoning",
+    "function_calling"
+  ]
 }

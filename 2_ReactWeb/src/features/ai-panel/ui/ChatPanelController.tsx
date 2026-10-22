@@ -507,7 +507,6 @@ export function ChatPanelController({
     pauseAutoScrollForNavigation,
     preserveCurrentView,
     scrollToBottom,
-    showScrollToBottom,
     viewRestoreRequest,
     onViewRestoreHandled,
     syncAfterContentReady,
@@ -864,10 +863,6 @@ export function ChatPanelController({
             : activeSessionState?.runtime_status ?? null,
           scrollParentRef: bodyRef,
         }}
-        scrollBottom={{
-          isVisible: showScrollToBottom && messages.length > 0,
-          onClick: () => scrollToBottom("smooth"),
-        }}
         settings={{
           activeReasoningMode,
           activeConversationDataFile,
@@ -893,6 +888,7 @@ export function ChatPanelController({
 
       {activeView === "chat" ? (
         <ChatComposer
+          onScrollToBottom={() => scrollToBottom("smooth")}
           generation={{
             isStreaming: isActiveSessionBusy,
             onStop: stopActiveGeneration,

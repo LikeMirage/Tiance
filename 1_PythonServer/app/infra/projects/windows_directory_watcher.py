@@ -24,6 +24,7 @@ _NOTIFY_FILTER = (
 )
 _BUFFER_SIZE = 64 * 1024
 _INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+_ERROR_NOTIFY_ENUM_DIR = 1022
 
 _ACTION_TO_CHANGE = {
     1: Change.added,
@@ -32,6 +33,10 @@ _ACTION_TO_CHANGE = {
     4: Change.deleted,
     5: Change.added,
 }
+
+
+class WindowsDirectoryOverflowError(Exception):
+    """Windows lost directory notifications; consumers must rescan."""
 
 
 class WindowsDirectoryChangeReader:
@@ -72,12 +77,13 @@ class WindowsDirectoryChangeReader:
             error = ctypes.get_last_error()
             if self._closed:
                 return set()
+            if error == _ERROR_NOTIFY_ENUM_DIR:
+                raise WindowsDirectoryOverflowError
             raise ctypes.WinError(error)
         if bytes_returned.value == 0:
-            return {
-                (Change.modified, str(entry))
-                for entry in self._root.iterdir()
-            }
+            if self._closed:
+                return set()
+            raise WindowsDirectoryOverflowError
         return self._parse_changes(buffer.raw[: bytes_returned.value])
 
     def close(self) -> None:

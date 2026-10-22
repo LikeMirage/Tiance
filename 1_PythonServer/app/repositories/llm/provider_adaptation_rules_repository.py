@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from app.domain.llm.generation_params import LlmOutputFormat, LlmReasoningMode
+from app.domain.llm.model_capability_tags import MODEL_CAPABILITY_TAGS
 from app.domain.llm.provider_adaptation import (
     DEFAULT_PROMPT_CACHE_RETENTION_SECONDS,
     LlmCapabilityRules,
@@ -35,7 +36,6 @@ _SAMPLING_PARAMETERS = {
 }
 _REQUEST_PARAMETERS = _SAMPLING_PARAMETERS | {"max_tokens", "max_completion_tokens"}
 _MAX_OUTPUT_TOKEN_PARAMETERS = {"max_tokens", "max_completion_tokens"}
-_INPUT_MODALITIES = {"text", "image"}
 
 
 class ProviderAdaptationRulesRepository:
@@ -48,6 +48,7 @@ class ProviderAdaptationRulesRepository:
         provider_id: str,
         model_id: str | None,
         expected_profile_id: str | None = None,
+        family_group: str | None = None,
     ) -> ProviderAdaptationRules | None:
         if expected_profile_id is not None:
             manifest = self._store.read_provider_file(
@@ -79,7 +80,8 @@ class ProviderAdaptationRulesRepository:
         if not model_id:
             return resolved if resolved != ProviderAdaptationRules() else None
 
-        family_group = self._find_family_group(provider_id, model_id)
+        if family_group is None:
+            family_group = self._find_family_group(provider_id, model_id)
         if family_group and family_group in families:
             resolved = merge_adaptation_rules(resolved, families[family_group])
         exact_rules = models.get(model_id.strip().lower())
@@ -155,7 +157,7 @@ class ProviderAdaptationRulesRepository:
 def _parse_rules_file(payload: dict[str, Any], file_name: str) -> ProviderAdaptationRules:
     _reject_unknown(
         payload,
-        {"schemaVersion", "capabilities", "request", "behavior"},
+        {"schemaVersion", "capabilityTags", "capabilities", "request", "behavior"},
         file_name,
     )
     if payload.get("schemaVersion") != 1:
@@ -192,7 +194,7 @@ def _parse_named_rules(
         key = raw_key.strip().lower() if normalize_keys else raw_key.strip()
         _reject_unknown(
             raw_rules,
-            {"capabilities", "request", "behavior"},
+            {"capabilityTags", "capabilities", "request", "behavior"},
             f"{field_name}.{key}",
         )
         result[key] = _parse_rules(raw_rules, f"{field_name}.{key}")
@@ -201,6 +203,9 @@ def _parse_named_rules(
 
 def _parse_rules(payload: dict[str, Any], location: str) -> ProviderAdaptationRules:
     return ProviderAdaptationRules(
+        capability_tags=_optional_string_tuple(
+            payload, "capabilityTags", allowed=set(MODEL_CAPABILITY_TAGS), location=location,
+        ),
         capabilities=_parse_capabilities(payload.get("capabilities", {}), location),
         request=_parse_request(payload.get("request", {}), location),
         behavior=_parse_behavior(payload.get("behavior", {}), location),
@@ -218,7 +223,6 @@ def _parse_capabilities(value: object, location: str) -> LlmCapabilityRules:
             "sampling",
             "maxOutputTokens",
             "toolCalling",
-            "inputModalities",
         },
         f"{location}.capabilities",
     )
@@ -255,12 +259,6 @@ def _parse_capabilities(value: object, location: str) -> LlmCapabilityRules:
         max_output_tokens_min=_optional_positive_int(max_tokens, "min", location),
         max_output_tokens_max=_optional_positive_int(max_tokens, "max", location),
         tool_calling_supported=_optional_bool(tool_calling, "supported", location),
-        input_modalities=_optional_string_tuple(
-            value,
-            "inputModalities",
-            allowed=_INPUT_MODALITIES,
-            location=location,
-        ),
     )
 
 

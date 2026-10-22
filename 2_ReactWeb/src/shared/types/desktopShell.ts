@@ -69,25 +69,17 @@ export type DesktopExternalFileImportResult = {
   }>;
 };
 
-export interface SystemMetricsProcessSnapshot {
-  cpuPercent: number;
-  memoryBytes: number;
-  name: string;
-  pid: number;
-}
-
 export interface SystemMetricsSnapshot {
   app?: {
-    cpuPercent: number;
+    cpuPercent: number | null;
     memoryBytes: number;
     processCount: number;
   };
   available: boolean;
-  processes?: SystemMetricsProcessSnapshot[];
   reason?: string;
   sampledAt: string;
   system?: {
-    cpuPercent: number;
+    cpuPercent: number | null;
     memoryAvailableBytes: number;
     memoryPercent: number;
     memoryTotalBytes: number;

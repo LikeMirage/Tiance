@@ -467,6 +467,12 @@ def test_stream_persists_client_message_id_and_replays_completed_request_idempot
     ]
     assert len(conversation_service.persisted_messages) == persisted_count
     assert chat_service.calls == 1
+    assert len(conversation_service.ai_run_records) == 1
+    # Redelivering an already completed message with a new transport run ID
+    # must not create a second runtime statistic.
+    asyncio.run(_collect_payloads(service, request=replace(request, run_id="redelivery-run")))
+    assert chat_service.calls == 1
+    assert len(conversation_service.ai_run_records) == 1
 
 
 def test_stream_rejects_reused_client_message_id_with_different_content_without_side_effects():
@@ -573,6 +579,7 @@ def test_completed_request_replay_repairs_runtime_without_model_or_memory_side_e
     assert memory_service.long_term_delivery_calls == []
     assert memory_service.compression_calls == []
     assert chat_service.calls == 0
+    assert conversation_service.ai_run_records == []
 
 
 def test_pending_existing_user_resume_reuses_user_for_memory_and_generates_one_reply():
@@ -2064,6 +2071,7 @@ def _request(*, system_prompt: str = "") -> ChatCompletionRequest:
         messages.append(ChatMessage(role=ChatMessageRole.SYSTEM, content=system_prompt))
     messages.append(ChatMessage(role=ChatMessageRole.USER, content="hi"))
     return ChatCompletionRequest(
+        run_id="run_msg-1",
         provider_id="deepseek",
         model_id="deepseek-v4",
         project_id="project-1",
@@ -2075,6 +2083,7 @@ def _request(*, system_prompt: str = "") -> ChatCompletionRequest:
 def _request_with_client_message_id(message_id: str) -> ChatCompletionRequest:
     return replace(
         _request(),
+        run_id=f"run_{message_id}",
         messages=(
             ChatMessage(
                 role=ChatMessageRole.USER,
@@ -2658,6 +2667,10 @@ class _FakeConversationService:
     def list_messages(self, _project_id, _session_id):
         return self.messages
 
+    def get_latest_message(self, project_id, session_id):
+        messages = self.list_messages(project_id, session_id)
+        return messages[-1] if messages else None
+
     def update_session(self, *_args, **_kwargs):
         return self.session
 
@@ -2740,11 +2753,15 @@ class _FakeConversationService:
         self,
         user_message,
         *,
+        run_id,
+        project_id,
         assistant_message,
         elapsed_ms,
     ):
         self.ai_run_records.append(
             {
+                "run_id": run_id,
+                "project_id": project_id,
                 "user_message": user_message,
                 "assistant_message": assistant_message,
                 "elapsed_ms": elapsed_ms,

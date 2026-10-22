@@ -43,6 +43,9 @@ class ConversationActivityRecorder(Protocol):
     def record_ai_run_elapsed(
         self,
         *,
+        run_id: str,
+        project_id: str,
+        session_id: str,
         user_message_id: str,
         started_at: str,
         finished_at: str | None,
@@ -73,15 +76,20 @@ class ProjectConversationService:
         self,
         user_message: ProjectConversationMessage,
         *,
+        run_id: str,
+        project_id: str,
         assistant_message: ProjectConversationMessage | None,
         elapsed_ms: int | None,
     ) -> None:
         if self._activity_recorder is None:
             return
         self._activity_recorder.record_ai_run_elapsed(
+            run_id=run_id,
+            project_id=project_id,
+            session_id=user_message.session_id,
             user_message_id=user_message.message_id,
             started_at=user_message.created_at,
-            finished_at=assistant_message.created_at if assistant_message is not None else None,
+            finished_at=None,
             elapsed_ms=elapsed_ms,
         )
 
@@ -331,6 +339,11 @@ class ProjectConversationService:
         session_id: str,
     ) -> tuple[ProjectConversationMessage, ...]:
         return self._repository.list_messages(project_id, session_id)
+
+    def get_latest_message(
+        self, project_id: str, session_id: str,
+    ) -> ProjectConversationMessage | None:
+        return self._repository.get_latest_message(project_id, session_id)
 
     def list_messages_page(
         self,

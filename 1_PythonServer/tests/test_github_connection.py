@@ -79,6 +79,7 @@ def test_github_repository_source_and_resources_are_scoped() -> None:
     assert resolve_github_repository_path(
         "https://github.com/example/private-projects",
         "https://raw.githubusercontent.com/example/private-projects/main/packages/a.zip",
+        ref="main",
     ) == "packages/a.zip"
     with pytest.raises(GithubApiError, match="不属于当前仓库"):
         resolve_github_repository_path(

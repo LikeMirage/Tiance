@@ -7,6 +7,7 @@ from uuid import uuid4
 from app.core.config import get_settings
 from app.domain.llm.chat import ChatUsage
 from app.domain.llm.usage import LlmSessionUsageSummary, LlmUsageRecord, LlmUsageSummary
+from app.domain.usage_statistics import StatisticsMonth
 from app.repositories.llm.usage_file_store import UsageFileStore
 
 
@@ -54,6 +55,23 @@ class LlmUsageRepository:
 
     def delete_model_usage(self, *, provider_id: str, model_id: str) -> None:
         self._store.append_delete_model(provider_id=provider_id, model_id=model_id)
+
+    def monthly_statistics(self, month: StatisticsMonth) -> dict:
+        daily = [0] * len(month.dates)
+        total = 0
+        model_totals: dict[tuple[str, str], int] = defaultdict(int)
+        # The store replays upserts/deletes once and keeps effective records in memory.
+        for record in self._store.list_records():
+            total += record.total_tokens
+            model_totals[(record.provider_id, record.model_id)] += record.total_tokens
+            day = month.day_index(record.created_at)
+            if day is not None:
+                daily[day] += record.total_tokens
+        top_models = sorted(model_totals.items(), key=lambda item: (-item[1], item[0]))[:3]
+        return {"total": total, "daily": daily, "top_models": [
+            {"provider_id": provider, "model_id": model, "value": value}
+            for (provider, model), value in top_models if value > 0
+        ]}
 
     def get_model_summaries(
         self,

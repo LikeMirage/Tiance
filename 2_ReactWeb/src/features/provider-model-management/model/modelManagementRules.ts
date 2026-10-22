@@ -1,7 +1,6 @@
 import type { ProviderCustomModelEntry } from "../../../entities/llm-provider/model/providerCustomModel";
 import {
   CUSTOM_MODEL_CAPABILITY_OPTIONS,
-  deriveCustomModelCapabilities,
   normalizeCustomModelCapabilityTags,
   sortCustomModelCapabilities,
   type CustomModelCapabilityTag,
@@ -71,13 +70,12 @@ export function toggleCustomModelCapabilityInDraft(
   };
 }
 
-export function inferCustomModelCapabilityTags(draft: CustomModelDraft) {
-  const inferredCapabilityTags = deriveCustomModelCapabilities(
-    draft.modelId,
-    draft.displayName,
-  );
+export function inferCustomModelCapabilityTags(
+  draft: CustomModelDraft,
+  inferredCapabilityTags: readonly string[],
+) {
   return applyCustomModelCapabilityOverrides(
-    inferredCapabilityTags,
+    normalizeCustomModelCapabilityTags(inferredCapabilityTags),
     draft.manualCapabilityOverrides ?? {},
   );
 }
@@ -116,7 +114,9 @@ export function toCustomModelDraft(model: AddedCustomModelEntry): CustomModelDra
     displayName: model.displayName,
     familyGroup: model.familyGroup,
     inputPricePerMillion: formatCustomModelPriceInput(model.inputPricePerMillion),
-    manualCapabilityOverrides: deriveCapabilityOverridesFromTags(model),
+    manualCapabilityOverrides: Object.fromEntries(
+      CUSTOM_MODEL_CAPABILITY_OPTIONS.map(({ value }) => [value, model.capabilityTags.includes(value)]),
+    ),
     modelId: model.modelId,
     note: model.note,
     outputPricePerMillion: formatCustomModelPriceInput(model.outputPricePerMillion),
@@ -188,28 +188,4 @@ function applyCustomModelCapabilityOverrides(
   });
 
   return sortCustomModelCapabilities(Array.from(nextTags));
-}
-
-function deriveCapabilityOverridesFromTags(
-  model: AddedCustomModelEntry,
-): CustomModelCapabilityOverrides {
-  const inferredTags = new Set(
-    deriveCustomModelCapabilities(model.modelId, model.displayName),
-  );
-
-  return CUSTOM_MODEL_CAPABILITY_OPTIONS.reduce<CustomModelCapabilityOverrides>(
-    (overrides, option) => {
-      const isSelected = model.capabilityTags.includes(option.value);
-      const isInferred = inferredTags.has(option.value);
-      if (isSelected === isInferred) {
-        return overrides;
-      }
-
-      return {
-        ...overrides,
-        [option.value]: isSelected,
-      };
-    },
-    {},
-  );
 }

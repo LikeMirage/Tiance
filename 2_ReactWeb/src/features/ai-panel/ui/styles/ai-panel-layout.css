@@ -364,27 +364,6 @@
   will-change: transform;
 }
 
-.ai-panel__scroll-bottom {
-  position: absolute;
-  right: 12px;
-  bottom: 10px;
-  z-index: 4;
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-}
-
-.ai-panel__scroll-bottom:hover {
-  color: var(--color-text-primary);
-}
-
 .ai-panel__tab-view {
   display: grid;
   gap: 10px;

@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "github_actions",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": {
     "name": "LikeMirage"
   },
   "license": "Apache-2.0",
   "compatibility": {
-    "minTianceVersion": "0.3.23",
+    "minTianceVersion": "0.3.31",
     "platforms": [
       "windows-x64"
     ]

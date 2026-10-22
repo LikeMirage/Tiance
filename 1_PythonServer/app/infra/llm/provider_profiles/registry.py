@@ -8,6 +8,7 @@ from app.infra.llm.provider_profiles.base import (
     ProviderProfile,
 )
 from app.infra.llm.provider_profiles.deepseek import DeepSeekProfile
+from app.infra.llm.provider_profiles.native import NativeChatProfile
 from app.infra.llm.provider_profiles.openai_responses import (
     OpenAIProfile,
     OpenAIResponsesProfile,
@@ -19,6 +20,11 @@ from app.repositories.llm.provider_adaptation_rules_repository import (
 
 _GENERIC_OPENAI_COMPATIBLE_PROFILE = GenericOpenAICompatibleProfile()
 _OPENAI_RESPONSES_PROFILE = OpenAIResponsesProfile()
+_ANTHROPIC_PROFILE = NativeChatProfile(profile_id="anthropic_messages")
+_GEMINI_PROFILE = NativeChatProfile(
+    profile_id="gemini_generate_content",
+    sampling_parameters=("temperature", "top_p", "presence_penalty", "frequency_penalty"),
+)
 
 _OPENAI_COMPATIBLE_PROFILES_BY_ID: dict[str, ProviderProfile] = {
     "generic": _GENERIC_OPENAI_COMPATIBLE_PROFILE,
@@ -57,8 +63,10 @@ def resolve_provider_profile(
         profile = _OPENAI_RESPONSES_PROFILES_BY_ID[provider_template.profile_id]
     elif provider_template.protocol_family == ProviderProtocolFamily.OPENAI_COMPATIBLE:
         profile = _OPENAI_COMPATIBLE_PROFILES_BY_ID[provider_template.profile_id]
+    elif provider_template.protocol_family == ProviderProtocolFamily.ANTHROPIC_MESSAGES:
+        profile = _ANTHROPIC_PROFILE
     else:
-        profile = _GENERIC_OPENAI_COMPATIBLE_PROFILE
+        profile = _GEMINI_PROFILE
 
     rules = adaptation_rules
     if rules is None and load_declared_rules:

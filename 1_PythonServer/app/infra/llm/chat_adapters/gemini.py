@@ -1,5 +1,6 @@
 from app.domain.llm.output_limit_error import OutputLimitError
 from collections.abc import AsyncGenerator
+from uuid import uuid4
 
 from app.core.errors import UpstreamProviderError
 from app.domain.llm.chat import (
@@ -27,6 +28,7 @@ from app.infra.llm.chat_adapters.continuation import (
     build_protocol_continuation,
     matching_continuation_items,
 )
+from app.infra.llm.chat_adapters.reasoning_replay import should_replay_reasoning
 from app.infra.llm.chat_adapters.payloads import (
     _json_arguments,
     _json_object_arguments,
@@ -111,7 +113,10 @@ class GeminiGenerateContentChatAdapter:
     ) -> AsyncGenerator[ChatStreamEvent, None]:
         last_finish_reason: str | None = None
         malformed_tool_arguments = False
-        emitted_tool_call_keys: set[tuple[str, str]] = set()
+        emitted_tool_calls: dict[str, ChatToolCall] = {}
+        tool_part_indices: dict[str, int] = {}
+        fallback_call_prefix = f"gemini_tool_call_{uuid4().hex}"
+        part_sequence = 0
         continuation_parts: list[dict[str, object]] = []
         async for payload in _iter_sse_payloads(
             stream_body(
@@ -128,29 +133,35 @@ class GeminiGenerateContentChatAdapter:
                 yield _protocol_error_event()
                 return
             text, thinking = _extract_gemini_content(payload)
-            continuation_parts.extend(
-                dict(part)
-                for part in _extract_gemini_parts(payload)
-                if isinstance(part, dict)
-            )
             if text:
                 yield ChatStreamEvent(kind=ChatStreamEventKind.DELTA, content=text)
             if thinking:
                 yield ChatStreamEvent(kind=ChatStreamEventKind.THINKING_DELTA, content=thinking)
-            try:
-                tool_calls = _extract_gemini_tool_calls(payload)
-            except ValueError:
-                malformed_tool_arguments = True
-                tool_calls = ()
-            for tool_call in tool_calls:
-                tool_call_key = (tool_call.name, tool_call.arguments)
-                if tool_call_key in emitted_tool_call_keys:
+            for part in _extract_gemini_parts(payload):
+                if not isinstance(part, dict):
                     continue
-                emitted_tool_call_keys.add(tool_call_key)
-                yield ChatStreamEvent(
-                    kind=ChatStreamEventKind.TOOL_CALL,
-                    tool_call=tool_call,
-                )
+                part_sequence += 1
+                try:
+                    tool_call = _extract_gemini_tool_call(
+                        part, fallback_id=f"{fallback_call_prefix}_{part_sequence}"
+                    )
+                except ValueError:
+                    malformed_tool_arguments = True
+                    continue
+                if tool_call is not None:
+                    previous = emitted_tool_calls.get(tool_call.call_id)
+                    if previous is not None:
+                        if previous != tool_call:
+                            # Reusing an ID for a different call is ambiguous; never execute it.
+                            malformed_tool_arguments = True
+                        else:
+                            # Preserve metadata delivered with a repeated complete call.
+                            continuation_parts[tool_part_indices[tool_call.call_id]].update(part)
+                        continue
+                    emitted_tool_calls[tool_call.call_id] = tool_call
+                    tool_part_indices[tool_call.call_id] = len(continuation_parts)
+                    yield ChatStreamEvent(kind=ChatStreamEventKind.TOOL_CALL, tool_call=tool_call)
+                continuation_parts.append(dict(part))
             usage = _parse_gemini_usage(payload.get("usageMetadata"))
             if usage is not None:
                 yield ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=usage)
@@ -218,9 +229,10 @@ def _build_gemini_headers(
 def _build_gemini_body(request: ChatCompletionRequest) -> dict[str, object]:
     body: dict[str, object] = {
         "contents": [
-            _message_to_gemini_payload(message, request)
+            payload
             for message in request.messages
             if message.role != ChatMessageRole.SYSTEM
+            if (payload := _message_to_gemini_payload(message, request)) is not None
         ],
         "generationConfig": _gemini_generation_config(request),
     }
@@ -239,7 +251,7 @@ def _build_gemini_body(request: ChatCompletionRequest) -> dict[str, object]:
 def _message_to_gemini_payload(
     message: ChatMessage,
     request: ChatCompletionRequest,
-) -> dict[str, object]:
+) -> dict[str, object] | None:
     if message.role == ChatMessageRole.TOOL:
         return {
             "role": "user",
@@ -265,6 +277,16 @@ def _message_to_gemini_payload(
             ChatProtocolContinuationKind.GEMINI_PARTS,
         )
         if items:
+            if not should_replay_reasoning(message, request.reasoning_replay_mode):
+                # Signatures carry opaque thought state even on text/functionCall parts.
+                items = tuple(
+                    filtered
+                    for item in items
+                    if item.get("thought") is not True
+                    if (filtered := {key: value for key, value in item.items() if key != "thoughtSignature"})
+                )
+            if not items:
+                return None
             return {"role": role, "parts": list(items)}
     if message.tool_calls:
         parts = (
@@ -297,6 +319,10 @@ def _gemini_generation_config(request: ChatCompletionRequest) -> dict[str, objec
         config["temperature"] = temperature
     if request.generation.top_p is not None:
         config["topP"] = request.generation.top_p
+    if request.generation.presence_penalty is not None:
+        config["presencePenalty"] = request.generation.presence_penalty
+    if request.generation.frequency_penalty is not None:
+        config["frequencyPenalty"] = request.generation.frequency_penalty
     max_output_tokens = request.generation.max_output_tokens
     if max_output_tokens is not None:
         config["maxOutputTokens"] = max_output_tokens
@@ -333,23 +359,27 @@ def _extract_gemini_tool_calls(payload: dict[str, object]) -> tuple[ChatToolCall
     for index, part in enumerate(parts):
         if not isinstance(part, dict):
             continue
-        function_call = part.get("functionCall")
-        if not isinstance(function_call, dict):
-            continue
-        name = str(function_call.get("name") or "").strip()
-        if not name:
-            continue
-        arguments = function_call.get("args")
-        if arguments is not None and not isinstance(arguments, (dict, str)):
-            raise ValueError("invalid Gemini functionCall args")
-        tool_calls.append(
-            ChatToolCall(
-                call_id=str(function_call.get("id") or f"gemini_tool_call_{index}"),
-                name=name,
-                arguments=_json_arguments(arguments),
-            )
-        )
+        tool_call = _extract_gemini_tool_call(part, fallback_id=f"gemini_tool_call_{index}")
+        if tool_call is not None:
+            tool_calls.append(tool_call)
     return tuple(tool_calls)
+
+
+def _extract_gemini_tool_call(part: dict, *, fallback_id: str) -> ChatToolCall | None:
+    function_call = part.get("functionCall")
+    if not isinstance(function_call, dict):
+        return None
+    name = str(function_call.get("name") or "").strip()
+    if not name:
+        return None
+    arguments = function_call.get("args")
+    if arguments is not None and not isinstance(arguments, (dict, str)):
+        raise ValueError("invalid Gemini functionCall args")
+    return ChatToolCall(
+        call_id=str(function_call.get("id") or fallback_id),
+        name=name,
+        arguments=_json_arguments(arguments),
+    )
 
 def _extract_gemini_parts(payload: dict[str, object]) -> list[object]:
     candidates = payload.get("candidates")

@@ -218,7 +218,7 @@ class OpenAIResponsesChatAdapter:
             elif event_type == "response.output_item.done":
                 item = payload.get("item")
                 continuation_item = _responses_continuation_item(item)
-                if request.tools and continuation_item is not None:
+                if continuation_item is not None:
                     emitted_continuation_item_ids.add(
                         _output_item_identity(continuation_item)
                     )
@@ -252,13 +252,12 @@ class OpenAIResponsesChatAdapter:
                                 content=reasoning_text,
                             )
                             did_emit_reasoning_delta = True
-                    if request.tools:
-                        for continuation_item in _extract_responses_continuation_items(response):
-                            identity = _output_item_identity(continuation_item)
-                            if identity in emitted_continuation_item_ids:
-                                continue
-                            emitted_continuation_item_ids.add(identity)
-                            continuation_items.append(continuation_item)
+                    for continuation_item in _extract_responses_continuation_items(response):
+                        identity = _output_item_identity(continuation_item)
+                        if identity in emitted_continuation_item_ids:
+                            continue
+                        emitted_continuation_item_ids.add(identity)
+                        continuation_items.append(continuation_item)
                     for tool_call in _extract_responses_tool_calls(response):
                         if tool_call.call_id in emitted_tool_call_ids:
                             continue

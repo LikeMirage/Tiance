@@ -11,7 +11,6 @@ from app.infra.github import (
     GithubApiError,
     get_github_client,
     parse_github_repository_source,
-    resolve_github_repository_path,
 )
 from app.infra.http_client import get_http_timeout, get_shared_http_client
 
@@ -101,7 +100,7 @@ class OnlineMarketRemoteClient:
             try:
                 downloaded, actual_sha256 = await get_github_client().download_repository_file(
                     github,
-                    resolve_github_repository_path(normalized, package_url),
+                    package_url,
                     target=target,
                     maximum_bytes=min(expected_size, self._maximum_package_bytes),
                 )
@@ -163,7 +162,7 @@ class OnlineMarketRemoteClient:
             try:
                 return await get_github_client().fetch_repository_file(
                     github,
-                    resolve_github_repository_path(normalized, resource_url),
+                    resource_url,
                     maximum_bytes=maximum_bytes,
                 )
             except GithubApiError as exc:

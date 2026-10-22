@@ -9,7 +9,7 @@ from app.infra.github import (
     GithubApiError,
     normalize_github_repository_source,
     parse_github_repository_source,
-    resolve_github_repository_path,
+    normalize_github_repository_resource,
 )
 
 
@@ -52,10 +52,10 @@ def resolve_market_asset_url(
     normalized_source = normalize_market_source(source, resource_label=resource_label)
     if parse_github_repository_source(normalized_source) is not None:
         try:
-            path = resolve_github_repository_path(normalized_source, raw_url)
+            resource = normalize_github_repository_resource(normalized_source, raw_url)
         except GithubApiError as exc:
             raise BadRequestError(str(exc)) from exc
-        return f"{normalized_source}/{path}"
+        return resource if urlsplit(resource).scheme else f"{normalized_source}/{resource}"
     resolved = urljoin(f"{normalized_source}/", raw_url.strip())
     _require_same_market_scope(
         normalized_source,

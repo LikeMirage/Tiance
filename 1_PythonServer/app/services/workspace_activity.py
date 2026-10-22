@@ -63,6 +63,9 @@ class WorkspaceActivityService:
     def record_ai_run_elapsed(
         self,
         *,
+        run_id: str,
+        project_id: str,
+        session_id: str,
         user_message_id: str,
         started_at: str,
         finished_at: str | None,
@@ -80,6 +83,9 @@ class WorkspaceActivityService:
             return False
         try:
             self._repository.record_ai_run_elapsed(
+                run_id=run_id,
+                project_id=project_id,
+                session_id=session_id,
                 user_message_id=user_message_id,
                 elapsed_ms=resolved_elapsed_ms,
                 finished_at=resolved_finished_at,

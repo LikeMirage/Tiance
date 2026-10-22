@@ -11,7 +11,7 @@
 
 .ai-panel__composer-resize-handle {
   position: absolute;
-  top: -4px;
+  top: -6px;
   right: 0;
   left: 0;
   z-index: 5;
@@ -22,7 +22,7 @@
 
 .ai-panel__composer-resize-handle::after {
   position: absolute;
-  top: 3px;
+  top: 5px;
   right: 0;
   left: 0;
   height: 1px;
@@ -38,6 +38,17 @@
 
 .ai-panel__composer--drag-over {
   background: rgba(var(--color-accent-rgb), 0.08);
+}
+
+.ai-panel__composer-toolbar {
+  box-sizing: border-box;
+  display: flex;
+  flex: 0 0 28px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .ai-panel__composer-box {
@@ -329,12 +340,13 @@
   padding: 0 4px;
 }
 
-.ai-panel__composer-add {
+.ai-panel__composer-add,
+.ai-panel__composer-scroll-bottom {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: 0;
   border-radius: 5px;
@@ -346,14 +358,21 @@
 
 .ai-panel__composer-add:hover,
 .ai-panel__composer-add:focus-visible,
-.ai-panel__composer-add--open {
+.ai-panel__composer-add--open,
+.ai-panel__composer-scroll-bottom:hover,
+.ai-panel__composer-scroll-bottom:focus-visible {
   background: rgba(var(--color-accent-rgb), 0.1);
   color: var(--color-accent);
 }
 
-.ai-panel__composer-add:focus-visible {
+.ai-panel__composer-add:focus-visible,
+.ai-panel__composer-scroll-bottom:focus-visible {
   outline: 1px solid rgba(var(--color-accent-rgb), 0.55);
   outline-offset: 1px;
+}
+
+.ai-panel__composer-scroll-bottom {
+  margin-inline-start: auto;
 }
 
 .chat-composer-add-menu__panel {

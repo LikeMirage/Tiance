@@ -3,14 +3,14 @@
   "kind": "tiance-provider-package",
   "id": "opencode",
   "name": "OpenCode Go",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "author": {
     "name": "LikeMirage"
   },
   "summary": "OpenCode Go 的天策供应商定义，预置 Chat Completions 与 Responses 生成端点。",
   "license": "CC0-1.0",
   "compatibility": {
-    "minTianceVersion": "0.3.28"
+    "minTianceVersion": "0.3.31"
   },
   "managedModelIds": [
     "deepseek-v4-flash",

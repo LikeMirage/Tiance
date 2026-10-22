@@ -46,6 +46,7 @@ export function CustomModelEditor({
         label={t("providerCanvas.modelManagement.custom.modelGroup")}
         placeholder={t("providerCanvas.modelManagement.custom.modelGroupPlaceholder")}
         value={modelManagementPanel.customModelDraft.familyGroup}
+        onBlur={modelManagementPanel.inferCustomModelCapabilities}
         onChange={(value) => modelManagementPanel.updateCustomModelDraft("familyGroup", value)}
       />
       <div className="provider-canvas__custom-model-field">

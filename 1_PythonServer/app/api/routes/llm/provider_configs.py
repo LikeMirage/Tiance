@@ -14,6 +14,7 @@ from app.core.errors import (
 from app.schemas.llm.discovered_models import (
     DiscoveredModelListResponse,
     DiscoveredModelResponse,
+    ModelMetadataInferenceRequest,
 )
 from app.schemas.llm.provider_configs import (
     ProviderApiKeyConfigInputRequest,
@@ -41,8 +42,33 @@ from app.services.llm.provider.custom_models import (
     ProviderCustomModelSaveInput,
     get_provider_custom_model_service,
 )
+from app.domain.llm.discovered_model import DiscoveredModel
+from app.repositories.llm.provider_catalog_repository import get_provider_catalog_repository
+from app.repositories.llm.provider_adaptation_rules_repository import get_provider_adaptation_rules_repository
+from app.services.llm.provider.discovered_model_metadata import enrich_discovered_model
 
 router = APIRouter(prefix="/llm/provider-configs", tags=["llm"])
+
+
+@router.post("/{provider_id}/model-metadata", response_model=DiscoveredModelResponse)
+def infer_provider_model_metadata(
+    provider_id: str, payload: ModelMetadataInferenceRequest,
+) -> DiscoveredModelResponse:
+    if get_provider_catalog_repository().get_entry(provider_id) is None:
+        raise NotFoundError(f"Provider template '{provider_id}' was not found.")
+    model_id = payload.model_id.strip()
+    if not model_id:
+        raise AppError("模型 ID 不能为空。")
+    model = enrich_discovered_model(
+        DiscoveredModel(
+            provider_id=provider_id, model_id=model_id,
+            display_name=payload.display_name.strip() or model_id,
+            family_group=payload.family_group.strip(),
+            capability_tags=tuple(payload.capability_tags),
+        ),
+        rules_repository=get_provider_adaptation_rules_repository(),
+    )
+    return DiscoveredModelResponse.from_domain(model)
 
 
 @router.get(

@@ -6,6 +6,13 @@ from pydantic import BaseModel, Field
 from app.domain.llm.discovered_model import DiscoveredModel
 
 
+class ModelMetadataInferenceRequest(BaseModel):
+    model_id: str = Field(min_length=1)
+    display_name: str = ""
+    family_group: str = ""
+    capability_tags: list[str] = Field(default_factory=list)
+
+
 class DiscoveredModelResponse(BaseModel):
     """发现的模型响应：模型 ID、显示名称、所属供应商、族群、功能标签"""
 

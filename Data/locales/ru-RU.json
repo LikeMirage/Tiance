@@ -17,15 +17,13 @@
         "deleting": "Удаление",
         "edit": "Изменить",
         "open": "Открыть",
-        "pin": "Закрепить",
         "refresh": "Обновить",
         "rename": "Переименовать",
         "reset": "Сбросить",
         "retry": "Повторить",
         "save": "Сохранить",
         "saving": "Сохранение",
-        "search": "Поиск",
-        "unpin": "Открепить"
+        "search": "Поиск"
       },
       "status": {
         "loading": "Загрузка",
@@ -49,27 +47,26 @@
       "sections": {
         "overview": "Проекты",
         "tools": "Инструменты",
-        "literature": "Литература",
+        "knowledge": "База знаний",
         "experience": "Опыт",
         "roles": "Роли",
         "models": "Модели",
-        "settings": "Настройки",
         "themes": "Темы",
-        "knowledge": "База знаний"
+        "settings": "Настройки"
       },
       "subitems": {
         "projectCategories": "Категории проектов",
-        "toolsets": "Наборы инструментов",
-        "emptyProjectCategories": "Нет категорий проектов",
-        "saveName": "Сохранить название",
-        "addProjectCategory": "Добавить категорию проекта",
-        "addToolset": "Добавить набор инструментов",
         "roleCategories": "Категории ролей",
         "themeCategories": "Категории тем",
+        "toolsets": "Наборы инструментов",
+        "emptyProjectCategories": "Нет категорий проектов",
         "emptyRoleCategories": "Нет категорий ролей",
         "emptyThemeCategories": "Нет категорий тем",
+        "saveName": "Сохранить название",
+        "addProjectCategory": "Добавить категорию проекта",
         "addRoleCategory": "Добавить категорию ролей",
-        "addThemeCategory": "Добавить категорию тем"
+        "addThemeCategory": "Добавить категорию тем",
+        "addToolset": "Добавить набор инструментов"
       },
       "theme": {
         "fallback": "Тема",
@@ -78,12 +75,12 @@
       "delete": {
         "projectCategoryTitle": "Удалить категорию проекта",
         "projectCategoryMessage": "При удалении «{label}» также удаляются все проекты и их папки в этой категории. Отменить это действие в приложении нельзя.",
-        "toolsetTitle": "Удалить набор инструментов",
-        "toolsetMessage": "После удаления «{label}» папки инструментов в этом наборе также будут удалены.",
         "roleCategoryTitle": "Удалить категорию ролей",
         "roleCategoryMessage": "При удалении «{label}» также удаляются все роли и их папки в этой категории. Отменить это действие в приложении нельзя.",
         "themeCategoryTitle": "Удалить категорию тем",
-        "themeCategoryMessage": "При удалении «{label}» также удаляются все темы и их папки в этой категории. Активную тему нельзя удалить вместе с категорией."
+        "themeCategoryMessage": "При удалении «{label}» также удаляются все темы и их папки в этой категории. Активную тему нельзя удалить вместе с категорией.",
+        "toolsetTitle": "Удалить набор инструментов",
+        "toolsetMessage": "После удаления «{label}» папки инструментов в этом наборе также будут удалены."
       }
     },
     "appFrame": {
@@ -105,7 +102,7 @@
         "panelAria": "Панель производительности и использования",
         "title": "Использование производительности",
         "performanceTab": "Производительность",
-        "usageTab": "Использование",
+        "usageTab": "Токены",
         "loading": "Чтение данных производительности",
         "shellDisconnected": "Настольная оболочка отключена",
         "apiUnavailable": "API производительности не готов",
@@ -121,7 +118,9 @@
         "unavailable": "Недоступно",
         "totalTokens": "Использование токенов",
         "toolCalls": "Вызовы инструментов",
-        "mostUsedTools": "Самые используемые инструменты",
+        "mostUsedTools": "Вызовы · Топ-3 за всё время",
+        "mostUsedModels": "Модели · Топ-3 за всё время",
+        "noModelUsage": "Использования моделей пока нет",
         "noToolUsage": "Вызовов инструментов пока нет",
         "toolCallCount": "Вызовов: {count}",
         "conversationTotal": "Всего диалогов",
@@ -136,7 +135,29 @@
         "clearConversationMessage": "Будет сброшен только отображаемый счётчик. Диалоги не удаляются. Новые диалоги продолжат накапливаться с нуля.",
         "clearConversationConfirm": "Подтвердить сброс",
         "usageOperationInProgress": "Обработка",
-        "usageOperationFailed": "Не удалось выполнить операцию. Повторите попытку"
+        "usageOperationFailed": "Не удалось выполнить операцию. Повторите попытку",
+        "runtimeTab": "Время задач",
+        "toolsTab": "Инструменты",
+        "dailyTokens": "Токены по дням",
+        "dailyRuntime": "Время задач по дням",
+        "dailyTools": "Вызовы инструментов по дням",
+        "selectMonth": "Выбрать месяц",
+        "monthTotal": "За месяц",
+        "retryStatistics": "Повторить",
+        "longestTasks": "Долгие задачи · Топ-3 за всё время",
+        "noTaskUsage": "Нет записей о задачах",
+        "taskIdentifier": "Задача {id}",
+        "toolResults": "Успешно {success} · Ошибок {failure}",
+        "memoryLabel": "Память",
+        "storageLabel": "Хранилище диалогов",
+        "storageScope": "Суммарный размер файлов .Tiance зарегистрированных проектов, включая базы данных, WAL и вложения; без приложения и рабочих документов.",
+        "storageDatabase": "Базы данных",
+        "storageOther": "Другие файлы",
+        "storagePartial": "Некоторые файлы не учтены",
+        "storageFailed": "Размер недоступен",
+        "availableMemory": "Свободно {value}",
+        "systemCpu": "Загрузка CPU системы",
+        "systemMemory": "Использование памяти системы"
       }
     },
     "workspace": {
@@ -146,22 +167,19 @@
         "search": "Поиск настроек",
         "categories": "Категории настроек",
         "noMatches": "Подходящих настроек нет",
-        "appearance": "Внешний вид",
         "usage": "Использование",
-        "themeSettings": "Настройки темы",
         "connection": "Подключение",
+        "language": "Язык",
+        "github": "Вход в GitHub",
         "network": "Сеть",
         "tokenEstimation": "Оценка токенов",
-        "functionalModel": "Функциональные модели",
-        "functionalModelCategories": "Категории функциональных моделей",
+        "functionalModel": "Функциональные роли по умолчанию",
+        "functionalModelCategories": "Категории функциональных ролей по умолчанию",
         "functionalSections": {
-          "defaultConversation": "Модель диалога по умолчанию",
+          "defaultConversation": "Роль диалога по умолчанию",
           "conversationNaming": "Модель именования диалогов",
           "memoryCompression": "Модель управления памятью"
-        },
-        "language": "Язык",
-        "softwareUpdate": "Обновление программы",
-        "github": "Вход в GitHub"
+        }
       },
       "projectsPanel": {
         "fallbackTitle": "Проекты",
@@ -178,13 +196,13 @@
         "createProject": "Добавить проект",
         "searchFiles": "Поиск файлов",
         "searchProjects": "Поиск проектов",
+        "searchThemes": "Поиск тем",
         "projectFiles": "Файлы проекта",
         "emptyProjectFiles": "В этом проекте нет файлов.",
         "rootDirectory": "Корневой каталог проекта",
         "externalFileDropHint": "Отпустите, чтобы скопировать в корень проекта",
         "externalFileImporting": "Копирование внешних файлов…",
         "externalFileClipboardEmpty": "В буфере обмена нет внешних файлов для вставки.",
-        "externalFoldersUnsupported": "Сейчас поддерживаются только внешние файлы, но не папки.",
         "externalFileImportFailed": "Не удалось скопировать внешние файлы.",
         "externalFileImportPartial": "Скопировано файлов: {importedCount}; не удалось: {failedCount}.",
         "externalFilePathsUnavailable": "Оболочка рабочего стола не смогла прочитать локальные пути перетащенных файлов.",
@@ -193,8 +211,7 @@
         "externalProjectFolderImporting": "Импорт внешних папок проектов…",
         "externalProjectFoldersOnly": "Список проектов принимает только внешние папки.",
         "externalProjectFolderPathsUnavailable": "Оболочка рабочего стола не смогла прочитать локальные пути перетащенных папок.",
-        "externalProjectFolderImportFailed": "Не удалось импортировать внешние папки проектов.",
-        "searchThemes": "Поиск тем"
+        "externalProjectFolderImportFailed": "Не удалось импортировать внешние папки проектов."
       }
     },
     "projectList": {
@@ -276,12 +293,9 @@
         "deleting": "Удаление..."
       },
       "create": {
-        "title": "Добавить пользовательского провайдера",
+        "title": "Добавить провайдера",
         "providerName": "Название провайдера",
-        "providerNamePlaceholder": "например, My OpenAI Proxy",
-        "apiBaseUrl": "Полный URL API генерации",
-        "protocol": "Протокол",
-        "auth": "Авторизация"
+        "providerNamePlaceholder": "например, My OpenAI Proxy"
       },
       "protocol": {
         "openaiCompatible": "OpenAI Chat Completions",
@@ -297,11 +311,11 @@
         "backToChat": "Назад к диалогу",
         "actions": "Действия AI-диалога",
         "exportConversation": "Экспорт диалога",
+        "branches": "Панель ветвей",
+        "conversationOverview": "Обзор диалогов",
         "history": "История",
         "settings": "Настройки",
-        "newConversation": "Новый диалог",
-        "branches": "Ветви диалога",
-        "conversationOverview": "Обзор диалогов"
+        "newConversation": "Новый диалог"
       },
       "exportDialog": {
         "title": "Настройки экспорта",
@@ -348,7 +362,6 @@
         "messageCount": "{count} сообщений",
         "noModel": "Модель не привязана",
         "deleting": "Удаление",
-        "pinFailed": "Не удалось изменить закрепление диалога.",
         "runtime": {
           "running": "Выполняется",
           "error": "Ошибка",
@@ -364,16 +377,16 @@
         "aria": "Использование токенов сеанса",
         "title": "Использование",
         "scope": "Область использования",
+        "context": "Контекст",
+        "contextEstimated": "Поставщик не вернул число токенов контекста для этого запроса. Значение рассчитано локальным алгоритмом и приведено только для справки.",
+        "totalEstimated": "В статистику включены локальные оценки для запросов без данных поставщика. Токены и стоимость приведены только для справки.",
         "total": "Всего",
         "input": "Ввод",
         "output": "Вывод",
         "reasoning": "Рассуждение",
         "cacheHit": "Попадание в кэш",
         "cacheMiss": "Промах",
-        "cost": "Стоимость",
-        "context": "Контекст",
-        "contextEstimated": "Поставщик не вернул число токенов контекста для этого запроса. Значение рассчитано локальным алгоритмом и приведено только для справки.",
-        "totalEstimated": "В статистику включены локальные оценки для запросов без данных поставщика. Токены и стоимость приведены только для справки."
+        "cost": "Стоимость"
       },
       "basicSettings": {
         "sessionTitle": "Название сеанса",
@@ -395,7 +408,6 @@
         "returnThinkingContent": "Возвращать содержимое рассуждений из вызовов инструментов",
         "streamingOutput": "Потоковый вывод",
         "autoCollapseProcess": "Автоматически сворачивать процесс ассистента",
-        "injectWorkspaceInfo": "Внедрять информацию рабочей области",
         "injectMessageTimestamps": "Добавлять временные метки сообщений пользователя",
         "systemPrompt": "Системный промпт",
         "selectSystemPromptPreset": "Выбрать шаблон промпта",
@@ -405,18 +417,16 @@
       "memorySettings": {
         "enabled": "Сжатие памяти",
         "contextCompaction": "Сжатие контекста",
-        "recentRawTurns": "Защищенные последние ходы",
-        "recentRawTurnsDescription": "Последние N раундов ответов модели и N запросов пользователя сохраняются без изменений; более старое содержимое объединяется в накопительное резюме.",
-        "units": {
-          "turn": "ходов",
-          "token": "токенов"
-        },
-        "compressionManager": "Менеджер памяти сжатия",
-        "injectionPreview": "Панель предпросмотра инъекции",
+        "rawContextTokenReserve": "Резерв исходного контекста",
+        "rawContextTokenReserveDescription": "Сохраняет не менее N токенов последних полных сообщений без изменений; фактический резерв может быть больше.",
         "contextTokenThreshold": "Цель сжатия",
         "contextTokenThresholdDescription": "Создает диалог сжатия, когда полный контекст достигает N токенов плюс резерв исходного текста. Учитываются системные инструкции, инструменты, рабочая область, долговременная память и сообщения; за один раз сжимается не более N токенов истории.",
-        "rawContextTokenReserve": "Резерв исходного контекста",
-        "rawContextTokenReserveDescription": "Сохраняет не менее N токенов последних полных сообщений без изменений; фактический резерв может быть больше."
+        "units": {
+          "token": "токенов",
+          "turn": "ходов"
+        },
+        "compressionManager": "Менеджер памяти сжатия",
+        "injectionPreview": "Панель предпросмотра инъекции"
       },
       "globalMemorySettings": {
         "memoryReceiving": "Получение долговременной памяти",
@@ -436,6 +446,9 @@
         "search": "Поиск: {scope}",
         "add": "Добавить: {scope}",
         "keywordsPlaceholder": "Ключевые слова, через запятую или пробел",
+        "reasonPlaceholder": "Основание изменения (только явные факты, без догадок о мотивах)",
+        "deleteReasonPlaceholder": "Основание удаления (обязательно)",
+        "reasonUnavailable": "Для исторического события основание не записано",
         "noProject": "Проект не выбран, поэтому долговременную память загрузить нельзя.",
         "loading": "Чтение долговременной памяти.",
         "empty": "Нет данных: {scope}.",
@@ -458,22 +471,13 @@
         "eventSource": "Источник события",
         "noEvents": "Событий нет.",
         "confirmDelete": "Подтвердить удаление",
-        "cancelDelete": "Отменить удаление",
-        "reasonPlaceholder": "Основание изменения (только явные факты, без догадок о мотивах)",
-        "deleteReasonPlaceholder": "Основание удаления (обязательно)",
-        "reasonUnavailable": "Для исторического события основание не записано"
+        "cancelDelete": "Отменить удаление"
       },
       "toolSettings": {
         "loadFailed": "Не удалось загрузить инструменты.",
         "title": "Инструменты диалога",
         "refresh": "Обновить список инструментов",
-        "bulkActions": "Групповые действия",
-        "disableAll": "Отключить все",
-        "enableAll": "Включить все",
         "maxToolCalls": "Максимум вызовов инструментов",
-        "approvalMode": "Режим подтверждения инструментов",
-        "approvalFollowPolicy": "Следовать разрешениям инструмента",
-        "approvalAutoAllowAsk": "Автоматически разрешать запросы",
         "loading": "Загрузка инструментов.",
         "empty": "Нет включенных инструментов.",
         "noDescription": "Нет описания.",
@@ -523,6 +527,68 @@
         "high": "Высокая",
         "max": "Максимум"
       }
+    },
+    "githubSettings": {
+      "loading": "Загрузка подключения GitHub…",
+      "title": "Вход в GitHub",
+      "description": "Подключите GitHub, чтобы онлайн-каталоги могли читать приватные репозитории, разрешённые для Tiance Desktop.",
+      "tabs": {
+        "aria": "Вход в GitHub и руководства",
+        "login": "Вход",
+        "quickStart": "Быстрый старт",
+        "capabilities": "Возможности",
+        "repositorySync": "Репозитории и синхронизация",
+        "faq": "Вопросы"
+      },
+      "connected": "Подключено",
+      "logout": "Выйти",
+      "loggingOut": "Выход…",
+      "profile": "Открыть профиль",
+      "repositories": {
+        "title": "Разрешённые репозитории",
+        "description": "При настройке приватного репозитория используйте открытые репозитории по умолчанию в качестве примера.",
+        "refresh": "Обновить",
+        "manage": "Добавить или удалить репозитории",
+        "private": "Приватный",
+        "public": "Публичный",
+        "empty": "Нет разрешённых репозиториев."
+      },
+      "login": {
+        "title": "Подключить GitHub",
+        "description": "Вход откроется в системном браузере. Tiance запрашивает только чтение явно разрешённых репозиториев.",
+        "codeLabel": "Код устройства",
+        "waiting": "Введите код на GitHub и подтвердите доступ. Эта страница обновится автоматически.",
+        "cancel": "Отмена",
+        "openAgain": "Снова открыть GitHub",
+        "starting": "Подключение…",
+        "action": "Войти в GitHub"
+      }
+    },
+    "onlineMarketSource": {
+      "default": "Источник по умолчанию",
+      "custom": "Другой источник",
+      "privateRepositories": "Приватные репозитории",
+      "loading": "Загрузка репозиториев…",
+      "loadFailed": "Ошибка загрузки. Нажмите, чтобы повторить",
+      "notConnected": "GitHub не подключён.",
+      "empty": "Нет разрешённых приватных репозиториев.",
+      "addPrivateRepository": "Добавить приватный репозиторий"
+    },
+    "languageSettings": {
+      "title": "Язык",
+      "description": "Выберите язык интерфейса Tiance. Языковые пакеты загружаются из Data/locales.",
+      "selection": "Язык интерфейса",
+      "system": "Как в системе",
+      "systemDescription": "Автоматический выбор по языку операционной системы. Сейчас: {language}",
+      "available": "Доступные языки",
+      "selected": "Используется",
+      "select": "Нажмите для выбора",
+      "switching": "Смена языка…",
+      "loading": "Загрузка языковых настроек…",
+      "loadFailed": "Не удалось загрузить языковые настройки.",
+      "saveFailed": "Не удалось изменить языковые настройки.",
+      "empty": "Нет доступных языковых пакетов.",
+      "retry": "Повторить"
     },
     "networkSettings": {
       "title": "Сеть",
@@ -575,8 +641,6 @@
       "algorithmTitle": "Алгоритм оценки",
       "algorithmDescription": "Текст оценивается отдельно для последовательностей ASCII-букв и цифр и для остальных видимых символов, затем добавляются накладные расходы сообщений, определения инструментов и изображения. Токенизаторы моделей различаются, поэтому данные поставщика остаются основными.",
       "loading": "Загрузка настроек оценки токенов...",
-      "save": "Сохранить",
-      "saving": "Сохранение",
       "reset": "Восстановить значения",
       "fields": {
         "asciiCharsPerToken": "Коэффициент ASCII-букв и цифр",
@@ -596,7 +660,6 @@
         "loadingModels": "Загрузка моделей",
         "modelDefault": "По умолчанию модели",
         "reasoningDepth": "Глубина рассуждения",
-        "defaultConversationReasoningDepth": "Глубина рассуждения диалога по умолчанию",
         "maxOutputTokens": "Максимальная длина вывода, включая рассуждение",
         "temperature": "Температура",
         "topP": "Top P",
@@ -612,18 +675,13 @@
         }
       },
       "sections": {
-        "defaultConversation": "Модель диалога по умолчанию",
+        "defaultConversation": "Роль диалога по умолчанию",
         "conversationNaming": "Модель именования диалогов",
         "memoryCompression": "Модель сжатия памяти",
         "projectMemoryManagement": "Модель управления памятью проекта",
         "globalMemoryManagement": "Модель управления глобальной памятью"
       },
       "defaultConversation": {
-        "placeholder": "Использовать текущую модель диалога, если не указано",
-        "emptyModels": "Нет доступных моделей диалога. Сначала включите провайдера и добавьте модель генерации текста в разделе «Модели».",
-        "returnThinkingContent": "Возвращать содержимое рассуждений из вызовов инструментов",
-        "streamingOutput": "Потоковый вывод",
-        "systemPrompt": "Системный промпт Main Agent",
         "role": "Роль",
         "description": "Использовать все настройки этой роли при создании обычного диалога."
       },
@@ -824,7 +882,6 @@
       "loadingAria": "Загрузка обзора проектов",
       "newConversation": "Новый диалог",
       "noCategory": "Выберите категорию проектов.",
-      "pinFailed": "Не удалось изменить закрепление диалога.",
       "projectActions": "Действия с проектами",
       "renameFailed": "Не удалось переименовать диалог.",
       "sectionAria": "Обзор проектов: {category}",
@@ -832,9 +889,26 @@
       "projectCount": "Проектов: {count}",
       "switchCategory": "Переключить категорию проектов",
       "totalsAria": "Сводка статусов диалогов категории",
+      "views": {
+        "branches": "Панель ветвей",
+        "conversation": "Обзор диалогов",
+        "projects": "Обзор проектов",
+        "roles": "Обзор ролей",
+        "themes": "Обзор тем",
+        "tabsAria": "Представления коллекции проектов",
+        "tools": "Обзор инструментов",
+        "toolTabsAria": "Представления коллекции инструментов",
+        "roleTabsAria": "Представления коллекции ролей",
+        "themeTabsAria": "Представления коллекции тем"
+      },
       "card": {
         "branchGroup": "Ветви диалога",
         "childSessionGroup": "Дочерние диалоги ИИ",
+        "functionalSessionGroup": "Функциональные ветви",
+        "automaticNamingGroup": "Автоматическое именование",
+        "memoryCompactionGroup": "Сжатие памяти",
+        "projectMemoryManagementGroup": "Управление памятью проекта",
+        "globalMemoryManagementGroup": "Управление глобальной памятью",
         "collapseSession": "Свернуть диалог «{title}»",
         "createdUnknown": "Время создания неизвестно",
         "createSession": "Новый диалог",
@@ -847,12 +921,7 @@
         "revealInExplorer": "Показать в Проводнике",
         "restore": "Восстановить карточку проекта",
         "saveSessionName": "Сохранить название диалога",
-        "sessionsAria": "Список диалогов",
-        "functionalSessionGroup": "Функциональные ветви",
-        "automaticNamingGroup": "Автоматическое именование",
-        "memoryCompactionGroup": "Сжатие памяти",
-        "projectMemoryManagementGroup": "Управление памятью проекта",
-        "globalMemoryManagementGroup": "Управление глобальной памятью"
+        "sessionsAria": "Список диалогов"
       },
       "usage": {
         "allTotal": "Итого",
@@ -868,33 +937,13 @@
           "reasoning": "Рассуждение",
           "total": "Итого"
         }
-      },
-      "views": {
-        "branches": "Панель ветвей",
-        "conversation": "Обзор диалогов",
-        "projects": "Обзор проектов",
-        "providers": "Настройка поставщика",
-        "roles": "Обзор ролей",
-        "themes": "Обзор тем",
-        "tabsAria": "Представления коллекции проектов",
-        "tools": "Обзор инструментов",
-        "toolTabsAria": "Представления коллекции инструментов",
-        "roleTabsAria": "Представления коллекции ролей",
-        "themeTabsAria": "Представления коллекции тем",
-        "providerTabsAria": "Представления поставщиков моделей"
       }
     },
     "providerCanvas": {
       "disable": "Отключить",
       "enable": "Включить",
-      "providerLinksAria": "Ссылки {provider}",
       "renameProvider": "Переименовать {provider}",
-      "selectCustomProviderProtocol": "Выбрать протокол пользовательского поставщика",
-      "links": {
-        "docs": "Документы",
-        "models": "Модели",
-        "official": "Сайт"
-      },
+      "selectProviderProtocol": "Выбрать протокол поставщика",
       "apiAddress": {
         "placeholder": "Введите полный URL запроса; путь не добавляется",
         "title": "API URL",
@@ -1055,146 +1104,6 @@
           "memoryCompression": "Модель сжатия памяти",
           "providerWebSearch": "Встроенный веб-поиск"
         }
-      },
-      "selectProviderProtocol": "Выбрать протокол поставщика"
-    },
-    "languageSettings": {
-      "title": "Язык",
-      "description": "Выберите язык интерфейса Tiance. Языковые пакеты загружаются из Data/locales.",
-      "selection": "Язык интерфейса",
-      "system": "Как в системе",
-      "systemDescription": "Автоматический выбор по языку операционной системы. Сейчас: {language}",
-      "available": "Доступные языки",
-      "selected": "Используется",
-      "select": "Нажмите для выбора",
-      "switching": "Смена языка…",
-      "loading": "Загрузка языковых настроек…",
-      "saveFailed": "Не удалось изменить языковые настройки.",
-      "retry": "Повторить",
-      "loadFailed": "Не удалось загрузить языковые настройки.",
-      "empty": "Нет доступных языковых пакетов."
-    },
-    "githubSettings": {
-      "loading": "Загрузка подключения GitHub…",
-      "title": "Вход в GitHub",
-      "description": "Подключите GitHub для просмотра разрешённых приватных каталогов и синхронизации локальных коллекций.",
-      "tabs": {
-        "aria": "Вход в GitHub и руководства",
-        "login": "Вход",
-        "quickStart": "Быстрый старт",
-        "capabilities": "Возможности",
-        "repositorySync": "Репозитории и синхронизация",
-        "faq": "Вопросы"
-      },
-      "connected": "Подключено",
-      "logout": "Выйти",
-      "loggingOut": "Выход…",
-      "profile": "Открыть профиль",
-      "repositories": {
-        "title": "Разрешённые репозитории",
-        "description": "Здесь показаны разрешённые GitHub App репозитории и доступ на запись.",
-        "refresh": "Обновить",
-        "refreshing": "Обновление…",
-        "refreshed": "Обновлено",
-        "manage": "Добавить или удалить репозитории",
-        "private": "Приватный",
-        "public": "Публичный",
-        "readWrite": "Чтение и запись",
-        "readOnly": "Только чтение",
-        "empty": "Нет разрешённых репозиториев."
-      },
-      "login": {
-        "title": "Подключить GitHub",
-        "description": "Вход откроется в системном браузере. Tiance обращается только к явно разрешённым репозиториям в пределах прав GitHub App.",
-        "codeLabel": "Код устройства",
-        "waiting": "Введите код на GitHub и подтвердите доступ. Эта страница обновится автоматически.",
-        "cancel": "Отмена",
-        "openAgain": "Снова открыть GitHub",
-        "starting": "Подключение…",
-        "action": "Войти в GitHub"
-      }
-    },
-    "onlineMarketSource": {
-      "default": "Источник по умолчанию",
-      "custom": "Другой источник",
-      "privateRepositories": "Приватные магазины (требуется index.json)",
-      "loading": "Загрузка репозиториев…",
-      "loadFailed": "Ошибка загрузки. Нажмите, чтобы повторить",
-      "notConnected": "GitHub не подключён.",
-      "empty": "Нет разрешённых приватных репозиториев.",
-      "addPrivateRepository": "Добавить приватный репозиторий"
-    },
-    "softwareUpdate": {
-      "title": "Обновление программы",
-      "description": "Проверка и установка официальных выпусков Tiance без перезаписи локальных проектов, диалогов, секретов, инструментов, тем и поставщиков.",
-      "check": "Проверить обновления",
-      "checking": "Проверка…",
-      "current": "Текущая версия",
-      "latest": "Последняя версия",
-      "size": "Размер загрузки",
-      "available": "Доступна новая версия",
-      "upToDate": "Установлена последняя версия",
-      "upToDateDescription": "Обновление не требуется.",
-      "sourceTitle": "Обнаружена рабочая копия исходников",
-      "sourceDescription": "Используйте Git, чтобы не перезаписать незакоммиченные изменения.",
-      "notes": "Описание выпуска",
-      "install": "Скачать, перезапустить и установить",
-      "downloading": "Загрузка и проверка…",
-        "installing": "Закрытие и установка…",
-        "autoCheck": {
-          "title": "Проверять обновления при запуске",
-          "description": "Включено по умолчанию. При наличии новой версии появится уведомление; ручная проверка останется доступной."
-        },
-        "prompt": {
-          "title": "Доступна новая версия",
-          "update": "Обновить",
-          "noNotes": "Для этой версии нет описания изменений."
-        }
-    },
-    "githubSync": {
-      "title": "Синхронизация GitHub",
-      "trigger": "Синхр.",
-      "bound": "Репозиторий привязан",
-      "loading": "Загрузка состояния синхронизации…",
-      "working": "Проверка локальных и удалённых изменений…",
-      "loginRequired": "Войдите в GitHub и предоставьте Tiance Desktop доступ к репозиторию.",
-      "openSettings": "Открыть вход GitHub",
-      "repository": "Репозиторий",
-      "selectRepository": "Выберите разрешённый репозиторий",
-      "noRepositories": "Нет доступных репозиториев. Добавьте их в настройках авторизации GitHub.",
-      "branch": "Ветка",
-      "remotePath": "Путь в репозитории",
-      "remotePathPlaceholder": "Оставьте пустым для корня репозитория",
-      "saveBinding": "Сохранить привязку",
-      "changeBinding": "Изменить привязку",
-      "unbind": "Отвязать",
-      "planFirst": "Перед загрузкой или отправкой всегда показывается полный список изменений.",
-      "previewPull": "Проверить загрузку",
-      "previewPush": "Проверить отправку",
-      "pushPlan": "Изменения для отправки",
-      "pullPlan": "Изменения для загрузки",
-      "noChanges": "Локальные и удалённые файлы совпадают.",
-      "commitMessage": "Сообщение коммита",
-      "commitMessagePlaceholder": "Синхронизация данных Tiance",
-      "back": "Назад",
-      "confirmPush": "Отправить",
-      "confirmPull": "Загрузить",
-      "readOnly": "только чтение",
-      "readOnlyWarning": "Текущее разрешение позволяет читать, но не отправлять изменения.",
-      "results": {
-        "bindingSaved": "Привязка репозитория сохранена.",
-        "bindingRemoved": "Привязка репозитория удалена.",
-        "pushComplete": "Изменения отправлены в GitHub.",
-        "pullComplete": "Изменения загружены на это устройство."
-      },
-      "collections": {
-        "project": "Проекты",
-        "knowledge": "Знания",
-        "experience": "Опыт",
-        "role": "Роли",
-        "theme": "Темы",
-        "tool": "Инструменты",
-        "provider": "Провайдеры"
       }
     }
   }

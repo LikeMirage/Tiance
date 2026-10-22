@@ -110,6 +110,7 @@ class ConversationStreamSettlement:
             completed_usage,
         )
         await self.record_ai_run_elapsed(
+            request,
             user_message,
             assistant_message,
             run_started_at=run_started_at,
@@ -161,6 +162,7 @@ class ConversationStreamSettlement:
             attempt_count=attempt_count,
         )
         await self.record_ai_run_elapsed(
+            request,
             user_message,
             assistant_message,
             run_started_at=run_started_at,
@@ -177,6 +179,7 @@ class ConversationStreamSettlement:
 
     async def record_ai_run_elapsed(
         self,
+        request: ChatCompletionRequest,
         user_message: ProjectConversationMessage | None,
         assistant_message: ProjectConversationMessage | None,
         *,
@@ -189,6 +192,7 @@ class ConversationStreamSettlement:
         )
         await asyncio.to_thread(
             self._persistence.record_ai_run_elapsed,
+            request,
             user_message,
             assistant_message,
             elapsed_ms=elapsed_ms,

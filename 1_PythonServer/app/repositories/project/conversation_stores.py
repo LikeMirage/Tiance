@@ -36,9 +36,11 @@ from app.repositories.project.conversation_database import (
     find_message_ordinal,
     list_message_payloads,
     list_message_payloads_range,
+    read_latest_message_payload,
     read_message_turn_payloads,
     read_conversation_list_snapshot,
     read_meta,
+    read_next_session_sequence_number,
     read_session,
     read_session_state_payloads,
     read_sessions,
@@ -217,11 +219,7 @@ class ConversationSessionStore:
         return index
 
     def next_sequence_number(self, conversations_dir: Path) -> int:
-        sessions = self.read_sessions_from_conversations_dir(conversations_dir)
-        return max(
-            (session.sequence_number for session in sessions.values()),
-            default=0,
-        ) + 1
+        return read_next_session_sequence_number(conversations_dir)
 
     def read_session_state(
         self,
@@ -316,6 +314,10 @@ class ConversationMessageStore:
             _message_from_payload(payload)
             for payload in list_message_payloads(session_dir)
         )
+
+    def get_latest_message(self, session_dir: Path) -> ProjectConversationMessage | None:
+        payload = read_latest_message_payload(session_dir)
+        return _message_from_payload(payload) if payload is not None else None
 
     def list_messages_page(
         self,

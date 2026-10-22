@@ -7,7 +7,9 @@ from app.domain.llm.chat import (
     ChatProtocolContinuationKind,
 )
 from app.domain.llm.provider_catalog import ProviderProtocolFamily
+from app.domain.llm.reasoning_replay import ReasoningReplayMode
 from app.infra.llm.chat_adapters.continuation import matching_continuation_items
+from app.infra.llm.chat_adapters.reasoning_replay import should_replay_reasoning
 from app.domain.llm.generation_params import LlmReasoningMode
 from app.infra.llm.chat_adapters.openai_responses_parsing import (
     _responses_continuation_item,
@@ -54,7 +56,7 @@ def _build_responses_body(
     ]
     if tools:
         body["tools"] = tools
-    if request.tools:
+    if request.tools or request.reasoning_replay_mode == ReasoningReplayMode.ALWAYS:
         body["include"] = ["reasoning.encrypted_content"]
     return body
 
@@ -111,10 +113,11 @@ def _message_to_responses_payload(
             ProviderProtocolFamily.OPENAI_RESPONSES,
             ChatProtocolContinuationKind.OPENAI_RESPONSES_OUTPUT,
         )
+        if should_replay_reasoning(message, request.reasoning_replay_mode)
         if (continuation_item := _responses_continuation_item(item)) is not None
     ]
     content = _message_content_to_openai_responses_payload(message)
-    if content or not message.tool_calls:
+    if content or message.role != ChatMessageRole.ASSISTANT:
         message_item: dict[str, object] = {
             "role": message.role.value,
             "content": content,
