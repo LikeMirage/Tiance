@@ -86,7 +86,16 @@ git diff --check
 
 后端、桌面壳或工具发生变化时，还应运行对应测试。测试范围按本次改动决定，不能只因为前端构建成功就认为整个版本已经验证。
 
-访问网关源码发生变化时，发布提交前运行 `scripts/build-remote-gateway.ps1`，并将生成的 `runtime/gateway/TianceRemoteGateway.exe` 纳入发布提交。发布脚本会检查标签中是否存在该程序，缺失时直接停止。
+访问网关源码或构建配置发生变化时，提交前运行 `scripts/build-remote-gateway.ps1`，并将生成的 `runtime/gateway/TianceRemoteGateway.exe` 和 `runtime/gateway/build-manifest.json` 与源码一起提交。构建先在临时目录完成，编译失败不会删除现有网关。如果 EXE 被正在运行的天策占用，脚本会将运行中的文件保留到 `.codex_tmp/gateway-running`，再安装新文件，不终止进程；重启天策后才使用新文件。若系统连重命名也不允许，脚本停止，需正常退出天策再构建。
+
+清单记录网关输入文件列表、每个文件的 SHA-256、EXE 的大小与 SHA-256，以及 SDK 和运行平台。源码摘要统一 CRLF/LF，排除 `bin/obj` 编译缓存。正式包和测试包都验证选定 Git 快照中的清单，源码增删改、构建脚本变化、EXE 被旧版覆盖或漏提交清单都会停止打包。校验不读取工作区中其他尚未提交的版本，也不为旧清单提供放行路径。
+
+提交前可独立检查，不需要再次编译：
+
+```powershell
+. ./scripts/gateway-build-integrity.ps1
+Assert-GatewayBuild -Root (Get-Location).Path
+```
 
 登录接口按实际连接来源 IP 限制每分钟最多 5 次（成功、失败均计入），并且全局最多同时执行 2 次登录验证，不排队。超限返回 HTTP 429、明确错误消息和 `Retry-After`。转发头不作为限流身份；反向代理后的请求会按代理连接地址合并计数。状态查询和普通会话请求不受登录限流影响。
 

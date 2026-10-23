@@ -1,12 +1,14 @@
 import { env } from "../../shared/config/env";
 import { fetchJson } from "../http/httpClient";
 import { notifyGatewayAuthenticationRequired } from "./gatewayAuthenticationEvents";
+import { configureGatewaySession, type GatewaySessionKind } from "./gatewaySessionLifecycle";
 
 export type GatewaySecurityStatus = {
   password_configured: boolean;
   local_bypass_enabled: boolean;
   local_bypass_active: boolean;
   authenticated: boolean;
+  session_kind: GatewaySessionKind;
   https_enabled: boolean;
   https_port: number;
   certificate_path: string;
@@ -30,31 +32,39 @@ export async function logoutGateway() {
   return result;
 }
 
-export function updateGatewayPassword(currentPassword: string | null, newPassword: string) {
-  return fetchJson<{ password_configured: true }>("/gateway/security/password", {
+export async function updateGatewayPassword(currentPassword: string | null, newPassword: string) {
+  const result = await fetchJson<{ password_configured: true }>("/gateway/security/password", {
     body: JSON.stringify({ currentPassword, newPassword }),
     method: "PUT",
   });
+  await configureGatewaySession((await getGatewaySecurityStatus()).session_kind);
+  return result;
 }
 
-export function removeGatewayPassword(currentPassword: string) {
-  return fetchJson<{ password_configured: false }>("/gateway/security/password", {
+export async function removeGatewayPassword(currentPassword: string) {
+  const result = await fetchJson<{ password_configured: false }>("/gateway/security/password", {
     body: JSON.stringify({ currentPassword }),
     method: "DELETE",
   });
+  await configureGatewaySession("none");
+  return result;
 }
 
-export function saveGatewaySecuritySettings(settings: {
+export async function saveGatewaySecuritySettings(settings: {
   localBypassEnabled: boolean;
   httpsEnabled: boolean;
   httpsPort: number;
   certificatePath: string;
   certificatePassword: string | null;
 }) {
-  return fetchJson<{ restart_required: boolean }>("/gateway/security/settings", {
+  const result = await fetchJson<{ restart_required: boolean }>("/gateway/security/settings", {
     body: JSON.stringify(settings),
     method: "PUT",
   });
+  const status = await getGatewaySecurityStatus();
+  await configureGatewaySession(status.session_kind);
+  if (!status.authenticated) notifyGatewayAuthenticationRequired();
+  return result;
 }
 
 export async function revokeGatewaySessions() {

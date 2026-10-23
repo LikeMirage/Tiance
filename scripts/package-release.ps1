@@ -7,6 +7,7 @@
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "package-providers.ps1")
+. (Join-Path $PSScriptRoot "gateway-build-integrity.ps1")
 $root = (Get-Location).Path
 $output = Join-Path $root $OutputDirectory
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ("tiance-release-" + [guid]::NewGuid().ToString("N"))
@@ -89,10 +90,7 @@ try {
     if ($versionPayload.version -ne $Version) {
         throw "标签版本号 $($versionPayload.version) 与发布版本 $Version 不一致。"
     }
-    $gatewayExecutable = Join-Path $currentTree "runtime/gateway/TianceRemoteGateway.exe"
-    if (-not (Test-Path -LiteralPath $gatewayExecutable -PathType Leaf)) {
-        throw "发布标签缺少访问网关：runtime/gateway/TianceRemoteGateway.exe。请先构建并提交网关程序。"
-    }
+    Assert-GatewayBuild -Root $currentTree
 
     # 完整安装包包含公开预置数据；两个在线更新包始终不包含 Data。
     $fullInstall = Join-Path $output "Tiance.zip"

@@ -25,6 +25,7 @@ from app.backend_runtime_record import (
 )
 from app.config import PROJECT_ROOT, ShellSettings
 from app.port_probe import is_port_open
+from app.process_security import GATEWAY_TOKEN_ENV, GATEWAY_TOKEN_HEADER, ProcessSecurity
 from app.startup_timing import mark, timed_stage
 
 
@@ -44,8 +45,9 @@ EXIT_PREPARATION_POLL_SECONDS = 0.1
 
 
 class BackendProcessManager:
-    def __init__(self, settings: ShellSettings) -> None:
+    def __init__(self, settings: ShellSettings, security: ProcessSecurity | None = None) -> None:
         self._settings = settings
+        self._security = security or ProcessSecurity()
         self._process: subprocess.Popen[bytes] | None = None
         self._started_by_shell = False
         self._lease_server = ShellLeaseServer()
@@ -109,6 +111,7 @@ class BackendProcessManager:
             lease = self._lease_server.start()
             self._lease = lease
             env = _build_backend_environment(self._settings, lease)
+            env[GATEWAY_TOKEN_ENV] = self._security.backend_token
 
             creationflags = 0
             if os.name == "nt":
@@ -191,7 +194,8 @@ class BackendProcessManager:
         request = Request(
             f"{self._settings.backend_url.rstrip('/')}/api/desktop/exit-preparation",
             data=b"", method=method,
-            headers={LEASE_INSTANCE_HEADER: lease.instance_id, LEASE_TOKEN_HEADER: lease.token},
+            headers={LEASE_INSTANCE_HEADER: lease.instance_id, LEASE_TOKEN_HEADER: lease.token,
+                     GATEWAY_TOKEN_HEADER: self._security.backend_token},
         )
         with build_opener(ProxyHandler({})).open(
             request, timeout=EXIT_PREPARATION_REQUEST_TIMEOUT_SECONDS,

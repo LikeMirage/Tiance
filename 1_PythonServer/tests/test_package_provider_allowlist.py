@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -29,7 +30,8 @@ def package_repo(tmp_path):
     repo.mkdir()
     _run(repo, "git", "init", "-q")
     _write(repo, ".gitattributes", (ROOT / ".gitattributes").read_text(encoding="utf-8-sig"))
-    for name in ("package-release.ps1", "package-test.ps1", "package-providers.ps1"):
+    for name in ("package-release.ps1", "package-test.ps1", "package-providers.ps1",
+                 "build-remote-gateway.ps1", "gateway-build-integrity.ps1"):
         target = repo / "scripts" / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / "scripts" / name, target)
@@ -47,12 +49,81 @@ def package_repo(tmp_path):
         "schemaVersion": 1, "providerOrder": ["private", "public"], "providerPresetCatalogVersion": 2,
     }))
     _write(repo, "Data/providers/catalog.json", '{"private":"local index"}')
+    _write(repo, "3_PyWebView/gateway/windows/TianceRemoteGateway/TianceRemoteGateway.csproj", "<Project />")
+    _write(repo, "3_PyWebView/gateway/windows/TianceRemoteGateway/Program.cs", "// fixture\n")
+    _write_gateway_receipt(repo)
     _commit(repo)
     _run(repo, "git", "tag", "v0.1.0")
     _write(repo, "system/version.json", '{"version":"0.2.0"}')
     _commit(repo)
     _run(repo, "git", "tag", "v0.2.0")
     return repo
+
+
+def _write_gateway_receipt(repo):
+    paths = [*sorted((repo / "3_PyWebView/gateway/windows/TianceRemoteGateway").glob("*")),
+             repo / "scripts/build-remote-gateway.ps1", repo / "scripts/gateway-build-integrity.ps1"]
+    executable = (repo / "runtime/gateway/TianceRemoteGateway.exe").read_bytes()
+    _write(repo, "runtime/gateway/build-manifest.json", json.dumps({
+        "schemaVersion": 1, "runtimeIdentifier": "win-x64", "sdkVersion": "fixture",
+        "sources": [{"path": p.relative_to(repo).as_posix(),
+                     "sha256": hashlib.sha256(p.read_text(encoding="utf-8-sig").encode()).hexdigest()} for p in paths],
+        "artifact": {"path": "runtime/gateway/TianceRemoteGateway.exe", "size": len(executable),
+                     "sha256": hashlib.sha256(executable).hexdigest()},
+    }))
+
+
+@pytest.mark.parametrize("change", ["source", "new_source", "binary", "missing_receipt", "missing_source", "build_script"])
+@pytest.mark.parametrize("script", ["package-test.ps1", "package-release.ps1"])
+def test_mismatched_gateway_stops_packaging(package_repo, change, script):
+    repo = package_repo
+    if change == "source":
+        _write(repo, "3_PyWebView/gateway/windows/TianceRemoteGateway/Program.cs", "// changed")
+    elif change == "new_source":
+        _write(repo, "3_PyWebView/gateway/windows/TianceRemoteGateway/New.cs", "// new")
+    elif change == "binary":
+        _write(repo, "runtime/gateway/TianceRemoteGateway.exe", "old-exe")
+    elif change == "missing_receipt":
+        (repo / "runtime/gateway/build-manifest.json").unlink()
+    elif change == "missing_source":
+        (repo / "3_PyWebView/gateway/windows/TianceRemoteGateway/Program.cs").unlink()
+    else:
+        with (repo / "scripts/build-remote-gateway.ps1").open("a") as f:
+            f.write("\n# changed build flags\n")
+    _commit(repo)
+    args = ("-Version", "0.2.0", "-Tag", "HEAD", "-PreviousTag", "v0.1.0") if script == "package-release.ps1" else ()
+    result = _package(repo, script, *args, "-OutputDirectory", "rejected", check=False)
+    assert result.returncode != 0
+    assert "Gateway" in result.stdout + result.stderr
+    assert not (repo / "rejected/Tiance.zip").exists()
+    assert not (repo / "rejected/Tiance").exists()
+
+
+def test_gateway_check_uses_selected_snapshot_and_normalizes_line_endings(package_repo):
+    repo = package_repo
+    source = repo / "3_PyWebView/gateway/windows/TianceRemoteGateway/Program.cs"
+    source.write_bytes(source.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+    _write(repo, "scripts/verify-fixture.ps1", '$ErrorActionPreference = "Stop"\n'
+           '. (Join-Path $PSScriptRoot "gateway-build-integrity.ps1")\n'
+           'Assert-GatewayBuild -Root (Split-Path -Parent $PSScriptRoot)\n')
+    _package(repo, "verify-fixture.ps1")
+    # Later workspace changes must not contaminate validation of committed inputs.
+    source.write_text("// uncommitted change", encoding="utf-8")
+    _package(repo, "package-test.ps1", "-OutputDirectory", "verified")
+    assert (repo / "verified/Tiance/runtime/gateway/build-manifest.json").is_file()
+    assert not (repo / "verified/Tiance/scripts").exists()
+
+
+def test_failed_gateway_build_preserves_previous_runtime(package_repo):
+    repo = package_repo
+    previous_exe = (repo / "runtime/gateway/TianceRemoteGateway.exe").read_bytes()
+    previous_receipt = (repo / "runtime/gateway/build-manifest.json").read_bytes()
+    _write(repo, "fake-dotnet.ps1", 'if ($args[0] -eq "--version") { Write-Output "8.0.fake"; exit 0 }; exit 1')
+    result = _package(repo, "build-remote-gateway.ps1", "-DotnetPath", str(repo / "fake-dotnet.ps1"), check=False)
+    assert result.returncode != 0
+    assert "publish failed" in result.stdout + result.stderr
+    assert (repo / "runtime/gateway/TianceRemoteGateway.exe").read_bytes() == previous_exe
+    assert (repo / "runtime/gateway/build-manifest.json").read_bytes() == previous_receipt
 
 
 def _commit(repo):

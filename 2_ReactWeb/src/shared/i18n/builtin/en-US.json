@@ -938,7 +938,7 @@
         "copy": "Copy",
         "noAuthentication": "Access authentication is not configured. Any device that can connect to these addresses can use Tiance.",
         "securityTitle": "Connection security",
-        "localBypass": "Do not require a password on this computer",
+        "localBypass": "Do not require a password in the desktop app",
         "enableHttps": "Enable HTTPS for external access",
         "httpsPort": "HTTPS port",
         "certificatePath": "PFX certificate path",
@@ -968,8 +968,8 @@
       "passwordRemoved": "The access password has been removed.",
       "sessions": "Signed-in sessions",
       "sessionsDescription": "After revocation, other browsers must enter the access password again.",
-      "revokeSessions": "Revoke all sessions",
-      "sessionsRevoked": "All signed-in sessions were revoked.",
+      "revokeSessions": "Sign out all browsers",
+      "sessionsRevoked": "All browser sessions were revoked.",
       "operationFailed": "The operation failed."
     },
     "tokenEstimationSettings": {

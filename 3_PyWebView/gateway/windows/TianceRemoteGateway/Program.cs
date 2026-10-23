@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Yarp.ReverseProxy.Configuration;
+using Yarp.ReverseProxy.Transforms;
 
 namespace Tiance.RemoteGateway;
 
@@ -15,8 +16,10 @@ internal static class Program
     public static void Main(string[] args)
     {
         var options = GatewayOptions.FromEnvironment();
+        var bootstrap = GatewayBootstrap.Read();
         var settingsStore = new GatewaySettingsStore(options.DataRoot);
         var sessions = new SessionStore();
+        var security = new GatewaySecurity(options, settingsStore, sessions, bootstrap);
         var initialSettings = settingsStore.Read();
 
         var builder = WebApplication.CreateBuilder(args);
@@ -41,7 +44,14 @@ internal static class Program
         builder.Services.AddSingleton(settingsStore);
         builder.Services.AddSingleton(sessions);
         builder.Services.AddRateLimiter(LoginRateLimiting.Configure);
-        builder.Services.AddReverseProxy().LoadFromMemory(
+        builder.Services.AddReverseProxy().AddTransforms(transforms => transforms.AddRequestTransform(context =>
+        {
+            context.ProxyRequest.Headers.Remove(GatewayBootstrap.InternalHeader);
+            context.ProxyRequest.Headers.TryAddWithoutValidation(GatewayBootstrap.InternalHeader, bootstrap.BackendToken);
+            // Browser and desktop credentials belong to the gateway, never the Python backend.
+            context.ProxyRequest.Headers.Remove("Cookie");
+            return ValueTask.CompletedTask;
+        })).LoadFromMemory(
             new[] { new RouteConfig { RouteId = "backend", ClusterId = "backend", Match = new RouteMatch { Path = "{**catch-all}" } } },
             new[] { new ClusterConfig { ClusterId = "backend", Destinations = new Dictionary<string, DestinationConfig> { ["backend"] = new() { Address = options.BackendUrl } } } });
 
@@ -50,43 +60,27 @@ internal static class Program
         app.UseCors();
         app.UseRateLimiter();
         app.UseWebSockets();
-        app.Use(async (context, next) =>
-        {
-            if (IsGatewayEndpoint(context.Request.Path) || IsPublicAppAsset(context.Request.Path))
-            {
-                await next();
-                return;
-            }
-            var settings = settingsStore.Read();
-            if (!settings.HasPassword || (settings.LocalBypassEnabled && IsLoopback(context.Connection.RemoteIpAddress)))
-            {
-                await next();
-                return;
-            }
-            if (sessions.IsValid(context.Request.Cookies[SessionStore.CookieName]))
-            {
-                await next();
-                return;
-            }
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsJsonAsync(new { error = new { code = "AUTHENTICATION_REQUIRED", message = "需要输入访问密码。" } });
-        });
+        app.Use(security.Invoke);
+        using var sessionSweep = new Timer(_ => sessions.Sweep(), null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
+        app.Lifetime.ApplicationStopping.Register(sessions.Clear);
 
-        app.MapGet("/gateway/health", () => Results.Ok(new { ok = true }));
+        app.MapGet("/gateway/health", () => Results.Ok(new { ok = true, security_protocol = 2 }));
         app.MapGet("/gateway/security/status", (HttpContext context) =>
         {
             var settings = settingsStore.Read();
-            var localBypass = settings.LocalBypassEnabled && IsLoopback(context.Connection.RemoteIpAddress);
-            var authenticated = !settings.HasPassword || localBypass || sessions.IsValid(context.Request.Cookies[SessionStore.CookieName]);
+            var session = security.Session(context);
+            var localBypass = session?.IsDesktop == true;
+            var authenticated = !settings.HasPassword || session is not null;
             return Results.Ok(new
             {
                 password_configured = settings.HasPassword,
                 local_bypass_enabled = settings.LocalBypassEnabled,
                 local_bypass_active = localBypass,
                 authenticated,
+                session_kind = !settings.HasPassword ? "none" : localBypass ? "desktop" : session is not null ? "browser" : "none",
                 https_enabled = settings.HttpsEnabled,
                 https_port = settings.HttpsPort,
-                certificate_path = settings.CertificatePath,
+                certificate_path = authenticated ? settings.CertificatePath : "",
                 restart_required = RequiresRestart(initialSettings, settings),
             });
         });
@@ -107,9 +101,9 @@ internal static class Program
         app.MapPut("/gateway/security/password", async (HttpContext context, [FromBody] PasswordUpdateRequest request) =>
         {
             var current = settingsStore.Read();
-            if (!current.HasPassword && !IsLoopback(context.Connection.RemoteIpAddress))
-                return Results.Json(new { error = new { code = "LOCAL_SETUP_REQUIRED", message = "首次设置访问密码必须在运行天策的电脑上完成。" } }, statusCode: 403);
-            if (current.HasPassword && !IsAuthorized(context, current, sessions))
+            if (!current.HasPassword && !security.IsDesktop(context))
+                return Results.Json(new { error = new { code = "LOCAL_SETUP_REQUIRED", message = "首次设置访问密码必须在天策桌面客户端中完成。" } }, statusCode: 403);
+            if (current.HasPassword && !security.Authorized(context))
                 return Results.Unauthorized();
             if (current.HasPassword && !await PasswordService.VerifyAsync(request.CurrentPassword ?? "", current))
                 return Results.Json(new { error = new { code = "INVALID_CURRENT_PASSWORD", message = "当前密码错误。" } }, statusCode: 400);
@@ -123,7 +117,7 @@ internal static class Program
         {
             var current = settingsStore.Read();
             if (!current.HasPassword) return Results.Ok(new { password_configured = false });
-            if (!IsAuthorized(context, current, sessions)) return Results.Unauthorized();
+            if (!security.Authorized(context)) return Results.Unauthorized();
             if (!await PasswordService.VerifyAsync(request.CurrentPassword, current))
                 return Results.Json(new { error = new { code = "INVALID_CURRENT_PASSWORD", message = "当前密码错误。" } }, statusCode: 400);
             settingsStore.Update(value => value with { PasswordHash = null, PasswordSalt = null });
@@ -134,8 +128,8 @@ internal static class Program
         app.MapPut("/gateway/security/settings", (HttpContext context, [FromBody] SecuritySettingsRequest request) =>
         {
             var current = settingsStore.Read();
-            if (!current.HasPassword && !IsLoopback(context.Connection.RemoteIpAddress)) return Results.Unauthorized();
-            if (current.HasPassword && !IsAuthorized(context, current, sessions)) return Results.Unauthorized();
+            if (!current.HasPassword && !security.IsDesktop(context)) return Results.Unauthorized();
+            if (current.HasPassword && !security.Authorized(context)) return Results.Unauthorized();
             if (request.HttpsPort is < 1 or > 65535)
                 return Results.BadRequest(new { error = new { code = "INVALID_HTTPS_PORT", message = "HTTPS 端口必须在 1 到 65535 之间。" } });
             if (request.HttpsEnabled)
@@ -161,32 +155,38 @@ internal static class Program
                     ? value.ProtectedCertificatePassword
                     : GatewaySettingsStore.ProtectSecret(request.CertificatePassword),
             });
+            if (current.LocalBypassEnabled != updated.LocalBypassEnabled) sessions.ResetDesktopConnections();
             return Results.Ok(new { restart_required = RequiresRestart(initialSettings, updated) });
         });
         app.MapPost("/gateway/security/sessions/revoke", (HttpContext context) =>
         {
             var current = settingsStore.Read();
-            if (current.HasPassword && !IsAuthorized(context, current, sessions)) return Results.Unauthorized();
+            if (current.HasPassword && !security.Authorized(context)) return Results.Unauthorized();
             sessions.Clear();
             return Results.Ok(new { revoked = true });
+        });
+        app.MapPost("/gateway/security/session", async (HttpContext context, [FromBody] SessionPresenceRequest request) =>
+        {
+            if (!settingsStore.Read().HasPassword || security.Session(context)?.IsDesktop == true)
+            { await context.Response.WriteAsJsonAsync(new { authenticated = true }); return; }
+            if (!sessions.Touch(context.Request.Cookies[SessionStore.CookieName], request.PageId, request.Activity))
+            { await GatewaySecurity.Unauthorized(context); return; }
+            await context.Response.WriteAsJsonAsync(new { authenticated = true });
+        });
+        app.MapPost("/gateway/security/session/leave", (HttpContext context, [FromBody] SessionPresenceRequest request) =>
+        {
+            sessions.Leave(context.Request.Cookies[SessionStore.CookieName], request.PageId);
+            return Results.NoContent();
         });
         app.MapReverseProxy();
         app.Run();
     }
 
-    private static bool IsAuthorized(HttpContext context, GatewaySettings settings, SessionStore sessions) =>
-        !settings.HasPassword
-        || (settings.LocalBypassEnabled && IsLoopback(context.Connection.RemoteIpAddress))
-        || sessions.IsValid(context.Request.Cookies[SessionStore.CookieName]);
-
-    private static bool IsLoopback(IPAddress? address) => address is not null && IPAddress.IsLoopback(address);
     private static bool RequiresRestart(GatewaySettings running, GatewaySettings configured) =>
         running.HttpsEnabled != configured.HttpsEnabled
         || running.HttpsPort != configured.HttpsPort
         || !string.Equals(running.CertificatePath, configured.CertificatePath, StringComparison.OrdinalIgnoreCase)
         || !string.Equals(running.ProtectedCertificatePassword, configured.ProtectedCertificatePassword, StringComparison.Ordinal);
-    private static bool IsGatewayEndpoint(PathString path) => path.StartsWithSegments("/gateway");
-    private static bool IsPublicAppAsset(PathString path) => path.StartsWithSegments("/app");
 
     private static void AppendSessionCookie(HttpContext context, string token, bool secure) =>
         context.Response.Cookies.Append(SessionStore.CookieName, token, new CookieOptions
@@ -220,6 +220,7 @@ internal static class Program
 }
 
 internal sealed record LoginRequest(string Password);
+internal sealed record SessionPresenceRequest(string PageId, bool Activity = false);
 internal sealed record PasswordUpdateRequest(string? CurrentPassword, string NewPassword);
 internal sealed record PasswordRemoveRequest(string CurrentPassword);
 internal sealed record SecuritySettingsRequest(bool LocalBypassEnabled, bool HttpsEnabled, int HttpsPort, string CertificatePath, string? CertificatePassword);

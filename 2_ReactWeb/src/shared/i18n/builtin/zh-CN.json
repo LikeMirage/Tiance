@@ -938,7 +938,7 @@
         "copy": "复制",
         "noAuthentication": "当前没有访问身份验证。启用后，能够连接这些地址的设备都可以使用天策。",
         "securityTitle": "连接安全",
-        "localBypass": "本机访问免输密码",
+        "localBypass": "桌面客户端免输密码",
         "enableHttps": "为外部访问启用 HTTPS",
         "httpsPort": "HTTPS 端口",
         "certificatePath": "PFX 证书路径",
@@ -968,8 +968,8 @@
       "passwordRemoved": "访问密码已移除。",
       "sessions": "已登录会话",
       "sessionsDescription": "撤销后，其他浏览器需要重新输入访问密码。",
-      "revokeSessions": "撤销全部会话",
-      "sessionsRevoked": "已撤销全部登录会话。",
+      "revokeSessions": "退出所有浏览器登录",
+      "sessionsRevoked": "已退出所有浏览器登录。",
       "operationFailed": "操作失败。"
     },
     "tokenEstimationSettings": {

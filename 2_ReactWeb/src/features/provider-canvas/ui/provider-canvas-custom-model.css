@@ -9,8 +9,15 @@
   border-left: 1px solid var(--color-border-subtle);
 }
 
+.provider-canvas__custom-model-identity {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .provider-canvas__custom-model-field {
   display: grid;
+  min-width: 0;
   gap: 7px;
 }
 

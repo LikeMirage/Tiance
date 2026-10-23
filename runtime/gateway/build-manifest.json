@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "runtimeIdentifier": "win-x64",
+  "sdkVersion": "8.0.426",
+  "sources": [
+    {
+      "path": "3_PyWebView/gateway/windows/TianceRemoteGateway/GatewaySecurity.cs",
+      "sha256": "ebb1392cfe3d3b761e9a888f245fa32bdaf3039b1f64f9a4b58058e6f5f48593"
+    },
+    {
+      "path": "3_PyWebView/gateway/windows/TianceRemoteGateway/GatewaySettings.cs",
+      "sha256": "c4559d066f9fe68eff4ffced84ff4703ed5caca775625686453d3b8fbbb02515"
+    },
+    {
+      "path": "3_PyWebView/gateway/windows/TianceRemoteGateway/LoginRateLimiting.cs",
+      "sha256": "15d65147938fb105a9749b2ce413de3e03d0162e14e4515a78ca81a3e430b439"
+    },
+    {
+      "path": "3_PyWebView/gateway/windows/TianceRemoteGateway/PasswordService.cs",
+      "sha256": "d6f4f3988d4e6326a14875693d29a829a1dd40fb4361de45c5af81337b8f6d41"
+    },
+    {
+      "path": "3_PyWebView/gateway/windows/TianceRemoteGateway/Program.cs",
+      "sha256": "40e35e0493b7c855ad6d6c276ef8b7b32240d58710cdc2807c6b6f4257e46e6b"
+    },
+    {
+      "path": "3_PyWebView/gateway/windows/TianceRemoteGateway/SessionStore.cs",
+      "sha256": "b321130a91bcb35d6b38fc8f3ca74954ae239f6ee8e14f0c37e6b21618738a13"
+    },
+    {
+      "path": "3_PyWebView/gateway/windows/TianceRemoteGateway/TianceRemoteGateway.csproj",
+      "sha256": "396ca840efe68cd7d01fabc48e8be68ae085c83b78d7320219f4a65c6be5664e"
+    },
+    {
+      "path": "scripts/build-remote-gateway.ps1",
+      "sha256": "0d1bae27eca4793f760dc6bc25a6f5b2cabff4f7df36c2ccd2bb23046b6f13d3"
+    },
+    {
+      "path": "scripts/gateway-build-integrity.ps1",
+      "sha256": "bafd8f67f0e8e3d36992229e5df38e9810f65d2ce3b712b10874d3f997a08420"
+    }
+  ],
+  "artifact": {
+    "path": "runtime/gateway/TianceRemoteGateway.exe",
+    "sha256": "de203777917ea584f8d270d500605f672cf5b937de8d75734854e5ceab9c9f06",
+    "size": 96546132
+  }
+}

@@ -1,5 +1,6 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 
 import "./window-resize-handles.css";
 
@@ -27,6 +28,8 @@ export function WindowResizeHandles() {
   const lastRequestedBoundsRef = useRef<WindowBounds | null>(null);
   const needsLatestResizeRef = useRef(false);
   const resizeSessionRef = useRef<ResizeSession | null>(null);
+  const captureTargetRef = useRef<HTMLDivElement | null>(null);
+  const resizeAttemptRef = useRef(0);
   const mountedRef = useRef(true);
 
   const disabled =
@@ -36,12 +39,19 @@ export function WindowResizeHandles() {
     nativeResizeMode === "system-edge";
 
   const clearActiveResize = useCallback(() => {
+    resizeAttemptRef.current += 1;
     if (frameRef.current !== null) {
       window.cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
     }
 
+    const session = resizeSessionRef.current;
+    const target = captureTargetRef.current;
     resizeSessionRef.current = null;
+    captureTargetRef.current = null;
+    if (session && target?.hasPointerCapture(session.pointerId)) {
+      target.releasePointerCapture(session.pointerId);
+    }
     isApplyingResizeRef.current = false;
     lastRequestedBoundsRef.current = null;
     needsLatestResizeRef.current = false;
@@ -57,6 +67,31 @@ export function WindowResizeHandles() {
     };
   }, [clearActiveResize]);
 
+  useEffect(() => {
+    const endInterruptedResize = () => {
+      const wasResizing = resizeSessionRef.current !== null;
+      clearActiveResize();
+      if (wasResizing) void persistWindowSizePreferences();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") endInterruptedResize();
+    };
+    window.addEventListener("blur", endInterruptedResize);
+    window.addEventListener("pointerup", endInterruptedResize);
+    window.addEventListener("pointercancel", endInterruptedResize);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("blur", endInterruptedResize);
+      window.removeEventListener("pointerup", endInterruptedResize);
+      window.removeEventListener("pointercancel", endInterruptedResize);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [clearActiveResize, persistWindowSizePreferences]);
+
+  useEffect(() => {
+    if (disabled) clearActiveResize();
+  }, [clearActiveResize, disabled]);
+
   const applyResize = useCallback(async () => {
     frameRef.current = null;
 
@@ -71,10 +106,11 @@ export function WindowResizeHandles() {
     }
 
     isApplyingResizeRef.current = true;
+    const attempt = resizeAttemptRef.current;
 
     try {
       session.startBounds ??= await session.startBoundsPromise;
-      if (!mountedRef.current || !resizeSessionRef.current?.latestPointer) {
+      if (!mountedRef.current || resizeSessionRef.current !== session || !session.latestPointer) {
         return;
       }
 
@@ -94,17 +130,19 @@ export function WindowResizeHandles() {
       lastRequestedBoundsRef.current = nextBounds;
       await setBounds(nextBounds);
     } finally {
-      isApplyingResizeRef.current = false;
+      if (resizeAttemptRef.current === attempt) {
+        isApplyingResizeRef.current = false;
 
-      if (
-        needsLatestResizeRef.current &&
-        mountedRef.current &&
-        resizeSessionRef.current?.latestPointer
-      ) {
-        needsLatestResizeRef.current = false;
-        frameRef.current = window.requestAnimationFrame(() => {
-          void applyResize();
-        });
+        if (
+          needsLatestResizeRef.current &&
+          mountedRef.current &&
+          resizeSessionRef.current?.latestPointer
+        ) {
+          needsLatestResizeRef.current = false;
+          frameRef.current = window.requestAnimationFrame(() => {
+            void applyResize();
+          });
+        }
       }
     }
   }, [setBounds, state.minHeight, state.minWidth]);
@@ -124,6 +162,7 @@ export function WindowResizeHandles() {
       }
 
       setWindowResizingClass(true);
+      captureTargetRef.current = target;
       resizeSessionRef.current = {
         pointerId,
         edge,
@@ -141,11 +180,12 @@ export function WindowResizeHandles() {
 
   const startResize = useCallback(
     (edge: ResizeEdge, event: ReactPointerEvent<HTMLDivElement>) => {
-      if (disabled) {
+      if (disabled || event.button !== 0) {
         return;
       }
 
       clearActiveResize();
+      const attempt = resizeAttemptRef.current;
       event.preventDefault();
       event.stopPropagation();
 
@@ -161,7 +201,7 @@ export function WindowResizeHandles() {
             return;
           }
 
-          if (!mountedRef.current || resizeSessionRef.current) {
+          if (!mountedRef.current || resizeAttemptRef.current !== attempt || resizeSessionRef.current) {
             return;
           }
 
@@ -189,6 +229,12 @@ export function WindowResizeHandles() {
         return;
       }
 
+      if ((event.buttons & 1) === 0) {
+        clearActiveResize();
+        void persistWindowSizePreferences();
+        return;
+      }
+
       session.latestPointer = {
         screenX: event.screenX,
         screenY: event.screenY,
@@ -202,7 +248,7 @@ export function WindowResizeHandles() {
         void applyResize();
       });
     },
-    [applyResize],
+    [applyResize, clearActiveResize, persistWindowSizePreferences],
   );
 
   const handleResizePointerEnd = useCallback(
@@ -210,10 +256,6 @@ export function WindowResizeHandles() {
       const session = resizeSessionRef.current;
       if (!session || session.pointerId !== event.pointerId) {
         return;
-      }
-
-      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-        event.currentTarget.releasePointerCapture(event.pointerId);
       }
 
       clearActiveResize();
@@ -242,7 +284,8 @@ export function WindowResizeHandles() {
     return null;
   }
 
-  return <div className="window-resize-handles">{handles}</div>;
+  // Window chrome must remain outside the workspace's isolated stacking context.
+  return createPortal(<div className="window-resize-handles">{handles}</div>, document.body);
 }
 
 function setWindowResizingClass(active: boolean) {

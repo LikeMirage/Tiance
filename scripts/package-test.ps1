@@ -5,6 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "package-providers.ps1")
+. (Join-Path $PSScriptRoot "gateway-build-integrity.ps1")
 $root = (Get-Location).Path
 $output = Join-Path $root $OutputDirectory
 $target = Join-Path $output "Tiance"
@@ -46,6 +47,8 @@ try {
             "Tiance.exe",
             "LICENSE"
             "scripts\package-providers.json"
+            "scripts\build-remote-gateway.ps1"
+            "scripts\gateway-build-integrity.ps1"
             ".gitattributes"
         )
         $env:GIT_INDEX_FILE = $index
@@ -81,8 +84,12 @@ try {
     }
 
     $packageTree = New-PackageProviderTree -Treeish $treeish -TemporaryDirectory $work
+    # These inputs are needed only while verifying the selected Git snapshot.
+    $verificationPaths = @(& git ls-tree --name-only $packageTree -- global.json NuGet.Config nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props)
+    if ($LASTEXITCODE -ne 0) { throw "Cannot read gateway build configuration." }
+    $verificationPaths += @("scripts/build-remote-gateway.ps1", "scripts/gateway-build-integrity.ps1")
     & git archive --format=tar --output=$archive $packageTree -- `
-        Tiance.exe LICENSE system runtime Data 1_PythonServer 2_ReactWeb/dist 3_PyWebView
+        Tiance.exe LICENSE system runtime Data 1_PythonServer 2_ReactWeb/dist 3_PyWebView @verificationPaths
     if ($LASTEXITCODE -ne 0) {
         throw "无法从当前提交提取测试包。"
     }
@@ -91,6 +98,9 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "测试包解压失败。"
     }
+    Assert-GatewayBuild -Root $stage
+    foreach ($relativePath in $verificationPaths) { Remove-Item -LiteralPath (Join-Path $stage $relativePath) }
+    Remove-Item -LiteralPath (Join-Path $stage "scripts")
 
     $requiredFiles = @(
         "Tiance.exe",

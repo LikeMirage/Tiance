@@ -2,11 +2,12 @@
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 999;
+  /* Above workspace portals (menus, dialogs and tooltips); only edges receive input. */
+  z-index: 6000;
 }
 
 .window-resize-handle {
-  position: fixed;
+  position: absolute;
   pointer-events: auto;
   background: transparent;
   touch-action: none;

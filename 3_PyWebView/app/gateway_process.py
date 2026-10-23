@@ -1,4 +1,5 @@
 import os
+import json
 import subprocess
 import threading
 import time
@@ -8,6 +9,7 @@ from urllib.request import Request, urlopen
 
 from app.config import PROJECT_ROOT, ShellSettings
 from app.port_probe import is_port_open
+from app.process_security import ProcessSecurity
 from app.startup_timing import mark, timed_stage
 
 
@@ -16,8 +18,9 @@ GATEWAY_STOP_TIMEOUT_SECONDS = 8.0
 
 
 class GatewayProcessManager:
-    def __init__(self, settings: ShellSettings) -> None:
+    def __init__(self, settings: ShellSettings, security: ProcessSecurity) -> None:
         self._settings = settings
+        self._security = security
         self._process: subprocess.Popen[bytes] | None = None
         self._log: BinaryIO | None = None
         self._lock = threading.Lock()
@@ -61,9 +64,13 @@ class GatewayProcessManager:
                     cwd=str(executable.parent),
                     env=env,
                     creationflags=creationflags,
+                    stdin=subprocess.PIPE,
                     stdout=self._log,
                     stderr=subprocess.STDOUT,
                 )
+                assert self._process.stdin is not None
+                self._process.stdin.write(self._security.gateway_bootstrap())
+                self._process.stdin.close()
             self._wait_until_ready()
             mark("gateway process: started", pid=self._process.pid)
 
@@ -92,7 +99,9 @@ class GatewayProcessManager:
             try:
                 with urlopen(Request(health_url, method="GET"), timeout=0.5) as response:
                     if response.status == 200:
-                        return
+                        if json.load(response).get("security_protocol") == 2:
+                            return
+                        raise RuntimeError("访问网关程序与桌面壳版本不一致，请重新构建访问网关。")
             except OSError:
                 time.sleep(0.1)
         raise RuntimeError(f"Tiance remote gateway did not become ready: {health_url}")

@@ -8,13 +8,14 @@ const source = readFileSync(
   "utf8",
 );
 
-async function createStartup({ health = [true], app = [true], dev = false, backendOk = true } = {}) {
+async function createStartup({ health = [true], app = [true], dev = false, backendOk = true, desktopAuth = true } = {}) {
   const statuses = [];
   const probes = [];
   const navigations = [];
   const timers = [];
   const listeners = new Map();
   let backendCalls = 0;
+  let desktopAuthCalls = 0;
   const elements = new Map();
   const state = {
     apiUrl: "http://127.0.0.1:18000",
@@ -55,6 +56,7 @@ async function createStartup({ health = [true], app = [true], dev = false, backe
       pywebview: { api: {
         reveal_window: async () => {},
         ensure_backend_running: async () => { backendCalls += 1; return { ok: backendOk }; },
+        prepare_gateway_access: async () => { desktopAuthCalls += 1; return desktopAuth; },
         check_url_available: async (url) => {
           probes.push(url);
           if (url === state.gatewayHealthUrl) return next(health);
@@ -71,6 +73,7 @@ async function createStartup({ health = [true], app = [true], dev = false, backe
   return {
     statuses, probes, navigations, timers,
     get backendCalls() { return backendCalls; },
+    get desktopAuthCalls() { return desktopAuthCalls; },
     async tick() { assert.ok(timers.length); await timers.shift()(); },
     async retry() {
       listeners.get("open-target:click")();
@@ -92,6 +95,7 @@ test("local page waits do not replay completed startup stages or announce entry 
   assert.equal(startup.statuses.length, statusCount);
   await startup.tick();
   assert.equal(startup.backendCalls, 1);
+  assert.equal(startup.desktopAuthCalls, 1);
   assert.equal(startup.probes.filter((url) => url.endsWith("/gateway/health")).length, 1);
   assert.equal(startup.probes.filter((url) => url.endsWith("/@vite/client")).length, 1);
   assert.equal(startup.statuses.filter((text) => text === "正在进入本地页面").length, 1);
@@ -104,9 +108,20 @@ test("gateway waits keep one startup operation and only proceed after readiness"
   const startup = await createStartup({ health: [false, true] });
   await startup.tick();
   assert.equal(startup.probes.length, 1);
+  assert.equal(startup.desktopAuthCalls, 0);
   await startup.tick();
   assert.equal(startup.backendCalls, 1);
   assert.equal(startup.navigations.length, 1);
+  assert.equal(startup.desktopAuthCalls, 1);
+});
+
+test("desktop identity failure prevents opening either frontend", async () => {
+  const startup = await createStartup({ dev: true, desktopAuth: false });
+  await startup.tick();
+  assert.equal(startup.statuses.at(-1), "启动失败");
+  assert.equal(startup.navigations.length, 0);
+  assert.equal(startup.probes.length, 1);
+  assert.equal(startup.timers.length, 0);
 });
 
 test("development frontend remains preferred when available", async () => {

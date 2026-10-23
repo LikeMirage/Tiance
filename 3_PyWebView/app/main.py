@@ -3,6 +3,7 @@ from app.backend_process import BackendProcessManager
 from app.backend_runtime_record import cleanup_orphaned_managed_backend
 from app.config import PROJECT_ROOT, load_settings
 from app.gateway_process import GatewayProcessManager
+from app.process_security import ProcessSecurity
 from app.installation_lock import acquire_installation_lock
 from app.native_file_drop import install_native_file_drop_bridge
 from app.runtime import resolve_launch_target
@@ -46,8 +47,9 @@ def main() -> None:
             webview2_runtime_mode=settings.webview2_runtime_mode,
         )
 
-        backend_manager = BackendProcessManager(settings)
-        gateway_manager = GatewayProcessManager(settings)
+        process_security = ProcessSecurity.for_launch(manage_backend=settings.manage_backend)
+        backend_manager = BackendProcessManager(settings, process_security)
+        gateway_manager = GatewayProcessManager(settings, process_security)
 
         with timed_stage("resolve launch target"):
             target = resolve_launch_target(settings)
@@ -59,7 +61,7 @@ def main() -> None:
         )
 
         with timed_stage("create shell api"):
-            shell_api = ShellApi(settings, backend_manager)
+            shell_api = ShellApi(settings, backend_manager, process_security)
 
         with timed_stage("configure WebView runtime"):
             _configure_webview_runtime(webview, settings)

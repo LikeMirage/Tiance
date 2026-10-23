@@ -5,6 +5,7 @@ import { App } from "./app/App";
 import { GatewayLoginPage, GatewayUnavailablePage } from "./features/access-security/ui/GatewayLoginPage";
 import { subscribeGatewayAuthenticationRequired } from "./services/security/gatewayAuthenticationEvents";
 import { getGatewaySecurityStatus } from "./services/security/gatewaySecurity";
+import { configureGatewaySession, stopGatewaySession } from "./services/security/gatewaySessionLifecycle";
 import { getActiveThemeWithTimeout } from "./services/theme";
 import { getWorkspaceLayoutPreferencesWithTimeout } from "./services/workspace/workspaceLayoutPreferences";
 import type { WorkspaceLayoutPreferences } from "./entities/workspace/model/workspaceLayoutPreferences";
@@ -63,6 +64,7 @@ async function bootstrapReactApp(root: ReactDOM.Root, revision: number) {
   }
   if (revision !== bootstrapRevision) return;
   if (!securityStatus.authenticated) {
+    stopGatewaySession();
     dismissFrontendBootPlaceholder();
     root.render(
       <React.StrictMode>
@@ -71,6 +73,8 @@ async function bootstrapReactApp(root: ReactDOM.Root, revision: number) {
     );
     return;
   }
+  await configureGatewaySession(securityStatus.session_kind);
+  if (revision !== bootstrapRevision) return;
   const [
     initialTheme,
     initialWorkspaceLayoutPreferences,

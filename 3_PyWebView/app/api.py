@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 from app.config import ShellSettings
 from app.external_file_import import ExternalFileImportResult, copy_external_entries_to_directory
 from app.runtime import is_shell_api_allowed_url
+from app.process_security import ProcessSecurity, install_desktop_cookie, is_desktop_auth_document
 from app.startup_timing import mark, record_browser_mark
 from app.system_metrics import SystemMetricsSampler
 from app.windows_clipboard import (
@@ -92,8 +93,9 @@ class ShellCapabilities:
 
 
 class ShellApi:
-    def __init__(self, settings: ShellSettings, backend_manager: "BackendProcessManager") -> None:
+    def __init__(self, settings: ShellSettings, backend_manager: "BackendProcessManager", security: ProcessSecurity | None = None) -> None:
         self._settings = settings
+        self._process_security = security
         self._backend_manager = backend_manager
         self._window: Any | None = None
         self._maximized = False
@@ -127,6 +129,12 @@ class ShellApi:
         self._require_allowed_window()
         record_browser_mark(label, browser_elapsed_ms)
         return True
+
+    def prepare_gateway_access(self) -> bool:
+        window = self._require_window()
+        if self._process_security is None or not is_desktop_auth_document(_get_current_window_url(window), self._settings):
+            raise PermissionError("Desktop authentication is not available for this document")
+        return install_desktop_cookie(window, self._settings, self._process_security)
 
     def check_url_available(self, url: str, timeout_ms: int) -> bool:
         self._require_window()

@@ -23,32 +23,34 @@ export function CustomModelEditor({
 
   return (
     <div className="provider-canvas__custom-model-panel">
-      <CustomModelTextField
-        disabled={Boolean(modelManagementPanel.editingCustomModelId)}
-        id={`${providerId}-custom-model-id`}
-        isReadonly={Boolean(modelManagementPanel.editingCustomModelId)}
-        label={t("providerCanvas.modelManagement.custom.modelId")}
-        placeholder={t("providerCanvas.modelManagement.custom.modelIdPlaceholder")}
-        value={modelManagementPanel.customModelDraft.modelId}
-        onBlur={modelManagementPanel.inferCustomModelCapabilities}
-        onChange={(value) => modelManagementPanel.updateCustomModelDraft("modelId", value)}
-      />
-      <CustomModelTextField
-        id={`${providerId}-custom-model-name`}
-        label={t("providerCanvas.modelManagement.custom.modelName")}
-        placeholder={t("providerCanvas.modelManagement.custom.modelNamePlaceholder")}
-        value={modelManagementPanel.customModelDraft.displayName}
-        onBlur={modelManagementPanel.inferCustomModelCapabilities}
-        onChange={(value) => modelManagementPanel.updateCustomModelDraft("displayName", value)}
-      />
-      <CustomModelTextField
-        id={`${providerId}-custom-model-group`}
-        label={t("providerCanvas.modelManagement.custom.modelGroup")}
-        placeholder={t("providerCanvas.modelManagement.custom.modelGroupPlaceholder")}
-        value={modelManagementPanel.customModelDraft.familyGroup}
-        onBlur={modelManagementPanel.inferCustomModelCapabilities}
-        onChange={(value) => modelManagementPanel.updateCustomModelDraft("familyGroup", value)}
-      />
+      <div className="provider-canvas__custom-model-identity">
+        <CustomModelTextField
+          disabled={Boolean(modelManagementPanel.editingCustomModelId)}
+          id={`${providerId}-custom-model-id`}
+          isReadonly={Boolean(modelManagementPanel.editingCustomModelId)}
+          label={t("providerCanvas.modelManagement.custom.modelId")}
+          placeholder={t("providerCanvas.modelManagement.custom.modelIdPlaceholder")}
+          value={modelManagementPanel.customModelDraft.modelId}
+          onBlur={modelManagementPanel.inferCustomModelCapabilities}
+          onChange={(value) => modelManagementPanel.updateCustomModelDraft("modelId", value)}
+        />
+        <CustomModelTextField
+          id={`${providerId}-custom-model-name`}
+          label={t("providerCanvas.modelManagement.custom.modelName")}
+          placeholder={t("providerCanvas.modelManagement.custom.modelNamePlaceholder")}
+          value={modelManagementPanel.customModelDraft.displayName}
+          onBlur={modelManagementPanel.inferCustomModelCapabilities}
+          onChange={(value) => modelManagementPanel.updateCustomModelDraft("displayName", value)}
+        />
+        <CustomModelTextField
+          id={`${providerId}-custom-model-group`}
+          label={t("providerCanvas.modelManagement.custom.modelGroup")}
+          placeholder={t("providerCanvas.modelManagement.custom.modelGroupPlaceholder")}
+          value={modelManagementPanel.customModelDraft.familyGroup}
+          onBlur={modelManagementPanel.inferCustomModelCapabilities}
+          onChange={(value) => modelManagementPanel.updateCustomModelDraft("familyGroup", value)}
+        />
+      </div>
       <div className="provider-canvas__custom-model-field">
         <label
           className="provider-canvas__custom-model-label"

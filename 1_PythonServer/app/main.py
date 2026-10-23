@@ -1,4 +1,5 @@
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from contextlib import suppress
 
@@ -10,6 +11,7 @@ from app.core.bootstrap import bootstrap_application
 from app.core.config import get_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
+from app.core.gateway_auth import GATEWAY_TOKEN_ENV, GatewayAuthenticationMiddleware
 from app.core.shutdown_tasks import shutdown_tasks
 from app.infra.http_client import (
     close_shared_http_clients,
@@ -109,6 +111,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    application.add_middleware(GatewayAuthenticationMiddleware, token=os.environ.pop(GATEWAY_TOKEN_ENV, ""))
     register_exception_handlers(application)
 
     @application.get("/", include_in_schema=False)
