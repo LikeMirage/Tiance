@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "template_version": "1.0.0",
+  "documentation": "docs/tool-development/README.md",
+  "files": [
+    {
+      "source": "assets/template/.tool/examples.json",
+      "target": ".tool/examples.json"
+    },
+    {
+      "source": "assets/template/.tool/input.schema.json",
+      "target": ".tool/input.schema.json"
+    },
+    {
+      "source": "assets/template/.tool/output.schema.json",
+      "target": ".tool/output.schema.json"
+    },
+    {
+      "source": "assets/template/.tool/permissions.json",
+      "target": ".tool/permissions.json"
+    },
+    {
+      "source": "assets/template/.tool/tool.json",
+      "target": ".tool/tool.json"
+    },
+    {
+      "source": "assets/template/program/config.json",
+      "target": "program/config.json"
+    },
+    {
+      "source": "assets/template/program/main.py",
+      "target": "program/main.py"
+    },
+    {
+      "source": "assets/template/program/requirements.txt",
+      "target": "program/requirements.txt"
+    },
+    {
+      "source": "assets/template/README.md",
+      "target": "README.md"
+    },
+    {
+      "source": "assets/template/tests/test_contract.py",
+      "target": "tests/test_contract.py"
+    },
+    {
+      "source": "assets/documentation/01-system-and-contracts.md",
+      "target": "docs/tool-development/01-system-and-contracts.md"
+    },
+    {
+      "source": "assets/documentation/02-python-runtime.md",
+      "target": "docs/tool-development/02-python-runtime.md"
+    },
+    {
+      "source": "assets/documentation/03-permissions.md",
+      "target": "docs/tool-development/03-permissions.md"
+    },
+    {
+      "source": "assets/documentation/04-capability-bridges.md",
+      "target": "docs/tool-development/04-capability-bridges.md"
+    },
+    {
+      "source": "assets/documentation/05-validation-and-release.md",
+      "target": "docs/tool-development/05-validation-and-release.md"
+    },
+    {
+      "source": "assets/documentation/06-source-map.md",
+      "target": "docs/tool-development/06-source-map.md"
+    },
+    {
+      "source": "assets/documentation/README.md",
+      "target": "docs/tool-development/README.md"
+    }
+  ]
+}

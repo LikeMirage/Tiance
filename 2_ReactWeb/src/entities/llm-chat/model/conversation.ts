@@ -151,6 +151,9 @@ export type ConversationForkResponse = {
 };
 
 export type ConversationMessageListResponse = {
+  revision?: number;
+  reset_revision?: number;
+  next_after_message_id?: string | null;
   project_id: string;
   session_id: string;
   count: number;

@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 
-import { getProjectConversationMessages } from "../../../services/project/getProjectConversationMessages";
+import { CONVERSATION_MESSAGE_PAGE_SIZE, getProjectConversationMessages } from "../../../services/project/getProjectConversationMessages";
 import { getCachedProjectEntryWarmup } from "../../project-entry/model/projectEntryWarmup";
 import type { ChatMessage } from "./chatMessage";
 import { mapConversationMessages } from "./chatMessage";
 import { buildSessionKey } from "./sessionKey";
 import { mergeLiveChatNotifications, reuseChatMessageRevisions } from "./chatNotifications";
 
+import { getConversationMessageState } from "../../../services/project/watchConversationChanges";
+import type { ConversationMessageListResponse } from "../../../entities/llm-chat/model/conversation";
+
+type HistoryPage = { before: string | null; after: string | null; revision: number; reset: number; reconcile: boolean };
+
 type ReloadSessionMessagesOptions = {
+  older?: boolean;
   forceRefresh?: boolean;
   preserveLocalIfShorter?: boolean;
   signal?: AbortSignal;
@@ -44,7 +50,10 @@ export function useSessionMessages({
   const [loadingSessionKeys, setLoadingSessionKeys] = useState<Set<string>>(() => new Set());
   const sessionMessageSnapshotsRef = useRef<Record<string, ChatMessage[]>>({});
   const messageAccessedAtRef = useRef(new Map<string, number>());
-  const reloadRequestIdsRef = useRef(new Map<string, number>());
+  const historyPagesRef = useRef(new Map<string, HistoryPage>());
+  const [historyPages, setHistoryPages] = useState<Record<string, HistoryPage>>({});
+  const [messageLoadErrors, setMessageLoadErrors] = useState<Record<string, string>>({});
+  const jobsRef = useRef(new Map<string, { promise: Promise<boolean>; queued: ReloadSessionMessagesOptions | null; older: boolean }>());
   const reloadControllersRef = useRef(new Map<string, AbortController>());
 
   useEffect(() => () => {
@@ -52,6 +61,7 @@ export function useSessionMessages({
       controller.abort();
     }
     reloadControllersRef.current.clear();
+    jobsRef.current.clear();
   }, []);
 
   const isSessionMessagesPresented = useCallback((pid: string, sessionId: string) => (
@@ -117,85 +127,150 @@ export function useSessionMessages({
     messageAccessedAtRef.current.set(key, Date.now());
     const currentMessages = sessionMessageSnapshotsRef.current[key] ?? [];
     if (currentMessages.length === 0) {
+      const page = pageFromResponse(cachedResponse);
+      historyPagesRef.current.set(key, page);
+      setHistoryPages((prev) => ({ ...prev, [key]: page }));
       sessionMessageSnapshotsRef.current[key] = nextMessages;
     }
     publishSessionMessages(pid, sessionId);
     return true;
   }, [publishSessionMessages]);
 
-  const reloadSessionMessages = useCallback(async (
-    pid: string,
-    sessionId: string,
-    options: ReloadSessionMessagesOptions = {},
-  ) => {
+  const reloadSessionMessages = useCallback((
+    pid: string, sessionId: string, options: ReloadSessionMessagesOptions = {},
+  ): Promise<boolean> => {
     const key = buildSessionKey(pid, sessionId);
-    const requestId = (reloadRequestIdsRef.current.get(key) ?? 0) + 1;
-    reloadRequestIdsRef.current.set(key, requestId);
-    reloadControllersRef.current.get(key)?.abort();
+    if (options.signal?.aborted) return Promise.resolve(false);
+    const existing = jobsRef.current.get(key);
+    if (existing) {
+      // Coalesce invalidations without aborting a slow read. One trailing read
+      // reconciles changes committed while the current snapshot was in flight.
+      if (options.older) existing.older = true;
+      else existing.queued = { ...existing.queued, ...options, older: false,
+        authoritative: existing.queued?.authoritative || options.authoritative };
+      return existing.promise;
+    }
     const controller = new AbortController();
     reloadControllersRef.current.set(key, controller);
-    setLoadingSessionKeys((previous) => new Set(previous).add(key));
-    const abortFromCaller = () => controller.abort();
-    if (options.signal?.aborted) {
-      controller.abort();
-    } else {
-      options.signal?.addEventListener("abort", abortFromCaller, { once: true });
-    }
-    const timeout = window.setTimeout(
-      () => controller.abort(),
-      sessionMessagesRequestTimeoutMs,
-    );
-    const cachedResponse = options.forceRefresh
-      ? null
-      : getCachedProjectEntryWarmup(pid)?.sessionMessages[sessionId];
-    try {
-      const response = cachedResponse ?? await getProjectConversationMessages(
-        pid,
-        sessionId,
-        { signal: controller.signal },
-      );
-      if (options.shouldApply && !options.shouldApply()) return false;
-      if (reloadRequestIdsRef.current.get(key) !== requestId) return false;
-      const nextMessages = mapConversationMessages(
-        response.items,
-        response.run_outcomes,
-        response.run_attempt_failures,
-      );
-      messageAccessedAtRef.current.set(key, Date.now());
-      const currentMessages = sessionMessageSnapshotsRef.current[key] ?? [];
-      if ((options.shouldPreserveLocal?.() || (!options.authoritative && currentMessages.some((message) =>
-        message.role === "assistant" && message.status === "running"))) && currentMessages.length > 0) {
-        sessionMessageSnapshotsRef.current[key] = mergeLiveChatNotifications(currentMessages, nextMessages);
-        publishSessionMessages(pid, sessionId);
-        return true;
-      }
-      if (!options.authoritative && options.preserveLocalIfShorter && currentMessages.length > nextMessages.length) {
-        publishSessionMessages(pid, sessionId);
-        return true;
-      }
-      if (hasSameMessageRevisions(currentMessages, nextMessages)) {
-        publishSessionMessages(pid, sessionId);
-        return true;
-      }
-      sessionMessageSnapshotsRef.current[key] = reuseChatMessageRevisions(currentMessages, nextMessages);
-      publishSessionMessages(pid, sessionId);
-      return true;
-    } finally {
-      window.clearTimeout(timeout);
-      options.signal?.removeEventListener("abort", abortFromCaller);
-      if (reloadControllersRef.current.get(key) === controller) {
-        reloadControllersRef.current.delete(key);
-      }
-      if (!reloadControllersRef.current.has(key)) {
-        setLoadingSessionKeys((previous) => {
-          if (!previous.has(key)) return previous;
-          const next = new Set(previous);
-          next.delete(key);
-          return next;
+    const job = { promise: Promise.resolve(false), queued: null as ReloadSessionMessagesOptions | null, older: false };
+    jobsRef.current.set(key, job);
+    setLoadingSessionKeys((prev) => new Set(prev).add(key));
+    setMessageLoadErrors((prev) => { const next = { ...prev }; delete next[key]; return next; });
+
+    const read = async (request: ReloadSessionMessagesOptions) => {
+      const previousPage = historyPagesRef.current.get(key);
+      const current = sessionMessageSnapshotsRef.current[key] ?? [];
+      const preservingLive = request.shouldPreserveLocal?.() ?? (!request.authoritative &&
+        current.some((message) => message.role === "assistant" && message.status === "running"));
+      if (request.older && !previousPage?.before) return;
+      const cached = !request.forceRefresh && !previousPage && !request.older
+        ? getCachedProjectEntryWarmup(pid)?.sessionMessages[sessionId] : null;
+      const state = previousPage && !request.older
+        ? await getConversationMessageState(pid, sessionId, controller.signal) : null;
+      const reset = state !== null && state.reset_revision !== previousPage?.reset;
+      if (state && state.revision === previousPage?.revision && !reset && !request.authoritative &&
+          !(previousPage.reconcile && !preservingLive)) return;
+      let incremental = Boolean(previousPage?.after && !reset && !request.older && !request.authoritative &&
+        !(previousPage?.reconcile && !preservingLive));
+      let cursor = incremental ? previousPage!.after : null;
+      do {
+        let response: ConversationMessageListResponse;
+        try {
+          response = cached ?? await getProjectConversationMessages(pid, sessionId, {
+            limit: CONVERSATION_MESSAGE_PAGE_SIZE,
+            beforeMessageId: request.older ? previousPage?.before : null,
+            afterMessageId: cursor, signal: controller.signal,
+          });
+        } catch (error) {
+          if (!(cursor || request.older) || !error || typeof error !== "object" ||
+              !("status" in error) || ![400, 409].includes(Number(error.status))) throw error;
+          response = await getProjectConversationMessages(pid, sessionId, {
+            limit: CONVERSATION_MESSAGE_PAGE_SIZE, signal: controller.signal,
+          });
+          incremental = false;
+          request = { ...request, older: false };
+        }
+        // A history replacement can commit between the state check and page read.
+        if (previousPage && response.reset_revision !== previousPage.reset && (incremental || request.older)) {
+          response = await getProjectConversationMessages(pid, sessionId, {
+            limit: CONVERSATION_MESSAGE_PAGE_SIZE, signal: controller.signal,
+          });
+          incremental = false;
+          request = { ...request, older: false };
+        }
+        if (incremental && !response.items.length) {
+          response = await getProjectConversationMessages(pid, sessionId, {
+            limit: CONVERSATION_MESSAGE_PAGE_SIZE, signal: controller.signal,
+          });
+          incremental = false;
+        }
+        if (controller.signal.aborted) return;
+        const nextMessages = mapConversationMessages(response.items, response.run_outcomes, response.run_attempt_failures);
+        const latest = sessionMessageSnapshotsRef.current[key] ?? [];
+        const replaced = previousPage && (response.reset_revision ?? 0) !== previousPage.reset;
+        const tailReplacement = !incremental && !request.older;
+        let merged = mergeHistoryPage(latest, nextMessages, {
+          older: Boolean(request.older), replace: Boolean(replaced) || !previousPage,
+          tail: tailReplacement,
         });
+        const keepLive = request.shouldPreserveLocal?.() ?? (!request.authoritative &&
+          latest.some((message) => message.role === "assistant" && message.status === "running"));
+        if (keepLive && latest.length && !request.older) merged = mergeLiveChatNotifications(latest, nextMessages);
+        sessionMessageSnapshotsRef.current[key] = reuseChatMessageRevisions(latest, merged);
+        messageAccessedAtRef.current.set(key, Date.now());
+        const page = pageFromResponse(response);
+        if (request.older) {
+          page.after = previousPage!.after;
+          // An older-page read is not an acknowledgement of newer messages.
+          page.revision = previousPage!.revision;
+          page.reconcile = previousPage!.reconcile;
+        } else if (previousPage && !replaced && (incremental || latest.some((m) => m.id === response.items[0]?.message_id))) {
+          page.before = previousPage.before;
+        }
+        if (incremental && response.has_more) page.revision = previousPage?.revision ?? -1;
+        page.reconcile ||= Boolean(keepLive);
+        historyPagesRef.current.set(key, page);
+        setHistoryPages((prev) => ({ ...prev, [key]: page }));
+        publishSessionMessages(pid, sessionId);
+        const nextCursor = response.next_after_message_id ?? response.items.at(-1)?.message_id ?? cursor;
+        if (!incremental || !response.has_more || nextCursor === cursor) break;
+        cursor = nextCursor;
+      } while (!controller.signal.aborted);
+    };
+
+    job.promise = (async () => {
+      let request: ReloadSessionMessagesOptions | null = options;
+      try {
+        while (request && !controller.signal.aborted) {
+          const timeout = window.setTimeout(() => controller.abort(), sessionMessagesRequestTimeoutMs);
+          try { await read(request); } finally { window.clearTimeout(timeout); }
+          request = job.queued;
+          job.queued = null;
+          if (!request && job.older) {
+            request = { older: true, forceRefresh: true };
+            job.older = false;
+          }
+        }
+        return !controller.signal.aborted;
+      } catch (error) {
+        if (jobsRef.current.get(key) === job) {
+          setMessageLoadErrors((prev) => ({ ...prev, [key]: controller.signal.aborted
+            ? "aiPanel.messageList.loadTimeout" : "aiPanel.messageList.loadFailed" }));
+        }
+        throw error;
+      } finally {
+        if (jobsRef.current.get(key) === job) {
+          jobsRef.current.delete(key);
+          reloadControllersRef.current.delete(key);
+          setLoadingSessionKeys((prev) => { const next = new Set(prev); next.delete(key); return next; });
+        }
       }
-    }
+    })();
+    return job.promise;
   }, [publishSessionMessages]);
+
+  const loadOlderSessionMessages = useCallback((pid: string, sessionId: string) =>
+    reloadSessionMessages(pid, sessionId, { older: true, forceRefresh: true }), [reloadSessionMessages]);
 
   const pruneSessionMessages = useCallback((options: PruneSessionMessagesOptions) => {
     const snapshots = sessionMessageSnapshotsRef.current;
@@ -242,13 +317,28 @@ export function useSessionMessages({
       }
       snapshotsChanged = true;
       messageAccessedAtRef.current.delete(key);
-      reloadRequestIdsRef.current.delete(key);
+      historyPagesRef.current.delete(key);
+      jobsRef.current.delete(key);
       reloadControllersRef.current.get(key)?.abort();
       reloadControllersRef.current.delete(key);
     }
     if (snapshotsChanged) {
       sessionMessageSnapshotsRef.current = nextSnapshots;
     }
+    // Navigation may discard an in-flight first page before it has a snapshot.
+    for (const [key, controller] of reloadControllersRef.current) {
+      if (retainedKeys.has(key)) continue;
+      jobsRef.current.delete(key);
+      controller.abort();
+      reloadControllersRef.current.delete(key);
+      historyPagesRef.current.delete(key);
+    }
+    setLoadingSessionKeys((prev) => {
+      const next = new Set([...prev].filter((key) => retainedKeys.has(key)));
+      return next.size === prev.size ? prev : next;
+    });
+    setHistoryPages((prev) => retainSessionRecords(prev, retainedKeys));
+    setMessageLoadErrors((prev) => retainSessionRecords(prev, retainedKeys));
 
     setSessionMessages((prev) => {
       let changed = false;
@@ -274,6 +364,9 @@ export function useSessionMessages({
     replaceSessionMessages,
     sessionMessages,
     loadingSessionKeys,
+    messageLoadErrors,
+    historyPages,
+    loadOlderSessionMessages,
     updateSessionMessages,
   };
 }
@@ -306,16 +399,27 @@ function countMessagesChars(messages: ChatMessage[]) {
   return total;
 }
 
-function hasSameMessageRevisions(
-  currentMessages: ChatMessage[],
-  nextMessages: ChatMessage[],
-) {
-  if (currentMessages.length !== nextMessages.length) return false;
-  return currentMessages.every((message, index) => {
-    const nextMessage = nextMessages[index];
-    return message.id === nextMessage.id && message.updatedAt === nextMessage.updatedAt
-      && message.status === nextMessage.status
-      && JSON.stringify(message.runOutcome) === JSON.stringify(nextMessage.runOutcome)
-      && !message.notificationPending && !message.modelResponseInFlight;
-  });
+function pageFromResponse(response: ConversationMessageListResponse): HistoryPage {
+  return { before: response.next_before_message_id, after: response.next_after_message_id ?? response.items.at(-1)?.message_id ?? null,
+    revision: response.revision ?? 0, reset: response.reset_revision ?? 0, reconcile: false };
+}
+
+export function mergeHistoryPage(current: ChatMessage[], incoming: ChatMessage[], options: {
+  older?: boolean; replace?: boolean; tail?: boolean;
+}) {
+  if (options.replace) return incoming;
+  let retained = current;
+  if (options.tail && incoming.length) {
+    const boundary = current.findIndex((message) => message.id === incoming[0].id);
+    if (boundary >= 0) retained = current.slice(0, boundary);
+    else retained = current.filter((message) => (message.createdAt ?? 0) < (incoming[0].createdAt ?? 0));
+  }
+  const merged = new Map<string, ChatMessage>();
+  for (const message of options.older ? [...incoming, ...retained] : [...retained, ...incoming]) merged.set(message.id, message);
+  return [...merged.values()].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+}
+
+function retainSessionRecords<T>(records: Record<string, T>, keys: ReadonlySet<string>) {
+  const entries = Object.entries(records).filter(([key]) => keys.has(key));
+  return entries.length === Object.keys(records).length ? records : Object.fromEntries(entries);
 }

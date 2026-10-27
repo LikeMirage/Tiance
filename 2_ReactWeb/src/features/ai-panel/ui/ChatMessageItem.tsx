@@ -23,6 +23,7 @@ import {
 } from "react";
 
 import type { ChatUsage } from "../../../entities/llm-chat/model/chatCompletion";
+import { Tooltip } from "../../../shared/ui/tooltip";
 import { LazyMarkdownPreview } from "../../markdown-preview/ui/LazyMarkdownPreview";
 import { resolveAssistantBodyContent } from "../model/chatDisplayMessages";
 import { ChatProcessFoldScope } from "../model/chatProcessFoldState";
@@ -646,16 +647,23 @@ function UserActions({
       {showActions ? <div className="chat-msg__user-actions-end">
         <CopyMessageButton label="复制用户消息" text={resolveUserMessageContent(message)} />
         {interactions.onForkUserMessage ? (
-          <button
-            className="chat-msg__action"
-            type="button"
-            aria-label="编辑并创建分支"
-            title="编辑并创建分支"
-            disabled={isSessionStreaming}
-            onClick={() => interactions.onForkUserMessage?.(message)}
+          <Tooltip
+            content={isSessionStreaming
+              ? "当前会话正在执行任务，请等待任务完成或停止任务后，再编辑并创建分支。"
+              : "编辑并创建分支"}
           >
-            <PencilSimple size={14} weight="regular" aria-hidden="true" />
-          </button>
+            <span className="chat-msg__fork-action" data-disabled={isSessionStreaming}>
+              <button
+                className="chat-msg__action"
+                type="button"
+                aria-label="编辑并创建分支"
+                disabled={isSessionStreaming}
+                onClick={() => interactions.onForkUserMessage?.(message)}
+              >
+                <PencilSimple size={14} weight="regular" aria-hidden="true" />
+              </button>
+            </span>
+          </Tooltip>
         ) : null}
         {variantNavigation ? (
           <div className="chat-msg__variant-switcher" aria-label="消息版本">

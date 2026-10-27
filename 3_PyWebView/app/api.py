@@ -28,6 +28,7 @@ from app.windows_clipboard import (
     write_clipboard_path_entries,
 )
 from app.windows_tray import WindowsTrayIcon
+from app.windows_foreground import allow_backend_foreground
 
 if TYPE_CHECKING:
     from app.backend_process import BackendProcessManager
@@ -160,6 +161,10 @@ class ShellApi:
             "startedByShell": self._backend_manager.started_by_shell,
         }
 
+    def prepare_file_explorer(self) -> bool:
+        self._require_allowed_window()
+        return allow_backend_foreground(self._backend_manager.process_id)
+
     def reveal_window(self) -> bool:
         window = self._require_allowed_window()
         if self._revealed:
@@ -287,7 +292,8 @@ class ShellApi:
             raise
 
     def install_software_update(self, stage_path: str) -> dict[str, str | bool]:
-        window = self._require_allowed_window()
+        self._require_allowed_window()
+        prepared = False
         try:
             stage_root = _validate_software_update_stage(stage_path)
             updater_source = _project_root() / "system" / "TianceUpdater.exe"
@@ -297,6 +303,9 @@ class ShellApi:
             runner_root.mkdir(parents=True, exist_ok=True)
             updater_runner = runner_root / f"TianceUpdater-{uuid.uuid4().hex}.exe"
             shutil.copy2(updater_source, updater_runner)
+            # Restart uses the same settlement boundary as a normal desktop exit.
+            self._backend_manager.prepare_exit()
+            prepared = True
             creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
             subprocess.Popen(
                 [
@@ -313,6 +322,8 @@ class ShellApi:
                 close_fds=True,
             )
         except Exception as exc:
+            if prepared:
+                self._backend_manager.cancel_exit_preparation()
             mark("software update: updater launch failed", error=type(exc).__name__)
             return {
                 "ok": False,

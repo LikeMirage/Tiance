@@ -42,6 +42,10 @@ type ChatMessageListProps = {
   interactions: ChatMessageItemInteractions;
   isActiveSessionStreaming: boolean;
   isLoadingSession?: boolean;
+  loadError?: string;
+  hasOlderMessages?: boolean;
+  onLoadOlder?: () => Promise<boolean>;
+  onRetryLoad?: () => void;
   messages: ChatMessage[];
   navigationRequest?: ChatMessageNavigationRequest | null;
   onNavigationHandled?: (requestId: number) => void;
@@ -56,6 +60,7 @@ export function ChatMessageList({
   interactions,
   isActiveSessionStreaming,
   isLoadingSession = false,
+  loadError, hasOlderMessages = false, onLoadOlder, onRetryLoad,
   messages,
   navigationRequest = null,
   onNavigationHandled,
@@ -63,6 +68,8 @@ export function ChatMessageList({
   scrollParentRef,
 }: ChatMessageListProps) {
   const { t } = useI18n();
+  const loadErrorLabel = loadError ? t(loadError === "aiPanel.messageList.loadTimeout"
+    ? "aiPanel.messageList.loadTimeout" : "aiPanel.messageList.loadFailed") : null;
   const readiness = useContext(ContentReadinessContext);
   const contentPending = useSyncExternalStore(readiness?.subscribe ?? subscribeNoContent,
     readiness?.getSnapshot ?? noPendingContent, readiness?.getSnapshot ?? noPendingContent);
@@ -88,6 +95,39 @@ export function ChatMessageList({
   const navigationTargetIsRendered = Boolean(navigationRequest && virtualList.virtualItems.some(
     (item) => item.message.id === navigationRequest.messageId,
   ));
+
+  const olderLoadingRef = useRef(false);
+  const historyLoadRef = useRef({ hasOlderMessages, onLoadOlder, isLoadingSession, loadError });
+  historyLoadRef.current = { hasOlderMessages, onLoadOlder, isLoadingSession, loadError };
+  useEffect(() => {
+    const parent = scrollParentRef.current;
+    if (!parent) return;
+    let previousTop = parent.scrollTop;
+    const load = () => {
+      const state = historyLoadRef.current;
+      if (!state.hasOlderMessages || !state.onLoadOlder || state.isLoadingSession || state.loadError || olderLoadingRef.current) return;
+      olderLoadingRef.current = true;
+      void state.onLoadOlder().catch(() => undefined).finally(() => { olderLoadingRef.current = false; });
+    };
+    const scroll = () => {
+      if (parent.scrollTop < previousTop && parent.scrollTop < 200) load();
+      previousTop = parent.scrollTop;
+    };
+    const wheel = (event: WheelEvent) => { if (event.deltaY < 0 && parent.scrollTop < 200) load(); };
+    parent.addEventListener("scroll", scroll, { passive: true });
+    parent.addEventListener("wheel", wheel, { passive: true });
+    return () => { parent.removeEventListener("scroll", scroll); parent.removeEventListener("wheel", wheel); };
+  }, [scrollParentRef]);
+
+  useEffect(() => {
+    if (!navigationRequest || displayMessages.some((message) => message.id === navigationRequest.messageId)) return;
+    if (hasOlderMessages && onLoadOlder && !isLoadingSession && !loadError && !olderLoadingRef.current) {
+      olderLoadingRef.current = true;
+      void onLoadOlder().catch(() => undefined).finally(() => { olderLoadingRef.current = false; });
+    } else if (!hasOlderMessages && !isLoadingSession) {
+      onNavigationHandled?.(navigationRequest.requestId);
+    }
+  }, [displayMessages, hasOlderMessages, isLoadingSession, loadError, navigationRequest, onLoadOlder, onNavigationHandled]);
 
   useLayoutEffect(() => {
     const liveMessageId = liveMessage?.id;
@@ -159,7 +199,8 @@ export function ChatMessageList({
         role={isLoadingSession ? "status" : undefined}
       >
         {isLoadingSession ? <span className="ai-panel__loading-spinner" aria-hidden="true" /> : null}
-        <span>{isLoadingSession ? t("aiPanel.messageList.loadingSession") : t("aiPanel.messageList.empty")}</span>
+        <span>{loadErrorLabel ?? (isLoadingSession ? t("aiPanel.messageList.loadingSession") : t("aiPanel.messageList.empty"))}</span>
+        {loadError ? <button type="button" onClick={onRetryLoad}>{t("common.actions.retry")}</button> : null}
       </div>
     );
   }
@@ -169,6 +210,7 @@ export function ChatMessageList({
   }));
 
   return <div className="ai-panel__messages">
+    {loadError ? <div role="alert">{loadErrorLabel} <button type="button" onClick={onRetryLoad}>{t("common.actions.retry")}</button></div> : null}
     <div className={shouldVirtualize ? "ai-panel__virtual-list" : undefined} ref={virtualList.listRef}
       style={shouldVirtualize ? { height: virtualList.totalSize } : undefined}>
       {renderedItems.map((item) => {

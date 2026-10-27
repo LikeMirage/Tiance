@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import pytest
 
 from app.api import ShellApi
+from app import api as api_module
 from app.backend_process import BackendProcessManager
 from app.backend_watchdog import ShellLease
 
@@ -73,3 +74,30 @@ def test_native_destroy_failure_resumes_backend_work():
     manager.prepare_exit.assert_called_once()
     manager.cancel_exit_preparation.assert_called_once()
     assert not api._allow_window_close
+
+
+@pytest.mark.parametrize("launch_fails", [False, True])
+def test_update_settles_before_launch_and_resumes_on_launch_failure(monkeypatch, tmp_path, launch_fails):
+    events = []
+    manager = SimpleNamespace(
+        prepare_exit=lambda: events.append("settle"),
+        cancel_exit_preparation=lambda: events.append("resume"),
+    )
+    api = ShellApi(SimpleNamespace(allow_remote_shell_api=False), manager)
+    api._window = SimpleNamespace(url="http://127.0.0.1:18100")
+    source = tmp_path / "system" / "TianceUpdater.exe"
+    source.parent.mkdir()
+    source.write_bytes(b"test")
+    monkeypatch.setattr(api_module, "_project_root", lambda: tmp_path)
+    monkeypatch.setattr(api_module, "_local_tiance_root", lambda: tmp_path / "cache")
+    monkeypatch.setattr(api_module, "_validate_software_update_stage", lambda _: tmp_path / "stage")
+    monkeypatch.setattr(api_module, "mark", lambda *args, **kwargs: None)
+    def launch(*args, **kwargs):
+        events.append("launch")
+        if launch_fails:
+            raise OSError("launch failed")
+    monkeypatch.setattr(api_module.subprocess, "Popen", launch)
+    monkeypatch.setattr(api_module.threading, "Timer", lambda *args: SimpleNamespace(start=lambda: events.append("close scheduled")))
+    result = api.install_software_update("stage")
+    assert result["ok"] is not launch_fails
+    assert events == ["settle", "launch", "resume" if launch_fails else "close scheduled"]

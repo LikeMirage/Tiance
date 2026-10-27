@@ -456,6 +456,15 @@
       "updated_at": "2026-10-03T13:17:05.128056+00:00"
     },
     {
+      "project_id": "34b16133-f310-4064-b71f-f0411d13ab1d",
+      "name": "新建空白工具",
+      "category_id": "c3b8c681-bf0c-4ec5-8247-b66be22d8e5b",
+      "is_default": false,
+      "sort_order": 5,
+      "created_at": "2026-10-27T09:45:33.250318+00:00",
+      "updated_at": "2026-10-27T09:45:33.250318+00:00"
+    },
+    {
       "project_id": "698de2a9-ba9d-5f2c-a515-52b030688be9",
       "name": "文件写入",
       "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",

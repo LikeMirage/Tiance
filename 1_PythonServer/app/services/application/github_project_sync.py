@@ -167,9 +167,12 @@ def build_board(
     local_projects = _items_by_id(local_catalog.get("projects", []), "project_id")
     remote_projects = _items_by_id(remote_catalog.get("projects", []), "project_id")
     project_ids = set(local_projects) | set(remote_projects)
+    paths_by_project: dict[str, list[str]] = {}
     for path in set(local.files) | set(remote):
         if path != CATALOG_PATH and "/" in path:
-            project_ids.add(path.split("/", 1)[0])
+            project_id = path.split("/", 1)[0]
+            project_ids.add(project_id)
+            paths_by_project.setdefault(project_id, []).append(path)
 
     project_rows: list[dict[str, Any]] = []
     changed_total = 0
@@ -181,9 +184,7 @@ def build_board(
         item = local_item or remote_item or {}
         prefix = f"{project_id}/"
         file_rows: list[dict[str, Any]] = []
-        for path in sorted(
-            candidate for candidate in set(local.files) | set(remote) if candidate.startswith(prefix)
-        ):
+        for path in sorted(paths_by_project.get(project_id, ())):
             local_file = local.files.get(path)
             remote_file = remote.get(path)
             if local_file and remote_file:
@@ -209,7 +210,7 @@ def build_board(
             "name": str(item.get("name") or project_id),
             "categoryId": item.get("category_id") if isinstance(item.get("category_id"), str) else None,
             "location": location,
-            "changedFiles": sum(row["status"] != "same" for row in file_rows),
+            "changedFiles": len(file_rows),
             "files": file_rows,
         })
 
@@ -218,23 +219,22 @@ def build_board(
     category_ids = set(local_categories) | set(remote_categories)
     if any(row["categoryId"] is None for row in project_rows):
         category_ids.add(UNCATEGORIZED_ID)
+    projects_by_category: dict[str, list[str]] = {}
+    changes_by_category: dict[str, int] = {}
+    for row in project_rows:
+        category_id = row["categoryId"] or UNCATEGORIZED_ID
+        projects_by_category.setdefault(category_id, []).append(row["projectId"])
+        changes_by_category[category_id] = changes_by_category.get(category_id, 0) + row["changedFiles"]
     category_rows: list[dict[str, Any]] = []
     for category_id in sorted(category_ids, key=lambda item: _category_sort_key(
         item, local_categories, remote_categories
     )):
         item = local_categories.get(category_id) or remote_categories.get(category_id) or {}
-        project_ids_in_category = [
-            row["projectId"] for row in project_rows
-            if (row["categoryId"] or UNCATEGORIZED_ID) == category_id
-        ]
         category_rows.append({
             "categoryId": category_id,
             "name": "未分类" if category_id == UNCATEGORIZED_ID else str(item.get("name") or category_id),
-            "projectIds": project_ids_in_category,
-            "changedFiles": sum(
-                row["changedFiles"] for row in project_rows
-                if row["projectId"] in project_ids_in_category
-            ),
+            "projectIds": projects_by_category.get(category_id, []),
+            "changedFiles": changes_by_category.get(category_id, 0),
         })
     return category_rows, project_rows, changed_total
 

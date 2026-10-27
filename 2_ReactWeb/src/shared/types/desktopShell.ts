@@ -88,6 +88,7 @@ export interface SystemMetricsSnapshot {
 }
 
 export interface DesktopShellApi {
+  prepare_file_explorer?: () => Promise<boolean> | boolean;
   reveal_window?: () => Promise<boolean> | boolean;
   minimize_window: () => Promise<void>;
   hide_window_to_tray?: () => Promise<boolean> | boolean;

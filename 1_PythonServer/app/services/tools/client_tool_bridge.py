@@ -68,6 +68,7 @@ class ClientToolBridgeService:
         timeout_seconds: int,
         model_context: dict[str, Any] | None = None,
         capability=None,
+        tool_project_id: str | None = None,
     ) -> ChatClientToolRequest:
         request = ChatClientToolRequest(
             request_id=uuid4().hex,
@@ -79,6 +80,7 @@ class ClientToolBridgeService:
             timeout_seconds=timeout_seconds,
             model_context=dict(model_context or {}),
             capability=capability,
+            tool_project_id=tool_project_id,
         )
         loop = asyncio.get_running_loop()
         pending = _PendingClientToolRequest(

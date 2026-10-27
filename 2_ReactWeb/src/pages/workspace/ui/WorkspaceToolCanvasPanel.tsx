@@ -6,6 +6,7 @@ import type {
   WorkspaceLayoutPreferenceUpdate,
 } from "../../../entities/workspace/model/workspaceLayoutPreferences";
 import { ChatPanel } from "../../../features/ai-panel/ui/ChatPanel";
+import type { ChatProjectReferenceCatalog } from "../../../features/ai-panel/ui/ChatComposerTypes";
 import { DocumentEditorCanvas } from "../../../features/document-editor-canvas/ui/DocumentEditorCanvas";
 import { isProjectConversationOverviewTab } from "../../../features/document-editor-canvas/model/documentTabClassification";
 import { useDesktopShell } from "../../../features/desktop-shell/model/useDesktopShell";
@@ -22,12 +23,14 @@ import { useWorkspaceConversationSelection } from "../model/useWorkspaceConversa
 import { useWorkspaceDocumentActions } from "../model/useWorkspaceDocumentActions";
 import { useWorkspaceEditorReferences } from "../model/useWorkspaceEditorReferences";
 import { useToolOverviewNavigation } from "../model/useToolOverviewNavigation";
+import { useConversationOverviewNavigation } from "../model/useConversationOverviewNavigation";
 import { ProjectCategoryOverviewKeepAlive } from "./ProjectCategoryOverviewKeepAlive";
 import { ProjectConversationOverviewDashboard } from "../../../features/project-category-overview/ui/ProjectConversationOverviewDashboard";
 import { createToolFolderDocumentSource } from "../../../features/document-tabs/model/documentFileSources";
 import type { ToolMarketInstallResponse } from "../../../services/tools/toolMarketApi";
 
 type WorkspaceToolCanvasPanelProps = {
+  projectReferenceCatalog: ChatProjectReferenceCatalog;
   activeWorkspaceKey: string | null;
   folders: ToolFolder[];
   documentTabs: ReturnType<typeof useDocumentTabs>;
@@ -53,6 +56,7 @@ type WorkspaceToolCanvasPanelProps = {
 };
 
 export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
+  projectReferenceCatalog,
   activeWorkspaceKey,
   folders,
   documentTabs,
@@ -267,10 +271,13 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     selectedProjectId: projectId,
     selectedToolsetId: selectedToolset?.category_id ?? null,
   });
-  const handleOpenCurrentConversationOverview = useCallback(() => {
-    if (!projectId) return;
-    documentTabs.ensureProjectConversationOverview(projectId, { activate: true });
-  }, [documentTabs.ensureProjectConversationOverview, projectId]);
+  const handleOpenCurrentConversationOverview = useConversationOverviewNavigation({
+    expandedProjectId: expandedToolFolder?.project_id ?? null,
+    projectId,
+    categoryId: selectedToolset?.category_id ?? null,
+    openProjectOverview: documentTabs.ensureProjectConversationOverview,
+    onLayoutPreferenceChange: handleCommonLayoutPreferenceChange,
+  });
   const handleOpenCurrentConversationBranches = useCallback(() => {
     if (!projectId) return;
     handleOpenConversationBranches(projectId);
@@ -278,6 +285,7 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
 
   const assistantPanel = useMemo(() => (
     <ChatPanel
+      projectReferenceCatalog={projectReferenceCatalog}
       activeConversationDataFile={activeConversationDataFile}
       clientToolRegistrations={clientToolRegistrations}
       composerInitialHeight={layoutPreferences.composerHeight}
@@ -336,6 +344,7 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     handleSaveProjectCodeBlock,
     isImageReferenceUploadPending,
     layoutPreferences.composerHeight,
+    projectReferenceCatalog,
     projectId,
     references,
     selectedToolFolder?.project_id,

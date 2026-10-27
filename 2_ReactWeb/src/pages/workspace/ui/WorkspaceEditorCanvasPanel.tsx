@@ -7,6 +7,7 @@ import type {
   WorkspaceLayoutPreferenceUpdate,
 } from "../../../entities/workspace/model/workspaceLayoutPreferences";
 import { ChatPanel } from "../../../features/ai-panel/ui/ChatPanel";
+import type { ChatProjectReferenceCatalog } from "../../../features/ai-panel/ui/ChatComposerTypes";
 import { DocumentEditorCanvas } from "../../../features/document-editor-canvas/ui/DocumentEditorCanvas";
 import { isProjectConversationOverviewTab } from "../../../features/document-editor-canvas/model/documentTabClassification";
 import { useDesktopShell } from "../../../features/desktop-shell/model/useDesktopShell";
@@ -30,9 +31,11 @@ import { RoleMarketBoard } from "../../../features/role-market/ui/RoleMarketBoar
 import { ProviderMarketBoard } from "../../../features/provider-market/ui/ProviderMarketBoard";
 import { KnowledgeContentDashboard } from "../../../features/knowledge-content-dashboard/ui/KnowledgeContentDashboard";
 import { useCollectionOverviewNavigation } from "../model/useCollectionOverviewNavigation";
+import { useConversationOverviewNavigation } from "../model/useConversationOverviewNavigation";
 import "../../../shared/ui/specialized-collection-overview/specialized-collection-overview.css";
 
 type WorkspaceEditorCanvasPanelProps = {
+  projectReferenceCatalog: ChatProjectReferenceCatalog;
   categories: ProjectCategory[];
   expandedProjectId: string | null;
   documentTabs: ReturnType<typeof useDocumentTabs>;
@@ -71,6 +74,7 @@ type WorkspaceEditorCanvasPanelProps = {
 };
 
 export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPanel({
+  projectReferenceCatalog,
   categories,
   expandedProjectId,
   documentTabs,
@@ -218,10 +222,6 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
         : selectedSessionId,
     );
   }, [handleEnterConversationBranches, projectId, selectedSessionId, visibleChatSession]);
-  const handleOpenCurrentConversationOverview = useCallback(() => {
-    if (!projectId) return;
-    documentTabs.ensureProjectConversationOverview(projectId, { activate: true });
-  }, [documentTabs.ensureProjectConversationOverview, projectId]);
   const handleActiveUserMessageChange = useCallback((
     targetProjectId: string,
     sessionId: string,
@@ -265,6 +265,15 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       : [],
     [projects, selectedCategoryId],
   );
+  const handleOpenCurrentConversationOverview = useConversationOverviewNavigation({
+    expandedProjectId,
+    projectId,
+    categoryId: selectedCategoryId,
+    openProjectOverview: documentTabs.ensureProjectConversationOverview,
+    onLayoutPreferenceChange: collectionKind
+      ? handleCommonLayoutPreferenceChange
+      : onLayoutPreferenceChange,
+  });
   const categoryOverviewContent = (
     <ProjectCategoryOverviewKeepAlive
       activeConversationMessageId={
@@ -463,6 +472,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
   ) : categoryOverviewContent;
   const assistantPanel = useMemo(() => (
     <ChatPanel
+      projectReferenceCatalog={projectReferenceCatalog}
       activeConversationDataFile={activeConversationDataFile}
       clientToolRegistrations={clientToolRegistrations}
       composerInitialHeight={layoutPreferences.composerHeight}
@@ -521,6 +531,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     isActive,
     isImageReferenceUploadPending,
     layoutPreferences.composerHeight,
+    projectReferenceCatalog,
     projectFileReferenceRequest,
     projectId,
     selectedProject?.root_path,

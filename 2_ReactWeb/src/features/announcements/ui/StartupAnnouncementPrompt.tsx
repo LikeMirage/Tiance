@@ -63,6 +63,8 @@ export function StartupAnnouncementPrompt() {
 
   return (
     <ConfirmModal
+      showClose
+      closeLabel={t("announcements.close")}
       cancelDisabled={busy}
       closeOnBackdrop={false}
       confirmDisabled={busy}

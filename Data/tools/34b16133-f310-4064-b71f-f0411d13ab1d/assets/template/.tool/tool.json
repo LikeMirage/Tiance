@@ -1,0 +1,29 @@
+{
+  "description": "尚未实现业务功能的工具模板。制作前阅读 docs/tool-development/README.md，完成并验证后按用户意愿启用。",
+  "execution": {
+    "parallel": true
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json",
+    "permissions": ".tool/permissions.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "loading": {
+    "dynamic": true
+  },
+  "name": "new_tool",
+  "registration_name": "空白工具",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 60,
+    "type": "python"
+  },
+  "state": {
+    "enabled": false
+  }
+}

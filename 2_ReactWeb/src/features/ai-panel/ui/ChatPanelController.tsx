@@ -60,6 +60,8 @@ import {
   isNotFoundRequestError,
 } from "../model/chatPanelRequestErrors";
 import { ChatComposer } from "./ChatComposer";
+import { ChatConversationActions } from "./ChatConversationActions";
+import type { ChatProjectReferenceCatalog } from "./ChatComposerTypes";
 import { ChatHeader, type ChatPanelView } from "./ChatHeader";
 import { ChatPanelBodyFrame } from "./ChatPanelBodyFrame";
 import { ChatPanelErrorNotice } from "./ChatPanelErrorNotice";
@@ -68,6 +70,7 @@ import { ChatSettingsTabs } from "./ChatSettingsTabs";
 import type { ChatSettingsPanel } from "./ChatSettingsView";
 
 type Props = {
+  projectReferenceCatalog?: ChatProjectReferenceCatalog;
   projectId: string | null;
   activeConversationDataFile?: ConversationDataFileName | null;
   clientToolRegistrations?: readonly ClientToolRegistration[];
@@ -108,6 +111,7 @@ type Props = {
 const EMPTY_CLIENT_TOOL_REGISTRATIONS: readonly ClientToolRegistration[] = [];
 
 export function ChatPanelController({
+  projectReferenceCatalog,
   projectId,
   activeConversationDataFile,
   clientToolRegistrations = EMPTY_CLIENT_TOOL_REGISTRATIONS,
@@ -228,6 +232,9 @@ export function ChatPanelController({
     replaceSessionMessages,
     sessionMessages,
     loadingSessionKeys,
+    messageLoadErrors,
+    historyPages,
+    loadOlderSessionMessages,
     updateSessionMessages,
   } = useSessionMessages({
     activeProjectIdRef,
@@ -626,18 +633,14 @@ export function ChatPanelController({
   });
 
   useActiveSessionLiveReload({
-    activeRuntimeStatus: activeSessionState?.runtime_status ?? null,
     activeSessionId,
-    branchNodes,
     isActive,
-    isActiveSessionStreaming,
     isSessionStreaming,
     isNotFoundRequestError,
-    messages,
     projectId,
     reloadSessionMessages,
     reloadSessions,
-    sessionStates,
+
   });
 
   useDetachedConversationStream({
@@ -796,14 +799,8 @@ export function ChatPanelController({
         canCreateConversation={Boolean(
           projectId && !isLoadingSessions && !sessionLoadError && !isCreatingConversation
         )}
-        canExportConversation={Boolean(activeSession)}
-        canOpenBranches={Boolean(projectId)}
-        canOpenConversationOverview={Boolean(projectId && onOpenConversationOverview)}
         isLoadingSession={Boolean(projectId && isLoadingSessions && !activeSession)}
         onCreateConversation={createNewConversation}
-        onExportConversation={openConversationExport}
-        onOpenBranches={() => onOpenConversationBranches?.()}
-        onOpenConversationOverview={() => onOpenConversationOverview?.()}
         onShowChat={() => setActiveView("chat")}
         onToggleSettings={() => {
           if (activeView === "settings") {
@@ -858,6 +855,13 @@ export function ChatPanelController({
             (activeSessionKey && loadingSessionKeys.has(activeSessionKey))
           ),
           messages,
+          loadError: activeSessionKey ? messageLoadErrors[activeSessionKey] : undefined,
+          hasOlderMessages: Boolean(activeSessionKey && historyPages[activeSessionKey]?.before),
+          onLoadOlder: () => projectId && activeSessionId
+            ? loadOlderSessionMessages(projectId, activeSessionId) : Promise.resolve(false),
+          onRetryLoad: () => {
+            if (projectId && activeSessionId) void reloadSessionMessages(projectId, activeSessionId, { forceRefresh: true }).catch(() => undefined);
+          },
           runtimeStatus: isActiveSessionStreaming
             ? "running"
             : activeSessionState?.runtime_status ?? null,
@@ -888,6 +892,13 @@ export function ChatPanelController({
 
       {activeView === "chat" ? (
         <ChatComposer
+          conversationActions={
+            <ChatConversationActions
+              onExport={activeSession ? openConversationExport : undefined}
+              onOpenOverview={projectId ? onOpenConversationOverview : undefined}
+              onOpenBranches={projectId ? onOpenConversationBranches : undefined}
+            />
+          }
           onScrollToBottom={() => scrollToBottom("smooth")}
           generation={{
             isStreaming: isActiveSessionBusy,
@@ -907,6 +918,9 @@ export function ChatPanelController({
               ? `${projectId}:${activeSessionId}`
               : null,
             references,
+            projectId,
+            projectReferenceCatalog,
+            onReferenceExternalPath: projectId ? onReferenceExternalPath : undefined,
             onDraftChange: setDraft,
             onExternalFileDrop: handleExternalFileDrop,
             onDropProjectFile: handleDropProjectFile,

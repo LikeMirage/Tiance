@@ -1,12 +1,14 @@
+from contextlib import aclosing
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import UTC, datetime
 from functools import lru_cache
 import logging
-from tempfile import SpooledTemporaryFile
 
 from app.core.errors import BadRequestError
 from app.domain.llm.chat import ChatCompletionRequest, ChatCompletionResult, ChatStreamEvent
 from app.domain.llm.chat_http_exchange import ChatHttpExchange
+from app.domain.llm.response_body import ResponseBody
+from app.infra.llm.response_capture import ResponseCapture
 from app.domain.llm.provider_catalog import ProviderCatalogEntry, ProviderProtocolFamily
 from app.domain.llm.provider_runtime import ProviderRuntimeConfig
 from app.infra.http_client import get_http_timeout, get_shared_http_client
@@ -101,23 +103,25 @@ class ChatRemoteClient:
             headers: dict[str, str],
             body: dict[str, object],
         ) -> AsyncGenerator[bytes, None]:
-            async for chunk in self._stream_body(
+            async with aclosing(self._stream_body(
                 url,
                 merge_request_headers(headers, declared_headers),
                 body,
                 request=request,
                 on_exchange=on_exchange,
-            ):
-                yield chunk
+            )) as owned_stream:
+                async for chunk in owned_stream:
+                    yield chunk
 
-        async for event in adapter.stream(
+        async with aclosing(adapter.stream(
             provider_template=provider_template,
             runtime_config=runtime_config,
             api_key=api_key,
             request=request,
             stream_body=stream_body,
-        ):
-            yield event
+        )) as owned_stream:
+            async for event in owned_stream:
+                yield event
 
     async def _post_json(
         self,
@@ -169,7 +173,7 @@ class ChatRemoteClient:
         client = get_shared_http_client()
         response = None
         failure: BaseException | None = None
-        capture = SpooledTemporaryFile(max_size=1024 * 1024, mode="w+b")
+        capture = ResponseCapture() if on_exchange is not None and request is not None else None
         try:
             async with client.stream(
                 "POST",
@@ -179,30 +183,30 @@ class ChatRemoteClient:
                 timeout=get_http_timeout(stream=True),
             ) as response:
                 if response.is_error:
-                    capture.write(await response.aread())
+                    async for chunk in response.aiter_bytes():
+                        if capture is not None:
+                            capture.write(chunk)
                 response.raise_for_status()
                 async for chunk in response.aiter_bytes():
-                    capture.write(chunk)
+                    if capture is not None:
+                        capture.write(chunk)
                     yield chunk
         except BaseException as exc:
             failure = exc
             raise
         finally:
-            capture.seek(0)
-            response_body = capture.read()
-            capture.close()
-            await _notify_exchange(
-                request=request,
-                on_exchange=on_exchange,
-                started_at=started_at,
-                url=url,
-                headers=headers,
-                body=body,
-                response_status=getattr(response, "status_code", None),
-                response_headers=dict(getattr(response, "headers", {}) or {}),
-                response_body=response_body,
-                failure=failure,
-            )
+            if capture is not None:
+                capture.seal()
+                try:
+                    await _notify_exchange(
+                        request=request, on_exchange=on_exchange, started_at=started_at,
+                        url=url, headers=headers, body=body,
+                        response_status=getattr(response, "status_code", None),
+                        response_headers=dict(getattr(response, "headers", {}) or {}),
+                        response_body=capture, failure=failure,
+                    )
+                finally:
+                    capture.release()
 
 
 async def _notify_exchange(
@@ -215,7 +219,7 @@ async def _notify_exchange(
     body: dict[str, object],
     response_status: int | None,
     response_headers: dict[str, str],
-    response_body: bytes,
+    response_body: bytes | ResponseBody,
     failure: BaseException | None,
 ) -> None:
     if on_exchange is None or request is None:

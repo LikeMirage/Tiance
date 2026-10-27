@@ -524,6 +524,9 @@ class ProjectConversationMessageListResponse(BaseModel):
     total_count: int | None = None
     has_more: bool = False
     next_before_message_id: str | None = None
+    revision: int = 0
+    reset_revision: int = 0
+    next_after_message_id: str | None = None
     items: list[ProjectConversationMessageResponse]
     run_outcomes: list["ProjectConversationRunOutcomeResponse"] = Field(default_factory=list)
     run_attempt_failures: list["ProjectConversationRunAttemptFailureResponse"] = Field(

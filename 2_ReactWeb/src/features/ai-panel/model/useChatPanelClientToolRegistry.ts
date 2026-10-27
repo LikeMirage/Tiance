@@ -12,6 +12,7 @@ import {
 import { getConversationBackgroundRunRegistry } from "../../client-tools/model/conversationBackgroundRun";
 import { createConversationInteractionClientToolRegistration } from "../../client-tools/model/conversationInteractionClientTool";
 import { createConversationManagementClientToolRegistration } from "../../client-tools/model/conversationManagementClientTool";
+import { createToolProjectClientToolRegistration } from "../../client-tools/model/toolProjectClientTool";
 import type { ConversationSessionsReloadResult } from "./useConversationSessions";
 
 type UseChatPanelClientToolRegistryInput = {
@@ -57,6 +58,7 @@ export function useChatPanelClientToolRegistry({
 
   const clientToolRegistry: ClientToolRegistry = useMemo(() => createClientToolRegistry([
     ...clientToolRegistrations,
+    createToolProjectClientToolRegistration(),
     createConversationManagementClientToolRegistration({
       showSession,
     }),

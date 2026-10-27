@@ -1,0 +1,2 @@
+# This template uses only Python's standard library and the host tiance_runtime helper.
+# Add and pin actual third-party dependencies here; do not pip install tiance_runtime.

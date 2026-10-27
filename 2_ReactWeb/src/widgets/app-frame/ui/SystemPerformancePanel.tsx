@@ -29,12 +29,12 @@ export function SystemPerformancePanel({ metrics, storage, storageError }: Props
     <div className="system-performance__columns">
       <section className="performance-metric performance-metric--cpu performance-metric--system">
         <div className="performance-metric__label"><Cpu size={14} /><span>CPU</span></div>
-        <div className="performance-metric__gauge-row"><strong className="performance-metric__value">{formatMetricPercent(system.cpuPercent)}</strong><UsageRing value={system.cpuPercent} /></div>
+        <strong className="performance-metric__value">{formatMetricPercent(system.cpuPercent)}</strong>
         <UsageBar value={system.cpuPercent} label={t("appFrame.metrics.systemCpu")} />
       </section>
       <section className="performance-metric performance-metric--memory performance-metric--system">
         <div className="performance-metric__label"><Memory size={14} /><span>{t("appFrame.metrics.memoryLabel")}</span></div>
-        <div className="performance-metric__gauge-row"><strong className="performance-metric__value">{formatMetricPercent(system.memoryPercent)}</strong><UsageRing value={system.memoryPercent} /></div>
+        <strong className="performance-metric__value">{formatMetricPercent(system.memoryPercent)}</strong>
         <UsageBar value={system.memoryPercent} label={t("appFrame.metrics.systemMemory")} />
         <small className="performance-metric__capacity">{formatMetricBytes(system.memoryUsedBytes)} / {formatMetricBytes(system.memoryTotalBytes)}</small>
       </section>
@@ -50,14 +50,6 @@ export function SystemPerformancePanel({ metrics, storage, storageError }: Props
       </> : <small>{t(storageError ? "appFrame.metrics.storageFailed" : "appFrame.metrics.loading")}</small>}
     </section>
   </div>;
-}
-
-function UsageRing({ value }: { value: number | null }) {
-  const percent = Math.max(0, Math.min(100, value ?? 0));
-  return <svg className="performance-ring" viewBox="0 0 44 44" aria-hidden="true">
-    <circle cx="22" cy="22" r="17" className="performance-ring__track" />
-    <circle cx="22" cy="22" r="17" pathLength="100" strokeDasharray={`${percent} 100`} transform="rotate(-90 22 22)" />
-  </svg>;
 }
 
 function UsageBar({ value, label }: { value: number | null; label: string }) {

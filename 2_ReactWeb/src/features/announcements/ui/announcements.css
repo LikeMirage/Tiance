@@ -40,6 +40,7 @@
 }
 
 .announcement-prompt__heading {
+  padding-right: 24px;
   margin: 0 0 20px;
 }
 

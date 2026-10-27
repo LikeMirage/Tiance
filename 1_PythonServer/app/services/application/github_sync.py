@@ -15,6 +15,7 @@ from uuid import uuid4
 from app.core.atomic_replace import atomic_replace_path
 from app.core.config import Settings, get_settings
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
+from app.core.shutdown_tasks import finish_thread, shutdown_tasks
 from app.domain.github_sync import (
     GithubSyncBinding,
     GithubSyncChange,
@@ -462,6 +463,7 @@ class GithubSyncService:
             raise BadRequestError(str(exc)) from exc
         return commit_sha
 
+    @shutdown_tasks.request
     async def _apply_pull(
         self,
         plan: GithubSyncPlan,
@@ -471,13 +473,10 @@ class GithubSyncService:
     ) -> None:
         repository = _parse_repository(plan.binding.repository)
         root = collection_root(self._settings, plan.collection)
-        root.mkdir(parents=True, exist_ok=True)
-        with TemporaryDirectory(prefix="tiance-github-sync-") as temporary_name:
-            temporary_root = Path(temporary_name)
+        temporary = TemporaryDirectory(prefix="tiance-github-sync-")
+        try:
+            temporary_root = Path(temporary.name)
             staged_root = temporary_root / "staged"
-            backup_root = temporary_root / "backup"
-            created_paths: list[Path] = []
-            backed_up: list[tuple[Path, Path]] = []
 
             for change in plan.changes:
                 if change.kind is GithubSyncChangeKind.DELETE:
@@ -492,39 +491,60 @@ class GithubSyncService:
                         access_token=access_token,
                     )
                 staged = staged_root.joinpath(*Path(change.path).parts)
-                staged.parent.mkdir(parents=True, exist_ok=True)
-                staged.write_bytes(content)
+                await finish_thread(_write_staged_file, staged, content)
 
-            try:
-                for change in plan.changes:
-                    target = self._local_target(plan.collection, root, change.path)
-                    if target.exists():
-                        backup = backup_root.joinpath(*Path(change.path).parts)
-                        backup.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(target, backup)
-                        backed_up.append((target, backup))
-                    elif change.kind is not GithubSyncChangeKind.DELETE:
-                        created_paths.append(target)
+            shutdown_tasks.commit_started()
+            await finish_thread(self._commit_pull, plan, root, temporary_root)
+        finally:
+            await finish_thread(temporary.cleanup)
 
-                for change in plan.changes:
-                    target = self._local_target(plan.collection, root, change.path)
-                    if change.kind is GithubSyncChangeKind.DELETE:
-                        target.unlink(missing_ok=True)
-                        continue
-                    staged = staged_root.joinpath(*Path(change.path).parts)
+    def _commit_pull(self, plan: GithubSyncPlan, root: Path, temporary_root: Path) -> None:
+        """Keep backup, replacement and rollback together in one worker.
+
+        The caller joins this worker before releasing its collection lock or
+        deleting staging, including when the request is cancelled.
+        """
+        root.mkdir(parents=True, exist_ok=True)
+        staged_root = temporary_root / "staged"
+        backup_root = temporary_root / "backup"
+        created_paths: list[Path] = []
+        backed_up: list[tuple[Path, Path]] = []
+        temporary_targets: list[Path] = []
+        try:
+            for change in plan.changes:
+                target = self._local_target(plan.collection, root, change.path)
+                if target.exists():
+                    backup = backup_root.joinpath(*Path(change.path).parts)
+                    backup.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(target, backup)
+                    backed_up.append((target, backup))
+                elif change.kind is not GithubSyncChangeKind.DELETE:
+                    created_paths.append(target)
+
+            for change in plan.changes:
+                target = self._local_target(plan.collection, root, change.path)
+                if change.kind is GithubSyncChangeKind.DELETE:
+                    target.unlink(missing_ok=True)
+                    continue
+                staged = staged_root.joinpath(*Path(change.path).parts)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                temporary_target = target.with_name(f".{target.name}.{uuid4().hex}.sync")
+                temporary_targets.append(temporary_target)
+                shutil.copy2(staged, temporary_target)
+                atomic_replace_path(temporary_target, target)
+        except Exception:
+            for target in reversed(created_paths):
+                with suppress(OSError):
+                    target.unlink(missing_ok=True)
+            for target, backup in reversed(backed_up):
+                with suppress(OSError):
                     target.parent.mkdir(parents=True, exist_ok=True)
-                    temporary_target = target.with_name(f".{target.name}.{uuid4().hex}.sync")
-                    shutil.copy2(staged, temporary_target)
-                    atomic_replace_path(temporary_target, target)
-            except Exception:
-                for target in reversed(created_paths):
-                    with suppress(OSError):
-                        target.unlink(missing_ok=True)
-                for target, backup in reversed(backed_up):
-                    with suppress(OSError):
-                        target.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(backup, target)
-                raise
+                    shutil.copy2(backup, target)
+            raise
+        finally:
+            for temporary_target in temporary_targets:
+                with suppress(OSError):
+                    temporary_target.unlink(missing_ok=True)
         _remove_empty_directories(root)
 
     def _local_target(self, collection: ProjectKind, root: Path, path: str) -> Path:
@@ -754,6 +774,11 @@ def _safe_local_target(root: Path, relative_path: str) -> Path:
     if target.is_symlink():
         raise BadRequestError("同步目标不能是符号链接。")
     return target
+
+
+def _write_staged_file(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content)
 
 
 def _remove_empty_directories(root: Path) -> None:

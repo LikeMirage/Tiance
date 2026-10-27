@@ -100,8 +100,8 @@
       "metrics": {
         "aria": "Performance and usage",
         "panelAria": "Performance and usage panel",
-        "title": "Performance usage",
-        "performanceTab": "Performance",
+        "title": "Performance monitoring",
+        "performanceTab": "Monitoring",
         "usageTab": "Tokens",
         "loading": "Reading performance data",
         "shellDisconnected": "Desktop shell disconnected",
@@ -371,6 +371,8 @@
       },
       "messageList": {
         "loadingSession": "Loading session...",
+        "loadFailed": "Unable to load conversation. Please retry.",
+        "loadTimeout": "Conversation loading timed out. Please retry.",
         "empty": "Send a message to start the conversation."
       },
       "usage": {

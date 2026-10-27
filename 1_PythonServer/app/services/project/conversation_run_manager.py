@@ -9,6 +9,7 @@ from typing import Protocol, cast
 from uuid import uuid4
 
 from app.core.errors import AppError, ConflictError, NotFoundError
+from app.core.shutdown_tasks import shutdown_tasks
 from app.domain.llm.chat import ChatCompletionRequest
 from app.services.project.conversation_stream_checkpoints import (
     PERSISTENCE_CHECKPOINT_KIND,
@@ -113,6 +114,7 @@ class ConversationRunManager:
         mailbox = self._create_mailbox()
 
         async with self._lock:
+            shutdown_tasks.require_accepting()
             existing = self._runs.get(run_key)
             if existing is not None and existing.task is not None and not existing.task.done():
                 raise ConflictError("当前会话已有生成任务正在运行。")
@@ -293,12 +295,15 @@ class ConversationRunManager:
             for run in runs:
                 run.task.cancel()
         if runs:
-            await asyncio.gather(
+            results = await asyncio.gather(
                 *(run.task for run in runs if run.task is not None),
                 return_exceptions=True,
             )
             for run in runs:
                 await self._finish_run(run)
+            errors = [result for result in results if isinstance(result, Exception)]
+            if errors:
+                raise RuntimeError("会话停止时未能完成收尾保存。") from errors[0]
 
     async def _run_generation(
         self,
@@ -325,6 +330,10 @@ class ConversationRunManager:
                         "error_code": "conversation_run_failed",
                     },
                 )
+            if not shutdown_tasks.accepting:
+                # The exit coordinator must see settlement failures; publishing
+                # an error to a disappearing listener is not durable settlement.
+                raise
         finally:
             await self._finish_run(run)
 

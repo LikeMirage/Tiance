@@ -137,6 +137,21 @@ export function useVirtualMessageList({
     };
   }, [estimateSize, measureVersion, messages]);
 
+  const previousFirstRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const previous = previousFirstRef.current;
+    const first = messages[0]?.id ?? null;
+    previousFirstRef.current = first;
+    if (!enabled || !previous || previous === first) return;
+    const index = messages.findIndex((message) => message.id === previous);
+    const parent = scrollParentRef.current;
+    if (index > 0 && parent) {
+      // Prepending history must preserve the message currently being read.
+      parent.scrollTop += layout.offsets[index];
+      updateViewport();
+    }
+  }, [enabled, layout.offsets, messages, scrollParentRef, updateViewport]);
+
   const virtualItems = useMemo(() => {
     if (!enabled || messages.length === 0) return [];
 

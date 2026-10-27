@@ -1,0 +1,7 @@
+{
+  "additionalProperties": false,
+  "description": "空白工具暂不接收参数。实现业务时同步定义参数类型、说明、必填关系和 permission_type。",
+  "properties": {},
+  "required": [],
+  "type": "object"
+}

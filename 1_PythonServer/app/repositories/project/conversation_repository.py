@@ -705,15 +705,26 @@ class ProjectConversationRepository:
         *,
         limit: int | None = None,
         before_message_id: str | None = None,
+        after_message_id: str | None = None,
     ) -> ProjectConversationMessagePage:
         session_dir = self._session_store.require_session_dir(project_id, session_id)
+        from app.repositories.project.conversation_database import read_conversation_snapshot
+        with read_conversation_snapshot(session_dir.parent.parent):
+            return self._read_message_page_snapshot(session_dir, limit, before_message_id, after_message_id)
+
+    def _read_message_page_snapshot(self, session_dir, limit, before_message_id, after_message_id):
+        from app.repositories.project.conversation_database import read_message_sync_state
+        state = read_message_sync_state(session_dir)
         page = self._message_store.list_messages_page(
             session_dir,
             limit=limit,
             before_message_id=before_message_id,
+            after_message_id=after_message_id,
         )
         return replace(
             page,
+            revision=state["revision"],
+            reset_revision=state["reset_revision"],
             run_outcomes=self._run_outcomes_for_messages(
                 session_dir,
                 page.items,
@@ -723,6 +734,9 @@ class ProjectConversationRepository:
                 page.items,
             ),
         )
+
+    def message_sync_target(self, project_id: str, session_id: str) -> Path:
+        return self._session_store.require_session_dir(project_id, session_id)
 
     def get_message_turn(
         self,
@@ -831,6 +845,22 @@ class ProjectConversationRepository:
             )
         )
 
+    def append_status_notice(
+        self, project_id: str, session_id: str, *, name: str, content: str,
+        status: ProjectConversationMessageStatus, message_id: str | None,
+    ) -> ProjectConversationMessage | None:
+        from app.repositories.project.conversation_database import find_message_ordinal
+        folder = self._session_store.conversations_dir(project_id, for_write=True)
+        with conversation_write_lock(folder):
+            target = self._session_store.require_session_dir(project_id, session_id)
+            if message_id and find_message_ordinal(target, message_id) is not None:
+                return None
+            return self.append_message(
+                project_id, session_id, role="system", content=content, name=name,
+                status=status, message_id=message_id,
+                sync_session_model=False, include_in_context=False,
+            )
+
     def append_message(
         self,
         project_id: str,
@@ -877,10 +907,8 @@ class ProjectConversationRepository:
                 message_model_id = None
 
             resolved_message_id = message_id or f"msg_{uuid4().hex[:16]}"
-            if message_id and any(
-                existing.message_id == message_id
-                for existing in self._message_store.list_messages(session_dir)
-            ):
+            from app.repositories.project.conversation_database import find_message_ordinal
+            if message_id and find_message_ordinal(session_dir, message_id) is not None:
                 raise ConflictError(f"Conversation message '{message_id}' already exists.")
             graph = self._branch_store.read_graph(conversations_dir)
             pending_variant = (

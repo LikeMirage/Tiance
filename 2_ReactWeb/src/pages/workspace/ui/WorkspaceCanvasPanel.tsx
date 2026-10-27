@@ -35,9 +35,11 @@ import type { WorkspaceSettingsSectionId } from "../model/workspaceSettingsSecti
 import { WorkspaceEditorCanvasPanel } from "./WorkspaceEditorCanvasPanel";
 import { WorkspaceProviderCanvasPanel } from "./WorkspaceProviderCanvasPanel";
 import { WorkspaceToolCanvasPanel } from "./WorkspaceToolCanvasPanel";
+import type { ChatProjectReferenceCatalog } from "../../../features/ai-panel/ui/ChatComposerTypes";
 import "./workspace-canvas-panel.css";
 
 type WorkspaceCanvasPanelProps = {
+  projectReferenceCatalog: ChatProjectReferenceCatalog;
   activeSection: HoverSidebarSectionId;
   activeFunctionalModelSectionId: FunctionalModelSettingsSectionId;
   activeSettingsSectionId: WorkspaceSettingsSectionId;
@@ -152,6 +154,7 @@ type CanvasTransitionState = {
 };
 
 export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
+  projectReferenceCatalog,
   activeSection,
   activeFunctionalModelSectionId,
   activeSettingsSectionId,
@@ -346,6 +349,7 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
       case "overview":
         return (
           <WorkspaceEditorCanvasPanel
+            projectReferenceCatalog={projectReferenceCatalog}
             categories={projectCategories}
             projectMarketScope={null}
             expandedProjectId={expandedProjectId}
@@ -372,6 +376,7 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
       case "knowledge":
         return (
           <WorkspaceEditorCanvasPanel
+            projectReferenceCatalog={projectReferenceCatalog}
             categories={knowledgeProjectCategories}
             projectMarketScope="knowledge"
             expandedProjectId={knowledgeExpandedProjectId}
@@ -398,6 +403,7 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
       case "experience":
         return (
           <WorkspaceEditorCanvasPanel
+            projectReferenceCatalog={projectReferenceCatalog}
             categories={experienceProjectCategories}
             projectMarketScope="experience"
             expandedProjectId={experienceExpandedProjectId}
@@ -423,6 +429,7 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
       case "roles":
         return (
           <WorkspaceEditorCanvasPanel
+            projectReferenceCatalog={projectReferenceCatalog}
             categories={roleProjectCategories}
             expandedProjectId={roleExpandedProjectId}
             documentTabs={projectDocumentTabs}
@@ -448,6 +455,7 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
       case "themes":
         return (
           <WorkspaceEditorCanvasPanel
+            projectReferenceCatalog={projectReferenceCatalog}
             categories={themeProjectCategories}
             expandedProjectId={themeExpandedProjectId}
             documentTabs={projectDocumentTabs}
@@ -475,6 +483,7 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
       case "models":
         return (
           <WorkspaceEditorCanvasPanel
+            projectReferenceCatalog={projectReferenceCatalog}
             categories={providerProjectCategories}
             expandedProjectId={providerExpandedProjectId}
             documentTabs={projectDocumentTabs}
@@ -531,6 +540,7 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
       case "tools":
         return (
           <WorkspaceToolCanvasPanel
+            projectReferenceCatalog={projectReferenceCatalog}
             activeWorkspaceKey={activeToolWorkspaceKey}
             folders={toolFolders}
             documentTabs={toolDocumentTabs}

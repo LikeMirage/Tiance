@@ -645,12 +645,13 @@ export function useConversationSessions({
   }, [activeSessionId, isCurrentProjectLoaded, persistSessionState, projectId]);
 
   useEffect(() => {
-    if (!isActive || !isCurrentProjectLoaded || !projectId || !hasRunningSession) return undefined;
+    // The selected conversation socket also invalidates the project session list.
+    if (!isActive || !isCurrentProjectLoaded || !projectId || !hasRunningSession || activeSessionId) return undefined;
     const timer = window.setInterval(() => {
       void reloadSessions(projectId);
     }, 10000);
     return () => window.clearInterval(timer);
-  }, [hasRunningSession, isActive, isCurrentProjectLoaded, projectId, reloadSessions]);
+  }, [activeSessionId, hasRunningSession, isActive, isCurrentProjectLoaded, projectId, reloadSessions]);
 
   const applyForkResult = useCallback((response: ConversationForkResponse) => {
     if (!projectId) return;

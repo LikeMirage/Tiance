@@ -1,8 +1,8 @@
 import type { ProjectFileRevealRequest } from "../../entities/project/model/project";
-import { fetchNoContent } from "../http/httpClient";
+import { revealInFileExplorer } from "../desktop/fileExplorer";
 
 export function revealProjectFile(projectId: string, payload: ProjectFileRevealRequest) {
-  return fetchNoContent(
+  return revealInFileExplorer(
     `/api/projects/${encodeURIComponent(projectId)}/files/reveal`,
     {
       method: "POST",

@@ -30,32 +30,36 @@ def _build_stream_headers(auth_scheme: AuthScheme, api_key: str) -> dict[str, st
 async def _iter_sse_payloads(
     chunks: AsyncGenerator[bytes, None],
 ) -> AsyncGenerator[dict[str, object] | None | SseDone, None]:
-    buffer = b""
-    data_lines: list[bytes] = []
-    async for chunk in chunks:
-        buffer += chunk
-        while b"\n" in buffer:
-            line, buffer = buffer.split(b"\n", 1)
-            data = _consume_sse_line(data_lines, line)
-            if data is _NO_SSE_EVENT:
-                continue
-            if data.strip() == b"[DONE]":
-                yield SSE_DONE
-                return
-            yield _load_stream_payload(data)
-    if buffer:
-        data = _consume_sse_line(data_lines, buffer)
+    try:
+        buffer = b""
+        data_lines: list[bytes] = []
+        async for chunk in chunks:
+            buffer += chunk
+            while b"\n" in buffer:
+                line, buffer = buffer.split(b"\n", 1)
+                data = _consume_sse_line(data_lines, line)
+                if data is _NO_SSE_EVENT:
+                    continue
+                if data.strip() == b"[DONE]":
+                    yield SSE_DONE
+                    return
+                yield _load_stream_payload(data)
+        if buffer:
+            data = _consume_sse_line(data_lines, buffer)
+            if data is not _NO_SSE_EVENT:
+                if data.strip() == b"[DONE]":
+                    yield SSE_DONE
+                    return
+                yield _load_stream_payload(data)
+        data = _flush_sse_data_lines(data_lines)
         if data is not _NO_SSE_EVENT:
             if data.strip() == b"[DONE]":
                 yield SSE_DONE
                 return
             yield _load_stream_payload(data)
-    data = _flush_sse_data_lines(data_lines)
-    if data is not _NO_SSE_EVENT:
-        if data.strip() == b"[DONE]":
-            yield SSE_DONE
-            return
-        yield _load_stream_payload(data)
+
+    finally:
+        await chunks.aclose()
 
 
 def _consume_sse_line(data_lines: list[bytes], raw_line: bytes) -> bytes | object:

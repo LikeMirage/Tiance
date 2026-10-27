@@ -909,6 +909,7 @@ class ConversationToolLoop:
                                 "input_modalities": list(input_modalities),
                             },
                             capability=prepared.capability,
+                            tool_project_id=prepared.tool_project_id,
                         )
                         yield ChatStreamEvent(
                             kind=ChatStreamEventKind.CLIENT_TOOL_REQUEST,

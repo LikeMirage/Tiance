@@ -64,11 +64,7 @@
 
 .system-performance__heading--system { border-top: 1px solid var(--color-border-soft); padding-top: 8px; }
 .performance-metric--system { padding-bottom: 6px; }
-.performance-metric__gauge-row { display: flex; align-items: center; justify-content: space-between; height: 46px; }
-.performance-metric__gauge-row .performance-metric__value { margin: 0; }
-.performance-ring { flex: 0 0 40px; height: 40px; width: 40px; fill: none; stroke: currentColor; stroke-width: 3.5; }
-.performance-ring__track { stroke: var(--color-border-soft); }
-.performance-meter { height: 4px; border-radius: 2px; background: var(--color-border-soft); overflow: hidden; }
+.performance-meter { height: 4px; margin-top: 8px; border-radius: 2px; background: var(--color-border-soft); overflow: hidden; }
 .performance-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--metric-color); }
 .performance-metric__capacity { display: block; margin-top: 7px; color: var(--color-text-muted); font-size: 10px; text-align: right; font-variant-numeric: tabular-nums; }
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any
@@ -61,6 +62,24 @@ class ProjectMemoryManagementService:
             page_size=page_size,
             status=safe_status,
         )
+
+    def get_memory_record(
+        self,
+        *,
+        scope: str,
+        memory_id: str,
+        project_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        safe_scope = _normalize_scope(scope)
+        events = (
+            self._repository.iter_global_memory_events()
+            if safe_scope == _GLOBAL_SCOPE
+            else self._list_scope_events(safe_scope, project_id=project_id)
+        )
+        records, _ = _memory_projection(
+            events, scope=safe_scope, target_memory_id=memory_id,
+        )
+        return records[0] if records else None
 
     def list_memory_events(
         self,
@@ -256,9 +275,10 @@ def _detailed_memory_events(events: list[dict[str, Any]]) -> list[dict[str, Any]
 
 
 def _memory_projection(
-    events: list[dict[str, Any]],
+    events: Iterable[dict[str, Any]],
     *,
     scope: str,
+    target_memory_id: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     active: dict[str, dict[str, Any]] = {}
     records: dict[str, dict[str, Any]] = {}
@@ -269,6 +289,10 @@ def _memory_projection(
         operation = event.get("operation")
         memory_id = _event_memory_id(event)
         if not memory_id:
+            continue
+        # Keep the original event numbers, but only materialize the requested
+        # memory and its history when serving a single-record response.
+        if target_memory_id is not None and memory_id != target_memory_id:
             continue
         before = _memory_payload(active.get(memory_id))
         created_at = _optional_str(event.get("created_at")) or ""

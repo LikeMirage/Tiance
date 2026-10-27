@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Coroutine
 from functools import lru_cache
 from typing import Any
+from app.core.shutdown_tasks import shutdown_tasks
 
 
 _ConversationTaskKey = tuple[str, str]
@@ -24,6 +25,8 @@ class ConversationBackgroundTaskRegistry:
         name: str,
     ) -> asyncio.Task[Any]:
         task = asyncio.create_task(coroutine, name=name)
+        if not shutdown_tasks.accepting:
+            task.cancel()
         key = (project_id, session_id)
         self._tasks.setdefault(key, set()).add(task)
         task.add_done_callback(lambda completed: self._discard(key, completed))

@@ -1,3 +1,4 @@
+from contextlib import aclosing
 from app.domain.llm.output_limit_error import OutputLimitError
 from collections.abc import AsyncGenerator
 
@@ -79,68 +80,69 @@ class OpenAICompatibleChatAdapter:
         did_emit_tool_call_delta = False
         did_emit_tool_calls = False
         saw_done_marker = False
-        async for payload in _iter_sse_payloads(stream_body(url, headers, body)):
-            if payload is SSE_DONE:
-                saw_done_marker = True
-                break
-            if payload is None:
-                yield _protocol_error_event()
-                return
-            if isinstance(payload.get("error"), dict):
-                yield ChatStreamEvent(
-                    kind=ChatStreamEventKind.ERROR,
-                    error=_extract_error_message(payload),
-                    error_code="upstream_response_failed",
-                )
-                return
-            usage = provider_profile.parse_usage(payload.get("usage"))
-            if usage is not None:
-                yield ChatStreamEvent(
-                    kind=ChatStreamEventKind.USAGE,
-                    usage=usage,
-                )
-            choices = payload.get("choices")
-            choice = choices[0] if isinstance(choices, list) and choices else {}
-            if not isinstance(choice, dict):
-                continue
-            delta = choice.get("delta")
-            if isinstance(delta, dict) and delta.get("content"):
-                yield ChatStreamEvent(
-                    kind=ChatStreamEventKind.DELTA,
-                    content=str(delta["content"]),
-                )
-            tool_call_delta = delta.get("tool_calls") if isinstance(delta, dict) else None
-            if isinstance(delta, dict):
-                _merge_tool_call_delta(tool_call_parts, tool_call_delta)
-            thinking_delta = _extract_thinking_delta(delta)
-            if thinking_delta:
-                yield ChatStreamEvent(
-                    kind=ChatStreamEventKind.THINKING_DELTA,
-                    content=thinking_delta,
-                )
-            if isinstance(tool_call_delta, list) and tool_call_delta:
-                partial_tool_call_deltas = _streamed_tool_call_deltas(
-                    tool_call_parts,
-                    tool_call_delta,
-                )
-                if partial_tool_call_deltas:
-                    for tool_call in partial_tool_call_deltas:
+        async with aclosing(_iter_sse_payloads(stream_body(url, headers, body))) as owned_stream:
+            async for payload in owned_stream:
+                if payload is SSE_DONE:
+                    saw_done_marker = True
+                    break
+                if payload is None:
+                    yield _protocol_error_event()
+                    return
+                if isinstance(payload.get("error"), dict):
+                    yield ChatStreamEvent(
+                        kind=ChatStreamEventKind.ERROR,
+                        error=_extract_error_message(payload),
+                        error_code="upstream_response_failed",
+                    )
+                    return
+                usage = provider_profile.parse_usage(payload.get("usage"))
+                if usage is not None:
+                    yield ChatStreamEvent(
+                        kind=ChatStreamEventKind.USAGE,
+                        usage=usage,
+                    )
+                choices = payload.get("choices")
+                choice = choices[0] if isinstance(choices, list) and choices else {}
+                if not isinstance(choice, dict):
+                    continue
+                delta = choice.get("delta")
+                if isinstance(delta, dict) and delta.get("content"):
+                    yield ChatStreamEvent(
+                        kind=ChatStreamEventKind.DELTA,
+                        content=str(delta["content"]),
+                    )
+                tool_call_delta = delta.get("tool_calls") if isinstance(delta, dict) else None
+                if isinstance(delta, dict):
+                    _merge_tool_call_delta(tool_call_parts, tool_call_delta)
+                thinking_delta = _extract_thinking_delta(delta)
+                if thinking_delta:
+                    yield ChatStreamEvent(
+                        kind=ChatStreamEventKind.THINKING_DELTA,
+                        content=thinking_delta,
+                    )
+                if isinstance(tool_call_delta, list) and tool_call_delta:
+                    partial_tool_call_deltas = _streamed_tool_call_deltas(
+                        tool_call_parts,
+                        tool_call_delta,
+                    )
+                    if partial_tool_call_deltas:
+                        for tool_call in partial_tool_call_deltas:
+                            yield ChatStreamEvent(
+                                kind=ChatStreamEventKind.TOOL_CALL_DELTA,
+                                tool_call=tool_call,
+                            )
+                    elif not did_emit_tool_call_delta:
+                        yield ChatStreamEvent(kind=ChatStreamEventKind.TOOL_CALL_DELTA)
+                        did_emit_tool_call_delta = True
+                if choice.get("finish_reason"):
+                    finish_reason = str(choice["finish_reason"])
+                if finish_reason == "tool_calls" and not did_emit_tool_calls:
+                    for tool_call in _streamed_tool_calls(tool_call_parts):
                         yield ChatStreamEvent(
-                            kind=ChatStreamEventKind.TOOL_CALL_DELTA,
+                            kind=ChatStreamEventKind.TOOL_CALL,
                             tool_call=tool_call,
                         )
-                elif not did_emit_tool_call_delta:
-                    yield ChatStreamEvent(kind=ChatStreamEventKind.TOOL_CALL_DELTA)
-                    did_emit_tool_call_delta = True
-            if choice.get("finish_reason"):
-                finish_reason = str(choice["finish_reason"])
-            if finish_reason == "tool_calls" and not did_emit_tool_calls:
-                for tool_call in _streamed_tool_calls(tool_call_parts):
-                    yield ChatStreamEvent(
-                        kind=ChatStreamEventKind.TOOL_CALL,
-                        tool_call=tool_call,
-                    )
-                did_emit_tool_calls = True
+                    did_emit_tool_calls = True
         if not saw_done_marker and finish_reason is None:
             yield ChatStreamEvent(
                 kind=ChatStreamEventKind.ERROR,

@@ -1,0 +1,123 @@
+{
+  "additionalProperties": false,
+  "description": "先查看分类；需要时创建分类，再指定分类与名称创建工具。新工具始终关闭，返回文档路径与制作指引。创建中断后检查返回的项目，不要直接重复创建。",
+  "properties": {
+    "action": {
+      "description": "查看工具分类、创建分类，或创建带标准文件及制作资料的空白工具。",
+      "enum": [
+        "list_categories",
+        "create_category",
+        "create_tool"
+      ],
+      "options": [
+        {
+          "description": "",
+          "value": "list_categories"
+        },
+        {
+          "description": "",
+          "value": "create_category"
+        },
+        {
+          "description": "",
+          "value": "create_tool"
+        }
+      ],
+      "permission_scope": "global_data",
+      "permission_type": "tiance_data_read",
+      "type": "string"
+    },
+    "call_name": {
+      "description": "create_tool 可选的模型调用名，须唯一；不填时根据新项目 UUID 生成。",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$",
+      "permission_type": "none",
+      "type": "string"
+    },
+    "category_id": {
+      "description": "create_tool 必填，使用 list_categories 返回的真实分类 ID。",
+      "minLength": 1,
+      "permission_scope": "global_data",
+      "permission_type": "tiance_data_read",
+      "type": "string"
+    },
+    "name": {
+      "description": "创建分类或工具时必填的显示名称；查询分类时不传。",
+      "maxLength": 160,
+      "minLength": 1,
+      "permission_scope": "global_data",
+      "permission_type": "tiance_data_write",
+      "type": "string"
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "type": "object",
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "name"
+                ]
+              },
+              {
+                "required": [
+                  "category_id"
+                ]
+              },
+              {
+                "required": [
+                  "call_name"
+                ]
+              }
+            ]
+          },
+          "properties": {
+            "action": {
+              "const": "list_categories"
+            }
+          }
+        },
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "category_id"
+                ]
+              },
+              {
+                "required": [
+                  "call_name"
+                ]
+              }
+            ]
+          },
+          "properties": {
+            "action": {
+              "const": "create_category"
+            }
+          },
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "create_tool"
+            }
+          },
+          "required": [
+            "name",
+            "category_id"
+          ]
+        }
+      ]
+    }
+  ]
+}

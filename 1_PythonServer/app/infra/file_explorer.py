@@ -19,15 +19,9 @@ def reveal_path_in_file_explorer(path: Path) -> None:
 
     try:
         if sys.platform == "win32":
-            if target.is_file():
-                subprocess.Popen(
-                    ["explorer", "/select,", str(target)],
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            else:
-                os.startfile(str(target))  # type: ignore[attr-defined]
+            from app.infra.windows_file_explorer import reveal_in_windows_explorer
+
+            reveal_in_windows_explorer(target)
             return
 
         opener = "open" if sys.platform == "darwin" else "xdg-open"
@@ -74,7 +68,7 @@ def open_directory_in_file_explorer(directory: Path) -> None:
 
     try:
         if sys.platform == "win32":
-            os.startfile(str(target))  # type: ignore[attr-defined]
+            reveal_path_in_file_explorer(target)
             return
 
         opener = "open" if sys.platform == "darwin" else "xdg-open"

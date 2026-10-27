@@ -289,13 +289,13 @@ if __name__ == "__main__":
 
     if not reload_enabled:
         from app.core.shell_lease import start_shell_lease_monitor
-        from app.core.shutdown_tasks import shutdown_tasks
+        from app.services.application.desktop_exit import get_desktop_exit_coordinator
 
         class DesktopServer(UvicornServer):
             async def shutdown(self, sockets=None):
-                # Stop opted-in downloads before Uvicorn waits on HTTP requests.
-                # Normal desktop close has already drained disk commits here.
-                await shutdown_tasks.close()
+                # Settle conversations and disk writes before closing their transports.
+                # Normal desktop close has already awaited this same coordinator.
+                await get_desktop_exit_coordinator().close()
                 await super().shutdown(sockets=sockets)
 
         config = UvicornConfig(

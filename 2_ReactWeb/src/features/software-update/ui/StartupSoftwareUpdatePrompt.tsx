@@ -1,52 +1,49 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import { ConfirmModal } from "../../../shared/ui/confirm-modal/ConfirmModal";
 import { useI18n } from "../../../shared/i18n";
 import { LazyMarkdownPreview } from "../../markdown-preview/ui/LazyMarkdownPreview";
-import {
-  checkSoftwareUpdateOnStartup,
-  installSoftwareUpdate,
-  type SoftwareUpdateCheck,
-  type SoftwareUpdateInstallPhase,
-} from "../../../services/system/softwareUpdate";
+import { useSoftwareUpdate } from "../model/useSoftwareUpdate";
 import { isAutomaticSoftwareUpdateCheckEnabled } from "../model/softwareUpdatePreferences";
 import "./startup-software-update-prompt.css";
 
 export function StartupSoftwareUpdatePrompt() {
   const { t } = useI18n();
-  const [update, setUpdate] = useState<SoftwareUpdateCheck | null>(null);
-  const [phase, setPhase] = useState<SoftwareUpdateInstallPhase | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const softwareUpdate = useSoftwareUpdate(false);
+  const { update, state: phase, error, prompt, checkOnStartup } = softwareUpdate;
 
   useEffect(() => {
     if (!isAutomaticSoftwareUpdateCheckEnabled()) return;
-    let active = true;
-    void checkSoftwareUpdateOnStartup()
-      .then((result) => {
-        if (active && result.updateAvailable && !result.sourceCheckout) setUpdate(result);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, []);
+    void checkOnStartup();
+  }, [checkOnStartup]);
 
-  if (!update) return null;
+  if (!update || !prompt) return null;
 
-  const busy = phase !== null;
-  const handleInstall = async () => {
-    setError(null);
-    try {
-      await installSoftwareUpdate(setPhase);
-    } catch (installError) {
-      setError(toErrorMessage(installError));
-      setPhase(null);
-    }
-  };
+  const busy = phase === "downloading" || phase === "installing";
+  if (prompt === "restart") {
+    return (
+      <ConfirmModal
+        showClose
+        closeLabel={t("announcements.close")}
+        cancelLabel={t("softwareUpdate.restart.later")}
+        cancelDisabled={phase === "installing"}
+        confirmDisabled={busy}
+        confirmLabel={phase === "installing" ? t("softwareUpdate.installing") : t("softwareUpdate.restart.now")}
+        title={t("softwareUpdate.restart.title")}
+        message={t("softwareUpdate.restart.message", { version: softwareUpdate.download?.version ?? update.latestVersion })}
+        onCancel={softwareUpdate.dismiss}
+        onConfirm={() => void softwareUpdate.restart()}
+      >
+        {error ? <p className="software-update-prompt__error" role="alert">{error}</p> : null}
+      </ConfirmModal>
+    );
+  }
 
   return (
     <ConfirmModal
-      cancelDisabled={busy}
+      showClose
+      closeLabel={t("announcements.close")}
+      cancelLabel={t("announcements.close")}
       confirmDisabled={busy}
       confirmLabel={
         phase === "downloading"
@@ -57,8 +54,8 @@ export function StartupSoftwareUpdatePrompt() {
       }
       dialogClassName="software-update-prompt"
       message={update.releaseName}
-      onCancel={() => setUpdate(null)}
-      onConfirm={() => void handleInstall()}
+      onCancel={softwareUpdate.dismiss}
+      onConfirm={() => void softwareUpdate.install()}
       title={t("softwareUpdate.prompt.title")}
     >
       <div className="software-update-prompt__versions">
@@ -80,8 +77,4 @@ export function StartupSoftwareUpdatePrompt() {
       {error ? <p className="software-update-prompt__error" role="alert">{error}</p> : null}
     </ConfirmModal>
   );
-}
-
-function toErrorMessage(error: unknown) {
-  return error instanceof Error && error.message ? error.message : "软件更新操作失败。";
 }

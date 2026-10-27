@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from app.services.project.conversation_notifications import conversation_notifications
+from app.infra.conversation_changes import conversation_changes
+from app.repositories.project.conversation_database import database_path_from_session
 
 import asyncio
 from dataclasses import replace
@@ -570,6 +572,7 @@ class ProjectConversationMemoryService:
                 project_id,
                 session_id,
                 after_message_id=plan.snapshot_boundary_message_id,
+                compression_id=compression_id,
                 content=(
                     "正在执行记忆压缩。"
                     if is_blocking
@@ -594,65 +597,68 @@ class ProjectConversationMemoryService:
                 max_tool_calls=creation.session.settings.max_tool_calls,
                 upstream_retry_count=creation.session.settings.upstream_retry_count,
             )
-            await self._functional_conversation_runner(request)
-            task = await asyncio.to_thread(
-                self._compaction_repository.read_task,
-                project_id,
-                creation.session.session_id,
+            target = await asyncio.to_thread(
+                self._conversation_service.message_sync_target, project_id, creation.session.session_id,
             )
-            if task is None or task.get("status") != "completed":
-                raise MissingCompactionSubmissionError(
-                    "压缩会话结束时没有提交压缩结果。"
-                )
-            await self._append_compaction_status(
-                project_id,
-                session_id,
-                content=("已完成记忆压缩。" if is_blocking else "已完成异步记忆压缩。"),
-                status="done",
-            )
-        except asyncio.CancelledError:
+            async with conversation_changes.subscribe(database_path_from_session(target)) as changes:
+                async def report_completion():
+                    while True:
+                        task = await asyncio.to_thread(
+                            self._compaction_repository.read_task, project_id, creation.session.session_id,
+                        )
+                        if task and task.get("status") == "completed":
+                            await self._append_compaction_status(
+                                project_id, session_id,
+                                content="已完成记忆压缩。" if is_blocking else "已完成异步记忆压缩。",
+                                status="done", compression_id=compression_id,
+                            )
+                            return
+                        # External tool processes also write this database. Their result
+                        # commits wake us normally; a bounded metadata check covers a
+                        # worker that saves successfully but disconnects before returning.
+                        try:
+                            await asyncio.wait_for(changes.get(), timeout=15)
+                        except asyncio.TimeoutError:
+                            pass
+
+                completion = asyncio.create_task(report_completion())
+                try:
+                    await self._functional_conversation_runner(request)
+                    task = await asyncio.to_thread(
+                        self._compaction_repository.read_task, project_id, creation.session.session_id,
+                    )
+                    if task is None or task.get("status") != "completed":
+                        raise MissingCompactionSubmissionError("压缩会话结束时没有提交压缩结果。")
+                    if changes.empty():
+                        changes.put_nowait(None)
+                    await completion
+                finally:
+                    completion.cancel()
+                    await asyncio.gather(completion, return_exceptions=True)
+        except (asyncio.CancelledError, Exception) as exc:
             if creation is not None:
-                await asyncio.to_thread(
+                cancelled = isinstance(exc, asyncio.CancelledError)
+                task = await asyncio.to_thread(
                     self._compaction_repository.mark_task_failed,
-                    project_id,
-                    creation.session.session_id,
-                    stage="cancelled",
-                    reason="CancelledError",
-                    message="记忆压缩任务已取消。",
+                    project_id, creation.session.session_id,
+                    stage="cancelled" if cancelled else "stale_result" if isinstance(exc, ConflictError) else "conversation_run",
+                    reason=type(exc).__name__,
+                    message="记忆压缩任务已取消。" if cancelled else str(exc),
                 )
+                # mark_task_failed preserves a successfully committed result, even
+                # if the child run later fails during its final response/settlement.
+                if task.get("status") == "completed":
+                    content = "已完成记忆压缩。" if is_blocking else "已完成异步记忆压缩。"
+                    status = "done"
+                else:
+                    content = ("记忆压缩已取消。" if is_blocking else "异步记忆压缩已取消。") if cancelled else (
+                        "记忆压缩失败。" if is_blocking else "异步记忆压缩失败。")
+                    status = "error"
                 await self._append_compaction_status(
-                    project_id,
-                    session_id,
-                    content=("记忆压缩已取消。" if is_blocking else "异步记忆压缩已取消。"),
-                    status="error",
+                    project_id, session_id, content=content, status=status, compression_id=compression_id,
                 )
-            raise
-        except ConflictError as exc:
-            if creation is not None:
-                await asyncio.to_thread(
-                    self._compaction_repository.mark_task_failed,
-                    project_id,
-                    creation.session.session_id,
-                    stage="stale_result",
-                    reason=type(exc).__name__,
-                    message=str(exc),
-                )
-        except Exception as exc:
-            if creation is not None:
-                await asyncio.to_thread(
-                    self._compaction_repository.mark_task_failed,
-                    project_id,
-                    creation.session.session_id,
-                    stage="conversation_run",
-                    reason=type(exc).__name__,
-                    message=str(exc),
-                )
-            await self._append_compaction_status(
-                project_id,
-                session_id,
-                content=("记忆压缩失败。" if is_blocking else "异步记忆压缩失败。"),
-                status="error",
-            )
+            if isinstance(exc, asyncio.CancelledError):
+                raise
         finally:
             await self._clear_manual_compaction_request(
                 project_id,
@@ -682,30 +688,25 @@ class ProjectConversationMemoryService:
         *,
         after_message_id: str,
         content: str,
+        compression_id: str | None = None,
     ) -> None:
         # The compression task keeps its snapshot boundary in the audit record.
         # Its visible status belongs at the current complete-response boundary.
-        await self._append_compaction_status(project_id, session_id, content=content, status="running")
+        await self._append_compaction_status(project_id, session_id, content=content, status="running", compression_id=compression_id)
 
     async def _append_compaction_status(
-        self,
-        project_id: str,
-        session_id: str,
-        *,
-        content: str,
-        status: str,
+        self, project_id: str, session_id: str, *, content: str, status: str,
+        compression_id: str | None = None,
     ) -> None:
+        message_id = f"notice_{compression_id}_{status}" if compression_id else None
+
         async def persist():
-            try:
-                return await asyncio.to_thread(
-                    self._conversation_service.append_message,
-                    project_id, session_id,
-                    role="system", content=content,
-                    name=_COMPACTION_STATUS_MESSAGE_NAME, status=status,
-                    sync_session_model=False, include_in_context=False,
-                )
-            except (AppError, OSError, ValueError):
-                return None
+            return await asyncio.to_thread(
+                self._conversation_service.append_status_notice,
+                project_id, session_id, name=_COMPACTION_STATUS_MESSAGE_NAME,
+                content=content, status=status, message_id=message_id,
+            )
+
         await conversation_notifications.submit(project_id, session_id, persist)
 
     async def _clear_manual_compaction_request(

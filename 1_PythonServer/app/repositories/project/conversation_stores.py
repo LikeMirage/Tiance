@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 from re import fullmatch
 from shutil import rmtree
@@ -325,8 +326,25 @@ class ConversationMessageStore:
         *,
         limit: int | None = None,
         before_message_id: str | None = None,
+        after_message_id: str | None = None,
     ) -> ProjectConversationMessagePage:
         total_count = count_message_payloads(session_dir)
+        if after_message_id is not None:
+            cursor_index = find_message_ordinal(session_dir, after_message_id)
+            if cursor_index is None:
+                raise BadRequestError("after_message_id does not reference a message in this conversation.")
+            start = cursor_index + 1
+            end = min(total_count, start + (limit or 80))
+            if start >= end:
+                return ProjectConversationMessagePage((), total_count, False, None,
+                                                      next_after_message_id=after_message_id)
+            boundary = list_message_payloads_range(session_dir, start_ordinal=end, end_ordinal=end + 1)
+            page = self.list_messages_page(
+                session_dir, limit=end - start,
+                before_message_id=boundary[0]["message_id"] if boundary else None,
+            )
+            return replace(page, has_more=end < total_count, next_before_message_id=None,
+                           next_after_message_id=page.items[-1].message_id)
         end_index = total_count
         if before_message_id is not None:
             cursor_index = find_message_ordinal(session_dir, before_message_id)

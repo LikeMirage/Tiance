@@ -26,7 +26,7 @@ export function SoftwareUpdatePanel({ onReady }: SoftwareUpdatePanelProps) {
   useEffect(() => onReady?.(), [onReady]);
 
   const update = softwareUpdate.update;
-  const busy = softwareUpdate.state !== "idle";
+  const busy = !["idle", "ready"].includes(softwareUpdate.state);
   return (
     <div className="software-update">
       <header className="software-update__head">
@@ -45,7 +45,7 @@ export function SoftwareUpdatePanel({ onReady }: SoftwareUpdatePanelProps) {
           <button
             className="software-update__button"
             type="button"
-            disabled={busy}
+            disabled={busy || softwareUpdate.state === "ready"}
             onClick={() => void softwareUpdate.check()}
           >
             <ArrowClockwise size={16} />
@@ -112,6 +112,8 @@ export function SoftwareUpdatePanel({ onReady }: SoftwareUpdatePanelProps) {
                   ? t("softwareUpdate.downloading")
                   : softwareUpdate.state === "installing"
                     ? t("softwareUpdate.installing")
+                    : softwareUpdate.state === "ready"
+                      ? t("softwareUpdate.restart.now")
                     : t("softwareUpdate.install")}
               </button>
             ) : null}

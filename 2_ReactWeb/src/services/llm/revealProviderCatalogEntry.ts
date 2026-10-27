@@ -1,7 +1,7 @@
-import { fetchNoContent } from "../http/httpClient";
+import { revealInFileExplorer } from "../desktop/fileExplorer";
 
 export function revealProviderCatalogEntry(providerId: string) {
-  return fetchNoContent(
+  return revealInFileExplorer(
     `/api/llm/catalog/providers/${encodeURIComponent(providerId)}/reveal`,
     { method: "POST" },
   );

@@ -142,6 +142,9 @@ class ProjectConversationMessagePage:
     total_count: int
     has_more: bool
     next_before_message_id: str | None
+    revision: int = 0
+    reset_revision: int = 0
+    next_after_message_id: str | None = None
     run_outcomes: tuple["ProjectConversationRunOutcome", ...] = ()
     run_attempt_failures: tuple["ProjectConversationRunAttemptFailure", ...] = ()
 

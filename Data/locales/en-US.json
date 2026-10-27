@@ -100,8 +100,8 @@
       "metrics": {
         "aria": "Performance and usage",
         "panelAria": "Performance and usage panel",
-        "title": "Performance usage",
-        "performanceTab": "Performance",
+        "title": "Performance monitoring",
+        "performanceTab": "Monitoring",
         "usageTab": "Tokens",
         "loading": "Reading performance data",
         "shellDisconnected": "Desktop shell disconnected",
@@ -371,7 +371,9 @@
       },
       "messageList": {
         "loadingSession": "Loading session...",
-        "empty": "Send a message to start the conversation."
+        "empty": "Send a message to start the conversation.",
+        "loadFailed": "Unable to load conversation. Please retry.",
+        "loadTimeout": "Conversation loading timed out. Please retry."
       },
       "usage": {
         "aria": "Session token usage",
@@ -952,10 +954,14 @@
         "modelsPlaceholder": "Enter the full model list URL"
       },
       "cacheSettings": {
-        "title": "Cache settings", "retention": "Prefix cache lifetime threshold",
+        "title": "Cache settings",
+        "retention": "Prefix cache lifetime threshold",
         "unitAria": "Select cache lifetime unit",
         "hint": "Controls when long-term memory updates are folded into the leading prompt. It does not change the provider's actual cache lifetime.",
-        "units": { "minutes": "Minutes", "hours": "Hours" }
+        "units": {
+          "minutes": "Minutes",
+          "hours": "Hours"
+        }
       },
       "apiKey": {
         "add": "Add API key",
@@ -1104,6 +1110,15 @@
           "memoryCompression": "Memory compression model",
           "providerWebSearch": "Provider web search"
         }
+      }
+    },
+    "softwareUpdate": {
+      "install": "Download update",
+      "restart": {
+        "title": "Update downloaded",
+        "message": "v{version} is ready. Restart and install now?",
+        "now": "Restart now",
+        "later": "Later"
       }
     }
   }

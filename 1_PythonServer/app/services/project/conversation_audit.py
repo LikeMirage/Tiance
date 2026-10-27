@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
 from gzip import compress as gzip_compress
-from hashlib import sha256
 from json import dumps
 import logging
 from pathlib import Path
@@ -12,7 +12,9 @@ from typing import Any, Coroutine
 from uuid import uuid4
 
 from app.domain.llm.chat import ChatCompletionRequest
-from app.domain.llm.chat_http_exchange import ChatHttpExchange, exchange_to_payload
+from app.core.shutdown_tasks import finish_thread
+from app.domain.llm.chat_http_exchange import ChatHttpExchange, exchange_payload
+from app.domain.llm.response_body import body_size
 from app.repositories.project.conversation_database import (
     append_journal_event,
     complete_artifact_record,
@@ -22,8 +24,9 @@ from app.repositories.project.conversation_database import (
     write_artifact_record,
 )
 from app.repositories.project.conversation_audit_snapshots import (
-    store_audit_snapshot,
+    store_prepared_audit_snapshot,
 )
+from app.repositories.project.conversation_audit_streaming import prepare_audit_snapshot, response_text
 from app.repositories.project.conversation_storage import (
     ProjectWorkspaceDirectoryResolver,
     conversation_write_lock,
@@ -38,11 +41,24 @@ logger = logging.getLogger(__name__)
 _AuditTaskKey = tuple[str, str]
 
 
+@dataclass(slots=True)
+class _HttpExchangeWrite:
+    workspace: Path
+    conversations: Path
+    request: ChatCompletionRequest
+    exchange: ChatHttpExchange
+    artifact_id: str
+    metadata: dict[str, Any]
+    begun: bool = False
+
+
 class ConversationAuditService:
     def __init__(self, projects: ProjectRepository) -> None:
         self._projects = projects
         self._workspace = ProjectWorkspaceDirectoryResolver()
         self._tasks: dict[_AuditTaskKey, set[asyncio.Task[Any]]] = {}
+        self._write_slots = asyncio.Semaphore(2)
+        self._failed_http_exchanges: dict[str, _HttpExchangeWrite] = {}
 
     async def record_http_exchange(
         self,
@@ -55,27 +71,41 @@ class ConversationAuditService:
         workspace_dir, conversations_dir = target
         artifact_id = f"artifact_{uuid4().hex}"
         metadata = self._exchange_metadata(request)
-        await asyncio.to_thread(
-            self._begin_http_exchange,
-            workspace_dir,
-            conversations_dir,
-            request,
-            artifact_id,
-            metadata,
-        )
-        task = asyncio.create_task(
-            asyncio.to_thread(
-                self._complete_http_exchange,
-                workspace_dir,
-                conversations_dir,
-                request,
-                exchange,
-                artifact_id,
-                metadata,
-            ),
-            name="conversation-http-audit",
-        )
-        self._track_task(request.project_id, request.session_id, task)
+        if not isinstance(exchange.response_body, bytes):
+            exchange.response_body.retain()
+        job = _HttpExchangeWrite(workspace_dir, conversations_dir, request, exchange, artifact_id, metadata)
+        try:
+            await finish_thread(self._begin_http_exchange, workspace_dir, conversations_dir, request, artifact_id, metadata)
+            job.begun = True
+        except BaseException:
+            self._failed_http_exchanges[artifact_id] = job
+            raise
+        self._schedule_http_exchange(job)
+
+    def _schedule_http_exchange(self, job: _HttpExchangeWrite) -> None:
+        task = asyncio.create_task(self._save_http_exchange(job), name="conversation-http-audit")
+        self._track_task(job.request.project_id, job.request.session_id, task)
+
+    async def _save_http_exchange(self, job: _HttpExchangeWrite) -> None:
+        try:
+            async with self._write_slots:
+                await finish_thread(self._write_http_exchange, job)
+        except BaseException:
+            # Retain the source for an exit retry after e.g. a disk error.
+            job.begun = False
+            self._failed_http_exchanges[job.artifact_id] = job
+            raise
+        else:
+            if not isinstance(job.exchange.response_body, bytes):
+                job.exchange.response_body.release()
+
+    def _write_http_exchange(self, job: _HttpExchangeWrite) -> None:
+        if not job.begun:
+            if not self._begin_http_exchange(job.workspace, job.conversations, job.request, job.artifact_id, job.metadata):
+                return
+            job.begun = True
+        self._complete_http_exchange(job.workspace, job.conversations, job.request,
+                                     job.exchange, job.artifact_id, job.metadata)
 
     def create_session_task(
         self,
@@ -95,9 +125,16 @@ class ConversationAuditService:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     async def close(self) -> None:
-        tasks = tuple(task for values in self._tasks.values() for task in values)
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+        retries = tuple(self._failed_http_exchanges.values())
+        self._failed_http_exchanges.clear()
+        for job in retries:
+            self._schedule_http_exchange(job)
+        # Producers must be stopped first. Re-check tasks registered by the final
+        # cancellation handlers instead of draining a single stale snapshot.
+        while tasks := tuple(task for values in self._tasks.values() for task in values):
+            await asyncio.gather(*(asyncio.shield(task) for task in tasks), return_exceptions=True)
+        if self._failed_http_exchanges:
+            raise RuntimeError("原始响应记录保存失败，请检查磁盘后重试退出。")
 
     def _begin_http_exchange(
         self,
@@ -106,10 +143,18 @@ class ConversationAuditService:
         request: ChatCompletionRequest,
         artifact_id: str,
         metadata: dict[str, Any],
-    ) -> None:
+    ) -> bool:
         created_at = datetime.now(UTC).isoformat()
         with conversation_write_lock(conversations_dir):
-            with transaction_for_conversations(conversations_dir):
+            with transaction_for_conversations(conversations_dir) as connection:
+                existing = connection.execute(
+                    "SELECT status FROM conversation_artifacts WHERE artifact_id = ?", (artifact_id,),
+                ).fetchone()
+                if existing is not None:
+                    if existing[0] == "complete":
+                        return False
+                    connection.execute("UPDATE conversation_artifacts SET status = 'pending' WHERE artifact_id = ?", (artifact_id,))
+                    return True
                 write_artifact_record(
                     workspace_dir,
                     artifact_id=artifact_id,
@@ -143,6 +188,7 @@ class ConversationAuditService:
                     },
                     artifact_id=artifact_id,
                 )
+        return True
 
     def _complete_http_exchange(
         self,
@@ -154,56 +200,53 @@ class ConversationAuditService:
         metadata: dict[str, Any],
     ) -> None:
         try:
-            payload = exchange_to_payload(exchange)
-            content = dumps(
-                payload,
-                ensure_ascii=False,
-                separators=(",", ":"),
-            ).encode("utf-8")
+            encoding, text = response_text(exchange.response_body)
+            payload = exchange_payload(exchange, {"encoding": encoding, "content": text})
             completed_metadata = {
                 **metadata,
                 "storage": "incremental_audit_manifest_v2",
             }
-            with conversation_write_lock(conversations_dir):
-                with transaction_for_conversations(conversations_dir) as connection:
-                    manifest = store_audit_snapshot(
-                        connection, request.session_id, "model_http_exchange", payload,
-                    )
-                    compressed_content = gzip_compress(
-                        dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
-                        mtime=0,
-                    )
-                    complete_artifact_record(
-                        workspace_dir,
-                        artifact_id=artifact_id,
-                        size_bytes=len(content),
-                        sha256=sha256(content).hexdigest(),
-                        metadata=completed_metadata,
-                        payload_blob=compressed_content,
-                        compression="gzip+audit-manifest-v2",
-                    )
-                    append_journal_event(
-                        workspace_dir,
-                        session_id=request.session_id,
-                        run_id=request.run_id,
-                        turn_id=request.user_message_id,
-                        tool_call_id=None,
-                        event_type=(
-                            "model.http_exchange.failed"
-                            if exchange.error_type is not None
-                            else "model.http_exchange.completed"
-                        ),
-                        occurred_at=exchange.completed_at,
-                        payload={
-                            "provider_id": request.provider_id,
-                            "model_id": request.model_id,
-                            "status": exchange.response_status,
-                            "response_bytes": len(exchange.response_body),
-                            "attempt_index": request.upstream_attempt_index,
-                            "attempt_count": request.upstream_attempt_count,
-                        },
-                        artifact_id=artifact_id,
-                    )
+            with prepare_audit_snapshot(payload) as prepared:
+                with conversation_write_lock(conversations_dir):
+                    with transaction_for_conversations(conversations_dir) as connection:
+                        manifest = store_prepared_audit_snapshot(
+                            connection, request.session_id, "model_http_exchange", prepared,
+                        )
+                        compressed_content = gzip_compress(
+                            dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
+                            mtime=0,
+                        )
+                        complete_artifact_record(
+                            workspace_dir,
+                            artifact_id=artifact_id,
+                            size_bytes=prepared.size_bytes,
+                            sha256=prepared.digest,
+                            metadata=completed_metadata,
+                            payload_blob=compressed_content,
+                            compression="gzip+audit-manifest-v2",
+                        )
+                        append_journal_event(
+                            workspace_dir,
+                            session_id=request.session_id,
+                            run_id=request.run_id,
+                            turn_id=request.user_message_id,
+                            tool_call_id=None,
+                            event_type=(
+                                "model.http_exchange.failed"
+                                if exchange.error_type is not None
+                                else "model.http_exchange.completed"
+                            ),
+                            occurred_at=exchange.completed_at,
+                            payload={
+                                "provider_id": request.provider_id,
+                                "model_id": request.model_id,
+                                "status": exchange.response_status,
+                                "response_bytes": body_size(exchange.response_body),
+                                "attempt_index": request.upstream_attempt_index,
+                                "attempt_count": request.upstream_attempt_count,
+                            },
+                            artifact_id=artifact_id,
+                        )
         except Exception as error:
             logger.exception("Failed to persist a complete model HTTP exchange audit.")
             failed_metadata = {
@@ -237,6 +280,7 @@ class ConversationAuditService:
                         )
             except Exception:
                 logger.exception("Failed to record the HTTP exchange audit failure.")
+            raise
 
     def _resolve_target(
         self,

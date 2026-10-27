@@ -3,10 +3,10 @@ import {
   Cpu,
   Folders,
   GearSix,
-  LightbulbFilament,
   PaintBrushBroad,
+  PuzzlePiece,
+  Sparkle,
   UsersThree,
-  Wrench,
 } from "@phosphor-icons/react";
 
 import type { HoverSidebarIconKey } from "../model/sidebarItems";
@@ -45,7 +45,7 @@ function KnowledgeIcon() {
 }
 
 function ExperienceIcon() {
-  return <LightbulbFilament className="hover-sidebar__glyph" weight="bold" aria-hidden="true" />;
+  return <Sparkle className="hover-sidebar__glyph" weight="bold" aria-hidden="true" />;
 }
 
 function RolesIcon() {
@@ -61,7 +61,7 @@ function ThemesIcon() {
 }
 
 function ToolsIcon() {
-  return <Wrench className="hover-sidebar__glyph" weight="bold" aria-hidden="true" />;
+  return <PuzzlePiece className="hover-sidebar__glyph" weight="bold" aria-hidden="true" />;
 }
 
 function SettingsIcon() {

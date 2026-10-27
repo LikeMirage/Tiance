@@ -25,6 +25,10 @@ class ShutdownTasks:
                 code="application_exiting", status_code=503,
             )
 
+    @property
+    def accepting(self) -> bool:
+        return not self._closing
+
     def track(self, task: asyncio.Task) -> None:
         self.require_accepting()
         self._tasks[task] = False

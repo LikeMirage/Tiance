@@ -1,0 +1,33 @@
+{
+  "description": "工具结果。当前模板只返回明确的未实现错误，业务实现完成后同步更新此合同。",
+  "properties": {
+    "data": {
+      "description": "结构化结果。",
+      "type": "object"
+    },
+    "error": {
+      "description": "失败原因。",
+      "type": "string"
+    },
+    "error_info": {
+      "properties": {
+        "code": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ok": {
+      "description": "业务是否执行成功。",
+      "type": "boolean"
+    },
+    "summary": {
+      "description": "简短结果说明。",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

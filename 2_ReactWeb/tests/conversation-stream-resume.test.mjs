@@ -924,3 +924,16 @@ function sessionState(runtimeStatus) {
     updated_at: "2026-07-10T00:00:00Z",
   };
 }
+
+
+test("分页从长工具回合中间开始时仍恢复已保存过程，不产生重复回复", () => {
+  const assistant = message({ id: "partial-assistant", role: "assistant", content: "已处理到这里。",
+    processItems: [{ id: "partial-content", type: "content", content: "已处理到这里。" }] });
+  for (const prepare of [prepareConversationStreamResume, prepareConversationStreamFullReplay]) {
+    const snapshot = prepare([assistant], "fallback", 5000);
+    assert.equal(snapshot.messages.length, 1);
+    assert.equal(snapshot.assistantMessage.id, "partial-assistant");
+    assert.ok(snapshot.assistantMessage.processItems.some((item) => item.type === "content" && item.content === "已处理到这里。"));
+    assert.equal(snapshot.assistantMessage.status, "running");
+  }
+});

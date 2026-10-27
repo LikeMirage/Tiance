@@ -183,13 +183,17 @@ def copy_referenced_attachments(
         return
     source_dir = source_session_dir / ATTACHMENTS_DIR
     target_dir = target_session_dir / ATTACHMENTS_DIR
+    payloads_by_id: dict[str, dict] = {}
+    for payload in read_events(source_session_dir, "attachments"):
+        attachment_id = payload.get("attachment_id")
+        if isinstance(attachment_id, str) and attachment_id in attachment_ids:
+            # Match the first record, as _find_attachment does, and avoid
+            # decoding unrelated attachments into domain objects.
+            payloads_by_id.setdefault(attachment_id, payload)
     records = [
-        attachment
+        _attachment_from_payload(payloads_by_id[attachment_id])
         for attachment_id in sorted(attachment_ids)
-        if (attachment := _find_attachment(
-            source_session_dir,
-            attachment_id,
-        )) is not None
+        if attachment_id in payloads_by_id
     ]
     if len(records) != len(attachment_ids):
         raise NotFoundError("分支所需的会话附件记录不完整。")

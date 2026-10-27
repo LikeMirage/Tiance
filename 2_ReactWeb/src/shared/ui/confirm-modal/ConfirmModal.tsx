@@ -1,9 +1,13 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { X } from "@phosphor-icons/react";
 import "./confirm-modal.css";
 
 export type ConfirmModalProps = {
   cancelDisabled?: boolean;
+  cancelLabel?: string;
+  showClose?: boolean;
+  closeLabel?: string;
   children?: ReactNode;
   confirmDisabled?: boolean;
   confirmLabel?: string;
@@ -26,6 +30,9 @@ export type ConfirmModalProps = {
 
 export function ConfirmModal({
   cancelDisabled = false,
+  cancelLabel = "取消",
+  showClose = false,
+  closeLabel = "关闭",
   children = null,
   confirmDisabled = false,
   confirmLabel = "确认",
@@ -87,6 +94,18 @@ export function ConfirmModal({
         aria-label={showHeader ? undefined : title}
         onClick={(e) => e.stopPropagation()}
       >
+        {showClose ? (
+          <button
+            className="confirm-modal__close"
+            type="button"
+            aria-label={closeLabel}
+            title={closeLabel}
+            disabled={cancelDisabled}
+            onClick={handleCancel}
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        ) : null}
         {showHeader ? (
           <>
             <h3 className="confirm-modal__title">{title}</h3>
@@ -103,7 +122,7 @@ export function ConfirmModal({
               disabled={cancelDisabled}
               onClick={handleCancel}
             >
-              取消
+              {cancelLabel}
             </button>
           ) : null}
           {onSecondary && secondaryLabel ? (

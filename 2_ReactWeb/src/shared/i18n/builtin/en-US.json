@@ -114,8 +114,8 @@
       "metrics": {
         "aria": "Performance and usage",
         "panelAria": "Performance and usage panel",
-        "title": "Performance usage",
-        "performanceTab": "Performance",
+        "title": "Performance monitoring",
+        "performanceTab": "Monitoring",
         "usageTab": "Tokens",
         "loading": "Reading performance data",
         "shellDisconnected": "Desktop shell disconnected",
@@ -495,6 +495,8 @@
       },
       "messageList": {
         "loadingSession": "Loading session...",
+        "loadFailed": "Unable to load conversation. Please retry.",
+        "loadTimeout": "Conversation loading timed out. Please retry.",
         "empty": "Send a message to start the conversation."
       },
       "usage": {
@@ -729,11 +731,17 @@
       "sourceLink": "Open-source project",
       "downloadLink": "Download latest software",
       "notes": "Release notes",
-      "install": "Download, restart, and install",
+      "install": "Download update",
       "downloading": "Downloading and verifying…",
       "installing": "Closing and installing…",
       "autoCheck": {
         "title": "Check for updates at startup"
+      },
+      "restart": {
+        "title": "Update downloaded",
+        "message": "v{version} is ready. Restart and install now?",
+        "now": "Restart now",
+        "later": "Later"
       },
       "prompt": {
         "title": "A new version is available",

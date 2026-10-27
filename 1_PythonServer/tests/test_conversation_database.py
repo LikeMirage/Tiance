@@ -842,6 +842,7 @@ def test_deleting_session_cascades_embedded_http_exchange(tmp_path: Path) -> Non
 
 
 def test_upstream_error_survives_incremental_audit_write_failure(tmp_path: Path, monkeypatch) -> None:
+    import pytest
     projects = _Projects(tmp_path)
     conversations = ProjectConversationRepository(projects)
     session = conversations.create_session(
@@ -869,15 +870,17 @@ def test_upstream_error_survives_incremental_audit_write_failure(tmp_path: Path,
     )
 
     def fail_after_storing(*args, **kwargs):
-        store_audit_snapshot(*args, **kwargs)
+        from app.repositories.project.conversation_audit_snapshots import store_prepared_audit_snapshot
+        store_prepared_audit_snapshot(*args, **kwargs)
         raise RuntimeError("simulated audit failure before artifact completion")
 
-    monkeypatch.setattr("app.services.project.conversation_audit.store_audit_snapshot", fail_after_storing)
+    monkeypatch.setattr("app.services.project.conversation_audit.store_prepared_audit_snapshot", fail_after_storing)
     audit = ConversationAuditService(projects)
 
     async def run() -> None:
         await audit.record_http_exchange(request, exchange)
-        await audit.close()
+        with pytest.raises(RuntimeError, match="保存失败"):
+            await audit.close()
         audit.record_attempt_outcome(
             request, status="failed", error_code="upstream_http_error", error_message=error_text,
         )
@@ -893,3 +896,93 @@ def test_upstream_error_survives_incremental_audit_write_failure(tmp_path: Path,
         for table in ("conversation_audit_snapshots", "conversation_audit_blocks", "conversation_artifact_payloads"):
             assert connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
         assert connection.execute("SELECT status FROM conversation_artifacts").fetchone()[0] == "failed"
+
+
+def test_message_pages_are_incremental_and_revisions_survive_reopen(tmp_path):
+    from app.repositories.project.conversation_database import read_message_sync_state
+    projects = _Projects(tmp_path)
+    repository = ProjectConversationRepository(projects)
+    session = repository.create_session("project-1", title="pages", provider_id=None, model_id=None, reasoning_mode=None)
+    messages = [repository.append_message("project-1", session.session_id, role="user", content=str(i)) for i in range(7)]
+    page = repository.list_messages_page("project-1", session.session_id, limit=2)
+    assert [m.message_id for m in page.items] == [m.message_id for m in messages[-2:]]
+    assert page.has_more
+    older = repository.list_messages_page("project-1", session.session_id, limit=2, before_message_id=page.next_before_message_id)
+    assert [m.message_id for m in older.items] == [m.message_id for m in messages[3:5]]
+    delta = repository.list_messages_page("project-1", session.session_id, limit=2, after_message_id=messages[1].message_id)
+    assert [m.message_id for m in delta.items] == [m.message_id for m in messages[2:4]]
+    assert delta.has_more and delta.next_after_message_id == messages[3].message_id
+    last = repository.list_messages_page("project-1", session.session_id, limit=2, after_message_id=messages[-1].message_id)
+    assert last.items == () and not last.has_more
+    reopened = ProjectConversationRepository(projects)
+    state = read_message_sync_state(reopened.message_sync_target("project-1", session.session_id))
+    assert state["revision"] == page.revision == 7
+    assert state["reset_revision"] == 0
+
+
+def test_change_notifications_only_follow_successful_commits(tmp_path):
+    from app.infra.conversation_changes import ConversationChanges
+    from app.repositories.project.conversation_database import transaction_for_conversations, write_meta
+    import pytest
+    broker = ConversationChanges()
+    original = conversation_database_module.conversation_changes
+    conversation_database_module.conversation_changes = broker
+    folder = tmp_path / ".Tiance" / "conversations"
+    path = ensure_database(folder.parent)
+
+    async def scenario():
+        async with broker.subscribe(path) as changes:
+            def rollback():
+                with transaction_for_conversations(folder):
+                    write_meta(folder, "test", 1)
+                    raise ValueError("rollback")
+            with pytest.raises(ValueError):
+                await asyncio.to_thread(rollback)
+            assert changes.empty()
+            def commit():
+                with transaction_for_conversations(folder):
+                    write_meta(folder, "test", 2)
+                    with transaction_for_conversations(folder):
+                        write_meta(folder, "nested", True)
+            await asyncio.to_thread(commit)
+            await asyncio.wait_for(changes.get(), 1)
+            assert changes.empty()
+            assert read_meta(folder, "test") == 2
+            assert read_meta(folder, "conversation_revision") == 1
+    try:
+        asyncio.run(scenario())
+    finally:
+        conversation_database_module.conversation_changes = original
+
+
+def test_idle_conversation_socket_and_incremental_api_reconcile_after_reconnect(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.api.routes.project import conversations as routes
+    from app.services.project.project_conversations import ProjectConversationService
+    projects = _Projects(tmp_path)
+    repository = ProjectConversationRepository(projects)
+    service = ProjectConversationService(repository)
+    session = repository.create_session("project-1", title="idle", provider_id=None, model_id=None, reasoning_mode=None)
+    first = repository.append_message("project-1", session.session_id, role="user", content="hello")
+    monkeypatch.setattr(routes, "get_project_conversation_service", lambda: service)
+    app = FastAPI()
+    app.include_router(routes.router, prefix="/api")
+    url = f"/api/projects/project-1/conversations/{session.session_id}"
+    with TestClient(app) as client:
+        initial = client.get(url + "/messages?limit=1").json()
+        with client.websocket_connect(url + "/events") as socket:
+            ready = socket.receive_json()
+            assert ready["kind"] == "ready" and ready["revision"] == initial["revision"]
+            notice = repository.append_message("project-1", session.session_id, role="system",
+                name="memory_compaction", content="已完成异步记忆压缩。", include_in_context=False)
+            changed = socket.receive_json()
+            assert changed["kind"] == "changed" and changed["revision"] > ready["revision"]
+        delta = client.get(url + "/messages", params={"limit": 80, "after_message_id": first.message_id}).json()
+        assert [m["message_id"] for m in delta["items"]] == [notice.message_id]
+        assert not delta["has_more"]
+        with client.websocket_connect(url + "/events") as socket:
+            assert socket.receive_json()["revision"] == delta["revision"]
+        state = client.get(url + "/messages/state").json()
+        assert state["revision"] == delta["revision"]
+        assert "items" not in state

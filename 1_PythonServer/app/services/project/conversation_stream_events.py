@@ -60,6 +60,7 @@ def client_tool_request_to_payload(
         "session_id": request.session_id,
         "timeout_seconds": request.timeout_seconds,
         "model_context": request.model_context,
+        "tool_project_id": request.tool_project_id,
     }
     if request.capability is not None:
         payload["client_capability"] = {

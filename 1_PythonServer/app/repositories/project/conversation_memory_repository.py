@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from functools import lru_cache
 from json import dumps, loads
 from pathlib import Path
@@ -54,6 +54,9 @@ class ProjectConversationMemoryRepository:
 
     def list_global_memory_events(self) -> list[dict[str, Any]]:
         return _read_jsonl(self._global_memory_path())
+
+    def iter_global_memory_events(self) -> Iterator[dict[str, Any]]:
+        return _iter_jsonl(self._global_memory_path())
 
     def list_project_memory_events(self, project_id: str) -> list[dict[str, Any]]:
         return read_project_events(
@@ -231,20 +234,23 @@ class ProjectConversationMemoryRepository:
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    return list(_iter_jsonl(path))
+
+
+def _iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
     if not path.is_file():
-        return []
-    events: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            payload = loads(line)
-        except ValueError as exc:
-            raise ValueError("Invalid conversation memory JSONL record.") from exc
-        if not isinstance(payload, dict):
-            raise ValueError("Conversation memory JSONL records must be objects.")
-        events.append(payload)
-    return events
+        return
+    with path.open("r", encoding="utf-8") as source:
+        for line in source:
+            if not line.strip():
+                continue
+            try:
+                payload = loads(line)
+            except ValueError as exc:
+                raise ValueError("Invalid conversation memory JSONL record.") from exc
+            if not isinstance(payload, dict):
+                raise ValueError("Conversation memory JSONL records must be objects.")
+            yield payload
 
 
 def _read_json_object(path: Path) -> dict[str, Any] | None:

@@ -12,8 +12,12 @@ from zlib import error as zlib_error
 from app.repositories.project.conversation_audit_delta import apply_delta, json_bytes, make_delta
 
 
+from app.repositories.project.conversation_audit_streaming import (
+    BLOCK_MIN_BYTES, PreparedAuditSnapshot, prepare_audit_snapshot, write_prepared_blocks,
+)
+
+
 MAX_DELTA_DEPTH = 32
-BLOCK_MIN_BYTES = 1024
 MANIFEST_KEY = "__tiance_audit_manifest__"
 
 
@@ -57,10 +61,17 @@ def create_audit_snapshot_schema(connection: sqlite3.Connection) -> None:
 def store_audit_snapshot(
     connection: sqlite3.Connection, session_id: str, stream: str, payload: dict[str, Any],
 ) -> dict[str, Any]:
+    with prepare_audit_snapshot(payload) as prepared:
+        return store_prepared_audit_snapshot(connection, session_id, stream, prepared)
+
+
+def store_prepared_audit_snapshot(
+    connection: sqlite3.Connection, session_id: str, stream: str, prepared: PreparedAuditSnapshot,
+) -> dict[str, Any]:
     if not connection.in_transaction:
         raise RuntimeError("Audit snapshots must be stored in the owning record's transaction.")
-    content = json_bytes(payload)
-    tree = _pack(connection, payload)
+    write_prepared_blocks(connection, prepared)
+    tree = prepared.tree
     encoded_tree = json_bytes(tree)
     compressed = compress(encoded_tree, mtime=0)
     base_id, depth = None, 0
@@ -85,7 +96,7 @@ def store_audit_snapshot(
             session_id, stream, base_snapshot_id, depth, payload_sha256,
             payload_size_bytes, tree_sha256, payload_blob
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (session_id, stream, base_id, depth, sha256(content).hexdigest(), len(content),
+        (session_id, stream, base_id, depth, prepared.digest, prepared.size_bytes,
          sha256(encoded_tree).hexdigest(), compressed),
     )
     snapshot_id = int(cursor.lastrowid)
@@ -129,41 +140,6 @@ def collect_unreferenced_audit_blocks(connection: sqlite3.Connection) -> None:
             SELECT 1 FROM conversation_audit_snapshot_blocks AS link WHERE link.digest = block.digest
         )"""
     )
-
-
-def _pack(connection: sqlite3.Connection, payload: dict[str, Any]) -> dict[str, Any]:
-    references: dict[str, str] = {}
-    written: set[str] = set()
-
-    def visit(value: Any, path: list[str | int]) -> Any:
-        kind, content = None, None
-        if isinstance(value, str):
-            kind, content = "text", value.encode("utf-8")
-        elif path and path[-1] == "tools" and isinstance(value, (list, dict)):
-            kind, content = "json", json_bytes(value)
-        if content is not None and len(content) >= BLOCK_MIN_BYTES:
-            digest = sha256(kind.encode() + b"\0" + content).hexdigest()
-            if digest not in written:
-                existing = connection.execute(
-                    "SELECT kind, size_bytes FROM conversation_audit_blocks WHERE digest = ?", (digest,),
-                ).fetchone()
-                if existing is None:
-                    connection.execute(
-                        """INSERT INTO conversation_audit_blocks(digest, kind, size_bytes, payload_blob)
-                           VALUES (?, ?, ?, ?)""", (digest, kind, len(content), compress(content, mtime=0)),
-                    )
-                elif tuple(existing) != (kind, len(content)):
-                    raise RuntimeError(f"Audit block {digest} has inconsistent metadata.")
-                written.add(digest)
-            references[json_bytes(path).decode("utf-8")] = digest
-            return None
-        if isinstance(value, dict):
-            return {key: visit(item, [*path, key]) for key, item in value.items()}
-        if isinstance(value, (list, tuple)):
-            return [visit(item, [*path, index]) for index, item in enumerate(value)]
-        return value
-
-    return {"payload": visit(payload, []), "external_values": references}
 
 
 def _read_tree(

@@ -6,7 +6,7 @@ import type { FileWorkspaceContentResponse } from "../../../entities/file-worksp
 import { isTextFile } from "../../../entities/editor/model/languageMapping";
 import type { ConversationUsageSummary } from "../../../services/project/getProjectConversationUsageSummary";
 import { getProjectConversationUsageSummary } from "../../../services/project/getProjectConversationUsageSummary";
-import { getProjectConversationMessages } from "../../../services/project/getProjectConversationMessages";
+import { CONVERSATION_MESSAGE_PAGE_SIZE, getProjectConversationMessages } from "../../../services/project/getProjectConversationMessages";
 import { getProjectConversations } from "../../../services/project/getProjectConversations";
 import {
   getProjectWorkspaceState,
@@ -253,7 +253,7 @@ async function preloadRequestedSession(
   const [messagesResult, usageResult] = await Promise.allSettled([
     warmup.sessionMessages[sessionId]
       ? Promise.resolve(warmup.sessionMessages[sessionId])
-      : getProjectConversationMessages(projectId, sessionId),
+      : getProjectConversationMessages(projectId, sessionId, { limit: CONVERSATION_MESSAGE_PAGE_SIZE }),
     warmup.sessionUsageSummaries[sessionId]
       ? Promise.resolve(warmup.sessionUsageSummaries[sessionId])
       : getProjectConversationUsageSummary(projectId, sessionId),

@@ -3,8 +3,10 @@ import type { PointerEvent, RefObject } from "react";
 import type { ConversationSession } from "../../../entities/llm-chat/model/conversation";
 import type { DsLlmReasoningMode } from "../../../entities/llm-runtime/model/generationParams";
 import type {
+  EditorExternalPathReferenceRequest,
   EditorReferenceViewerPayload,
 } from "../../../entities/editor/model/editorReference";
+import type { Project, ProjectCategory } from "../../../entities/project/model/project";
 import type { ConversationMessageReferences } from "../../../entities/llm-chat/model/chatCompletion";
 import type { ProjectFileDragData } from "../../../entities/project/model/projectFileDragData";
 import type { OptionSelectItem } from "../../../shared/ui/option-select/OptionSelect";
@@ -16,7 +18,17 @@ import type {
   UsageScopeOption,
 } from "../model/usageSummary";
 
+export type ChatProjectReferenceCatalog = {
+  categories: readonly ProjectCategory[];
+  projects: readonly Project[];
+  isLoading: boolean;
+  error: string | null;
+};
+
 export type ChatComposerInputState = {
+  projectId: string | null;
+  projectReferenceCatalog?: ChatProjectReferenceCatalog;
+  onReferenceExternalPath?: (reference: EditorExternalPathReferenceRequest) => void;
   canSend: boolean;
   draft: string;
   externalFileDropScopeKey?: string | null;

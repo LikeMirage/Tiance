@@ -1427,3 +1427,56 @@ def test_global_memory_latest_committed_update_wins(tmp_path):
     assert active["items"][0]["source"] == (
         "ai_session_function-session_tool_call_call-3"
     )
+
+
+@pytest.mark.parametrize("fail_after_submission", [False, True])
+def test_compaction_notice_precedes_child_settlement_and_cannot_become_failure(tmp_path, fail_after_submission):
+    from app.infra.conversation_changes import conversation_changes
+    from app.repositories.project.conversation_database import database_path_from_session
+    conversation, session, repository, memory = _create_services(tmp_path)
+    _append_turn(conversation, session.session_id, 1)
+    _append_turn(conversation, session.session_id, 2)
+    observed_before_return = []
+
+    async def run(request):
+        target = conversation.message_sync_target(PROJECT_ID, session.session_id)
+        async with conversation_changes.subscribe(database_path_from_session(target)) as changes:
+            await asyncio.to_thread(memory.submit_compaction_result, PROJECT_ID, request.session_id, COMPACTION_RESULT)
+            async def wait_for_notice():
+                while True:
+                    notices = [m for m in conversation.list_messages(PROJECT_ID, session.session_id)
+                               if m.name == "memory_compaction" and m.status == "done"]
+                    if notices:
+                        observed_before_return.extend(notices)
+                        return
+                    await changes.get()
+            await asyncio.wait_for(wait_for_notice(), 3)
+        if fail_after_submission:
+            raise RuntimeError("child final response failed after a successful submission")
+
+    memory.set_functional_conversation_runner(run)
+    asyncio.run(memory.compact_context_if_enabled(PROJECT_ID, session.session_id,
+        session_snapshot=session, run_snapshot=_snapshot_for_latest_assistant(conversation, session.session_id)))
+    assert len(observed_before_return) == 1
+    notices = [m for m in conversation.list_messages(PROJECT_ID, session.session_id) if m.name == "memory_compaction"]
+    assert [m.status for m in notices] == ["running", "done"]
+    assert repository.list_compressions(PROJECT_ID, session.session_id)[-1]["status"] == "completed"
+
+
+def test_repeated_compaction_notice_preserves_response_boundary_and_deduplicates(tmp_path):
+    from app.services.project.conversation_notifications import conversation_notifications
+    conversation, session, _, memory = _create_services(tmp_path)
+
+    async def scenario():
+        await conversation_notifications.start_response(PROJECT_ID, session.session_id)
+        try:
+            for _ in range(2):
+                await memory._append_compaction_status(PROJECT_ID, session.session_id,
+                    content="已完成异步记忆压缩。", status="done", compression_id="cmp-test")
+            assert conversation.list_messages(PROJECT_ID, session.session_id) == ()
+            await conversation_notifications.finish_response(PROJECT_ID, session.session_id)
+            notices = conversation.list_messages(PROJECT_ID, session.session_id)
+            assert len(notices) == 1 and notices[0].status == "done"
+        finally:
+            await conversation_notifications.close(PROJECT_ID, session.session_id)
+    asyncio.run(scenario())

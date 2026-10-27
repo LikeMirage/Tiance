@@ -107,6 +107,8 @@ export type ChatClientToolRequestEvent = {
   call_id: string;
   name: string;
   arguments: string;
+  /** Executed tool package, distinct from the caller's project_id. */
+  tool_project_id?: string | null;
   project_id?: string | null;
   session_id?: string | null;
   timeout_seconds?: number | null;

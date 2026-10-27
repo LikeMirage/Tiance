@@ -100,8 +100,8 @@
       "metrics": {
         "aria": "性能与使用情况",
         "panelAria": "性能与使用情况面板",
-        "title": "性能占用",
-        "performanceTab": "性能",
+        "title": "性能监测",
+        "performanceTab": "性能监测",
         "usageTab": "Token 用量",
         "loading": "正在读取性能数据",
         "shellDisconnected": "桌面壳未连接",
@@ -371,7 +371,9 @@
       },
       "messageList": {
         "loadingSession": "正在载入会话…",
-        "empty": "发送消息开始对话。"
+        "empty": "发送消息开始对话。",
+        "loadFailed": "会话加载失败，请重试。",
+        "loadTimeout": "会话加载超时，请重试。"
       },
       "usage": {
         "aria": "会话 Token 统计",
@@ -952,10 +954,14 @@
         "modelsPlaceholder": "输入完整模型列表地址"
       },
       "cacheSettings": {
-        "title": "缓存设置", "retention": "前缀缓存有效期阈值",
+        "title": "缓存设置",
+        "retention": "前缀缓存有效期阈值",
         "unitAria": "选择缓存有效期单位",
         "hint": "用于判断何时把长期记忆更新写入前部注入，不会改变供应商实际缓存时间。",
-        "units": { "minutes": "分钟", "hours": "小时" }
+        "units": {
+          "minutes": "分钟",
+          "hours": "小时"
+        }
       },
       "apiKey": {
         "add": "新增 API KEY",
@@ -1104,6 +1110,15 @@
           "memoryCompression": "记忆压缩模型",
           "providerWebSearch": "内置网络搜索"
         }
+      }
+    },
+    "softwareUpdate": {
+      "install": "下载更新",
+      "restart": {
+        "title": "更新已下载",
+        "message": "v{version} 已准备就绪，是否立即重启并安装？",
+        "now": "立即重启",
+        "later": "稍后"
       }
     }
   }

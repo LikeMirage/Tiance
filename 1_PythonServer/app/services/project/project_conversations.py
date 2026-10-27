@@ -352,13 +352,18 @@ class ProjectConversationService:
         *,
         limit: int | None = None,
         before_message_id: str | None = None,
+        after_message_id: str | None = None,
     ) -> ProjectConversationMessagePage:
         return self._repository.list_messages_page(
             project_id,
             session_id,
             limit=limit,
             before_message_id=before_message_id,
+            after_message_id=after_message_id,
         )
+
+    def message_sync_target(self, project_id: str, session_id: str):
+        return self._repository.message_sync_target(project_id, session_id)
 
     def get_message_turn(
         self,
@@ -419,6 +424,15 @@ class ProjectConversationService:
         run_id: str,
     ) -> ProjectConversationRunOutcome | None:
         return self._repository.get_run(project_id, session_id, run_id)
+
+    def append_status_notice(
+        self, project_id: str, session_id: str, *, name: str, content: str,
+        status: ProjectConversationMessageStatus, message_id: str | None,
+    ) -> ProjectConversationMessage | None:
+        return self._repository.append_status_notice(
+            project_id, session_id, name=name, content=content,
+            status=status, message_id=message_id,
+        )
 
     def append_message(
         self,

@@ -1,6 +1,7 @@
 import { memo } from "react";
 
 import { ChatPanelController } from "./ChatPanelController";
+import type { ChatProjectReferenceCatalog } from "./ChatComposerTypes";
 import type {
   EditorExternalPathReferenceRequest,
   EditorReferenceViewerPayload,
@@ -22,6 +23,7 @@ import "./ai-panel.css";
 export type { ChatPanelSessionSelectionRequest } from "../model/chatSessionSelectionRequest";
 
 type Props = {
+  projectReferenceCatalog?: ChatProjectReferenceCatalog;
   projectId: string | null;
   activeConversationDataFile?: ConversationDataFileName | null;
   clientToolRegistrations?: readonly ClientToolRegistration[];

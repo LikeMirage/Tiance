@@ -1,8 +1,5 @@
 import {
-  ChatsCircle,
-  DownloadSimple,
   GearSix,
-  GitBranch,
   NotePencil,
 } from "@phosphor-icons/react";
 
@@ -16,14 +13,8 @@ type Props = {
   activeSession: ConversationSession | null;
   activeView: ChatPanelView;
   canCreateConversation: boolean;
-  canExportConversation: boolean;
-  canOpenBranches: boolean;
-  canOpenConversationOverview: boolean;
   isLoadingSession: boolean;
   onCreateConversation: () => void;
-  onExportConversation: () => void;
-  onOpenBranches: () => void;
-  onOpenConversationOverview: () => void;
   onShowChat: () => void;
   onToggleSettings: () => void;
 };
@@ -32,14 +23,8 @@ export function ChatHeader({
   activeSession,
   activeView,
   canCreateConversation,
-  canExportConversation,
-  canOpenBranches,
-  canOpenConversationOverview,
   isLoadingSession,
   onCreateConversation,
-  onExportConversation,
-  onOpenBranches,
-  onOpenConversationOverview,
   onShowChat,
   onToggleSettings,
 }: Props) {
@@ -72,36 +57,6 @@ export function ChatHeader({
         </div>
       </div>
       <div className="ai-panel__actions" aria-label={t("aiPanel.header.actions")}>
-        <button
-          className="ai-panel__action"
-          type="button"
-          aria-label={t("aiPanel.header.exportConversation")}
-          title={t("aiPanel.header.exportConversation")}
-          disabled={!canExportConversation}
-          onClick={onExportConversation}
-        >
-          <DownloadSimple size={15} weight="regular" aria-hidden="true" />
-        </button>
-        <button
-          className="ai-panel__action"
-          type="button"
-          aria-label={t("aiPanel.header.conversationOverview")}
-          title={t("aiPanel.header.conversationOverview")}
-          disabled={!canOpenConversationOverview}
-          onClick={onOpenConversationOverview}
-        >
-          <ChatsCircle size={15} weight="regular" aria-hidden="true" />
-        </button>
-        <button
-          className="ai-panel__action"
-          type="button"
-          aria-label={t("projectOverview.views.branches")}
-          title={t("projectOverview.views.branches")}
-          disabled={!canOpenBranches}
-          onClick={onOpenBranches}
-        >
-          <GitBranch size={15} weight="regular" aria-hidden="true" />
-        </button>
         <button
           className={activeView === "settings" ? "ai-panel__action ai-panel__action--active" : "ai-panel__action"}
           type="button"

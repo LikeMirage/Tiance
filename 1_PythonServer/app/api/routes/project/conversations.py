@@ -1,6 +1,6 @@
 import asyncio
 
-from fastapi import APIRouter, Query, status
+from fastapi import WebSocket, APIRouter, Query, status
 
 from app.core.errors import ConflictError
 from app.schemas.llm.usage import LlmSessionUsageSummaryResponse
@@ -546,6 +546,7 @@ def list_project_conversation_messages(
     session_id: str,
     limit: int | None = Query(default=None, ge=1),
     before_message_id: str | None = Query(default=None),
+    after_message_id: str | None = Query(default=None),
 ) -> ProjectConversationMessageListResponse:
     service = get_project_conversation_service()
     page = service.list_messages_page(
@@ -553,6 +554,7 @@ def list_project_conversation_messages(
         session_id,
         limit=limit,
         before_message_id=before_message_id,
+        after_message_id=after_message_id,
     )
     items = [ProjectConversationMessageResponse.from_domain(message) for message in page.items]
     return ProjectConversationMessageListResponse(
@@ -563,6 +565,9 @@ def list_project_conversation_messages(
         has_more=page.has_more,
         next_before_message_id=page.next_before_message_id,
         items=items,
+        revision=page.revision,
+        reset_revision=page.reset_revision,
+        next_after_message_id=page.next_after_message_id,
         run_outcomes=[
             ProjectConversationRunOutcomeResponse.from_domain(outcome)
             for outcome in page.run_outcomes
@@ -608,3 +613,41 @@ def get_project_conversation_message_turn(
             for failure in turn.run_attempt_failures
         ],
     )
+
+
+@router.get("/{project_id}/conversations/{session_id}/messages/state")
+def conversation_message_sync_state(project_id: str, session_id: str):
+    from app.repositories.project.conversation_database import read_message_sync_state
+    target = get_project_conversation_service().message_sync_target(project_id, session_id)
+    return read_message_sync_state(target)
+
+
+@router.websocket("/{project_id}/conversations/{session_id}/events")
+async def watch_conversation_changes(websocket: WebSocket, project_id: str, session_id: str):
+    from app.api.event_socket import serve_event_socket
+    from app.infra.conversation_changes import conversation_changes
+    from app.repositories.project.conversation_database import database_path_from_session, read_message_sync_state
+
+    target = await asyncio.to_thread(
+        get_project_conversation_service().message_sync_target, project_id, session_id,
+    )
+
+    async def events():
+        async with conversation_changes.subscribe(database_path_from_session(target)) as changes:
+            previous = await asyncio.to_thread(read_message_sync_state, target)
+            yield {"kind": "ready", **previous}
+            while True:
+                try:
+                    await asyncio.wait_for(changes.get(), timeout=15)
+                except asyncio.TimeoutError:
+                    pass
+                # Coalesce a transaction burst; no database work when idle.
+                await asyncio.sleep(0.1)
+                if not changes.empty():
+                    changes.get_nowait()
+                current = await asyncio.to_thread(read_message_sync_state, target)
+                if current != previous:
+                    previous = current
+                    yield {"kind": "changed", **current}
+
+    await serve_event_socket(websocket, events())

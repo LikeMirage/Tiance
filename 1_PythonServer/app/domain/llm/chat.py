@@ -102,6 +102,7 @@ class ChatClientToolRequest:
     timeout_seconds: int = 60
     model_context: dict[str, Any] = field(default_factory=dict)
     capability: ChatClientCapability | None = None
+    tool_project_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

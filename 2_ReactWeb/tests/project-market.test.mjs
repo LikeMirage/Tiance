@@ -128,7 +128,8 @@ test("project-internal conversation overview stays in the document tab workspace
   );
 
   for (const source of [editorSource, toolSource]) {
-    assert.match(source, /ensureProjectConversationOverview\(projectId, \{ activate: true \}\)/);
+    assert.match(source, /useConversationOverviewNavigation\(\{/);
+    assert.match(source, /openProjectOverview: documentTabs\.ensureProjectConversationOverview/);
     assert.doesNotMatch(source, /handleOpenExternal(?:Project|Tool)View/);
   }
   assert.match(toolSource, /projectConversationOverviewContent=/);

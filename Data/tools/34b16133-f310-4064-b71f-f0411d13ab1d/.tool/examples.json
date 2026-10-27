@@ -1,0 +1,14 @@
+[
+  {
+    "content": "先调用 {\"action\":\"list_categories\"}，使用结果中的 category_id。分类不存在时调用 {\"action\":\"create_category\",\"name\":\"业务工具\"}，再使用返回的分类 ID。",
+    "enabled": true,
+    "inject_content": false,
+    "title": "查看并选择工具分类"
+  },
+  {
+    "content": "调用 {\"action\":\"create_tool\",\"category_id\":\"上一步取得的真实ID\",\"name\":\"订单处理\",\"call_name\":\"process_orders\"}。成功后先读取 documentation_path，按资料修改程序与配置并验证；新工具默认关闭，制作完成后遵从用户意愿决定是否把 manifest_path 中 state.enabled 改为 true。失败若返回 project，应在原项目修复，避免重复创建。",
+    "enabled": true,
+    "inject_content": false,
+    "title": "创建后按资料制作，默认不启用"
+  }
+]

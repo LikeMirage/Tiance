@@ -168,6 +168,9 @@ def test_exit_endpoint_requires_owning_shell_and_reports_real_pending_state(monk
     from fastapi import FastAPI
     from app.api.routes.desktop import router
     from app.core.shell_lease import LEASE_INSTANCE_HEADER, LEASE_TOKEN_HEADER
+    from app.services.application.desktop_exit import DesktopExitCoordinator
+    coordinator = DesktopExitCoordinator()
+    monkeypatch.setattr("app.api.routes.desktop.get_desktop_exit_coordinator", lambda: coordinator)
 
     for key, value in {
         "TIANCE_SHELL_INSTANCE_ID": "test-instance",
@@ -186,6 +189,9 @@ def test_exit_endpoint_requires_owning_shell_and_reports_real_pending_state(monk
             assert (await client.post(url, headers=headers)).status_code == 403
             headers[LEASE_TOKEN_HEADER] = "test-token"
             try:
+                result = await client.post(url, headers=headers)
+                assert result.json()["ready"] is False
+                await coordinator.close()
                 result = await client.post(url, headers=headers)
                 assert result.json() == {"ready": True, "pending_tasks": 0}
                 with pytest.raises(AppError):

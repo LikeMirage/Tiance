@@ -1,3 +1,4 @@
+from contextlib import aclosing
 from app.domain.llm.output_limit_error import OutputLimitError
 from collections.abc import AsyncGenerator
 
@@ -136,7 +137,7 @@ class OpenAIResponsesChatAdapter:
         did_emit_text_delta = False
         did_emit_reasoning_delta = False
         reasoning_delta_event_type: str | None = None
-        async for payload in _iter_sse_payloads(
+        async with aclosing(_iter_sse_payloads(
             stream_body(
                 apply_auth_to_url(
                     runtime_config.api_base_url,
@@ -150,190 +151,191 @@ class OpenAIResponsesChatAdapter:
                     stream=True,
                 ),
             )
-        ):
-            if payload is SSE_DONE:
-                continue
-            if payload is None:
-                yield _protocol_error_event()
-                return
-            event_type = str(payload.get("type") or "")
-            if event_type == "response.output_text.delta" and payload.get("delta"):
-                did_emit_text_delta = True
-                yield ChatStreamEvent(
-                    kind=ChatStreamEventKind.DELTA,
-                    content=str(payload["delta"]),
-                )
-            elif event_type == "response.refusal.delta" and payload.get("delta"):
-                did_emit_text_delta = True
-                yield ChatStreamEvent(
-                    kind=ChatStreamEventKind.DELTA,
-                    content=str(payload["delta"]),
-                )
-            elif event_type in {
-                "response.reasoning_text.delta",
-                "response.reasoning_summary_text.delta",
-            } and payload.get("delta"):
-                if reasoning_delta_event_type is None:
-                    reasoning_delta_event_type = event_type
-                if reasoning_delta_event_type != event_type:
+        )) as owned_stream:
+            async for payload in owned_stream:
+                if payload is SSE_DONE:
                     continue
-                did_emit_reasoning_delta = True
-                yield ChatStreamEvent(
-                    kind=ChatStreamEventKind.THINKING_DELTA,
-                    content=str(payload["delta"]),
-                )
-            elif event_type == "response.output_item.added":
-                tool_call = _responses_stream_tool_call(payload.get("item"))
-                output_index = _optional_int(payload.get("output_index"))
-                if tool_call is not None and output_index is not None:
-                    tool_call_parts[output_index] = tool_call
+                if payload is None:
+                    yield _protocol_error_event()
+                    return
+                event_type = str(payload.get("type") or "")
+                if event_type == "response.output_text.delta" and payload.get("delta"):
+                    did_emit_text_delta = True
                     yield ChatStreamEvent(
-                        kind=ChatStreamEventKind.TOOL_CALL_DELTA,
-                        tool_call=tool_call,
+                        kind=ChatStreamEventKind.DELTA,
+                        content=str(payload["delta"]),
                     )
-            elif event_type == "response.function_call_arguments.delta":
-                output_index = _optional_int(payload.get("output_index"))
-                arguments_delta = str(payload.get("delta") or "")
-                tool_call = (
-                    tool_call_parts.get(output_index)
-                    if output_index is not None
-                    else None
-                )
-                if tool_call is None:
-                    yield ChatStreamEvent(kind=ChatStreamEventKind.TOOL_CALL_DELTA)
-                    continue
-                tool_call_parts[output_index] = ChatToolCall(
-                    call_id=tool_call.call_id,
-                    name=tool_call.name,
-                    arguments=tool_call.arguments + arguments_delta,
-                )
-                yield ChatStreamEvent(
-                    kind=ChatStreamEventKind.TOOL_CALL_DELTA,
-                    tool_call=ChatToolCall(
+                elif event_type == "response.refusal.delta" and payload.get("delta"):
+                    did_emit_text_delta = True
+                    yield ChatStreamEvent(
+                        kind=ChatStreamEventKind.DELTA,
+                        content=str(payload["delta"]),
+                    )
+                elif event_type in {
+                    "response.reasoning_text.delta",
+                    "response.reasoning_summary_text.delta",
+                } and payload.get("delta"):
+                    if reasoning_delta_event_type is None:
+                        reasoning_delta_event_type = event_type
+                    if reasoning_delta_event_type != event_type:
+                        continue
+                    did_emit_reasoning_delta = True
+                    yield ChatStreamEvent(
+                        kind=ChatStreamEventKind.THINKING_DELTA,
+                        content=str(payload["delta"]),
+                    )
+                elif event_type == "response.output_item.added":
+                    tool_call = _responses_stream_tool_call(payload.get("item"))
+                    output_index = _optional_int(payload.get("output_index"))
+                    if tool_call is not None and output_index is not None:
+                        tool_call_parts[output_index] = tool_call
+                        yield ChatStreamEvent(
+                            kind=ChatStreamEventKind.TOOL_CALL_DELTA,
+                            tool_call=tool_call,
+                        )
+                elif event_type == "response.function_call_arguments.delta":
+                    output_index = _optional_int(payload.get("output_index"))
+                    arguments_delta = str(payload.get("delta") or "")
+                    tool_call = (
+                        tool_call_parts.get(output_index)
+                        if output_index is not None
+                        else None
+                    )
+                    if tool_call is None:
+                        yield ChatStreamEvent(kind=ChatStreamEventKind.TOOL_CALL_DELTA)
+                        continue
+                    tool_call_parts[output_index] = ChatToolCall(
                         call_id=tool_call.call_id,
                         name=tool_call.name,
-                        arguments=arguments_delta,
-                    ),
-                )
-            elif event_type == "response.output_item.done":
-                item = payload.get("item")
-                continuation_item = _responses_continuation_item(item)
-                if continuation_item is not None:
-                    emitted_continuation_item_ids.add(
-                        _output_item_identity(continuation_item)
+                        arguments=tool_call.arguments + arguments_delta,
                     )
-                    continuation_items.append(continuation_item)
-                tool_call = _responses_stream_tool_call(item)
-                if tool_call is not None:
-                    emitted_tool_call_ids.add(tool_call.call_id)
-                    output_index = _optional_int(payload.get("output_index"))
-                    if output_index is not None:
-                        tool_call_parts.pop(output_index, None)
                     yield ChatStreamEvent(
-                        kind=ChatStreamEventKind.TOOL_CALL,
-                        tool_call=tool_call,
+                        kind=ChatStreamEventKind.TOOL_CALL_DELTA,
+                        tool_call=ChatToolCall(
+                            call_id=tool_call.call_id,
+                            name=tool_call.name,
+                            arguments=arguments_delta,
+                        ),
                     )
-            elif event_type == "response.completed":
-                response = payload.get("response")
-                if isinstance(response, dict):
-                    if not did_emit_text_delta:
-                        completed_text = _extract_responses_text(response)
-                        if completed_text:
-                            yield ChatStreamEvent(
-                                kind=ChatStreamEventKind.DELTA,
-                                content=completed_text,
-                            )
-                            did_emit_text_delta = True
-                    if not did_emit_reasoning_delta:
-                        reasoning_text = _extract_responses_reasoning_text(response)
-                        if reasoning_text:
-                            yield ChatStreamEvent(
-                                kind=ChatStreamEventKind.THINKING_DELTA,
-                                content=reasoning_text,
-                            )
-                            did_emit_reasoning_delta = True
-                    for continuation_item in _extract_responses_continuation_items(response):
-                        identity = _output_item_identity(continuation_item)
-                        if identity in emitted_continuation_item_ids:
-                            continue
-                        emitted_continuation_item_ids.add(identity)
+                elif event_type == "response.output_item.done":
+                    item = payload.get("item")
+                    continuation_item = _responses_continuation_item(item)
+                    if continuation_item is not None:
+                        emitted_continuation_item_ids.add(
+                            _output_item_identity(continuation_item)
+                        )
                         continuation_items.append(continuation_item)
-                    for tool_call in _extract_responses_tool_calls(response):
-                        if tool_call.call_id in emitted_tool_call_ids:
-                            continue
+                    tool_call = _responses_stream_tool_call(item)
+                    if tool_call is not None:
                         emitted_tool_call_ids.add(tool_call.call_id)
+                        output_index = _optional_int(payload.get("output_index"))
+                        if output_index is not None:
+                            tool_call_parts.pop(output_index, None)
                         yield ChatStreamEvent(
                             kind=ChatStreamEventKind.TOOL_CALL,
                             tool_call=tool_call,
                         )
-                    usage = _parse_responses_usage(response.get("usage"))
-                    if usage is not None:
-                        yield ChatStreamEvent(
-                            kind=ChatStreamEventKind.USAGE,
-                            usage=usage,
+                elif event_type == "response.completed":
+                    response = payload.get("response")
+                    if isinstance(response, dict):
+                        if not did_emit_text_delta:
+                            completed_text = _extract_responses_text(response)
+                            if completed_text:
+                                yield ChatStreamEvent(
+                                    kind=ChatStreamEventKind.DELTA,
+                                    content=completed_text,
+                                )
+                                did_emit_text_delta = True
+                        if not did_emit_reasoning_delta:
+                            reasoning_text = _extract_responses_reasoning_text(response)
+                            if reasoning_text:
+                                yield ChatStreamEvent(
+                                    kind=ChatStreamEventKind.THINKING_DELTA,
+                                    content=reasoning_text,
+                                )
+                                did_emit_reasoning_delta = True
+                        for continuation_item in _extract_responses_continuation_items(response):
+                            identity = _output_item_identity(continuation_item)
+                            if identity in emitted_continuation_item_ids:
+                                continue
+                            emitted_continuation_item_ids.add(identity)
+                            continuation_items.append(continuation_item)
+                        for tool_call in _extract_responses_tool_calls(response):
+                            if tool_call.call_id in emitted_tool_call_ids:
+                                continue
+                            emitted_tool_call_ids.add(tool_call.call_id)
+                            yield ChatStreamEvent(
+                                kind=ChatStreamEventKind.TOOL_CALL,
+                                tool_call=tool_call,
+                            )
+                        usage = _parse_responses_usage(response.get("usage"))
+                        if usage is not None:
+                            yield ChatStreamEvent(
+                                kind=ChatStreamEventKind.USAGE,
+                                usage=usage,
+                            )
+                        status = str(response.get("status") or "")
+                        if status == "incomplete":
+                            yield ChatStreamEvent(
+                                kind=ChatStreamEventKind.ERROR,
+                                error=_responses_incomplete_message(response),
+                                finish_reason=_responses_incomplete_reason(response),
+                                error_code="upstream_response_incomplete",
+                            )
+                            return
+                        if status == "failed":
+                            yield ChatStreamEvent(
+                                kind=ChatStreamEventKind.ERROR,
+                                error=_responses_error_message(response),
+                                error_code="upstream_response_failed",
+                            )
+                            return
+                        if status != "completed":
+                            yield ChatStreamEvent(
+                                kind=ChatStreamEventKind.ERROR,
+                                error="上游 Responses 完成事件缺少 completed 状态。",
+                                error_code="upstream_response_malformed",
+                            )
+                            return
+                        continuation = build_protocol_continuation(
+                            request,
+                            provider_template.protocol_family,
+                            ChatProtocolContinuationKind.OPENAI_RESPONSES_OUTPUT,
+                            tuple(continuation_items),
                         )
-                    status = str(response.get("status") or "")
-                    if status == "incomplete":
+                        if continuation is not None:
+                            yield ChatStreamEvent(
+                                kind=ChatStreamEventKind.PROTOCOL_CONTINUATION,
+                                protocol_continuation=continuation,
+                            )
                         yield ChatStreamEvent(
-                            kind=ChatStreamEventKind.ERROR,
-                            error=_responses_incomplete_message(response),
-                            finish_reason=_responses_incomplete_reason(response),
-                            error_code="upstream_response_incomplete",
+                            kind=ChatStreamEventKind.DONE,
+                            finish_reason=_optional_str(response.get("status")),
                         )
                         return
-                    if status == "failed":
-                        yield ChatStreamEvent(
-                            kind=ChatStreamEventKind.ERROR,
-                            error=_responses_error_message(response),
-                            error_code="upstream_response_failed",
-                        )
-                        return
-                    if status != "completed":
-                        yield ChatStreamEvent(
-                            kind=ChatStreamEventKind.ERROR,
-                            error="上游 Responses 完成事件缺少 completed 状态。",
-                            error_code="upstream_response_malformed",
-                        )
-                        return
-                    continuation = build_protocol_continuation(
-                        request,
-                        provider_template.protocol_family,
-                        ChatProtocolContinuationKind.OPENAI_RESPONSES_OUTPUT,
-                        tuple(continuation_items),
-                    )
-                    if continuation is not None:
-                        yield ChatStreamEvent(
-                            kind=ChatStreamEventKind.PROTOCOL_CONTINUATION,
-                            protocol_continuation=continuation,
-                        )
+                elif event_type == "response.incomplete":
+                    response = payload.get("response")
+                    if isinstance(response, dict):
+                        usage = _parse_responses_usage(response.get("usage"))
+                        if usage is not None:
+                            yield ChatStreamEvent(
+                                kind=ChatStreamEventKind.USAGE,
+                                usage=usage,
+                            )
                     yield ChatStreamEvent(
-                        kind=ChatStreamEventKind.DONE,
-                        finish_reason=_optional_str(response.get("status")),
+                        kind=ChatStreamEventKind.ERROR,
+                        error=_responses_incomplete_message(response),
+                        finish_reason=_responses_incomplete_reason(response),
+                        error_code="upstream_response_incomplete",
                     )
                     return
-            elif event_type == "response.incomplete":
-                response = payload.get("response")
-                if isinstance(response, dict):
-                    usage = _parse_responses_usage(response.get("usage"))
-                    if usage is not None:
-                        yield ChatStreamEvent(
-                            kind=ChatStreamEventKind.USAGE,
-                            usage=usage,
-                        )
-                yield ChatStreamEvent(
-                    kind=ChatStreamEventKind.ERROR,
-                    error=_responses_incomplete_message(response),
-                    finish_reason=_responses_incomplete_reason(response),
-                    error_code="upstream_response_incomplete",
-                )
-                return
-            elif event_type == "response.failed":
-                yield ChatStreamEvent(
-                    kind=ChatStreamEventKind.ERROR,
-                    error=_responses_error_message(payload),
-                    error_code="upstream_response_failed",
-                )
-                return
+                elif event_type == "response.failed":
+                    yield ChatStreamEvent(
+                        kind=ChatStreamEventKind.ERROR,
+                        error=_responses_error_message(payload),
+                        error_code="upstream_response_failed",
+                    )
+                    return
         yield ChatStreamEvent(
             kind=ChatStreamEventKind.ERROR,
             error="上游 Responses 流在完成事件前意外结束，当前回答可能不完整。",

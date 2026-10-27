@@ -13,6 +13,7 @@ import type {
 import { getToolFolderWorkspaceKey } from "../../entities/tool/model/toolFolderFileMutation";
 import { isAbortError } from "../http/httpErrors";
 import { fetchJson, fetchNoContent } from "../http/httpClient";
+import { revealInFileExplorer } from "../desktop/fileExplorer";
 
 const SAVE_TOOL_FILE_TIMEOUT_MS = 60000;
 
@@ -129,7 +130,7 @@ export function revealToolFolderFile(
   folderId: string,
   payload: FileWorkspaceRevealRequest,
 ) {
-  return fetchNoContent(
+  return revealInFileExplorer(
     `${toolFolderFilesPath(toolsetId, folderId)}/reveal`,
     {
       method: "POST",

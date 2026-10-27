@@ -1,0 +1,77 @@
+{
+  "description": "最终模型工具结果。分类查询返回 categories；分类创建返回 category；工具创建返回 project、文件、默认关闭状态、文档入口及指引。失败返回已知项目和部分完成或结果未知状态。前端内部的 content 对象会被平台展开到结果根部。",
+  "properties": {
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "action": {
+      "type": "string"
+    },
+    "call_name": {
+      "type": "string"
+    },
+    "categories": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "category": {
+      "type": "object"
+    },
+    "documentation_path": {
+      "type": "string"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "files": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "guidance": {},
+    "manifest_path": {
+      "type": "string"
+    },
+    "project": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "status": {
+      "type": "string"
+    },
+    "written_files": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "template_version": {
+      "type": "string"
+    },
+    "created": {
+      "type": "boolean"
+    },
+    "attempted_file": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object",
+  "additionalProperties": false
+}

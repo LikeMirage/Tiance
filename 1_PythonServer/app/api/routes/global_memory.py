@@ -81,9 +81,7 @@ def apply_global_memory_operation(
         keywords=payload.keywords,
         reason=payload.reason,
     )
-    status = "deleted" if payload.operation == "delete" else "active"
-    report = service.list_memory_records(scope="global", status=status)
-    memory = _find_record(report["items"], result["memory_id"])
+    memory = service.get_memory_record(scope="global", memory_id=result["memory_id"])
     if memory is None:
         raise RuntimeError("The committed global memory event has no record projection.")
     return GlobalMemoryOperationResponse(
@@ -91,10 +89,3 @@ def apply_global_memory_operation(
         memory_id=result["memory_id"],
         memory=GlobalMemoryRecordResponse(**memory),
     )
-
-
-def _find_record(items: list[dict], memory_id: str) -> dict | None:
-    for item in items:
-        if item.get("id") == memory_id:
-            return item
-    return None

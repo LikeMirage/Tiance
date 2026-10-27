@@ -1,6 +1,6 @@
 import { CaretDown } from "@phosphor-icons/react";
-import { useState } from "react";
-import type { CSSProperties } from "react";
+import { useEffect, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { useDesktopFileDropTarget } from "../../desktop-shell/model/useDesktopFileDropTarget";
 import { ChatComposerAddMenu } from "./ChatComposerAddMenu";
@@ -34,6 +34,7 @@ export type {
 } from "./ChatComposerTypes";
 
 type ChatComposerProps = {
+  conversationActions?: ReactNode;
   generation: ChatComposerGenerationState;
   input: ChatComposerInputState;
   layout: ChatComposerLayoutState;
@@ -44,6 +45,7 @@ type ChatComposerProps = {
 };
 
 export function ChatComposer({
+  conversationActions,
   generation,
   input,
   layout,
@@ -54,6 +56,7 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const [isProjectFileDragOver, setIsProjectFileDragOver] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  useEffect(() => setIsAddMenuOpen(false), [input.externalFileDropScopeKey]);
   const { isFileDragOver, targetRef } = useDesktopFileDropTarget({
     onFileDrop: input.onExternalFileDrop,
     scopeKey: input.externalFileDropScopeKey,
@@ -98,6 +101,10 @@ export function ChatComposer({
       />
       <div className="ai-panel__composer-toolbar">
         <ChatComposerAddMenu
+          key={input.projectId}
+          projectId={input.projectId}
+          projectCatalog={input.projectReferenceCatalog}
+          onReferenceExternalPath={input.onReferenceExternalPath}
           isOpen={isAddMenuOpen}
           onOpenChange={(nextOpen) => {
             if (nextOpen) modelPicker.onToggleOpen(() => false);
@@ -105,6 +112,7 @@ export function ChatComposer({
           }}
           onSelectFiles={input.onSelectExternalFiles}
         />
+        {conversationActions}
         <button
           className="ai-panel__composer-scroll-bottom"
           type="button"

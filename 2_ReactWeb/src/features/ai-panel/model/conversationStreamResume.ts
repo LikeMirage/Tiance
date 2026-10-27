@@ -31,12 +31,10 @@ export function prepareConversationStreamResume(
     ? lastMessage.id
     : null;
   const lastUserIndex = findLastUserMessageIndex(messages);
-  const preservedMessages = lastUserIndex >= 0
-    ? messages.slice(0, lastUserIndex + 1)
-    : messages;
-  const runningTurnMessages = lastUserIndex >= 0
-    ? messages.slice(lastUserIndex + 1)
-    : [];
+  const partialTurnStart = messages.findIndex((message) => message.role === "assistant" || message.role === "tool");
+  const turnStart = lastUserIndex >= 0 ? lastUserIndex + 1 : partialTurnStart >= 0 ? partialTurnStart : messages.length;
+  const preservedMessages = messages.slice(0, turnStart);
+  const runningTurnMessages = messages.slice(turnStart);
   const lastTruncationIndex = runningTurnMessages.reduce((last, message, index) => message.finishReason === "output_limit" ? index : last, -1);
   const retainedBeforeRecovery = runningTurnMessages.slice(0, lastTruncationIndex + 1);
   const currentTurn = runningTurnMessages.slice(lastTruncationIndex + 1);
@@ -60,12 +58,10 @@ export function prepareConversationStreamFullReplay(
   now = Date.now(),
 ): ConversationStreamResumeSnapshot {
   const lastUserIndex = findLastUserMessageIndex(messages);
-  const preservedMessages = lastUserIndex >= 0
-    ? messages.slice(0, lastUserIndex + 1)
-    : messages;
-  const runningTurnMessages = lastUserIndex >= 0
-    ? messages.slice(lastUserIndex + 1)
-    : [];
+  const partialTurnStart = messages.findIndex((message) => message.role === "assistant" || message.role === "tool");
+  const turnStart = lastUserIndex >= 0 ? lastUserIndex + 1 : partialTurnStart >= 0 ? partialTurnStart : messages.length;
+  const preservedMessages = messages.slice(0, turnStart);
+  const runningTurnMessages = messages.slice(turnStart);
   const lastTruncationIndex = runningTurnMessages.reduce((last, message, index) => message.finishReason === "output_limit" ? index : last, -1);
   const retainedBeforeRecovery = runningTurnMessages.slice(0, lastTruncationIndex + 1);
   const currentTurn = runningTurnMessages.slice(lastTruncationIndex + 1);

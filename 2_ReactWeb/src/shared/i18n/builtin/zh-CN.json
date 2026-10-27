@@ -114,8 +114,8 @@
       "metrics": {
         "aria": "性能与使用情况",
         "panelAria": "性能与使用情况面板",
-        "title": "性能占用",
-        "performanceTab": "性能",
+        "title": "性能监测",
+        "performanceTab": "性能监测",
         "usageTab": "Token 用量",
         "loading": "正在读取性能数据",
         "shellDisconnected": "桌面壳未连接",
@@ -495,6 +495,8 @@
       },
       "messageList": {
         "loadingSession": "正在载入会话…",
+        "loadFailed": "会话加载失败，请重试。",
+        "loadTimeout": "会话加载超时，请重试。",
         "empty": "发送消息开始对话。"
       },
       "usage": {
@@ -729,11 +731,17 @@
       "sourceLink": "开源项目地址",
       "downloadLink": "下载最新版软件",
       "notes": "版本说明",
-      "install": "下载并重启安装",
+      "install": "下载更新",
       "downloading": "正在下载并校验…",
       "installing": "正在退出并安装…",
       "autoCheck": {
         "title": "启动时自动检查更新"
+      },
+      "restart": {
+        "title": "更新已下载",
+        "message": "v{version} 已准备就绪，是否立即重启并安装？",
+        "now": "立即重启",
+        "later": "稍后"
       },
       "prompt": {
         "title": "发现新版本",

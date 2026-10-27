@@ -8,19 +8,27 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
   type KeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import type { EditorExternalPathReferenceRequest } from "../../../entities/editor/model/editorReference";
+import { OptionSelect } from "../../../shared/ui/option-select/OptionSelect";
+import { normalizeAbsolutePath } from "../model/composerPathReferences";
+import type { ChatProjectReferenceCatalog } from "./ChatComposerTypes";
 
-type AddCategory = "file" | "project" | "conversation";
+type AddCategory = "file" | "conversation" | "project";
 
 type ChatComposerAddMenuProps = {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onSelectFiles: () => Promise<void>;
+  projectId: string | null;
+  projectCatalog?: ChatProjectReferenceCatalog;
+  onReferenceExternalPath?: (reference: EditorExternalPathReferenceRequest) => void;
 };
 
 const PANEL_HEIGHT = 216;
@@ -31,20 +39,36 @@ const CATEGORIES: Array<{
   label: string;
 }> = [
   { id: "file", label: "文件", icon: FilePlus },
-  { id: "project", label: "项目", icon: FolderOpen },
   { id: "conversation", label: "会话", icon: ChatsCircle },
+  { id: "project", label: "项目", icon: FolderOpen },
 ];
 
 export function ChatComposerAddMenu({
   isOpen,
   onOpenChange,
   onSelectFiles,
+  projectId,
+  projectCatalog,
+  onReferenceExternalPath,
 }: ChatComposerAddMenuProps) {
   const generatedId = useId();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [activeCategory, setActiveCategory] = useState<AddCategory>("file");
   const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
+  const [selectedProjectCategoryId, setSelectedProjectCategoryId] = useState<string | null>(null);
+  const categoryOptions = useMemo(() => projectCatalog?.categories.map((category) => ({
+    label: category.name,
+    value: category.category_id,
+  })) ?? [], [projectCatalog?.categories]);
+  const defaultCategoryId = projectCatalog?.projects.find((project) => project.project_id === projectId)?.category_id;
+  const categoryId = categoryOptions.find((option) => option.value === selectedProjectCategoryId)?.value
+    ?? categoryOptions.find((option) => option.value === defaultCategoryId)?.value
+    ?? categoryOptions[0]?.value
+    ?? "";
+  const categoryProjects = useMemo(() => projectCatalog?.projects.filter(
+    (project) => project.category_id === categoryId,
+  ) ?? [], [categoryId, projectCatalog?.projects]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -125,8 +149,20 @@ export function ChatComposerAddMenu({
           onMouseDown={(event) => event.stopPropagation()}
         >
           <div className="chat-composer-add-menu__head">
-            <strong>添加到对话</strong>
-            <span>选择要加入当前输入的内容</span>
+            <strong>{activeCategory === "project" ? "添加项目" : "添加到对话"}</strong>
+            {activeCategory === "project" ? (
+              <OptionSelect
+                className="chat-composer-add-menu__project-category"
+                ariaLabel="项目分类"
+                placeholder="项目分类"
+                options={categoryOptions}
+                value={categoryId}
+                onChange={setSelectedProjectCategoryId}
+                disabled={categoryOptions.length === 0}
+                floating
+                showSelectedOption
+              />
+            ) : <span>选择要加入当前输入的内容</span>}
           </div>
           <div className="chat-composer-add-menu__body">
             <div className="chat-composer-add-menu__categories" role="tablist" aria-label="内容类型">
@@ -170,14 +206,38 @@ export function ChatComposerAddMenu({
                 </button>
               ) : null}
               {activeCategory === "project" ? (
-                <button className="chat-composer-add-menu__option" type="button" disabled>
-                  <FolderOpen size={18} weight="regular" aria-hidden="true" />
-                  <span className="chat-composer-add-menu__option-copy">
-                    <strong>添加项目</strong>
-                    <span>将项目作为上下文添加到当前对话</span>
-                  </span>
-                  <span className="chat-composer-add-menu__badge">暂未开放</span>
-                </button>
+                categoryProjects.length > 0 ? categoryProjects.map((project) => (
+                  <button
+                    key={project.project_id}
+                    className="chat-composer-add-menu__option chat-composer-add-menu__project"
+                    type="button"
+                    title={project.root_path}
+                    disabled={!onReferenceExternalPath || !normalizeAbsolutePath(project.root_path)}
+                    onClick={() => {
+                      const path = normalizeAbsolutePath(project.root_path);
+                      if (!path || !onReferenceExternalPath) return;
+                      onReferenceExternalPath({
+                        kind: "folder",
+                        name: `${project.name}（Tiance 项目）`,
+                        path,
+                      });
+                      onOpenChange(false);
+                      triggerRef.current?.focus();
+                    }}
+                  >
+                    <FolderOpen size={17} weight="regular" aria-hidden="true" />
+                    <span className="chat-composer-add-menu__option-copy">
+                      <strong>{project.name}</strong>
+                      <span>{project.root_path}</span>
+                    </span>
+                  </button>
+                )) : (
+                  <div className="chat-composer-add-menu__empty" role="status">
+                    {projectCatalog?.isLoading ? "正在加载项目…"
+                      : projectCatalog?.error ? "项目列表加载失败"
+                        : categoryId ? "此分类暂无项目" : "暂无项目分类"}
+                  </div>
+                )
               ) : null}
               {activeCategory === "conversation" ? (
                 <button className="chat-composer-add-menu__option" type="button" disabled>

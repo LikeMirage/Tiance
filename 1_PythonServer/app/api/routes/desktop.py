@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from app.core.shell_lease import (
     LEASE_INSTANCE_HEADER, LEASE_TOKEN_HEADER, is_managed_shell_request,
 )
-from app.core.shutdown_tasks import shutdown_tasks
+from app.services.application.desktop_exit import get_desktop_exit_coordinator
 from app.schemas.desktop_exit import DesktopExitPreparationResponse
 
 from app.schemas.desktop_local_path import DesktopLocalPathRequest
@@ -37,14 +37,14 @@ def _require_managed_shell(request: Request) -> None:
              dependencies=[Depends(_require_managed_shell)])
 async def prepare_desktop_exit() -> DesktopExitPreparationResponse:
     # Polling returns immediately, even while a critical disk commit is running.
-    pending = shutdown_tasks.begin_close()
+    pending = get_desktop_exit_coordinator().begin()
     return DesktopExitPreparationResponse(ready=pending == 0, pending_tasks=pending)
 
 
 @router.delete("/exit-preparation", status_code=204,
                dependencies=[Depends(_require_managed_shell)])
 async def abandon_desktop_exit() -> Response:
-    shutdown_tasks.resume()
+    await get_desktop_exit_coordinator().abandon()
     return Response(status_code=204)
 
 

@@ -12,18 +12,13 @@ from app.core.config import get_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.gateway_auth import GATEWAY_TOKEN_ENV, GatewayAuthenticationMiddleware
-from app.core.shutdown_tasks import shutdown_tasks
+from app.services.application.desktop_exit import get_desktop_exit_coordinator
 from app.infra.http_client import (
     close_shared_http_clients,
     configure_shared_http_client,
     start_shared_http_client,
 )
 from app.services.network_settings import get_network_settings_service
-from app.services.project.conversation_background_tasks import (
-    get_conversation_background_task_registry,
-)
-from app.services.project.conversation_audit import get_conversation_audit_service
-from app.services.project.conversation_run_manager import get_conversation_run_manager
 from app.services.application.project_workspace_reconciliation import (
     get_project_workspace_reconciliation_service,
 )
@@ -46,7 +41,7 @@ from app.static_frontend import mount_frontend_dist
 
 @asynccontextmanager
 async def _lifespan(_application: FastAPI):
-    shutdown_tasks.resume()
+    get_desktop_exit_coordinator().start_lifecycle()
     settings = get_settings()
     bootstrap_application()
     configure_shared_http_client(get_network_settings_service().get_settings())
@@ -72,7 +67,7 @@ async def _lifespan(_application: FastAPI):
     try:
         yield
     finally:
-        await shutdown_tasks.close()
+        await get_desktop_exit_coordinator().close()
         project_workspace_watch_task.cancel()
         with suppress(asyncio.CancelledError):
             await project_workspace_watch_task
@@ -82,9 +77,6 @@ async def _lifespan(_application: FastAPI):
         tool_metadata_watch_task.cancel()
         with suppress(asyncio.CancelledError):
             await tool_metadata_watch_task
-        await get_conversation_run_manager().close()
-        await get_conversation_background_task_registry().close()
-        await get_conversation_audit_service().close()
         await get_project_market_application_service().close()
         await get_knowledge_market_application_service().close()
         await get_experience_market_application_service().close()

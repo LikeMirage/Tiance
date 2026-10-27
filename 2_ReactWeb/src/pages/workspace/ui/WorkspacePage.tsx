@@ -106,6 +106,12 @@ export function WorkspacePage({
   const initialCatalogsReadyLoggedRef = useRef(false);
   const initialWorkspaceSettledNotifiedRef = useRef(false);
   const projectCatalog = useProjectCatalog();
+  const projectReferenceCatalog = useMemo(() => ({
+    categories: projectCatalog.categories,
+    projects: projectCatalog.items,
+    isLoading: projectCatalog.state === "loading",
+    error: projectCatalog.error,
+  }), [projectCatalog.categories, projectCatalog.items, projectCatalog.state, projectCatalog.error]);
   const projectCollections = useWorkspaceProjectCollections(projectCatalog);
   const {
     categories: projectCategories,
@@ -1025,6 +1031,7 @@ export function WorkspacePage({
           onDoubleClick={sidePanelLayout.resetWidth}
         />
         <WorkspaceCanvasPanel
+          projectReferenceCatalog={projectReferenceCatalog}
           activeSection={activeSection}
           activeFunctionalModelSectionId={functionalModelSectionSelection.activeSectionId}
           activeSettingsSectionId={activeSettingsSectionId}

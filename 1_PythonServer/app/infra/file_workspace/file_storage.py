@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from app.core.atomic_replace import atomic_replace_path
 from app.core.errors import BadRequestError, ConflictError
+from app.infra.file_explorer import FileExplorerOpenError, reveal_path_in_file_explorer
 from app.domain.file_workspace import (
     ContentFileEntry,
     ContentFileSnapshot,
@@ -254,15 +255,10 @@ class FileWorkspaceStorage:
         root = Path(workspace_root).resolve()
         target = root if not target_path.strip() else _resolve_existing_entry(root, target_path)
 
-        if sys.platform == "win32":
-            if target.is_file():
-                subprocess.Popen(["explorer", "/select,", str(target)])
-            else:
-                os.startfile(str(target))  # type: ignore[attr-defined]
-            return
-
-        opener = "open" if sys.platform == "darwin" else "xdg-open"
-        subprocess.Popen([opener, str(target if target.is_dir() else target.parent)])
+        try:
+            reveal_path_in_file_explorer(target)
+        except FileExplorerOpenError as exc:
+            raise BadRequestError("无法在资源管理器中定位该路径。") from exc
 
     def open_entry_external(self, workspace_root: str, target_path: str) -> ExternalOpenResult:
         """使用本机 Office/WPS 或系统默认程序打开工作区内文件。"""

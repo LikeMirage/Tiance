@@ -1,3 +1,4 @@
+from contextlib import aclosing
 from app.domain.llm.output_limit_error import OutputLimitError
 from collections.abc import AsyncGenerator
 from json import loads as json_loads
@@ -116,7 +117,7 @@ class AnthropicMessagesChatAdapter:
         content_blocks: dict[int, dict[str, object]] = {}
         malformed_tool_arguments = False
         finish_reason: str | None = None
-        async for payload in _iter_sse_payloads(
+        async with aclosing(_iter_sse_payloads(
             stream_body(
                 apply_auth_to_url(
                     runtime_config.api_base_url,
@@ -130,90 +131,91 @@ class AnthropicMessagesChatAdapter:
                 ),
                 _build_anthropic_body(request, stream=True),
             )
-        ):
-            if payload is SSE_DONE:
-                continue
-            if payload is None:
-                yield _protocol_error_event()
-                return
-            event_type = str(payload.get("type") or "")
-            if event_type == "content_block_start":
-                _start_anthropic_content_block(payload, content_blocks)
-            elif event_type == "content_block_delta":
-                delta = payload.get("delta")
-                if isinstance(delta, dict):
-                    if delta.get("text"):
-                        yield ChatStreamEvent(kind=ChatStreamEventKind.DELTA, content=str(delta["text"]))
-                    thinking_delta = _extract_thinking_delta(delta)
-                    if thinking_delta:
-                        yield ChatStreamEvent(kind=ChatStreamEventKind.THINKING_DELTA, content=thinking_delta)
-                    _append_anthropic_content_delta(payload, delta, content_blocks)
-            elif event_type == "content_block_stop":
-                try:
-                    tool_call = _anthropic_tool_call_from_block(payload, content_blocks)
-                except ValueError:
-                    malformed_tool_arguments = True
+        )) as owned_stream:
+            async for payload in owned_stream:
+                if payload is SSE_DONE:
                     continue
-                if tool_call is not None:
-                    yield ChatStreamEvent(
-                        kind=ChatStreamEventKind.TOOL_CALL,
-                        tool_call=tool_call,
-                    )
-            elif event_type == "message_delta":
-                usage = _parse_anthropic_usage(payload.get("usage"))
-                if usage is not None:
-                    yield ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=usage)
-                delta = payload.get("delta")
-                finish_reason = (
-                    _optional_str(delta.get("stop_reason"))
-                    if isinstance(delta, dict)
-                    else finish_reason
-                ) or finish_reason
-            elif event_type == "error":
-                yield ChatStreamEvent(
-                    kind=ChatStreamEventKind.ERROR,
-                    error=_extract_error_message(payload),
-                    error_code="upstream_response_failed",
-                )
-                return
-            elif event_type == "message_stop":
-                if finish_reason == "max_tokens":
+                if payload is None:
+                    yield _protocol_error_event()
+                    return
+                event_type = str(payload.get("type") or "")
+                if event_type == "content_block_start":
+                    _start_anthropic_content_block(payload, content_blocks)
+                elif event_type == "content_block_delta":
+                    delta = payload.get("delta")
+                    if isinstance(delta, dict):
+                        if delta.get("text"):
+                            yield ChatStreamEvent(kind=ChatStreamEventKind.DELTA, content=str(delta["text"]))
+                        thinking_delta = _extract_thinking_delta(delta)
+                        if thinking_delta:
+                            yield ChatStreamEvent(kind=ChatStreamEventKind.THINKING_DELTA, content=thinking_delta)
+                        _append_anthropic_content_delta(payload, delta, content_blocks)
+                elif event_type == "content_block_stop":
+                    try:
+                        tool_call = _anthropic_tool_call_from_block(payload, content_blocks)
+                    except ValueError:
+                        malformed_tool_arguments = True
+                        continue
+                    if tool_call is not None:
+                        yield ChatStreamEvent(
+                            kind=ChatStreamEventKind.TOOL_CALL,
+                            tool_call=tool_call,
+                        )
+                elif event_type == "message_delta":
+                    usage = _parse_anthropic_usage(payload.get("usage"))
+                    if usage is not None:
+                        yield ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=usage)
+                    delta = payload.get("delta")
+                    finish_reason = (
+                        _optional_str(delta.get("stop_reason"))
+                        if isinstance(delta, dict)
+                        else finish_reason
+                    ) or finish_reason
+                elif event_type == "error":
                     yield ChatStreamEvent(
                         kind=ChatStreamEventKind.ERROR,
-                        error="上游 Anthropic 达到最大输出 Token，回复不完整。",
-                        finish_reason="max_tokens",
-                        error_code="upstream_response_incomplete",
+                        error=_extract_error_message(payload),
+                        error_code="upstream_response_failed",
                     )
                     return
-                if malformed_tool_arguments:
-                    yield _protocol_error_event("上游 Anthropic 返回了不完整的工具参数。")
-                    return
-                try:
-                    continuation_items = tuple(
-                        _clean_anthropic_content_block(content_blocks[index])
-                        for index in sorted(content_blocks)
+                elif event_type == "message_stop":
+                    if finish_reason == "max_tokens":
+                        yield ChatStreamEvent(
+                            kind=ChatStreamEventKind.ERROR,
+                            error="上游 Anthropic 达到最大输出 Token，回复不完整。",
+                            finish_reason="max_tokens",
+                            error_code="upstream_response_incomplete",
+                        )
+                        return
+                    if malformed_tool_arguments:
+                        yield _protocol_error_event("上游 Anthropic 返回了不完整的工具参数。")
+                        return
+                    try:
+                        continuation_items = tuple(
+                            _clean_anthropic_content_block(content_blocks[index])
+                            for index in sorted(content_blocks)
+                        )
+                    except ValueError:
+                        yield _protocol_error_event(
+                            "上游 Anthropic 返回了不完整的工具参数。"
+                        )
+                        return
+                    continuation = build_protocol_continuation(
+                        request,
+                        provider_template.protocol_family,
+                        ChatProtocolContinuationKind.ANTHROPIC_CONTENT,
+                        continuation_items,
                     )
-                except ValueError:
-                    yield _protocol_error_event(
-                        "上游 Anthropic 返回了不完整的工具参数。"
-                    )
-                    return
-                continuation = build_protocol_continuation(
-                    request,
-                    provider_template.protocol_family,
-                    ChatProtocolContinuationKind.ANTHROPIC_CONTENT,
-                    continuation_items,
-                )
-                if continuation is not None:
+                    if continuation is not None:
+                        yield ChatStreamEvent(
+                            kind=ChatStreamEventKind.PROTOCOL_CONTINUATION,
+                            protocol_continuation=continuation,
+                        )
                     yield ChatStreamEvent(
-                        kind=ChatStreamEventKind.PROTOCOL_CONTINUATION,
-                        protocol_continuation=continuation,
+                        kind=ChatStreamEventKind.DONE,
+                        finish_reason=finish_reason,
                     )
-                yield ChatStreamEvent(
-                    kind=ChatStreamEventKind.DONE,
-                    finish_reason=finish_reason,
-                )
-                return
+                    return
         if malformed_tool_arguments and finish_reason != "max_tokens":
             yield _protocol_error_event("上游 Anthropic 返回了不完整的工具参数。")
             return

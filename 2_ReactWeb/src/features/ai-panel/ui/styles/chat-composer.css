@@ -395,7 +395,7 @@
 
 .chat-composer-add-menu__head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   min-width: 0;
   padding: 9px 10px;
@@ -409,7 +409,7 @@
   font-weight: 650;
 }
 
-.chat-composer-add-menu__head span {
+.chat-composer-add-menu__head > span {
   min-width: 0;
   overflow: hidden;
   color: var(--color-text-muted);
@@ -534,6 +534,24 @@
   font-size: 0.6rem;
   line-height: 1.2;
   white-space: nowrap;
+}
+
+.chat-composer-add-menu__project-category {
+  --ds-option-select-options-max-height: 142px;
+  flex: 0 1 180px;
+  margin-inline-start: auto;
+  z-index: 1;
+}
+
+.chat-composer-add-menu__project {
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 44px;
+}
+
+.chat-composer-add-menu__empty {
+  padding: 14px 10px;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
 }
 
 @media (max-width: 480px) {

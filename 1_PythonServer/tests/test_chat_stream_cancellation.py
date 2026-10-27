@@ -3217,6 +3217,7 @@ class _ParallelClientToolBridge:
         timeout_seconds,
         model_context,
         capability,
+        tool_project_id,
     ):
         self.created.append({"call_id": tool_call.call_id})
         if len(self.created) == 2:
@@ -3231,6 +3232,7 @@ class _ParallelClientToolBridge:
             timeout_seconds=timeout_seconds,
             model_context=model_context,
             capability=capability,
+            tool_project_id=tool_project_id,
         )
 
     async def wait_for_result(self, _request_id, *, timeout_seconds):
@@ -3252,6 +3254,7 @@ class _WaitingClientToolBridge:
         timeout_seconds,
         model_context,
         capability,
+        tool_project_id,
     ):
         return ChatClientToolRequest(
             request_id="client-request-1",
@@ -3263,6 +3266,7 @@ class _WaitingClientToolBridge:
             timeout_seconds=timeout_seconds,
             model_context=model_context,
             capability=capability,
+            tool_project_id=tool_project_id,
         )
 
     async def wait_for_result(self, _request_id, *, timeout_seconds):

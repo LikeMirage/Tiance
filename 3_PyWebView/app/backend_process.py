@@ -62,6 +62,12 @@ class BackendProcessManager:
     def started_by_shell(self) -> bool:
         return self._started_by_shell
 
+    @property
+    def process_id(self) -> int | None:
+        with self._lock:
+            process = self._process
+            return process.pid if process is not None and process.poll() is None else None
+
     def set_backend_unavailable_callback(self, callback: Callable[[str], None]) -> None:
         self._on_backend_unavailable = callback
 

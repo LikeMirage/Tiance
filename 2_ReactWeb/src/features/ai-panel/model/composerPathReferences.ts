@@ -62,7 +62,7 @@ function projectRelativePath(path: string, projectRootPath: string): string | nu
   return normalizedPath.slice(normalizedRoot.length + 1);
 }
 
-function normalizeAbsolutePath(path: string) {
+export function normalizeAbsolutePath(path: string) {
   const normalized = path.trim().replace(/\\/g, "/").replace(/\/+$/, "");
   return isAbsolutePath(normalized) ? normalized : "";
 }

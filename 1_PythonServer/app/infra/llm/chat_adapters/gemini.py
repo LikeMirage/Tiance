@@ -1,3 +1,4 @@
+from contextlib import aclosing
 from app.domain.llm.output_limit_error import OutputLimitError
 from collections.abc import AsyncGenerator
 from uuid import uuid4
@@ -118,7 +119,7 @@ class GeminiGenerateContentChatAdapter:
         fallback_call_prefix = f"gemini_tool_call_{uuid4().hex}"
         part_sequence = 0
         continuation_parts: list[dict[str, object]] = []
-        async for payload in _iter_sse_payloads(
+        async with aclosing(_iter_sse_payloads(
             stream_body(
                 _build_gemini_generate_content_url(
                     provider_template, runtime_config, request, api_key, stream=True
@@ -126,46 +127,47 @@ class GeminiGenerateContentChatAdapter:
                 _build_gemini_headers(provider_template, api_key, stream=True),
                 _build_gemini_body(request),
             )
-        ):
-            if payload is SSE_DONE:
-                break
-            if payload is None:
-                yield _protocol_error_event()
-                return
-            text, thinking = _extract_gemini_content(payload)
-            if text:
-                yield ChatStreamEvent(kind=ChatStreamEventKind.DELTA, content=text)
-            if thinking:
-                yield ChatStreamEvent(kind=ChatStreamEventKind.THINKING_DELTA, content=thinking)
-            for part in _extract_gemini_parts(payload):
-                if not isinstance(part, dict):
-                    continue
-                part_sequence += 1
-                try:
-                    tool_call = _extract_gemini_tool_call(
-                        part, fallback_id=f"{fallback_call_prefix}_{part_sequence}"
-                    )
-                except ValueError:
-                    malformed_tool_arguments = True
-                    continue
-                if tool_call is not None:
-                    previous = emitted_tool_calls.get(tool_call.call_id)
-                    if previous is not None:
-                        if previous != tool_call:
-                            # Reusing an ID for a different call is ambiguous; never execute it.
-                            malformed_tool_arguments = True
-                        else:
-                            # Preserve metadata delivered with a repeated complete call.
-                            continuation_parts[tool_part_indices[tool_call.call_id]].update(part)
+        )) as owned_stream:
+            async for payload in owned_stream:
+                if payload is SSE_DONE:
+                    break
+                if payload is None:
+                    yield _protocol_error_event()
+                    return
+                text, thinking = _extract_gemini_content(payload)
+                if text:
+                    yield ChatStreamEvent(kind=ChatStreamEventKind.DELTA, content=text)
+                if thinking:
+                    yield ChatStreamEvent(kind=ChatStreamEventKind.THINKING_DELTA, content=thinking)
+                for part in _extract_gemini_parts(payload):
+                    if not isinstance(part, dict):
                         continue
-                    emitted_tool_calls[tool_call.call_id] = tool_call
-                    tool_part_indices[tool_call.call_id] = len(continuation_parts)
-                    yield ChatStreamEvent(kind=ChatStreamEventKind.TOOL_CALL, tool_call=tool_call)
-                continuation_parts.append(dict(part))
-            usage = _parse_gemini_usage(payload.get("usageMetadata"))
-            if usage is not None:
-                yield ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=usage)
-            last_finish_reason = _extract_gemini_finish_reason(payload) or last_finish_reason
+                    part_sequence += 1
+                    try:
+                        tool_call = _extract_gemini_tool_call(
+                            part, fallback_id=f"{fallback_call_prefix}_{part_sequence}"
+                        )
+                    except ValueError:
+                        malformed_tool_arguments = True
+                        continue
+                    if tool_call is not None:
+                        previous = emitted_tool_calls.get(tool_call.call_id)
+                        if previous is not None:
+                            if previous != tool_call:
+                                # Reusing an ID for a different call is ambiguous; never execute it.
+                                malformed_tool_arguments = True
+                            else:
+                                # Preserve metadata delivered with a repeated complete call.
+                                continuation_parts[tool_part_indices[tool_call.call_id]].update(part)
+                            continue
+                        emitted_tool_calls[tool_call.call_id] = tool_call
+                        tool_part_indices[tool_call.call_id] = len(continuation_parts)
+                        yield ChatStreamEvent(kind=ChatStreamEventKind.TOOL_CALL, tool_call=tool_call)
+                    continuation_parts.append(dict(part))
+                usage = _parse_gemini_usage(payload.get("usageMetadata"))
+                if usage is not None:
+                    yield ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=usage)
+                last_finish_reason = _extract_gemini_finish_reason(payload) or last_finish_reason
         if last_finish_reason is None:
             yield ChatStreamEvent(
                 kind=ChatStreamEventKind.ERROR,

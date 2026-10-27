@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 
 from app.core.errors import AppError, local_exception_message, upstream_http_error_message
+from app.core.shutdown_tasks import shutdown_tasks
 from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatMessage,
@@ -230,6 +231,7 @@ class ProjectConversationStreamService:
         include_persistence_checkpoints: bool = False,
     ) -> AsyncGenerator[dict[str, object | None], None]:
         # One manager task owns all automatic user turns, so stop cancels the chain.
+        shutdown_tasks.require_accepting()
         request = replace(request, run_id=request.run_id or uuid4().hex, output_limit_budget=OutputLimitRecoveryBudget(), record_attempt_usage=True, emit_response_boundaries=True)
         pending_user: dict | None = None
         conversation_notifications.open(request.project_id, request.session_id)

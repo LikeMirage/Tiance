@@ -231,14 +231,26 @@
   gap: 4px;
 }
 
-.chat-msg__user-actions-end > .chat-msg__action {
+.chat-msg__user-actions-end .chat-msg__action:not(:disabled) {
   opacity: 0.72;
   transition: opacity 160ms ease, color 160ms ease;
 }
 
-.chat-msg:hover .chat-msg__user-actions-end > .chat-msg__action,
-.chat-msg__user-actions-end > .chat-msg__action:focus-visible {
+.chat-msg:hover .chat-msg__user-actions-end .chat-msg__action:not(:disabled),
+.chat-msg__user-actions-end .chat-msg__action:focus-visible {
   opacity: 1;
+}
+
+.chat-msg__fork-action {
+  display: inline-flex;
+}
+
+.chat-msg__fork-action[data-disabled="true"] {
+  cursor: not-allowed;
+}
+
+.chat-msg__fork-action[data-disabled="true"] > button {
+  pointer-events: none;
 }
 
 .chat-msg__variant-switcher {

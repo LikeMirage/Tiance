@@ -17,8 +17,6 @@ export type SoftwareUpdateDownload = {
   packageSize: number;
 };
 
-export type SoftwareUpdateInstallPhase = "downloading" | "installing";
-
 export const OPEN_SOURCE_REPOSITORY_URL = "https://github.com/LikeMirage/Tiance";
 export const LATEST_SOFTWARE_DOWNLOAD_URL =
   "https://github.com/LikeMirage/Tiance/releases/latest/download/Tiance.zip";
@@ -41,15 +39,12 @@ export function downloadSoftwareUpdate() {
 }
 
 export async function installSoftwareUpdate(
-  onPhase?: (phase: SoftwareUpdateInstallPhase) => void,
+  download: SoftwareUpdateDownload,
 ) {
-  onPhase?.("downloading");
-  const download = await downloadSoftwareUpdate();
   const installApi = window.pywebview?.api?.install_software_update;
   if (typeof installApi !== "function") {
     throw new Error("在线安装仅在天策桌面软件中可用。");
   }
-  onPhase?.("installing");
   const result = await installApi(download.stagePath);
   if (!result.ok) throw new Error(result.error || "无法启动更新程序。");
   return result;

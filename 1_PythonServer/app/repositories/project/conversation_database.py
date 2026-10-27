@@ -10,6 +10,8 @@ from threading import Lock, local
 from typing import Any, Iterator
 from zlib import error as zlib_error
 
+from app.infra.conversation_changes import conversation_changes
+
 from app.repositories.project.conversation_audit_snapshots import (
     collect_unreferenced_audit_blocks,
     create_audit_snapshot_schema,
@@ -83,13 +85,18 @@ def transaction_for_conversations(conversations_dir: Path) -> Iterator[sqlite3.C
     active[path] = [connection, 1]
     try:
         yield connection
-        _increment_conversation_revision(connection)
+        changed = connection.total_changes > 0
+        if changed:
+            _increment_conversation_revision(connection)
         connection.commit()
+        if changed:
+            conversation_changes.publish(path)
     except Exception:
         connection.rollback()
         raise
     finally:
         active.pop(path, None)
+        getattr(_thread_state, "visible_connections", set()).discard(id(connection))
         connection.close()
 
 
@@ -105,8 +112,14 @@ def connection_for_path(path: Path) -> Iterator[sqlite3.Connection]:
     connection = _open_connection(resolved)
     try:
         yield connection
+        changed = id(connection) in getattr(_thread_state, "visible_connections", set())
+        if changed:
+            _increment_conversation_revision(connection)
         connection.commit()
+        if changed:
+            conversation_changes.publish(resolved)
     finally:
+        getattr(_thread_state, "visible_connections", set()).discard(id(connection))
         connection.close()
 
 
@@ -273,6 +286,7 @@ def read_conversation_list_snapshot(
 
 def write_session(conversations_dir: Path, session_id: str, payload: dict[str, Any]) -> None:
     with connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        _mark_visible_connection(connection)
         connection.execute(
             """
             INSERT INTO conversation_sessions(session_id, payload_json) VALUES (?, ?)
@@ -284,9 +298,14 @@ def write_session(conversations_dir: Path, session_id: str, payload: dict[str, A
 
 def delete_session(conversations_dir: Path, session_id: str) -> None:
     with connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        _mark_visible_connection(connection)
         connection.execute(
             "DELETE FROM conversation_sessions WHERE session_id = ?",
             (session_id,),
+        )
+        connection.execute(
+            "DELETE FROM conversation_meta WHERE key IN (?, ?)",
+            (f"messages:{session_id}", f"messages_reset:{session_id}"),
         )
         collect_unreferenced_audit_blocks(connection)
 
@@ -358,6 +377,7 @@ def write_session_runtime_state(
     updated_at: str,
 ) -> None:
     with connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        _mark_visible_connection(connection)
         connection.execute(
             """
             INSERT INTO conversation_session_runtime_states(
@@ -378,6 +398,7 @@ def write_session_draft(
     updated_at: str,
 ) -> None:
     with connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        _mark_visible_connection(connection)
         connection.execute(
             """
             INSERT INTO conversation_session_drafts(session_id, draft, updated_at)
@@ -397,6 +418,7 @@ def write_session_references(
     updated_at: str,
 ) -> None:
     with connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        _mark_visible_connection(connection)
         connection.execute(
             """
             INSERT INTO conversation_session_references(
@@ -574,9 +596,66 @@ def read_message_turn_payloads(
     ]
 
 
+@contextmanager
+def read_conversation_snapshot(conversations_dir: Path):
+    path = database_path_from_conversations(conversations_dir).resolve()
+    active = getattr(_thread_state, "transactions", None)
+    if active is None:
+        active = {}
+        _thread_state.transactions = active
+    if path in active:
+        yield
+        return
+    with read_connection_for_path(path) as connection:
+        if connection is None:
+            yield
+            return
+        connection.execute("BEGIN")
+        active[path] = [connection, 1]
+        try:
+            yield
+        finally:
+            active.pop(path, None)
+            connection.rollback()
+
+
+def read_message_sync_state(session_dir: Path) -> dict[str, int]:
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return {"revision": 0, "reset_revision": 0, "project_revision": 0}
+        session_id = session_id_from_session_dir(session_dir)
+        keys = (f"messages:{session_id}", f"messages_reset:{session_id}", "conversation_revision")
+        rows = connection.execute(
+            "SELECT key, value_json FROM conversation_meta WHERE key IN (?, ?, ?)", keys,
+        ).fetchall()
+        values = {key: _decode(value) for key, value in rows}
+        return dict(zip(("revision", "reset_revision", "project_revision"),
+                        (values.get(key, 0) for key in keys)))
+
+
+def _mark_visible_connection(connection: sqlite3.Connection) -> None:
+    if not hasattr(_thread_state, "visible_connections"):
+        _thread_state.visible_connections = set()
+    _thread_state.visible_connections.add(id(connection))
+
+
+def _touch_message_revision(connection: sqlite3.Connection, session_id: str, *, reset: bool = False) -> None:
+    _mark_visible_connection(connection)
+    key = f"messages:{session_id}"
+    row = connection.execute(
+        """INSERT INTO conversation_meta(key, value_json) VALUES (?, '1')
+        ON CONFLICT(key) DO UPDATE SET value_json = CAST(CAST(value_json AS INTEGER) + 1 AS TEXT)
+        RETURNING value_json""", (key,),
+    ).fetchone()
+    revision = int(row[0])
+    if reset:
+        _upsert_meta(connection, f"messages_reset:{session_id}", revision)
+
+
 def append_message_payload(session_dir: Path, message_id: str, payload: dict[str, Any]) -> None:
     session_id = session_id_from_session_dir(session_dir)
     with connection_for_path(database_path_from_session(session_dir)) as connection:
+        _touch_message_revision(connection, session_id)
         ordinal = connection.execute(
             "SELECT COALESCE(MAX(ordinal), -1) + 1 FROM conversation_messages WHERE session_id = ?",
             (session_id,),
@@ -593,6 +672,7 @@ def append_message_payload(session_dir: Path, message_id: str, payload: dict[str
 def replace_message_payloads(session_dir: Path, payloads: list[dict[str, Any]]) -> None:
     session_id = session_id_from_session_dir(session_dir)
     with connection_for_path(database_path_from_session(session_dir)) as connection:
+        _touch_message_revision(connection, session_id, reset=True)
         connection.execute(
             "DELETE FROM conversation_messages WHERE session_id = ?",
             (session_id,),
@@ -747,6 +827,7 @@ def read_document(session_dir: Path, kind: str) -> dict[str, Any] | None:
 
 def write_document(session_dir: Path, kind: str, payload: dict[str, Any]) -> None:
     with connection_for_path(database_path_from_session(session_dir)) as connection:
+        _mark_visible_connection(connection)
         connection.execute(
             """
             INSERT INTO conversation_session_documents(session_id, kind, payload_json)
@@ -759,6 +840,7 @@ def write_document(session_dir: Path, kind: str, payload: dict[str, Any]) -> Non
 
 def delete_document(session_dir: Path, kind: str) -> None:
     with connection_for_path(database_path_from_session(session_dir)) as connection:
+        _mark_visible_connection(connection)
         connection.execute(
             "DELETE FROM conversation_session_documents WHERE session_id = ? AND kind = ?",
             (session_id_from_session_dir(session_dir), kind),
@@ -901,6 +983,7 @@ def begin_conversation_run(
     started_at: str,
 ) -> None:
     with connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        _mark_visible_connection(connection)
         connection.execute(
             """
             INSERT INTO conversation_runs(
@@ -959,6 +1042,8 @@ def settle_conversation_run(
                 session_id,
             ),
         )
+        if cursor.rowcount > 0:
+            _touch_message_revision(connection, session_id)
         return cursor.rowcount > 0
 
 

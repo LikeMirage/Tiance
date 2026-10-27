@@ -1,18 +1,12 @@
 import {
   useEffect,
-  useMemo,
   useState,
   type Dispatch,
   type RefObject,
   type SetStateAction,
 } from "react";
-import type {
-  ConversationBranchNode,
-  ConversationRuntimeStatus,
-  ConversationSessionState,
-} from "../../../entities/llm-chat/model/conversation";
-import type { ChatMessage } from "./chatMessage";
 import { buildSessionKey } from "./sessionKey";
+import { getConversationMessageState, watchConversationChanges, type ConversationMessageState } from "../../../services/project/watchConversationChanges";
 
 type UseActiveSessionMessagesLoaderOptions = {
   activeSessionId: string | null;
@@ -34,23 +28,7 @@ type UseActiveSessionMessagesLoaderOptions = {
   reloadSessions: (projectId: string) => Promise<void>;
 };
 
-type UseActiveSessionLiveReloadOptions = UseActiveSessionMessagesLoaderOptions & {
-  activeRuntimeStatus: ConversationRuntimeStatus | null;
-  branchNodes: ConversationBranchNode[];
-  messages: ChatMessage[];
-  isActiveSessionStreaming: boolean;
-  sessionStates: Record<string, ConversationSessionState>;
-};
-
-type ActiveSessionLiveReloadMode = "off" | "session-only" | "messages-and-session";
-
-type ResolveActiveSessionLiveReloadModeOptions = {
-  activeRuntimeStatus: ConversationRuntimeStatus | null;
-  hasActiveTarget: boolean;
-  isActive: boolean;
-  isActiveSessionStreaming: boolean;
-  isCompactionRunning: boolean;
-};
+type UseActiveSessionLiveReloadOptions = UseActiveSessionMessagesLoaderOptions;
 
 type UseChatPanelPopoverDismissOptions = {
   modelMenuRef: RefObject<HTMLDivElement | null>;
@@ -85,7 +63,6 @@ export function useActiveSessionMessagesLoader({
       return undefined;
     }
     let disposed = false;
-    const controller = new AbortController();
 
     async function loadMessages() {
       if (!projectId || !activeSessionId) {
@@ -94,8 +71,6 @@ export function useActiveSessionMessagesLoader({
       await reloadSessionMessages(projectId, activeSessionId, {
         forceRefresh: true,
         preserveLocalIfShorter: true,
-        signal: controller.signal,
-        shouldApply: () => !disposed,
         shouldPreserveLocal: () => isSessionStreaming(
           buildSessionKey(projectId, activeSessionId),
         ),
@@ -113,7 +88,6 @@ export function useActiveSessionMessagesLoader({
     });
     return () => {
       disposed = true;
-      controller.abort();
     };
   }, [
     activeSessionId,
@@ -127,152 +101,51 @@ export function useActiveSessionMessagesLoader({
 }
 
 export function useActiveSessionLiveReload({
-  activeRuntimeStatus,
-  activeSessionId,
-  branchNodes,
-  isActive = true,
-  isActiveSessionStreaming,
-  isSessionStreaming,
-  messages,
-  projectId,
-  reloadSessionMessages,
-  reloadSessions,
-  sessionStates,
+  activeSessionId, isActive = true, isSessionStreaming,
+  projectId, reloadSessionMessages, reloadSessions,
 }: UseActiveSessionLiveReloadOptions) {
-  const latestCompactionStartAt = useMemo(
-    () => findLatestCompactionStartAt(messages),
-    [messages],
-  );
-  const [compactionGraceClock, setCompactionGraceClock] = useState(
-    () => Date.now(),
-  );
   useEffect(() => {
-    if (latestCompactionStartAt === null) return undefined;
-    const remainingMs = compactionStartGraceMs - (
-      Date.now() - latestCompactionStartAt
-    );
-    if (remainingMs <= 0) return undefined;
-    const timer = window.setTimeout(
-      () => setCompactionGraceClock(Date.now()),
-      remainingMs + 1,
-    );
-    return () => window.clearTimeout(timer);
-  }, [latestCompactionStartAt]);
-  const hasRunningCompactionChild = useMemo(
-    () => hasRunningMemoryCompactionChild(
-      activeSessionId,
-      branchNodes,
-      sessionStates,
-    ),
-    [activeSessionId, branchNodes, sessionStates],
-  );
-  const isCompactionRunning = useMemo(
-    () => hasRunningCompactionChild || hasRecentCompactionStart(
-      messages,
-      compactionGraceClock,
-    ),
-    [compactionGraceClock, hasRunningCompactionChild, messages],
-  );
-  const reloadMode = resolveActiveSessionLiveReloadMode({
-    activeRuntimeStatus,
-    hasActiveTarget: Boolean(projectId && activeSessionId),
-    isActive,
-    isActiveSessionStreaming,
-    isCompactionRunning,
-  });
-
-  useEffect(() => {
-    if (reloadMode === "off") return undefined;
-    if (!projectId || !activeSessionId) return undefined;
+    if (!isActive || !projectId || !activeSessionId) return undefined;
     let disposed = false;
-
-    const refresh = () => {
-      if (reloadMode === "messages-and-session") {
+    let previous: ConversationMessageState | null = null;
+    let fallback: ReturnType<typeof setInterval> | null = null;
+    let checking = false;
+    const refresh = (state: ConversationMessageState, ready = false) => {
+      if (disposed) return;
+      if (ready && fallback !== null) { clearInterval(fallback); fallback = null; }
+      if (ready || state.project_revision !== previous?.project_revision) {
+        void reloadSessions(projectId).catch(() => undefined);
+      }
+      if (ready || state.revision !== previous?.revision || state.reset_revision !== previous?.reset_revision) {
         void reloadSessionMessages(projectId, activeSessionId, {
           forceRefresh: true,
-          preserveLocalIfShorter: true,
-          shouldApply: () => !disposed,
-          shouldPreserveLocal: () => isSessionStreaming(
-            buildSessionKey(projectId, activeSessionId),
-          ),
+          shouldPreserveLocal: () => isSessionStreaming(buildSessionKey(projectId, activeSessionId)),
         }).catch(() => undefined);
       }
-      void reloadSessions(projectId).catch(() => undefined);
+      previous = state;
     };
-
-    refresh();
-    const timer = window.setInterval(
-      refresh,
-      reloadMode === "session-only" ? 2000 : 1000,
-    );
+    const reconcile = async () => {
+      if (checking || disposed) return;
+      checking = true;
+      try { refresh(await getConversationMessageState(projectId, activeSessionId)); }
+      catch { /* The history loader owns visible errors; reconnect will retry. */ }
+      finally { checking = false; }
+    };
+    const stop = watchConversationChanges(projectId, activeSessionId, {
+      onChange: refresh,
+      onDisconnect: () => {
+        if (!disposed && fallback === null) fallback = setInterval(() => void reconcile(), 15_000);
+      },
+    });
+    const onVisible = () => { if (document.visibilityState === "visible") void reconcile(); };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       disposed = true;
-      window.clearInterval(timer);
+      stop();
+      if (fallback !== null) clearInterval(fallback);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [
-    activeSessionId,
-    isSessionStreaming,
-    projectId,
-    reloadMode,
-    reloadSessionMessages,
-    reloadSessions,
-  ]);
-}
-
-export function resolveActiveSessionLiveReloadMode({
-  activeRuntimeStatus,
-  hasActiveTarget,
-  isActive,
-  isActiveSessionStreaming,
-  isCompactionRunning,
-}: ResolveActiveSessionLiveReloadModeOptions): ActiveSessionLiveReloadMode {
-  if (!isActive || !hasActiveTarget) return "off";
-  if (activeRuntimeStatus !== "running" && !isCompactionRunning) return "off";
-  return isActiveSessionStreaming ? "session-only" : "messages-and-session";
-}
-
-const compactionStartGraceMs = 30_000;
-
-export function hasRunningMemoryCompactionChild(
-  sourceSessionId: string | null,
-  branchNodes: ConversationBranchNode[],
-  sessionStates: Record<string, ConversationSessionState>,
-) {
-  if (!sourceSessionId) return false;
-  return branchNodes.some((node) => (
-    node.deleted_at === null &&
-    node.parent_session_id === sourceSessionId &&
-    node.relation_kind === "functional" &&
-    node.function_type === "memory_compaction" &&
-    sessionStates[node.session_id]?.runtime_status === "running"
-  ));
-}
-
-export function hasRecentCompactionStart(
-  messages: ChatMessage[],
-  now = Date.now(),
-) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message.role === "system" && message.name === "memory_compaction") {
-      return message.status === "running" &&
-        typeof message.createdAt === "number" &&
-        now - message.createdAt <= compactionStartGraceMs;
-    }
-  }
-  return false;
-}
-
-function findLatestCompactionStartAt(messages: ChatMessage[]) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message.role === "system" && message.name === "memory_compaction") {
-      return message.status === "running" && typeof message.createdAt === "number"
-        ? message.createdAt
-        : null;
-    }
-  }
-  return null;
+  }, [activeSessionId, isActive, isSessionStreaming, projectId, reloadSessionMessages, reloadSessions]);
 }
 
 export function useChatPanelPopoverDismiss({
