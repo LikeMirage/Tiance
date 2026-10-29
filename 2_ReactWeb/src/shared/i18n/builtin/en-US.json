@@ -88,13 +88,13 @@
       },
       "delete": {
         "projectCategoryTitle": "Delete Project Category",
-        "projectCategoryMessage": "Deleting \"{label}\" also deletes every project and project folder in it. This cannot be undone in the app.",
+        "projectCategoryMessage": "Delete \"{label}\" and move all project folders in this category to the system Recycle Bin.",
         "roleCategoryTitle": "Delete Role Category",
-        "roleCategoryMessage": "Deleting \"{label}\" also deletes every role and role folder in it. This cannot be undone in the app.",
+        "roleCategoryMessage": "Delete \"{label}\" and move all role folders in this category to the system Recycle Bin.",
         "themeCategoryTitle": "Delete Theme Category",
-        "themeCategoryMessage": "Deleting \"{label}\" also deletes every theme and theme folder in it. The active theme cannot be deleted with its category.",
+        "themeCategoryMessage": "Delete \"{label}\" and move all theme folders in this category to the system Recycle Bin. The active theme cannot be deleted.",
         "toolsetTitle": "Delete Toolset",
-        "toolsetMessage": "After deleting \"{label}\", tool folders in this toolset will also be deleted."
+        "toolsetMessage": "Delete \"{label}\" and move its tool folders to the system Recycle Bin."
       }
     },
     "appFrame": {
@@ -1222,9 +1222,9 @@
         },
         "message": {
           "remove": "Remove the {count} selected projects from {productName} only. Real files will not be deleted.",
-          "delete": "Delete the {count} selected projects? This cannot be undone.",
-          "deleteLocal": "Delete the local folders and files for the {count} selected projects, and remove them from {productName}.",
-          "mixed": "Delete selected managed projects and remove external projects from {productName}. Real files for external projects will not be deleted. {count} projects are selected."
+          "delete": "Move the folders of the {count} selected projects to the system Recycle Bin and remove the projects.",
+          "deleteLocal": "Move the local folders of the {count} selected projects to the system Recycle Bin and remove the projects from {productName}.",
+          "mixed": "Move selected managed project folders to the system Recycle Bin and remove the selected projects from {productName}. External project files will be kept. {count} projects in total."
         }
       },
       "title": {
@@ -1234,8 +1234,8 @@
       },
       "message": {
         "remove": "Remove \"{projectName}\" from {productName} only. Real files will not be deleted.",
-        "delete": "This cannot be undone. Continue?",
-        "deleteLocal": "Delete the local folder and files for \"{projectName}\", and remove the project from {productName}."
+        "delete": "Move the project folder to the system Recycle Bin and remove the project?",
+        "deleteLocal": "Move the local folder for \"{projectName}\" to the system Recycle Bin and remove the project from {productName}."
       },
       "confirm": {
         "remove": "Remove",
@@ -1247,9 +1247,9 @@
     },
     "roleDelete": {
       "title": "Delete Role",
-      "message": "This cannot be undone. Continue?",
+      "message": "Move the role folder to the system Recycle Bin and remove the role?",
       "batchTitle": "Delete Selected Roles",
-      "batchMessage": "Delete the selected {count} roles? This cannot be undone."
+      "batchMessage": "Move the folders of the {count} selected roles to the system Recycle Bin and remove the roles."
     },
     "roleMarket": {
       "ariaLabel": "Online Roles",

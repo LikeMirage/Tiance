@@ -115,6 +115,7 @@ class ProjectMemoryManagementService:
         keywords: list[str] | None = None,
         reason: str | None = None,
         source_operation_id: str | None = None,
+        include_snapshot: bool = True,
     ) -> dict[str, Any]:
         safe_scope = _normalize_scope(scope)
         safe_operation = _normalize_write_operation(operation)
@@ -145,17 +146,18 @@ class ProjectMemoryManagementService:
         if not applied:
             raise BadRequestError("记忆操作未生效，请检查记忆 ID 和参数。")
 
-        updated = self._list_scope_memories(safe_scope, project_id=project_id)
         target_id = _affected_memory_id(applied[0])
-        return {
+        result = {
             "scope": safe_scope,
             "operation": safe_operation,
             "source_operation_id": source_id,
             "memory_id": target_id,
-            "memory": _find_memory(updated, target_id),
-            "memories": updated,
             "applied_event": applied[0],
         }
+        if include_snapshot:
+            updated = self._list_scope_memories(safe_scope, project_id=project_id)
+            result.update(memory=_find_memory(updated, target_id), memories=updated)
+        return result
 
     def _list_scope_memories(
         self,

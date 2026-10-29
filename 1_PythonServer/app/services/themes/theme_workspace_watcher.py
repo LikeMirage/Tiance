@@ -11,7 +11,7 @@ from watchfiles import Change, DefaultFilter, awatch
 from app.services.application.theme_workspace_reconciliation import (
     ThemeWorkspaceReconciliationService,
 )
-from app.services.themes.theme_catalog import THEME_MANIFEST_FILE
+from app.services.themes.theme_catalog import THEME_MANIFEST_FILE, invalidate_theme_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ class ThemeWorkspaceEventBroker:
     def publish(self, paths: tuple[str, ...]) -> None:
         if not paths:
             return
+        invalidate_theme_catalog()
         for queue in tuple(self._subscribers):
             if queue.full():
                 try:

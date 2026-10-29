@@ -955,6 +955,78 @@ def test_change_notifications_only_follow_successful_commits(tmp_path):
         conversation_database_module.conversation_changes = original
 
 
+def test_large_preview_updates_do_not_refresh_idle_conversation(tmp_path, monkeypatch):
+    from app.repositories.project.conversation_database import (
+        delete_document, read_document, transaction_for_conversations,
+    )
+    repository = ProjectConversationRepository(_Projects(tmp_path))
+    session = repository.create_session("project-1", title="idle", provider_id=None, model_id=None, reasoning_mode=None)
+    target = repository.message_sync_target("project-1", session.session_id)
+    before = conversation_database_module.read_conversation_list_snapshot(target.parent.parent)
+    published = []
+    monkeypatch.setattr(conversation_database_module.conversation_changes, "publish", published.append)
+    for index in range(6):
+        payload = {"generated_at": str(index), "request_snapshot": {"content": "x" * (408 * 1024)}}
+        if index < 3:
+            repository.write_injection_preview("project-1", session.session_id, payload)
+        else:
+            with transaction_for_conversations(target.parent.parent):
+                with transaction_for_conversations(target.parent.parent):
+                    repository.write_injection_preview("project-1", session.session_id, payload)
+        assert conversation_database_module.read_conversation_list_snapshot(target.parent.parent) == before
+    assert read_document(target, "injection_preview") == payload
+    assert published == []
+    with transaction_for_conversations(target.parent.parent):
+        delete_document(target, "injection_preview")
+    assert read_document(target, "injection_preview") is None
+    assert conversation_database_module.read_conversation_list_snapshot(target.parent.parent) == before
+    assert published == []
+    repository.append_message("project-1", session.session_id, role="system", content="已完成异步记忆压缩。")
+    assert len(published) == 1
+    assert repository.get_list_data("project-1")[0] > before[0]
+
+
+def test_preview_exclusion_does_not_hide_real_changes_in_same_transaction(tmp_path, monkeypatch):
+    import pytest
+    from app.repositories.project.conversation_database import transaction_for_conversations, write_document
+    repository = ProjectConversationRepository(_Projects(tmp_path))
+    session = repository.create_session("project-1", title="mixed", provider_id=None, model_id=None, reasoning_mode=None)
+    target = repository.message_sync_target("project-1", session.session_id)
+    conversations = target.parent.parent
+    initial_revision = read_meta(conversations, "conversation_revision")
+    published = []
+    monkeypatch.setattr(conversation_database_module.conversation_changes, "publish", published.append)
+    with pytest.raises(ValueError):
+        with transaction_for_conversations(conversations):
+            write_document(target, "injection_preview", {"generated_at": "rollback"})
+            raise ValueError("rollback")
+    assert published == []
+    for index, kinds in enumerate([
+        ["injection_preview", "memory_delivery"],
+        ["compaction_request", "injection_preview"],
+    ], start=1):
+        with transaction_for_conversations(conversations):
+            for kind in kinds:
+                write_document(target, kind, {"value": index})
+        assert read_meta(conversations, "conversation_revision") == initial_revision + index
+        assert len(published) == index
+
+
+def test_identical_document_save_does_not_write_or_notify(tmp_path, monkeypatch):
+    from app.repositories.project.conversation_database import transaction_for_conversations, write_document
+    repository = ProjectConversationRepository(_Projects(tmp_path))
+    session = repository.create_session("project-1", title="same", provider_id=None, model_id=None, reasoning_mode=None)
+    target = repository.message_sync_target("project-1", session.session_id)
+    published = []
+    monkeypatch.setattr(conversation_database_module.conversation_changes, "publish", published.append)
+    with transaction_for_conversations(target.parent.parent) as connection:
+        write_document(target, "injection_preview", {"content": "same"})
+        count = connection.total_changes
+        write_document(target, "injection_preview", {"content": "same"})
+        assert connection.total_changes == count
+    assert published == []
+
+
 def test_idle_conversation_socket_and_incremental_api_reconcile_after_reconnect(tmp_path, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient

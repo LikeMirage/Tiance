@@ -23,6 +23,7 @@ from app.domain.llm.chat import (
 from app.domain.project.project_conversation import ProjectConversationMessage
 from app.domain.llm.runtime_capabilities import LlmRuntimeCapabilities
 from app.services.llm.chat.service import ChatCompletionService
+from app.services.project.conversation_run_context import active_run_id_for
 from app.services.project.conversation_stream_checkpoints import (
     ConversationPersistenceCheckpoint,
 )
@@ -1038,6 +1039,7 @@ class ConversationToolLoop:
             request,
         )
         return ToolExecutionContext(
+            run_id=active_run_id_for(request.project_id, request.session_id),
             workspace_root=workspace_root,
             project_id=request.project_id,
             session_id=request.session_id,

@@ -38,7 +38,7 @@ from app.services.application.theme_workspace_reconciliation import (
 )
 from app.services.application.tool_market import get_tool_market_application_service
 from app.repositories.themes import get_theme_market_settings_repository
-from app.services.application.usage_file_migration import ensure_usage_file_storage
+from app.services.application.usage_file_migration import ensure_usage_sqlite_storage
 from app.services.themes import ensure_active_theme_selection
 from app.services.tools import get_toolset_service
 
@@ -55,7 +55,7 @@ def bootstrap_application() -> None:
         settings.providers_data_path,
         settings.app_database_file,
     )
-    ensure_usage_file_storage(
+    ensure_usage_sqlite_storage(
         settings.app_database_file,
         settings.usage_data_path,
     )

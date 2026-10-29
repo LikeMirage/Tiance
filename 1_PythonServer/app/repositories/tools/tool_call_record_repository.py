@@ -11,6 +11,10 @@ from dataclasses import dataclass
 
 from app.core.jsonl_tail import repair_jsonl_tail
 from app.domain.tools import ToolCallRecord, ToolCallRecordDraft
+from app.domain.tools.call_record_page import (
+    ToolCallRecordListItem, ToolCallRecordPage, ToolCallRecordSnapshotExpired,
+)
+from app.repositories.tools.tool_call_record_index import record_index
 
 
 _RECORDS_RELATIVE_PATH = Path(".Tiance") / "tool-calls" / "records.jsonl"
@@ -102,6 +106,66 @@ class ToolCallRecordRepository:
         with self._write_lock:
             repair_jsonl_tail(records_path, _payload_to_record)
             return self._read_records(records_path)
+
+    def list_project_page(
+        self, project_root: str | Path, *, limit: int = 50, offset: int = 0,
+        snapshot: str | None = None,
+    ) -> ToolCallRecordPage:
+        if not 1 <= limit <= 100 or offset < 0:
+            raise ValueError("调用记录分页参数无效。")
+        path = self.records_path(project_root)
+        with self._write_lock:
+            if not path.is_file():
+                if snapshot:
+                    raise ToolCallRecordSnapshotExpired("调用记录已变化，请刷新列表。")
+                return ToolCallRecordPage((), 0, offset, limit, None)
+            with record_index(path, _payload_to_record) as connection:
+                generation = connection.execute("SELECT generation FROM source").fetchone()[0]
+                boundary = connection.execute("SELECT COALESCE(MAX(position), -1) FROM records").fetchone()[0]
+                if snapshot is not None:
+                    try:
+                        token, raw_boundary = snapshot.split(":")
+                        requested_boundary = int(raw_boundary)
+                    except (ValueError, TypeError) as exc:
+                        raise ValueError("调用记录分页快照无效。") from exc
+                    if token != generation or not -1 <= requested_boundary <= boundary:
+                        raise ToolCallRecordSnapshotExpired("调用记录已变化，请刷新列表。")
+                    boundary = requested_boundary
+                count = connection.execute(
+                    "SELECT COUNT(*) FROM records WHERE position <= ?", (boundary,),
+                ).fetchone()[0]
+                rows = connection.execute(
+                    "SELECT * FROM records WHERE position <= ? "
+                    "ORDER BY created_at DESC, position ASC LIMIT ? OFFSET ?",
+                    (boundary, limit, offset),
+                ).fetchall()
+                items = tuple(ToolCallRecordListItem(
+                    record_id=row["record_id"], tool_project_id=row["tool_project_id"],
+                    tool_name=row["tool_name"], call_id=row["call_id"],
+                    source_project_id=row["source_project_id"], source_project_name="",
+                    session_id=row["session_id"], session_title="", ok=bool(row["ok"]),
+                    created_at=row["created_at"], elapsed_ms=row["elapsed_ms"],
+                    dynamic=None if row["dynamic"] is None else bool(row["dynamic"]),
+                ) for row in rows)
+                return ToolCallRecordPage(items, count, offset, limit, f"{generation}:{boundary}")
+
+    def get_project_record(self, project_root: str | Path, record_id: str) -> ToolCallRecord | None:
+        path = self.records_path(project_root)
+        with self._write_lock:
+            if not path.is_file():
+                return None
+            with record_index(path, _payload_to_record) as connection:
+                row = connection.execute(
+                    "SELECT position, length FROM records WHERE record_id = ?", (record_id,),
+                ).fetchone()
+                if row is None:
+                    return None
+                with path.open("rb") as stream:
+                    stream.seek(row["position"])
+                    record = _payload_to_record(json.loads(stream.read(row["length"])))
+                if record.record_id != record_id:
+                    raise ValueError("工具调用记录在读取期间发生变化，请刷新重试。")
+                return record
 
     def _read_records(self, records_path: Path) -> tuple[ToolCallRecord, ...]:
         if not records_path.is_file():

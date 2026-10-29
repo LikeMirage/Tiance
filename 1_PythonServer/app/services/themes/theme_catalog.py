@@ -1,10 +1,13 @@
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
+from threading import RLock
 from typing import Any
 from uuid import uuid4
 
 from app.core.atomic_replace import atomic_replace_path
+from app.core.config import get_settings
 from app.domain.project import Project, ProjectKind
 from app.repositories.themes import get_theme_settings_repository
 from app.schemas.themes import (
@@ -38,22 +41,85 @@ class ThemeAssetNotFoundError(ThemeCatalogError):
     pass
 
 
-def list_themes() -> list[ThemeSummary]:
-    summaries: list[ThemeSummary] = []
-    seen_theme_ids: set[str] = set()
-    for project in _theme_projects():
-        theme_file = Path(project.root_path) / THEME_MANIFEST_FILE
-        if not theme_file.is_file():
+@dataclass(frozen=True)
+class _ThemeEntry:
+    project: Project
+    stamp: tuple | None
+    theme: ThemePackageDefinition | None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class _ThemeIndex:
+    owner: object
+    catalog_stamp: tuple
+    projects: dict[str, _ThemeEntry]
+    theme_ids: dict[str, list[_ThemeEntry]]
+
+
+_index_lock = RLock()
+_theme_index: _ThemeIndex | None = None
+
+
+def invalidate_theme_catalog() -> None:
+    global _theme_index
+    with _index_lock:
+        _theme_index = None
+
+
+def _file_stamp(path: Path) -> tuple | None:
+    try:
+        stat = path.stat()
+        return stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino
+    except OSError:
+        return None
+
+
+def _catalog_stamp() -> tuple:
+    root = get_settings().themes_data_path
+    return str(root), _file_stamp(root / "catalog.json"), _file_stamp(root)
+
+
+def _build_index(owner, stamp: tuple) -> _ThemeIndex:
+    projects: dict[str, _ThemeEntry] = {}
+    theme_ids: dict[str, list[_ThemeEntry]] = {}
+    for project in owner.list_projects():
+        if project.project_kind is not ProjectKind.THEME:
             continue
+        path = Path(project.root_path) / THEME_MANIFEST_FILE
+        file_stamp = _file_stamp(path)
         try:
-            theme = _load_theme_file(theme_file)
-        except ThemeCatalogError:
-            continue
-        if theme.id in seen_theme_ids:
-            raise ThemeCatalogError(f"Duplicate theme id: {theme.id}")
-        seen_theme_ids.add(theme.id)
-        summaries.append(ThemeSummary(id=theme.id, name=project.name, mode=theme.mode))
-    return summaries
+            theme = _load_theme_file(path)
+            entry = _ThemeEntry(project, file_stamp, theme)
+            theme_ids.setdefault(theme.id, []).append(entry)
+        except ThemeCatalogError as exc:
+            entry = _ThemeEntry(project, file_stamp, None, str(exc))
+        projects[project.project_id] = entry
+    return _ThemeIndex(owner, stamp, projects, theme_ids)
+
+
+def _get_index(*, check_all: bool = False) -> _ThemeIndex:
+    global _theme_index
+    owner, stamp = get_project_service(), _catalog_stamp()
+    index = _theme_index
+    if (index is None or index.owner is not owner or index.catalog_stamp != stamp
+        or (check_all and any(_entry_changed(entry) for entry in index.projects.values()))):
+        index = _theme_index = _build_index(owner, stamp)
+    return index
+
+
+def _entry_changed(entry: _ThemeEntry) -> bool:
+    return entry.stamp != _file_stamp(Path(entry.project.root_path) / THEME_MANIFEST_FILE)
+
+
+def list_themes() -> list[ThemeSummary]:
+    with _index_lock:
+        index = _get_index(check_all=True)
+        for theme_id, entries in index.theme_ids.items():
+            if len(entries) > 1:
+                raise ThemeCatalogError(f"Duplicate theme id: {theme_id}")
+        return [ThemeSummary(id=entry.theme.id, name=entry.project.name, mode=entry.theme.mode)
+            for entry in index.projects.values() if entry.theme is not None]
 
 
 def get_active_theme_id() -> str:
@@ -119,6 +185,8 @@ def save_theme(theme_id: str, theme: ThemeDefinition) -> ThemeDefinition:
         except OSError:
             pass
         raise ThemeCatalogError(f"Unable to save theme: {theme_id}") from exc
+    finally:
+        invalidate_theme_catalog()
 
     if project.name != theme.name:
         get_project_service().rename_project(project.project_id, name=theme.name)
@@ -134,8 +202,11 @@ def get_theme_asset_path(asset_path: str) -> Path:
     if not _THEME_ID_PATTERN.fullmatch(theme_id) or normalized_path.parts[1] != "assets":
         raise ThemeAssetNotFoundError("Theme asset not found")
 
-    project, _theme = _find_theme(theme_id)
-    assets_root = (Path(project.root_path) / "assets").resolve()
+    try:
+        entry = _find_theme_entry(theme_id)
+    except ThemeNotFoundError as exc:
+        raise ThemeAssetNotFoundError("Theme asset not found") from exc
+    assets_root = (Path(entry.project.root_path) / "assets").resolve()
     target = (assets_root / Path(*normalized_path.parts[2:])).resolve()
     if not _is_relative_to(target, assets_root) or not target.is_file():
         raise ThemeAssetNotFoundError("Theme asset not found")
@@ -164,33 +235,31 @@ def load_theme_package(theme_root: Path) -> ThemePackageDefinition:
 
 
 def _find_theme(theme_id: str) -> tuple[Project, ThemePackageDefinition]:
-    matched: tuple[Project, ThemePackageDefinition] | None = None
-    for project in _theme_projects():
-        theme_file = Path(project.root_path) / THEME_MANIFEST_FILE
-        if not theme_file.is_file():
-            continue
-        if project.project_id == theme_id:
-            return project, _load_theme_file(theme_file)
-        try:
-            theme = _load_theme_file(theme_file)
-        except ThemeCatalogError:
-            continue
-        if theme.id != theme_id:
-            continue
-        if matched is not None:
+    entry = _find_theme_entry(theme_id)
+    # Callers may edit definitions; cached package objects are never handed out.
+    return entry.project, entry.theme.model_copy(deep=True)
+
+
+def _find_theme_entry(theme_id: str) -> _ThemeEntry:
+    with _index_lock:
+        index = _get_index()
+        candidates = ([index.projects[theme_id]] if theme_id in index.projects
+            else index.theme_ids.get(theme_id, []))
+        if any(_entry_changed(entry) for entry in candidates):
+            invalidate_theme_catalog()
+            index = _get_index()
+            candidates = ([index.projects[theme_id]] if theme_id in index.projects
+                else index.theme_ids.get(theme_id, []))
+        if not candidates:
+            raise ThemeNotFoundError(f"Theme not found: {theme_id}")
+        if len(candidates) > 1:
             raise ThemeCatalogError(f"Duplicate theme id: {theme_id}")
-        matched = (project, theme)
-    if matched is None:
-        raise ThemeNotFoundError(f"Theme not found: {theme_id}")
-    return matched
-
-
-def _theme_projects() -> tuple[Project, ...]:
-    return tuple(
-        project
-        for project in get_project_service().list_projects()
-        if project.project_kind is ProjectKind.THEME
-    )
+        entry = candidates[0]
+        if entry.theme is None:
+            if entry.stamp is None:
+                raise ThemeNotFoundError(f"Theme not found: {theme_id}")
+            raise ThemeCatalogError(entry.error or f"Invalid theme: {theme_id}")
+        return entry
 
 
 def _validate_theme_id(theme_id: str) -> None:

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from watchfiles import Change, DefaultFilter, awatch
 
+from app.core.shutdown_tasks import finish_thread, shutdown_tasks
 from app.infra.projects import PROJECT_IDENTITY_RELATIVE_PATH
 from app.services.application.project_workspace_reconciliation import (
     ProjectWorkspaceReconciliationService,
@@ -68,7 +69,7 @@ async def watch_project_workspace_changes(
             if not paths:
                 continue
             try:
-                reconciliation_service.synchronize()
+                await _synchronize_workspace(reconciliation_service)
                 broker.publish(paths)
             except Exception:
                 logger.warning(
@@ -76,10 +77,42 @@ async def watch_project_workspace_changes(
                     ", ".join(paths),
                     exc_info=True,
                 )
+                # A worker failure must not swallow cancellation of its owner.
+                if asyncio.current_task().cancelling():
+                    raise asyncio.CancelledError
     except asyncio.CancelledError:
         raise
     except Exception:
         logger.warning("Project workspace watcher stopped unexpectedly.", exc_info=True)
+
+
+async def _synchronize_workspace(
+    reconciliation_service: ProjectWorkspaceReconciliationService,
+) -> None:
+    async def synchronize_once() -> None:
+        # Reconciliation may write identities and catalog entries immediately.
+        shutdown_tasks.commit_started()
+        await finish_thread(reconciliation_service.synchronize)
+
+    while True:
+        # Keep this batch if a failed/cancelled desktop exit resumes the app.
+        # Lifespan cancellation still stops the watcher while it is waiting.
+        while not shutdown_tasks.accepting:
+            await asyncio.sleep(0.1)
+
+        # Track only this finite batch, not the lifetime of the watcher. There
+        # is no await between admission and registration on the event loop.
+        task = asyncio.create_task(synchronize_once(), name="project-workspace-sync")
+        shutdown_tasks.track(task)
+        try:
+            await task
+        except asyncio.CancelledError:
+            if asyncio.current_task().cancelling():
+                raise
+            # Shutdown can cancel an admitted batch before its worker starts.
+            # Retain it for resume instead of permanently losing the watcher.
+            continue
+        return
 
 
 def project_workspace_change_paths(

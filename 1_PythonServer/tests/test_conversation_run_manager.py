@@ -58,6 +58,33 @@ def test_run_status_identity_changes_and_cancel_is_immediate():
     asyncio.run(run_test())
 
 
+def test_tool_context_uses_live_manager_identity_not_persisted_turn_identity():
+    from dataclasses import replace
+    from app.services.project.conversation_run_context import active_run_id_for
+    async def run_test():
+        manager = ConversationRunManager()
+        observed = []
+        class Stream:
+            async def stream_payloads(self, request, **kwargs):
+                observed.append((active_run_id_for(request.project_id, request.session_id), request.run_id))
+                assert active_run_id_for('other-project', request.session_id) is None
+                assert await asyncio.to_thread(active_run_id_for, request.project_id, request.session_id) == observed[-1][0]
+                yield {'kind': 'delta', 'content': 'ready'}
+                await asyncio.Event().wait()
+        for _ in range(2):
+            subscription = await manager.start(replace(_request(), run_id='persisted-turn-id'), Stream())
+            listener = manager.stream(subscription)
+            await listener.__anext__()
+            status = await manager.get_run_status('project-1', 'session-1')
+            assert observed[-1] == (status['run_id'], 'persisted-turn-id')
+            assert active_run_id_for('project-1', 'session-1') is None
+            await manager.stop('project-1', 'session-1')
+            await listener.aclose()
+        assert observed[0][0] != observed[1][0]
+        await manager.close()
+    asyncio.run(run_test())
+
+
 def test_listener_disconnect_does_not_cancel_generation():
     async def run_test():
         manager = ConversationRunManager()

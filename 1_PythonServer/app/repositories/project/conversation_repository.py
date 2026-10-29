@@ -182,6 +182,9 @@ class ProjectConversationRepository:
     def get_list_data(
         self,
         project_id: str,
+        *,
+        summaries_only: bool = False,
+        session_id: str | None = None,
     ) -> tuple[
         int,
         tuple[ProjectConversationSession, ...],
@@ -194,6 +197,8 @@ class ProjectConversationRepository:
         conversations_dir = self._session_store.conversations_dir(project_id)
         revision, index, stored_sessions, stored_states, raw_graph = self._session_store.read_list_snapshot(
             conversations_dir,
+            summaries_only=summaries_only,
+            session_id=session_id,
         )
         sessions = self._list_sessions(
             conversations_dir,
@@ -227,19 +232,19 @@ class ProjectConversationRepository:
         session_runtime_statuses: dict[str, str],
         session_drafts: dict[str, str],
         session_references: dict[str, list[dict]],
+        include_full_state: bool = True,
     ) -> tuple[str | None, dict[str, ProjectConversationSessionState]]:
         conversations_dir = self._session_store.conversations_dir(project_id, for_write=True)
         with conversation_write_lock(conversations_dir):
             index = self._session_store.read_index(conversations_dir)
-            sessions = self._list_sessions(conversations_dir, index)
-            existing_active_session_id, _existing_states = (
-                self._state_store.conversation_state(
-                    conversations_dir,
-                    sessions,
-                    index,
-                )
+            _revision, _index, stored_sessions, _states, _graph = self._session_store.read_list_snapshot(
+                conversations_dir, summaries_only=True,
             )
+            sessions = self._list_sessions(conversations_dir, index, stored_sessions=stored_sessions)
             session_ids = {session.session_id for session in sessions}
+            existing_active_session_id = index.get("active_session_id")
+            if existing_active_session_id not in session_ids:
+                existing_active_session_id = sessions[0].session_id if sessions else None
 
             if should_update_active_session:
                 if active_session_id is not None and active_session_id not in session_ids:
@@ -270,6 +275,11 @@ class ProjectConversationRepository:
                     conversations_dir, session_id, references, now
                 )
             self._session_store.write_index(conversations_dir, index)
+            if not include_full_state:
+                return index.get("active_session_id"), {
+                    session_id: self._state_store.read_session_state(conversations_dir, session_id)
+                    for session_id in changed_session_ids
+                }
             return self._state_store.conversation_state(
                 conversations_dir, sessions, index
             )

@@ -67,7 +67,7 @@ def test_capability_bridge_keeps_its_own_scoped_authentication(monkeypatch):
     path = "/api/llm/provider-capabilities/deepseek-web"
     body = {"action": "search", "query": "test"}
     assert client.post(path, json=body).status_code == 401
-    grant = access.issue_grant(tool_name="deepseek_official_web_search", tool_call_id="call", provider_id=None, model_id=None, project_id=None, session_id=None, lifetime_seconds=60)
+    grant = access.issue_grant(capabilities=("deepseek_web",), tool_name="deepseek_official_web_search", tool_call_id="call", provider_id=None, model_id=None, project_id=None, session_id=None, lifetime_seconds=60)
     assert grant is not None
     headers = {"authorization": "Bearer " + grant.token}
     assert client.post(path, json=body, headers=headers).status_code == 200

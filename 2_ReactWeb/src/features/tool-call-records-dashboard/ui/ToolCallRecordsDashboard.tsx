@@ -3,9 +3,10 @@ import { ArrowClockwise, CaretDown, CaretRight } from "@phosphor-icons/react";
 
 import type {
   ToolCallRecord,
+  ToolCallRecordListItem,
   ToolCallRecordListResponse,
 } from "../../../entities/tool/model/toolCallRecord";
-import { getToolFolderCallRecords } from "../../../services/tools/toolCallRecords";
+import { getToolFolderCallRecord, getToolFolderCallRecords } from "../../../services/tools/toolCallRecords";
 import "./tool-call-records-dashboard.css";
 
 type LoadState = "loading" | "ready" | "error";
@@ -19,46 +20,47 @@ export function ToolCallRecordsDashboard({
   folderId,
   toolsetId,
 }: ToolCallRecordsDashboardProps) {
-  const targetKey = `${toolsetId}:${folderId}`;
-  const activeTargetKeyRef = useRef(targetKey);
+  return <ToolCallRecordsPage key={`${toolsetId}:${folderId}`} folderId={folderId} toolsetId={toolsetId} />;
+}
+
+function ToolCallRecordsPage({ folderId, toolsetId }: ToolCallRecordsDashboardProps) {
   const requestIdRef = useRef(0);
+  const requestControllerRef = useRef<AbortController | null>(null);
   const [state, setState] = useState<LoadState>("loading");
   const [report, setReport] = useState<ToolCallRecordListResponse | null>(null);
   const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    activeTargetKeyRef.current = targetKey;
-    requestIdRef.current += 1;
-    setReport(null);
-    setExpandedRecordId(null);
-    setError(null);
-  }, [targetKey]);
-
-  const loadRecords = useCallback(async (signal?: AbortSignal) => {
+  const loadRecords = useCallback(async (offset = 0, snapshot?: string | null) => {
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    const { signal } = controller;
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
     setState("loading");
     setError(null);
+    setExpandedRecordId(null);
     try {
       const nextReport = await getToolFolderCallRecords(toolsetId, folderId, {
         signal,
+        offset,
+        snapshot,
       });
-      if (activeTargetKeyRef.current !== targetKey || requestIdRef.current !== requestId) return;
+      if (signal.aborted || requestIdRef.current !== requestId) return;
       setReport(nextReport);
       setState("ready");
     } catch (err) {
-      if (signal?.aborted || activeTargetKeyRef.current !== targetKey || requestIdRef.current !== requestId) return;
+      if (signal.aborted || requestIdRef.current !== requestId) return;
       setError(err instanceof Error ? err.message : "调用记录读取失败。");
       setState("error");
     }
-  }, [folderId, targetKey, toolsetId]);
+  }, [folderId, toolsetId]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void loadRecords(controller.signal);
+    void loadRecords();
     return () => {
-      controller.abort();
+      requestControllerRef.current?.abort();
       requestIdRef.current += 1;
     };
   }, [loadRecords]);
@@ -104,7 +106,7 @@ export function ToolCallRecordsDashboard({
         {state === "loading" && records.length === 0 ? (
           <div className="tool-call-records-dashboard__empty">正在读取调用记录。</div>
         ) : null}
-        {state !== "loading" && records.length === 0 ? (
+        {state === "ready" && records.length === 0 ? (
           <div className="tool-call-records-dashboard__empty">暂无调用记录。</div>
         ) : null}
         {records.map((record) => (
@@ -112,12 +114,29 @@ export function ToolCallRecordsDashboard({
             isExpanded={expandedRecordId === record.record_id}
             key={record.record_id}
             record={record}
+            folderId={folderId}
+            toolsetId={toolsetId}
             onToggle={() => setExpandedRecordId((current) =>
               current === record.record_id ? null : record.record_id,
             )}
           />
         ))}
       </section>
+      {report ? (
+        <nav className="tool-call-records-dashboard__pagination" aria-label="调用记录分页">
+          <span aria-live="polite">
+            {records.length ? `${report.offset + 1}–${report.offset + records.length} / ${report.count} 条` : `共 ${report.count} 条`}
+          </span>
+          <button type="button" disabled={state === "loading" || report.offset === 0}
+            onClick={() => { void loadRecords(Math.max(0, report.offset - report.limit), report.snapshot); }}>
+            上一页
+          </button>
+          <button type="button" disabled={state === "loading" || report.offset + report.limit >= report.count}
+            onClick={() => { void loadRecords(report.offset + report.limit, report.snapshot); }}>
+            下一页
+          </button>
+        </nav>
+      ) : null}
     </article>
   );
 }
@@ -126,10 +145,14 @@ function CallRecordRow({
   isExpanded,
   onToggle,
   record,
+  folderId,
+  toolsetId,
 }: {
   isExpanded: boolean;
   onToggle: () => void;
-  record: ToolCallRecord;
+  record: ToolCallRecordListItem;
+  folderId: string;
+  toolsetId: string;
 }) {
   return (
     <div className={["tool-call-records-dashboard__record", isExpanded ? "tool-call-records-dashboard__record--expanded" : ""].filter(Boolean).join(" ")}>
@@ -155,12 +178,43 @@ function CallRecordRow({
       </button>
 
       {isExpanded ? (
-        <div className="tool-call-records-dashboard__detail">
+        <CallRecordDetail folderId={folderId} toolsetId={toolsetId} recordId={record.record_id} />
+      ) : null}
+    </div>
+  );
+}
+
+function CallRecordDetail({ folderId, toolsetId, recordId }: ToolCallRecordsDashboardProps & { recordId: string }) {
+  const [record, setRecord] = useState<ToolCallRecord | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    setError(null);
+    setRecord(null);
+    void getToolFolderCallRecord(toolsetId, folderId, recordId, { signal: controller.signal })
+      .then((detail) => {
+        if (!controller.signal.aborted) setRecord(detail);
+      })
+      .catch((err: unknown) => {
+        if (!controller.signal.aborted) setError(err instanceof Error ? err.message : "调用详情读取失败。");
+      });
+    return () => controller.abort();
+  }, [folderId, toolsetId, recordId, attempt]);
+
+  return (
+    <div className="tool-call-records-dashboard__detail">
+      {error ? (
+        <div role="status" className="tool-call-records-dashboard__notice--error">
+          {error} <button type="button" onClick={() => setAttempt((current) => current + 1)}>重试</button>
+        </div>
+      ) : record ? (
+        <>
           <DetailBlock title="调用指令" text={formatCallInstruction(record)} />
           <DetailBlock title="调用结果" text={formatJsonLike(record.result_text)} />
           {record.error ? <DetailBlock title="错误信息" text={record.error} /> : null}
-        </div>
-      ) : null}
+        </>
+      ) : <div role="status">正在读取调用详情。</div>}
     </div>
   );
 }

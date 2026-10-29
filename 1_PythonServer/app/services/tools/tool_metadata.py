@@ -188,6 +188,11 @@ def _validate_runtime(runtime: object) -> None:
     runtime_type = runtime.get("type")
     if not isinstance(runtime_type, str) or not runtime_type.strip():
         raise BadRequestError("tool.json 的 runtime.type 不能为空。")
+    from app.domain.tools.host_capabilities import declared_host_capabilities
+    try:
+        declared_host_capabilities(runtime)
+    except ValueError as exc:
+        raise BadRequestError(str(exc)) from exc
     timeout_seconds = runtime.get("timeout_seconds")
     if not isinstance(timeout_seconds, int) or isinstance(timeout_seconds, bool) or timeout_seconds <= 0:
         raise BadRequestError("tool.json 的 runtime.timeout_seconds 必须是正整数。")

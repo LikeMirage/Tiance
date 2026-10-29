@@ -88,13 +88,13 @@
       },
       "delete": {
         "projectCategoryTitle": "删除项目分类",
-        "projectCategoryMessage": "删除“{label}”分类后，分类下的全部项目及其文件夹都会一并删除。此操作不可在软件内撤销。",
+        "projectCategoryMessage": "删除“{label}”分类，并将分类下全部项目的文件夹移入系统回收站。",
         "roleCategoryTitle": "删除角色分类",
-        "roleCategoryMessage": "删除“{label}”分类后，分类下的全部角色及其文件夹都会一并删除。此操作不可在软件内撤销。",
+        "roleCategoryMessage": "删除“{label}”分类，并将分类下全部角色的文件夹移入系统回收站。",
         "themeCategoryTitle": "删除主题分类",
-        "themeCategoryMessage": "删除“{label}”分类后，分类下的全部主题及其文件夹都会一并删除。当前正在使用的主题不能随分类删除。",
+        "themeCategoryMessage": "删除“{label}”分类，并将分类下全部主题的文件夹移入系统回收站。当前正在使用的主题不能删除。",
         "toolsetTitle": "删除工具集",
-        "toolsetMessage": "删除“{label}”工具集后，其中的工具文件夹也会一起删除。"
+        "toolsetMessage": "删除“{label}”工具集，并将其中的工具文件夹移入系统回收站。"
       }
     },
     "appFrame": {
@@ -1222,9 +1222,9 @@
         },
         "message": {
           "remove": "仅从 {productName} 移除所选 {count} 个项目，不会删除真实文件。",
-          "delete": "将删除所选 {count} 个项目，删除后无法恢复。",
-          "deleteLocal": "将删除所选 {count} 个项目的本地文件夹及其中的文件，同时从 {productName} 移除项目。",
-          "mixed": "将删除所选托管项目，并从 {productName} 移除外部项目；外部项目的真实文件不会删除。共 {count} 个项目。"
+          "delete": "将所选 {count} 个项目的文件夹移入系统回收站并移除项目。",
+          "deleteLocal": "将所选 {count} 个项目的本地文件夹移入系统回收站，同时从 {productName} 移除项目。",
+          "mixed": "将所选托管项目的文件夹移入系统回收站，并从 {productName} 移除所选项目；外部项目的真实文件会保留。共 {count} 个项目。"
         }
       },
       "title": {
@@ -1234,8 +1234,8 @@
       },
       "message": {
         "remove": "仅从 {productName} 移除“{projectName}”，不会删除真实文件。",
-        "delete": "删除后将无法恢复，确认继续？",
-        "deleteLocal": "会删除“{projectName}”的本地文件夹和其中的文件，同时从 {productName} 移除项目。"
+        "delete": "将项目文件夹移入系统回收站并移除项目，确认继续？",
+        "deleteLocal": "将“{projectName}”的本地文件夹移入系统回收站，同时从 {productName} 移除项目。"
       },
       "confirm": {
         "remove": "移除",
@@ -1247,9 +1247,9 @@
     },
     "roleDelete": {
       "title": "确认删除角色",
-      "message": "删除后将无法恢复，确认继续？",
+      "message": "将角色文件夹移入系统回收站并移除角色，确认继续？",
       "batchTitle": "删除所选角色",
-      "batchMessage": "将删除所选 {count} 个角色，删除后无法恢复。"
+      "batchMessage": "将所选 {count} 个角色的文件夹移入系统回收站并移除角色。"
     },
     "roleMarket": {
       "ariaLabel": "在线角色",

@@ -7,6 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from json import dumps, loads
+import logging
 import sqlite3
 
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
@@ -14,6 +15,8 @@ from app.domain.project import Project, ProjectCategory, ProjectKind
 from app.infra.projects import ProjectStorage, get_project_storage
 from app.repositories.project import ProjectRepository, get_project_repository
 from app.services.project.project_ids import normalize_project_id
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_PROJECT_ID = "00000000-0000-0000-0000-000000000001"
 DEFAULT_PROJECT_NAME = "默认项目"
@@ -254,7 +257,7 @@ class ProjectService:
         return self._repository.save_project_category(updated)
 
     def delete_project_category(self, category_id: str) -> None:
-        """归档分类下所有项目目录，再一次性清理分类和项目索引。"""
+        """逐项回收到系统回收站并移除登记；发生失败保留未完成项和分类。"""
         normalized_category_id = _normalize_project_category_id(category_id)
         category = self._repository.get_project_category(normalized_category_id)
         if category is None:
@@ -267,24 +270,36 @@ class ProjectService:
         if category.category_kind is ProjectKind.PROVIDER and projects:
             raise BadRequestError("模型分类需要先通过供应商删除流程清理模型供应商。")
 
-        archived: list[tuple[Path, str, bool]] = []
+        # Check all roots before recycling the first item. Shell deletion is not
+        # a database transaction and must never be described as rolled back.
         try:
             for project in projects:
-                is_managed = self._storage.is_managed_project_root(project.root_path)
-                archived_path = (
-                    self._storage.archive_project_root(project.root_path)
-                    if is_managed
-                    else self._storage.archive_external_project_root(project.root_path)
+                self._storage.validate_project_recycle(
+                    project.root_path,
+                    external=not self._storage.is_managed_project_root(project.root_path),
                 )
-                if archived_path is not None:
-                    archived.append((archived_path, project.root_path, is_managed))
-            self._repository.delete_project_category_with_projects(category.category_id)
         except (OSError, ValueError) as exc:
-            self._restore_archived_projects(archived)
             raise BadRequestError(str(exc)) from exc
-        except Exception:
-            self._restore_archived_projects(archived)
-            raise
+        completed: list[str] = []
+        for project in projects:
+            try:
+                self.delete_project(project.project_id, delete_files=True)
+                completed.append(project.project_id)
+            except Exception as exc:
+                raise BadRequestError(
+                    f"分类删除未完成：{exc}",
+                    details={"reason": "category_delete_incomplete",
+                        "completed_project_ids": completed, "failed_project_id": project.project_id,
+                        "cause": getattr(exc, "details", None)},
+                ) from exc
+        try:
+            # This rejects new projects concurrently added to the category.
+            self._repository.delete_project_category(category.category_id)
+        except Exception as exc:
+            raise BadRequestError(
+                f"项目已处理，但分类登记移除失败：{exc}",
+                details={"reason": "category_delete_incomplete", "completed_project_ids": completed},
+            ) from exc
 
     def move_project_to_category(self, project_id: str, *, category_id: str) -> Project:
         """把项目移动到另一个分类"""
@@ -336,7 +351,7 @@ class ProjectService:
         return self._repository.save_project(updated)
 
     def delete_project(self, project_id: str, *, delete_files: bool = False) -> None:
-        """删除项目：外部项目默认仅移除登记，托管项目同时归档文件目录。"""
+        """外部项目默认仅移除登记；明确删除文件时使用系统回收站。"""
         normalized_project_id = normalize_project_id(project_id)
         project = self._repository.get_project(normalized_project_id)
         if project is None:
@@ -344,22 +359,22 @@ class ProjectService:
         if project.project_kind is ProjectKind.PROVIDER:
             raise BadRequestError("请在模型集里删除供应商。")
 
-        archived_path = None
+        recycled = False
         is_managed_project = self._storage.is_managed_project_root(project.root_path)
-        if is_managed_project:
-            archived_path = self._storage.archive_project_root(project.root_path)
-        elif delete_files:
+        if is_managed_project or delete_files:
             try:
-                archived_path = self._storage.archive_external_project_root(project.root_path)
+                recycled = self._storage.recycle_project_root(project.root_path, external=not is_managed_project)
             except (OSError, ValueError) as exc:
-                raise BadRequestError(str(exc)) from exc
+                raise BadRequestError(f"文件夹未能移入系统回收站，项目登记已保留：{exc}") from exc
         try:
             self._repository.delete_project(project.project_id)
-        except Exception:
-            if archived_path is not None and is_managed_project:
-                self._storage.restore_archived_project_root(archived_path, project.root_path)
-            elif archived_path is not None:
-                self._storage.restore_external_archived_project_root(archived_path, project.root_path)
+        except Exception as exc:
+            if recycled:
+                raise BadRequestError(
+                    "文件夹已移入系统回收站，但项目登记移除失败。可重试移除登记，或从系统回收站恢复文件。",
+                    details={"reason": "project_deregistration_failed", "files_recycled": True,
+                        "project_id": project.project_id, "root_path": project.root_path},
+                ) from exc
             raise
 
     def is_managed_project(self, project: Project) -> bool:
@@ -612,12 +627,15 @@ class ProjectService:
         )
         try:
             saved_project = self._repository.save_project(project)
-            if project_kind is ProjectKind.PROJECT:
-                self._mark_default_project_bootstrapped()
-            return saved_project
         except Exception:
-            self._storage.archive_project_root(str(root_path))
+            try:
+                self._storage.remove_empty_project_root(str(root_path))
+            except (OSError, ValueError):
+                logger.warning("未能清理登记失败的空项目目录：%s", root_path, exc_info=True)
             raise
+        if project_kind is ProjectKind.PROJECT:
+            self._mark_default_project_bootstrapped()
+        return saved_project
 
     # ------------------------------------------------------------------
     # 私有：外部导入
@@ -814,19 +832,6 @@ class ProjectService:
         if current_category_id is not None and existing.category_id == current_category_id:
             return
         raise BadRequestError("项目分类名称已存在。")
-
-    def _restore_archived_projects(
-        self,
-        archived: list[tuple[Path, str, bool]],
-    ) -> None:
-        for archived_path, original_path, is_managed in reversed(archived):
-            if is_managed:
-                self._storage.restore_archived_project_root(archived_path, original_path)
-            else:
-                self._storage.restore_external_archived_project_root(
-                    archived_path,
-                    original_path,
-                )
 
     def _is_default_project_bootstrapped(self) -> bool:
         if self._repository.get_file_catalog(ProjectKind.PROJECT) is not None:

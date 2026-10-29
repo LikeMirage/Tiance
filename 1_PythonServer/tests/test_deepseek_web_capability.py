@@ -47,7 +47,7 @@ def service_fixture(monkeypatch, *, keys=None, enabled=True, missing=False):
 
 def grant(access, tool="deepseek_official_web_search", provider="unrelated-provider", model="other-model"):
     return access.issue_grant(
-        tool_name=tool, tool_call_id="call-1", provider_id=provider, model_id=model,
+        capabilities=(HostCapability.WEB_SEARCH if tool == "network_search" else HostCapability.DEEPSEEK_WEB,), tool_name=tool, tool_call_id="call-1", provider_id=provider, model_id=model,
         project_id="project-1", session_id="session-1", lifetime_seconds=60,
     )
 

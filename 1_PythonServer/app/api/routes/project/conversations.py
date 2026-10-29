@@ -2,7 +2,7 @@ import asyncio
 
 from fastapi import WebSocket, APIRouter, Query, status
 
-from app.core.errors import ConflictError
+from app.core.errors import ConflictError, NotFoundError
 from app.schemas.llm.usage import LlmSessionUsageSummaryResponse
 from app.schemas.project import (
     ApplyConversationRoleRequest,
@@ -204,6 +204,44 @@ def list_project_conversations(project_id: str) -> ProjectConversationListRespon
     )
 
 
+@router.get("/{project_id}/conversations/summaries", summary="List session summaries without settings or drafts")
+def list_project_conversation_summaries(project_id: str) -> dict:
+    revision, sessions, branch_nodes, variants, active_id, states = (
+        get_project_conversation_service().get_list_data(project_id, summaries_only=True)
+    )
+    items = []
+    for session in sessions:
+        item = ProjectConversationSessionResponse.from_domain(session).model_dump(
+            exclude={"settings", "role_status"}, mode="json",
+        )
+        items.append(item)
+    return {
+        "project_id": project_id, "revision": revision, "count": len(items),
+        "active_session_id": active_id, "items": items,
+        "session_states": {
+            key: ProjectConversationSessionStateResponse.from_domain(state).model_dump(
+                exclude={"draft", "references"}, mode="json",
+            ) for key, state in states.items()
+        },
+        "branch_nodes": [ProjectConversationBranchNodeResponse.from_domain(node) for node in branch_nodes],
+        "message_variants": [ProjectConversationMessageVariantResponse.from_domain(variant) for variant in variants],
+    }
+
+
+@router.get("/{project_id}/conversations/{session_id}/detail", summary="Read one session settings and draft snapshot")
+def get_project_conversation_detail(project_id: str, session_id: str) -> dict:
+    revision, sessions, _nodes, _variants, _active, states = (
+        get_project_conversation_service().get_list_data(project_id, session_id=session_id)
+    )
+    if not sessions:
+        raise NotFoundError(f"Conversation session '{session_id}' was not found.")
+    return {
+        "project_id": project_id, "revision": revision,
+        "session": ProjectConversationSessionResponse.from_domain(sessions[0]),
+        "state": ProjectConversationSessionStateResponse.from_domain(states[session_id]),
+    }
+
+
 @router.post(
     "/{project_id}/conversations",
     response_model=ProjectConversationSessionResponse,
@@ -288,6 +326,7 @@ def save_project_conversation_state(
         project_id,
         active_session_id=payload.active_session_id,
         should_update_active_session="active_session_id" in payload.model_fields_set,
+        include_full_state=False,
         session_runtime_statuses=dict(payload.session_runtime_statuses),
         session_drafts=dict(payload.session_drafts),
         session_references={

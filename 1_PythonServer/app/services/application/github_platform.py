@@ -12,35 +12,35 @@ from app.infra.github.client import GithubRepositorySource, parse_github_reposit
 from app.repositories.project import ProjectRepository, get_project_repository
 
 
-_TOOLS = {
-    "github_repository",
-    "github_pull_request",
-    "github_issue",
-    "github_release",
-    "github_actions",
+_RESOURCES = {
+    "repositories",
+    "pull_requests",
+    "issues",
+    "releases",
+    "actions",
 }
 _MUTATIONS = {
-    "github_repository": {
+    "repositories": {
         "create_repository", "update_repository", "fork_repository", "delete_repository",
     },
-    "github_pull_request": {
+    "pull_requests": {
         "create", "update", "comment", "review", "merge", "update_branch",
     },
-    "github_issue": {
+    "issues": {
         "create", "update", "comment", "set_labels", "add_assignees",
         "remove_assignees", "create_label", "delete_label",
     },
-    "github_release": {"create", "update", "delete", "upload_asset", "delete_asset"},
-    "github_actions": {"dispatch", "rerun", "rerun_failed", "cancel", "delete_run"},
+    "releases": {"create", "update", "delete", "upload_asset", "delete_asset"},
+    "actions": {"dispatch", "rerun", "rerun_failed", "cancel", "delete_run"},
 }
 _ALLOWED = {
-    "github_repository": _MUTATIONS["github_repository"] | {"list_repositories", "get_repository"},
-    "github_pull_request": _MUTATIONS["github_pull_request"] | {
+    "repositories": _MUTATIONS["repositories"] | {"list_repositories", "get_repository"},
+    "pull_requests": _MUTATIONS["pull_requests"] | {
         "list", "get", "compare", "list_reviews", "list_comments", "list_files",
     },
-    "github_issue": _MUTATIONS["github_issue"] | {"list", "get", "list_comments", "list_labels"},
-    "github_release": _MUTATIONS["github_release"] | {"list", "get", "list_assets"},
-    "github_actions": _MUTATIONS["github_actions"] | {
+    "issues": _MUTATIONS["issues"] | {"list", "get", "list_comments", "list_labels"},
+    "releases": _MUTATIONS["releases"] | {"list", "get", "list_assets"},
+    "actions": _MUTATIONS["actions"] | {
         "list_workflows", "list_runs", "get_run", "list_jobs", "get_job_logs",
     },
 }
@@ -56,34 +56,34 @@ class GithubPlatformService:
     async def execute(
         self,
         *,
-        tool_name: str,
+        resource: str,
         project_id: str | None,
         action: str,
         dry_run: bool,
         parameters: dict[str, Any],
         fallback_token: str | None,
     ) -> dict[str, Any]:
-        if tool_name not in _TOOLS:
-            raise BadRequestError("当前工具不能调用 GitHub 平台能力。")
+        if resource not in _RESOURCES:
+            raise BadRequestError("未知的 GitHub 资源能力。")
         normalized_action = action.strip().lower()
-        if normalized_action not in _ALLOWED[tool_name]:
-            raise BadRequestError(f"{tool_name} 不支持操作：{action}")
+        if normalized_action not in _ALLOWED[resource]:
+            raise BadRequestError(f"{resource} 不支持操作：{action}")
         if len(parameters) > 40:
             raise BadRequestError("GitHub 工具参数过多。")
         token = await self._access_token(fallback_token)
         try:
-            if dry_run and normalized_action in _MUTATIONS[tool_name]:
-                self._validate_mutation(tool_name, normalized_action, parameters, project_id)
-                preview = await self._preview(tool_name, normalized_action, parameters, token)
-                return self._result(tool_name, normalized_action, True, preview)
+            if dry_run and normalized_action in _MUTATIONS[resource]:
+                self._validate_mutation(resource, normalized_action, parameters, project_id)
+                preview = await self._preview(resource, normalized_action, parameters, token)
+                return self._result(resource, normalized_action, True, preview)
             data = await self._dispatch(
-                tool_name,
+                resource,
                 normalized_action,
                 parameters,
                 token,
                 project_id=project_id,
             )
-            return self._result(tool_name, normalized_action, False, data)
+            return self._result(resource, normalized_action, False, data)
         except GithubApiError as exc:
             raise BadRequestError(str(exc)) from exc
 
@@ -96,14 +96,14 @@ class GithubPlatformService:
         *,
         project_id: str | None,
     ) -> dict[str, Any]:
-        if tool == "github_repository":
+        if tool == "repositories":
             return await self._repository(action, p, token)
         repository = self._repository_source(p)
-        if tool == "github_pull_request":
+        if tool == "pull_requests":
             return await self._pull_request(repository, action, p, token)
-        if tool == "github_issue":
+        if tool == "issues":
             return await self._issue(repository, action, p, token)
-        if tool == "github_release":
+        if tool == "releases":
             return await self._release(repository, action, p, token, project_id)
         return await self._actions(repository, action, p, token)
 
@@ -131,21 +131,21 @@ class GithubPlatformService:
                 if exc.status_code != 404:
                     raise
                 preview["repositoryState"] = None
-        if tool == "github_pull_request" and action in {"merge", "update", "review", "comment", "update_branch"}:
+        if tool == "pull_requests" and action in {"merge", "update", "review", "comment", "update_branch"}:
             repository = self._repository_source(p)
             number = self._positive_int(p, "number")
             pull = await self._github.request_json(
                 "GET", f"{self._repo_path(repository)}/pulls/{number}", access_token=token,
             )
             preview["pullRequest"] = _pull_summary(pull)
-        if tool == "github_issue" and action in {"update", "comment", "set_labels", "add_assignees", "remove_assignees"}:
+        if tool == "issues" and action in {"update", "comment", "set_labels", "add_assignees", "remove_assignees"}:
             repository = self._repository_source(p)
             number = self._positive_int(p, "number")
             issue = await self._github.request_json(
                 "GET", f"{self._repo_path(repository)}/issues/{number}", access_token=token,
             )
             preview["issue"] = _issue_summary(issue)
-        if tool == "github_release" and action in {"update", "delete", "upload_asset"}:
+        if tool == "releases" and action in {"update", "delete", "upload_asset"}:
             repository = self._repository_source(p)
             release_id = self._positive_int(p, "releaseId")
             release = await self._github.request_json(
@@ -382,7 +382,7 @@ class GithubPlatformService:
         p: dict[str, Any],
         project_id: str | None,
     ) -> None:
-        if tool == "github_repository":
+        if tool == "repositories":
             if action == "create_repository":
                 self._required_string(p, "name")
             else:
@@ -396,7 +396,7 @@ class GithubPlatformService:
                 raise BadRequestError("update_repository 没有可更新字段。")
             return
         self._repository_source(p)
-        if tool == "github_pull_request":
+        if tool == "pull_requests":
             if action == "create":
                 for key in ("title", "head", "base"):
                     self._required_string(p, key)
@@ -407,7 +407,7 @@ class GithubPlatformService:
             if action == "review":
                 self._required_string(p, "event")
             return
-        if tool == "github_issue":
+        if tool == "issues":
             if action == "create":
                 self._required_string(p, "title")
             elif action in {"create_label", "delete_label"}:
@@ -423,7 +423,7 @@ class GithubPlatformService:
             if action in {"add_assignees", "remove_assignees"}:
                 _string_list(p.get("assignees"), "assignees")
             return
-        if tool == "github_release":
+        if tool == "releases":
             if action == "create":
                 self._required_string(p, "tag_name")
             elif action == "delete_asset":
@@ -501,7 +501,7 @@ class GithubPlatformService:
 
     @staticmethod
     def _result(tool: str, action: str, dry_run: bool, data: dict[str, Any]) -> dict[str, Any]:
-        return {"ok": True, "tool": tool, "action": action, "dryRun": dry_run, **data}
+        return {"ok": True, "resource": tool, "action": action, "dryRun": dry_run, **data}
 
 
 def _pick(source: dict[str, Any], names: set[str]) -> dict[str, Any]:

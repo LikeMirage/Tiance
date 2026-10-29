@@ -379,7 +379,7 @@
   position: fixed;
   z-index: 2500;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: 38px minmax(0, 1fr);
   width: min(440px, calc(100vw - 16px));
   min-width: min(300px, calc(100vw - 16px));
   height: 216px;
@@ -394,11 +394,13 @@
 }
 
 .chat-composer-add-menu__head {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
-  padding: 9px 10px;
+  min-height: 0;
+  padding: 4px 10px;
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
@@ -407,6 +409,7 @@
   color: var(--color-text-primary);
   font-size: 0.8rem;
   font-weight: 650;
+  white-space: nowrap;
 }
 
 .chat-composer-add-menu__head > span {

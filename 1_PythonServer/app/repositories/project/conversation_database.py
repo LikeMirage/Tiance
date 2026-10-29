@@ -25,6 +25,8 @@ SCHEMA_VERSION = 6
 _thread_state = local()
 _database_initialization_lock = Lock()
 _initialized_database_paths: set[Path] = set()
+# Derived request snapshots are readable documents, not conversation changes.
+_DERIVED_SESSION_DOCUMENTS = frozenset({"injection_preview"})
 
 
 def database_path_from_workspace(workspace_dir: Path) -> Path:
@@ -85,7 +87,8 @@ def transaction_for_conversations(conversations_dir: Path) -> Iterator[sqlite3.C
     active[path] = [connection, 1]
     try:
         yield connection
-        changed = connection.total_changes > 0
+        derived_changes = getattr(_thread_state, "derived_changes", {}).get(id(connection), 0)
+        changed = connection.total_changes > derived_changes
         if changed:
             _increment_conversation_revision(connection)
         connection.commit()
@@ -97,6 +100,7 @@ def transaction_for_conversations(conversations_dir: Path) -> Iterator[sqlite3.C
     finally:
         active.pop(path, None)
         getattr(_thread_state, "visible_connections", set()).discard(id(connection))
+        getattr(_thread_state, "derived_changes", {}).pop(id(connection), None)
         connection.close()
 
 
@@ -120,6 +124,7 @@ def connection_for_path(path: Path) -> Iterator[sqlite3.Connection]:
             conversation_changes.publish(resolved)
     finally:
         getattr(_thread_state, "visible_connections", set()).discard(id(connection))
+        getattr(_thread_state, "derived_changes", {}).pop(id(connection), None)
         connection.close()
 
 
@@ -232,6 +237,9 @@ def read_next_session_sequence_number(conversations_dir: Path) -> int:
 
 def read_conversation_list_snapshot(
     conversations_dir: Path,
+    *,
+    summaries_only: bool = False,
+    session_id: str | None = None,
 ) -> tuple[int, Any, dict[str, dict[str, Any]], dict[str, dict[str, Any]], Any]:
     """Read one consistent projection for conversation-list consumers."""
     path = database_path_from_conversations(conversations_dir).resolve()
@@ -243,20 +251,26 @@ def read_conversation_list_snapshot(
         if owns_snapshot:
             connection.execute("BEGIN")
         meta_rows = connection.execute(
-            """
+            f"""
             SELECT key, value_json FROM conversation_meta
-            WHERE key IN ('conversation_revision', 'conversation_index', 'branch_graph')
+            WHERE key IN ('conversation_revision', 'conversation_index'{", 'branch_graph'" if session_id is None else ""})
             """,
         ).fetchall()
+        session_payload = "json_remove(payload_json, '$.settings', '$.role_configuration_hash')" if summaries_only else "payload_json"
+        session_filter = " WHERE session_id = ?" if session_id is not None else ""
+        parameters = (session_id,) if session_id is not None else ()
         session_rows = connection.execute(
-            "SELECT session_id, payload_json FROM conversation_sessions",
+            f"SELECT session_id, {session_payload} FROM conversation_sessions{session_filter}",
+            parameters,
         ).fetchall()
+        draft_value = "''" if summaries_only else "draft.draft"
+        reference_value = "'[]'" if summaries_only else "reference.payload_json"
         state_rows = connection.execute(
-            """
+            f"""
             SELECT session.session_id,
                    runtime.runtime_status, runtime.updated_at,
-                   draft.draft, draft.updated_at,
-                   reference.payload_json, reference.updated_at
+                   {draft_value}, draft.updated_at,
+                   {reference_value}, reference.updated_at
             FROM conversation_sessions AS session
             LEFT JOIN conversation_session_runtime_states AS runtime
                 ON runtime.session_id = session.session_id
@@ -264,7 +278,9 @@ def read_conversation_list_snapshot(
                 ON draft.session_id = session.session_id
             LEFT JOIN conversation_session_references AS reference
                 ON reference.session_id = session.session_id
-            """
+            {"WHERE session.session_id = ?" if session_id is not None else ""}
+            """,
+            parameters,
         ).fetchall()
 
     meta = {str(key): _decode(raw_value) for key, raw_value in meta_rows}
@@ -827,24 +843,42 @@ def read_document(session_dir: Path, kind: str) -> dict[str, Any] | None:
 
 def write_document(session_dir: Path, kind: str, payload: dict[str, Any]) -> None:
     with connection_for_path(database_path_from_session(session_dir)) as connection:
-        _mark_visible_connection(connection)
+        before = connection.total_changes
         connection.execute(
             """
             INSERT INTO conversation_session_documents(session_id, kind, payload_json)
             VALUES (?, ?, ?)
             ON CONFLICT(session_id, kind) DO UPDATE SET payload_json = excluded.payload_json
+            WHERE conversation_session_documents.payload_json <> excluded.payload_json
             """,
             (session_id_from_session_dir(session_dir), kind, _encode(payload)),
         )
+        _mark_document_changes(connection, kind, before)
 
 
 def delete_document(session_dir: Path, kind: str) -> None:
     with connection_for_path(database_path_from_session(session_dir)) as connection:
-        _mark_visible_connection(connection)
+        before = connection.total_changes
         connection.execute(
             "DELETE FROM conversation_session_documents WHERE session_id = ? AND kind = ?",
             (session_id_from_session_dir(session_dir), kind),
         )
+        _mark_document_changes(connection, kind, before)
+
+
+def _mark_document_changes(connection: sqlite3.Connection, kind: str, before: int) -> None:
+    changes = connection.total_changes - before
+    if not changes:
+        return
+    if kind not in _DERIVED_SESSION_DOCUMENTS:
+        _mark_visible_connection(connection)
+        return
+    # An outer transaction also counts SQL writes. Exclude only this derived
+    # write, never real messages/settings/memory written in the same transaction.
+    if not hasattr(_thread_state, "derived_changes"):
+        _thread_state.derived_changes = {}
+    counts = _thread_state.derived_changes
+    counts[id(connection)] = counts.get(id(connection), 0) + changes
 
 
 def read_project_events(workspace_dir: Path, kind: str) -> list[dict[str, Any]]:
@@ -1436,6 +1470,13 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
             payload_json TEXT NOT NULL,
             PRIMARY KEY(kind, ordinal)
         );
+        CREATE INDEX IF NOT EXISTS idx_compression_record_id
+        ON conversation_session_events(session_id, json_extract(payload_json, '$.compression_id'))
+        WHERE kind = 'compressions';
+        CREATE INDEX IF NOT EXISTS idx_compression_status
+        ON conversation_session_events(session_id, json_extract(payload_json, '$.source_type'),
+            json_extract(payload_json, '$.status'), ordinal DESC)
+        WHERE kind = 'compressions';
         """
     )
     row = connection.execute("SELECT version FROM conversation_schema LIMIT 1").fetchone()

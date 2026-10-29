@@ -9,7 +9,7 @@ import type {
 import type { ConversationSessionsReloadResult } from "./useConversationSessions";
 
 type ChatExternalSessionSelectionOptions = {
-  activateSession: (sessionId: string) => void;
+  activateSession: (sessionId: string) => void | Promise<boolean>;
   activeSessionId: string | null;
   handledRequestIdRef: MutableRefObject<number | null>;
   onResult?: (result: ChatPanelSessionSelectionResult) => void;
@@ -90,7 +90,17 @@ export function useChatExternalSessionSelection({
       showChatView();
       return;
     }
-    activateSession(request.sessionId);
+    void Promise.resolve(activateSession(request.sessionId)).then((applied) => {
+      if (applied !== false || latestRequestRef.current?.requestId !== request.requestId) return;
+      onResult?.({
+        activeSessionId,
+        projectId,
+        requestId: request.requestId,
+        sessionId: request.sessionId,
+        status: "failed",
+        message: "会话详情读取失败，请重试。",
+      });
+    });
   }, [
     activateSession,
     activeSessionId,

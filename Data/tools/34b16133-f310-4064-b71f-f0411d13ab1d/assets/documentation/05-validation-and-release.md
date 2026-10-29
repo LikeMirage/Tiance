@@ -18,6 +18,14 @@ $env:PYTHONPATH = 'C:\实际应用目录\1_PythonServer'
 
 使用 PowerShell 单引号保护 JSON，不能把模型或用户输入拼成未经转义的 shell 命令。新模板此时应返回未实现错误，退出码非零，这是正确行为。
 
+## 能力桥验证
+
+复用已有后端能力不需要增加工具名称白名单。测试声明与真实调用能力一致，修改调用名仍能工作；没有声明、错误能力、过期、失败/取消后的旧凭据都必须被拒绝。前端能力要验证名称/版本登记、取消与重复事件。
+
+至少验证一次“平台执行 → SDK → 真实网关中间件 → 能力授权 → 业务服务”的完整链路。只替换 HTTP 返回值的工具单测不能证明网关允许访问。普通界面 API 仍应拒绝工具凭据。动态调用取实际目标工具的声明。GUI 等后台助手还应验证父工具返回后可继续只读观察，原任务结束或换代后不可继续使用旧授权。
+
+后端参考 tests/test_declared_host_capabilities.py、test_gateway_auth.py、test_host_capability_access.py、test_conversation_run_manager.py。新增能力时同步更新注册表和 04 的能力清单；它们不是工具市场包里的可执行后端，使用新能力的包必须要求包含该能力的主程序版本。
+
 ## 如何开启
 
 配置位置是本项目 `.tool/tool.json`，把 `state.enabled` 设置为 true。工具制作完成不意味着用户希望立即开放；明确的启用指示才执行。修改清单后确认注册成功；目标会话的工具总开关与选择列表也必须允许该工具。不要未经指示批量改所有会话或角色模板。
@@ -33,7 +41,7 @@ $env:PYTHONPATH = 'C:\实际应用目录\1_PythonServer'
 | 参数不允许/缺少必填 | AI 实际 arguments 与 input.schema.json 的位置、类型、额外字段和分支条件 |
 | 前端能力不可用 | 能力名称/版本是否登记、前端是否重建、是否保持连接、是否重启了旧后端 |
 | 缺少 tool_project_id | 使用了未更新的后端请求合同，不能回退到调用方 project_id |
-| 宿主能力无授权 | 调用名白名单、短期凭据、过期/撤销、能力类型、所需模型/登录是否存在 |
+| 宿主能力无授权 | runtime.host_capabilities 声明、平台签发的短期凭据、过期/撤销、能力类型、所需模型/登录是否存在 |
 | stdout 不是 JSON | 初始化输出、第三方日志、BOM、额外 print、多个对象或进程崩溃 |
 | 找不到 tiance_runtime/依赖 | 手动启动的 PYTHONPATH、工具私有依赖环境、实际解释器版本 |
 | 创建失败但分类里已有项目 | 读取 returned project/root_path，检查 written_files/attempted_file，继续修复，不重复创建 |

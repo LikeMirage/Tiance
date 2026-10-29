@@ -1,5 +1,6 @@
 import asyncio
 from dataclasses import replace
+from threading import Event
 
 import httpx
 import pytest
@@ -88,6 +89,45 @@ def test_usage_storage_failure_does_not_fail_completed_model_response():
     result = asyncio.run(service.complete(_request(project_id="p1", session_id="s1")))
 
     assert result.message.content == "ok"
+
+
+@pytest.mark.parametrize('streaming', [False, True])
+def test_usage_write_leaves_loop_responsive_and_cancellation_waits_for_commit(tmp_path, streaming):
+    entered, release = Event(), Event()
+    repository = LlmUsageRepository(tmp_path)
+    class GatedUsageService:
+        def record_message_usage(self, **kwargs):
+            entered.set()
+            assert release.wait(timeout=5), 'writer was never released'
+            repository.record_usage(**kwargs)
+    usage = ChatUsage(prompt_tokens=3, completion_tokens=5, total_tokens=8)
+    service = _build_service(
+        remote_client=_FakeRemoteClient(
+            complete_result=ChatCompletionResult(
+                provider_id='deepseek', model_id='deepseek-v4',
+                message=ChatMessage(role=ChatMessageRole.ASSISTANT, content='ok'), usage=usage),
+            stream_events=(ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=usage),
+                           ChatStreamEvent(kind=ChatStreamEventKind.DONE)),
+        ), usage_service=GatedUsageService())
+    async def run():
+        async def consume():
+            if streaming:
+                return [event async for event in service.stream(_request(project_id=None, session_id=None))]
+            return await service.complete(_request(project_id=None, session_id=None))
+        task = asyncio.create_task(consume())
+        try:
+            assert await asyncio.to_thread(entered.wait, 3)
+            # This code must execute while the writer is blocked in its thread.
+            assert not task.done()
+            task.cancel()
+            await asyncio.sleep(0)
+            assert not task.done()
+        finally:
+            release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert len(tuple(repository._store.iter_records())) == 1
+    asyncio.run(run())
 
 
 def test_complete_records_usage_with_message_id_when_provided():

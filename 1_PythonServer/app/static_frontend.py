@@ -1,4 +1,6 @@
 import logging
+from pathlib import Path
+import re
 
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
@@ -7,14 +9,20 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
+_HASHED_ASSET = re.compile(r"^.+-[A-Za-z0-9_-]{8,}\.(?:js|css|woff2?|ttf|otf|png|jpe?g|webp|gif|svg|ico|wasm)(?:\.map)?$")
 
 
 class FrontendStaticFiles(StaticFiles):
     def file_response(self, full_path, stat_result, scope, status_code=200):
         response = super().file_response(full_path, stat_result, scope, status_code=status_code)
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
+        relative = Path(full_path).resolve().relative_to(Path(self.directory).resolve())
+        if relative.parts[0] == "assets" and _HASHED_ASSET.fullmatch(relative.name):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            # HTML and public/ files retain stable URLs across builds.
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
         return response
 
 

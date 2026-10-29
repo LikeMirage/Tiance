@@ -6,6 +6,7 @@ from .tool_call_records import router as tool_call_records_router
 from .tool_folder_files import router as tool_folder_files_router
 from .toolsets import router as toolsets_router
 from .tool_market import router as tool_market_router
+from .host_capabilities import router as host_capabilities_router
 
 router = APIRouter()
 router.include_router(tool_catalog_router)
@@ -14,5 +15,6 @@ router.include_router(tool_folder_files_router)
 router.include_router(tool_dependencies_router)
 router.include_router(tool_call_records_router)
 router.include_router(tool_market_router)
+router.include_router(host_capabilities_router)
 
 __all__ = ["router"]

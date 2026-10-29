@@ -20,6 +20,9 @@
   "registration_name": "DeepSeek 官方网络搜索",
   "runtime": {
     "entry": "program/main.py",
+    "host_capabilities": [
+      "deepseek_web"
+    ],
     "timeout_seconds": 180,
     "type": "python"
   },

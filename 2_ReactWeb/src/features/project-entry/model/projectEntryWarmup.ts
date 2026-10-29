@@ -7,7 +7,7 @@ import { isTextFile } from "../../../entities/editor/model/languageMapping";
 import type { ConversationUsageSummary } from "../../../services/project/getProjectConversationUsageSummary";
 import { getProjectConversationUsageSummary } from "../../../services/project/getProjectConversationUsageSummary";
 import { CONVERSATION_MESSAGE_PAGE_SIZE, getProjectConversationMessages } from "../../../services/project/getProjectConversationMessages";
-import { getProjectConversations } from "../../../services/project/getProjectConversations";
+import { loadSelectedConversationList } from "../../../services/project/getProjectConversationSummaries";
 import {
   getProjectWorkspaceState,
   type WorkspaceStateResponse,
@@ -115,7 +115,7 @@ async function loadProjectEntryWarmup(
   const warmup = createEmptyWarmup(projectId);
 
   const workspaceStatePromise = getProjectWorkspaceState(projectId).catch(() => null);
-  const conversationsPromise = getProjectConversations(projectId).catch(() => null);
+  const conversationsPromise = loadSelectedConversationList(projectId, null, {}).catch(() => null);
   const rootTreePromise = getFileWorkspaceTreeWithTimeout(api)
     .then((response) => response.items.map(mapFileWorkspaceNode))
     .catch(() => null);
@@ -224,7 +224,7 @@ async function refreshWarmupConversations(
   warmup: ProjectEntryWarmup,
   sessionId?: string | null,
 ) {
-  const conversations = await getProjectConversations(projectId).catch(() => null);
+  const conversations = await loadSelectedConversationList(projectId, null, {}).catch(() => null);
   if (!conversations) {
     await preloadRequestedSession(projectId, warmup, sessionId);
     return;

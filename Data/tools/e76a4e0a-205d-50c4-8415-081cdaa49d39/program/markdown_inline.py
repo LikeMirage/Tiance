@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 
 from smart_quotes import normalize_double_quotes
-from text_scanning import is_escaped
+from text_scanning import EscapeIndex
 
 
 BACKTICK_RUN_RE = re.compile(r"`+")
@@ -32,8 +32,9 @@ class InlineToken:
 def tokenize_inline(text: str, start: int = 0):
     position = max(0, start)
     plain_start = position
+    escaped = EscapeIndex(text)
     while position < len(text):
-        token = _match_token_at(text, position)
+        token = _match_token_at(text, position, escaped)
         if token is None:
             position += 1
             continue
@@ -148,33 +149,33 @@ def _clear_range(eligible: list[bool], start: int, end: int) -> None:
         eligible[index] = False
 
 
-def _match_token_at(text: str, position: int) -> InlineToken | None:
-    if is_escaped(text, position):
+def _match_token_at(text: str, position: int, escaped: EscapeIndex) -> InlineToken | None:
+    if escaped(position):
         return None
     if (
         text[position] == "["
         and position > 0
         and text[position - 1] == "!"
-        and is_escaped(text, position - 1)
+        and escaped(position - 1)
     ):
         return None
     if text[position] == "`":
-        code_span = _find_code_span_at(text, position)
+        code_span = _find_code_span_at(text, position, escaped)
         if code_span is not None:
             end, value = code_span
             return InlineToken(position, end, "code", text[position:end], value)
     if text[position] == "$":
-        math_span = _find_inline_math_span_at(text, position)
+        math_span = _find_inline_math_span_at(text, position, escaped)
         if math_span is not None:
             end, value = math_span
             return InlineToken(position, end, "math", text[position:end], value)
     if text.startswith(r"\(", position):
-        closer = _find_sequence_closer(text, position + 2, r"\)")
+        closer = _find_sequence_closer(text, position + 2, r"\)", escaped)
         if closer >= 0:
             end = closer + 2
             return InlineToken(position, end, "math", text[position:end], text[position + 2 : closer])
     if text[position] in {"!", "["}:
-        link_end = _find_markdown_link_end(text, position)
+        link_end = _find_markdown_link_end(text, position, escaped)
         if link_end is not None:
             return InlineToken(
                 position,
@@ -195,14 +196,14 @@ def _match_token_at(text: str, position: int) -> InlineToken | None:
     )
 
 
-def _find_code_span_at(text: str, opener_start: int) -> tuple[int, str] | None:
+def _find_code_span_at(text: str, opener_start: int, escaped: EscapeIndex) -> tuple[int, str] | None:
     opener = BACKTICK_RUN_RE.match(text, opener_start)
     if opener is None:
         return None
     delimiter_length = len(opener.group(0))
     closer_search_from = opener.end()
     while closer := BACKTICK_RUN_RE.search(text, closer_search_from):
-        if len(closer.group(0)) == delimiter_length and not is_escaped(text, closer.start()):
+        if len(closer.group(0)) == delimiter_length and not escaped(closer.start()):
             value = text[opener.end() : closer.start()].replace("\n", " ")
             if value.startswith(" ") and value.endswith(" ") and value.strip():
                 value = value[1:-1]
@@ -211,13 +212,13 @@ def _find_code_span_at(text: str, opener_start: int) -> tuple[int, str] | None:
     return None
 
 
-def _find_inline_math_span_at(text: str, opener_index: int) -> tuple[int, str] | None:
-    if text[opener_index] != "$" or is_escaped(text, opener_index):
+def _find_inline_math_span_at(text: str, opener_index: int, escaped: EscapeIndex) -> tuple[int, str] | None:
+    if text[opener_index] != "$" or escaped(opener_index):
         return None
-    if opener_index > 0 and text[opener_index - 1] == "$" and not is_escaped(text, opener_index - 1):
+    if opener_index > 0 and text[opener_index - 1] == "$" and not escaped(opener_index - 1):
         return None
     delimiter = "$$" if text.startswith("$$", opener_index) else "$"
-    closer_index = _find_math_closer(text, opener_index + len(delimiter), delimiter)
+    closer_index = _find_math_closer(text, opener_index + len(delimiter), delimiter, escaped)
     if closer_index < 0:
         return None
     content = text[opener_index + len(delimiter) : closer_index]
@@ -227,13 +228,13 @@ def _find_inline_math_span_at(text: str, opener_index: int) -> tuple[int, str] |
     return end, content
 
 
-def _find_math_closer(text: str, start: int, delimiter: str) -> int:
+def _find_math_closer(text: str, start: int, delimiter: str, escaped: EscapeIndex) -> int:
     index = start
     while index < len(text):
         index = text.find(delimiter, index)
         if index < 0:
             return -1
-        if is_escaped(text, index):
+        if escaped(index):
             index += len(delimiter)
             continue
         if delimiter == "$" and (
@@ -267,33 +268,36 @@ def _is_inline_math_candidate(
     return opener_index == 0 or text[opener_index - 1] != "$"
 
 
-def _find_sequence_closer(text: str, start: int, delimiter: str) -> int:
+def _find_sequence_closer(text: str, start: int, delimiter: str, escaped: EscapeIndex) -> int:
     position = start
     while True:
         position = text.find(delimiter, position)
         if position < 0:
             return -1
-        if not is_escaped(text, position):
+        if not escaped(position):
             return position
         position += len(delimiter)
 
 
-def _find_markdown_link_end(text: str, position: int) -> int | None:
+def _find_markdown_link_end(text: str, position: int, escaped: EscapeIndex) -> int | None:
     label_start = position + 1 if text.startswith("![", position) else position
     if label_start >= len(text) or text[label_start] != "[":
         return None
-    label_end = _find_balanced_closer(text, label_start, "[", "]")
+    label_end = _find_balanced_closer(text, label_start, "[", "]", escaped)
     if label_end < 0 or label_end + 1 >= len(text) or text[label_end + 1] != "(":
         return None
-    destination_end = _find_balanced_closer(text, label_end + 1, "(", ")")
+    destination_end = _find_balanced_closer(text, label_end + 1, "(", ")", escaped)
     return destination_end + 1 if destination_end >= 0 else None
 
 
-def _find_balanced_closer(text: str, opener: int, opening: str, closing: str) -> int:
+def _find_balanced_closer(
+    text: str, opener: int, opening: str, closing: str, escaped: EscapeIndex | None = None,
+) -> int:
+    escaped = escaped if escaped is not None else EscapeIndex(text)
     depth = 0
     position = opener
     while position < len(text):
-        if is_escaped(text, position):
+        if escaped(position):
             position += 1
             continue
         character = text[position]

@@ -5,7 +5,7 @@ import { dispatchProjectConversationUpdated } from "../../../entities/llm-chat/m
 import { useI18n } from "../../../shared/i18n";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import { deleteProjectConversation } from "../../../services/project/deleteProjectConversation";
-import { getProjectConversations } from "../../../services/project/getProjectConversations";
+import { getProjectConversationSummaries as getProjectConversations } from "../../../services/project/getProjectConversationSummaries";
 import { setProjectConversationPinned } from "../../../services/project/setProjectConversationPinned";
 import { updateProjectConversation } from "../../../services/project/updateProjectConversation";
 import { useProjectConversationOverview } from "../model/useProjectConversationOverview";

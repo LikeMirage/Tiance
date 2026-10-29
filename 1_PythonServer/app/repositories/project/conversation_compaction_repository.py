@@ -4,7 +4,6 @@ from copy import deepcopy
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from functools import lru_cache
-from json import dumps, loads
 from pathlib import Path
 from shutil import rmtree
 from typing import Any
@@ -32,13 +31,11 @@ from app.repositories.project.conversation_branch_store import (
     RELATION_KIND_FUNCTIONAL,
     ConversationBranchStore,
 )
-from app.repositories.project.conversation_memory_repository import COMPRESSIONS_FILE
 from app.repositories.project.conversation_serialization import (
     _new_session_id,
     _utc_now,
 )
 from app.repositories.project.conversation_storage import (
-    atomic_write_text,
     conversation_write_lock,
 )
 from app.repositories.project.conversation_stores import (
@@ -53,9 +50,14 @@ from app.repositories.project.project_repository import (
 from app.repositories.project.conversation_database import (
     delete_document,
     read_document,
-    read_events,
-    replace_events,
     write_document,
+)
+from app.repositories.project.conversation_compression_records import (
+    active_compression_records,
+    append_compression_record,
+    latest_completed_compression_id,
+    read_compression_record,
+    update_compression_record,
 )
 
 
@@ -132,15 +134,12 @@ class ProjectConversationCompactionRepository:
             if existing is not None:
                 return existing
 
-            index = self._session_store.read_index(conversations_dir)
-            records = _read_jsonl(source_session_dir / COMPRESSIONS_FILE)
-            records, has_active_task = _recover_stale_tasks(
-                records,
+            has_active_task = _recover_stale_tasks(
+                source_session_dir,
                 conversations_dir=conversations_dir,
                 session_store=self._session_store,
                 now=_utc_now(),
             )
-            _write_jsonl(source_session_dir / COMPRESSIONS_FILE, records)
             if has_active_task:
                 raise ConflictError("当前会话已有记忆压缩任务正在处理。")
 
@@ -243,21 +242,15 @@ class ProjectConversationCompactionRepository:
             if snapshot_boundary_index is None:
                 raise ConflictError("记忆压缩快照边界已不在来源会话中，任务未创建。")
 
-            index = self._session_store.read_index(conversations_dir)
-            source_records = _read_jsonl(source_session_dir / COMPRESSIONS_FILE)
-            source_records, has_active_task = _recover_stale_tasks(
-                source_records,
+            has_active_task = _recover_stale_tasks(
+                source_session_dir,
                 conversations_dir=conversations_dir,
                 session_store=self._session_store,
                 now=_utc_now(),
             )
             if has_active_task:
                 raise ConflictError("当前会话已有记忆压缩任务正在处理。")
-            _write_jsonl(
-                source_session_dir / COMPRESSIONS_FILE,
-                source_records,
-            )
-            current_active_id = _latest_completed_compression_id(source_records)
+            current_active_id = latest_completed_compression_id(source_session_dir)
             if current_active_id != supersedes_compression_id:
                 raise ConflictError("来源会话的压缩边界已经变化，任务未创建。")
 
@@ -357,9 +350,6 @@ class ProjectConversationCompactionRepository:
                 for_write=True,
             )
             temporary_dir = Path(f"{target_session_dir}.tmp-{uuid4().hex}")
-            index_written = False
-            graph_written = False
-            records_written = False
             try:
                 temporary_dir.mkdir(parents=True, exist_ok=False)
                 self._session_store.write_session(
@@ -389,29 +379,13 @@ class ProjectConversationCompactionRepository:
                     set_active=False,
                 )
                 self._session_store.write_index(conversations_dir, next_index)
-                index_written = True
                 self._branch_store.write_graph(conversations_dir, graph)
-                graph_written = True
-                _write_jsonl(
-                    source_session_dir / COMPRESSIONS_FILE,
-                    [*source_records, pending_record],
-                )
-                records_written = True
+                append_compression_record(source_session_dir, pending_record)
             except Exception:
                 if temporary_dir.exists():
                     rmtree(temporary_dir, ignore_errors=True)
-                if records_written:
-                    _write_jsonl(
-                        source_session_dir / COMPRESSIONS_FILE,
-                        source_records,
-                    )
-                if graph_written:
-                    self._branch_store.write_graph(
-                        conversations_dir,
-                        original_graph,
-                    )
-                if index_written:
-                    self._session_store.write_index(conversations_dir, index)
+                # SQLite rolls back graph, index, messages and compression rows.
+                # Only the newly created physical directory needs cleanup here.
                 if target_session_dir.exists():
                     rmtree(target_session_dir, ignore_errors=True)
                 raise
@@ -479,9 +453,8 @@ class ProjectConversationCompactionRepository:
                 source_session_id,
                 for_write=True,
             )
-            records = _read_jsonl(source_session_dir / COMPRESSIONS_FILE)
-            next_records = _replace_record(
-                records,
+            update_compression_record(
+                source_session_dir,
                 str(task["compression_id"]),
                 {
                     "status": "failed",
@@ -489,19 +462,7 @@ class ProjectConversationCompactionRepository:
                     "failure": failure,
                 },
             )
-            try:
-                _write_json_object(task_path, task)
-                _write_jsonl(
-                    source_session_dir / COMPRESSIONS_FILE,
-                    next_records,
-                )
-            except Exception:
-                _write_json_object(task_path, original_task)
-                _write_jsonl(
-                    source_session_dir / COMPRESSIONS_FILE,
-                    records,
-                )
-                raise
+            _write_json_object(task_path, task)
             return task
 
     def submit_result(
@@ -551,12 +512,7 @@ class ProjectConversationCompactionRepository:
                 source_session_id,
                 for_write=True,
             )
-            source_records = _read_jsonl(
-                source_session_dir / COMPRESSIONS_FILE
-            )
-            current_active_id = _latest_completed_compression_id(
-                source_records
-            )
+            current_active_id = latest_completed_compression_id(source_session_dir)
             if current_active_id != task.get("supersedes_compression_id"):
                 raise ConflictError("来源会话已有更新的压缩结果，本次提交已失效。")
 
@@ -581,21 +537,11 @@ class ProjectConversationCompactionRepository:
                 task.get("compression_id"),
                 "compression_id",
             )
-            next_source_records = _replace_record(
-                source_records,
-                compression_id,
-                completed_fields,
-            )
-            function_records = _read_jsonl(
-                function_session_dir / COMPRESSIONS_FILE
-            )
+            source_record = read_compression_record(source_session_dir, compression_id)
             function_record = {
                 **{
                     key: value
-                    for key, value in _record_for_id(
-                        source_records,
-                        compression_id,
-                    ).items()
+                    for key, value in source_record.items()
                     if key not in {"session_id", "source_message_ids", "newly_covered_message_ids"}
                 },
                 **completed_fields,
@@ -608,7 +554,7 @@ class ProjectConversationCompactionRepository:
                     _string_list(task.get("function_source_message_ids"))
                 ),
                 "supersedes_compression_id": (
-                    _latest_completed_compression_id(function_records)
+                    latest_completed_compression_id(function_session_dir)
                 ),
                 "inherited_from": {
                     "session_id": source_session_id,
@@ -622,27 +568,9 @@ class ProjectConversationCompactionRepository:
                 "result": result,
                 "failure": None,
             }
-            try:
-                _write_jsonl(
-                    source_session_dir / COMPRESSIONS_FILE,
-                    next_source_records,
-                )
-                _write_jsonl(
-                    function_session_dir / COMPRESSIONS_FILE,
-                    [*function_records, function_record],
-                )
-                _write_json_object(task_path, completed_task)
-            except Exception:
-                _write_jsonl(
-                    source_session_dir / COMPRESSIONS_FILE,
-                    source_records,
-                )
-                _write_jsonl(
-                    function_session_dir / COMPRESSIONS_FILE,
-                    function_records,
-                )
-                _write_json_object(task_path, task)
-                raise
+            update_compression_record(source_session_dir, compression_id, completed_fields)
+            append_compression_record(function_session_dir, function_record)
+            _write_json_object(task_path, completed_task)
             return completed_task
 
     def read_task(
@@ -690,27 +618,12 @@ class ProjectConversationCompactionRepository:
                 str(task["source_session_id"]),
                 for_write=True,
             )
-            records = _read_jsonl(source_session_dir / COMPRESSIONS_FILE)
-            next_records = _replace_record(
-                records,
+            update_compression_record(
+                source_session_dir,
                 str(task["compression_id"]),
                 {"status": status},
             )
-            original_task = _read_json_object(task_path)
-            try:
-                _write_json_object(task_path, task)
-                _write_jsonl(
-                    source_session_dir / COMPRESSIONS_FILE,
-                    next_records,
-                )
-            except Exception:
-                if original_task is not None:
-                    _write_json_object(task_path, original_task)
-                _write_jsonl(
-                    source_session_dir / COMPRESSIONS_FILE,
-                    records,
-                )
-                raise
+            _write_json_object(task_path, task)
             return task
 
 
@@ -729,21 +642,14 @@ def _message_index(
 
 
 def _recover_stale_tasks(
-    records: list[dict[str, Any]],
+    source_session_dir: Path,
     *,
     conversations_dir: Path,
     session_store: ConversationSessionStore,
     now: str,
-) -> tuple[list[dict[str, Any]], bool]:
+) -> bool:
     active_remains = False
-    recovered: list[dict[str, Any]] = []
-    for record in records:
-        if (
-            record.get("source_type") != COMPACTION_SOURCE_TYPE
-            or record.get("status") not in ACTIVE_TASK_STATUSES
-        ):
-            recovered.append(record)
-            continue
+    for record in active_compression_records(source_session_dir):
         function_session_id = record.get("function_session_id")
         runtime_status = (
             session_store.read_session_state(
@@ -758,7 +664,6 @@ def _recover_stale_tasks(
             now,
         ):
             active_remains = True
-            recovered.append(record)
             continue
 
         failure = {
@@ -766,13 +671,13 @@ def _recover_stale_tasks(
             "reason": "orphaned_task",
             "message": "记忆压缩任务已不再运行，系统已释放陈旧任务锁。",
         }
-        recovered_record = {
-            **record,
+        fields = {
             "status": "failed",
             "completed_at": now,
             "failure": failure,
         }
-        recovered.append(recovered_record)
+        update_compression_record(source_session_dir,
+            _required_text(record.get("compression_id"), "compression_id"), fields)
         if isinstance(function_session_id, str):
             task_path = (
                 conversations_dir
@@ -791,7 +696,7 @@ def _recover_stale_tasks(
                         "failure": failure,
                     },
                 )
-    return recovered, active_remains
+    return active_remains
 
 
 def _task_is_older_than_grace(created_at: object, now: str) -> bool:
@@ -809,59 +714,10 @@ def _task_is_older_than_grace(created_at: object, now: str) -> bool:
     return (current - created).total_seconds() >= STALE_TASK_GRACE_SECONDS
 
 
-def _latest_completed_compression_id(
-    records: list[dict[str, Any]],
-) -> str | None:
-    for record in reversed(records):
-        if (
-            record.get("source_type") == COMPACTION_SOURCE_TYPE
-            and record.get("status") == "completed"
-            and isinstance(record.get("compression_id"), str)
-        ):
-            return str(record["compression_id"])
-    return None
-
-
-def _replace_record(
-    records: list[dict[str, Any]],
-    compression_id: str,
-    fields: dict[str, Any],
-) -> list[dict[str, Any]]:
-    changed = False
-    updated: list[dict[str, Any]] = []
-    for record in records:
-        if record.get("compression_id") == compression_id:
-            updated.append({**record, **fields})
-            changed = True
-        else:
-            updated.append(record)
-    if not changed:
-        raise ConflictError("记忆压缩记录不存在，未写入结果。")
-    return updated
-
-
-def _record_for_id(
-    records: list[dict[str, Any]],
-    compression_id: str,
-) -> dict[str, Any]:
-    for record in records:
-        if record.get("compression_id") == compression_id:
-            return record
-    raise ConflictError("记忆压缩记录不存在。")
-
-
 def _compression_ratio(source_tokens: int, compressed_tokens: int) -> float | None:
     if source_tokens <= 0:
         return None
     return round(compressed_tokens / source_tokens * 100, 4)
-
-
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    return read_events(path.parent, path.stem)
-
-
-def _write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
-    replace_events(path.parent, path.stem, records)
 
 
 def _read_json_object(path: Path) -> dict[str, Any] | None:

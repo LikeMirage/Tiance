@@ -21,7 +21,10 @@
   "runtime": {
     "entry": "program/main.py",
     "timeout_seconds": 600,
-    "type": "python"
+    "type": "python",
+    "host_capabilities": [
+      "github_pull_requests"
+    ]
   },
   "state": {
     "enabled": true

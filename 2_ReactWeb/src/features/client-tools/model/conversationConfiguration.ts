@@ -265,8 +265,9 @@ function validateSamplingSettings(
 }
 
 function pickConfigurableSettings(
-  settings: ConversationSessionSettings,
+  settings: ConversationSessionSettings | undefined,
 ): ConfigurableConversationSettings {
+  if (!settings) throw new Error("会话设置尚未读取，不能使用摘要执行配置操作。");
   void CONFIGURABLE_SETTING_KEYS_ARE_EXHAUSTIVE;
   const result = {} as ConfigurableConversationSettings;
   for (const key of CONFIGURABLE_SETTING_KEYS) {

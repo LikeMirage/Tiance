@@ -131,6 +131,7 @@ def test_git_tool_receives_only_its_own_host_capability():
     access = HostCapabilityAccessService()
     grant = access.issue_grant(
         tool_name="git_repository",
+        capabilities=(HostCapability.GIT_REPOSITORY,),
         tool_call_id="call-1",
         provider_id="provider-1",
         model_id="model-1",

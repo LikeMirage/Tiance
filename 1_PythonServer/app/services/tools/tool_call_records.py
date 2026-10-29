@@ -5,6 +5,7 @@ from dataclasses import replace
 from functools import lru_cache
 
 from app.domain.llm.chat import ChatToolResult
+from app.domain.tools.call_record_page import ToolCallRecordPage
 from app.domain.usage_statistics import StatisticsMonth
 from app.domain.tools import (
     ToolCallRecord,
@@ -87,6 +88,35 @@ class ToolCallRecordService:
             record for record in self._all_records() if record.tool_name == tool_name
         )
         return tuple(self._with_current_names(record) for record in records)
+
+    def list_project_page(
+        self, category_id: str, project_id: str, *, limit: int = 50,
+        offset: int = 0, snapshot: str | None = None,
+    ) -> ToolCallRecordPage:
+        project = self._tool_projects.require_tool_project(category_id, project_id)
+        page = self._repository.list_project_page(
+            project.root_path, limit=limit, offset=offset, snapshot=snapshot,
+        )
+        # Names are current at request time, but each distinct source is read only once.
+        project_names: dict[str | None, str] = {}
+        session_titles: dict[tuple[str | None, str | None], str] = {}
+        items = []
+        for item in page.items:
+            if item.source_project_id not in project_names:
+                project_names[item.source_project_id] = self._current_project_name(item.source_project_id)
+            session_key = (item.source_project_id, item.session_id)
+            if session_key not in session_titles:
+                session_titles[session_key] = self._current_session_title(*session_key)
+            items.append(replace(item, source_project_name=project_names[item.source_project_id],
+                                 session_title=session_titles[session_key]))
+        return replace(page, items=tuple(items))
+
+    def get_project_record(
+        self, category_id: str, project_id: str, record_id: str,
+    ) -> ToolCallRecord | None:
+        project = self._tool_projects.require_tool_project(category_id, project_id)
+        record = self._repository.get_project_record(project.root_path, record_id)
+        return self._with_current_names(record) if record is not None else None
 
     def get_total_call_count(self) -> int:
         return len(self._repository.list_statistics(self._project_roots()))

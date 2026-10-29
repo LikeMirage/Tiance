@@ -1,4 +1,7 @@
 from pydantic import BaseModel, Field
+from dataclasses import asdict
+
+from app.domain.tools.call_record_page import ToolCallRecordListItem
 
 from app.domain.tools import (
     ToolCallRecord,
@@ -46,11 +49,33 @@ class ToolCallRecordResponse(BaseModel):
         )
 
 
+class ToolCallRecordListItemResponse(BaseModel):
+    record_id: str
+    tool_project_id: str
+    tool_name: str
+    call_id: str
+    source_project_id: str | None
+    source_project_name: str
+    session_id: str | None
+    session_title: str
+    ok: bool
+    created_at: str
+    elapsed_ms: int | None
+    dynamic: bool | None
+
+    @classmethod
+    def from_domain(cls, record: ToolCallRecordListItem) -> "ToolCallRecordListItemResponse":
+        return cls(**asdict(record))
+
+
 class ToolCallRecordListResponse(BaseModel):
     category_id: str
     project_id: str
     count: int
-    items: list[ToolCallRecordResponse] = Field(default_factory=list)
+    offset: int
+    limit: int
+    snapshot: str | None
+    items: list[ToolCallRecordListItemResponse] = Field(default_factory=list)
 
 
 class ToolCallRecordTopToolResponse(BaseModel):

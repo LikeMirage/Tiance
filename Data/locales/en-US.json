@@ -17,13 +17,15 @@
         "deleting": "Deleting",
         "edit": "Edit",
         "open": "Open",
+        "pin": "Pin",
         "refresh": "Refresh",
         "rename": "Rename",
         "reset": "Reset",
         "retry": "Retry",
         "save": "Save",
         "saving": "Saving",
-        "search": "Search"
+        "search": "Search",
+        "unpin": "Unpin"
       },
       "status": {
         "loading": "Loading",
@@ -47,26 +49,27 @@
       "sections": {
         "overview": "Projects",
         "tools": "Tools",
-        "knowledge": "Knowledge Base",
+        "literature": "Literature",
         "experience": "Experience",
         "roles": "Roles",
         "models": "Models",
+        "settings": "Settings",
         "themes": "Themes",
-        "settings": "Settings"
+        "knowledge": "Knowledge Base"
       },
       "subitems": {
         "projectCategories": "Project categories",
-        "roleCategories": "Role categories",
-        "themeCategories": "Theme categories",
         "toolsets": "Toolsets",
         "emptyProjectCategories": "No project categories",
-        "emptyRoleCategories": "No role categories",
-        "emptyThemeCategories": "No theme categories",
         "saveName": "Save name",
         "addProjectCategory": "Add project category",
+        "addToolset": "Add toolset",
+        "roleCategories": "Role categories",
+        "themeCategories": "Theme categories",
+        "emptyRoleCategories": "No role categories",
+        "emptyThemeCategories": "No theme categories",
         "addRoleCategory": "Add role category",
-        "addThemeCategory": "Add theme category",
-        "addToolset": "Add toolset"
+        "addThemeCategory": "Add theme category"
       },
       "theme": {
         "fallback": "Theme",
@@ -74,13 +77,13 @@
       },
       "delete": {
         "projectCategoryTitle": "Delete Project Category",
-        "projectCategoryMessage": "Deleting \"{label}\" also deletes every project and project folder in it. This cannot be undone in the app.",
-        "roleCategoryTitle": "Delete Role Category",
-        "roleCategoryMessage": "Deleting \"{label}\" also deletes every role and role folder in it. This cannot be undone in the app.",
-        "themeCategoryTitle": "Delete Theme Category",
-        "themeCategoryMessage": "Deleting \"{label}\" also deletes every theme and theme folder in it. The active theme cannot be deleted with its category.",
+        "projectCategoryMessage": "Delete \"{label}\" and move all project folders in this category to the system Recycle Bin.",
         "toolsetTitle": "Delete Toolset",
-        "toolsetMessage": "After deleting \"{label}\", tool folders in this toolset will also be deleted."
+        "toolsetMessage": "Delete \"{label}\" and move its tool folders to the system Recycle Bin.",
+        "roleCategoryTitle": "Delete Role Category",
+        "roleCategoryMessage": "Delete \"{label}\" and move all role folders in this category to the system Recycle Bin.",
+        "themeCategoryTitle": "Delete Theme Category",
+        "themeCategoryMessage": "Delete \"{label}\" and move all theme folders in this category to the system Recycle Bin. The active theme cannot be deleted."
       }
     },
     "appFrame": {
@@ -102,7 +105,7 @@
         "panelAria": "Performance and usage panel",
         "title": "Performance monitoring",
         "performanceTab": "Monitoring",
-        "usageTab": "Tokens",
+        "usageTab": "Usage",
         "loading": "Reading performance data",
         "shellDisconnected": "Desktop shell disconnected",
         "apiUnavailable": "Performance API is not ready",
@@ -118,9 +121,7 @@
         "unavailable": "Unavailable",
         "totalTokens": "Token usage",
         "toolCalls": "Tool calls",
-        "mostUsedTools": "Tool calls · All-time top 3",
-        "mostUsedModels": "Models · All-time top 3",
-        "noModelUsage": "No model usage yet",
+        "mostUsedTools": "Most-used tools",
         "noToolUsage": "No tool calls yet",
         "toolCallCount": "{count} calls",
         "conversationTotal": "Total conversations",
@@ -148,16 +149,21 @@
         "noTaskUsage": "No task records",
         "taskIdentifier": "Task {id}",
         "toolResults": "Success {success} · Failed {failure}",
+        "mostUsedModels": "Models · All-time top 3",
+        "noModelUsage": "No model usage yet",
         "memoryLabel": "Memory",
+        "availableMemory": "{value} available",
+        "recentFiveMinutes": "Last 5 min",
+        "appCpuTrend": "Tiance CPU history",
+        "appMemoryTrend": "Tiance memory history",
+        "systemCpu": "System CPU usage",
+        "systemMemory": "System memory usage",
         "storageLabel": "Conversation storage",
         "storageScope": "Combined file sizes in registered projects’ .Tiance folders, including databases, WAL and attachments; excludes the application and workspace documents.",
         "storageDatabase": "Databases",
         "storageOther": "Other files",
         "storagePartial": "Some files are not included",
-        "storageFailed": "Storage unavailable",
-        "availableMemory": "{value} available",
-        "systemCpu": "System CPU usage",
-        "systemMemory": "System memory usage"
+        "storageFailed": "Storage unavailable"
       }
     },
     "workspace": {
@@ -167,19 +173,22 @@
         "search": "Search settings",
         "categories": "Settings categories",
         "noMatches": "No matching settings",
+        "appearance": "Appearance",
         "usage": "Usage",
+        "themeSettings": "Theme Settings",
         "connection": "Connection",
-        "language": "Language",
-        "github": "GitHub Sign-in",
         "network": "Network",
         "tokenEstimation": "Token Estimation",
-        "functionalModel": "Default Functional Roles",
-        "functionalModelCategories": "Default functional role categories",
+        "functionalModel": "Functional Models",
+        "functionalModelCategories": "Functional model categories",
         "functionalSections": {
-          "defaultConversation": "Default Conversation Role",
+          "defaultConversation": "Default Conversation Model",
           "conversationNaming": "Conversation Naming Model",
           "memoryCompression": "Memory Management Model"
-        }
+        },
+        "language": "Language",
+        "softwareUpdate": "Software Update",
+        "github": "GitHub Sign-in"
       },
       "projectsPanel": {
         "fallbackTitle": "Projects",
@@ -196,13 +205,13 @@
         "createProject": "Add project",
         "searchFiles": "Search files",
         "searchProjects": "Search projects",
-        "searchThemes": "Search themes",
         "projectFiles": "Project files",
         "emptyProjectFiles": "This project has no files.",
         "rootDirectory": "Project root directory",
         "externalFileDropHint": "Release to copy into the project root",
         "externalFileImporting": "Copying external files…",
         "externalFileClipboardEmpty": "The clipboard contains no external files to paste.",
+        "externalFoldersUnsupported": "Only external files are supported for now; folders are not supported.",
         "externalFileImportFailed": "Failed to copy the external files.",
         "externalFileImportPartial": "Copied {importedCount} files; {failedCount} could not be copied.",
         "externalFilePathsUnavailable": "The desktop shell could not read the local paths of the dropped files.",
@@ -211,7 +220,8 @@
         "externalProjectFolderImporting": "Importing external project folders…",
         "externalProjectFoldersOnly": "The project list accepts external folders only.",
         "externalProjectFolderPathsUnavailable": "The desktop shell could not read the local paths of the dropped folders.",
-        "externalProjectFolderImportFailed": "Failed to import the external project folders."
+        "externalProjectFolderImportFailed": "Failed to import the external project folders.",
+        "searchThemes": "Search themes"
       }
     },
     "projectList": {
@@ -295,7 +305,10 @@
       "create": {
         "title": "Add Custom Provider",
         "providerName": "Provider name",
-        "providerNamePlaceholder": "e.g. My OpenAI Proxy"
+        "providerNamePlaceholder": "e.g. My OpenAI Proxy",
+        "apiBaseUrl": "Full generation API URL",
+        "protocol": "Protocol",
+        "auth": "Auth"
       },
       "protocol": {
         "openaiCompatible": "OpenAI Chat Completions",
@@ -311,11 +324,11 @@
         "backToChat": "Back to conversation",
         "actions": "AI conversation actions",
         "exportConversation": "Export conversation",
-        "branches": "Branch dashboard",
-        "conversationOverview": "Conversation overview",
         "history": "History",
         "settings": "Settings",
-        "newConversation": "New conversation"
+        "newConversation": "New conversation",
+        "branches": "Conversation branches",
+        "conversationOverview": "Conversation overview"
       },
       "exportDialog": {
         "title": "Export settings",
@@ -362,6 +375,7 @@
         "messageCount": "{count} messages",
         "noModel": "No model bound",
         "deleting": "Deleting",
+        "pinFailed": "Failed to update the conversation pin.",
         "runtime": {
           "running": "Running",
           "error": "Error",
@@ -371,24 +385,24 @@
       },
       "messageList": {
         "loadingSession": "Loading session...",
-        "empty": "Send a message to start the conversation.",
         "loadFailed": "Unable to load conversation. Please retry.",
-        "loadTimeout": "Conversation loading timed out. Please retry."
+        "loadTimeout": "Conversation loading timed out. Please retry.",
+        "empty": "Send a message to start the conversation."
       },
       "usage": {
         "aria": "Session token usage",
         "title": "Usage",
         "scope": "Usage scope",
-        "context": "Context",
-        "contextEstimated": "The provider did not return context tokens for this request. This value uses the local mixed-character estimation algorithm and is for reference only.",
-        "totalEstimated": "This summary includes local estimates for requests where the provider returned no usage. Token and cost values are for reference only.",
         "total": "Total",
         "input": "Input",
         "output": "Output",
         "reasoning": "Reasoning",
         "cacheHit": "Cache hit",
         "cacheMiss": "Miss",
-        "cost": "Cost"
+        "cost": "Cost",
+        "context": "Context",
+        "contextEstimated": "The provider did not return context tokens for this request. This value uses the local mixed-character estimation algorithm and is for reference only.",
+        "totalEstimated": "This summary includes local estimates for requests where the provider returned no usage. Token and cost values are for reference only."
       },
       "basicSettings": {
         "sessionTitle": "Session title",
@@ -410,6 +424,7 @@
         "returnThinkingContent": "Return reasoning content from tool calls",
         "streamingOutput": "Streaming output",
         "autoCollapseProcess": "Auto-collapse assistant process",
+        "injectWorkspaceInfo": "Inject workspace information",
         "injectMessageTimestamps": "Inject user message timestamps",
         "systemPrompt": "System prompt",
         "selectSystemPromptPreset": "Select prompt preset",
@@ -419,16 +434,18 @@
       "memorySettings": {
         "enabled": "Memory compression",
         "contextCompaction": "Context compaction",
-        "rawContextTokenReserve": "Raw context reserve",
-        "rawContextTokenReserveDescription": "Keep at least N tokens of the newest complete messages verbatim. Whole-message boundaries may make the actual reserve larger.",
-        "contextTokenThreshold": "Compaction target",
-        "contextTokenThresholdDescription": "Create a compaction conversation when the full context reaches N tokens plus the raw reserve. System prompts, tool definitions, workspace data, long-term memory, and messages all count; each batch compacts at most N tokens of history.",
+        "recentRawTurns": "Protected recent turns",
+        "recentRawTurnsDescription": "Keep the latest N model-response rounds and N user requests verbatim; older content may be merged into the cumulative summary.",
         "units": {
-          "token": "tokens",
-          "turn": "turns"
+          "turn": "turns",
+          "token": "tokens"
         },
         "compressionManager": "Compression memory manager",
-        "injectionPreview": "Injection preview dashboard"
+        "injectionPreview": "Injection preview dashboard",
+        "contextTokenThreshold": "Compaction target",
+        "contextTokenThresholdDescription": "Create a compaction conversation when the full context reaches N tokens plus the raw reserve. System prompts, tool definitions, workspace data, long-term memory, and messages all count; each batch compacts at most N tokens of history.",
+        "rawContextTokenReserve": "Raw context reserve",
+        "rawContextTokenReserveDescription": "Keep at least N tokens of the newest complete messages verbatim. Whole-message boundaries may make the actual reserve larger."
       },
       "globalMemorySettings": {
         "memoryReceiving": "Receive long-term memory",
@@ -448,9 +465,6 @@
         "search": "Search {scope}",
         "add": "Add {scope}",
         "keywordsPlaceholder": "Keywords, separated by commas or spaces",
-        "reasonPlaceholder": "Basis for this change (explicit facts only; do not infer motives)",
-        "deleteReasonPlaceholder": "Basis for deletion (required)",
-        "reasonUnavailable": "No basis recorded for this historical event",
         "noProject": "No project is selected, so long-term memory cannot be loaded.",
         "loading": "Reading long-term memory.",
         "empty": "No {scope}.",
@@ -473,13 +487,22 @@
         "eventSource": "Event source",
         "noEvents": "No events.",
         "confirmDelete": "Confirm delete",
-        "cancelDelete": "Cancel delete"
+        "cancelDelete": "Cancel delete",
+        "reasonPlaceholder": "Basis for this change (explicit facts only; do not infer motives)",
+        "deleteReasonPlaceholder": "Basis for deletion (required)",
+        "reasonUnavailable": "No basis recorded for this historical event"
       },
       "toolSettings": {
         "loadFailed": "Failed to load tools.",
         "title": "Conversation tools",
         "refresh": "Refresh tool list",
+        "bulkActions": "Bulk actions",
+        "disableAll": "Disable all",
+        "enableAll": "Enable all",
         "maxToolCalls": "Max tool calls",
+        "approvalMode": "Tool approval mode",
+        "approvalFollowPolicy": "Follow tool permissions",
+        "approvalAutoAllowAsk": "Automatically allow prompts",
         "loading": "Loading tools.",
         "empty": "No enabled tools.",
         "noDescription": "No summary.",
@@ -530,68 +553,6 @@
         "max": "Max"
       }
     },
-    "githubSettings": {
-      "loading": "Loading GitHub connection…",
-      "title": "GitHub Sign-in",
-      "description": "Connect GitHub to read private repositories authorized for Tiance Desktop from online markets.",
-      "tabs": {
-        "aria": "GitHub sign-in and guides",
-        "login": "Sign in",
-        "quickStart": "Quick start",
-        "capabilities": "Capabilities",
-        "repositorySync": "Repositories & sync",
-        "faq": "FAQ"
-      },
-      "connected": "Connected",
-      "logout": "Sign out",
-      "loggingOut": "Signing out…",
-      "profile": "View profile",
-      "repositories": {
-        "title": "Authorized repositories",
-        "description": "Use the default open-source repositories as examples when configuring a private repository.",
-        "refresh": "Refresh",
-        "manage": "Add or remove repositories",
-        "private": "Private",
-        "public": "Public",
-        "empty": "No repositories are currently authorized."
-      },
-      "login": {
-        "title": "Connect GitHub",
-        "description": "Sign-in opens in your system browser. Tiance only requests read access to repositories you explicitly authorize.",
-        "codeLabel": "Device code",
-        "waiting": "Enter the code in GitHub and approve access. This page will update automatically.",
-        "cancel": "Cancel",
-        "openAgain": "Open GitHub again",
-        "starting": "Connecting…",
-        "action": "Sign in to GitHub"
-      }
-    },
-    "onlineMarketSource": {
-      "default": "Default source",
-      "custom": "Custom source",
-      "privateRepositories": "Private repositories",
-      "loading": "Loading repositories…",
-      "loadFailed": "Unable to load. Click to retry",
-      "notConnected": "GitHub is not connected.",
-      "empty": "No private repositories are authorized.",
-      "addPrivateRepository": "Add private repository"
-    },
-    "languageSettings": {
-      "title": "Language",
-      "description": "Choose the language used by the Tiance interface. Language packages are loaded from Data/locales.",
-      "selection": "Interface language",
-      "system": "Follow system",
-      "systemDescription": "Choose automatically from the operating system language. Current: {language}",
-      "available": "Available languages",
-      "selected": "In use",
-      "select": "Click to switch",
-      "switching": "Switching language…",
-      "loading": "Loading language settings…",
-      "loadFailed": "Unable to load language settings.",
-      "saveFailed": "Language setting operation failed.",
-      "empty": "No language packages are available.",
-      "retry": "Retry"
-    },
     "networkSettings": {
       "title": "Network",
       "loading": "Loading network settings...",
@@ -641,14 +602,16 @@
       "activationDescription": "Estimation is used only when a provider omits input, output, or total token usage. Provider-reported values always take priority. Estimated values are marked and included in context and aggregate usage.",
       "historyDescription": "Changes apply only to future estimates. Historical records and provider-reported usage are never recalculated.",
       "algorithmTitle": "Estimation algorithm",
-      "algorithmDescription": "Text is estimated from separate runs of ASCII letters and digits versus other visible characters, then message overhead, tool definitions, and a per-image estimate are added. Tokenizers differ by model, so provider usage remains authoritative.",
+      "algorithmDescription": "Text is estimated from separate runs of ASCII letters and digits versus other visible characters, then message overhead, tool definitions, and image placeholders are added. Tokenizers differ by model, so provider usage remains authoritative.",
       "loading": "Loading token estimation settings...",
+      "save": "Save",
+      "saving": "Saving",
       "reset": "Restore defaults",
       "fields": {
         "asciiCharsPerToken": "ASCII letter and digit ratio",
         "otherCharsPerToken": "CJK and other visible character ratio",
         "messageOverheadTokens": "Per-message structure overhead",
-        "imagePlaceholderTokens": "Per-image estimate"
+        "imagePlaceholderTokens": "Per-image placeholder"
       },
       "units": {
         "charsPerToken": "characters / token",
@@ -662,6 +625,7 @@
         "loadingModels": "Loading models",
         "modelDefault": "Model default",
         "reasoningDepth": "Reasoning depth",
+        "defaultConversationReasoningDepth": "Default conversation reasoning depth",
         "maxOutputTokens": "Max output length, including reasoning",
         "temperature": "Temperature",
         "topP": "Top P",
@@ -677,13 +641,18 @@
         }
       },
       "sections": {
-        "defaultConversation": "Default Conversation Role",
+        "defaultConversation": "Default Conversation Model",
         "conversationNaming": "Conversation Naming Model",
         "memoryCompression": "Memory Compression Model",
         "projectMemoryManagement": "Project Memory Management Model",
         "globalMemoryManagement": "Global Memory Management Model"
       },
       "defaultConversation": {
+        "placeholder": "Use current conversation model when unspecified",
+        "emptyModels": "No available conversation models. Enable a provider and add a text generation model in Models first.",
+        "returnThinkingContent": "Return reasoning content from tool calls",
+        "streamingOutput": "Streaming output",
+        "systemPrompt": "Main Agent system prompt",
         "role": "Role",
         "description": "Use all settings from this role when creating a standard conversation."
       },
@@ -860,8 +829,8 @@
       },
       "message": {
         "remove": "Remove \"{projectName}\" from {productName} only. Real files will not be deleted.",
-        "delete": "This cannot be undone. Continue?",
-        "deleteLocal": "Delete the local folder and files for \"{projectName}\", and remove the project from {productName}."
+        "delete": "Move the project folder to the system Recycle Bin and remove the project?",
+        "deleteLocal": "Move the local folder for \"{projectName}\" to the system Recycle Bin and remove the project from {productName}."
       },
       "confirm": {
         "remove": "Remove",
@@ -884,6 +853,7 @@
       "loadingAria": "Loading project overview",
       "newConversation": "New conversation",
       "noCategory": "Select a project category.",
+      "pinFailed": "Failed to update the conversation pin.",
       "projectActions": "Project actions",
       "renameFailed": "Failed to rename conversation.",
       "sectionAria": "{category} project overview",
@@ -891,26 +861,9 @@
       "projectCount": "{count} projects",
       "switchCategory": "Switch project category",
       "totalsAria": "Category conversation status totals",
-      "views": {
-        "branches": "Branch Dashboard",
-        "conversation": "Conversation Overview",
-        "projects": "Project Overview",
-        "roles": "Role Overview",
-        "themes": "Theme Overview",
-        "tabsAria": "Project collection views",
-        "tools": "Tool Overview",
-        "toolTabsAria": "Tool collection views",
-        "roleTabsAria": "Role collection views",
-        "themeTabsAria": "Theme collection views"
-      },
       "card": {
         "branchGroup": "Conversation branches",
         "childSessionGroup": "AI child conversations",
-        "functionalSessionGroup": "Functional branches",
-        "automaticNamingGroup": "Automatic naming",
-        "memoryCompactionGroup": "Memory compaction",
-        "projectMemoryManagementGroup": "Project memory management",
-        "globalMemoryManagementGroup": "Global memory management",
         "collapseSession": "Collapse conversation “{title}”",
         "createdUnknown": "Created time unknown",
         "createSession": "New conversation",
@@ -923,7 +876,12 @@
         "revealInExplorer": "Show in File Explorer",
         "restore": "Restore project card",
         "saveSessionName": "Save conversation name",
-        "sessionsAria": "Conversation list"
+        "sessionsAria": "Conversation list",
+        "functionalSessionGroup": "Functional branches",
+        "automaticNamingGroup": "Automatic naming",
+        "memoryCompactionGroup": "Memory compaction",
+        "projectMemoryManagementGroup": "Project memory management",
+        "globalMemoryManagementGroup": "Global memory management"
       },
       "usage": {
         "allTotal": "All total",
@@ -939,13 +897,33 @@
           "reasoning": "Reasoning",
           "total": "Total"
         }
+      },
+      "views": {
+        "branches": "Branch Dashboard",
+        "conversation": "Conversation Overview",
+        "projects": "Project Overview",
+        "providers": "Provider Configuration",
+        "roles": "Role Overview",
+        "themes": "Theme Overview",
+        "tabsAria": "Project collection views",
+        "tools": "Tool Overview",
+        "toolTabsAria": "Tool collection views",
+        "roleTabsAria": "Role collection views",
+        "themeTabsAria": "Theme collection views",
+        "providerTabsAria": "Model provider views"
       }
     },
     "providerCanvas": {
       "disable": "Disable",
       "enable": "Enable",
+      "providerLinksAria": "{provider} links",
       "renameProvider": "Rename {provider}",
-      "selectProviderProtocol": "Select provider protocol",
+      "selectCustomProviderProtocol": "Select custom provider protocol",
+      "links": {
+        "docs": "Docs",
+        "models": "Models",
+        "official": "Official"
+      },
       "apiAddress": {
         "placeholder": "Enter the full request URL; no path is appended",
         "title": "API URL",
@@ -1110,15 +1088,146 @@
           "memoryCompression": "Memory compression model",
           "providerWebSearch": "Provider web search"
         }
+      },
+      "selectProviderProtocol": "Select provider protocol"
+    },
+    "languageSettings": {
+      "title": "Language",
+      "description": "Choose the language used by the Tiance interface. Language packages are loaded from Data/locales.",
+      "selection": "Interface language",
+      "system": "Follow system",
+      "systemDescription": "Choose automatically from the operating system language. Current: {language}",
+      "available": "Available languages",
+      "selected": "In use",
+      "select": "Click to switch",
+      "switching": "Switching language…",
+      "loading": "Loading language settings…",
+      "saveFailed": "Language setting operation failed.",
+      "retry": "Retry",
+      "loadFailed": "Unable to load language settings.",
+      "empty": "No language packages are available."
+    },
+    "githubSettings": {
+      "loading": "Loading GitHub connection…",
+      "title": "GitHub Sign-in",
+      "description": "Connect GitHub to browse authorized private markets and synchronize local collections from each online board.",
+      "tabs": {
+        "aria": "GitHub sign-in and guides",
+        "login": "Sign in",
+        "quickStart": "Quick start",
+        "capabilities": "Capabilities",
+        "repositorySync": "Repositories & sync",
+        "faq": "FAQ"
+      },
+      "connected": "Connected",
+      "logout": "Sign out",
+      "loggingOut": "Signing out…",
+      "profile": "View profile",
+      "repositories": {
+        "title": "Authorized repositories",
+        "description": "This list shows the GitHub App repository scope and current write access.",
+        "refresh": "Refresh",
+        "refreshing": "Refreshing…",
+        "refreshed": "Refreshed",
+        "manage": "Add or remove repositories",
+        "private": "Private",
+        "public": "Public",
+        "readWrite": "Read and write",
+        "readOnly": "Read only",
+        "empty": "No repositories are currently authorized."
+      },
+      "login": {
+        "title": "Connect GitHub",
+        "description": "Sign-in opens in your system browser. Tiance only accesses repositories you explicitly authorize, within the GitHub App permissions.",
+        "codeLabel": "Device code",
+        "waiting": "Enter the code in GitHub and approve access. This page will update automatically.",
+        "cancel": "Cancel",
+        "openAgain": "Open GitHub again",
+        "starting": "Connecting…",
+        "action": "Sign in to GitHub"
       }
     },
+    "onlineMarketSource": {
+      "default": "Default source",
+      "custom": "Custom source",
+      "privateRepositories": "Private market repositories (index.json required)",
+      "loading": "Loading repositories…",
+      "loadFailed": "Unable to load. Click to retry",
+      "notConnected": "GitHub is not connected.",
+      "empty": "No private repositories are authorized.",
+      "addPrivateRepository": "Add private repository"
+    },
     "softwareUpdate": {
-      "install": "Download update",
-      "restart": {
-        "title": "Update downloaded",
-        "message": "v{version} is ready. Restart and install now?",
-        "now": "Restart now",
-        "later": "Later"
+      "title": "Software Update",
+      "description": "Check and install official Tiance releases. Updates replace program files without overwriting local projects, conversations, secrets, tools, themes, or providers.",
+      "check": "Check for updates",
+      "checking": "Checking…",
+      "current": "Current version",
+      "latest": "Latest version",
+      "size": "Download size",
+      "available": "A new version is available",
+      "upToDate": "Tiance is up to date",
+      "upToDateDescription": "No update is required.",
+      "sourceTitle": "Source checkout detected",
+      "sourceDescription": "Use Git to update source checkouts so uncommitted work is never overwritten.",
+      "notes": "Release notes",
+      "install": "Download, restart, and install",
+      "downloading": "Downloading and verifying…",
+      "installing": "Closing and installing…",
+      "autoCheck": {
+        "title": "Check for updates at startup",
+        "description": "Enabled by default. A prompt appears when a new version is available; manual checks remain available when disabled."
+      },
+      "prompt": {
+        "title": "A new version is available",
+        "update": "Update",
+        "noNotes": "No release notes were provided for this version."
+      }
+    },
+    "githubSync": {
+      "title": "GitHub repository sync",
+      "trigger": "Sync",
+      "bound": "Repository bound",
+      "loading": "Loading GitHub sync status…",
+      "working": "Checking local and remote changes…",
+      "loginRequired": "Sign in to GitHub and grant Tiance Desktop access to the repository.",
+      "openSettings": "Open GitHub sign-in",
+      "repository": "Repository",
+      "selectRepository": "Select an authorized repository",
+      "noRepositories": "No authorized repositories are available. Add one in GitHub authorization settings.",
+      "branch": "Branch",
+      "remotePath": "Repository path",
+      "remotePathPlaceholder": "Leave empty to use the repository root",
+      "saveBinding": "Save binding",
+      "changeBinding": "Change binding",
+      "unbind": "Unbind",
+      "planFirst": "Pull and push always show the complete file plan before changing anything.",
+      "previewPull": "Review pull",
+      "previewPush": "Review push",
+      "pushPlan": "Changes to push",
+      "pullPlan": "Changes to pull",
+      "noChanges": "Local and remote files already match.",
+      "commitMessage": "Commit message",
+      "commitMessagePlaceholder": "Sync Tiance collection data",
+      "back": "Back",
+      "confirmPush": "Push changes",
+      "confirmPull": "Pull changes",
+      "readOnly": "read-only",
+      "readOnlyWarning": "This authorization can read the repository but cannot push to it.",
+      "results": {
+        "bindingSaved": "Repository binding saved.",
+        "bindingRemoved": "Repository binding removed.",
+        "pushComplete": "Changes pushed to GitHub.",
+        "pullComplete": "Changes pulled to this device."
+      },
+      "collections": {
+        "project": "Projects",
+        "knowledge": "Knowledge",
+        "experience": "Experience",
+        "role": "Roles",
+        "theme": "Themes",
+        "tool": "Tools",
+        "provider": "Providers"
       }
     }
   }

@@ -304,7 +304,7 @@ export function ChatPanelController({
     setSessionRuntimeStatus,
     unmarkSessionStreaming,
   });
-  const activeSession = sessions.find((session) => session.session_id === activeSessionId) ?? null;
+  const activeSession = sessions.find((session) => session.session_id === activeSessionId && session.settings) ?? null;
   const handleRoleSessionUpdated = useCallback((updatedSession: ConversationSession) => {
     setSessions((current) => current.map((session) =>
       session.session_id === updatedSession.session_id ? updatedSession : session
@@ -339,7 +339,7 @@ export function ChatPanelController({
     }
   }, [activeSessionId, exportRequest, projectId]);
   const canStartConversation = Boolean(
-    activeSession || (!isLoadingSessions && !sessionLoadError),
+    activeSession || (!activeSessionId && !isLoadingSessions && !sessionLoadError),
   );
   const activeSessionSettings = useMemo(
     () => resolveSessionSettings(activeSession),
@@ -506,6 +506,8 @@ export function ChatPanelController({
     projectId,
     settledDraft,
     supportsImageInput,
+    historyRevision: activeSessionKey ? historyPages[activeSessionKey]?.revision ?? null : null,
+    roleProjectId: activeSession?.role_project_id ?? null,
   });
   const {
     bodyRef,

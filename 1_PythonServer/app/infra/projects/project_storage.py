@@ -1,18 +1,17 @@
 # 项目文件存储管理
-# 在文件系统上创建项目目录、归档删除项目、确保路径安全
+# 创建项目目录、调用系统回收站、确保路径安全
 
-from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
-import shutil
 
 from app.core.config import get_settings
 from app.core.errors import NotFoundError
 from app.domain.project import ProjectKind
+from app.infra.system_recycle_bin import recycle_path
 
 
 class ProjectStorage:
-    """项目文件存储：管理项目根目录的创建、导入、校验和删除归档"""
+    """项目文件存储：管理项目根目录的创建、导入、校验和系统回收"""
 
     def __init__(
         self,
@@ -122,75 +121,42 @@ class ProjectStorage:
             return False
 
     # ------------------------------------------------------------------
-    # 删除归档
+    # 系统回收站
     # ------------------------------------------------------------------
 
-    def archive_project_root(self, project_root: str) -> Path | None:
-        """将项目目录移到 .trash 归档（而非直接删除）"""
-        source_path = Path(project_root)
-        if not source_path.exists():
-            return None
-
-        managed_root = self._managed_root_for_path(source_path)
-        trash_root = managed_root / ".trash"
-        trash_root.mkdir(parents=True, exist_ok=True)
-        archived_path = trash_root / f"{source_path.name}-{_timestamp_slug()}"
-        shutil.move(str(source_path), str(archived_path))
-        return archived_path
-
-    def archive_external_project_root(self, project_root: str) -> Path | None:
-        """将外部导入项目目录从原位置移到应用归档区。"""
-        raw_source_path = Path(project_root).expanduser()
-        if _is_link_like(raw_source_path):
+    def validate_project_recycle(self, project_root: str, *, external: bool = False) -> Path:
+        """Resolve the exact deletion target; never recycle a collection root."""
+        raw_path = Path(project_root).expanduser()
+        if _is_link_like(raw_path):
             raise ValueError("不能删除符号链接或连接点目录。")
-        source_path = raw_source_path.resolve()
-        if not source_path.exists():
-            return None
-        if not source_path.is_dir():
-            raise NotADirectoryError("项目路径必须是文件夹。")
-
-        if source_path == source_path.parent:
+        source = raw_path.resolve()
+        if source == source.parent:
             raise ValueError("不能删除磁盘根目录。")
         for managed_root in self._managed_roots():
-            resolved_managed_root = managed_root.resolve()
-            if (
-                source_path == resolved_managed_root
-                or resolved_managed_root in source_path.parents
-                or source_path in resolved_managed_root.parents
-            ):
-                raise ValueError("外部项目删除路径不能包含天策应用项目目录。")
+            managed = managed_root.resolve()
+            if source == managed or source in managed.parents:
+                raise ValueError("不能删除天策项目集根目录或其上级目录。")
+            if external and managed in source.parents:
+                raise ValueError("外部项目删除路径不能位于天策项目集目录内。")
+        if not external:
+            self._managed_root_for_path(source)
+        if source.exists() and not source.is_dir():
+            raise NotADirectoryError("项目路径必须是文件夹。")
+        return source
 
-        trash_root = self._projects_root / ".trash" / "external"
-        trash_root.mkdir(parents=True, exist_ok=True)
-        archived_path = trash_root / f"{source_path.name}-{_timestamp_slug()}"
-        shutil.move(str(source_path), str(archived_path))
-        return archived_path
+    def recycle_project_root(self, project_root: str, *, external: bool = False) -> bool:
+        """Recycle the directory on this machine; absent folders need only deregistration."""
+        source = self.validate_project_recycle(project_root, external=external)
+        if not source.exists():
+            return False
+        recycle_path(source)
+        return True
 
-    def restore_archived_project_root(self, archived_path: Path, project_root: str) -> None:
-        """在数据库删除失败时把已归档的托管项目目录恢复到原位置。"""
-        target_path = Path(project_root)
-        managed_root = self._managed_root_for_path(target_path)
-        self._assert_inside_managed_root(archived_path, managed_root)
-        if target_path.exists() or not archived_path.exists():
-            return
-        shutil.move(str(archived_path), str(target_path))
-
-    def restore_external_archived_project_root(self, archived_path: Path, project_root: str) -> None:
-        """在数据库删除失败时把外部导入目录恢复到原位置。"""
-        raw_target_path = Path(project_root).expanduser()
-        if _is_link_like(raw_target_path):
-            raise ValueError("项目恢复目标不能是符号链接或连接点。")
-        target_path = raw_target_path.resolve()
-        self._managed_root_for_path(archived_path)
-        if target_path.exists() or not archived_path.exists():
-            return
-        if (
-            not target_path.parent.exists()
-            or not target_path.parent.is_dir()
-            or _is_link_like(target_path.parent)
-        ):
-            raise ValueError("项目恢复目标父目录无效。")
-        shutil.move(str(archived_path), str(target_path))
+    def remove_empty_project_root(self, project_root: str) -> None:
+        """Clean up an empty directory whose initial registration failed, never its contents."""
+        source = self.validate_project_recycle(project_root)
+        if source.exists():
+            source.rmdir()
 
     # ------------------------------------------------------------------
     # 安全校验
@@ -257,10 +223,6 @@ def require_existing_project_root(project_root: str | Path) -> Path:
             details={"reason": "project_root_unavailable"},
         )
     return resolved_root
-
-
-def _timestamp_slug() -> str:
-    return datetime.now(UTC).strftime("%Y%m%d%H%M%S%f")
 
 
 def _is_link_like(path: Path) -> bool:

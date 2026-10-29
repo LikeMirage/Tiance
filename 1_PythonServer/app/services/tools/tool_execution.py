@@ -10,6 +10,7 @@ from app.core.errors import BadRequestError
 from app.core.config import get_settings
 from app.domain.llm.chat import ChatClientCapability, ChatToolCall, ChatToolResult
 from app.domain.tools import ToolMetadataSnapshot, ToolRegistryEntry
+from app.domain.tools.host_capabilities import declared_host_capabilities
 from app.services.tools.tool_execution_arguments import (
     parse_tool_arguments,
     validate_tool_arguments,
@@ -27,6 +28,7 @@ from app.services.tools.host_capability_access import (
 )
 from app.services.tools.tool_execution_runtime import (
     CommandRunner,
+    capture_command,
     build_python_command,
     build_tool_env,
     build_tool_python_paths,
@@ -55,6 +57,7 @@ class ToolExecutionContext:
     provider_id: str | None = None
     model_id: str | None = None
     input_modalities: tuple[str, ...] = ()
+    run_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -374,6 +377,10 @@ class ToolExecutionService:
             backend_site_packages_path=self._backend_site_packages_path,
         )
         capability_grant = self._host_capability_access.issue_grant(
+            capabilities=declared_host_capabilities(runtime),
+            tool_project_id=resolved.entry.project_id,
+            enabled_tool_names=context.enabled_tool_names,
+            run_id=context.run_id,
             tool_name=resolved.metadata.name,
             tool_call_id=tool_call.call_id,
             provider_id=context.provider_id,
@@ -404,14 +411,19 @@ class ToolExecutionService:
                 python_paths=python_paths,
             )
             if self._command_runner is run_command:
-                completed = run_command(
+                with capture_command(
                     command,
                     dumps(resolved.arguments, ensure_ascii=False),
                     cwd,
                     env,
                     timeout_seconds,
                     cancellation=cancellation,
-                )
+                ) as completed:
+                    return completed_process_result(
+                        tool_call, completed,
+                        tool_project_id=resolved.entry.project_id,
+                        dynamic=resolved.entry.dynamic,
+                    )
             else:
                 completed = self._command_runner(
                     command,

@@ -21,7 +21,8 @@
   "runtime": {
     "entry": "program/main.py",
     "timeout_seconds": 60,
-    "type": "python"
+    "type": "python",
+    "host_capabilities": []
   },
   "state": {
     "enabled": false

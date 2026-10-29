@@ -8,12 +8,12 @@ from app.core.config import get_settings
 from app.domain.llm.chat import ChatUsage
 from app.domain.llm.usage import LlmSessionUsageSummary, LlmUsageRecord, LlmUsageSummary
 from app.domain.usage_statistics import StatisticsMonth
-from app.repositories.llm.usage_file_store import UsageFileStore
+from app.repositories.llm.usage_sqlite_store import UsageSqliteStore
 
 
 class LlmUsageRepository:
     def __init__(self, usage_data_path: Path) -> None:
-        self._store = UsageFileStore(usage_data_path)
+        self._store = UsageSqliteStore(usage_data_path)
 
     def record_usage(
         self,
@@ -57,36 +57,18 @@ class LlmUsageRepository:
         self._store.append_delete_model(provider_id=provider_id, model_id=model_id)
 
     def monthly_statistics(self, month: StatisticsMonth) -> dict:
-        daily = [0] * len(month.dates)
-        total = 0
-        model_totals: dict[tuple[str, str], int] = defaultdict(int)
-        # The store replays upserts/deletes once and keeps effective records in memory.
-        for record in self._store.list_records():
-            total += record.total_tokens
-            model_totals[(record.provider_id, record.model_id)] += record.total_tokens
-            day = month.day_index(record.created_at)
-            if day is not None:
-                daily[day] += record.total_tokens
-        top_models = sorted(model_totals.items(), key=lambda item: (-item[1], item[0]))[:3]
-        return {"total": total, "daily": daily, "top_models": [
-            {"provider_id": provider, "model_id": model, "value": value}
-            for (provider, model), value in top_models if value > 0
-        ]}
+        return self._store.monthly_statistics(month)
 
     def get_model_summaries(
         self,
         *,
         provider_id: str | None = None,
     ) -> tuple[LlmUsageSummary, ...]:
-        records = tuple(
-            record
-            for record in self._store.list_records()
-            if provider_id is None or record.provider_id == provider_id
-        )
-        model_groups = _group_records(records, lambda record: (record.provider_id, record.model_id))
+        records = self._store.model_totals(provider_id)
+        model_groups = _group_records(records, lambda record: (record["provider_id"], record["model_id"]))
         feature_groups = _group_records(
             records,
-            lambda record: (record.provider_id, record.model_id, record.usage_feature_key),
+            lambda record: (record["provider_id"], record["model_id"], record["usage_feature_key"]),
         )
 
         features_by_model: dict[tuple[str, str], list[LlmUsageSummary]] = defaultdict(list)
@@ -122,14 +104,10 @@ class LlmUsageRepository:
         return tuple(summaries)
 
     def get_session_summary(self, *, project_id: str, session_id: str) -> LlmSessionUsageSummary:
-        records = tuple(
-            record
-            for record in self._store.list_records()
-            if record.project_id == project_id and record.session_id == session_id
-        )
+        records = self._store.session_totals({project_id: (session_id,)}).get(project_id, {}).get(session_id, ())
         model_feature_groups = _group_records(
             records,
-            lambda record: (record.provider_id, record.model_id, record.usage_feature_key),
+            lambda record: (record["provider_id"], record["model_id"], record["usage_feature_key"]),
         )
         return LlmSessionUsageSummary(
             total=_summarize(records),
@@ -155,17 +133,11 @@ class LlmUsageRepository:
     def get_projects_session_totals(
         self, project_sessions: dict[str, tuple[str, ...]]
     ) -> dict[str, dict[str, LlmUsageSummary]]:
-        result: dict[str, dict[str, LlmUsageSummary]] = {project_id: {} for project_id in project_sessions}
-        requested = {project_id: set(ids) for project_id, ids in project_sessions.items() if ids}
-        if not requested:
-            return result
-        groups = defaultdict(list)
-        for record in self._store.list_records():
-            if record.project_id in requested and record.session_id in requested[record.project_id]:
-                groups[(record.project_id, record.session_id)].append(record)
-        for (project_id, session_id), records in groups.items():
-            result[project_id][session_id] = _summarize(records)
-        return result
+        groups = self._store.session_totals(project_sessions)
+        return {
+            project: {session: _summarize(rows) for session, rows in sessions.items()}
+            for project, sessions in groups.items()
+        }
 
 
 def _group_records(records, key_factory):
@@ -183,8 +155,8 @@ def _ordered_groups(groups, *, prefix_key=None):
     return ordered
 
 
-def _latest_created_at(records: list[LlmUsageRecord]) -> str:
-    return max((record.created_at for record in records), default="")
+def _latest_created_at(records) -> str:
+    return max((record["latest_created_at"] for record in records), default="")
 
 
 def _summarize(
@@ -195,7 +167,7 @@ def _summarize(
     usage_feature_key: str | None = None,
 ) -> LlmUsageSummary:
     records = tuple(records)
-    currencies = {record.cost_currency for record in records if record.cost_currency is not None}
+    currencies = {record["cost_currency"] for record in records if record["cost_currency"] is not None}
     has_single_currency = bool(records) and len(currencies) <= 1
     feature_key = (
         _normalize_usage_feature_key(usage_feature_key) if usage_feature_key is not None else None
@@ -204,18 +176,18 @@ def _summarize(
         provider_id=provider_id,
         provider_display_name=None,
         model_id=model_id,
-        prompt_tokens=sum(record.prompt_tokens for record in records),
-        completion_tokens=sum(record.completion_tokens for record in records),
-        total_tokens=sum(record.total_tokens for record in records),
-        reasoning_tokens=sum(record.reasoning_tokens for record in records),
-        prompt_cache_hit_tokens=sum(record.prompt_cache_hit_tokens for record in records),
-        prompt_cache_miss_tokens=sum(record.prompt_cache_miss_tokens for record in records),
+        prompt_tokens=sum(record["prompt_tokens"] for record in records),
+        completion_tokens=sum(record["completion_tokens"] for record in records),
+        total_tokens=sum(record["total_tokens"] for record in records),
+        reasoning_tokens=sum(record["reasoning_tokens"] for record in records),
+        prompt_cache_hit_tokens=sum(record["prompt_cache_hit_tokens"] for record in records),
+        prompt_cache_miss_tokens=sum(record["prompt_cache_miss_tokens"] for record in records),
         cost_amount=(
-            sum(record.cost_amount or 0 for record in records) if has_single_currency else None
+            sum(record["cost_amount"] or 0 for record in records) if has_single_currency else None
         ),
         cost_currency=next(iter(currencies), None) if has_single_currency else None,
-        record_count=len(records),
-        estimated_record_count=sum(1 for record in records if record.is_estimated),
+        record_count=sum(record["record_count"] for record in records),
+        estimated_record_count=sum(record["estimated_record_count"] for record in records),
         usage_feature_key=feature_key,
         usage_feature_display_name=(
             _usage_feature_display_name(feature_key) if feature_key is not None else None

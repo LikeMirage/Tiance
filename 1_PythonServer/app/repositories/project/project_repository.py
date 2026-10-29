@@ -333,6 +333,10 @@ class ProjectRepository:
                 catalog.delete_project_category(category_id)
                 return
         with database_transaction(self._database_path) as connection:
+            if connection.execute(
+                "SELECT 1 FROM projects WHERE category_id = ? LIMIT 1", (category_id,),
+            ).fetchone() is not None:
+                raise ValueError("仍有项目属于此分类，不能直接删除。")
             connection.execute(
                 "DELETE FROM project_categories WHERE category_id = ?",
                 (category_id,),

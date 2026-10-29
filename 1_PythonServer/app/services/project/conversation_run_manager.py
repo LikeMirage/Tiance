@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
+from contextvars import copy_context
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Protocol, cast
@@ -11,6 +12,7 @@ from uuid import uuid4
 from app.core.errors import AppError, ConflictError, NotFoundError
 from app.core.shutdown_tasks import shutdown_tasks
 from app.domain.llm.chat import ChatCompletionRequest
+from app.services.project.conversation_run_context import active_conversation_run
 from app.services.project.conversation_stream_checkpoints import (
     PERSISTENCE_CHECKPOINT_KIND,
 )
@@ -124,9 +126,12 @@ class ConversationRunManager:
                 subscribers={subscription_id: mailbox},
             )
             self._runs[run_key] = run
+            context = copy_context()
+            context.run(active_conversation_run.set, (request.project_id, request.session_id, run.run_id))
             run.task = asyncio.create_task(
                 self._run_generation(run, request, stream_service),
                 name=f"conversation-run:{run_key}",
+                context=context,
             )
 
         return ConversationRunSubscription(

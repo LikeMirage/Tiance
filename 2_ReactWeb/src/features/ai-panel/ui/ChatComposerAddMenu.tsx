@@ -159,8 +159,7 @@ export function ChatComposerAddMenu({
                 value={categoryId}
                 onChange={setSelectedProjectCategoryId}
                 disabled={categoryOptions.length === 0}
-                floating
-                showSelectedOption
+                variant="integrated-overlay"
               />
             ) : <span>选择要加入当前输入的内容</span>}
           </div>

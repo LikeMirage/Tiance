@@ -1,20 +1,7 @@
-from collections.abc import AsyncGenerator
-from dataclasses import dataclass
-from json import loads as json_loads
-
 from app.domain.llm.chat import ChatStreamEvent, ChatStreamEventKind
 from app.domain.llm.provider_catalog import AuthScheme
+from app.infra.llm.chat_adapters.sse import SSE_DONE, _iter_sse_payloads
 from app.infra.llm.request_auth import build_auth_headers
-
-_NO_SSE_EVENT = object()
-
-
-@dataclass(frozen=True, slots=True)
-class SseDone:
-    pass
-
-
-SSE_DONE = SseDone()
 
 
 def _build_headers(auth_scheme: AuthScheme, api_key: str) -> dict[str, str]:
@@ -27,73 +14,6 @@ def _build_stream_headers(auth_scheme: AuthScheme, api_key: str) -> dict[str, st
     headers.update(build_auth_headers(auth_scheme, api_key))
     return headers
 
-async def _iter_sse_payloads(
-    chunks: AsyncGenerator[bytes, None],
-) -> AsyncGenerator[dict[str, object] | None | SseDone, None]:
-    try:
-        buffer = b""
-        data_lines: list[bytes] = []
-        async for chunk in chunks:
-            buffer += chunk
-            while b"\n" in buffer:
-                line, buffer = buffer.split(b"\n", 1)
-                data = _consume_sse_line(data_lines, line)
-                if data is _NO_SSE_EVENT:
-                    continue
-                if data.strip() == b"[DONE]":
-                    yield SSE_DONE
-                    return
-                yield _load_stream_payload(data)
-        if buffer:
-            data = _consume_sse_line(data_lines, buffer)
-            if data is not _NO_SSE_EVENT:
-                if data.strip() == b"[DONE]":
-                    yield SSE_DONE
-                    return
-                yield _load_stream_payload(data)
-        data = _flush_sse_data_lines(data_lines)
-        if data is not _NO_SSE_EVENT:
-            if data.strip() == b"[DONE]":
-                yield SSE_DONE
-                return
-            yield _load_stream_payload(data)
-
-    finally:
-        await chunks.aclose()
-
-
-def _consume_sse_line(data_lines: list[bytes], raw_line: bytes) -> bytes | object:
-    line = raw_line.rstrip(b"\r")
-    if not line:
-        return _flush_sse_data_lines(data_lines)
-    if line.startswith(b":"):
-        return _NO_SSE_EVENT
-
-    field, separator, value = line.partition(b":")
-    if not separator:
-        return _NO_SSE_EVENT
-    if value.startswith(b" "):
-        value = value[1:]
-    if field != b"data":
-        return _NO_SSE_EVENT
-
-    data_lines.append(value)
-    return _NO_SSE_EVENT
-
-
-def _flush_sse_data_lines(data_lines: list[bytes]) -> bytes | object:
-    if not data_lines:
-        return _NO_SSE_EVENT
-    data = b"\n".join(data_lines)
-    data_lines.clear()
-    return data
-
-def _load_stream_payload(data: bytes) -> dict[str, object] | None:
-    try:
-        payload = json_loads(data)
-    except (TypeError, ValueError):
-        return None
-    return payload if isinstance(payload, dict) else None
 
 def _protocol_error_event(
     message: str = "上游供应商返回了无法解析的流式响应。",

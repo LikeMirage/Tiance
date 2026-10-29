@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
+from dataclasses import dataclass
 from json import dumps, loads
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -12,6 +13,16 @@ from app.domain.project import Project, ProjectCategory, ProjectKind
 
 CATALOG_FILE_NAME = "catalog.json"
 CATALOG_SCHEMA_VERSION = 1
+
+
+@dataclass(frozen=True, slots=True)
+class _CatalogIndex:
+    stamp: tuple[int, int, int, int] | None
+    projects: tuple[Project, ...]
+    categories: tuple[ProjectCategory, ...]
+    projects_by_id: dict[str, Project]
+    projects_by_root: dict[Path, Project]
+    categories_by_id: dict[str, ProjectCategory]
 
 
 class FileProjectCatalog:
@@ -29,6 +40,7 @@ class FileProjectCatalog:
         self._allow_external_roots = allow_external_roots
         self._catalog_path = self._root_path / CATALOG_FILE_NAME
         self._write_lock = RLock()
+        self._index: _CatalogIndex | None = None
 
     @property
     def root_path(self) -> Path:
@@ -46,36 +58,60 @@ class FileProjectCatalog:
         return self._catalog_path.is_file()
 
     def list_projects(self) -> tuple[Project, ...]:
+        return self._read_index().projects
+
+    def _catalog_stamp(self) -> tuple[int, int, int, int] | None:
+        try:
+            stat = self._catalog_path.stat()
+        except FileNotFoundError:
+            return None
+        return stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino
+
+    def _read_index(self) -> _CatalogIndex:
+        # catalog.json remains the source of truth. Stat on lookup detects both
+        # in-place external edits and atomic replacement without another watcher.
+        with self._write_lock:
+            stamp = self._catalog_stamp()
+            if self._index is not None and self._index.stamp == stamp:
+                return self._index
+            index = self._build_index(stamp)
+            # Never stamp old bytes as the newer version if an external writer
+            # replaced the catalog while it was being read.
+            self._index = index if self._catalog_stamp() == stamp else None
+            return index
+
+    def _build_index(self, stamp: tuple[int, int, int, int] | None) -> _CatalogIndex:
         payload = self._read_payload()
         projects = tuple(self._project_from_payload(item) for item in payload["projects"])
-        category_ids = {
-            self._category_from_payload(item).category_id
-            for item in payload["categories"]
-        }
+        categories = tuple(self._category_from_payload(item) for item in payload["categories"])
+        category_ids = {item.category_id for item in categories}
+        if sum(item.is_default for item in categories) > 1:
+            raise ValueError("文件式项目集只能有一个默认分类。")
         for project in projects:
             if project.category_id not in category_ids:
                 raise ValueError(
                     f"项目 '{project.project_id}' 指向不存在的分类 '{project.category_id}'。"
                 )
-        return tuple(sorted(projects, key=_project_sort_key))
+        projects = tuple(sorted(projects, key=_project_sort_key))
+        categories = tuple(sorted(categories, key=_category_sort_key))
+        # setdefault preserves the previous first-match behavior for old catalogs.
+        by_id: dict[str, Project] = {}
+        by_root: dict[Path, Project] = {}
+        for project in projects:
+            by_id.setdefault(project.project_id, project)
+            by_root.setdefault(Path(project.root_path), project)
+        return _CatalogIndex(
+            stamp, projects, categories, by_id, by_root,
+            {item.category_id: item for item in reversed(categories)},
+        )
 
     def get_project(self, project_id: str) -> Project | None:
         normalized = project_id.strip()
-        return next(
-            (item for item in self.list_projects() if item.project_id == normalized),
-            None,
-        )
+        return self._read_index().projects_by_id.get(normalized)
 
     def get_project_by_root_path(self, root_path: str) -> Project | None:
         normalized = Path(root_path).resolve()
-        return next(
-            (
-                item
-                for item in self.list_projects()
-                if Path(item.root_path).resolve() == normalized
-            ),
-            None,
-        )
+        return self._read_index().projects_by_root.get(normalized)
 
     def save_project(self, project: Project) -> Project:
         self._require_project_kind(project.project_kind)
@@ -114,26 +150,11 @@ class FileProjectCatalog:
             self._write_payload(payload)
 
     def list_project_categories(self) -> tuple[ProjectCategory, ...]:
-        payload = self._read_payload()
-        categories = tuple(
-            self._category_from_payload(item)
-            for item in payload["categories"]
-        )
-        default_count = sum(1 for item in categories if item.is_default)
-        if default_count > 1:
-            raise ValueError("文件式项目集只能有一个默认分类。")
-        return tuple(sorted(categories, key=_category_sort_key))
+        return self._read_index().categories
 
     def get_project_category(self, category_id: str) -> ProjectCategory | None:
         normalized = category_id.strip()
-        return next(
-            (
-                item
-                for item in self.list_project_categories()
-                if item.category_id == normalized
-            ),
-            None,
-        )
+        return self._read_index().categories_by_id.get(normalized)
 
     def get_project_category_by_name(self, name: str) -> ProjectCategory | None:
         normalized = name.strip().casefold()
@@ -359,6 +380,7 @@ class FileProjectCatalog:
                 temporary_path = Path(temporary_file.name)
                 temporary_file.write(text)
             atomic_replace_path(temporary_path, self._catalog_path)
+            self._index = None
         except Exception:
             if temporary_path is not None:
                 with suppress(OSError):

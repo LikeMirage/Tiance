@@ -5,6 +5,8 @@ from functools import lru_cache
 import logging
 from uuid import uuid4
 
+from app.core.shutdown_tasks import finish_thread
+
 from app.domain.llm.output_limit import OutputLimitRecoveryBudget, OUTPUT_LIMIT_MESSAGE_PREFIX
 from app.domain.llm.output_limit_error import OutputLimitError
 from app.services.llm.chat.output_limit import is_output_limit
@@ -147,7 +149,7 @@ class ChatCompletionService:
                     response_message=partial.message, thinking_content=partial.thinking_content,
                     settings=self._estimation_settings_for(partial.usage),
                 )
-                self._record_usage_if_present(request=attempt_request, usage=partial_usage)
+                await finish_thread(self._record_usage_if_present, request=attempt_request, usage=partial_usage)
                 await self._record_attempt_outcome(
                     attempt_request, status="failed", error_code=exc.code, error_message=exc.message,
                 )
@@ -182,7 +184,7 @@ class ChatCompletionService:
             thinking_content=result.thinking_content,
             settings=self._estimation_settings_for(result.usage),
         )
-        self._record_usage_if_present(request=attempt_request, usage=usage)
+        await finish_thread(self._record_usage_if_present, request=attempt_request, usage=usage)
         return ChatCompletionResult(
             provider_id=result.provider_id,
             model_id=result.model_id,
@@ -289,7 +291,7 @@ class ChatCompletionService:
                         ),
                         settings=self._estimation_settings_for(provider_usage),
                     )
-                    self._record_usage_if_present(request=attempt_request, usage=cancelled_usage)
+                    await finish_thread(self._record_usage_if_present, request=attempt_request, usage=cancelled_usage)
                 await self._record_attempt_outcome(
                     attempt_request, status="cancelled", error_code="request_cancelled",
                     error_message="Request cancelled locally.",
@@ -328,7 +330,7 @@ class ChatCompletionService:
                     ),
                     settings=self._estimation_settings_for(provider_usage),
                 )
-                self._record_usage_if_present(request=attempt_request, usage=usage)
+                await finish_thread(self._record_usage_if_present, request=attempt_request, usage=usage)
 
             if error_event is not None:
                 limited = is_output_limit(attempt_request, error_event, provider_usage)

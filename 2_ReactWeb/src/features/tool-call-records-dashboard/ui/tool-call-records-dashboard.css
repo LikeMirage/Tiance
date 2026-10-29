@@ -218,6 +218,34 @@
   font-size: 13px;
 }
 
+.tool-call-records-dashboard__pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.tool-call-records-dashboard__pagination > span {
+  margin-right: auto;
+}
+
+.tool-call-records-dashboard__pagination button,
+.tool-call-records-dashboard__detail button {
+  padding: 5px 10px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 4px;
+  background: var(--color-surface-input);
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tool-call-records-dashboard__pagination button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 @media (max-width: 860px) {
   .tool-call-records-dashboard {
     padding: 18px;

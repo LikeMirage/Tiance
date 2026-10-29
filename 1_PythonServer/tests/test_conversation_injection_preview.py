@@ -11,6 +11,28 @@ from app.services.project.conversation_injection_preview import (
 )
 
 
+def test_preview_save_endpoint_only_acknowledges_without_returning_full_snapshot(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.api.routes.llm import chat as routes
+    calls = []
+    class PreviewService:
+        async def update_injection_preview(self, request):
+            calls.append(request)
+            return {"request_snapshot": {"content": "x" * (408 * 1024)}}
+    monkeypatch.setattr(routes, "get_project_conversation_stream_service", PreviewService)
+    app = FastAPI()
+    app.include_router(routes.router, prefix="/api")
+    with TestClient(app) as client:
+        response = client.post("/api/llm/chat/injection-preview", json={
+            "provider_id": "provider", "model_id": "model", "project_id": "p", "session_id": "s",
+        })
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+    assert len(response.content) < 32
+    assert len(calls) == 1 and calls[0].session_id == "s"
+
+
 def test_chat_completion_request_uses_current_tool_call_default():
     payload = ChatCompletionRequestBody(
         provider_id="deepseek",

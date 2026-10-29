@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.api.routes.tools import catalog as catalog_routes
+from app.services.tools import catalog_access
 from app.core.errors import BadRequestError, NotFoundError
 from app.infra.tools.tool_project_config_constants import (
     TOOL_EXAMPLES_FILE,
@@ -251,13 +252,13 @@ def test_tool_catalog_route_session_context_rejects_disabled_session_tool(monkey
         get_session=lambda project_id, session_id: fake_session,
     )
     monkeypatch.setattr(
-        catalog_routes,
+        catalog_access,
         "get_project_conversation_service",
         lambda: fake_service,
     )
 
     with pytest.raises(NotFoundError) as exc:
-        catalog_routes._assert_session_tool_allowed(
+        catalog_access.assert_session_tool_allowed(
             "read_text_file",
             project_id="project-1",
             session_id="session-1",
@@ -277,12 +278,12 @@ def test_tool_catalog_route_session_context_allows_enabled_session_tool(monkeypa
         get_session=lambda project_id, session_id: fake_session,
     )
     monkeypatch.setattr(
-        catalog_routes,
+        catalog_access,
         "get_project_conversation_service",
         lambda: fake_service,
     )
 
-    catalog_routes._assert_session_tool_allowed(
+    catalog_access.assert_session_tool_allowed(
         "read_text_file",
         project_id="project-1",
         session_id="session-1",
@@ -300,13 +301,13 @@ def test_tool_catalog_route_rejects_tool_when_session_master_switch_is_off(monke
         get_session=lambda project_id, session_id: fake_session,
     )
     monkeypatch.setattr(
-        catalog_routes,
+        catalog_access,
         "get_project_conversation_service",
         lambda: fake_service,
     )
 
     with pytest.raises(NotFoundError) as exc:
-        catalog_routes._assert_session_tool_allowed(
+        catalog_access.assert_session_tool_allowed(
             "read_text_file",
             project_id="project-1",
             session_id="session-1",

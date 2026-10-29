@@ -3,17 +3,14 @@
 import hmac
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
+from app.domain.tools.host_capabilities import HOST_CAPABILITIES
 
 
 GATEWAY_TOKEN_ENV = "TIANCE_GATEWAY_INTERNAL_TOKEN"
 GATEWAY_TOKEN_HEADER = b"x-tiance-gateway-token"
 # These exact tool endpoints have their own scoped, short-lived capability grants.
 # Do not exempt a router prefix: its ordinary UI endpoints still require the gateway.
-CAPABILITY_ENDPOINTS = frozenset({
-    "/api/git/repository/tool", "/api/github/sync/tool", "/api/github/platform/tool",
-    "/api/memory/management/tool", "/api/llm/provider-capabilities/web-search",
-    "/api/llm/provider-capabilities/deepseek-web",
-})
+CAPABILITY_ENDPOINTS = frozenset('/api' + definition.path for definition in HOST_CAPABILITIES.values())
 
 
 class GatewayAuthenticationMiddleware:

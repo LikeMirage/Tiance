@@ -113,8 +113,8 @@ class ProjectConversationService:
     ]:
         return self._repository.get_overview_data(project_id)
 
-    def get_list_data(self, project_id: str):
-        return self._repository.get_list_data(project_id)
+    def get_list_data(self, project_id: str, *, summaries_only: bool = False, session_id: str | None = None):
+        return self._repository.get_list_data(project_id, summaries_only=summaries_only, session_id=session_id)
 
     def get_cache_affinity_id(self, project_id: str, session_id: str) -> str:
         return self._repository.get_cache_affinity_id(project_id, session_id)
@@ -165,6 +165,7 @@ class ProjectConversationService:
         session_runtime_statuses: dict[str, str],
         session_drafts: dict[str, str],
         session_references: dict[str, list[dict]],
+        include_full_state: bool = True,
     ) -> tuple[str | None, dict[str, ProjectConversationSessionState]]:
         return self._repository.save_state(
             project_id,
@@ -173,6 +174,7 @@ class ProjectConversationService:
             session_runtime_statuses=session_runtime_statuses,
             session_drafts=session_drafts,
             session_references=session_references,
+            include_full_state=include_full_state,
         )
 
     def create_session(

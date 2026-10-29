@@ -29,21 +29,29 @@ def _record(project_id="p1", session_id="shared", **changes):
 
 
 class _CountingStore:
-    def __init__(self, records):
-        self.records = records
+    def __init__(self, store):
+        self.store = store
         self.scans = 0
         self.visits = 0
 
-    def list_records(self):
-        self.scans += 1
-        for record in self.records:
-            self.visits += 1
-            yield record
+    def session_totals(self, requests):
+        result = self.store.session_totals(requests)
+        if any(requests.values()):
+            self.scans += 1
+            self.visits += sum(len(rows) for sessions in result.values() for rows in sessions.values())
+        return result
+
+    def append(self, record):
+        self.store.append_upsert(record)
 
 
 def _repository(tmp_path, records):
     repository = LlmUsageRepository(tmp_path / "usage")
-    store = _CountingStore(records)
+    with repository._store.transaction(write=True) as db:
+        for index, record in enumerate(records):
+            # These are separate requests, not repeated updates of the same ID.
+            repository._store._upsert(db, replace(record, usage_id=f"u{index}", message_id=f"m{index}"))
+    store = _CountingStore(repository._store)
     repository._store = store
     return repository, store
 
@@ -60,7 +68,7 @@ def test_batch_separates_projects_and_preserves_all_usage_fields(tmp_path):
         "p1": ("shared", "empty"), "p2": ("shared",), "empty": (),
     })
     assert store.scans == 1
-    assert store.visits == 7
+    assert store.visits == 3  # Only the requested currency/feature totals.
     assert totals["empty"] == {}
     assert "empty" not in totals["p1"]
     first = totals["p1"]["shared"]
@@ -84,7 +92,7 @@ def test_no_sessions_does_not_scan_usage(tmp_path, requests):
     assert store.scans == 0
 
 
-def test_category_overview_scans_50000_records_once_and_sees_new_usage(tmp_path):
+def test_category_overview_reads_20_totals_for_50000_records_and_sees_new_usage(tmp_path):
     category = ProjectCategory("cat", "Category", False, 0, NOW, NOW)
     projects = tuple(Project(
         project_id=f"p{i}", name=f"Project {i}", root_path=str(tmp_path / str(i)),
@@ -109,12 +117,12 @@ def test_category_overview_scans_50000_records_once_and_sees_new_usage(tmp_path)
         project_service, SimpleNamespace(get_overview_data=session_data), usage_service,
     )
     overview = overview_service.get_category_overview("cat")
-    assert (store.scans, store.visits) == (1, 50_000)
+    assert (store.scans, store.visits) == (1, 20)
     assert calls == Counter({project.project_id: 1 for project in projects})
     assert overview.project_count == 20 and overview.session_count == 20
     assert all(item.usage.total_tokens == 37_500 for item in overview.projects)
 
-    store.records.append(_record("p0", usage_id="new"))
+    store.append(_record("p0", usage_id="new", message_id="new-message"))
     refreshed = overview_service.get_category_overview("cat")
     assert store.scans == 2
     assert refreshed.projects[0].usage.total_tokens == 37_515

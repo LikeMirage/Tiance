@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from json import dumps, loads
 
 from app.core.errors import BadRequestError
+from app.domain.tools.host_capabilities import declared_host_capabilities
 from app.domain.tools.parameter_permissions import (
     TOOL_PARAMETER_PERMISSION_TYPE_KEY,
     TOOL_PARAMETER_PERMISSION_TYPES,
@@ -91,6 +92,10 @@ def _normalize_tool_runtime(manifest: dict[str, object]) -> bool:
     if not isinstance(runtime.get("type"), str) or not str(runtime.get("type") or "").strip():
         raise BadRequestError("tool.json 的 runtime.type 不能为空。")
     runtime_type = str(runtime.get("type") or "").strip().lower()
+    try:
+        declared_host_capabilities(runtime)
+    except ValueError as exc:
+        raise BadRequestError(str(exc)) from exc
 
     raw_entry = runtime.get("entry")
     entry = raw_entry if isinstance(raw_entry, str) else ""

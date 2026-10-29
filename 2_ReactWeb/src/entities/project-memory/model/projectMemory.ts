@@ -48,6 +48,4 @@ export type ProjectMemoryOperationResponse = {
   scope: string;
   operation: string;
   memory_id: string;
-  memory: ProjectMemoryItem | null;
-  items: ProjectMemoryItem[];
 };

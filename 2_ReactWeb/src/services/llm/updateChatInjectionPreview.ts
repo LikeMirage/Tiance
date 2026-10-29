@@ -5,7 +5,7 @@ export function updateChatInjectionPreview(
   input: ChatCompletionRequest,
   init?: Pick<RequestInit, "signal">,
 ) {
-  return fetchJson<unknown>("/api/llm/chat/injection-preview", {
+  return fetchJson<{ ok: boolean }>("/api/llm/chat/injection-preview", {
     method: "POST",
     body: JSON.stringify(input),
     signal: init?.signal,

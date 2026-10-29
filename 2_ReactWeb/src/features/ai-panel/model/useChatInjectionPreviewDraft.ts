@@ -4,6 +4,7 @@ import { publishProjectFileMutation } from "../../../entities/project/model/proj
 import type { ConversationSessionSettings } from "../../../entities/llm-chat/model/conversation";
 import type {
   ChatCompletionMessageInput,
+  ChatCompletionRequest,
   ConversationMessageReferences,
 } from "../../../entities/llm-chat/model/chatCompletion";
 import type { DsLlmReasoningMode } from "../../../entities/llm-runtime/model/generationParams";
@@ -30,6 +31,8 @@ type UseChatInjectionPreviewDraftOptions = {
   projectId: string | null;
   settledDraft: SettledConversationDraft | null;
   supportsImageInput: boolean;
+  historyRevision: number | null;
+  roleProjectId: string | null;
 };
 
 export function useChatInjectionPreviewDraft({
@@ -42,20 +45,17 @@ export function useChatInjectionPreviewDraft({
   projectId,
   settledDraft,
   supportsImageInput,
+  historyRevision,
+  roleProjectId,
 }: UseChatInjectionPreviewDraftOptions) {
-  useEffect(() => {
-    if (!projectId || !activeSessionId || !activeModel || !settledDraft || isActiveSessionStreaming) {
-      return undefined;
-    }
-    if (settledDraft.projectId !== projectId || settledDraft.sessionId !== activeSessionId) {
-      return undefined;
-    }
-
+  let previewKey: string | null = null;
+  if (projectId && activeSessionId && activeModel && settledDraft && !isActiveSessionStreaming
+    && historyRevision !== null
+    && settledDraft.projectId === projectId && settledDraft.sessionId === activeSessionId) {
     const draftContent = settledDraft.draft.trim();
     const hasReferences = hasConversationReferences(references);
     const nextUserContent = draftContent || hasReferences ? draftContent : null;
 
-    const controller = new AbortController();
     const requestContentParts = supportsImageInput && nextUserContent !== null
       ? buildConversationImageContentParts(references, projectId)
       : [];
@@ -72,7 +72,7 @@ export function useChatInjectionPreviewDraft({
           : {}),
       }];
 
-    void updateChatInjectionPreview({
+    const request: ChatCompletionRequest = {
       provider_id: activeModel.providerId,
       model_id: activeModel.modelId,
       project_id: projectId,
@@ -83,10 +83,26 @@ export function useChatInjectionPreviewDraft({
       ),
       max_tool_calls: activeSessionSettings.max_tool_calls,
       generation: buildGenerationParams(activeSessionSettings, activeReasoningMode),
-    }, { signal: controller.signal }).then(() => {
+    };
+    // List reloads replace settings/reference objects even when their values are
+    // unchanged. Compare inputs, not object identity or the draft's publish count.
+    // Include server-side context inputs so history/memory completion and role or
+    // tool selection changes still update the preview without copying history here.
+    previewKey = JSON.stringify({ request, settings: activeSessionSettings, historyRevision, roleProjectId },
+      (_key, value) => value && typeof value === "object" && !Array.isArray(value)
+        ? Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)))
+        : value);
+  }
+
+  useEffect(() => {
+    if (previewKey === null) return undefined;
+    const { request } = JSON.parse(previewKey) as { request: ChatCompletionRequest };
+    const controller = new AbortController();
+    void updateChatInjectionPreview(request, { signal: controller.signal }).then((result) => {
+      if (controller.signal.aborted || !result.ok) return;
       publishProjectFileMutation({
-        projectId,
-        node: buildInjectionPreviewFileNode(activeSessionId),
+        projectId: request.project_id!,
+        node: buildInjectionPreviewFileNode(request.session_id!),
         sourceId: "chat-injection-preview",
       });
     }).catch((error) => {
@@ -99,17 +115,7 @@ export function useChatInjectionPreviewDraft({
     return () => {
       controller.abort();
     };
-  }, [
-    activeModel,
-    activeReasoningMode,
-    activeSessionId,
-    activeSessionSettings,
-    references,
-    isActiveSessionStreaming,
-    projectId,
-    settledDraft,
-    supportsImageInput,
-  ]);
+  }, [previewKey]);
 }
 
 function buildInjectionPreviewFileNode(sessionId: string) {

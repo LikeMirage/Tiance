@@ -79,6 +79,7 @@ export class ConversationBackgroundRunRegistry {
       throw new Error("目标会话没有可用的模型配置。");
     }
 
+    if (!input.session.settings) throw new Error("会话设置尚未读取，不能启动任务。");
     const request = buildConversationRunRequest({
       messages: [{
         role: "user",

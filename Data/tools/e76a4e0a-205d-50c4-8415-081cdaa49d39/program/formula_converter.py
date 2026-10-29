@@ -11,7 +11,7 @@ from lxml import etree
 
 from mathml_styles import normalize_mathml_styles
 from omml_validation import find_omml_structure_error
-from text_scanning import is_escaped
+from text_scanning import EscapeIndex, is_escaped
 
 OMML_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 OMML = f"{{{OMML_NS}}}"
@@ -136,19 +136,20 @@ def extract_latex_presentation(latex: str) -> tuple[LatexPresentation | None, st
     depth = 0
     cursor = 0
 
+    escaped = EscapeIndex(latex)
     while cursor < len(latex):
         char = latex[cursor]
-        if char == "{" and not is_escaped(latex, cursor):
+        if char == "{" and not escaped(cursor):
             depth += 1
             output.append(char)
             cursor += 1
             continue
-        if char == "}" and not is_escaped(latex, cursor):
+        if char == "}" and not escaped(cursor):
             depth = max(0, depth - 1)
             output.append(char)
             cursor += 1
             continue
-        if char != "\\" or is_escaped(latex, cursor):
+        if char != "\\" or escaped(cursor):
             output.append(char)
             cursor += 1
             continue

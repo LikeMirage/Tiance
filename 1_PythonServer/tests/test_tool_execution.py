@@ -82,7 +82,7 @@ def test_tool_execution_runs_python_entry_with_json_stdin(tmp_path, monkeypatch)
     )
 
     assert result.ok is True
-    assert result.content == '{"ok":true,"content":"done"}'
+    assert loads(result.content) == {"ok": True, "content": "done"}
     assert completed_commands[0][1] == '{"file_path": "C:/work/app.py"}'
     assert completed_commands[0][2] == tmp_path
     assert completed_commands[0][4] == 12
@@ -166,7 +166,7 @@ print(json.dumps({
     ("deepseek_official_web_search", HostCapability.DEEPSEEK_WEB),
 ])
 def test_network_search_receives_process_scoped_capability_grant(tmp_path, tool_name, capability):
-    tool_root = _create_tool_root(tmp_path, tool_name=tool_name)
+    tool_root = _create_tool_root(tmp_path, tool_name=tool_name, host_capabilities=[capability.value])
     access = HostCapabilityAccessService()
     issued_token: str | None = None
 
@@ -230,7 +230,7 @@ def test_formal_deepseek_tool_runs_through_standard_python_runtime(tmp_path):
 
 
 def test_network_search_capability_grant_follows_model_switch(tmp_path):
-    tool_root = _create_tool_root(tmp_path, tool_name="network_search")
+    tool_root = _create_tool_root(tmp_path, tool_name="network_search", host_capabilities=["web_search"])
     access = HostCapabilityAccessService()
     observed_contexts: list[tuple[str, str]] = []
     issued_tokens: list[str] = []
@@ -656,6 +656,7 @@ def _create_tool_root(
     enabled: bool = True,
     input_schema: dict | None = None,
     tool_name: str = "read_text_file",
+    host_capabilities: list[str] | None = None,
 ) -> Path:
     tool_root = tmp_path / "tool"
     config_root = tool_root / ".tool"
@@ -672,6 +673,7 @@ def _create_tool_root(
                     "type": "python",
                     "entry": "program/main.py",
                     "timeout_seconds": 12,
+                    "host_capabilities": host_capabilities or [],
                 },
                 "execution": {"parallel": True},
                 "state": {

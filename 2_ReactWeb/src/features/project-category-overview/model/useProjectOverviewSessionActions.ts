@@ -7,7 +7,7 @@ import type {
 import { dispatchProjectConversationUpdated } from "../../../entities/llm-chat/model/projectConversationEvents";
 import type { useI18n } from "../../../shared/i18n";
 import { deleteProjectConversation } from "../../../services/project/deleteProjectConversation";
-import { getProjectConversations } from "../../../services/project/getProjectConversations";
+import { getProjectConversationSummaries as getProjectConversations } from "../../../services/project/getProjectConversationSummaries";
 import { setProjectConversationPinned } from "../../../services/project/setProjectConversationPinned";
 import { updateProjectConversation } from "../../../services/project/updateProjectConversation";
 

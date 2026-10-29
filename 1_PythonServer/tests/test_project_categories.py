@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.usefixtures("fake_system_recycle")
+
 from app.core.errors import BadRequestError, ConflictError
 from app.domain.project import ProjectKind
 from app.infra.database import (
@@ -390,7 +392,7 @@ def test_role_project_uses_selected_category_and_roles_directory(tmp_path):
     )
 
 
-def test_delete_theme_category_archives_theme_folder_and_index(tmp_path):
+def test_delete_theme_category_recycles_theme_folder_and_removes_index(tmp_path):
     database_path = tmp_path / "tiance.db"
     ensure_database_schema(database_path)
     projects_root = tmp_path / "managed-projects"
@@ -425,7 +427,7 @@ def test_delete_theme_category_archives_theme_folder_and_index(tmp_path):
     assert not theme_root.exists()
 
 
-def test_delete_project_category_archives_projects_and_removes_index(tmp_path):
+def test_delete_project_category_recycles_projects_and_removes_index(tmp_path):
     database_path = tmp_path / "tiance.db"
     ensure_database_schema(database_path)
     repository = ProjectRepository(database_path)
@@ -443,7 +445,7 @@ def test_delete_project_category_archives_projects_and_removes_index(tmp_path):
     assert not Path(project.root_path).exists()
 
 
-def test_delete_project_category_archives_external_project_folder(tmp_path):
+def test_delete_project_category_recycles_external_project_folder(tmp_path):
     database_path = tmp_path / "tiance.db"
     ensure_database_schema(database_path)
     repository = ProjectRepository(database_path)
@@ -571,7 +573,7 @@ def test_imported_project_remove_keeps_external_files(tmp_path):
     assert (external_root / "note.txt").read_text(encoding="utf-8") == "keep"
 
 
-def test_imported_project_delete_files_moves_external_folder_from_original_path(tmp_path):
+def test_imported_project_delete_files_recycles_external_folder(tmp_path, fake_system_recycle):
     database_path = tmp_path / "tiance.db"
     ensure_database_schema(database_path)
     repository = ProjectRepository(database_path)
@@ -588,18 +590,6 @@ def test_imported_project_delete_files_moves_external_folder_from_original_path(
 
     assert repository.get_project(project.project_id) is None
     assert not external_root.exists()
-
-
-def test_restore_external_archived_project_root_requires_existing_parent(tmp_path):
-    storage_root = tmp_path / "managed-projects"
-    storage = ProjectStorage(storage_root)
-    archived_root = storage_root / ".trash" / "external" / "external-project-archive"
-    archived_root.mkdir(parents=True)
-
-    with pytest.raises(ValueError):
-        storage.restore_external_archived_project_root(
-            archived_root,
-            str(tmp_path / "missing-parent" / "external-project"),
-        )
-
-    assert archived_root.is_dir()
+    assert fake_system_recycle[-1][0] == external_root
+    assert (fake_system_recycle[-1][1] / "note.txt").read_text(encoding="utf-8") == "delete"
+    assert not (tmp_path / "managed-projects" / ".trash").exists()

@@ -139,7 +139,9 @@ async def update_chat_injection_preview(payload: ChatCompletionRequestBody):
     request = payload.to_domain()
     service = get_project_conversation_stream_service()
     preview = await service.update_injection_preview(request)
-    return {"ok": preview is not None, "preview": preview}
+    # The editor reads the persisted preview through the document API on demand.
+    # Draft synchronization only needs an acknowledgement, not another full copy.
+    return {"ok": preview is not None}
 
 
 def _sse_event(payload: dict) -> str:

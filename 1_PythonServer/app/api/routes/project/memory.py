@@ -65,21 +65,11 @@ def apply_project_memory_operation(
         content=payload.content,
         keywords=payload.keywords,
         reason=payload.reason,
+        include_snapshot=False,
     )
-    report = service.list_memory_records(scope=payload.scope, project_id=project_id)
-    memory = _find_item(report["items"], result["memory_id"])
     return ProjectMemoryOperationResponse(
         project_id=project_id,
         scope=result["scope"],
         operation=result["operation"],
         memory_id=result["memory_id"],
-        memory=ProjectMemoryItemResponse(**memory) if memory is not None else None,
-        items=[ProjectMemoryItemResponse(**item) for item in report["items"]],
     )
-
-
-def _find_item(items: list[dict], memory_id: str) -> dict | None:
-    for item in items:
-        if item.get("id") == memory_id:
-            return item
-    return None

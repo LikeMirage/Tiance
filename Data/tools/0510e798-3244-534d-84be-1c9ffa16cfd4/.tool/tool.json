@@ -5,7 +5,8 @@
     "parallel": true
   },
   "files": {
-    "examples": ".tool/examples.json","permissions":".tool/permissions.json",
+    "examples": ".tool/examples.json",
+    "permissions": ".tool/permissions.json",
     "input_schema": ".tool/input.schema.json",
     "output_schema": ".tool/output.schema.json"
   },
@@ -20,7 +21,10 @@
   "runtime": {
     "entry": "program/main.py",
     "timeout_seconds": 180,
-    "type": "python"
+    "type": "python",
+    "host_capabilities": [
+      "web_search"
+    ]
   },
   "state": {
     "enabled": true

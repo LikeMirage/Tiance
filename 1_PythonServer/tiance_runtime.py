@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import Any, TextIO
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from app.domain.tools.host_capabilities import HOST_CAPABILITIES
 
 Payload = dict[str, Any]
 ToolResult = dict[str, Any]
@@ -17,14 +18,13 @@ MODEL_CONTEXT_ENV = "TIANCE_MODEL_CONTEXT"
 HOST_CAPABILITY_TOKEN_ENV = "TIANCE_HOST_CAPABILITY_TOKEN"
 API_BASE_URL_ENV = "TIANCE_API_BASE_URL"
 
-_HOST_CAPABILITY_PATHS = {
-    "web_search": "/llm/provider-capabilities/web-search",
-    "deepseek_web": "/llm/provider-capabilities/deepseek-web",
-    "github_sync": "/github/sync/tool",
-    "git_repository": "/git/repository/tool",
-    "github_platform": "/github/platform/tool",
-    "memory_management": "/memory/management/tool",
-}
+_HOST_CAPABILITY_PATHS = {key.value: item.path for key, item in HOST_CAPABILITIES.items()}
+
+
+def list_host_capabilities() -> list[dict[str, str]]:
+    """Discover installed host contracts locally; this does not grant access."""
+    return [{"name": key.value, "path": item.path, "description": item.description}
+            for key, item in HOST_CAPABILITIES.items()]
 
 
 def get_model_context() -> dict[str, Any]:
@@ -86,7 +86,7 @@ def call_host_capability(
     api_base_url = os.environ.get(API_BASE_URL_ENV, "").strip().rstrip("/")
     token = os.environ.get(HOST_CAPABILITY_TOKEN_ENV, "").strip()
     if not api_base_url or not token:
-        raise RuntimeError("当前工具执行没有获得后端供应商能力授权。")
+        raise RuntimeError("当前工具未获得后端能力授权，请检查 runtime.host_capabilities 声明并通过天策执行。")
 
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     request = Request(
@@ -97,7 +97,7 @@ def call_host_capability(
             "Content-Type": "application/json; charset=utf-8",
             **(
                 {"X-Tiance-Github-Token": github_token}
-                if normalized_capability in {"github_sync", "git_repository", "github_platform"}
+                if (normalized_capability.startswith("github_") or normalized_capability == "git_repository")
                 and (github_token := os.environ.get("TIANCE_GITHUB_TOKEN", "").strip())
                 else {}
             ),

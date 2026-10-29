@@ -38,6 +38,10 @@ input.schema.json 顶层 properties 中每个参数可写 `permission_type`，�
 
 平台先判定权限再执行 Python/client。ask 是否真的出现一次确认，还取决于会话的 tool_approval_mode；当前默认可为 auto_allow_ask。不要在说明里承诺“所有写入都会弹窗”。deny 应阻止执行。权限检查不是操作系统沙箱，Python 工具进程仍具有运行账户的系统访问能力，必须只使用可信工具并正确实现自身范围校验。
 
+## 宿主能力声明与参数权限
+
+runtime.host_capabilities 声明允许工具访问哪些宿主接口；input.schema.json 和 permissions.json 决定本次参数涉及的权限。二者不能互相替代。先通过工具启用、会话选择、参数与权限校验，再签发绑定本次调用范围的能力凭据。Python 代码仍是受信任程序，声明机制不是操作系统沙箱。既有能力可供不同调用名复用，不需要为每个工具添加后端名字白名单。
+
 ## 必须测试的边界
 
 - 相对路径、绝对路径、工作区内外、符号链接与不存在路径。

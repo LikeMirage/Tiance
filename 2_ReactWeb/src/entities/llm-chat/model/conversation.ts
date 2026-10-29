@@ -35,13 +35,13 @@ export type ConversationSession = {
   model_id: string | null;
   reasoning_mode: DsLlmReasoningMode | null;
   manual_title: boolean;
-  settings: ConversationSessionSettings;
+  settings?: ConversationSessionSettings;
   created_at: string;
   updated_at: string;
   message_count: number;
   pinned: boolean;
   role_project_id: string | null;
-  role_status: "selected" | "custom";
+  role_status?: "selected" | "custom";
 };
 
 export type ConversationRuntimeStatus = "idle" | "running" | "error";

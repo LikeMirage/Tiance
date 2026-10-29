@@ -239,7 +239,7 @@ export function useChatGeneration({
       sendStartupLockedRef.current = false;
       return;
     }
-    if (!streamSession) {
+    if (!streamSession || !streamSession.settings) {
       sendStartupLockedRef.current = false;
       return;
     }

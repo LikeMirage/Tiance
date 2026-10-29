@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "gui_runtime",
-  "version": "8.2.1",
+  "version": "8.2.2",
   "author": {
     "name": "Tiance"
   },
   "license": "CC0-1.0",
   "compatibility": {
-    "minTianceVersion": "0.3.31",
+    "minTianceVersion": "0.3.33",
     "platforms": [
       "windows-x64"
     ]

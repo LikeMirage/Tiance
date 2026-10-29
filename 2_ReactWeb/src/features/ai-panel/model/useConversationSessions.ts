@@ -11,7 +11,8 @@ import type {
   ConversationSessionListResponse,
 } from "../../../entities/llm-chat/model/conversation";
 import { dispatchProjectConversationUpdated } from "../../../entities/llm-chat/model/projectConversationEvents";
-import { getProjectConversations } from "../../../services/project/getProjectConversations";
+import { getProjectConversationDetail } from "../../../services/project/getProjectConversationDetail";
+import { loadSelectedConversationList } from "../../../services/project/getProjectConversationSummaries";
 import { isNotFoundRequestError } from "./chatPanelRequestErrors";
 import { getCachedProjectEntryWarmup } from "../../project-entry/model/projectEntryWarmup";
 import { buildSessionKey } from "./sessionKey";
@@ -80,6 +81,9 @@ export function useConversationSessions({
   const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
   const [sessionStates, setSessionStates] = useState<Record<string, ConversationSessionState>>({});
   const [draft, setDraft] = useState("");
+  const [selectionLoadError, setSelectionLoadError] = useState<string | null>(null);
+  const [isLoadingSelection, setIsLoadingSelection] = useState(false);
+  const selectionRequestRef = useRef<AbortController | null>(null);
   const [settledDraft, setSettledDraft] = useState<SettledConversationDraft | null>(null);
   const streamingRegistryRef = useRef(new SessionStreamingRegistry());
   const [streamingSessionKeys, setStreamingSessionKeys] = useState<Set<string>>(() => new Set());
@@ -283,23 +287,56 @@ export function useConversationSessions({
     });
   }, [updateSessionStateLocally]);
 
-  const activateSession = useCallback((sessionId: string) => {
-    if (!projectId) return;
-    const current = latestDraftRef.current;
-    if (current.projectId && current.activeSessionId) {
-      saveSessionState(current.projectId, current.activeSessionId, { draft: current.draft });
+  useEffect(() => {
+    selectionRequestRef.current?.abort();
+    selectionRequestRef.current = null;
+    setIsLoadingSelection(false);
+    setSelectionLoadError(null);
+    return () => selectionRequestRef.current?.abort();
+  }, [projectId]);
+
+  const activateSession = useCallback(async (sessionId: string) => {
+    if (!projectId) return false;
+    selectionRequestRef.current?.abort();
+    const controller = new AbortController();
+    selectionRequestRef.current = controller;
+    setIsLoadingSelection(true);
+    setSelectionLoadError(null);
+    let timedOut = false;
+    const timer = window.setTimeout(() => { timedOut = true; controller.abort(); }, SESSION_LIST_LOAD_TIMEOUT_MS);
+    const requestSnapshot = snapshotDraftRequest(projectId);
+    try {
+      const detail = await getProjectConversationDetail(projectId, sessionId, controller.signal);
+      if (controller.signal.aborted || activeProjectIdRef.current !== projectId) return false;
+      if (!detail.session.settings) throw new Error("会话设置读取不完整，请重试。");
+      const current = latestDraftRef.current;
+      if (current.projectId && current.activeSessionId) {
+        saveSessionState(current.projectId, current.activeSessionId, { draft: current.draft });
+      }
+      const state = mergeProtectedDrafts(projectId, { [sessionId]: detail.state }, requestSnapshot)[sessionId];
+      setSessions((previous) => previous.map((session) => session.session_id === sessionId ? detail.session : session));
+      setSessionStates((previous) => ({ ...previous, [sessionId]: state }));
+      setActiveSessionId(sessionId);
+      activeSessionIdRef.current = sessionId;
+      setDraft(state.draft);
+      showChatView();
+      dispatchProjectConversationUpdated({ kind: "selection", projectId, sessionId });
+      void saveConversationState(projectId, { active_session_id: sessionId }).catch(() => undefined);
+      return true;
+    } catch (error) {
+      if ((!controller.signal.aborted || timedOut) && activeProjectIdRef.current === projectId) {
+        setSelectionLoadError(timedOut ? "会话读取超时，请重试。" : error instanceof Error ? error.message : "会话读取失败，请重试。");
+      }
+      return false;
+    } finally {
+      window.clearTimeout(timer);
+      releaseDraftRequest(projectId, requestSnapshot);
+      if (selectionRequestRef.current === controller) {
+        selectionRequestRef.current = null;
+        setIsLoadingSelection(false);
+      }
     }
-    setActiveSessionId(sessionId);
-    activeSessionIdRef.current = sessionId;
-    setDraft(sessionStates[sessionId]?.draft ?? "");
-    showChatView();
-    dispatchProjectConversationUpdated({
-      kind: "selection",
-      projectId,
-      sessionId,
-    });
-    void saveConversationState(projectId, { active_session_id: sessionId }).catch(() => undefined);
-  }, [projectId, saveConversationState, saveSessionState, sessionStates, showChatView]);
+  }, [projectId, saveConversationState, saveSessionState, showChatView, snapshotDraftRequest, mergeProtectedDrafts, releaseDraftRequest]);
 
   const applyProjectSnapshot = useCallback((
     pid: string,
@@ -368,13 +405,13 @@ export function useConversationSessions({
     }
 
     const localSnapshot = projectSessionSnapshotsRef.current.get(projectId);
-    if (localSnapshot) {
+    if (localSnapshot && (!preferredSessionId || localSnapshot.sessions.some((item) => item.session_id === preferredSessionId && item.settings))) {
       applyProjectSnapshot(projectId, localSnapshot);
       return;
     }
 
     const cachedResponse = getCachedProjectEntryWarmup(projectId)?.conversations;
-    if (cachedResponse && isUsableCachedConversationList(projectId, cachedResponse)) {
+    if (cachedResponse && isUsableCachedConversationList(projectId, cachedResponse) && (!preferredSessionId || cachedResponse.items.some((item) => item.session_id === preferredSessionId && item.settings))) {
       if (unavailableProjectIdRef.current === projectId) {
         unavailableProjectIdRef.current = null;
       }
@@ -407,7 +444,20 @@ export function useConversationSessions({
     reloadSessionsRequestIdsRef.current.set(pid, requestId);
     const draftRequestSnapshot = snapshotDraftRequest(pid);
     try {
-      const response = await getProjectConversationsWithTimeout(pid);
+      const snapshot = projectSessionSnapshotsRef.current.get(pid);
+      const requestedSession = activeProjectIdRef.current === pid
+        ? activeSessionIdRef.current ?? preferredSessionId : snapshot?.activeSessionId ?? null;
+      const response = await getProjectConversationsWithTimeout(pid, requestedSession, snapshot?.sessionStates ?? {});
+      // A user selection may finish while the list/detail request is in flight.
+      // Do not replace that selected session with a summary or old draft.
+      if (activeProjectIdRef.current === pid && activeSessionIdRef.current &&
+          activeSessionIdRef.current !== requestedSession) {
+        const selectedId = activeSessionIdRef.current;
+        if (response.items.some((item) => item.session_id === selectedId && !item.settings)) {
+          reloadSessionsDirtyRef.current.add(pid);
+          return { activeSessionId: selectedId, sessionIds: new Set(response.items.map((item) => item.session_id)), status: "ignored" };
+        }
+      }
       if (reloadSessionsRequestIdsRef.current.get(pid) !== requestId) {
         return {
           activeSessionId: null,
@@ -556,6 +606,7 @@ export function useConversationSessions({
     mergeProtectedDrafts,
     releaseDraftRequest,
     snapshotDraftRequest,
+    preferredSessionId,
   ]);
 
   const reloadSessionsForSelection = useCallback((pid: string) => {
@@ -684,7 +735,7 @@ export function useConversationSessions({
     activeSessionIdRef,
     branchNodes: presentedBranchNodes,
     draft: presentedDraft,
-    isLoadingSessions,
+    isLoadingSessions: isLoadingSessions || isLoadingSelection,
     isSessionStreaming,
     markConversationProjectUnavailable,
     markSessionStreaming,
@@ -696,7 +747,7 @@ export function useConversationSessions({
     saveSessionState,
     settledDraft: presentedSettledDraft,
     sessionStates: presentedSessionStates,
-    sessionLoadError,
+    sessionLoadError: selectionLoadError ?? sessionLoadError,
     sessions: presentedSessions,
     messageVariants: presentedMessageVariants,
     setActiveSessionId,
@@ -734,7 +785,7 @@ function isUsableCachedConversationList(
   return response.project_id === projectId && response.items.length > 0;
 }
 
-async function getProjectConversationsWithTimeout(projectId: string) {
+async function getProjectConversationsWithTimeout(projectId: string, selectedId: string | null, previousStates: Record<string, ConversationSessionState>) {
   const controller = new AbortController();
   let timedOut = false;
   const timeout = window.setTimeout(() => {
@@ -742,7 +793,7 @@ async function getProjectConversationsWithTimeout(projectId: string) {
     controller.abort();
   }, SESSION_LIST_LOAD_TIMEOUT_MS);
   try {
-    return await getProjectConversations(projectId, controller.signal);
+    return await loadSelectedConversationList(projectId, selectedId, previousStates, controller.signal);
   } catch (error) {
     if (timedOut) {
       throw new Error("会话列表刷新超时，请重试。");

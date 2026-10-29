@@ -481,6 +481,8 @@ export function useProjectCatalog(): UseProjectCatalogResult {
       setRequestKey((current) => current + 1);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "项目分类删除失败。");
+      // System recycling can partially succeed; refresh the completed removals.
+      setRequestKey((current) => current + 1);
       throw deleteError;
     }
   }, []);

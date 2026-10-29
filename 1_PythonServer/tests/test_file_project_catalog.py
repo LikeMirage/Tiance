@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.usefixtures("fake_system_recycle")
+
 from app.domain.project import Project, ProjectCategory, ProjectKind
 from app.infra.database import ensure_database_schema
 from app.infra.projects import ProjectStorage

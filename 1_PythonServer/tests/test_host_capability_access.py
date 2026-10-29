@@ -22,6 +22,7 @@ def test_grant_is_bound_to_current_tool_and_model_context():
     access = HostCapabilityAccessService()
     grant = access.issue_grant(
         tool_name="network_search",
+        capabilities=(HostCapability.WEB_SEARCH,),
         tool_call_id="call-1",
         provider_id="provider-1",
         model_id="model-1",
@@ -47,6 +48,7 @@ def test_grant_is_not_issued_without_complete_model_context():
 
     assert access.issue_grant(
         tool_name="network_search",
+        capabilities=(HostCapability.WEB_SEARCH,),
         tool_call_id="call-1",
         provider_id="provider-1",
         model_id=None,
@@ -60,6 +62,7 @@ def test_manage_memory_receives_only_memory_capability():
     access = HostCapabilityAccessService()
     grant = access.issue_grant(
         tool_name="manage_memory",
+        capabilities=(HostCapability.MEMORY_MANAGEMENT,),
         tool_call_id="call-memory",
         provider_id=None,
         model_id=None,
@@ -69,6 +72,6 @@ def test_manage_memory_receives_only_memory_capability():
     )
 
     assert grant is not None
-    assert grant.capability is HostCapability.MEMORY_MANAGEMENT
+    assert grant.capabilities == frozenset({HostCapability.MEMORY_MANAGEMENT})
     assert access.authorize(grant.token, HostCapability.MEMORY_MANAGEMENT) == grant
-    assert access.authorize(grant.token, HostCapability.GITHUB_PLATFORM) is None
+    assert access.authorize(grant.token, HostCapability.GITHUB_ISSUES) is None

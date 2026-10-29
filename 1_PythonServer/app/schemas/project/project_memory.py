@@ -56,5 +56,3 @@ class ProjectMemoryOperationResponse(BaseModel):
     scope: str
     operation: str
     memory_id: str
-    memory: ProjectMemoryItemResponse | None = None
-    items: list[ProjectMemoryItemResponse] = Field(default_factory=list)

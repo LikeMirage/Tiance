@@ -925,18 +925,16 @@ def test_usage_summary_includes_usage_only_cloud_models():
     assert summary.providers[0].total_tokens == 30
 
 
-def test_managed_project_delete_restores_archive_when_database_delete_fails():
+def test_managed_project_delete_reports_recycled_files_when_registration_delete_fails():
     repository = _FailingProjectRepository()
-    storage = _RestorableStorage()
+    storage = _RecyclableStorage()
     service = ProjectService(repository, storage)
 
-    try:
+    with pytest.raises(BadRequestError) as error:
         service.delete_project(repository.project.project_id)
-    except RuntimeError:
-        pass
-
-    assert storage.archive_calls == [repository.project.root_path]
-    assert storage.restore_calls == [("archived-path", repository.project.root_path)]
+    assert error.value.details["files_recycled"] is True
+    assert error.value.details["reason"] == "project_deregistration_failed"
+    assert storage.recycle_calls == [repository.project.root_path]
     assert repository.deleted_project_ids == [repository.project.project_id]
 
 
@@ -1388,8 +1386,7 @@ class _UnreadErrorStreamResponse:
         )
 
     async def aread(self):
-        self.was_read = True
-        return self._response.content
+        raise AssertionError("Error responses must be consumed in chunks, not read back in full")
 
     def raise_for_status(self):
         raise httpx.HTTPStatusError(
@@ -1399,7 +1396,8 @@ class _UnreadErrorStreamResponse:
         )
 
     async def aiter_bytes(self):
-        yield b""
+        yield self._response.content
+        self.was_read = True
 
 
 class _FakeUsageRepository:
@@ -1466,17 +1464,13 @@ class _FailingProjectRepository:
         raise RuntimeError("database failed")
 
 
-class _RestorableStorage:
+class _RecyclableStorage:
     def __init__(self) -> None:
-        self.archive_calls = []
-        self.restore_calls = []
+        self.recycle_calls = []
 
     def is_managed_project_root(self, root_path: str) -> bool:
         return True
 
-    def archive_project_root(self, root_path: str):
-        self.archive_calls.append(root_path)
-        return "archived-path"
-
-    def restore_archived_project_root(self, archived_path, project_root: str) -> None:
-        self.restore_calls.append((archived_path, project_root))
+    def recycle_project_root(self, root_path: str, *, external: bool = False):
+        self.recycle_calls.append(root_path)
+        return True

@@ -36,9 +36,11 @@ if __name__ == "__main__":
 | `TIANCE_PROJECT_ID` / `TIANCE_SESSION_ID` | 调用方的项目与会话；不是工具自己的项目 ID |
 | `TIANCE_MODEL_CONTEXT` | JSON，provider_id、model_id、input_modalities |
 | `TIANCE_API_BASE_URL` | 后端 API 基址，已包含 /api；它不是认证凭据 |
-| `TIANCE_HOST_CAPABILITY_TOKEN` | 只有被授权的工具才会获得的短期能力凭据 |
+| `TIANCE_HOST_CAPABILITY_TOKEN` | 平台依据 runtime.host_capabilities 和调用上下文签发的短期能力凭据；空声明不签发 |
 
-读取模型能力可用 `get_model_context()`、`model_supports_input("image")`。不要只凭模型名称猜视觉能力，更不要为此读供应商数据库。宿主凭据禁止打印、落盘或转交其他进程。
+读取模型能力可用 `get_model_context()`、`model_supports_input("image")`。不要只凭模型名称猜视觉能力，更不要为此读供应商数据库。宿主调用凭据禁止打印、落盘或转交后台进程。确需后台任务观察时，按第 04 篇申请单独的只读短期租约，不能延长或复制父工具的完整授权。
+
+`list_host_capabilities()` 返回当前安装的后端能力名称、路径与说明；`call_host_capability(name, payload, timeout_seconds=...)` 调用本工具已声明并获授权的能力。timeout_seconds 必须显式提供，并纳入工具总超时预算。完整能力清单、前端/后端接入方式及扩展步骤见第 04 篇。
 
 启动器保留白名单中的常用 Windows 路径变量（SystemDrive、SystemRoot、WINDIR、用户目录等），其余环境不保证存在；实际清单见 `tool_execution_runtime.py`。需要密钥或服务地址时在工具自己的配置中明确声明，不能假定宿主的全部环境会透传。
 
@@ -73,3 +75,7 @@ tiance-project 的路径相对调用工作区，不能指向工具 assets 却当
 runtime.timeout_seconds 是工具总执行预算。工具内部网络请求、子进程和重试应在预算内，不能悄悄把用户给定的业务时长缩短后仍宣称完成。平台取消 Python 工具会终止前台进程树，不能据此保证已经写出的文件或远端操作自动回滚。
 
 并发关闭影响调度，不保证不同会话或手动运行永不同时访问资源。覆盖文件、维护共享缓存或使用常驻进程时仍要有资源级互斥、身份验证和幂等处理。只有业务确实需要时才设计后台进程，必须提供可追踪的状态、关闭和异常回收方式。
+
+## 完整结果和内存
+
+stdout 返回一个完整 JSON 对象。平台校验后直接保留原 JSON 文本，不保证统一缩进、键顺序或转义形式；调用方应解析 JSON 后读取字段。日志写 stderr，成功日志不进入模型的工具结果；失败说明需要日志时完整读取。平台不会以节省内存为由偷偷裁剪工具结果。工具可以按明确的自身合同将大型文档保存为文件并返回位置，但不要把内容隐藏在未告知的截断或固定字符上限之后。

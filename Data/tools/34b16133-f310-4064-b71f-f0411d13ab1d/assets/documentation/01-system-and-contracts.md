@@ -44,6 +44,7 @@
 | `runtime.type` | 普通扩展使用 python 或 client；internal 是平台基础设施，不是插件入口 |
 | `runtime.entry` | Python 程序的项目内相对路径，模板为 program/main.py |
 | `runtime.timeout_seconds` | 必填正整数，按真实任务预算设置 |
+| `runtime.host_capabilities` | Python 专用，可选能力名称数组；默认空，只申请实际需要的后端能力，不绑定工具调用名；详见 04 |
 | `runtime.client_capability` | client 专用，包含能力 name 与正整数 min_version，必须实际注册 |
 | `io` | 约定说明：Python 用 stdin_json/stdout_json；client 用 client_json/client_json |
 | `files` | 固定指向 .tool 下的输入、输出、案例、权限四份文件；保存时会标准化 |

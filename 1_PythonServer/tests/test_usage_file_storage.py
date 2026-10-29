@@ -1,4 +1,6 @@
+import json
 import sqlite3
+from dataclasses import asdict, replace
 
 import pytest
 
@@ -6,11 +8,12 @@ from app.domain.llm.chat import ChatUsage
 from app.infra.database import ensure_database_schema, run_database_migrations
 from app.infra.database.schema import MIGRATIONS
 from app.repositories.llm.usage_repository import LlmUsageRepository
-from app.repositories.llm.usage_file_store import UsageFileStore
-from app.services.application.usage_file_migration import ensure_usage_file_storage
+from app.repositories.llm.usage_sqlite_store import UsageSqliteStore
+from app.services.application.usage_file_migration import ensure_usage_sqlite_storage
+from tests.test_usage_batch_overview import _record
 
 
-def test_legacy_usage_is_exported_before_sqlite_tables_are_removed(tmp_path):
+def test_legacy_global_database_is_imported_before_tables_are_removed(tmp_path):
     database_path = tmp_path / "tiance.db"
     usage_path = tmp_path / "usage"
     run_database_migrations(
@@ -49,10 +52,10 @@ def test_legacy_usage_is_exported_before_sqlite_tables_are_removed(tmp_path):
             ),
         )
 
-    ensure_usage_file_storage(database_path, usage_path)
-    original_content = (usage_path / "usage_records.jsonl").read_text(encoding="utf-8")
-    ensure_usage_file_storage(database_path, usage_path)
-    assert (usage_path / "usage_records.jsonl").read_text(encoding="utf-8") == original_content
+    ensure_usage_sqlite_storage(database_path, usage_path)
+    original_content = tuple(UsageSqliteStore(usage_path).iter_records())
+    ensure_usage_sqlite_storage(database_path, usage_path)
+    assert tuple(UsageSqliteStore(usage_path).iter_records()) == original_content
 
     ensure_database_schema(database_path)
 
@@ -76,120 +79,149 @@ def test_legacy_usage_is_exported_before_sqlite_tables_are_removed(tmp_path):
     assert summary.total.cost_amount == 0.25
 
 
-def test_usage_event_replay_preserves_upsert_and_model_delete_semantics(tmp_path):
-    repository = LlmUsageRepository(tmp_path / "usage")
-    repository.record_usage(
-        project_id="project-1",
-        session_id="session-1",
-        message_id="message-1",
-        provider_id="provider-1",
-        model_id="model-1",
-        usage=ChatUsage(prompt_tokens=10, completion_tokens=2, total_tokens=12),
-    )
-    repository.record_usage(
-        project_id="project-1",
-        session_id="session-1",
-        message_id="message-1",
-        provider_id="provider-1",
-        model_id="model-1",
-        usage=ChatUsage(prompt_tokens=20, completion_tokens=4, total_tokens=24),
-    )
-
-    summary = repository.get_session_summary(project_id="project-1", session_id="session-1")
-    assert summary.total.record_count == 1
-    assert summary.total.total_tokens == 24
-
-    repository.delete_model_usage(provider_id="provider-1", model_id="model-1")
-    deleted_summary = repository.get_session_summary(
-        project_id="project-1",
-        session_id="session-1",
-    )
-    assert deleted_summary.total.record_count == 0
-    assert deleted_summary.total.total_tokens == 0
+def write_legacy(path, events=None):
+    path.mkdir(parents=True, exist_ok=True)
+    ledger = path / 'usage_records.jsonl'
+    if events is None:
+        events = [{'version': 1, 'operation': 'upsert', 'record': asdict(_record())}]
+    ledger.write_text(''.join(json.dumps(event) + '\n' for event in events), encoding='utf-8')
+    return ledger
 
 
-def _record_usage(repository, message_id="message-1"):
-    return repository.record_usage(
-        project_id="project-1", session_id="session-1", message_id=message_id,
-        provider_id="provider-1", model_id="model-1",
-        usage=ChatUsage(prompt_tokens=10, completion_tokens=2, total_tokens=12),
-    )
+def add_usage(repository, message_id='new'):
+    return repository.record_usage(project_id='p1', session_id='shared', message_id=message_id,
+                                   provider_id='provider', model_id='model', usage=ChatUsage(total_tokens=12))
 
 
-@pytest.mark.parametrize("tail", [b'{"version":1,"record":', b'{"text":"\xe4\xb8', b'\x00\x00'])
-def test_startup_recovers_only_torn_tail_and_can_append_again(tmp_path, tail):
-    usage_path = tmp_path / "usage"
-    _record_usage(LlmUsageRepository(usage_path))
-    ledger = usage_path / "usage_records.jsonl"
-    healthy = ledger.read_bytes()
-    with ledger.open("ab") as output:
-        output.write(tail)
-
-    ensure_usage_file_storage(tmp_path / "unused.db", usage_path)
-
-    assert ledger.read_bytes() == healthy
-    backups = list(usage_path.glob("*.corrupt-tail"))
-    assert len(backups) == 1
-    assert backups[0].read_bytes() == tail
-    _record_usage(LlmUsageRepository(usage_path), message_id="message-2")
-    assert len(UsageFileStore(usage_path).list_records()) == 2
-    ensure_usage_file_storage(tmp_path / "unused.db", usage_path)
-    assert list(usage_path.glob("*.corrupt-tail")) == backups
-
-
-def test_complete_event_without_newline_is_preserved_before_next_append(tmp_path):
-    _record_usage(LlmUsageRepository(tmp_path))
-    ledger = tmp_path / "usage_records.jsonl"
-    ledger.write_bytes(ledger.read_bytes().rstrip(b"\r\n"))
-    _record_usage(LlmUsageRepository(tmp_path), message_id="message-2")
-    assert len(UsageFileStore(tmp_path).list_records()) == 2
-    assert not list(tmp_path.glob("*.corrupt-tail"))
+def test_replay_updates_preserve_first_location_date_and_cost_then_delete(tmp_path):
+    first = _record(cost_amount=0.1, request_id='same')
+    update = replace(first, usage_id='later', project_id='other', session_id='other',
+                     created_at='2027-01-01T00:00:00+00:00', total_tokens=99, cost_amount=0.8,
+                     cost_currency='CNY', is_estimated=True)
+    events = [{'version': 1, 'operation': 'upsert', 'record': asdict(r)} for r in (first, update)]
+    ledger = write_legacy(tmp_path, events)
+    original = ledger.read_bytes()
+    repo = LlmUsageRepository(tmp_path)
+    summary = repo.get_session_summary(project_id='p1', session_id='shared').total
+    assert (summary.record_count, summary.total_tokens, summary.cost_amount, summary.cost_currency, summary.estimated_record_count) == (1, 99, 0.8, 'CNY', 1)
+    saved, = repo._store.iter_records()
+    assert saved.usage_id == first.usage_id and saved.created_at == first.created_at
+    repo.delete_model_usage(provider_id='provider', model_id='model')
+    assert not tuple(UsageSqliteStore(tmp_path).iter_records())
+    assert ledger.read_bytes() == original
+    # Reinitialization never resurrects deleted usage from the retained backup.
+    ensure_usage_sqlite_storage(tmp_path / 'unused.db', tmp_path)
+    assert not tuple(UsageSqliteStore(tmp_path).iter_records())
 
 
-@pytest.mark.parametrize("suffix", [b'\n', b'\n{"version":1}\n'])
+def test_delete_event_applies_in_order_and_later_requests_survive(tmp_path):
+    early, late = _record(request_id='same'), _record(usage_id='late', request_id='same', total_tokens=71)
+    write_legacy(tmp_path, [
+        {'version': 1, 'operation': 'upsert', 'record': asdict(early)},
+        {'version': 1, 'operation': 'delete_model', 'provider_id': early.provider_id, 'model_id': early.model_id},
+        {'version': 1, 'operation': 'upsert', 'record': asdict(late)},
+    ])
+    assert tuple(UsageSqliteStore(tmp_path).iter_records()) == (late,)
+
+
+@pytest.mark.parametrize('tail', [b'{"version":1,"record":', b'{"text":"\xe4\xb8', b'\x00\x00'])
+def test_torn_tail_is_backed_up_and_original_is_not_modified(tmp_path, tail):
+    ledger = write_legacy(tmp_path)
+    original = ledger.read_bytes() + tail
+    ledger.write_bytes(original)
+    ensure_usage_sqlite_storage(tmp_path / 'unused.db', tmp_path)
+    assert ledger.read_bytes() == original
+    backups = list(tmp_path.glob('*.corrupt-tail'))
+    assert len(backups) == 1 and backups[0].read_bytes() == tail
+    add_usage(LlmUsageRepository(tmp_path))
+    assert len(tuple(UsageSqliteStore(tmp_path).iter_records())) == 2
+    ensure_usage_sqlite_storage(tmp_path / 'unused.db', tmp_path)
+    assert len(tuple(UsageSqliteStore(tmp_path).iter_records())) == 2
+    assert ledger.read_bytes() == original
+
+
+def test_complete_event_without_newline_is_preserved(tmp_path):
+    ledger = write_legacy(tmp_path)
+    original = ledger.read_bytes().rstrip(b'\r\n')
+    ledger.write_bytes(original)
+    add_usage(LlmUsageRepository(tmp_path))
+    assert len(tuple(UsageSqliteStore(tmp_path).iter_records())) == 2
+    assert ledger.read_bytes() == original
+    assert not list(tmp_path.glob('*.corrupt-tail'))
+
+
+@pytest.mark.parametrize('suffix', [b'\n', b'\n{"version":1}\n'])
 def test_complete_corrupt_line_is_not_silently_discarded(tmp_path, suffix):
-    _record_usage(LlmUsageRepository(tmp_path))
-    ledger = tmp_path / "usage_records.jsonl"
-    content = ledger.read_bytes() + b'{"partial":' + suffix
-    ledger.write_bytes(content)
-    with pytest.raises(ValueError, match="line 2"):
-        UsageFileStore(tmp_path).list_records()
-    assert ledger.read_bytes() == content
-    assert not list(tmp_path.glob("*.corrupt-tail"))
+    ledger = write_legacy(tmp_path)
+    original = ledger.read_bytes() + b'{"partial":' + suffix
+    ledger.write_bytes(original)
+    with pytest.raises(ValueError, match='line 2'):
+        UsageSqliteStore(tmp_path).ensure_ready()
+    assert ledger.read_bytes() == original
+    assert not list(tmp_path.glob('*.corrupt-tail'))
 
 
-@pytest.mark.parametrize("tail", [b'{"version":2}', b'{"version":1,"operation":"unknown"}', b'{"version":1,"operation":"upsert","record":{}}'])
-def test_semantically_invalid_tail_is_not_mistaken_for_torn_json(tmp_path, tail):
-    ledger = tmp_path / "usage_records.jsonl"
+@pytest.mark.parametrize('tail', [b'{"version":2}', b'{"version":1,"operation":"unknown"}', b'{"version":1,"operation":"upsert","record":{}}'])
+def test_semantically_invalid_tail_fails_migration(tmp_path, tail):
+    ledger = tmp_path / 'usage_records.jsonl'
     ledger.write_bytes(tail)
     with pytest.raises(ValueError):
-        UsageFileStore(tmp_path).list_records()
+        UsageSqliteStore(tmp_path).ensure_ready()
     assert ledger.read_bytes() == tail
-    assert not list(tmp_path.glob("*.corrupt-tail"))
+    assert not list(tmp_path.glob('*.corrupt-tail'))
 
 
-def test_failure_to_backup_torn_tail_leaves_original_untouched(tmp_path, monkeypatch):
+def test_failed_tail_backup_does_not_commit_or_modify_source(tmp_path, monkeypatch):
     from pathlib import Path
-
-    _record_usage(LlmUsageRepository(tmp_path))
-    ledger = tmp_path / "usage_records.jsonl"
-    content = ledger.read_bytes() + b'{"partial":'
-    ledger.write_bytes(content)
+    ledger = write_legacy(tmp_path)
+    original = ledger.read_bytes() + b'{"partial":'
+    ledger.write_bytes(original)
     real_open = Path.open
-
     def failing_backup(path, *args, **kwargs):
-        if path.name.endswith(".corrupt-tail"):
-            raise OSError("backup disk full")
+        if path.name.endswith('.corrupt-tail'):
+            raise OSError('backup disk full')
         return real_open(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'open', failing_backup)
+    with pytest.raises(OSError, match='backup disk full'):
+        UsageSqliteStore(tmp_path).ensure_ready()
+    assert ledger.read_bytes() == original
+    monkeypatch.undo()
+    assert len(tuple(UsageSqliteStore(tmp_path).iter_records())) == 1
 
-    monkeypatch.setattr(Path, "open", failing_backup)
-    with pytest.raises(OSError, match="disk full"):
-        UsageFileStore(tmp_path).list_records()
-    assert ledger.read_bytes() == content
+
+def test_single_partial_first_record_can_migrate_and_append(tmp_path):
+    ledger = tmp_path / 'usage_records.jsonl'
+    ledger.write_bytes(b'{"version":')
+    ensure_usage_sqlite_storage(tmp_path / 'unused.db', tmp_path)
+    add_usage(LlmUsageRepository(tmp_path))
+    assert len(tuple(UsageSqliteStore(tmp_path).iter_records())) == 1
+    assert ledger.read_bytes() == b'{"version":'
 
 
-def test_single_partial_first_record_does_not_prevent_startup(tmp_path):
-    (tmp_path / "usage_records.jsonl").write_bytes(b'{"version":')
-    ensure_usage_file_storage(tmp_path / "unused.db", tmp_path)
-    _record_usage(LlmUsageRepository(tmp_path))
-    assert len(UsageFileStore(tmp_path).list_records()) == 1
+def test_interrupted_migration_rolls_back_and_retries_once(tmp_path, monkeypatch):
+    ledger = write_legacy(tmp_path)
+    original = ledger.read_bytes()
+    verify = UsageSqliteStore._verify_totals
+    def interrupt(db):
+        raise RuntimeError('injected crash before migration commit')
+    monkeypatch.setattr(UsageSqliteStore, '_verify_totals', staticmethod(interrupt))
+    with pytest.raises(RuntimeError, match='injected crash'):
+        UsageSqliteStore(tmp_path).ensure_ready()
+    monkeypatch.setattr(UsageSqliteStore, '_verify_totals', staticmethod(verify))
+    assert len(tuple(UsageSqliteStore(tmp_path).iter_records())) == 1
+    assert len(tuple(UsageSqliteStore(tmp_path).iter_records())) == 1
+    assert ledger.read_bytes() == original
+
+
+def test_legacy_writer_change_during_import_rolls_back(tmp_path, monkeypatch):
+    ledger = write_legacy(tmp_path)
+    upsert = UsageSqliteStore._upsert
+    def modify_source(cls, db, record):
+        upsert(db, record)
+        with ledger.open('ab') as out:
+            out.write(b'\n')
+    with monkeypatch.context() as patch:
+        patch.setattr(UsageSqliteStore, '_upsert', classmethod(modify_source))
+        with pytest.raises(RuntimeError, match='changed during migration'):
+            UsageSqliteStore(tmp_path).ensure_ready()
+    assert len(tuple(UsageSqliteStore(tmp_path).iter_records())) == 1

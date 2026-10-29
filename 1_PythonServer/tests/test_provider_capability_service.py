@@ -92,7 +92,7 @@ def _grant() -> HostCapabilityGrant:
     return HostCapabilityGrant(
         grant_id="grant-1",
         token="token",
-        capability=HostCapability.WEB_SEARCH,
+        capabilities=frozenset({HostCapability.WEB_SEARCH}),
         tool_name="network_search",
         tool_call_id="call-1",
         provider_id="provider-1",

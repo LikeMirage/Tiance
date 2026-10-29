@@ -160,5 +160,5 @@ def test_host_capability_call_requires_backend_authorization(monkeypatch):
     monkeypatch.delenv("TIANCE_HOST_CAPABILITY_TOKEN", raising=False)
     monkeypatch.setenv("TIANCE_API_BASE_URL", "http://127.0.0.1:18000/api")
 
-    with pytest.raises(RuntimeError, match="没有获得后端供应商能力授权"):
+    with pytest.raises(RuntimeError, match="未获得后端能力授权"):
         call_host_capability("web_search", {"query": "test"}, timeout_seconds=10)

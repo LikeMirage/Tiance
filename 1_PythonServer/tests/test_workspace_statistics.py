@@ -145,7 +145,7 @@ def test_model_ranking_keeps_distinct_providers_and_survives_configuration_delet
     assert result["ranking"][0]["label"] == "DeepSeek · reasoner"
     assert len({item["id"] for item in result["ranking"]}) == 3
     assert service.get_statistics("tokens", "2026-09", "UTC")["ranking"] == result["ranking"]
-    original_ledger = (usage_path / "usage_records.jsonl").read_bytes()
+    original_ledger = tuple(usage._store.iter_records())
     assert models.delete_model(provider_id="deepseek", model_id="flash")
     assert service.get_statistics("tokens", "2026-10", "UTC")["ranking"] == result["ranking"]
     assert catalog.delete_entry("deepseek")
@@ -155,7 +155,7 @@ def test_model_ranking_keeps_distinct_providers_and_survives_configuration_delet
     assert deleted["total"] == 700
     assert deleted["ranking"][0]["label"] == "deepseek · reasoner"
     assert deleted["ranking"][2]["label"] == "deepseek · flash"
-    assert (usage_path / "usage_records.jsonl").read_bytes() == original_ledger
+    assert tuple(LlmUsageRepository(usage_path)._store.iter_records()) == original_ledger
 
 
 def draft(call_id="call-1", ok=True):

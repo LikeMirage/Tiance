@@ -39,7 +39,7 @@ def test_dry_run_does_not_send_mutation() -> None:
     service = GithubPlatformService(github, _Projects())  # type: ignore[arg-type]
 
     result = asyncio.run(service.execute(
-        tool_name="github_repository",
+        resource="repositories",
         project_id=None,
         action="delete_repository",
         dry_run=True,
@@ -56,7 +56,7 @@ def test_create_repository_calls_github_once() -> None:
     service = GithubPlatformService(github, _Projects())  # type: ignore[arg-type]
 
     result = asyncio.run(service.execute(
-        tool_name="github_repository",
+        resource="repositories",
         project_id=None,
         action="create_repository",
         dry_run=False,
@@ -73,7 +73,7 @@ def test_tool_cannot_call_another_tools_action() -> None:
 
     with pytest.raises(BadRequestError, match="不支持操作"):
         asyncio.run(service.execute(
-            tool_name="github_issue",
+            resource="issues",
             project_id=None,
             action="merge",
             dry_run=True,

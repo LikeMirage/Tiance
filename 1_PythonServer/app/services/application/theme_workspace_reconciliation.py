@@ -25,6 +25,7 @@ from app.services.themes.theme_catalog import (
     THEME_MANIFEST_FILE,
     ThemeCatalogError,
     load_theme_package,
+    invalidate_theme_catalog,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,14 @@ class ThemeWorkspaceReconciliationService:
         self._sync_lock = RLock()
 
     def synchronize(self) -> ThemeWorkspaceSyncResult:
+        try:
+            return self._synchronize()
+        finally:
+            # Installation, deletion and external workspace changes share this
+            # reconciliation entry point, including partially failed operations.
+            invalidate_theme_catalog()
+
+    def _synchronize(self) -> ThemeWorkspaceSyncResult:
         with self._sync_lock:
             self._themes_root.mkdir(parents=True, exist_ok=True)
             restored_theme_ids = self._restore_recovery_themes()

@@ -128,6 +128,7 @@ def test_github_sync_tool_receives_scoped_capability_without_model_context() -> 
     access = HostCapabilityAccessService()
     grant = access.issue_grant(
         tool_name="github_repository_sync",
+        capabilities=(HostCapability.GITHUB_SYNC,),
         tool_call_id="call-1",
         provider_id=None,
         model_id=None,
@@ -136,7 +137,7 @@ def test_github_sync_tool_receives_scoped_capability_without_model_context() -> 
         lifetime_seconds=60,
     )
     assert grant is not None
-    assert grant.capability is HostCapability.GITHUB_SYNC
+    assert grant.capabilities == frozenset({HostCapability.GITHUB_SYNC})
     assert access.authorize(grant.token, HostCapability.GITHUB_SYNC) == grant
 
 

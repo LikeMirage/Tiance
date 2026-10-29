@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from dataclasses import dataclass
 from json import dumps
 from pathlib import Path
 import os
@@ -8,7 +10,7 @@ import sys
 from tempfile import TemporaryFile
 import threading
 from time import monotonic, sleep
-from typing import Callable
+from typing import Callable, TextIO
 
 from app.services.tools.tool_dependency_runtime import resolve_tool_site_packages
 
@@ -200,7 +202,40 @@ def resolve_backend_api_base_url(api_prefix: str) -> str:
     return f"http://{host}:{port}{prefix}"
 
 
+@dataclass(slots=True)
+class CapturedToolProcess:
+    """Owned by capture_command; successful results need not materialize stderr."""
+
+    returncode: int
+    stdout_file: TextIO
+    stderr_file: TextIO
+    failure_reason: str | None = None
+
+    @property
+    def stdout(self) -> str:
+        self.stdout_file.seek(0)
+        return self.stdout_file.read()
+
+    @property
+    def stderr(self) -> str:
+        self.stderr_file.seek(0)
+        stderr = self.stderr_file.read()
+        if self.failure_reason:
+            return f"{stderr.rstrip()}\n{self.failure_reason}" if stderr.strip() else self.failure_reason
+        return stderr
+
+
 def run_command(
+    command: list[str], input_text: str, cwd: Path, env: dict[str, str], timeout_seconds: int,
+    *, cancellation: ToolExecutionCancellation | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Compatibility entry point for callers explicitly requesting both streams."""
+    with capture_command(command, input_text, cwd, env, timeout_seconds, cancellation=cancellation) as captured:
+        return subprocess.CompletedProcess(command, captured.returncode, captured.stdout, captured.stderr)
+
+
+@contextmanager
+def capture_command(
     command: list[str],
     input_text: str,
     cwd: Path,
@@ -208,9 +243,9 @@ def run_command(
     timeout_seconds: int,
     *,
     cancellation: ToolExecutionCancellation | None = None,
-) -> subprocess.CompletedProcess[str]:
+):
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
-    with TemporaryFile(mode="w+b") as stdout_file, TemporaryFile(mode="w+b") as stderr_file:
+    with TemporaryFile(mode="w+", encoding="utf-8", errors="replace", newline="") as stdout_file, TemporaryFile(mode="w+", encoding="utf-8", errors="replace", newline="") as stderr_file:
         process = subprocess.Popen(
             command,
             stdin=subprocess.PIPE,
@@ -231,7 +266,12 @@ def run_command(
                 except (BrokenPipeError, OSError):
                     pass
                 finally:
-                    process.stdin.close()
+                    try:
+                        process.stdin.close()
+                    except (BrokenPipeError, OSError):
+                        # close() also flushes buffered input; early cancellation
+                        # can close the child's pipe before this flush completes.
+                        pass
 
             deadline = monotonic() + timeout_seconds
             while process.poll() is None:
@@ -249,29 +289,19 @@ def run_command(
             except subprocess.TimeoutExpired:
                 terminate_process_tree(process)
                 process.wait(timeout=5)
+            if failure_reason is None and cancellation is not None and cancellation.is_cancelled:
+                failure_reason = "工具执行已取消。"
         finally:
             if cancellation is not None:
                 cancellation.unregister(process)
 
-        stdout_file.seek(0)
-        stderr_file.seek(0)
-        stdout = stdout_file.read().decode("utf-8", errors="replace")
-        stderr = stderr_file.read().decode("utf-8", errors="replace")
-
-    if failure_reason is not None:
-        failure_stderr = f"{stderr.rstrip()}\n{failure_reason}" if stderr.strip() else failure_reason
-        return subprocess.CompletedProcess(
-            command,
-            returncode=process.returncode if process.returncode not in {None, 0} else 1,
-            stdout=stdout,
-            stderr=failure_stderr,
+        yield CapturedToolProcess(
+            returncode=(process.returncode if process.returncode not in {None, 0} else 1)
+            if failure_reason else (process.returncode or 0),
+            stdout_file=stdout_file,
+            stderr_file=stderr_file,
+            failure_reason=failure_reason,
         )
-    return subprocess.CompletedProcess(
-        command,
-        returncode=process.returncode or 0,
-        stdout=stdout,
-        stderr=stderr,
-    )
 
 
 def terminate_process_tree(process: subprocess.Popen[bytes]) -> None:

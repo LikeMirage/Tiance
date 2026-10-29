@@ -197,6 +197,42 @@ def test_start_success_confirms_child_and_requires_real_lock(runtime_start_probe
     assert not state.get("terminated")
 
 
+def test_gui_helper_receives_only_observer_lease_not_gateway_or_parent_token(runtime_start_probe, monkeypatch):
+    module, state, child, workspace = runtime_start_probe
+    monkeypatch.setenv('TIANCE_API_BASE_URL', 'http://127.0.0.1:19000/api')
+    monkeypatch.setenv('TIANCE_HOST_CAPABILITY_TOKEN', 'parent-token')
+    calls = []
+    def acquire(capability, body, *, timeout_seconds):
+        calls.append((capability, body))
+        return {'running': True, 'token': 'observer-token', 'run_id': 'run-1'}
+    monkeypatch.setattr(module, 'call_host_capability', acquire)
+    original_spawn = module.subprocess.Popen
+    def spawn(command, **kwargs):
+        assert 'observer-token' not in command and 'parent-token' not in command
+        assert kwargs['env']['TIANCE_RUN_OBSERVER_TOKEN'] == 'observer-token'
+        assert 'TIANCE_HOST_CAPABILITY_TOKEN' not in kwargs['env']
+        assert command[command.index('--owner-status-url') + 1].endswith('/tools/capabilities/run-status')
+        return original_spawn(command, **kwargs)
+    monkeypatch.setattr(module.subprocess, 'Popen', spawn)
+    assert module.start_lock(workspace, 'project', 'session')['ok']
+    assert calls == [('run_status', {'action': 'watch'})]
+
+
+def test_gui_owner_status_uses_authenticated_read_only_bridge(monkeypatch):
+    import io
+    helper = _load_overlay_helper()
+    service = object.__new__(helper.GuiService)
+    service.owner_status_url = 'http://127.0.0.1:19000/api/tools/capabilities/run-status'
+    monkeypatch.setenv('TIANCE_RUN_OBSERVER_TOKEN', 'observer-token')
+    def request(req, timeout):
+        assert req.method == 'POST'
+        assert req.get_header('Authorization') == 'Bearer observer-token'
+        assert loads(req.data) == {'action': 'status'}
+        return io.BytesIO(b'{"running":true,"run_id":"run-1"}')
+    monkeypatch.setattr(helper.urllib.request, 'urlopen', request)
+    assert service._read_owner_run() == 'run-1'
+
+
 @pytest.mark.skipif(os.name != "nt", reason="Windows startup IPC integration")
 def test_startup_confirmation_over_real_pipes_without_desktop_lock(tmp_path, monkeypatch):
     # Exercise the real child process, state file and authenticated RPC; replace only desktop hooks/windows.

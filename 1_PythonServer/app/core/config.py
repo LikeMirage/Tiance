@@ -5,7 +5,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import PrivateAttr
+from pydantic import Field, PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     github_client_id: str = "Iv23liNTtDOlpz60vMVw"
     tool_dependency_index_url: str = "https://mirrors.aliyun.com/pypi/simple/"
     tool_dependency_install_timeout_seconds: int = 300
+    llm_sse_max_event_bytes: int = Field(default=64 * 1024 * 1024, gt=0)
     allowed_origins: str = (
         "http://127.0.0.1:18100,http://localhost:18100,"
         "https://pywebview.flowrl.com"

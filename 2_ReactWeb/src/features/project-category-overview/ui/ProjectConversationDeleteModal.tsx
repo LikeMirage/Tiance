@@ -14,7 +14,7 @@ import type {
 } from "../../../entities/llm-chat/model/conversation";
 import { useI18n } from "../../../shared/i18n";
 import { ConfirmModal } from "../../../shared/ui/confirm-modal/ConfirmModal";
-import { getProjectConversations } from "../../../services/project/getProjectConversations";
+import { getProjectConversationSummaries as getProjectConversations } from "../../../services/project/getProjectConversationSummaries";
 
 import "./project-conversation-delete-modal.css";
 
@@ -238,7 +238,7 @@ export function toggleDeleteTreeSelection(
 }
 
 function buildDeleteTree(
-  response: ConversationSessionListResponse,
+  response: Pick<ConversationSessionListResponse, "items" | "branch_nodes">,
   targetSessionId: string,
   targetTitle: string,
 ): DeleteTreeNode[] {

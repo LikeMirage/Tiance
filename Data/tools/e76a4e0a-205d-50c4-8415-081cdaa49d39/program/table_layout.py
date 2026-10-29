@@ -49,6 +49,9 @@ def calculate_column_widths(
         return []
     total_width = max(float(count), available_width_points)
     table_cells = _measure_table(headers, rows, measurer)
+    # Keep this cache local to one table. table_cells retains every layout, so
+    # identity keys stay valid without repeatedly hashing all measured tokens.
+    wrap_cache: dict[tuple[int, float], WrapMeasurement] = {}
     demands = _column_demands(table_cells, cell_padding_points)
     floor = _structural_floor(total_width, count)
     minimum_targets = [max(floor, demand.minimum_width) for demand in demands]
@@ -79,6 +82,7 @@ def calculate_column_widths(
             table_cells,
             demands,
             cell_padding_points,
+            wrap_cache,
         )
         best_column = 0
         best_key = (-float("inf"), -float("inf"), 0)
@@ -139,11 +143,12 @@ def _allocation_benefits(
     table_cells: tuple[tuple[CellLayout, ...], ...],
     demands: tuple[ColumnDemand, ...],
     padding: float,
+    wrap_cache: dict[tuple[int, float], WrapMeasurement],
 ) -> list[float]:
     content_widths = [max(1.0, width - padding) for width in widths]
     current_wraps = tuple(
         tuple(
-            row[column].wrap(content_widths[column])
+            _cached_wrap(row[column], content_widths[column], wrap_cache)
             for column in range(len(widths))
         )
         for row in table_cells
@@ -159,7 +164,7 @@ def _allocation_benefits(
         for row_index, row in enumerate(table_cells):
             state = row_states[row_index]
             old_wrap = current_wraps[row_index][column]
-            next_wrap = row[column].wrap(next_content_width)
+            next_wrap = _cached_wrap(row[column], next_content_width, wrap_cache)
             old_extra = state.extra_lines[column]
             next_extra = max(0, next_wrap.lines - 1)
             if old_extra == state.maximum_extra_lines and state.maximum_count == 1:
@@ -184,6 +189,20 @@ def _allocation_benefits(
             benefit += current_cost - next_cost
         benefits.append(max(0.0, benefit))
     return benefits
+
+
+def _cached_wrap(
+    cell: CellLayout,
+    width: float,
+    cache: dict[tuple[int, float], WrapMeasurement],
+) -> WrapMeasurement:
+    # Do not round widths: even a fractional point can cross a wrap boundary.
+    key = (id(cell), width)
+    result = cache.get(key)
+    if result is None:
+        result = cell.wrap(width)
+        cache[key] = result
+    return result
 
 
 def _row_cost_state(

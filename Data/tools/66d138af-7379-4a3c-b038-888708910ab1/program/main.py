@@ -9,7 +9,7 @@ CONFIG_PATH = Path(__file__).with_name("config.json")
 def run(payload):
     _install_optional_token()
     request = {"action": payload["action"], "dryRun": bool(payload.get("dry_run", False)), "parameters": payload.get("parameters") or {}}
-    return call_host_capability("github_platform", request, timeout_seconds=570)
+    return call_host_capability("github_repositories", request, timeout_seconds=570)
 
 def _install_optional_token():
     try: data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))

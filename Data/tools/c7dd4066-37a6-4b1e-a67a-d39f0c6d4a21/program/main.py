@@ -16,9 +16,8 @@ import tempfile
 import time
 from typing import Any, Iterator
 from uuid import uuid4
-from urllib.parse import urlencode
 
-from tiance_runtime import run_tool
+from tiance_runtime import call_host_capability, run_tool
 
 
 CONTROL_ROOT = Path(tempfile.gettempdir()) / "Tiance" / "gui-control"
@@ -348,9 +347,15 @@ def start_lock(
         "--startup-timeout-seconds", str(STARTUP_TIMEOUT_SECONDS),
     ]
     api_base = str(os.environ.get("TIANCE_API_BASE_URL") or "").rstrip("/")
+    helper_env = dict(os.environ)
+    helper_env.pop("TIANCE_HOST_CAPABILITY_TOKEN", None)
+    helper_env.pop("TIANCE_RUN_OBSERVER_TOKEN", None)
     if api_base:
-        owner_url = api_base + "/llm/chat/completions/stream/status?" + urlencode({"project_id": project_id, "session_id": session_id})
-        command.extend(["--owner-status-url", owner_url])
+        observer = call_host_capability("run_status", {"action": "watch"}, timeout_seconds=5)
+        if not observer.get("running") or not observer.get("token"):
+            raise ToolError("GUI_OWNER_STOPPED", "来源会话已停止运行。")
+        helper_env["TIANCE_RUN_OBSERVER_TOKEN"] = observer["token"]
+        command.extend(["--owner-status-url", api_base + "/tools/capabilities/run-status"])
     creation_flags = 0x00000008 | 0x00000200 | 0x08000000
     process = subprocess.Popen(
         command,
@@ -359,6 +364,7 @@ def start_lock(
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         creationflags=creation_flags,
+        env=helper_env,
         close_fds=True,
     )
     known_state: dict[str, Any] | None = None

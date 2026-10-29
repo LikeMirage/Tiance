@@ -111,7 +111,7 @@ class FileWorkspaceStorage:
                 if is_internal_write_temp_path(entry):
                     continue
                 try:
-                    if entry.is_symlink() or _is_junction(entry):
+                    if not _is_workspace_scan_entry(entry, root):
                         continue
                     if entry.is_dir():
                         scan(entry)
@@ -437,7 +437,12 @@ class FileWorkspaceStorage:
     ) -> tuple[FileEntryNode, ...]:
         results: list[FileEntryNode] = []
         try:
-            entries = sorted(scope.iterdir(), key=_sort_key)
+            if scope != root and not _is_workspace_scan_entry(scope, root):
+                return ()
+            entries = sorted(
+                (entry for entry in scope.iterdir() if _is_workspace_scan_entry(entry, root)),
+                key=_sort_key,
+            )
         except OSError:
             return ()
         for entry in entries:
@@ -486,6 +491,18 @@ def _relative_scan_path(path: Path, root: Path) -> str:
 def _is_junction(path: Path) -> bool:
     is_junction = getattr(path, "is_junction", None)
     return bool(is_junction and is_junction())
+
+
+def _is_workspace_scan_entry(path: Path, root: Path) -> bool:
+    """Recursive scans never follow links, including Windows directory junctions."""
+    try:
+        return (
+            not path.is_symlink()
+            and not _is_junction(path)
+            and path.resolve().is_relative_to(root)
+        )
+    except (OSError, RuntimeError):
+        return False
 
 
 def _resolve_directory(root: Path, relative: str | None) -> Path:

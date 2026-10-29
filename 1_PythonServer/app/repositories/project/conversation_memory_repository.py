@@ -22,10 +22,10 @@ from app.repositories.project.conversation_database import (
     read_document,
     read_events,
     read_project_events,
-    replace_events,
     session_exists,
     write_document,
 )
+from app.repositories.project.conversation_compression_records import append_compression_record
 from app.repositories.project.project_repository import ProjectRepository, get_project_repository
 
 COMPRESSIONS_FILE = "compressions.jsonl"
@@ -94,9 +94,7 @@ class ProjectConversationMemoryRepository:
     ) -> None:
         session_dir = self._session_dir(project_id, session_id, for_write=True)
         with conversation_write_lock(_conversations_dir_from_session_dir(session_dir)):
-            records = read_events(session_dir, "compressions")
-            records.append(payload)
-            replace_events(session_dir, "compressions", records)
+            append_compression_record(session_dir, payload)
 
     def list_compressions(
         self,

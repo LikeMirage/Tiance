@@ -1131,8 +1131,13 @@ class GuiService:
                     pass  # Process is exiting with hooks removed; a stale file is not a live lock.
 
     def _read_owner_run(self) -> str:
-        # Public run-state API; no message/history reads and no private database access.
-        with urllib.request.urlopen(self.owner_status_url, timeout=2) as response:
+        # Read-only lease bound to the originating run; no browser/gateway secret.
+        token = os.environ.get("TIANCE_RUN_OBSERVER_TOKEN", "")
+        if not token:
+            raise GuiError("GUI_OWNER_UNAUTHORIZED", "缺少来源任务的观察授权。")
+        request = urllib.request.Request(self.owner_status_url, data=b'{"action":"status"}',
+            headers={"Content-Type": "application/json", "Authorization": "Bearer " + token}, method="POST")
+        with urllib.request.urlopen(request, timeout=2) as response:
             status = json.load(response)
         if not status.get("running") or not isinstance(status.get("run_id"), str):
             raise GuiError("GUI_OWNER_STOPPED", "来源会话已停止运行。")

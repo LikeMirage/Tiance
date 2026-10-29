@@ -1,4 +1,4 @@
-export type ToolCallRecord = {
+export type ToolCallRecordListItem = {
   record_id: string;
   tool_project_id: string;
   tool_name: string;
@@ -7,20 +7,26 @@ export type ToolCallRecord = {
   source_project_name: string;
   session_id: string | null;
   session_title: string;
-  arguments_text: string;
-  result_text: string;
   ok: boolean;
-  error: string | null;
   created_at: string;
   elapsed_ms: number | null;
   dynamic: boolean | null;
+};
+
+export type ToolCallRecord = ToolCallRecordListItem & {
+  arguments_text: string;
+  result_text: string;
+  error: string | null;
 };
 
 export type ToolCallRecordListResponse = {
   category_id: string;
   project_id: string;
   count: number;
-  items: ToolCallRecord[];
+  offset: number;
+  limit: number;
+  snapshot: string | null;
+  items: ToolCallRecordListItem[];
 };
 
 export type ToolCallRecordTopTool = {

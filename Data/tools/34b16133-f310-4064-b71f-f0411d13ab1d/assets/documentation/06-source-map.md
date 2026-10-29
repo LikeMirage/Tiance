@@ -16,14 +16,19 @@
 | `1_PythonServer/app/services/tools/chat_tool_injection.py`、`dynamic_tool_contract.py` | 真实模型注入和动态加载 |
 | `1_PythonServer/app/services/tools/tool_execution.py`、`tool_execution_arguments.py` | 分发、参数校验、客户端准备、宿主凭据签发 |
 | `1_PythonServer/app/services/tools/tool_execution_runtime.py`、`tool_execution_results.py` | 进程环境、cwd、终止、JSON 结果解析 |
-| `1_PythonServer/tiance_runtime.py` | run_tool、模型模态、call_host_capability |
+| `1_PythonServer/tiance_runtime.py` | run_tool、模型模态、call_host_capability、list_host_capabilities |
 | `1_PythonServer/app/services/tools/tool_result_content.py`、`tool_resource_uris.py` | 图片内容块和受控 URI |
 | `1_PythonServer/app/domain/tools/parameter_permissions.py`、`permission_policies.py` | 权限类型、范围、默认策略 |
 | `1_PythonServer/app/services/tools/tool_permissions.py`、`tool_permission_bridge.py` | 决策、询问与生命周期 |
 | `1_PythonServer/app/services/tools/client_tool_bridge.py` | 请求、租约、提交、重放和取消 |
 | `1_PythonServer/app/domain/llm/chat.py` | ChatClientToolRequest 等内部合同 |
 | `1_PythonServer/app/services/project/conversation_tool_loop.py`、`conversation_stream_events.py` | 统一执行循环及前端事件序列化 |
-| `1_PythonServer/app/services/tools/host_capability_access.py` | 宿主能力枚举、工具允许名单和过期凭据 |
+| `1_PythonServer/app/domain/tools/host_capabilities.py` | 后端能力名称、路径、用途的统一注册表与工具声明校验 |
+| `1_PythonServer/app/services/tools/host_capability_access.py` | 按声明签发、撤销短期凭据，任务只读观察租约 |
+| `1_PythonServer/app/api/routes/tools/host_capabilities.py`、`app/services/tools/catalog_access.py` | 工具资料/运行状态能力及会话范围校验（第二项同样相对 1_PythonServer） |
+| `1_PythonServer/app/core/gateway_auth.py` | 精确能力 POST 路径进入各自认证，普通接口仍由网关保护 |
+| `1_PythonServer/app/services/project/conversation_run_context.py`、`conversation_run_manager.py` | 当前实时生成任务身份，区别于落盘轮次 ID |
+| `1_PythonServer/app/api/routes/github_platform.py`、`app/services/application/github_platform.py` | 五种 GitHub 能力按资源域分发，不按具体工具名分发 |
 | `1_PythonServer/app/api/routes/llm/provider_capabilities.py` | 搜索能力授权端点 |
 | `1_PythonServer/app/api/routes/tools/toolsets.py`、`tool_folder_files.py` | 分类、项目、文件 HTTP 合同 |
 | `1_PythonServer/app/services/application/tool_market.py` | 安装、更新、本地设置保留和回滚 |
@@ -53,6 +58,9 @@
 工具 ID 可能变化，先通过工具集目录定位项目，再阅读 `.tool/tool.json` 的 name 来确认身份，不把历史 UUID 写死进程序。可按调用名查找 network_search、deepseek_official_web_search、manage_memory、manage_ai_conversations、interact_ai_conversation、read_text_file 等。检索时仅扫描工具清单和源码，不把整个 Data 或 config.json 的凭据打印出来。
 
 ## 测试入口
+
+- 后端 `tests/test_declared_host_capabilities.py`：工具改名、真实网关/SDK/路由链路、声明与源码一致、范围限制、任务观察。
+- 后端 `tests/test_gateway_auth.py`、`test_host_capability_access.py`、`test_gui_tool_suite.py`：认证边界、凭据生命周期和后台助手。
 
 - 后端 `tests/test_tool_registry.py`、`test_tool_project_config_storage.py`、`test_tool_execution.py`、`test_tool_execution_arguments.py`、`test_tiance_runtime.py`。
 - 后端 `tests/test_project_creation_application.py`、`test_conversation_run_manager.py`、`test_tool_permission_runtime.py`、`test_tool_project_scaffolder.py`。

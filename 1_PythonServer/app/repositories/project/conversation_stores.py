@@ -179,6 +179,9 @@ class ConversationSessionStore:
     def read_list_snapshot(
         self,
         conversations_dir: Path,
+        *,
+        summaries_only: bool = False,
+        session_id: str | None = None,
     ) -> tuple[
         int,
         dict,
@@ -188,6 +191,8 @@ class ConversationSessionStore:
     ]:
         revision, raw_index, raw_sessions, raw_states, raw_graph = read_conversation_list_snapshot(
             conversations_dir,
+            summaries_only=summaries_only,
+            session_id=session_id,
         )
         return (
             revision,
