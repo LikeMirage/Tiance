@@ -41,7 +41,7 @@ def build_command_spec(payload: dict[str, Any], *, root: Path) -> CommandSpec:
 
     stdin_bytes = _read_stdin(payload.get("stdin"))
     workdir = _resolve_workdir(payload.get("workdir"), root)
-    timeout_seconds = _read_int(payload.get("timeout_seconds"), 30, 1, 300)
+    timeout_seconds = _read_timeout_seconds(payload.get("timeout_seconds", 30))
     max_output_chars = _read_int(payload.get("max_output_chars"), 20_000, 1_000, 200_000)
     expected_exit_codes = _read_expected_exit_codes(payload.get("expected_exit_codes"))
     extra_env = _read_extra_env(payload.get("extra_env"))
@@ -93,6 +93,12 @@ def build_command_spec(payload: dict[str, Any], *, root: Path) -> CommandSpec:
         extra_env=extra_env,
         extra_env_keys=tuple(sorted(extra_env)),
     )
+
+
+def _read_timeout_seconds(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 300:
+        raise ToolError("INVALID_ARGUMENT", "timeout_seconds 必须是 1–300 之间的整数。")
+    return value
 
 
 def _read_command(value: Any) -> str | None:

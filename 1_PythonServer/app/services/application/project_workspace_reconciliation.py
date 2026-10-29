@@ -15,6 +15,7 @@ from app.infra.projects import (
     read_project_identity,
     write_project_identity,
 )
+from app.infra.projects.project_paths import is_direct_workspace_directory
 from app.repositories.project import FileProjectCatalog, get_project_repository
 from app.services.project.projects import (
     DEFAULT_PROJECT_CATEGORY_ID,
@@ -180,7 +181,7 @@ class ProjectWorkspaceReconciliationService:
             self._projects_root.iterdir(),
             key=lambda item: item.name.casefold(),
         ):
-            if child.name.startswith(".") or not child.is_dir() or child.is_symlink():
+            if child.name.startswith(".") or not is_direct_workspace_directory(child, self._projects_root):
                 continue
             root = child.resolve()
             try:

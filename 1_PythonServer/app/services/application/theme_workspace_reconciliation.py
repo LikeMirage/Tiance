@@ -13,6 +13,7 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 from app.core.atomic_replace import atomic_replace_path
 from app.core.config import get_settings
 from app.domain.project import Project, ProjectCategory, ProjectKind
+from app.infra.projects.project_paths import is_direct_workspace_directory
 from app.repositories.project import FileProjectCatalog, get_project_repository
 from app.repositories.themes import ThemeSettingsRepository, get_theme_settings_repository
 from app.schemas.themes import ThemePackageDefinition
@@ -119,7 +120,12 @@ class ThemeWorkspaceReconciliationService:
             valid_theme_ids = {theme.id for theme in valid_by_root.values()}
             active_theme_id = self._settings_repository.get_active_theme_id()
             if active_theme_id not in valid_theme_ids:
-                active_theme_id = DEFAULT_THEME_ID
+                if not valid_theme_ids:
+                    raise ThemeCatalogError("没有可用的本地主题目录，请检查主题文件夹及目录链接。")
+                active_theme_id = next(
+                    (theme_id for theme_id in _RECOVERY_THEME_IDS if theme_id in valid_theme_ids),
+                    sorted(valid_theme_ids)[0],
+                )
                 self._settings_repository.save_active_theme_id(active_theme_id)
 
             result = ThemeWorkspaceSyncResult(
@@ -155,6 +161,10 @@ class ThemeWorkspaceReconciliationService:
                 raise RuntimeError(f"内置恢复主题 ID 不匹配：{theme_id}")
 
             target_root = self._themes_root / theme_id
+            # Recovery also runs before discovery. Never repair a built-in
+            # theme through a link into an unrelated directory.
+            if target_root.is_symlink() or target_root.is_junction():
+                continue
             target_file = target_root / THEME_MANIFEST_FILE
             try:
                 current_theme = load_theme_package(target_root)
@@ -190,7 +200,7 @@ class ThemeWorkspaceReconciliationService:
             self._themes_root.iterdir(),
             key=lambda item: item.name.casefold(),
         ):
-            if child.name.startswith(".") or not child.is_dir() or child.is_symlink():
+            if child.name.startswith(".") or not is_direct_workspace_directory(child, self._themes_root):
                 continue
             try:
                 theme = load_theme_package(child)

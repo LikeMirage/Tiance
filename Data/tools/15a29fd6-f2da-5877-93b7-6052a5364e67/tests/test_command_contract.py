@@ -31,6 +31,13 @@ run_command = _load_run_command_module()
 
 
 class CommandContractTests(unittest.TestCase):
+    def test_timeout_rejects_invalid_values_instead_of_silently_clamping(self) -> None:
+        for value in (0, -1, 301, 10000, True, "10", 1.5, None):
+            with self.subTest(value=value):
+                result = self._run({"argv": [sys.executable, "-c", "print('unused')"], "timeout_seconds": value})
+                self.assertFalse(result["ok"])
+                self.assertEqual(result["error_info"]["code"], "INVALID_ARGUMENT")
+
     def _run(self, payload: dict[str, object]) -> dict[str, object]:
         with tempfile.TemporaryDirectory() as workspace:
             with patch.dict(os.environ, {"TIANCE_WORKSPACE_ROOT": workspace}, clear=False):

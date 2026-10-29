@@ -29,10 +29,12 @@ class ClientToolClaimAck(BaseModel):
     claim_id: str | None = None
     lease_duration_seconds: float | None = None
     resumed: bool = False
+    attempt_id: str | None = None
 
 
 class ClientToolClaimRequestBody(BaseModel):
     executor_id: str
+    attempt_id: str | None = None
 
 
 class ClientToolLeaseRenewRequestBody(BaseModel):

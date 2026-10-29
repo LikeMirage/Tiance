@@ -6,8 +6,10 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
+from uuid import uuid4
 
 from tiance_runtime import run_tool
+from conversation_run import BridgeError, ConversationRun
 
 
 BACKEND_BASE_URL = os.environ.get(
@@ -15,14 +17,6 @@ BACKEND_BASE_URL = os.environ.get(
     "http://127.0.0.1:18000/api",
 ).rstrip("/")
 DEFAULT_TIMEOUT_SECONDS = 600
-
-
-class BridgeError(Exception):
-    def __init__(self, code: str, message: str, details: dict[str, Any] | None = None) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.details = details or {}
 
 
 def success(summary: str, data: dict[str, Any], warnings: list[str] | None = None) -> dict[str, Any]:
@@ -60,7 +54,7 @@ def _json_request(
     path: str,
     body: dict[str, Any] | None = None,
     *,
-    timeout: int = 30,
+    timeout: float = 30,
 ) -> dict[str, Any]:
     url = BACKEND_BASE_URL + path
     data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")
@@ -79,7 +73,7 @@ def _json_request(
         raise BridgeError(
             "BACKEND_HTTP_ERROR",
             f"Tiance 后端返回 HTTP {exc.code}。",
-            {"path": path, "body": detail[:4000]},
+            {"path": path, "body": detail[:4000], "http_status": exc.code},
         ) from exc
     except URLError as exc:
         raise BridgeError(
@@ -246,116 +240,20 @@ def send_message(project_id: str, session_id: str, message: str) -> dict[str, An
             {"project_id": project_id, "session_id": session_id},
         )
     body = _completion_request(project_id, session_id, message, session)
-    url = BACKEND_BASE_URL + "/llm/chat/completions/stream"
-    data = json.dumps(body, ensure_ascii=False).encode("utf-8")
-    req = Request(url, data=data, method="POST")
-    req.add_header("Accept", "text/event-stream")
-    req.add_header("Content-Type", "application/json")
-
-    answer_parts: list[str] = []
-    user_message_id: str | None = None
-    assistant_message_id: str | None = None
-    settled_status: str | None = None
-    finish_reason: str | None = None
-    stream_error: str | None = None
-    try:
-        with urlopen(req, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
-            for raw_line in response:
-                line = raw_line.decode("utf-8", "replace").strip()
-                if not line.startswith("data:"):
-                    continue
-                raw = line[5:].strip()
-                if not raw:
-                    continue
-                try:
-                    event = json.loads(raw)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(event, dict):
-                    continue
-                kind = str(event.get("kind") or "")
-                if kind == "conversation_run_started":
-                    value = event.get("user_message_id")
-                    if isinstance(value, str):
-                        user_message_id = value
-                elif kind == "conversation_run_settled":
-                    value = event.get("assistant_message_id")
-                    if isinstance(value, str):
-                        assistant_message_id = value
-                    settled_status = str(event.get("status") or "") or None
-                elif kind == "delta":
-                    value = event.get("content")
-                    if isinstance(value, str):
-                        answer_parts.append(value)
-                elif kind == "done":
-                    finish_reason = str(event.get("finish_reason") or "") or None
-                elif kind == "error":
-                    stream_error = str(event.get("error") or "Tiance 会话生成失败。")
-    except HTTPError as exc:
-        try:
-            detail = exc.read().decode("utf-8", "replace")
-        except Exception:
-            detail = ""
-        raise BridgeError(
-            "BACKEND_HTTP_ERROR",
-            f"Tiance 会话接口返回 HTTP {exc.code}。",
-            {"body": detail[:4000]},
-        ) from exc
-    except URLError as exc:
-        raise BridgeError("BACKEND_UNREACHABLE", "无法连接本机 Tiance 会话接口。", {"reason": str(exc.reason)}) from exc
-
-    durable_reply: str | None = None
-    durable_role: str | None = None
-    if user_message_id:
-        pid = quote(project_id, safe="")
-        sid = quote(session_id, safe="")
-        uid = quote(user_message_id, safe="")
-        turn = _json_request(
-            "GET",
-            f"/projects/{pid}/conversations/{sid}/messages/{uid}/turn",
-        )
-        raw_items = turn.get("items")
-        if isinstance(raw_items, list):
-            for item in reversed(raw_items):
-                if not isinstance(item, dict):
-                    continue
-                role = str(item.get("role") or "")
-                if role in {"assistant", "error"}:
-                    durable_role = role
-                    value = item.get("content")
-                    durable_reply = value if isinstance(value, str) else ""
-                    if not assistant_message_id:
-                        mid = item.get("message_id")
-                        if isinstance(mid, str):
-                            assistant_message_id = mid
-                    break
-
-    reply = durable_reply if durable_reply is not None else "".join(answer_parts)
-    if stream_error or durable_role == "error" or settled_status == "error":
-        raise BridgeError(
-            "SESSION_RUN_ERROR",
-            stream_error or reply or "目标会话生成失败。",
-            {
-                "project_id": project_id,
-                "session_id": session_id,
-                "user_message_id": user_message_id,
-                "assistant_message_id": assistant_message_id,
-            },
-        )
+    user_message_id = str(uuid4())
+    body["messages"][0]["message_id"] = user_message_id
+    result = ConversationRun(
+        BACKEND_BASE_URL, project_id, session_id, user_message_id,
+        _json_request, DEFAULT_TIMEOUT_SECONDS,
+    ).wait(body)
     return success(
-        f"已向会话 {session_id} 发送消息并取得本次回复。",
+        "目标会话本次回复已取消。" if result["outcome"] == "cancelled"
+        else f"已向会话 {session_id} 发送消息并取得本次回复。",
         {
-            "project_id": project_id,
-            "session_id": session_id,
+            **result,
             "session_title": session.get("title"),
             "provider_id": session.get("provider_id"),
             "model_id": session.get("model_id"),
-            "user_message_id": user_message_id,
-            "assistant_message_id": assistant_message_id,
-            "runtime_status": "idle",
-            "outcome": settled_status or "done",
-            "finish_reason": finish_reason,
-            "reply": reply,
             "history_locator": {
                 "tool_name": "conversation_history_search",
                 "session_id": session_id,

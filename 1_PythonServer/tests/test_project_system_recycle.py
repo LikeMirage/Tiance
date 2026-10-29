@@ -1,3 +1,5 @@
+
+from tests.project_test_support import make_project_repository
 import ctypes
 import os
 from pathlib import Path
@@ -15,13 +17,13 @@ from app.repositories.project.file_project_catalog import FileProjectCatalog
 from app.services.project.projects import ProjectService
 
 
-@pytest.fixture(params=['sqlite', 'file'])
-def services(tmp_path, request):
+@pytest.fixture
+def services(tmp_path):
     database = tmp_path / 'tiance.db'
     ensure_database_schema(database)
     managed = tmp_path / 'managed'
-    catalogs = (FileProjectCatalog(managed, project_kind=ProjectKind.PROJECT, allow_external_roots=True),) if request.param == 'file' else ()
-    repository = ProjectRepository(database, file_catalogs=catalogs)
+    catalogs = (FileProjectCatalog(managed, project_kind=ProjectKind.PROJECT, allow_external_roots=True),)
+    repository = make_project_repository(database, file_catalogs=catalogs)
     storage = ProjectStorage(managed)
     return ProjectService(repository, storage), repository, storage
 

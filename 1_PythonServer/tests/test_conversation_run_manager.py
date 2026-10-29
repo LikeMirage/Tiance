@@ -479,51 +479,65 @@ def test_concurrent_client_tool_claims_acquire_exactly_once():
     asyncio.run(run_test())
 
 
-def test_abandoned_client_tool_claim_settles_as_explicit_failure():
+def test_disconnected_owner_can_return_before_configured_tool_deadline(monkeypatch):
     async def run_test():
-        bridge = ClientToolBridgeService(lease_duration_seconds=0.02)
+        loop = asyncio.get_running_loop()
+        now = [loop.time()]
+        monkeypatch.setattr(loop, "time", lambda: now[0])
+        bridge = ClientToolBridgeService()
         client_request = await bridge.create_request(
             ChatToolCall(call_id="call-1", name="open_editor", arguments="{}"),
             project_id="project-1",
             session_id="session-1",
-            timeout_seconds=30,
+            timeout_seconds=600,
         )
         lease = await bridge.claim_request(
             client_request.request_id,
             executor_id="frontend-1",
         )
         assert lease.acquired is True
-
+        now[0] += 120  # No heartbeats for far longer than the former 30s lease.
+        assert await bridge.should_replay_request(client_request.request_id)
+        assert await bridge.pending_request_ids(project_id="project-1", session_id="session-1") == (client_request.request_id,)
+        other = await bridge.claim_request(client_request.request_id, executor_id="other-frontend")
+        assert not other.acquired
+        resumed = await bridge.claim_request(client_request.request_id, executor_id="frontend-1")
+        assert resumed.claim_id == lease.claim_id
+        assert await bridge.submit_result(client_request.request_id, ClientToolResultPayload(ok=True),
+                                         executor_id="frontend-1", claim_id=lease.claim_id)
         result = await bridge.wait_for_result(
             client_request.request_id,
             timeout_seconds=1,
         )
 
-        assert result.ok is False
-        assert result.content["error_code"] == "CLIENT_TOOL_EXECUTOR_LOST"
-        assert "执行租约" in (result.error or "")
+        assert result.ok is True
 
     asyncio.run(run_test())
 
 
-def test_unclaimed_client_tool_request_settles_without_waiting_for_tool_timeout():
+def test_unclaimed_request_can_be_claimed_after_30_seconds(monkeypatch):
     async def run_test():
-        bridge = ClientToolBridgeService(lease_duration_seconds=0.02)
+        loop = asyncio.get_running_loop()
+        now = [loop.time()]
+        monkeypatch.setattr(loop, "time", lambda: now[0])
+        bridge = ClientToolBridgeService()
         client_request = await bridge.create_request(
             ChatToolCall(call_id="call-1", name="open_editor", arguments="{}"),
             project_id="project-1",
             session_id="session-1",
-            timeout_seconds=30,
+            timeout_seconds=600,
         )
-
+        now[0] += 120
+        lease = await bridge.claim_request(client_request.request_id, executor_id="frontend-1")
+        assert lease.acquired
+        assert await bridge.submit_result(client_request.request_id, ClientToolResultPayload(ok=True),
+                                         executor_id="frontend-1", claim_id=lease.claim_id)
         result = await bridge.wait_for_result(
             client_request.request_id,
             timeout_seconds=1,
         )
 
-        assert result.ok is False
-        assert result.content["error_code"] == "CLIENT_TOOL_EXECUTOR_LOST"
-        assert "执行租约" in (result.error or "")
+        assert result.ok is True
 
     asyncio.run(run_test())
 

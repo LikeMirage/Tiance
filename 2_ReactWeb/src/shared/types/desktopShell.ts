@@ -93,7 +93,9 @@ export interface DesktopShellApi {
   minimize_window: () => Promise<void>;
   hide_window_to_tray?: () => Promise<boolean> | boolean;
   toggle_maximize_window: () => Promise<WindowStateSnapshot>;
-  close_window: () => Promise<void>;
+  request_window_close: (intent: "close" | "exit") => Promise<string | null>;
+  report_window_close: (requestId: string, state: "waiting" | "saving" | "cancelled") => Promise<boolean>;
+  close_window: (requestId: string) => Promise<boolean>;
   install_software_update?: (stagePath: string) => Promise<{
     ok: boolean;
     errorCode: string;

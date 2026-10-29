@@ -9,9 +9,7 @@ from app.domain.project import Project, ProjectKind
 from app.infra.database import (
     database_transaction,
     ensure_database_schema,
-    run_database_migrations,
 )
-from app.infra.database.schema import MIGRATIONS
 from app.services.themes import theme_catalog
 from tests.formal_tool_paths import resolve_formal_tool_root
 
@@ -103,34 +101,3 @@ def test_theme_project_is_opened_by_project_id(monkeypatch, tmp_path) -> None:
         source_path.read_text(encoding="utf-8")
     )
     assert saved_package.registration_name == source_package.registration_name
-
-
-def test_schema_migration_removes_only_legacy_active_theme_metadata(tmp_path) -> None:
-    database_path = tmp_path / "tiance.db"
-    run_database_migrations(
-        database_path,
-        tuple(migration for migration in MIGRATIONS if migration.version <= 44),
-    )
-    with database_transaction(database_path) as connection:
-        connection.executemany(
-            "INSERT INTO app_metadata (key, value, updated_at) VALUES (?, ?, ?)",
-            (
-                ("theme.active_theme_id", "legacy-theme", "now"),
-                ("workspace.last_opened", "{}", "now"),
-            ),
-        )
-
-    ensure_database_schema(database_path)
-
-    with database_transaction(database_path) as connection:
-        rows = connection.execute(
-            "SELECT key, value FROM app_metadata ORDER BY key"
-        ).fetchall()
-        migration = connection.execute(
-            "SELECT name FROM schema_migrations WHERE version = 45"
-        ).fetchone()
-
-    assert [(row["key"], row["value"]) for row in rows] == [
-        ("workspace.last_opened", "{}")
-    ]
-    assert migration["name"] == "remove_legacy_active_theme_metadata"

@@ -1,5 +1,7 @@
 # Excel 反向提取规则
 
+指定工作表：`action=export_markdown` 使用 `export_sheets` 名称数组，例如 `"export_sheets": ["Sheet1"]`；省略该参数会提取全部工作表。空数组、空名称和非字符串元素均报参数错误。`sheets` 专用于新建工作簿的工作表对象数组，不能用于导出筛选。
+
 调用 `action: export_markdown` 后，会得到三个可读结果：
 
 - `content.md`：每个 Sheet 一个标题和一个 Markdown 表格，只保存正文值、日期、布尔值和 Excel 公式。

@@ -1,50 +1,29 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
 from dataclasses import dataclass
 import os
 from pathlib import Path
 import subprocess
+from tempfile import NamedTemporaryFile, TemporaryFile
 from threading import Thread
 from time import monotonic
 from typing import BinaryIO
 
 
-_READ_CHUNK_BYTES = 64 * 1024
 _MIN_CAPTURE_BYTES = 16 * 1024
 _BYTES_PER_OUTPUT_CHAR = 4
 
 
 @dataclass(frozen=True, slots=True)
 class ProcessRunResult:
-    returncode: int
+    returncode: int | None
     stdout: bytes
     stderr: bytes
     stdout_omitted_bytes: int
     stderr_omitted_bytes: int
     timed_out: bool
     elapsed_ms: int
-
-
-class _BoundedByteCollector:
-    def __init__(self, limit_bytes: int) -> None:
-        self._limit_bytes = limit_bytes
-        self._chunks: list[bytes] = []
-        self._retained_bytes = 0
-        self._total_bytes = 0
-
-    def append(self, chunk: bytes) -> None:
-        if not chunk:
-            return
-        self._total_bytes += len(chunk)
-        remaining = self._limit_bytes - self._retained_bytes
-        if remaining <= 0:
-            return
-        retained = chunk[:remaining]
-        self._chunks.append(retained)
-        self._retained_bytes += len(retained)
-
-    def build(self) -> tuple[bytes, int]:
-        return b"".join(self._chunks), max(0, self._total_bytes - self._retained_bytes)
 
 
 def run_process(
@@ -56,88 +35,68 @@ def run_process(
     max_output_chars: int,
     extra_env: dict[str, str],
 ) -> ProcessRunResult:
-    capture_limit = max(
-        _MIN_CAPTURE_BYTES,
-        max_output_chars * _BYTES_PER_OUTPUT_CHAR,
-    )
-    stdout_collector = _BoundedByteCollector(capture_limit)
-    stderr_collector = _BoundedByteCollector(capture_limit)
+    capture_limit = max(_MIN_CAPTURE_BYTES, max_output_chars * _BYTES_PER_OUTPUT_CHAR)
     started_at = monotonic()
+    deadline = started_at + timeout_seconds
     environment = None
     if extra_env:
         environment = os.environ.copy()
         environment.update(extra_env)
-    process = subprocess.Popen(
-        process_args,
-        stdin=subprocess.PIPE if stdin_bytes is not None else None,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=str(cwd),
-        env=environment,
-    )
-    assert process.stdout is not None
-    assert process.stderr is not None
 
-    stdout_thread = Thread(
-        target=_read_stream,
-        args=(process.stdout, stdout_collector),
-        daemon=True,
-    )
-    stderr_thread = Thread(
-        target=_read_stream,
-        args=(process.stderr, stderr_collector),
-        daemon=True,
-    )
-    stdout_thread.start()
-    stderr_thread.start()
-
-    stdin_thread: Thread | None = None
-    if process.stdin is not None:
-        stdin_thread = Thread(
-            target=_write_stdin,
-            args=(process.stdin, stdin_bytes or b""),
-            daemon=True,
+    # This per-command deadline is independent from the host's tool.json budget.
+    # File-backed I/O does not wait for descendants to close inherited handles.
+    with ExitStack() as resources:
+        output_file = NamedTemporaryFile if os.name == "nt" else TemporaryFile
+        stdout_file = resources.enter_context(output_file(mode="w+b", buffering=0))
+        stderr_file = resources.enter_context(output_file(mode="w+b", buffering=0))
+        stdin_file = None
+        if stdin_bytes is not None:
+            stdin_file = resources.enter_context(TemporaryFile(mode="w+b"))
+            stdin_file.write(stdin_bytes)
+            stdin_file.seek(0)
+        process = subprocess.Popen(
+            process_args,
+            stdin=stdin_file,
+            stdout=stdout_file,
+            stderr=stderr_file,
+            cwd=str(cwd),
+            env=environment,
         )
-        stdin_thread.start()
-
-    timed_out = False
-    try:
-        returncode = process.wait(timeout=timeout_seconds)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        process.kill()
-        returncode = process.wait()
-
-    if stdin_thread is not None:
-        stdin_thread.join()
-    stdout_thread.join()
-    stderr_thread.join()
-    stdout, stdout_omitted_bytes = stdout_collector.build()
-    stderr, stderr_omitted_bytes = stderr_collector.build()
-    return ProcessRunResult(
-        returncode=returncode,
-        stdout=stdout,
-        stderr=stderr,
-        stdout_omitted_bytes=stdout_omitted_bytes,
-        stderr_omitted_bytes=stderr_omitted_bytes,
-        timed_out=timed_out,
-        elapsed_ms=max(0, round((monotonic() - started_at) * 1000)),
-    )
+        timed_out = False
+        try:
+            returncode = process.wait(timeout=max(0.0, deadline - monotonic()))
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            process.kill()
+            returncode = process.poll()
+            if returncode is None:
+                # Reap the direct process when the OS finishes terminating it.
+                # This cleanup never blocks the result or adds another timeout.
+                Thread(target=process.wait, daemon=True).start()
+        stdout, stdout_omitted_bytes = _snapshot_output(stdout_file, capture_limit)
+        stderr, stderr_omitted_bytes = _snapshot_output(stderr_file, capture_limit)
+        return ProcessRunResult(
+            returncode=returncode,
+            stdout=stdout,
+            stderr=stderr,
+            stdout_omitted_bytes=stdout_omitted_bytes,
+            stderr_omitted_bytes=stderr_omitted_bytes,
+            timed_out=timed_out,
+            elapsed_ms=max(0, round((monotonic() - started_at) * 1000)),
+        )
 
 
-def _read_stream(stream: BinaryIO, collector: _BoundedByteCollector) -> None:
-    try:
-        while chunk := stream.read(_READ_CHUNK_BYTES):
-            collector.append(chunk)
-    finally:
-        stream.close()
-
-
-def _write_stdin(stream: BinaryIO, content: bytes) -> None:
-    try:
-        stream.write(content)
-        stream.flush()
-    except BrokenPipeError:
-        pass
-    finally:
-        stream.close()
+def _snapshot_output(stream: BinaryIO, capture_limit: int) -> tuple[bytes, int]:
+    size = os.fstat(stream.fileno()).st_size
+    if os.name != "nt":
+        # Anonymous files also disappear if the host terminates this tool.
+        content = os.pread(stream.fileno(), min(size, capture_limit), 0)
+        return content, max(0, size - len(content))
+    # Use an independent read position so a descendant's inherited writer is
+    # unaffected. Windows O_TEMPORARY shares delete access and removes the file
+    # after the last handle closes, including a descendant's inherited handles.
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+    flags |= os.O_TEMPORARY
+    with os.fdopen(os.open(stream.name, flags), "rb") as reader:
+        content = reader.read(min(size, capture_limit))
+    return content, max(0, size - len(content))

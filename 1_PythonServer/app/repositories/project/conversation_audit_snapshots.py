@@ -22,40 +22,10 @@ MANIFEST_KEY = "__tiance_audit_manifest__"
 
 
 def create_audit_snapshot_schema(connection: sqlite3.Connection) -> None:
-    # Individual statements keep this migration in the caller's transaction.
-    for statement in (
-        """CREATE TABLE conversation_audit_blocks (
-            digest TEXT PRIMARY KEY,
-            kind TEXT NOT NULL CHECK(kind IN ('text', 'json')),
-            size_bytes INTEGER NOT NULL,
-            payload_blob BLOB NOT NULL
-        )""",
-        """CREATE TABLE conversation_audit_snapshots (
-            snapshot_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id TEXT NOT NULL,
-            stream TEXT NOT NULL,
-            base_snapshot_id INTEGER,
-            depth INTEGER NOT NULL,
-            payload_sha256 TEXT NOT NULL,
-            payload_size_bytes INTEGER NOT NULL,
-            tree_sha256 TEXT NOT NULL,
-            payload_blob BLOB NOT NULL,
-            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE,
-            FOREIGN KEY(base_snapshot_id) REFERENCES conversation_audit_snapshots(snapshot_id)
-        )""",
-        """CREATE INDEX idx_audit_snapshots_stream
-            ON conversation_audit_snapshots(session_id, stream, snapshot_id)""",
-        "CREATE INDEX idx_audit_snapshots_base ON conversation_audit_snapshots(base_snapshot_id)",
-        """CREATE TABLE conversation_audit_snapshot_blocks (
-            snapshot_id INTEGER NOT NULL,
-            digest TEXT NOT NULL,
-            PRIMARY KEY(snapshot_id, digest),
-            FOREIGN KEY(snapshot_id) REFERENCES conversation_audit_snapshots(snapshot_id) ON DELETE CASCADE,
-            FOREIGN KEY(digest) REFERENCES conversation_audit_blocks(digest)
-        )""",
-        "CREATE INDEX idx_audit_snapshot_blocks_digest ON conversation_audit_snapshot_blocks(digest)",
-    ):
-        connection.execute(statement)
+    from app.repositories.project.conversation_schema import SCHEMA_STATEMENTS
+    for statement in SCHEMA_STATEMENTS:
+        if statement.startswith("CREATE TABLE conversation_audit_") or statement.startswith("CREATE INDEX idx_audit_"):
+            connection.execute(statement)
 
 
 def store_audit_snapshot(

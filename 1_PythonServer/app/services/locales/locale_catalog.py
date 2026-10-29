@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import UTC, datetime
+from functools import lru_cache
 import json
 from pathlib import Path
 import re
@@ -373,10 +374,25 @@ def _validate_message_shape(messages: dict[str, Any], reference: dict[str, Any])
 
 def _load_bundled_locale_packages() -> dict[str, dict[str, Any]]:
     bundled_dir = _bundled_locale_dir()
+    files = []
+    try:
+        for path in sorted(bundled_dir.glob("*.json"), key=lambda item: item.name.lower()):
+            if _LOCALE_ID_PATTERN.fullmatch(path.stem):
+                stat = path.stat()
+                files.append((path, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino))
+    except OSError as exc:
+        raise LocaleCatalogError("Unable to inspect built-in locale files") from exc
+    return _read_bundled_locale_packages(tuple(files))
+
+
+@lru_cache(maxsize=1)
+def _read_bundled_locale_packages(
+    files: tuple[tuple[Path, int, int, int, int], ...],
+) -> dict[str, dict[str, Any]]:
+    # Only bundled resources are cached. Data/locales remains editable and is
+    # read/repaired normally; a bundled resource replacement invalidates this key.
     packages: dict[str, dict[str, Any]] = {}
-    for locale_file in sorted(bundled_dir.glob("*.json"), key=lambda item: item.name.lower()):
-        if not _LOCALE_ID_PATTERN.fullmatch(locale_file.stem):
-            continue
+    for locale_file, *_ in files:
         payload = _read_json_file(locale_file)
         if not isinstance(payload, dict):
             raise LocaleCatalogError(f"Invalid bundled locale: {locale_file.name}")

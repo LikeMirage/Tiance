@@ -123,10 +123,9 @@ def _completed_execution_data(
     )
     stdout_truncated = stdout_text_truncated or result.stdout_omitted_bytes > 0
     stderr_truncated = stderr_text_truncated or result.stderr_omitted_bytes > 0
-    status = "timeout" if result.timed_out else "completed"
     data = _execution_data(
         spec,
-        status=status,
+        status="timeout" if result.timed_out else "completed",
         exit_code=result.returncode,
         stdout=stdout,
         stderr=stderr,

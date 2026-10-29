@@ -11,7 +11,6 @@ import {
   acquireDesktopShellBridge,
   canStartDesktopShellNativeDrag,
   canStartDesktopShellNativeResize,
-  closeDesktopShell,
   getDesktopShellBounds,
   getDesktopShellSnapshot,
   minimizeDesktopShell,
@@ -25,6 +24,7 @@ import {
   subscribeDesktopShell,
   toggleMaximizeDesktopShell,
 } from "./desktopShellStore";
+import { requestDesktopWindowClose } from "./desktopCloseRequest";
 import type {
   DesktopShellContextValue,
   NativeWindowResizeEdge,
@@ -54,7 +54,7 @@ export function DesktopShellProvider({ children }: PropsWithChildren) {
   }, []);
 
   const close = useCallback(async () => {
-    await closeDesktopShell();
+    await requestDesktopWindowClose();
   }, []);
 
   const getBounds = useCallback(async () => {

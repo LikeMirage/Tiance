@@ -29,6 +29,7 @@ from app.windows_clipboard import (
 )
 from app.windows_tray import WindowsTrayIcon
 from app.windows_foreground import allow_backend_foreground
+from app.window_close import WindowCloseCoordinator, show_native_exit_prompt
 
 if TYPE_CHECKING:
     from app.backend_process import BackendProcessManager
@@ -106,6 +107,12 @@ class ShellApi:
         self._show_desktop_minimize_timer: threading.Timer | None = None
         self._windows_native_events_installed = False
         self._allow_window_close = False
+        self._close_coordinator = WindowCloseCoordinator(
+            dispatch=self._dispatch_frontend_close_request,
+            prepare=lambda: self._backend_manager.prepare_exit(),
+            destroy=self._destroy_after_exit_preparation,
+            prompt=self._show_native_exit_prompt,
+        )
         self._windows_tray = WindowsTrayIcon(
             icon_path=getattr(settings, "app_icon_path", None),
             on_request_exit=self._request_exit_from_windows_tray,
@@ -282,9 +289,21 @@ class ShellApi:
 
         return self._build_window_state_response()
 
-    def close_window(self) -> None:
+    def request_window_close(self, intent: str = "close") -> str | None:
         self._require_allowed_window()
-        self._backend_manager.prepare_exit()
+        if intent not in {"close", "exit"}:
+            raise ValueError("Unknown window close intent")
+        return self._close_coordinator.request(intent)
+
+    def report_window_close(self, request_id: str, state: str) -> bool:
+        self._require_allowed_window()
+        return self._close_coordinator.report(request_id, state)
+
+    def close_window(self, request_id: str) -> bool:
+        self._require_allowed_window()
+        return self._close_coordinator.complete(request_id)
+
+    def _destroy_after_exit_preparation(self) -> None:
         try:
             self._destroy_window()
         except Exception:
@@ -343,6 +362,10 @@ class ShellApi:
             mark("backend unavailable: shell close failed", error=type(exc).__name__)
 
     def dispose(self) -> None:
+        self._close_coordinator.dispose()
+        self._dispose_tray()
+
+    def _dispose_tray(self) -> None:
         window = self._window
         if window is None:
             self._windows_tray.dispose()
@@ -664,24 +687,20 @@ class ShellApi:
         return False
 
     def _schedule_frontend_close_request(self) -> None:
-        request_thread = threading.Thread(
-            target=self._dispatch_frontend_close_request,
-            name="tiance-window-close-request",
-            daemon=True,
+        self._close_coordinator.request("close")
+
+    def _dispatch_frontend_close_request(self, request_id: str, intent: str) -> None:
+        window = self._require_window()
+        if intent == "exit":
+            self._show_window_from_windows_tray()
+        detail = json.dumps({"requestId": request_id, "intent": intent})
+        window.evaluate_js(
+            "window.dispatchEvent(new CustomEvent('tiance:window-close-requested', "
+            f"{{detail: {detail}}}))"
         )
-        request_thread.start()
 
-    def _dispatch_frontend_close_request(self) -> None:
-        window = self._window
-        if window is None:
-            return
-
-        try:
-            window.evaluate_js(
-                "window.dispatchEvent(new CustomEvent('tiance:window-close-requested'))"
-            )
-        except Exception as exc:
-            mark("window close request: frontend dispatch failed", error=type(exc).__name__)
+    def _show_native_exit_prompt(self, reason: str, error: str) -> str:
+        return show_native_exit_prompt(_get_native_window_handle(self._require_window()), reason, error)
 
     def _show_window_from_windows_tray(self) -> None:
         window = self._window
@@ -697,18 +716,19 @@ class ShellApi:
             mark("windows tray: window restore failed", error=type(exc).__name__)
 
     def _request_exit_from_windows_tray(self) -> None:
-        self._show_window_from_windows_tray()
-        self._schedule_frontend_close_request()
+        # Start the watchdog before any native show or JavaScript operation.
+        self._close_coordinator.request("exit")
 
     def _destroy_window(self) -> None:
         window = self._require_window()
         self._allow_window_close = True
         try:
-            self.dispose()
+            self._dispose_tray()
             window.destroy()
         except Exception:
             self._allow_window_close = False
             raise
+        self._close_coordinator.dispose()
 
     def _handle_windows_window_deactivated(self, *_: object) -> None:
         if sys.platform != "win32":

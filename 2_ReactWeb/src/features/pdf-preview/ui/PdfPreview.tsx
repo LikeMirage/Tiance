@@ -15,6 +15,7 @@ import {
 } from "../model/pdfPageImage";
 import {
   loadPdfJs,
+  PdfModuleLoadError,
   type PdfDocumentProxy,
   type PdfJsLib,
   type PdfLoadingTask,
@@ -49,6 +50,8 @@ export function PdfPreview({
 }: PdfPreviewProps) {
   const [currentPage, setCurrentPage] = useDocumentReadingValue("pdf:page", 1);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [moduleLoadFailed, setModuleLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [fitMode, setFitMode] = useDocumentReadingValue<"width" | "custom">("pdf:fit", "width");
   const [isSidebarOpen, setIsSidebarOpen] = useDocumentReadingValue("pdf:sidebar", true);
   const [isCreatingPageImage, setIsCreatingPageImage] = useState(false);
@@ -93,6 +96,7 @@ export function PdfPreview({
       fitWidthRequestIdRef.current += 1;
       setIsLoading(true);
       setErrorMessage(null);
+      setModuleLoadFailed(false);
       setPdfDocument(null);
       setNumPages(0);
 
@@ -118,6 +122,7 @@ export function PdfPreview({
           return;
         }
         setErrorMessage(err instanceof Error ? err.message : "PDF 加载失败。");
+        setModuleLoadFailed(err instanceof PdfModuleLoadError);
       }
     };
 
@@ -128,7 +133,7 @@ export function PdfPreview({
       fitWidthRequestIdRef.current += 1;
       void loadingTask?.destroy();
     };
-  }, [src]);
+  }, [src, loadAttempt]);
 
   const clampPage = useCallback((pageNumber: number) => (
     Math.max(1, Math.min(numPages || 1, pageNumber))
@@ -362,7 +367,13 @@ export function PdfPreview({
         </div>
       </div>
 
-      {errorMessage ? <div className="pdf-preview__status pdf-preview__status--error">{errorMessage}</div> : null}
+      {errorMessage ? <div className="pdf-preview__status pdf-preview__status--error">
+        {errorMessage}
+        <button type="button" onClick={() => setLoadAttempt((value) => value + 1)}>重试</button>
+        {moduleLoadFailed ? <button type="button" onClick={() => {
+          if (window.confirm("重新加载会关闭当前界面，请先保存尚未保存的编辑内容。是否继续？")) window.location.reload();
+        }}>重新加载界面</button> : null}
+      </div> : null}
 
       <div className="pdf-preview__body">
         {isSidebarOpen && pdfDocument && numPages > 0 ? (

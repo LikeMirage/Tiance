@@ -1,3 +1,4 @@
+from app.schemas.file_workspace_batch import TextFilesSaveRequest
 from contextlib import aclosing
 import json
 import mimetypes
@@ -410,3 +411,9 @@ def _asset_media_type(file_path) -> str:
     ):
         raise BadRequestError("仅支持读取图片、视频、PDF 或 Office 资源。")
     return media_type
+
+
+@router.put("/{project_id}/files/content-batch", response_model=list[ProjectFileNodeResponse])
+def save_text_file_batch(project_id: str, payload: TextFilesSaveRequest) -> list[ProjectFileNodeResponse]:
+    nodes = get_project_file_service().write_text_files(project_id, payload.updates())
+    return [ProjectFileNodeResponse.from_domain(node) for node in nodes]

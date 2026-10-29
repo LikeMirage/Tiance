@@ -13,7 +13,7 @@ from typing import Any
 import httpx
 
 from app.core.errors import AppError, local_exception_message, upstream_http_error_message
-from app.core.shutdown_tasks import shutdown_tasks
+from app.core.shutdown_tasks import shutdown_tasks, finish_commit
 from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatMessage,
@@ -820,19 +820,23 @@ class ProjectConversationStreamService:
                     run_started_at=run_started_at,
                 )
                 return
-            assistant_message = await asyncio.to_thread(
-                self._persistence.append_assistant_message,
-                request,
-                content="".join(answer_parts),
-                thinking_content="".join(thinking_parts),
-                content_parts=tuple(assistant_content_parts),
-                usage=usage_payload,
-                context_tokens=context_tokens,
-                context_tokens_estimated=context_tokens_estimated,
-                status="done",
-                sync_session_model=False,
-            )
-            final_assistant_message = assistant_message
+            async def commit_final_response():
+                nonlocal final_assistant_message
+                final_assistant_message = await asyncio.to_thread(
+                    self._persistence.append_assistant_message,
+                    request,
+                    content="".join(answer_parts),
+                    thinking_content="".join(thinking_parts),
+                    content_parts=tuple(assistant_content_parts),
+                    usage=usage_payload,
+                    context_tokens=context_tokens,
+                    context_tokens_estimated=context_tokens_estimated,
+                    status="done",
+                    sync_session_model=False,
+                )
+                return final_assistant_message
+
+            assistant_message = await finish_commit(commit_final_response())
             if final_response_boundary is not None:
                 notices = await conversation_notifications.finish_response(request.project_id, request.session_id)
                 yield {**stream_event_to_payload(final_response_boundary), "notifications": [_output_limit_message_payload(item) for item in notices]}

@@ -140,17 +140,17 @@ export async function saveToolDashboardContent(
   delete manifest.output_schema;
   delete manifest.examples;
 
-  const savedNodes: FileWorkspaceNode[] = [];
+  const files: { path: string; content: string }[] = [];
   if (view === "basics") {
     const inputSchema = expectJsonObjectValue(payload.input_schema, TOOL_INPUT_SCHEMA_FILE);
-    savedNodes.push(await api.saveTextFile(TOOL_INPUT_SCHEMA_FILE, formatDashboardJson(inputSchema)));
+    files.push({ path: TOOL_INPUT_SCHEMA_FILE, content: formatDashboardJson(inputSchema) });
   }
   if (view === "examples") {
     const examples = expectJsonArrayValue(payload.examples, TOOL_EXAMPLES_FILE);
-    savedNodes.push(await api.saveTextFile(TOOL_EXAMPLES_FILE, formatDashboardJson(examples)));
+    files.push({ path: TOOL_EXAMPLES_FILE, content: formatDashboardJson(examples) });
   }
-  savedNodes.push(await api.saveTextFile(TOOL_MANIFEST_FILE, formatDashboardJson(manifest)));
-  return savedNodes;
+  files.push({ path: TOOL_MANIFEST_FILE, content: formatDashboardJson(manifest) });
+  return api.saveTextFiles(files);
 }
 
 export function doesToolDashboardViewNeedContent(view: ToolDashboardView) {

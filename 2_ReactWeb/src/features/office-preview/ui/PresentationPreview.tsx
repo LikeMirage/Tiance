@@ -81,6 +81,10 @@ export function PresentationPreview({
   const slideRenderRunIdRef = useRef(0);
   const viewerRef = useRef<PPTXViewerWithDimensions | null>(null);
   const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const [loadedSource, setLoadedSource] = useState<string | null>(null);
+  const [renderReady, setRenderReady] = useState(false);
+  const initialZoomRef = useRef<number | null>(null);
   const [currentSlide, setCurrentSlide] = useDocumentReadingValue("ppt:slide", 0);
   const currentSlideRef = useRef(currentSlide);
   currentSlideRef.current = currentSlide;
@@ -101,10 +105,6 @@ export function PresentationPreview({
   useEffect(() => {
     onLoadingVisibleChange?.(isLoadingVisible);
   }, [isLoadingVisible, onLoadingVisibleChange]);
-
-  useEffect(() => {
-    zoomRef.current = zoom;
-  }, [zoom]);
 
   const renderSlide = useCallback(async (slideIndex: number, nextZoom: number) => {
     const viewer = viewerRef.current;
@@ -145,6 +145,9 @@ export function PresentationPreview({
   }, []);
 
   useEffect(() => {
+    setLoadedSource(null);
+    setRenderReady(false);
+    initialZoomRef.current = null;
     if (!src) {
       setState("idle");
       setErrorMessage(null);
@@ -177,7 +180,7 @@ export function PresentationPreview({
       thumbnailRenderRunIdRef.current += 1;
       slideRenderRunIdRef.current += 1;
       setVisibleThumbnailIndexes(new Set());
-      didApplyInitialZoomRef.current = false;
+
 
       let viewer: PPTXViewerWithDimensions | null = null;
 
@@ -209,13 +212,11 @@ export function PresentationPreview({
         if (isCancelled) return;
         const count = viewer.getSlideCount();
         setSlideDimensions(dimensions);
+        if (count <= 0) throw new Error("PPT 没有可预览的页面。");
         setSlideCount(count);
         const restoredSlide = Math.max(0, Math.min(currentSlideRef.current, count - 1));
         setCurrentSlide(restoredSlide);
-        const didRender = await renderSlide(restoredSlide, zoomRef.current);
-        if (isCancelled) return;
-        if (!didRender) return;
-        setState("ready");
+        setLoadedSource(src);
       } catch (err) {
         if (isCancelled || controller.signal.aborted) return;
         setState("error");
@@ -239,35 +240,47 @@ export function PresentationPreview({
         viewerRef.current = null;
       }
     };
-  }, [renderSlide, src]);
+  }, [src]);
 
   useEffect(() => {
-    if (state !== "ready" || !slideDimensions || !scrollRef.current) return undefined;
-
+    if (!loadedSource || loadedSource !== src || !slideDimensions || !scrollRef.current) return;
     const applyInitialZoom = () => {
-      if (didApplyInitialZoomRef.current) return;
+      if (didApplyInitialZoomRef.current) {
+        setRenderReady(true);
+        return;
+      }
       const viewportWidth = scrollRef.current?.clientWidth ?? 0;
       if (viewportWidth <= 0) return;
-      const baseWidth = slideCssSize(slideDimensions).width;
-      const nextZoom = clampOfficeZoom((viewportWidth - 96) / baseWidth);
+      const nextZoom = clampOfficeZoom((viewportWidth - 96) / slideCssSize(slideDimensions).width);
+      initialZoomRef.current = nextZoom;
       didApplyInitialZoomRef.current = true;
       setHasInitialZoom(true);
-      zoomRef.current = nextZoom;
       onZoomChange(nextZoom);
+      setRenderReady(true);
     };
-
     applyInitialZoom();
     const observer = new ResizeObserver(applyInitialZoom);
     observer.observe(scrollRef.current);
     return () => observer.disconnect();
-  }, [onZoomChange, slideDimensions, state]);
+  }, [loadedSource, src, onZoomChange, slideDimensions, setHasInitialZoom]);
 
   useEffect(() => {
-    if (state !== "ready") return;
-    void renderSlide(currentSlide, zoom).catch((err: unknown) => {
+    if (!renderReady || loadedSource !== src || !loadedSource) return;
+    if (initialZoomRef.current !== null && zoom !== initialZoomRef.current) return;
+    initialZoomRef.current = null;
+    let cancelled = false;
+    void renderSlide(currentSlide, zoom).then((rendered) => {
+      if (!cancelled && rendered) setState("ready");
+    }).catch((err: unknown) => {
+      if (cancelled) return;
+      setState("error");
       setErrorMessage(err instanceof Error ? err.message : "PPT 页面渲染失败。");
     });
-  }, [currentSlide, renderSlide, state, zoom]);
+    return () => {
+      cancelled = true;
+      slideRenderRunIdRef.current += 1;
+    };
+  }, [currentSlide, loadedSource, renderReady, renderSlide, src, zoom]);
 
   useEffect(() => {
     if (state !== "ready" || slideCount <= 0) return undefined;

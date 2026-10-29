@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 
 from app.core.errors import AppError
-from app.infra.http_client import get_shared_http_client
+from app.infra.http_client import lease_http_client, get_shared_http_client
 
 
 async def request_deepseek_web(
@@ -16,13 +16,14 @@ async def request_deepseek_web(
         raise ValueError("Unsupported DeepSeek web action")
     try:
         async with asyncio.timeout(150):
-            response = await get_shared_http_client().post(
-                f"https://api.deepseek.com/v1/tools/{action}",
-                headers={"Authorization": f"Bearer {api_key}"},
-                json=payload,
-                timeout=httpx.Timeout(120, connect=15),
-                follow_redirects=False,
-            )
+            async with lease_http_client(get_shared_http_client()) as client:
+                response = await client.post(
+                    f"https://api.deepseek.com/v1/tools/{action}",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    json=payload,
+                    timeout=httpx.Timeout(120, connect=15),
+                    follow_redirects=False,
+                )
     except (TimeoutError, httpx.TimeoutException) as exc:
         raise AppError("DeepSeek 搜索或网页读取超时。", code="DEEPSEEK_TIMEOUT") from exc
     except httpx.RequestError as exc:

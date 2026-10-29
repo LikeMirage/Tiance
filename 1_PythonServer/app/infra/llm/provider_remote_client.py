@@ -10,7 +10,7 @@ from app.domain.llm.provider_catalog import (
 )
 from app.domain.llm.discovered_model import DiscoveredModel
 from app.domain.llm.provider_runtime import ProviderRuntimeConfig
-from app.infra.http_client import get_shared_http_client
+from app.infra.http_client import lease_http_client, get_shared_http_client
 from app.infra.llm.anthropic_client import AnthropicModelDiscoveryClient
 from app.infra.llm.gemini_client import GeminiModelDiscoveryClient
 from app.infra.llm.openai_client import OpenAIModelDiscoveryClient
@@ -95,11 +95,11 @@ class ProviderRemoteClient:
 
     async def _get_json(self, url: str, headers: dict[str, str]) -> dict[str, object]:
         """发送 HTTP GET 请求并返回 JSON 响应"""
-        client = get_shared_http_client()
-        response = await client.get(url, headers=headers)
-        response.raise_for_status()
-        payload = response.json()
-        return payload if isinstance(payload, dict) else {}
+        async with lease_http_client(get_shared_http_client()) as client:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            payload = response.json()
+            return payload if isinstance(payload, dict) else {}
 
     async def _post_json(
         self,
@@ -108,13 +108,13 @@ class ProviderRemoteClient:
         body: dict[str, object],
     ) -> dict[str, object]:
         """发送 HTTP POST 请求并返回 JSON 响应"""
-        client = get_shared_http_client()
-        response = await client.post(url, headers=headers, json=body)
-        response.raise_for_status()
-        if not response.content:
-            return {}
-        payload = response.json()
-        return payload if isinstance(payload, dict) else {}
+        async with lease_http_client(get_shared_http_client()) as client:
+            response = await client.post(url, headers=headers, json=body)
+            response.raise_for_status()
+            if not response.content:
+                return {}
+            payload = response.json()
+            return payload if isinstance(payload, dict) else {}
 
 
 @lru_cache

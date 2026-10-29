@@ -7,7 +7,6 @@ from app.domain.llm.functional_model_defaults import (
     DEFAULT_CONVERSATION_ROLE_SETTINGS_VERSION,
     DEFAULT_FUNCTIONAL_MAX_OUTPUT_TOKENS,
     GLOBAL_MEMORY_MANAGEMENT_SETTINGS_VERSION,
-    LEGACY_MEMORY_COMPRESSION_PROMPT_V32,
     NAMING_SETTINGS_VERSION,
     PROJECT_MEMORY_MANAGEMENT_SETTINGS_VERSION,
     get_default_functional_model_profile_settings,
@@ -56,51 +55,6 @@ def test_memory_compression_uses_current_prompt_contract_version():
     )
 
 
-def test_functional_model_old_version_resets_to_current_defaults(tmp_path):
-    database_path = tmp_path / "tiance.db"
-    ensure_database_schema(database_path)
-    repository = LlmFunctionalModelSettingsRepository(database_path)
-    service = LlmFunctionalModelSettingsService(repository)
-    expected_version = get_functional_model_profile_settings_version("memoryCompression")
-
-    old_settings = deepcopy(get_default_functional_model_profile_settings("memoryCompression"))
-    old_settings["prompt"] = "旧提示词不做迁移修补"
-    repository.save_settings(
-        settings_id="memoryCompression",
-        settings=old_settings,
-        version=31,
-    )
-
-    settings = service.get_profile_settings("memoryCompression")
-
-    assert settings is not None
-    assert settings.version == expected_version
-    assert settings.settings == get_default_functional_model_profile_settings("memoryCompression")
-
-
-@pytest.mark.parametrize("custom_prompt", [False, True])
-def test_compaction_prompt_upgrade_preserves_model_and_custom_settings(tmp_path, custom_prompt):
-    database_path = tmp_path / "tiance.db"
-    ensure_database_schema(database_path)
-    repository = LlmFunctionalModelSettingsRepository(database_path)
-    service = LlmFunctionalModelSettingsService(repository)
-    old = deepcopy(get_default_functional_model_profile_settings("memoryCompression"))
-    old.update(modelSource="dedicated", modelKey="test/model", blockingEnabled=True)
-    old["generation"]["maxOutputTokens"] = 45678
-    old["prompt"] = "自定义压缩要求" if custom_prompt else LEGACY_MEMORY_COMPRESSION_PROMPT_V32
-    repository.save_settings(settings_id="memoryCompression", settings=old, version=32)
-
-    migrated = service.get_profile_settings("memoryCompression")
-
-    expected = deepcopy(old)
-    if not custom_prompt:
-        expected["prompt"] = get_default_functional_model_profile_settings("memoryCompression")["prompt"]
-    assert migrated is not None
-    assert migrated.version == 33
-    assert migrated.settings == expected
-    assert service.get_profile_settings("memoryCompression").settings == expected
-
-
 def test_functional_model_save_rejects_stale_version(tmp_path):
     database_path = tmp_path / "tiance.db"
     ensure_database_schema(database_path)
@@ -115,6 +69,19 @@ def test_functional_model_save_rejects_stale_version(tmp_path):
             settings=defaults,
             version=expected_version - 1,
         )
+
+
+def test_stale_functional_settings_are_reported_without_overwriting(tmp_path):
+    database_path = tmp_path / "tiance.db"
+    ensure_database_schema(database_path)
+    repository = LlmFunctionalModelSettingsRepository(database_path)
+    service = LlmFunctionalModelSettingsService(repository)
+    saved = repository.save_settings(
+        settings_id="memoryCompression", settings={"prompt": "keep my own prompt"}, version=1,
+    )
+    with pytest.raises(BadRequestError, match="原配置未被修改"):
+        service.get_profile_settings("memoryCompression")
+    assert repository.get_settings("memoryCompression") == saved
 
 
 def test_functional_model_current_version_preserves_user_settings(tmp_path):

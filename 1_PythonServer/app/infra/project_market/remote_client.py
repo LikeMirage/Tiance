@@ -9,7 +9,7 @@ from urllib.parse import quote, urljoin, urlsplit, urlunsplit
 import httpx
 
 from app.core.errors import BadRequestError
-from app.infra.http_client import get_http_timeout, get_shared_http_client
+from app.infra.http_client import lease_http_client, get_http_timeout, get_shared_http_client
 from app.infra.github import (
     GithubApiError,
     get_github_client,
@@ -114,34 +114,34 @@ class ProjectMarketRemoteClient:
         expected_sha256 = download.sha256
         digest = hashlib.sha256()
         downloaded = 0
-        client = get_shared_http_client()
-        try:
-            with target.open("wb") as output:
-                async with client.stream(
-                    "GET",
-                    resolved_url,
-                    headers={"Accept": "application/zip, application/octet-stream"},
-                    timeout=get_http_timeout(stream=True),
-                ) as response:
-                    response.raise_for_status()
-                    _require_safe_project_market_url(source, str(response.url))
-                    async for chunk in response.aiter_bytes():
-                        downloaded += len(chunk)
-                        if downloaded > MAX_PROJECT_PACKAGE_BYTES:
-                            raise BadRequestError("项目包大小超过允许范围。")
-                        if expected_size is not None and downloaded > expected_size:
-                            raise BadRequestError("项目包实际大小与市场索引不一致。")
-                        digest.update(chunk)
-                        output.write(chunk)
-        except httpx.HTTPError as exc:
-            raise BadRequestError("项目包下载失败。") from exc
-        if downloaded < 1:
-            raise BadRequestError("项目包内容为空。")
-        if expected_size is not None and downloaded != expected_size:
-            raise BadRequestError("项目包实际大小与市场索引不一致。")
-        if expected_sha256 is not None and digest.hexdigest().lower() != expected_sha256:
-            raise BadRequestError("项目包完整性校验失败。")
-        return source_path
+        async with lease_http_client(get_shared_http_client()) as client:
+            try:
+                with target.open("wb") as output:
+                    async with client.stream(
+                        "GET",
+                        resolved_url,
+                        headers={"Accept": "application/zip, application/octet-stream"},
+                        timeout=get_http_timeout(stream=True),
+                    ) as response:
+                        response.raise_for_status()
+                        _require_safe_project_market_url(source, str(response.url))
+                        async for chunk in response.aiter_bytes():
+                            downloaded += len(chunk)
+                            if downloaded > MAX_PROJECT_PACKAGE_BYTES:
+                                raise BadRequestError("项目包大小超过允许范围。")
+                            if expected_size is not None and downloaded > expected_size:
+                                raise BadRequestError("项目包实际大小与市场索引不一致。")
+                            digest.update(chunk)
+                            output.write(chunk)
+            except httpx.HTTPError as exc:
+                raise BadRequestError("项目包下载失败。") from exc
+            if downloaded < 1:
+                raise BadRequestError("项目包内容为空。")
+            if expected_size is not None and downloaded != expected_size:
+                raise BadRequestError("项目包实际大小与市场索引不一致。")
+            if expected_sha256 is not None and digest.hexdigest().lower() != expected_sha256:
+                raise BadRequestError("项目包完整性校验失败。")
+            return source_path
 
     async def download_preview(
         self,
@@ -188,26 +188,26 @@ class ProjectMarketRemoteClient:
     ) -> bytes | None:
         chunks: list[bytes] = []
         downloaded = 0
-        client = get_shared_http_client()
-        try:
-            async with client.stream(
-                "GET",
-                url,
-                headers={"Accept": accept},
-                timeout=get_http_timeout(stream=True),
-            ) as response:
-                if allow_not_found and response.status_code == 404:
-                    return None
-                response.raise_for_status()
-                _require_safe_project_market_url(source, str(response.url))
-                async for chunk in response.aiter_bytes():
-                    downloaded += len(chunk)
-                    if downloaded > maximum_bytes:
-                        raise BadRequestError("在线项目资源超过允许大小。")
-                    chunks.append(chunk)
-        except httpx.HTTPError as exc:
-            raise ProjectMarketConnectionError("无法连接在线项目仓库。") from exc
-        return b"".join(chunks)
+        async with lease_http_client(get_shared_http_client()) as client:
+            try:
+                async with client.stream(
+                    "GET",
+                    url,
+                    headers={"Accept": accept},
+                    timeout=get_http_timeout(stream=True),
+                ) as response:
+                    if allow_not_found and response.status_code == 404:
+                        return None
+                    response.raise_for_status()
+                    _require_safe_project_market_url(source, str(response.url))
+                    async for chunk in response.aiter_bytes():
+                        downloaded += len(chunk)
+                        if downloaded > maximum_bytes:
+                            raise BadRequestError("在线项目资源超过允许大小。")
+                        chunks.append(chunk)
+            except httpx.HTTPError as exc:
+                raise ProjectMarketConnectionError("无法连接在线项目仓库。") from exc
+            return b"".join(chunks)
 
 
 def normalize_project_market_source(raw_source: str) -> str:

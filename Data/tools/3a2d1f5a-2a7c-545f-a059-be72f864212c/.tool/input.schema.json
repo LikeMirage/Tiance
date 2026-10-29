@@ -71,10 +71,12 @@
       "default": false,
       "description": "是否保留末尾完全空白行。"
     },
-    "sheets": {
+    "export_sheets": {
+      "permission_type": "none",
       "type": "array",
-      "items": { "type": "string" },
-      "description": "action=export_markdown 时只提取指定 Sheet；省略时提取全部。"
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "仅用于 action=export_markdown：要提取的工作表名称列表，例如 [\"Sheet1\"]；省略时提取全部。新建工作簿使用 sheets 对象数组。"
     },
     "output_path": {
       "permission_type": "filesystem_write",

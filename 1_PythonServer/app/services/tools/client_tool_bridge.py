@@ -10,11 +10,9 @@ from uuid import uuid4
 from app.domain.llm.chat import ChatClientToolRequest, ChatToolCall, ChatToolResult
 
 
+# Clients use one third of this value as their status-check
+# interval. It is NOT an execution timeout or an ownership expiry.
 CLIENT_TOOL_EXECUTOR_LEASE_SECONDS = 30.0
-CLIENT_TOOL_EXECUTOR_LOST_CODE = "CLIENT_TOOL_EXECUTOR_LOST"
-CLIENT_TOOL_EXECUTOR_LOST_MESSAGE = (
-    "前端工具请求未在执行租约内获得或维持执行端，且没有可确认的执行结果。"
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +28,7 @@ class ClientToolClaimLease:
     claim_id: str | None = None
     lease_duration_seconds: float | None = None
     resumed: bool = False
+    attempt_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -37,19 +36,20 @@ class _PendingClientToolRequest:
     request: ChatClientToolRequest
     future: asyncio.Future[ClientToolResultPayload]
     loop: asyncio.AbstractEventLoop
+    execution_deadline: float
     submitted: bool = False
     claimed_by: str | None = None
     claim_id: str | None = None
-    claim_expires_at: float | None = None
+    attempt_id: str | None = None
 
 
 class ClientToolBridgeService:
     """Coordinates frontend tool ownership and result delivery.
 
-    A claim is an execution lease rather than a permanent boolean. The same
-    frontend executor may resume its lease after a page reload. If it disappears
-    without returning a result, the request settles as an explicit tool failure
-    instead of occupying the conversation until the tool execution timeout.
+    Ownership survives transport interruptions until the configured tool deadline
+    or caller cancellation. A missed heartbeat must not terminate a tool or hand
+    its side effects to another executor. Claim attempts are idempotent, distinct
+    from the frontend's persisted evidence that execution has actually begun.
     """
 
     def __init__(self, *, lease_duration_seconds: float = CLIENT_TOOL_EXECUTOR_LEASE_SECONDS) -> None:
@@ -87,7 +87,7 @@ class ClientToolBridgeService:
             request=request,
             future=loop.create_future(),
             loop=loop,
-            claim_expires_at=loop.time() + self._lease_duration_seconds,
+            execution_deadline=loop.time() + timeout_seconds,
         )
         async with self._lock:
             self._pending[request.request_id] = pending
@@ -100,7 +100,7 @@ class ClientToolBridgeService:
         timeout_seconds: int,
     ) -> ClientToolResultPayload:
         loop = asyncio.get_running_loop()
-        execution_deadline = loop.time() + timeout_seconds
+        wait_deadline = loop.time() + timeout_seconds
         try:
             while True:
                 async with self._lock:
@@ -110,10 +110,12 @@ class ClientToolBridgeService:
                             ok=False,
                             error="客户端工具请求不存在。",
                         )
-                    self._settle_expired_claim(pending, now=loop.time())
+                    self._expire_request(pending)
                     future = pending.future
-                    claim_deadline = pending.claim_expires_at
+                    execution_deadline = min(wait_deadline, pending.execution_deadline)
 
+                if future.cancelled():
+                    raise TimeoutError
                 if future.done():
                     return future.result()
 
@@ -121,16 +123,16 @@ class ClientToolBridgeService:
                 remaining_execution = execution_deadline - now
                 if remaining_execution <= 0:
                     raise TimeoutError
-                wait_seconds = remaining_execution
-                if claim_deadline is not None:
-                    wait_seconds = min(wait_seconds, max(0.0, claim_deadline - now))
-
-                done, _ = await asyncio.wait({future}, timeout=wait_seconds)
+                done, _ = await asyncio.wait({future}, timeout=remaining_execution)
                 if done:
+                    if future.cancelled():
+                        raise TimeoutError
                     return future.result()
         finally:
             async with self._lock:
-                self._pending.pop(request_id, None)
+                pending = self._pending.pop(request_id, None)
+                if pending is not None and not pending.future.done():
+                    pending.future.cancel()
 
     async def submit_result(
         self,
@@ -149,7 +151,7 @@ class ClientToolBridgeService:
             pending = self._pending.get(normalized_request_id)
             if pending is None:
                 return False
-            self._settle_expired_claim(pending, now=pending.loop.time())
+            self._expire_request(pending)
             if (
                 pending.submitted
                 or pending.future.done()
@@ -166,6 +168,7 @@ class ClientToolBridgeService:
         request_id: str,
         *,
         executor_id: str,
+        attempt_id: str | None = None,
     ) -> ClientToolClaimLease:
         normalized_request_id = request_id.strip()
         normalized_executor_id = executor_id.strip()
@@ -175,8 +178,7 @@ class ClientToolBridgeService:
             pending = self._pending.get(normalized_request_id)
             if pending is None:
                 return ClientToolClaimLease(acquired=False)
-            now = pending.loop.time()
-            self._settle_expired_claim(pending, now=now)
+            self._expire_request(pending)
             if pending.submitted or pending.future.done():
                 return ClientToolClaimLease(acquired=False)
 
@@ -186,12 +188,13 @@ class ClientToolBridgeService:
             if not resumed:
                 pending.claimed_by = normalized_executor_id
                 pending.claim_id = uuid4().hex
-            pending.claim_expires_at = now + self._lease_duration_seconds
+                pending.attempt_id = (attempt_id or "").strip() or None
             return ClientToolClaimLease(
                 acquired=True,
                 claim_id=pending.claim_id,
                 lease_duration_seconds=self._lease_duration_seconds,
                 resumed=resumed,
+                attempt_id=pending.attempt_id,
             )
 
     async def renew_claim(
@@ -210,8 +213,7 @@ class ClientToolBridgeService:
             pending = self._pending.get(normalized_request_id)
             if pending is None:
                 return False
-            now = pending.loop.time()
-            self._settle_expired_claim(pending, now=now)
+            self._expire_request(pending)
             if (
                 pending.submitted
                 or pending.future.done()
@@ -219,7 +221,6 @@ class ClientToolBridgeService:
                 or pending.claim_id != normalized_claim_id
             ):
                 return False
-            pending.claim_expires_at = now + self._lease_duration_seconds
             return True
 
     async def should_replay_request(self, request_id: str) -> bool:
@@ -230,7 +231,7 @@ class ClientToolBridgeService:
             pending = self._pending.get(normalized_request_id)
             if pending is None:
                 return False
-            self._settle_expired_claim(pending, now=pending.loop.time())
+            self._expire_request(pending)
             return not pending.submitted and not pending.future.done()
 
     async def pending_request_ids(
@@ -242,7 +243,7 @@ class ClientToolBridgeService:
         async with self._lock:
             request_ids: list[str] = []
             for request_id, pending in self._pending.items():
-                self._settle_expired_claim(pending, now=pending.loop.time())
+                self._expire_request(pending)
                 if (
                     pending.request.project_id == project_id
                     and pending.request.session_id == session_id
@@ -252,30 +253,12 @@ class ClientToolBridgeService:
                     request_ids.append(request_id)
             return tuple(request_ids)
 
-    def _settle_expired_claim(
-        self,
-        pending: _PendingClientToolRequest,
-        *,
-        now: float,
-    ) -> None:
-        if (
-            pending.claim_expires_at is None
-            or now < pending.claim_expires_at
-            or pending.submitted
-            or pending.future.done()
-        ):
-            return
-        pending.submitted = True
-        pending.future.set_result(
-            ClientToolResultPayload(
-                ok=False,
-                content={
-                    "error_code": CLIENT_TOOL_EXECUTOR_LOST_CODE,
-                    "message": CLIENT_TOOL_EXECUTOR_LOST_MESSAGE,
-                },
-                error=CLIENT_TOOL_EXECUTOR_LOST_MESSAGE,
-            )
-        )
+    @staticmethod
+    def _expire_request(pending: _PendingClientToolRequest) -> None:
+        # Every entry point enforces the same original deadline, including when
+        # the waiter has not resumed yet. Reconnect/renewal never extends it.
+        if not pending.future.done() and pending.loop.time() >= pending.execution_deadline:
+            pending.future.cancel()
 
 
 def client_tool_result_to_chat_tool_result(

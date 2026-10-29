@@ -71,7 +71,7 @@ export function FilePreviewGate({ tab, src: sourceSrc, children, onMissing }: {
         </> : null}
         {stopped ? <span>{cancelled ? "已取消加载" : current?.error ? "预览失败"
           : "已超过内置预览预算"}</span> : null}
-        {stopped ? <button type="button" onClick={() => {
+        {stopped ? <button className="file-preview-session__button" type="button" onClick={() => {
           setCancelled(false); setAttempt((value) => value + 1);
         }}>重新加载</button> : null}
       </div> : null}
@@ -80,7 +80,7 @@ export function FilePreviewGate({ tab, src: sourceSrc, children, onMissing }: {
           heading={cancelled ? "已停止本次预览" : "无法继续内置预览"}
           detail={current?.error ?? inspection?.message} />
       ) : <LoadingBoundary pending={loading}
-        actions={<button type="button" onClick={() => setCancelled(true)}>取消加载</button>}>
+        actions={<button className="file-preview-session__button" type="button" onClick={() => setCancelled(true)}>取消加载</button>}>
         {inspection ? (
           <div className="file-preview-session__content" inert={pending} aria-busy={pending}>
             <Fragment key={`${inspection.version ?? checkedSrc}:${state.formatKey}:${attempt}`}>

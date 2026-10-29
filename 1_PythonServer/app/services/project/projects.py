@@ -8,7 +8,6 @@ from uuid import uuid4
 
 from json import dumps, loads
 import logging
-import sqlite3
 
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.domain.project import Project, ProjectCategory, ProjectKind
@@ -36,7 +35,6 @@ DEFAULT_PROVIDER_PROJECT_CATEGORY_ID = "default-provider-category"
 DEFAULT_PROVIDER_PROJECT_CATEGORY_NAME = "模型供应商"
 DEFAULT_PROJECT_BOOTSTRAPPED_KEY = "projects.default_project_bootstrapped"
 BUILTIN_CATEGORIES_BOOTSTRAPPED_KEY = "categories.builtin_bootstrapped"
-PROJECT_ORDER_KEY = "projects.order"
 
 
 class ProjectService:
@@ -389,16 +387,6 @@ class ProjectService:
                 project.project_id
                 for project in project_catalog.list_projects()
             )
-        raw = self._repository.get_metadata_value(PROJECT_ORDER_KEY)
-        if not raw:
-            return ()
-        try:
-            ids = loads(raw)
-            if isinstance(ids, list) and all(isinstance(i, str) for i in ids):
-                file_project_ids = self._repository.file_project_ids()
-                return tuple(project_id for project_id in ids if project_id not in file_project_ids)
-        except (ValueError, TypeError):
-            return ()
         return ()
 
     def save_project_order(self, project_ids: tuple[str, ...]) -> tuple[str, ...]:
@@ -417,20 +405,7 @@ class ProjectService:
         for project in existing_projects:
             if project.project_id not in seen:
                 validated.append(project.project_id)
-        file_project_ids = self._repository.save_file_project_order(tuple(validated))
-        if self._repository.get_file_catalog(ProjectKind.PROJECT) is not None:
-            return tuple(validated)
-        database_order = [
-            project_id
-            for project_id in validated
-            if project_id not in file_project_ids
-        ]
-        now = _utc_now()
-        self._repository.set_metadata_value(
-            key=PROJECT_ORDER_KEY,
-            value=dumps(database_order),
-            updated_at=now,
-        )
+        self._repository.save_file_project_order(tuple(validated))
         return tuple(validated)
 
     def ensure_default_project(self) -> Project:
@@ -567,33 +542,12 @@ class ProjectService:
             ProjectKind.PROVIDER: self.ensure_default_provider_project_category,
         }
         for project_kind, ensure_category in ensure_by_kind.items():
-            metadata_key = (
-                f"{project_kind.value}.{BUILTIN_CATEGORIES_BOOTSTRAPPED_KEY}"
-            )
-            file_catalog = self._repository.get_file_catalog(project_kind)
-            is_bootstrapped = (
-                self._repository.get_catalog_metadata_value(
-                    project_kind,
-                    BUILTIN_CATEGORIES_BOOTSTRAPPED_KEY,
-                )
-                if file_catalog is not None
-                else self._repository.get_metadata_value(metadata_key)
-            )
-            if is_bootstrapped == "1":
+            if self._repository.get_catalog_metadata_value(project_kind, BUILTIN_CATEGORIES_BOOTSTRAPPED_KEY) == "1":
                 continue
             ensure_category()
-            if file_catalog is not None:
-                self._repository.set_catalog_metadata_value(
-                    project_kind,
-                    key=BUILTIN_CATEGORIES_BOOTSTRAPPED_KEY,
-                    value="1",
-                )
-            else:
-                self._repository.set_metadata_value(
-                    key=metadata_key,
-                    value="1",
-                    updated_at=_utc_now(),
-                )
+            self._repository.set_catalog_metadata_value(
+                project_kind, key=BUILTIN_CATEGORIES_BOOTSTRAPPED_KEY, value="1",
+            )
 
     # ------------------------------------------------------------------
     # 私有：托管项目
@@ -678,7 +632,7 @@ class ProjectService:
         )
         try:
             saved_project = self._repository.save_project(project)
-        except sqlite3.IntegrityError:
+        except ConflictError:
             existing_project = self._repository.get_project_by_root_path(normalized_root_path)
             if existing_project is not None:
                 self._raise_duplicate_import_conflict(existing_project)
@@ -751,6 +705,7 @@ class ProjectService:
         *,
         project_kind: ProjectKind,
     ) -> ProjectCategory:
+        self.ensure_builtin_project_categories()
         if category_id is None or not category_id.strip():
             existing = next(
                 (
@@ -834,30 +789,15 @@ class ProjectService:
         raise BadRequestError("项目分类名称已存在。")
 
     def _is_default_project_bootstrapped(self) -> bool:
-        if self._repository.get_file_catalog(ProjectKind.PROJECT) is not None:
-            return self._repository.get_catalog_metadata_value(
-                ProjectKind.PROJECT,
-                DEFAULT_PROJECT_BOOTSTRAPPED_KEY,
-            ) == "1"
-        return self._repository.get_metadata_value(DEFAULT_PROJECT_BOOTSTRAPPED_KEY) == "1"
+        return self._repository.get_catalog_metadata_value(
+            ProjectKind.PROJECT, DEFAULT_PROJECT_BOOTSTRAPPED_KEY,
+        ) == "1"
 
     def _mark_default_project_bootstrapped(self) -> None:
-        if self._is_default_project_bootstrapped():
-            return
-
-        if self._repository.get_file_catalog(ProjectKind.PROJECT) is not None:
+        if not self._is_default_project_bootstrapped():
             self._repository.set_catalog_metadata_value(
-                ProjectKind.PROJECT,
-                key=DEFAULT_PROJECT_BOOTSTRAPPED_KEY,
-                value="1",
+                ProjectKind.PROJECT, key=DEFAULT_PROJECT_BOOTSTRAPPED_KEY, value="1",
             )
-            return
-
-        self._repository.set_metadata_value(
-            key=DEFAULT_PROJECT_BOOTSTRAPPED_KEY,
-            value="1",
-            updated_at=_utc_now(),
-        )
 
 
 def _normalize_project_name(name: str | None) -> str:

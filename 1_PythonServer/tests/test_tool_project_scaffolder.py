@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.project_test_support import make_project_repository
+
 import asyncio
 import json
 import os
@@ -52,7 +54,7 @@ def scaffold_files():
 def make_services(tmp_path, monkeypatch):
     database = tmp_path / "tiance.db"
     ensure_database_schema(database)
-    repository = ProjectRepository(database, file_catalogs=(
+    repository = make_project_repository(database, file_catalogs=(
         FileProjectCatalog(tmp_path / "tools", project_kind=ProjectKind.TOOL),
     ))
     projects = ProjectService(repository, ProjectStorage(

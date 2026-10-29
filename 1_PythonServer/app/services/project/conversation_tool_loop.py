@@ -7,6 +7,7 @@ from time import monotonic
 from typing import Protocol
 
 from app.core.errors import AppError
+from app.core.shutdown_tasks import finish_commit
 from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatMessage,
@@ -249,24 +250,28 @@ class ConversationToolLoop:
             )
             round_answer = "".join(round_answer_parts)
             round_thinking = "".join(round_thinking_parts)
-            assistant_message = await asyncio.to_thread(
-                self._append_assistant_tool_call_message,
-                model_request,
-                content=round_answer,
-                thinking_content=round_thinking,
-                tool_calls=prepared_tool_calls.replay_calls,
-                protocol_continuation=round_protocol_continuation,
-                usage=usage_to_payload(round_usage) if round_usage is not None else None,
-                context_tokens=round_context_tokens,
-                context_tokens_estimated=round_context_tokens_estimated,
-            )
-            if assistant_message is not None:
-                if on_model_round_completed is not None:
+            async def commit_model_round():
+                message = await asyncio.to_thread(
+                    self._append_assistant_tool_call_message,
+                    model_request,
+                    content=round_answer,
+                    thinking_content=round_thinking,
+                    tool_calls=prepared_tool_calls.replay_calls,
+                    protocol_continuation=round_protocol_continuation,
+                    usage=usage_to_payload(round_usage) if round_usage is not None else None,
+                    context_tokens=round_context_tokens,
+                    context_tokens_estimated=round_context_tokens_estimated,
+                )
+                if message is not None and on_model_round_completed is not None:
                     await on_model_round_completed(
                         model_request,
-                        assistant_message,
+                        message,
                         round_usage,
                     )
+                return message
+
+            assistant_message = await finish_commit(commit_model_round())
+            if assistant_message is not None:
                 yield ConversationPersistenceCheckpoint(assistant_message.message_id)
             if response_finished is not None:
                 yield response_finished
@@ -454,6 +459,33 @@ class ConversationToolLoop:
                     continue
                 yield event
             await asyncio.gather(*tasks)
+            # Yield in request order; remove only when ownership passes to the
+            # caller, whose persistence operation also finishes on cancellation.
+            for index in range(len(tool_calls)):
+                result_event = results.pop(index, None)
+                if result_event is None:
+                    if first_error is None:
+                        first_error = RuntimeError("工具调用未返回结果。")
+                    continue
+                yield result_event
+            if first_error is not None:
+                raise first_error
+        except (asyncio.CancelledError, GeneratorExit):
+            async def preserve_completed_results():
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+                while not queue.empty():
+                    index, event, _error = queue.get_nowait()
+                    if event is not None and event.kind == ChatStreamEventKind.TOOL_RESULT:
+                        results[index] = event
+                for index in sorted(results):
+                    result = results[index].tool_result
+                    if result is not None:
+                        await self._persist_tool_result(request, result)
+            await finish_commit(preserve_completed_results())
+            raise
         finally:
             # Closing between yielded events must also finish cancellation callbacks
             # before the conversation saves its interrupted tool results.
@@ -461,18 +493,6 @@ class ConversationToolLoop:
                 if not task.done():
                     task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
-
-        # The caller persists each yielded result. Drain every completed result
-        # before propagating a batch error, including results after a missing one.
-        for index in range(len(tool_calls)):
-            result_event = results.get(index)
-            if result_event is None:
-                if first_error is None:
-                    first_error = RuntimeError("工具调用未返回结果。")
-                continue
-            yield result_event
-        if first_error is not None:
-            raise first_error
 
     async def _execute_tool_call_events(
         self,
@@ -1072,17 +1092,13 @@ class ConversationToolLoop:
         request: ChatCompletionRequest,
         tool_result: ChatToolResult,
     ) -> ProjectConversationMessage | None:
-        tool_message = await asyncio.to_thread(
-            self._append_tool_message,
-            request,
-            tool_result,
-        )
-        await asyncio.to_thread(
-            self._record_tool_call,
-            request,
-            tool_result,
-        )
-        return tool_message
+        async def commit():
+            tool_message = await asyncio.to_thread(
+                self._append_tool_message, request, tool_result,
+            )
+            await asyncio.to_thread(self._record_tool_call, request, tool_result)
+            return tool_message
+        return await finish_commit(commit())
 
     def _with_tool_elapsed(
         self,

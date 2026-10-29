@@ -119,9 +119,12 @@ def test_workspace_last_opened_ignores_stale_session(tmp_path):
     repository.set_metadata_value(
         key=WORKSPACE_LAST_OPENED_KEY,
         value=dumps({
-            "project_id": project.project_id,
-            "session_id": "missing-session",
-            "updated_at": "2026-06-20T00:00:00+00:00",
+            "active_category_id": project.category_id,
+            "category_selections": {project.category_id: {
+                "project_id": project.project_id,
+                "session_id": "missing-session",
+                "updated_at": "2026-06-20T00:00:00+00:00",
+            }},
         }),
         updated_at="2026-06-20T00:00:00+00:00",
     )

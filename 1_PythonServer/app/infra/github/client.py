@@ -14,7 +14,7 @@ from urllib.parse import quote, unquote, urlsplit
 import httpx
 
 from app.core.config import get_settings
-from app.infra.http_client import get_http_timeout, get_shared_http_client
+from app.infra.http_client import lease_http_client, get_http_timeout, get_shared_http_client
 from app.repositories.github_auth_repository import GithubAuthRepository, GithubCredentials
 
 
@@ -631,24 +631,24 @@ class GithubClient:
     ) -> bytes:
         chunks: list[bytes] = []
         downloaded = 0
-        client = get_shared_http_client()
-        try:
-            async with client.stream(
-                "GET",
-                f"{_GITHUB_API}{path}",
-                headers=self._headers(access_token, accept=accept),
-                timeout=get_http_timeout(stream=True),
-            ) as response:
-                await self._raise_for_status(response, token=access_token)
-                self._require_safe_download_url(response.url)
-                async for chunk in response.aiter_bytes():
-                    downloaded += len(chunk)
-                    if downloaded > maximum_bytes:
-                        raise GithubApiError("GitHub 下载内容超过允许大小。")
-                    chunks.append(chunk)
-        except httpx.RequestError as exc:
-            raise GithubApiError("无法连接 GitHub。") from exc
-        return b"".join(chunks)
+        async with lease_http_client(get_shared_http_client()) as client:
+            try:
+                async with client.stream(
+                    "GET",
+                    f"{_GITHUB_API}{path}",
+                    headers=self._headers(access_token, accept=accept),
+                    timeout=get_http_timeout(stream=True),
+                ) as response:
+                    await self._raise_for_status(response, token=access_token)
+                    self._require_safe_download_url(response.url)
+                    async for chunk in response.aiter_bytes():
+                        downloaded += len(chunk)
+                        if downloaded > maximum_bytes:
+                            raise GithubApiError("GitHub 下载内容超过允许大小。")
+                        chunks.append(chunk)
+            except httpx.RequestError as exc:
+                raise GithubApiError("无法连接 GitHub。") from exc
+            return b"".join(chunks)
 
     async def upload_release_asset(
         self,
@@ -676,28 +676,28 @@ class GithubClient:
                 while chunk := input_file.read(1024 * 1024):
                     yield chunk
 
-        client = get_shared_http_client()
-        try:
-            response = await client.post(
-                url,
-                headers={
-                    **self._headers(access_token),
-                    "Content-Type": content_type,
-                    "Content-Length": str(size),
-                },
-                content=content_stream(),
-                timeout=get_http_timeout(stream=True),
-            )
-        except httpx.RequestError as exc:
-            raise GithubApiError("无法上传 GitHub Release 附件。") from exc
-        await self._raise_for_status(response, token=access_token)
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            raise GithubApiError("GitHub 返回了无效附件信息。") from exc
-        if not isinstance(payload, dict):
-            raise GithubApiError("GitHub 返回了无效附件信息。")
-        return payload
+        async with lease_http_client(get_shared_http_client()) as client:
+            try:
+                response = await client.post(
+                    url,
+                    headers={
+                        **self._headers(access_token),
+                        "Content-Type": content_type,
+                        "Content-Length": str(size),
+                    },
+                    content=content_stream(),
+                    timeout=get_http_timeout(stream=True),
+                )
+            except httpx.RequestError as exc:
+                raise GithubApiError("无法上传 GitHub Release 附件。") from exc
+            await self._raise_for_status(response, token=access_token)
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise GithubApiError("GitHub 返回了无效附件信息。") from exc
+            if not isinstance(payload, dict):
+                raise GithubApiError("GitHub 返回了无效附件信息。")
+            return payload
 
     async def _get_paginated(self, path: str, *, required_auth: bool) -> list[dict[str, Any]]:
         page = 1
@@ -799,24 +799,24 @@ class GithubClient:
         token = await self.get_valid_access_token(required=required_auth)
         chunks: list[bytes] = []
         downloaded = 0
-        client = get_shared_http_client()
-        try:
-            async with client.stream(
-                "GET",
-                url,
-                headers=self._headers(token, accept=accept),
-                timeout=get_http_timeout(stream=True),
-            ) as response:
-                await self._raise_for_status(response, token=token)
-                self._require_safe_download_url(response.url)
-                async for chunk in response.aiter_bytes():
-                    downloaded += len(chunk)
-                    if downloaded > maximum_bytes:
-                        raise GithubApiError("GitHub 仓库资源超过允许大小。")
-                    chunks.append(chunk)
-        except httpx.RequestError as exc:
-            raise GithubApiError("无法连接 GitHub。") from exc
-        return b"".join(chunks)
+        async with lease_http_client(get_shared_http_client()) as client:
+            try:
+                async with client.stream(
+                    "GET",
+                    url,
+                    headers=self._headers(token, accept=accept),
+                    timeout=get_http_timeout(stream=True),
+                ) as response:
+                    await self._raise_for_status(response, token=token)
+                    self._require_safe_download_url(response.url)
+                    async for chunk in response.aiter_bytes():
+                        downloaded += len(chunk)
+                        if downloaded > maximum_bytes:
+                            raise GithubApiError("GitHub 仓库资源超过允许大小。")
+                        chunks.append(chunk)
+            except httpx.RequestError as exc:
+                raise GithubApiError("无法连接 GitHub。") from exc
+            return b"".join(chunks)
 
     async def _download_to_file(
         self,
@@ -832,27 +832,27 @@ class GithubClient:
         target.unlink(missing_ok=True)
         digest = hashlib.sha256()
         downloaded = 0
-        client = get_shared_http_client()
-        try:
-            with target.open("wb") as output:
-                async with client.stream(
-                    "GET",
-                    url,
-                    headers=self._headers(token, accept=accept),
-                    timeout=get_http_timeout(stream=True),
-                ) as response:
-                    await self._raise_for_status(response, token=token)
-                    self._require_safe_download_url(response.url)
-                    async for chunk in response.aiter_bytes():
-                        downloaded += len(chunk)
-                        if downloaded > maximum_bytes:
-                            raise GithubApiError("GitHub 仓库资源超过允许大小。")
-                        digest.update(chunk)
-                        output.write(chunk)
-        except (GithubApiError, httpx.RequestError):
-            target.unlink(missing_ok=True)
-            raise
-        return downloaded, digest.hexdigest()
+        async with lease_http_client(get_shared_http_client()) as client:
+            try:
+                with target.open("wb") as output:
+                    async with client.stream(
+                        "GET",
+                        url,
+                        headers=self._headers(token, accept=accept),
+                        timeout=get_http_timeout(stream=True),
+                    ) as response:
+                        await self._raise_for_status(response, token=token)
+                        self._require_safe_download_url(response.url)
+                        async for chunk in response.aiter_bytes():
+                            downloaded += len(chunk)
+                            if downloaded > maximum_bytes:
+                                raise GithubApiError("GitHub 仓库资源超过允许大小。")
+                            digest.update(chunk)
+                            output.write(chunk)
+            except (GithubApiError, httpx.RequestError):
+                target.unlink(missing_ok=True)
+                raise
+            return downloaded, digest.hexdigest()
 
     async def _request(
         self,
@@ -863,19 +863,19 @@ class GithubClient:
         json_body: dict[str, Any] | None = None,
         accept: str = "application/vnd.github+json",
     ) -> httpx.Response:
-        client = get_shared_http_client()
-        try:
-            response = await client.request(
-                method,
-                url,
-                headers=self._headers(token, accept=accept),
-                json=json_body,
-                timeout=get_http_timeout(),
-            )
-        except httpx.RequestError as exc:
-            raise GithubApiError("无法连接 GitHub。") from exc
-        await self._raise_for_status(response, token=token)
-        return response
+        async with lease_http_client(get_shared_http_client()) as client:
+            try:
+                response = await client.request(
+                    method,
+                    url,
+                    headers=self._headers(token, accept=accept),
+                    json=json_body,
+                    timeout=get_http_timeout(),
+                )
+            except httpx.RequestError as exc:
+                raise GithubApiError("无法连接 GitHub。") from exc
+            await self._raise_for_status(response, token=token)
+            return response
 
     async def _raise_for_status(self, response: httpx.Response, *, token: str | None) -> None:
         if response.status_code < 400:
@@ -909,21 +909,21 @@ class GithubClient:
         return f"/repos/{owner}/{name}"
 
     async def _oauth_post(self, url: str, data: dict[str, str]) -> dict[str, Any]:
-        client = get_shared_http_client()
-        try:
-            response = await client.post(
-                url,
-                data=data,
-                headers={"Accept": "application/json"},
-                timeout=get_http_timeout(),
-            )
-            response.raise_for_status()
-            payload = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise GithubApiError("无法连接 GitHub 登录服务。") from exc
-        if not isinstance(payload, dict):
-            raise GithubApiError("GitHub 登录服务返回了无效响应。")
-        return payload
+        async with lease_http_client(get_shared_http_client()) as client:
+            try:
+                response = await client.post(
+                    url,
+                    data=data,
+                    headers={"Accept": "application/json"},
+                    timeout=get_http_timeout(),
+                )
+                response.raise_for_status()
+                payload = response.json()
+            except (httpx.HTTPError, ValueError) as exc:
+                raise GithubApiError("无法连接 GitHub 登录服务。") from exc
+            if not isinstance(payload, dict):
+                raise GithubApiError("GitHub 登录服务返回了无效响应。")
+            return payload
 
     def _contents_url(
         self,

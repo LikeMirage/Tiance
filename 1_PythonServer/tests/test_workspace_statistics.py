@@ -116,7 +116,7 @@ def test_model_ranking_keeps_distinct_providers_and_survives_configuration_delet
 
     activity = activity_repo(tmp_path)
     providers_path = tmp_path / "providers"
-    ensure_provider_file_storage(providers_path, tmp_path / "tiance.db")
+    ensure_provider_file_storage(providers_path)
     store = ProviderFileStore(providers_path)
     catalog = ProviderCatalogRepository(store)
     models = ProviderCustomModelRepository(store)

@@ -12,7 +12,7 @@ from app.infra.github import (
     get_github_client,
     parse_github_repository_source,
 )
-from app.infra.http_client import get_http_timeout, get_shared_http_client
+from app.infra.http_client import lease_http_client, get_http_timeout, get_shared_http_client
 
 from .remote_security import (
     normalize_market_source,
@@ -117,36 +117,36 @@ class OnlineMarketRemoteClient:
         target.unlink(missing_ok=True)
         digest = hashlib.sha256()
         downloaded = 0
-        client = get_shared_http_client()
-        try:
-            with target.open("wb") as output:
-                async with client.stream(
-                    "GET",
-                    resolved,
-                    headers={"Accept": "application/zip, application/octet-stream"},
-                    timeout=get_http_timeout(stream=True),
-                ) as response:
-                    response.raise_for_status()
-                    self._require_safe_final_url(source, response.url)
-                    async for chunk in response.aiter_bytes():
-                        downloaded += len(chunk)
-                        if (
-                            downloaded > expected_size
-                            or downloaded > self._maximum_package_bytes
-                        ):
-                            raise BadRequestError(
-                                f"{self._resource_label}包实际大小与市场索引不一致。"
-                            )
-                        digest.update(chunk)
-                        output.write(chunk)
-        except httpx.HTTPError as exc:
-            raise BadRequestError(f"{self._resource_label}包下载失败。") from exc
-        if downloaded != expected_size:
-            raise BadRequestError(
-                f"{self._resource_label}包实际大小与市场索引不一致。"
-            )
-        if digest.hexdigest().lower() != expected_sha256.lower():
-            raise BadRequestError(f"{self._resource_label}包完整性校验失败。")
+        async with lease_http_client(get_shared_http_client()) as client:
+            try:
+                with target.open("wb") as output:
+                    async with client.stream(
+                        "GET",
+                        resolved,
+                        headers={"Accept": "application/zip, application/octet-stream"},
+                        timeout=get_http_timeout(stream=True),
+                    ) as response:
+                        response.raise_for_status()
+                        self._require_safe_final_url(source, response.url)
+                        async for chunk in response.aiter_bytes():
+                            downloaded += len(chunk)
+                            if (
+                                downloaded > expected_size
+                                or downloaded > self._maximum_package_bytes
+                            ):
+                                raise BadRequestError(
+                                    f"{self._resource_label}包实际大小与市场索引不一致。"
+                                )
+                            digest.update(chunk)
+                            output.write(chunk)
+            except httpx.HTTPError as exc:
+                raise BadRequestError(f"{self._resource_label}包下载失败。") from exc
+            if downloaded != expected_size:
+                raise BadRequestError(
+                    f"{self._resource_label}包实际大小与市场索引不一致。"
+                )
+            if digest.hexdigest().lower() != expected_sha256.lower():
+                raise BadRequestError(f"{self._resource_label}包完整性校验失败。")
 
     async def download_resource(
         self,
@@ -187,28 +187,28 @@ class OnlineMarketRemoteClient:
     ) -> bytes:
         chunks: list[bytes] = []
         downloaded = 0
-        client = get_shared_http_client()
-        try:
-            async with client.stream(
-                "GET",
-                url,
-                headers={"Accept": accept},
-                timeout=get_http_timeout(stream=True),
-            ) as response:
-                response.raise_for_status()
-                self._require_safe_final_url(source, response.url)
-                async for chunk in response.aiter_bytes():
-                    downloaded += len(chunk)
-                    if downloaded > maximum_bytes:
-                        raise BadRequestError(
-                            f"在线{self._resource_label}资源超过允许大小。"
-                        )
-                    chunks.append(chunk)
-        except httpx.HTTPError as exc:
-            raise self._connection_error_type(
-                f"无法连接在线{self._resource_label}仓库。"
-            ) from exc
-        return b"".join(chunks)
+        async with lease_http_client(get_shared_http_client()) as client:
+            try:
+                async with client.stream(
+                    "GET",
+                    url,
+                    headers={"Accept": accept},
+                    timeout=get_http_timeout(stream=True),
+                ) as response:
+                    response.raise_for_status()
+                    self._require_safe_final_url(source, response.url)
+                    async for chunk in response.aiter_bytes():
+                        downloaded += len(chunk)
+                        if downloaded > maximum_bytes:
+                            raise BadRequestError(
+                                f"在线{self._resource_label}资源超过允许大小。"
+                            )
+                        chunks.append(chunk)
+            except httpx.HTTPError as exc:
+                raise self._connection_error_type(
+                    f"无法连接在线{self._resource_label}仓库。"
+                ) from exc
+            return b"".join(chunks)
 
     def _require_safe_final_url(self, source: str, final_url: httpx.URL) -> None:
         require_safe_final_url(

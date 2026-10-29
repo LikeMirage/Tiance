@@ -7,7 +7,7 @@ from app.core.errors import BadRequestError, UpstreamProviderError
 from app.domain.llm.provider_capabilities import ProviderWebSearchResult
 from app.domain.llm.provider_catalog import ProviderCatalogEntry, ProviderProtocolFamily
 from app.domain.llm.provider_runtime import ProviderRuntimeConfig
-from app.infra.http_client import get_shared_http_client
+from app.infra.http_client import lease_http_client, get_shared_http_client
 from app.infra.llm.provider_capabilities.anthropic import AnthropicWebSearchAdapter
 from app.infra.llm.provider_capabilities.base import ProviderWebSearchAdapter
 from app.infra.llm.provider_capabilities.gemini import GeminiWebSearchAdapter
@@ -67,11 +67,12 @@ class ProviderCapabilityRemoteClient:
         headers: dict[str, str],
         body: dict[str, object],
     ) -> dict[str, object]:
-        response = await get_shared_http_client().post(
-            url,
-            headers=headers,
-            json=body,
-        )
+        async with lease_http_client(get_shared_http_client()) as client:
+            response = await client.post(
+                url,
+                headers=headers,
+                json=body,
+            )
         response.raise_for_status()
         if not response.content:
             return {}

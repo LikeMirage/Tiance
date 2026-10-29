@@ -94,32 +94,6 @@ _MEMORY_COMPRESSION_RULES = "\n".join(
     ]
 )
 
-_MEMORY_COMPRESSION_ARGUMENT_EXAMPLE = "\n".join(
-    [
-        "{",
-        '  "result": {',
-        '    "items": [',
-        "      {",
-        '        "content": "可供后续继续工作的具体摘要",',
-        '        "keywords": ["关键词1", "关键词2"]',
-        "      }",
-        "    ],",
-        '    "handoff": "面向接手者的交接总结"',
-        "  }",
-        "}",
-    ]
-)
-
-LEGACY_MEMORY_COMPRESSION_PROMPT_V32 = "\n".join(
-    [
-        _MEMORY_COMPRESSION_RULES,
-        "只调用一次 submit_memory_compaction，并严格使用以下参数结构；result 必须是 JSON 对象：",
-        _MEMORY_COMPRESSION_ARGUMENT_EXAMPLE,
-        "字段不得增加、删除或改名。",
-        "如果工具执行失败，立即停止；不得重试、修改参数、排查原因或调用其他工具，只简短说明失败结果。",
-    ]
-)
-
 DEFAULT_MEMORY_COMPRESSION_PROMPT = "\n".join(
     [
         _MEMORY_COMPRESSION_RULES

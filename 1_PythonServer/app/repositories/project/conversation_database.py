@@ -14,14 +14,17 @@ from app.infra.conversation_changes import conversation_changes
 
 from app.repositories.project.conversation_audit_snapshots import (
     collect_unreferenced_audit_blocks,
-    create_audit_snapshot_schema,
     restore_audit_snapshot,
     store_audit_snapshot,
+)
+from app.repositories.project.conversation_schema import (
+    SCHEMA_VERSION,
+    ensure_current_schema as _ensure_schema,
+    validate_current_schema,
 )
 
 
 DATABASE_FILE = "tiance.db"
-SCHEMA_VERSION = 6
 _thread_state = local()
 _database_initialization_lock = Lock()
 _initialized_database_paths: set[Path] = set()
@@ -54,11 +57,11 @@ def ensure_database(workspace_dir: Path) -> Path:
         _initialized_database_paths.discard(path)
         connection = _open_connection(path)
         try:
+            _ensure_schema(connection)
+            connection.commit()
             current_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0]).lower()
             if current_mode != "wal":
                 connection.execute("PRAGMA journal_mode=WAL")
-            _ensure_schema(connection)
-            connection.commit()
         finally:
             connection.close()
         _initialized_database_paths.add(path)
@@ -142,6 +145,7 @@ def read_connection_for_path(path: Path) -> Iterator[sqlite3.Connection | None]:
         return
     connection = _open_read_connection(resolved)
     try:
+        validate_current_schema(connection)
         yield connection
     finally:
         connection.close()
@@ -218,21 +222,7 @@ def read_next_session_sequence_number(conversations_dir: Path) -> int:
         if row[1] == row[2]:
             return (int(row[0]) if row[0] is not None else 0) + 1
 
-        # Preserve normalization for exceptional older/imported values. Only
-        # those records need decoding; ordinary sessions stay inside SQLite.
-        from app.repositories.project.conversation_serialization import _payload_int
-
-        legacy_rows = connection.execute(
-            """
-            SELECT payload_json FROM conversation_sessions
-            WHERE json_type(payload_json) = 'object'
-              AND (json_type(payload_json, '$.sequence_number') IS NOT 'integer'
-                   OR typeof(json_extract(payload_json, '$.sequence_number')) != 'integer')
-            """
-        ).fetchall()
-        values = [int(row[0])] if row[0] is not None else []
-        values.extend(_payload_int(_decode(item[0]).get("sequence_number")) for item in legacy_rows)
-        return max(values, default=0) + 1
+        raise ValueError("会话序号必须是整数；项目数据未被修改。")
 
 
 def read_conversation_list_snapshot(
@@ -343,6 +333,18 @@ def read_session_state_payloads(
 ) -> dict[str, dict[str, Any]]:
     if session_ids is not None and not session_ids:
         return {}
+    with read_connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
+        if connection is None:
+            return {}
+        return _read_session_states(connection, session_ids)
+
+
+def _read_session_states(
+    connection: sqlite3.Connection,
+    session_ids: set[str] | None,
+) -> dict[str, dict[str, Any]]:
+    if session_ids is not None and not session_ids:
+        return {}
     query = """
         SELECT session.session_id,
                runtime.runtime_status, runtime.updated_at,
@@ -361,11 +363,53 @@ def read_session_state_payloads(
         # A single JSON parameter also handles selections above SQLite's bind limit.
         query += " WHERE session.session_id IN (SELECT value FROM json_each(?))"
         parameters = (dumps(tuple(session_ids), ensure_ascii=False),)
-    with read_connection_for_path(database_path_from_conversations(conversations_dir)) as connection:
-        if connection is None:
-            return {}
-        rows = connection.execute(query, parameters).fetchall()
+    rows = connection.execute(query, parameters).fetchall()
     return _session_state_payloads_from_rows(rows)
+
+
+def read_session_index_page(
+    conversations_dir: Path, *, page: int, page_size: int,
+) -> tuple[int, dict[str, Any]]:
+    """Page the diagnostic index in SQLite, loading states only for visible rows."""
+    if page < 1 or page_size < 1:
+        raise ValueError("Page and page size must be positive")
+    path = database_path_from_conversations(conversations_dir).resolve()
+    empty = {"active_session_id": None, "pinned_session_ids": [], "sessions": [], "session_states": {}}
+    with read_connection_for_path(path) as connection:
+        if connection is None:
+            return 0, empty
+        if path not in getattr(_thread_state, "transactions", {}):
+            connection.execute("BEGIN")
+        row = connection.execute(
+            "SELECT value_json FROM conversation_meta WHERE key = 'conversation_index'",
+        ).fetchone()
+        raw_index = _decode(row[0]) if row else {}
+        index = raw_index if isinstance(raw_index, dict) else {}
+        pinned = {value for value in index.get("pinned_session_ids", []) if isinstance(value, str)}
+        total = int(connection.execute(
+            "SELECT COUNT(*) FROM conversation_sessions WHERE json_type(payload_json) = 'object'",
+        ).fetchone()[0])
+        last_page = max(1, (total + page_size - 1) // page_size)
+        offset = (min(page, last_page) - 1) * page_size
+        rows = connection.execute(
+            """
+            SELECT session_id, payload_json FROM conversation_sessions
+            WHERE json_type(payload_json) = 'object'
+            ORDER BY session_id IN (SELECT value FROM json_each(?)) DESC,
+                     COALESCE(json_extract(payload_json, '$.created_at'), '') DESC,
+                     CAST(COALESCE(json_extract(payload_json, '$.sequence_number'), 0) AS INTEGER) DESC,
+                     rowid ASC
+            LIMIT ? OFFSET ?
+            """,
+            (_encode(sorted(pinned)), page_size, offset),
+        ).fetchall()
+        visible_ids = {str(row[0]) for row in rows}
+        return total, {
+            "active_session_id": index.get("active_session_id"),
+            "pinned_session_ids": sorted(pinned & visible_ids),
+            "sessions": [_decode(row[1]) for row in rows],
+            "session_states": _read_session_states(connection, visible_ids),
+        }
 
 
 def _session_state_payloads_from_rows(
@@ -1422,286 +1466,6 @@ def _open_read_connection(path: Path) -> sqlite3.Connection:
     connection.execute("PRAGMA busy_timeout=10000")
     connection.execute("PRAGMA foreign_keys=ON")
     return connection
-
-
-def _ensure_schema(connection: sqlite3.Connection) -> None:
-    connection.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS conversation_schema (
-            version INTEGER NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS conversation_meta (
-            key TEXT PRIMARY KEY,
-            value_json TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS conversation_sessions (
-            session_id TEXT PRIMARY KEY,
-            payload_json TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS conversation_messages (
-            session_id TEXT NOT NULL,
-            ordinal INTEGER NOT NULL,
-            message_id TEXT NOT NULL,
-            payload_json TEXT NOT NULL,
-            PRIMARY KEY(session_id, ordinal),
-            UNIQUE(session_id, message_id),
-            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE
-        );
-        CREATE INDEX IF NOT EXISTS idx_conversation_messages_id
-            ON conversation_messages(message_id);
-        CREATE TABLE IF NOT EXISTS conversation_session_documents (
-            session_id TEXT NOT NULL,
-            kind TEXT NOT NULL,
-            payload_json TEXT NOT NULL,
-            PRIMARY KEY(session_id, kind),
-            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE
-        );
-        CREATE TABLE IF NOT EXISTS conversation_session_events (
-            session_id TEXT NOT NULL,
-            kind TEXT NOT NULL,
-            ordinal INTEGER NOT NULL,
-            payload_json TEXT NOT NULL,
-            PRIMARY KEY(session_id, kind, ordinal),
-            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE
-        );
-        CREATE TABLE IF NOT EXISTS conversation_project_events (
-            kind TEXT NOT NULL,
-            ordinal INTEGER NOT NULL,
-            payload_json TEXT NOT NULL,
-            PRIMARY KEY(kind, ordinal)
-        );
-        CREATE INDEX IF NOT EXISTS idx_compression_record_id
-        ON conversation_session_events(session_id, json_extract(payload_json, '$.compression_id'))
-        WHERE kind = 'compressions';
-        CREATE INDEX IF NOT EXISTS idx_compression_status
-        ON conversation_session_events(session_id, json_extract(payload_json, '$.source_type'),
-            json_extract(payload_json, '$.status'), ordinal DESC)
-        WHERE kind = 'compressions';
-        """
-    )
-    row = connection.execute("SELECT version FROM conversation_schema LIMIT 1").fetchone()
-    if row is None:
-        current_version = 1
-        connection.execute("INSERT INTO conversation_schema(version) VALUES (?)", (current_version,))
-    else:
-        current_version = int(row[0])
-    if current_version > SCHEMA_VERSION:
-        raise RuntimeError(f"Unsupported project conversation database version: {current_version}")
-    if current_version < 2:
-        _migrate_schema_v1_to_v2(connection)
-        current_version = 2
-    if current_version < 3:
-        _migrate_schema_v2_to_v3(connection)
-        current_version = 3
-    if current_version < 4:
-        _migrate_schema_v3_to_v4(connection)
-        current_version = 4
-    if current_version < 5:
-        _migrate_schema_v4_to_v5(connection)
-        current_version = 5
-    if current_version < 6:
-        connection.execute("SAVEPOINT audit_schema_v6")
-        try:
-            create_audit_snapshot_schema(connection)
-            connection.execute("UPDATE conversation_schema SET version = 6")
-            connection.execute("RELEASE audit_schema_v6")
-        except Exception:
-            connection.execute("ROLLBACK TO audit_schema_v6")
-            connection.execute("RELEASE audit_schema_v6")
-            raise
-        current_version = 6
-    if current_version != SCHEMA_VERSION:
-        raise RuntimeError(f"Unsupported project conversation database version: {current_version}")
-
-
-def _migrate_schema_v1_to_v2(connection: sqlite3.Connection) -> None:
-    connection.executescript(
-        """
-        CREATE TABLE conversation_artifacts (
-            artifact_id TEXT PRIMARY KEY,
-            session_id TEXT NOT NULL,
-            kind TEXT NOT NULL,
-            relative_path TEXT NOT NULL,
-            media_type TEXT NOT NULL,
-            encoding TEXT,
-            size_bytes INTEGER NOT NULL,
-            sha256 TEXT NOT NULL,
-            status TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            metadata_json TEXT NOT NULL,
-            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE
-        );
-        CREATE INDEX idx_conversation_artifacts_session
-            ON conversation_artifacts(session_id, created_at);
-        CREATE TABLE conversation_journal (
-            event_id INTEGER PRIMARY KEY,
-            session_id TEXT,
-            run_id TEXT,
-            turn_id TEXT,
-            tool_call_id TEXT,
-            event_type TEXT NOT NULL,
-            occurred_at TEXT NOT NULL,
-            payload_json TEXT NOT NULL,
-            artifact_id TEXT,
-            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE,
-            FOREIGN KEY(artifact_id) REFERENCES conversation_artifacts(artifact_id) ON DELETE SET NULL
-        );
-        CREATE INDEX idx_conversation_journal_session
-            ON conversation_journal(session_id, event_id);
-        CREATE INDEX idx_conversation_journal_run
-            ON conversation_journal(run_id, event_id);
-        CREATE INDEX idx_conversation_journal_tool_call
-            ON conversation_journal(tool_call_id, event_id);
-        CREATE INDEX idx_conversation_journal_type
-            ON conversation_journal(event_type, event_id);
-        UPDATE conversation_schema SET version = 2;
-        """
-    )
-
-
-def _migrate_schema_v2_to_v3(connection: sqlite3.Connection) -> None:
-    connection.executescript(
-        """
-        CREATE TABLE conversation_artifact_payloads (
-            artifact_id TEXT PRIMARY KEY,
-            compression TEXT NOT NULL,
-            stored_size_bytes INTEGER NOT NULL,
-            payload_blob BLOB NOT NULL,
-            FOREIGN KEY(artifact_id) REFERENCES conversation_artifacts(artifact_id) ON DELETE CASCADE
-        );
-        UPDATE conversation_schema SET version = 3;
-        """
-    )
-
-
-def _migrate_schema_v3_to_v4(connection: sqlite3.Connection) -> None:
-    connection.executescript(
-        """
-        CREATE TABLE conversation_session_runtime_states (
-            session_id TEXT PRIMARY KEY,
-            runtime_status TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE
-        );
-        CREATE TABLE conversation_session_drafts (
-            session_id TEXT PRIMARY KEY,
-            draft TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE
-        );
-        CREATE TABLE conversation_session_references (
-            session_id TEXT PRIMARY KEY,
-            payload_json TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE
-        );
-        """
-    )
-    row = connection.execute(
-        "SELECT value_json FROM conversation_meta WHERE key = 'conversation_index'",
-    ).fetchone()
-    try:
-        index = _decode(row[0]) if row is not None else {}
-    except (TypeError, ValueError) as error:
-        raise RuntimeError("Conversation index cannot be decoded during schema migration.") from error
-    if not isinstance(index, dict):
-        raise RuntimeError("Conversation index must be an object during schema migration.")
-    raw_states = index.get("session_states")
-    if raw_states is not None and not isinstance(raw_states, dict):
-        raise RuntimeError("Conversation session states must be an object during schema migration.")
-    states = raw_states or {}
-    live_session_ids = {
-        str(session_row[0])
-        for session_row in connection.execute(
-            "SELECT session_id FROM conversation_sessions"
-        ).fetchall()
-    }
-    for session_id, raw_state in states.items():
-        normalized_session_id = str(session_id)
-        if normalized_session_id not in live_session_ids:
-            continue
-        if not isinstance(raw_state, dict):
-            raise RuntimeError(
-                f"Conversation session state '{normalized_session_id}' must be an object."
-            )
-        updated_at = str(raw_state.get("updated_at") or "")
-        if not updated_at:
-            raise RuntimeError(
-                f"Conversation session state '{normalized_session_id}' has no update time."
-            )
-        runtime_updated_at = str(raw_state.get("runtime_updated_at") or updated_at)
-        runtime_status = str(raw_state.get("runtime_status") or "idle")
-        if runtime_status not in {"idle", "running", "error"}:
-            raise RuntimeError(
-                f"Conversation session state '{normalized_session_id}' has invalid runtime status."
-            )
-        draft = str(raw_state.get("draft") or "")
-        references = raw_state.get("references")
-        if not isinstance(references, list):
-            raise RuntimeError(
-                f"Conversation session state '{normalized_session_id}' has invalid references."
-            )
-        connection.execute(
-            """
-            INSERT INTO conversation_session_runtime_states(
-                session_id, runtime_status, updated_at
-            ) VALUES (?, ?, ?)
-            """,
-            (normalized_session_id, runtime_status, runtime_updated_at),
-        )
-        connection.execute(
-            """
-            INSERT INTO conversation_session_drafts(session_id, draft, updated_at)
-            VALUES (?, ?, ?)
-            """,
-            (normalized_session_id, draft, updated_at),
-        )
-        connection.execute(
-            """
-            INSERT INTO conversation_session_references(
-                session_id, payload_json, updated_at
-            ) VALUES (?, ?, ?)
-            """,
-            (normalized_session_id, _encode(references), updated_at),
-        )
-    active_session_id = index.get("active_session_id")
-    pinned = index.get("pinned_session_ids")
-    index = {
-        "active_session_id": (
-            active_session_id
-            if isinstance(active_session_id, str) and active_session_id in live_session_ids
-            else None
-        ),
-    }
-    index["pinned_session_ids"] = (
-        [str(value) for value in pinned if str(value) in live_session_ids]
-        if isinstance(pinned, list)
-        else []
-    )
-    _upsert_meta(connection, "conversation_index", index)
-    connection.execute("UPDATE conversation_schema SET version = 4")
-
-
-def _migrate_schema_v4_to_v5(connection: sqlite3.Connection) -> None:
-    connection.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS conversation_runs (
-            run_id TEXT PRIMARY KEY,
-            session_id TEXT NOT NULL,
-            user_message_id TEXT NOT NULL,
-            status TEXT NOT NULL CHECK(status IN ('running', 'done', 'error', 'cancelled')),
-            error_code TEXT,
-            error_message TEXT,
-            attempt_count INTEGER NOT NULL,
-            started_at TEXT NOT NULL,
-            settled_at TEXT,
-            FOREIGN KEY(session_id) REFERENCES conversation_sessions(session_id) ON DELETE CASCADE
-        );
-        CREATE INDEX IF NOT EXISTS idx_conversation_runs_session_user
-            ON conversation_runs(session_id, user_message_id, started_at);
-        UPDATE conversation_schema SET version = 5;
-        """
-    )
 
 
 def _conversation_run_from_row(row: sqlite3.Row | tuple[Any, ...]) -> dict[str, Any]:

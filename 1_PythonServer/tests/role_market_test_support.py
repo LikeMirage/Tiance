@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.project_test_support import make_project_repository
+
 from copy import deepcopy
 from json import dumps
 from pathlib import Path
@@ -70,7 +72,7 @@ def build_role_market_service(
     roles_root = tmp_path / "roles"
     ensure_database_schema(database_path)
     catalog = FileProjectCatalog(roles_root, project_kind=ProjectKind.ROLE)
-    repository = ProjectRepository(database_path, file_catalogs=(catalog,))
+    repository = make_project_repository(database_path, file_catalogs=(catalog,))
     project_service = ProjectService(
         repository,
         ProjectStorage(tmp_path / "projects", roles_root=roles_root),

@@ -158,17 +158,3 @@ def test_create_failure_rolls_back_source_session_list_and_graph(setup, monkeypa
         setup.create()
     assert db.read_events(setup.source_path, "compressions") == setup.records
     assert setup.repository.get_list_data("p")[:5] == sessions_before
-
-
-def test_existing_database_gains_indexes_without_changing_records(setup):
-    path = db.database_path_from_session(setup.source_path)
-    with db.connection_for_path(path) as connection:
-        connection.execute("DROP INDEX idx_compression_record_id")
-        connection.execute("DROP INDEX idx_compression_status")
-    # Simulate reopening a database created before these additive indexes existed.
-    db._initialized_database_paths.discard(path.resolve())
-    db.ensure_database(path.parent)
-    assert db.read_events(setup.source_path, "compressions") == setup.records
-    with db.read_connection_for_path(path) as connection:
-        indexes = {row[1] for row in connection.execute("PRAGMA index_list(conversation_session_events)")}
-    assert {"idx_compression_record_id", "idx_compression_status"} <= indexes

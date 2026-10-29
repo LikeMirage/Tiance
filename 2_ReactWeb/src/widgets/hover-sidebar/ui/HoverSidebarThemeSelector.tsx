@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, MagnifyingGlass, Palette } from "@phosphor-icons/react";
+import { useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
+import { CaretUp, Check, MagnifyingGlass, Palette } from "@phosphor-icons/react";
 
 import type {
   Project,
@@ -31,9 +31,14 @@ export function HoverSidebarThemeSelector({
 }: HoverSidebarThemeSelectorProps) {
   const { t } = useI18n();
   const [isHovered, setIsHovered] = useState(false);
-  const [isFocusWithin, setIsFocusWithin] = useState(false);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState(ALL_THEME_CATEGORY_ID);
+  const selectorRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const focusSearchOnOpenRef = useRef(false);
+  const panelId = useId();
   const hasUserSelectedCategoryRef = useRef(false);
   const wasOpenRef = useRef(false);
   const activeThemeId = themeControl.activeThemeId ?? "";
@@ -48,7 +53,7 @@ export function HoverSidebarThemeSelector({
     activeThemeOption?.label ||
     themeControl.activeThemeName ||
     t("sidebar.theme.fallback");
-  const isOpen = isSidebarExpanded && (isHovered || isFocusWithin);
+  const isOpen = isSidebarExpanded && (isHovered || isKeyboardOpen);
   const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
   const effectiveCategoryId = normalizedSearchQuery
     ? ALL_THEME_CATEGORY_ID
@@ -66,9 +71,46 @@ export function HoverSidebarThemeSelector({
   useEffect(() => {
     if (!isSidebarExpanded) {
       setIsHovered(false);
-      setIsFocusWithin(false);
+      setIsKeyboardOpen(false);
+      focusSearchOnOpenRef.current = false;
     }
   }, [isSidebarExpanded]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (focusSearchOnOpenRef.current) {
+      focusSearchOnOpenRef.current = false;
+      searchRef.current?.focus();
+    }
+
+    const close = () => {
+      setIsHovered(false);
+      setIsKeyboardOpen(false);
+      focusSearchOnOpenRef.current = false;
+    };
+    const handleOutsidePointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && selectorRef.current?.contains(event.target)) return;
+      close();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      if (selectorRef.current?.contains(document.activeElement)) {
+        triggerRef.current?.focus();
+      }
+      // Close after restoring focus so that focus cannot reopen the panel.
+      close();
+    };
+    document.addEventListener("pointerdown", handleOutsidePointer, true);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("blur", close);
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsidePointer, true);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("blur", close);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -108,6 +150,7 @@ export function HoverSidebarThemeSelector({
 
   return (
     <div
+      ref={selectorRef}
       className={
         isOpen
           ? "hover-sidebar__theme-selector hover-sidebar__theme-selector--open"
@@ -118,9 +161,16 @@ export function HoverSidebarThemeSelector({
       }}
       onPointerLeave={() => {
         setIsHovered(false);
+        setIsKeyboardOpen(false);
       }}
-      onFocus={() => {
-        setIsFocusWithin(true);
+      onPointerDownCapture={() => {
+        setIsKeyboardOpen(false);
+      }}
+      onFocus={(event) => {
+        const focusedElement = event.target as HTMLElement;
+        if (focusedElement === triggerRef.current && focusedElement.matches(":focus-visible")) {
+          setIsKeyboardOpen(true);
+        }
       }}
       onBlur={(event) => {
         if (
@@ -129,116 +179,131 @@ export function HoverSidebarThemeSelector({
         ) {
           return;
         }
-        setIsFocusWithin(false);
+        setIsKeyboardOpen(false);
       }}
     >
-      {isOpen ? (
-        <div className="hover-sidebar__theme-panel">
-          <label className="hover-sidebar__theme-search">
-            <MagnifyingGlass
-              className="hover-sidebar__theme-search-icon"
-              weight="bold"
-              aria-hidden="true"
-            />
-            <input
-              className="hover-sidebar__theme-search-input"
-              type="search"
-              value={searchQuery}
-              placeholder={t("sidebar.theme.search")}
-              aria-label={t("sidebar.theme.search")}
-              onChange={(event) => {
-                setSearchQuery(event.target.value);
-              }}
-            />
-          </label>
-
-          <div className="hover-sidebar__theme-browser">
-            <div
-              className="hover-sidebar__theme-categories"
-              role="navigation"
-              aria-label={t("sidebar.theme.categories")}
-            >
-              <ThemeCategoryButton
-                count={allThemeOptions.length}
-                isSelected={effectiveCategoryId === ALL_THEME_CATEGORY_ID}
-                label={t("sidebar.theme.all")}
-                onSelect={() => {
-                  hasUserSelectedCategoryRef.current = true;
-                  setSearchQuery("");
-                  setSelectedCategoryId(ALL_THEME_CATEGORY_ID);
+      <div className="hover-sidebar__theme-surface">
+        {isOpen ? (
+          <div
+            className="hover-sidebar__theme-panel"
+            id={panelId}
+            role="region"
+            aria-label={t("sidebar.theme.select")}
+          >
+            <label className="hover-sidebar__theme-search">
+              <MagnifyingGlass
+                className="hover-sidebar__theme-search-icon"
+                weight="bold"
+                aria-hidden="true"
+              />
+              <input
+                ref={searchRef}
+                className="hover-sidebar__theme-search-input"
+                type="search"
+                value={searchQuery}
+                placeholder={t("sidebar.theme.search")}
+                aria-label={t("sidebar.theme.search")}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
                 }}
               />
-              {categories.map((category) => (
+            </label>
+
+            <div className="hover-sidebar__theme-browser">
+              <div
+                className="hover-sidebar__theme-categories"
+                role="navigation"
+                aria-label={t("sidebar.theme.categories")}
+              >
                 <ThemeCategoryButton
-                  key={category.category_id}
-                  count={allThemeOptions.filter(
-                    (option) => option.categoryId === category.category_id,
-                  ).length}
-                  isSelected={effectiveCategoryId === category.category_id}
-                  label={category.name}
+                  count={allThemeOptions.length}
+                  isSelected={effectiveCategoryId === ALL_THEME_CATEGORY_ID}
+                  label={t("sidebar.theme.all")}
                   onSelect={() => {
                     hasUserSelectedCategoryRef.current = true;
                     setSearchQuery("");
-                    setSelectedCategoryId(category.category_id);
+                    setSelectedCategoryId(ALL_THEME_CATEGORY_ID);
                   }}
                 />
-              ))}
-            </div>
+                {categories.map((category) => (
+                  <ThemeCategoryButton
+                    key={category.category_id}
+                    count={allThemeOptions.filter(
+                      (option) => option.categoryId === category.category_id,
+                    ).length}
+                    isSelected={effectiveCategoryId === category.category_id}
+                    label={category.name}
+                    onSelect={() => {
+                      hasUserSelectedCategoryRef.current = true;
+                      setSearchQuery("");
+                      setSelectedCategoryId(category.category_id);
+                    }}
+                  />
+                ))}
+              </div>
 
-            <div
-              className="hover-sidebar__theme-menu"
-              role="listbox"
-              aria-label={t("sidebar.theme.select")}
-            >
-              {visibleThemeOptions.length > 0 ? (
-                visibleThemeOptions.map((option) => {
-                  const isActive = option.value === activeThemeId;
-                  return (
-                    <button
-                      key={option.value}
-                      className={
-                        isActive
-                          ? "hover-sidebar__theme-option hover-sidebar__theme-option--active"
-                          : "hover-sidebar__theme-option"
-                      }
-                      type="button"
-                      role="option"
-                      aria-selected={isActive}
-                      disabled={themeControl.isLoading}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        themeControl.onSelectTheme(option.value);
-                      }}
-                    >
-                      <span className="hover-sidebar__theme-option-label">
-                        {option.label}
-                      </span>
-                      {isActive ? (
-                        <Check
-                          className="hover-sidebar__theme-option-check"
-                          weight="bold"
-                          aria-hidden="true"
-                        />
-                      ) : null}
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="hover-sidebar__theme-empty">
-                  {t("sidebar.theme.empty")}
-                </div>
-              )}
+              <div
+                className="hover-sidebar__theme-menu"
+                role="listbox"
+                aria-label={t("sidebar.theme.select")}
+              >
+                {visibleThemeOptions.length > 0 ? (
+                  visibleThemeOptions.map((option) => {
+                    const isActive = option.value === activeThemeId;
+                    return (
+                      <button
+                        key={option.value}
+                        className={
+                          isActive
+                            ? "hover-sidebar__theme-option hover-sidebar__theme-option--active"
+                            : "hover-sidebar__theme-option"
+                        }
+                        type="button"
+                        role="option"
+                        aria-selected={isActive}
+                        disabled={themeControl.isLoading}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          themeControl.onSelectTheme(option.value);
+                        }}
+                      >
+                        <span className="hover-sidebar__theme-option-label">
+                          {option.label}
+                        </span>
+                        {isActive ? (
+                          <Check
+                            className="hover-sidebar__theme-option-check"
+                            weight="bold"
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="hover-sidebar__theme-empty">
+                    {t("sidebar.theme.empty")}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      <ThemeSelectorTrigger
-        activeThemeLabel={activeThemeLabel}
-        disabled={themeControl.isLoading}
-        isOpen={isOpen}
-      />
+        <ThemeSelectorTrigger
+          activeThemeLabel={activeThemeLabel}
+          disabled={themeControl.isLoading}
+          isOpen={isOpen}
+          panelId={panelId}
+          triggerRef={triggerRef}
+          onOpenFromKeyboard={() => {
+            setIsKeyboardOpen(true);
+            if (searchRef.current) searchRef.current.focus();
+            else focusSearchOnOpenRef.current = true;
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -275,24 +340,41 @@ function ThemeSelectorTrigger({
   activeThemeLabel,
   disabled,
   isOpen,
+  onOpenFromKeyboard,
+  panelId,
+  triggerRef,
 }: {
   activeThemeLabel: string;
   disabled: boolean;
   isOpen: boolean;
+  onOpenFromKeyboard: () => void;
+  panelId: string;
+  triggerRef: RefObject<HTMLButtonElement | null>;
 }) {
   const { t } = useI18n();
   return (
     <button
+      ref={triggerRef}
       className="hover-sidebar__theme-trigger"
       type="button"
       aria-label={t("sidebar.theme.select")}
       disabled={disabled}
       aria-expanded={isOpen}
+      aria-controls={isOpen ? panelId : undefined}
+      onPointerDown={(event) => {
+        if (event.button === 0) event.preventDefault();
+      }}
+      onKeyDown={(event) => {
+        if (!["ArrowUp", "ArrowDown", "Enter", " "].includes(event.key)) return;
+        event.preventDefault();
+        onOpenFromKeyboard();
+      }}
     >
       <span className="hover-sidebar__theme-icon" aria-hidden="true">
         <Palette className="hover-sidebar__theme-glyph" weight="bold" />
       </span>
       <span className="hover-sidebar__theme-label">{activeThemeLabel}</span>
+      <CaretUp className="hover-sidebar__theme-caret" weight="bold" aria-hidden="true" />
     </button>
   );
 }

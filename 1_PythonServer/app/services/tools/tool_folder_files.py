@@ -1,6 +1,7 @@
 from functools import lru_cache
 from json import loads
 
+from app.domain.file_workspace import TextFileUpdate
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.domain.file_workspace import FileEntryKind, FileEntryNode, FileEntryTree
 from app.infra.file_workspace import FileWorkspaceStorage, get_file_workspace_storage
@@ -147,26 +148,23 @@ class ToolFolderFileService:
         *,
         expected_mtime_ms: int | None = None,
     ) -> FileEntryNode:
+        return self.write_text_files(category_id, project_id, [TextFileUpdate(target_path, content, expected_mtime_ms)])[0]
+
+    def write_text_files(self, category_id: str, project_id: str, updates: list[TextFileUpdate]) -> list[FileEntryNode]:
         folder_root = self._require_writable_project_root(category_id, project_id)
-        if _is_tool_standard_file_path(target_path):
-            content = self._config_storage.normalize_standard_file_content(
-                target_path,
-                content,
-            )
-            if _is_tool_manifest_file_path(target_path):
-                self._ensure_manifest_identity_available(project_id, content)
+        normalized = []
+        for update in updates:
+            content = update.content
+            if _is_tool_standard_file_path(update.path):
+                content = self._config_storage.normalize_standard_file_content(update.path, content)
+                if _is_tool_manifest_file_path(update.path):
+                    self._ensure_manifest_identity_available(project_id, content)
+            normalized.append(TextFileUpdate(update.path, content, update.expected_mtime_ms))
+        rebuild = self._rebuild_registry if any(_is_tool_registry_metadata_file_path(item.path) for item in updates) else None
         try:
-            node = self._file_storage.write_text_file(
-                folder_root,
-                target_path,
-                content,
-                expected_mtime_ms=expected_mtime_ms,
-            )
+            return self._file_storage.write_text_files(folder_root, normalized, after_write=rebuild)
         except ValueError as exc:
             raise BadRequestError(str(exc)) from exc
-        if _is_tool_registry_metadata_file_path(target_path):
-            self._rebuild_registry()
-        return node
 
     def read_editor_text_file(
         self,

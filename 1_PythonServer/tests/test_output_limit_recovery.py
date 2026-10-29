@@ -212,27 +212,6 @@ def test_responses_incomplete_preserves_output_limit_reason():
     assert events[-1].kind == Kind.ERROR and events[-1].finish_reason == "max_output_tokens"
 
 
-def test_legacy_role_hash_survives_new_default_policy_fields(tmp_path):
-    from hashlib import sha256
-    from json import dumps
-    from tests.test_role_configuration_application import _build_services
-    from app.repositories.project.conversation_serialization import _session_from_payload, _session_to_payload
-    projects, conversations, roles, _ = _build_services(tmp_path)
-    role = roles.ensure_default_role()
-    project = projects.create_project(name="旧角色")
-    session = conversations.create_session(project.project_id, role_project_id=role.project_id)
-    payload = _session_to_payload(session)
-    for key in list(payload["settings"]):
-        if key.startswith("output_limit_"):
-            del payload["settings"][key]
-    payload["role_configuration_hash"] = sha256(dumps({
-        "provider_id":session.provider_id,"model_id":session.model_id,"reasoning_mode":session.reasoning_mode,
-        "settings":payload["settings"],
-    }, ensure_ascii=False,sort_keys=True,separators=(",",":")).encode()).hexdigest()
-    restored = _session_from_payload(payload)
-    assert restored.role_configuration_hash == session.role_configuration_hash
-
-
 def test_closing_stream_between_turns_cancels_durable_automatic_user():
     stream, request, store, remote, _, _, _ = setup_run([truncated()], action="send_message")
     async def close_after_notice():

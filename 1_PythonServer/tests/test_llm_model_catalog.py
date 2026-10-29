@@ -55,7 +55,7 @@ def test_model_catalog_filters_functional_and_vision_models(tmp_path):
 
 def _create_service(tmp_path):
     providers_path = tmp_path / "providers"
-    ensure_provider_file_storage(providers_path, tmp_path / "tiance.db")
+    ensure_provider_file_storage(providers_path)
     store = ProviderFileStore(providers_path)
     catalog_repository = ProviderCatalogRepository(store)
     config_repository = ProviderConfigRepository(store)

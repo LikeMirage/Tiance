@@ -8,6 +8,11 @@ import {
   hideDesktopShellToTray,
 } from "../../../features/desktop-shell/model/desktopShellStore";
 import { useDesktopShell } from "../../../features/desktop-shell/model/useDesktopShell";
+import {
+  observeDesktopCloseRequest,
+  requestDesktopWindowClose,
+  type DesktopCloseRequest,
+} from "../../../features/desktop-shell/model/desktopCloseRequest";
 import { useProviderCatalog } from "../../../features/provider-catalog/model/useProviderCatalog";
 import { emitLlmModelCatalogChanged } from "../../../entities/llm-provider/model/modelCatalogEvents";
 import { useToolCatalog } from "../../../features/tool-catalog/model/useToolCatalog";
@@ -90,6 +95,7 @@ export function WorkspacePage({
   const [isWindowCloseActionPending, setIsWindowCloseActionPending] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
   const exitRequestedRef = useRef(false);
+  const desktopCloseRequestRef = useRef<DesktopCloseRequest | null>(null);
   const [windowCloseError, setWindowCloseError] = useState<string | null>(null);
   const [layoutPreferences, setLayoutPreferences] = useState(() =>
     normalizeWorkspaceLayoutPreferences(initialLayoutPreferences),
@@ -161,19 +167,14 @@ export function WorkspacePage({
     selectedProject: providerSelectedProject,
     selectedSessionId: providerSelectedSessionId,
   } = projectCollections.collections.provider;
-  const providerCatalog = useProviderCatalog();
+  const [pendingCreatedProviderId, setPendingCreatedProviderId] = useState<string | null>(null);
+  const providerCatalog = useProviderCatalog(setPendingCreatedProviderId);
   const toolCatalog = useToolCatalog();
   const providerConfigState = useProviderConfigState(
     providerCatalog.items,
     providerCatalog.selectedProviderId,
   );
   const providerModelDiscovery = useProviderModelDiscovery(providerCatalog.selectedProviderId);
-  const selectedProviderProject = useMemo(
-    () => providerProjects.find(
-      (project) => getProviderIdFromProject(project.root_path) === providerCatalog.selectedProviderId,
-    ) ?? null,
-    [providerCatalog.selectedProviderId, providerProjects],
-  );
   const providerCatalogIdentityKey = providerCatalog.items
     .map((provider) => `${provider.provider_id}:${provider.display_name}`)
     .join("\n");
@@ -184,17 +185,20 @@ export function WorkspacePage({
   }, [providerCatalog.state, providerCatalogIdentityKey, projectCatalog.reload]);
 
   useEffect(() => {
-    if (activeSection !== "models" || !selectedProviderProject) return;
-    if (projectCatalog.selectedCategoryId !== selectedProviderProject.category_id) return;
-    if (projectCatalog.selectedProjectId !== selectedProviderProject.project_id) {
-      projectCatalog.selectProject(selectedProviderProject.project_id);
+    const project = projectCatalog.selectedProject;
+    if (pendingCreatedProviderId || activeSection !== "models" || project?.project_kind !== "provider") return;
+    const providerId = getProviderIdFromProject(project.root_path);
+    if (providerId && providerCatalog.items.some((item) => item.provider_id === providerId)
+      && providerCatalog.selectedProviderId !== providerId) {
+      providerCatalog.selectProvider(providerId);
     }
   }, [
     activeSection,
-    projectCatalog.selectProject,
-    projectCatalog.selectedCategoryId,
-    projectCatalog.selectedProjectId,
-    selectedProviderProject,
+    pendingCreatedProviderId,
+    projectCatalog.selectedProject,
+    providerCatalog.items,
+    providerCatalog.selectedProviderId,
+    providerCatalog.selectProvider,
   ]);
   const handleLayoutPreferenceChange = useCallback((update: WorkspaceLayoutPreferenceUpdate) => {
     const normalizedUpdate = normalizeWorkspaceLayoutPreferenceUpdate(update);
@@ -322,16 +326,39 @@ export function WorkspacePage({
       projectCatalog.reload();
       return;
     }
-    providerCatalog.selectProvider(providerId);
-    projectCatalog.selectCategory(providerProject.category_id);
-    void handleExpandProject(providerProject.project_id);
+    void requestUnsavedTransition([projectDocumentTabs], "switch", async () => {
+      providerCatalog.selectProvider(providerId);
+      projectCatalog.expandProject(providerProject.project_id);
+      await preloadProjectEntry(providerProject.project_id);
+    });
   }, [
-    handleExpandProject,
+    requestUnsavedTransition,
+    projectDocumentTabs,
     projectCatalog.reload,
-    projectCatalog.selectCategory,
+    projectCatalog.expandProject,
     providerCatalog.selectProvider,
     providerProjects,
   ]);
+  const handleSelectProvider = useCallback((providerId: string) => {
+    const project = providerProjects.find((item) => getProviderIdFromProject(item.root_path) === providerId);
+    if (!project) { projectCatalog.reload(); return; }
+    if (project.project_id === projectCatalog.selectedProjectId) return;
+    void requestUnsavedTransition([projectDocumentTabs], "switch", () => {
+      providerCatalog.selectProvider(providerId);
+      projectCatalog.selectProject(project.project_id);
+    });
+  }, [providerProjects, projectCatalog.reload, projectCatalog.selectProject,
+    projectCatalog.selectedProjectId, providerCatalog.selectProvider, projectDocumentTabs, requestUnsavedTransition]);
+  const guardedProviderCatalog = { ...providerCatalog, selectProvider: handleSelectProvider };
+  useEffect(() => {
+    if (!pendingCreatedProviderId || !providerProjects.some(
+      (project) => getProviderIdFromProject(project.root_path) === pendingCreatedProviderId,
+    )) return;
+    // Creation registers the folder first. Selecting it uses the same document
+    // guard after the refreshed project catalog contains its identity.
+    handleSelectProvider(pendingCreatedProviderId);
+    setPendingCreatedProviderId(null);
+  }, [handleSelectProvider, pendingCreatedProviderId, providerProjects]);
   const handleSelectProject = useCallback(async (
     projectId: string,
     options: ProjectEntryWarmupOptions = {},
@@ -395,6 +422,7 @@ export function WorkspacePage({
   const requestApplicationExit = useCallback(() => {
     if (exitRequestedRef.current) return;
     exitRequestedRef.current = true;
+    const closeRequest = desktopCloseRequestRef.current;
     void requestUnsavedTransition(
       [projectDocumentTabs, toolDocumentTabs],
       "exit",
@@ -404,7 +432,10 @@ export function WorkspacePage({
         setIsWindowClosePromptOpen(true);
         setWindowCloseError(null);
         try {
-          await closeDesktopShell();
+          if (!closeRequest) throw new Error("关闭请求已失效，请重新点击关闭按钮。");
+          if (await closeDesktopShell(closeRequest.requestId) === false) {
+            throw new Error("关闭请求已失效，请重新点击关闭按钮。");
+          }
         } catch (error) {
           setWindowCloseError(error instanceof Error ? error.message : String(error));
         } finally {
@@ -412,9 +443,13 @@ export function WorkspacePage({
           setIsWindowCloseActionPending(false);
         }
       },
-    ).finally(() => { exitRequestedRef.current = false; });
+    ).finally(() => {
+      exitRequestedRef.current = false;
+      closeRequest?.cancel();
+      if (desktopCloseRequestRef.current === closeRequest) desktopCloseRequestRef.current = null;
+    });
   }, [projectDocumentTabs, requestUnsavedTransition, toolDocumentTabs]);
-  const handleRequestCloseWindow = useCallback(() => {
+  const handleFrontendCloseRequest = useCallback(() => {
     if (unsavedChangesModal || exitRequestedRef.current || isWindowCloseActionPending) return;
     if (!canHideToTray) {
       requestApplicationExit();
@@ -423,18 +458,52 @@ export function WorkspacePage({
     setWindowCloseError(null);
     setIsWindowClosePromptOpen(true);
   }, [canHideToTray, isWindowCloseActionPending, requestApplicationExit, unsavedChangesModal]);
+  const handleRequestCloseWindow = useCallback(() => {
+    void requestDesktopWindowClose().then((handled) => {
+      if (!handled) handleFrontendCloseRequest();
+    }).catch(() => handleFrontendCloseRequest());
+  }, [handleFrontendCloseRequest]);
   useEffect(() => {
-    const handleNativeCloseRequest = () => handleRequestCloseWindow();
+    const handleNativeCloseRequest = (event: Event) => {
+      const detail = (event as CustomEvent<{ requestId?: string; intent?: string }>).detail;
+      if (detail?.requestId) {
+        if (desktopCloseRequestRef.current?.requestId === detail.requestId) return;
+        desktopCloseRequestRef.current?.stop();
+        const closeRequest = observeDesktopCloseRequest(detail.requestId);
+        desktopCloseRequestRef.current = closeRequest;
+        if (unsavedChangesModal || exitRequestedRef.current || isWindowCloseActionPending) {
+          closeRequest.cancel();
+          desktopCloseRequestRef.current = null;
+          return;
+        }
+      }
+      if (detail?.intent === "exit") requestApplicationExit();
+      else handleFrontendCloseRequest();
+    };
     window.addEventListener("tiance:window-close-requested", handleNativeCloseRequest);
     return () => {
       window.removeEventListener("tiance:window-close-requested", handleNativeCloseRequest);
     };
-  }, [handleRequestCloseWindow]);
+  }, [handleFrontendCloseRequest, isWindowCloseActionPending, requestApplicationExit, unsavedChangesModal]);
+  useEffect(() => {
+    desktopCloseRequestRef.current?.setState(
+      unsavedChangesModal?.isBusy || isWindowCloseActionPending ? "saving" : "waiting",
+    );
+  }, [isWindowCloseActionPending, unsavedChangesModal?.isBusy]);
+  useEffect(() => () => {
+    // Unmount/error is not the user cancelling exit. Let the shell detect lost replies.
+    desktopCloseRequestRef.current?.stop();
+  }, []);
+  const cancelDesktopCloseRequest = useCallback(() => {
+    desktopCloseRequestRef.current?.cancel();
+    desktopCloseRequestRef.current = null;
+  }, []);
   const handleCancelWindowClose = useCallback(() => {
     if (isWindowCloseActionPending) return;
     setIsWindowClosePromptOpen(false);
     setWindowCloseError(null);
-  }, [isWindowCloseActionPending]);
+    cancelDesktopCloseRequest();
+  }, [cancelDesktopCloseRequest, isWindowCloseActionPending]);
   const handleHideWindowToTray = useCallback(() => {
     if (isWindowCloseActionPending) return;
     setIsWindowCloseActionPending(true);
@@ -443,6 +512,7 @@ export function WorkspacePage({
       .then((didHide) => {
         if (didHide) {
           setIsWindowClosePromptOpen(false);
+          cancelDesktopCloseRequest();
           return;
         }
         setWindowCloseError(t("common.windowClosePrompt.trayUnavailable"));
@@ -453,11 +523,19 @@ export function WorkspacePage({
       .finally(() => {
         setIsWindowCloseActionPending(false);
       });
-  }, [isWindowCloseActionPending, t]);
+  }, [cancelDesktopCloseRequest, isWindowCloseActionPending, t]);
   const handleExitWindow = useCallback(() => {
     if (isWindowCloseActionPending) return;
     setIsWindowClosePromptOpen(false);
     setWindowCloseError(null);
+    if (!desktopCloseRequestRef.current) {
+      // A previous request may have failed or been cancelled. Retry through the
+      // coordinator instead of accidentally falling back to an unmonitored close.
+      void requestDesktopWindowClose("exit").then((handled) => {
+        if (!handled) requestApplicationExit();
+      }).catch(() => requestApplicationExit());
+      return;
+    }
     requestApplicationExit();
   }, [
     isWindowCloseActionPending,
@@ -996,7 +1074,7 @@ export function WorkspacePage({
           roleProjectCatalog={sidePanelRoleProjectCatalog}
           themeProjectCatalog={sidePanelThemeProjectCatalog}
           providerProjectCatalog={sidePanelProviderProjectCatalog}
-          providerCatalog={providerCatalog}
+          providerCatalog={guardedProviderCatalog}
           onOpenProvider={handleOpenProvider}
           toolCatalog={sidePanelToolCatalog}
           toolBrowser={toolBrowser}

@@ -1,3 +1,5 @@
+import { fetchJson } from "../http/httpClient";
+import type { FileWorkspaceNode } from "../../entities/file-workspace/model/fileWorkspace";
 import type { FileWorkspaceApi } from "../../entities/file-workspace/model/fileWorkspaceApi";
 import { copyProjectFile } from "./copyProjectFile";
 import { createProjectFile } from "./createProjectFile";
@@ -28,6 +30,9 @@ export function createProjectFileWorkspaceApi(projectId: string): FileWorkspaceA
     revealEntry: (payload) => revealProjectFile(projectId, payload),
     saveTextFile: (path, content, options) =>
       saveProjectFileContent(projectId, path, content, options),
+    saveTextFiles: (files) => fetchJson<FileWorkspaceNode[]>(`/api/projects/${encodeURIComponent(projectId)}/files/content-batch`, {
+      method: "PUT", body: JSON.stringify({ files }),
+    }),
     workspaceKey: `project:${projectId}`,
   };
 }

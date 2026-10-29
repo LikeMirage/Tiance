@@ -15,7 +15,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.errors import AppError, ConflictError
-from app.infra.http_client import get_http_timeout, get_shared_http_client
+from app.infra.http_client import lease_http_client, get_http_timeout, get_shared_http_client
 from app.schemas.software_update import (
     SoftwareUpdateCheckResponse,
     SoftwareUpdateDownloadResponse,
@@ -150,90 +150,90 @@ class SoftwareUpdateService:
         )
 
     async def _load_latest_release(self) -> ReleaseInfo:
-        client = get_shared_http_client()
-        try:
-            response = await client.get(
-                RELEASE_API_URL,
-                headers={"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"},
-            )
-            response.raise_for_status()
-            payload = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise SoftwareUpdateError("无法连接 GitHub 检查更新。", code="update_check_failed") from exc
+        async with lease_http_client(get_shared_http_client()) as client:
+            try:
+                response = await client.get(
+                    RELEASE_API_URL,
+                    headers={"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"},
+                )
+                response.raise_for_status()
+                payload = response.json()
+            except (httpx.HTTPError, ValueError) as exc:
+                raise SoftwareUpdateError("无法连接 GitHub 检查更新。", code="update_check_failed") from exc
 
-        tag_name = payload.get("tag_name") if isinstance(payload, dict) else None
-        version = tag_name[1:] if isinstance(tag_name, str) and tag_name.startswith("v") else tag_name
-        if not isinstance(version, str) or VERSION_PATTERN.fullmatch(version) is None:
-            raise SoftwareUpdateError("GitHub 最新版本号格式无效。", code="update_version_invalid")
-        assets: dict[str, ReleaseAsset] = {}
-        for raw_asset in payload.get("assets", []):
-            if not isinstance(raw_asset, dict):
-                continue
-            name = raw_asset.get("name")
-            url = raw_asset.get("browser_download_url")
-            size = raw_asset.get("size")
-            if isinstance(name, str) and isinstance(url, str) and isinstance(size, int):
-                assets[name] = ReleaseAsset(name=name, url=url, size=size)
-        return ReleaseInfo(
-            version=version,
-            name=str(payload.get("name") or f"Tiance v{version}"),
-            notes=str(payload.get("body") or ""),
-            published_at=payload.get("published_at") if isinstance(payload.get("published_at"), str) else None,
-            manifest=assets.get(UPDATE_MANIFEST_ASSET),
-            assets=assets,
-        )
+            tag_name = payload.get("tag_name") if isinstance(payload, dict) else None
+            version = tag_name[1:] if isinstance(tag_name, str) and tag_name.startswith("v") else tag_name
+            if not isinstance(version, str) or VERSION_PATTERN.fullmatch(version) is None:
+                raise SoftwareUpdateError("GitHub 最新版本号格式无效。", code="update_version_invalid")
+            assets: dict[str, ReleaseAsset] = {}
+            for raw_asset in payload.get("assets", []):
+                if not isinstance(raw_asset, dict):
+                    continue
+                name = raw_asset.get("name")
+                url = raw_asset.get("browser_download_url")
+                size = raw_asset.get("size")
+                if isinstance(name, str) and isinstance(url, str) and isinstance(size, int):
+                    assets[name] = ReleaseAsset(name=name, url=url, size=size)
+            return ReleaseInfo(
+                version=version,
+                name=str(payload.get("name") or f"Tiance v{version}"),
+                notes=str(payload.get("body") or ""),
+                published_at=payload.get("published_at") if isinstance(payload.get("published_at"), str) else None,
+                manifest=assets.get(UPDATE_MANIFEST_ASSET),
+                assets=assets,
+            )
 
     async def _load_manifest(self, asset: ReleaseAsset) -> UpdateManifest:
         if asset.size <= 0 or asset.size > MAX_MANIFEST_BYTES:
             raise SoftwareUpdateError("更新清单大小无效。", code="update_manifest_invalid")
-        client = get_shared_http_client()
-        try:
-            response = await client.get(asset.url)
-            response.raise_for_status()
-            if len(response.content) > MAX_MANIFEST_BYTES:
-                raise ValueError("manifest too large")
-            payload = response.json()
-            schema_version = payload["schemaVersion"]
-            version = payload["version"]
-        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-            raise SoftwareUpdateError("无法读取在线更新清单。", code="update_manifest_invalid") from exc
-        if (
-            schema_version != 1
-            or not isinstance(version, str)
-            or VERSION_PATTERN.fullmatch(version) is None
-        ):
-            raise SoftwareUpdateError("在线更新清单内容无效。", code="update_manifest_invalid")
-        try:
-            full = _parse_package_manifest(payload.get("full") or payload)
-            incremental_payload = payload.get("incremental")
-            incremental = (
-                _parse_package_manifest(incremental_payload, require_from_version=True)
-                if incremental_payload is not None
-                else None
-            )
-        except (KeyError, TypeError, ValueError) as exc:
-            raise SoftwareUpdateError("在线更新清单内容无效。", code="update_manifest_invalid") from exc
-        return UpdateManifest(version=version, full=full, incremental=incremental)
+        async with lease_http_client(get_shared_http_client()) as client:
+            try:
+                response = await client.get(asset.url)
+                response.raise_for_status()
+                if len(response.content) > MAX_MANIFEST_BYTES:
+                    raise ValueError("manifest too large")
+                payload = response.json()
+                schema_version = payload["schemaVersion"]
+                version = payload["version"]
+            except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+                raise SoftwareUpdateError("无法读取在线更新清单。", code="update_manifest_invalid") from exc
+            if (
+                schema_version != 1
+                or not isinstance(version, str)
+                or VERSION_PATTERN.fullmatch(version) is None
+            ):
+                raise SoftwareUpdateError("在线更新清单内容无效。", code="update_manifest_invalid")
+            try:
+                full = _parse_package_manifest(payload.get("full") or payload)
+                incremental_payload = payload.get("incremental")
+                incremental = (
+                    _parse_package_manifest(incremental_payload, require_from_version=True)
+                    if incremental_payload is not None
+                    else None
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise SoftwareUpdateError("在线更新清单内容无效。", code="update_manifest_invalid") from exc
+            return UpdateManifest(version=version, full=full, incremental=incremental)
 
     async def _download_package(self, asset: ReleaseAsset, target: Path) -> tuple[int, str]:
         if asset.size <= 0 or asset.size > MAX_UPDATE_PACKAGE_BYTES:
             raise SoftwareUpdateError("更新包大小无效。", code="update_size_invalid")
         digest = hashlib.sha256()
         written = 0
-        client = get_shared_http_client()
-        try:
-            async with client.stream("GET", asset.url, timeout=get_http_timeout(stream=True)) as response:
-                response.raise_for_status()
-                with target.open("wb") as output:
-                    async for chunk in response.aiter_bytes(1024 * 1024):
-                        written += len(chunk)
-                        if written > MAX_UPDATE_PACKAGE_BYTES:
-                            raise SoftwareUpdateError("更新包超过允许大小。", code="update_size_invalid")
-                        digest.update(chunk)
-                        output.write(chunk)
-        except httpx.HTTPError as exc:
-            raise SoftwareUpdateError("更新包下载失败。", code="update_download_failed") from exc
-        return written, digest.hexdigest()
+        async with lease_http_client(get_shared_http_client()) as client:
+            try:
+                async with client.stream("GET", asset.url, timeout=get_http_timeout(stream=True)) as response:
+                    response.raise_for_status()
+                    with target.open("wb") as output:
+                        async for chunk in response.aiter_bytes(1024 * 1024):
+                            written += len(chunk)
+                            if written > MAX_UPDATE_PACKAGE_BYTES:
+                                raise SoftwareUpdateError("更新包超过允许大小。", code="update_size_invalid")
+                            digest.update(chunk)
+                            output.write(chunk)
+            except httpx.HTTPError as exc:
+                raise SoftwareUpdateError("更新包下载失败。", code="update_download_failed") from exc
+            return written, digest.hexdigest()
 
 
 class SoftwareUpdateError(AppError):

@@ -1,3 +1,5 @@
+
+from tests.project_test_support import make_project_repository
 from json import loads
 from pathlib import Path
 
@@ -22,10 +24,18 @@ from app.services.project.project_conversations import ProjectConversationServic
 from app.services.project.projects import ProjectService
 
 
-def test_theme_and_tool_creation_use_native_project_workspace(tmp_path):
+def test_theme_and_tool_creation_use_native_project_workspace(tmp_path, monkeypatch):
+    from app.schemas.themes import ThemePackageDefinition, theme_definition_from_package
+    from app.services.application import project_creation
+    builtin = Path(__file__).resolve().parents[1] / "app/resources/themes/dark-gold.json"
+    theme = theme_definition_from_package(
+        ThemePackageDefinition.model_validate_json(builtin.read_text(encoding="utf-8")), name="测试主题",
+    )
+    monkeypatch.setattr(project_creation, "get_active_theme_id", lambda: theme.id)
+    monkeypatch.setattr(project_creation, "get_theme", lambda _: theme)
     database_path = tmp_path / "tiance.db"
     ensure_database_schema(database_path)
-    repository = ProjectRepository(
+    repository = make_project_repository(
         database_path,
         file_catalogs=(
             FileProjectCatalog(tmp_path / "tools", project_kind=ProjectKind.TOOL),
@@ -72,13 +82,12 @@ def test_theme_and_tool_creation_use_native_project_workspace(tmp_path):
     assert {path.name for path in Path(tool.root_path).iterdir()} == {".Tiance"}
     assert len(conversation_service.list_sessions(theme.project_id)) == 1
     assert len(conversation_service.list_sessions(tool.project_id)) == 1
-    assert repository.list_database_projects(project_kind=ProjectKind.TOOL) == ()
 
 
 def test_project_creation_creates_initial_conversation_with_default_role(tmp_path):
     database_path = tmp_path / "tiance.db"
     ensure_database_schema(database_path)
-    project_repository = ProjectRepository(database_path)
+    project_repository = make_project_repository(database_path)
     project_service = ProjectService(
         project_repository,
         ProjectStorage(tmp_path / "managed-projects", tmp_path / "roles"),
@@ -158,7 +167,7 @@ def test_project_creation_creates_initial_conversation_with_default_role(tmp_pat
 def test_project_creation_does_not_duplicate_initial_conversation(tmp_path):
     database_path = tmp_path / "tiance.db"
     ensure_database_schema(database_path)
-    project_repository = ProjectRepository(database_path)
+    project_repository = make_project_repository(database_path)
     project_service = ProjectService(
         project_repository,
         ProjectStorage(tmp_path / "managed-projects", tmp_path / "roles"),
@@ -198,7 +207,7 @@ def test_role_creation_initializes_editable_configuration_files(tmp_path):
     database_path = tmp_path / "tiance.db"
     roles_root = tmp_path / "roles"
     ensure_database_schema(database_path)
-    project_repository = ProjectRepository(database_path)
+    project_repository = make_project_repository(database_path)
     project_service = ProjectService(
         project_repository,
         ProjectStorage(tmp_path / "managed-projects", roles_root),

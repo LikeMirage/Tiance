@@ -148,3 +148,8 @@
 .confirm-modal__btn--primary:hover {
   background: rgba(var(--color-accent-rgb), 0.22);
 }
+
+.confirm-modal--square,
+.confirm-modal--square :is(.confirm-modal__btn, .confirm-modal__close, .confirm-modal__input) {
+  border-radius: 2px;
+}

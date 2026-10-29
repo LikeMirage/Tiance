@@ -11,7 +11,7 @@ from app.domain.llm.response_body import ResponseBody
 from app.infra.llm.response_capture import ResponseCapture
 from app.domain.llm.provider_catalog import ProviderCatalogEntry, ProviderProtocolFamily
 from app.domain.llm.provider_runtime import ProviderRuntimeConfig
-from app.infra.http_client import get_http_timeout, get_shared_http_client
+from app.infra.http_client import lease_http_client, get_http_timeout, get_shared_http_client
 from app.infra.llm.chat_adapters import (
     AnthropicMessagesChatAdapter,
     ChatAdapter,
@@ -133,32 +133,32 @@ class ChatRemoteClient:
         on_exchange: ChatExchangeCallback | None = None,
     ) -> dict[str, object]:
         started_at = datetime.now(UTC).isoformat()
-        client = get_shared_http_client()
-        response = None
-        failure: BaseException | None = None
-        try:
-            response = await client.post(url, headers=headers, json=body)
-            response.raise_for_status()
-            if not response.content:
-                return {}
-            payload = response.json()
-            return payload if isinstance(payload, dict) else {}
-        except BaseException as exc:
-            failure = exc
-            raise
-        finally:
-            await _notify_exchange(
-                request=request,
-                on_exchange=on_exchange,
-                started_at=started_at,
-                url=url,
-                headers=headers,
-                body=body,
-                response_status=getattr(response, "status_code", None),
-                response_headers=dict(getattr(response, "headers", {}) or {}),
-                response_body=response.content if response is not None else b"",
-                failure=failure,
-            )
+        async with lease_http_client(get_shared_http_client()) as client:
+            response = None
+            failure: BaseException | None = None
+            try:
+                response = await client.post(url, headers=headers, json=body)
+                response.raise_for_status()
+                if not response.content:
+                    return {}
+                payload = response.json()
+                return payload if isinstance(payload, dict) else {}
+            except BaseException as exc:
+                failure = exc
+                raise
+            finally:
+                await _notify_exchange(
+                    request=request,
+                    on_exchange=on_exchange,
+                    started_at=started_at,
+                    url=url,
+                    headers=headers,
+                    body=body,
+                    response_status=getattr(response, "status_code", None),
+                    response_headers=dict(getattr(response, "headers", {}) or {}),
+                    response_body=response.content if response is not None else b"",
+                    failure=failure,
+                )
 
     async def _stream_body(
         self,
@@ -170,43 +170,43 @@ class ChatRemoteClient:
         on_exchange: ChatExchangeCallback | None = None,
     ) -> AsyncGenerator[bytes, None]:
         started_at = datetime.now(UTC).isoformat()
-        client = get_shared_http_client()
-        response = None
-        failure: BaseException | None = None
-        capture = ResponseCapture() if on_exchange is not None and request is not None else None
-        try:
-            async with client.stream(
-                "POST",
-                url,
-                headers=headers,
-                json=body,
-                timeout=get_http_timeout(stream=True),
-            ) as response:
-                if response.is_error:
+        async with lease_http_client(get_shared_http_client()) as client:
+            response = None
+            failure: BaseException | None = None
+            capture = ResponseCapture() if on_exchange is not None and request is not None else None
+            try:
+                async with client.stream(
+                    "POST",
+                    url,
+                    headers=headers,
+                    json=body,
+                    timeout=get_http_timeout(stream=True),
+                ) as response:
+                    if response.is_error:
+                        async for chunk in response.aiter_bytes():
+                            if capture is not None:
+                                capture.write(chunk)
+                    response.raise_for_status()
                     async for chunk in response.aiter_bytes():
                         if capture is not None:
                             capture.write(chunk)
-                response.raise_for_status()
-                async for chunk in response.aiter_bytes():
-                    if capture is not None:
-                        capture.write(chunk)
-                    yield chunk
-        except BaseException as exc:
-            failure = exc
-            raise
-        finally:
-            if capture is not None:
-                capture.seal()
-                try:
-                    await _notify_exchange(
-                        request=request, on_exchange=on_exchange, started_at=started_at,
-                        url=url, headers=headers, body=body,
-                        response_status=getattr(response, "status_code", None),
-                        response_headers=dict(getattr(response, "headers", {}) or {}),
-                        response_body=capture, failure=failure,
-                    )
-                finally:
-                    capture.release()
+                        yield chunk
+            except BaseException as exc:
+                failure = exc
+                raise
+            finally:
+                if capture is not None:
+                    capture.seal()
+                    try:
+                        await _notify_exchange(
+                            request=request, on_exchange=on_exchange, started_at=started_at,
+                            url=url, headers=headers, body=body,
+                            response_status=getattr(response, "status_code", None),
+                            response_headers=dict(getattr(response, "headers", {}) or {}),
+                            response_body=capture, failure=failure,
+                        )
+                    finally:
+                        capture.release()
 
 
 async def _notify_exchange(

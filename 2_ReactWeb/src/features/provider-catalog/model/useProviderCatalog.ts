@@ -189,7 +189,7 @@ export interface UseProviderCatalogResult {
   reload: () => void;
 }
 
-export function useProviderCatalog(): UseProviderCatalogResult {
+export function useProviderCatalog(onCreated?: (providerId: string) => void): UseProviderCatalogResult {
   const itemsRef = useRef<ProviderCatalogEntry[]>([]);
   const [items, setItems] = useState<ProviderCatalogEntry[]>([]);
   const [state, setState] = useState<LoadState>("loading");
@@ -292,6 +292,7 @@ export function useProviderCatalog(): UseProviderCatalogResult {
         );
         const nextItems = [createdProvider, ...remainingItems];
         const nextProviderIds = toProviderIds(nextItems);
+        onCreated?.(createdProvider.provider_id);
         setItems(nextItems);
         setSelectedProviderId(createdProvider.provider_id);
         dispatchProjectCatalogChanged();

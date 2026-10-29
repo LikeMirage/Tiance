@@ -5,6 +5,7 @@
   min-height: 0;
   min-width: 0;
   flex: 1;
+  color: var(--color-text-primary);
 }
 .file-preview-session__bar, .spreadsheet-pages__controls {
   display: flex;
@@ -14,7 +15,9 @@
   font-size: 12px;
   flex-shrink: 0;
   flex-wrap: wrap;
-  border-bottom: 1px solid var(--border-color, #444);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-toolbar);
+  color: var(--color-text-secondary);
 }
 .file-preview-session__bar > span { flex: 1; }
 .file-preview-session__content {
@@ -25,16 +28,49 @@
   min-width: 0;
   overflow: hidden;
 }
-.file-preview-session button, .file-preview-session select, .spreadsheet-pages button, .spreadsheet-pages select {
+/* Only style controls owned here; nested previewers own their toolbar buttons. */
+:is(
+  .file-preview-session__button,
+  .file-preview-session__bar select,
+  .spreadsheet-pages__controls > button,
+  .spreadsheet-pages__controls > select,
+  .spreadsheet-pages__note > button
+) {
   font: inherit;
-  color: inherit;
-  background: var(--surface-color, #292929);
-  border: 1px solid var(--border-color, #666);
+  color: var(--color-text-primary);
+  background: var(--color-surface-input);
+  border: 1px solid var(--color-border-soft);
   border-radius: 3px;
   padding: 3px 8px;
   cursor: pointer;
 }
-.file-preview-session button:disabled { opacity: .4; cursor: default; }
+:is(
+  .file-preview-session__button,
+  .file-preview-session__bar select,
+  .spreadsheet-pages__controls > button,
+  .spreadsheet-pages__controls > select,
+  .spreadsheet-pages__note > button
+):hover:not(:disabled) {
+  border-color: var(--color-border-focus);
+  background: var(--color-surface-input-hover);
+}
+:is(
+  .file-preview-session__button,
+  .file-preview-session__bar select,
+  .spreadsheet-pages__controls > button,
+  .spreadsheet-pages__controls > select,
+  .spreadsheet-pages__note > button
+):focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+:is(
+  .file-preview-session__button,
+  .file-preview-session__bar select,
+  .spreadsheet-pages__controls > button,
+  .spreadsheet-pages__controls > select,
+  .spreadsheet-pages__note > button
+):disabled { opacity: .4; cursor: default; }
 .spreadsheet-pages { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
 .spreadsheet-pages__note { padding: 6px 10px; font-size: 12px; opacity: .8; }
 .spreadsheet-pages__scroll { flex: 1; min-height: 0; overflow: auto; }

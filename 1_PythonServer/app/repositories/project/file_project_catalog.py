@@ -8,6 +8,7 @@ from tempfile import NamedTemporaryFile
 from threading import RLock
 
 from app.core.atomic_replace import atomic_replace_path
+from app.core.errors import ConflictError
 from app.domain.project import Project, ProjectCategory, ProjectKind
 
 
@@ -94,10 +95,11 @@ class FileProjectCatalog:
                 )
         projects = tuple(sorted(projects, key=_project_sort_key))
         categories = tuple(sorted(categories, key=_category_sort_key))
-        # setdefault preserves the previous first-match behavior for old catalogs.
         by_id: dict[str, Project] = {}
         by_root: dict[Path, Project] = {}
         for project in projects:
+            if project.project_id in by_id or Path(project.root_path) in by_root:
+                raise ValueError("项目目录记录包含重复的项目 ID 或文件夹。")
             by_id.setdefault(project.project_id, project)
             by_root.setdefault(Path(project.root_path), project)
         return _CatalogIndex(
@@ -130,6 +132,8 @@ class FileProjectCatalog:
                 for item in payload["projects"]
                 if self._project_from_payload(item).project_id != project.project_id
             ]
+            if any(Path(item.root_path).resolve() == Path(project.root_path).resolve() for item in projects):
+                raise ConflictError("此文件夹已经登记为项目。")
             projects.append(project)
             payload["projects"] = [
                 self._project_to_payload(item)

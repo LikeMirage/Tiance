@@ -97,6 +97,20 @@ class ProcessOutputTests(unittest.TestCase):
 
 
 class RunCommandIntegrationTests(unittest.TestCase):
+    def test_timeout_returns_output_through_normal_decode_pipeline(self) -> None:
+        script = (
+            "import sys,time;"
+            "sys.stdout.buffer.write('超时输出\\x1b[31m'.encode('utf-8'));"
+            "sys.stdout.flush();time.sleep(20)"
+        )
+        result = self._run({"argv": [sys.executable, "-c", script], "timeout_seconds": 1})
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error_info"]["code"], "COMMAND_TIMEOUT")
+        self.assertEqual(result["data"]["status"], "timeout")
+        self.assertEqual(result["data"]["stdout"], "超时输出")
+        self.assertEqual(result["data"]["timeout_seconds"], 1)
+        self.assertLess(result["data"]["elapsed_ms"], 3000)
+
     def _run(self, payload: dict[str, object]) -> dict[str, object]:
         with tempfile.TemporaryDirectory() as temp_dir:
             with patch.dict(os.environ, {"TIANCE_WORKSPACE_ROOT": temp_dir}, clear=False):
@@ -122,23 +136,6 @@ class RunCommandIntegrationTests(unittest.TestCase):
         result = self._run({"argv": [sys.executable, "-c", script]})
         self.assertTrue(result["ok"])
         self.assertEqual(result["data"]["stdout"], "成功")
-
-    def test_timeout_output_uses_the_same_decode_and_cleanup_pipeline(self) -> None:
-        script = (
-            "import sys,time;"
-            "sys.stdout.buffer.write('超时输出\\x1b[31m'.encode('utf-8'));"
-            "sys.stdout.flush();time.sleep(3)"
-        )
-        result = self._run(
-            {
-                "argv": [sys.executable, "-c", script],
-                "timeout_seconds": 1,
-            }
-        )
-        self.assertFalse(result["ok"])
-        self.assertEqual(result["error_info"]["code"], "COMMAND_TIMEOUT")
-        self.assertEqual(result["data"]["status"], "timeout")
-        self.assertEqual(result["data"]["stdout"], "超时输出")
 
     @unittest.skipUnless(os.name == "nt", "CMD 测试仅适用于 Windows。")
     def test_cmd_keeps_utf8_chinese_output(self) -> None:

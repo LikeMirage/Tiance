@@ -39,6 +39,9 @@ export function createToolFolderFileWorkspaceApi(
     revealEntry: (payload) => revealToolFolderFile(toolsetId, folderId, payload),
     saveTextFile: (path, content, options) =>
       saveToolFolderFileContent(toolsetId, folderId, path, content, options),
+    saveTextFiles: (files) => fetchJson<FileWorkspaceNode[]>(`${toolFolderFilesPath(toolsetId, folderId)}/content-batch`, {
+      method: "PUT", body: JSON.stringify({ files }),
+    }),
     workspaceKey: getToolFolderWorkspaceKey(toolsetId, folderId),
   };
 }

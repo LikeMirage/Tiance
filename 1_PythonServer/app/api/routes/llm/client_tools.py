@@ -25,19 +25,21 @@ async def claim_client_tool_request(
     lease = await get_client_tool_bridge_service().claim_request(
         request_id,
         executor_id=payload.executor_id,
+        attempt_id=payload.attempt_id,
     )
     return ClientToolClaimAck(
         acquired=lease.acquired,
         claim_id=lease.claim_id,
         lease_duration_seconds=lease.lease_duration_seconds,
         resumed=lease.resumed,
+        attempt_id=lease.attempt_id,
     )
 
 
 @router.post(
     "/{request_id}/lease",
     response_model=ClientToolLeaseRenewAck,
-    summary="Renew ownership of a frontend client tool request",
+    summary="Check ownership of a pending frontend client tool request",
 )
 async def renew_client_tool_request_lease(
     request_id: str,

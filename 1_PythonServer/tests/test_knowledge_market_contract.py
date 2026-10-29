@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.project_test_support import make_project_repository
+
 import asyncio
 from datetime import UTC, datetime
 import json
@@ -284,7 +286,7 @@ def build_knowledge_market_service(
         knowledge_root,
         project_kind=ProjectKind.KNOWLEDGE,
     )
-    repository = ProjectRepository(database_path, file_catalogs=(catalog,))
+    repository = make_project_repository(database_path, file_catalogs=(catalog,))
     project_service = ProjectService(
         repository,
         ProjectStorage(projects_root, knowledge_root=knowledge_root),

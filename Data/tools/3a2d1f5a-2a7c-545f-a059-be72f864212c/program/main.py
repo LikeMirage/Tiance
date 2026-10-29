@@ -530,6 +530,14 @@ def resolve_existing_workbook_path(payload: dict[str, Any], root: Path) -> Path:
 
 
 def export_markdown_action(payload: dict[str, Any], root: Path) -> dict[str, Any]:
+    if "sheets" in payload:
+        raise ToolError("INVALID_ARGUMENT", "export_markdown 请使用 export_sheets 指定工作表名称；sheets 用于新建工作簿。")
+    selected_sheets = payload.get("export_sheets")
+    if "export_sheets" in payload and (
+        not isinstance(selected_sheets, list) or not selected_sheets
+        or any(not isinstance(item, str) or not item.strip() for item in selected_sheets)
+    ):
+        raise ToolError("INVALID_ARGUMENT", "export_sheets 必须是非空的工作表名称数组；提取全部工作表请省略此参数。")
     input_path = resolve_workspace_path(payload.get("input_path"), root, label="input_path")
     if input_path.suffix.lower() not in {".xlsx", ".xlsm"}:
         raise ToolError("INVALID_ARGUMENT", "input_path 必须是 .xlsx 或 .xlsm 文件。")
@@ -550,8 +558,6 @@ def export_markdown_action(payload: dict[str, Any], root: Path) -> dict[str, Any
     for path in targets:
         if path is not None:
             path.parent.mkdir(parents=True, exist_ok=True)
-    selected = payload.get("sheets")
-    selected_sheets = selected if isinstance(selected, list) and all(isinstance(item, str) for item in selected) else None
     return export_workbook(
         input_path,
         content_path,

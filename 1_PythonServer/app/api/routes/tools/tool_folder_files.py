@@ -1,3 +1,4 @@
+from app.schemas.file_workspace_batch import TextFilesSaveRequest
 import mimetypes
 
 from fastapi import APIRouter, Query, Request, Response, status
@@ -296,3 +297,9 @@ def _asset_media_type(file_path) -> str:
     ):
         raise BadRequestError("仅支持读取图片、视频、PDF 或 Office 资源。")
     return media_type
+
+
+@router.put("/{category_id}/projects/{project_id}/files/content-batch", response_model=list[ToolFolderFileNodeResponse])
+def save_text_file_batch(category_id: str, project_id: str, payload: TextFilesSaveRequest) -> list[ToolFolderFileNodeResponse]:
+    nodes = get_tool_folder_file_service().write_text_files(category_id, project_id, payload.updates())
+    return [ToolFolderFileNodeResponse.from_domain(node) for node in nodes]

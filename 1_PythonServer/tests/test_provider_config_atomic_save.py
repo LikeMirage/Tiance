@@ -16,7 +16,7 @@ from app.services.llm.provider.storage_bootstrap import ensure_provider_file_sto
 @pytest.fixture
 def config_store(tmp_path):
     root = tmp_path / "providers"
-    ensure_provider_file_storage(root, tmp_path / "app.db")
+    ensure_provider_file_storage(root)
     store = ProviderFileStore(root)
     repository = ProviderConfigRepository(store)
     config = repository.get_config("deepseek")

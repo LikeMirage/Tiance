@@ -1,6 +1,5 @@
 from app.domain.llm.chat import ChatCompletionRequest, ChatMessage, ChatMessageRole
-from app.infra.database import database_transaction, ensure_database_schema, run_database_migrations
-from app.infra.database.schema import MIGRATIONS
+from app.infra.database import database_transaction, ensure_database_schema
 from app.infra.projects import ProjectStorage
 from app.repositories.project import ProjectRepository
 from app.repositories.project.conversation_repository import ProjectConversationRepository
@@ -12,36 +11,6 @@ from app.services.workspace_activity import (
     WorkspaceActivityManagementService,
     WorkspaceActivityService,
 )
-
-
-def test_workspace_activity_migration_seeds_existing_session_index(tmp_path):
-    database_path = tmp_path / "tiance.db"
-    run_database_migrations(
-        database_path,
-        tuple(migration for migration in MIGRATIONS if migration.version <= 25),
-    )
-    with database_transaction(database_path) as connection:
-        connection.execute(
-            """
-            INSERT INTO projects (
-                project_id, name, root_path, category_id, is_default,
-                sort_order, created_at, updated_at
-            ) VALUES ('project-1', '项目', 'C:/work', 'daily-project', 0, 0, 'now', 'now')
-            """
-        )
-        connection.execute(
-            """
-            INSERT INTO llm_conversation_session_index (
-                project_id, session_id, title, provider_id, model_id,
-                message_count, created_at, updated_at, indexed_at, sequence_number
-            ) VALUES ('project-1', 'session-1', '空会话', NULL, NULL, 0, 'created', 'created', 'now', 1)
-            """
-        )
-
-    ensure_database_schema(database_path)
-
-    repository = WorkspaceActivityRepository(database_path)
-    assert repository.count_conversations_created() == 1
 
 
 def test_conversation_creation_activity_is_idempotent_and_survives_deletion(tmp_path):

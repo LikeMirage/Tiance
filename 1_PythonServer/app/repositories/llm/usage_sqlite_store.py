@@ -36,7 +36,7 @@ def session_key(project_id: str, session_id: str) -> str:
 
 
 def _usage_identity(record: LlmUsageRecord) -> str | None:
-    # Preserve the established identity contract during storage migration.
+    # Each model request has one usage identity.
     return f'request:{record.request_id}' if record.request_id else record.message_id
 
 
@@ -70,32 +70,39 @@ class UsageSqliteStore:
         finally:
             db.close()
 
-    def ensure_ready(self, legacy_database_path: Path | None = None) -> None:
+    def ensure_ready(self) -> None:
         if self._ready:
             return
         with self._lock:
             if self._ready:
                 return
             with self._connect() as db:
-                version = db.execute('PRAGMA user_version').fetchone()[0]
-                if version not in (0, 1):
-                    raise ValueError(f'Unsupported usage database version: {version}')
-                if version == 0:
+                # auto_vacuum must be set before the first schema transaction.
+                # One snapshot distinguishes an empty new database from old data;
+                # the authoritative version check still happens under the lock.
+                empty = db.execute("""SELECT
+                    (SELECT user_version FROM pragma_user_version) = 0
+                    AND NOT EXISTS (SELECT 1 FROM sqlite_master
+                        WHERE type='table' AND name NOT LIKE 'sqlite_%')""").fetchone()[0]
+                if empty:
                     db.execute('PRAGMA auto_vacuum = INCREMENTAL')
-                db.execute('PRAGMA journal_mode = WAL')
+                # Different store instances can open the same new database.
+                # Read its version and tables under the same initialization lock.
                 db.execute('BEGIN IMMEDIATE')
                 try:
-                    self._create_schema(db)
-                    if db.execute("SELECT value FROM usage_meta WHERE key='migration_complete'").fetchone() is None:
-                        from app.repositories.llm.usage_sqlite_migration import import_legacy_usage
-                        import_legacy_usage(db, self.root_path, legacy_database_path, self._upsert, self._delete_model)
-                        self._verify_totals(db)
-                        db.execute("INSERT INTO usage_meta VALUES ('migration_complete', '1')")
-                    db.execute('PRAGMA user_version = 1')
+                    version = db.execute('PRAGMA user_version').fetchone()[0]
+                    if version not in (0, 1):
+                        raise ValueError(f'Unsupported usage database version: {version}')
+                    if version == 0:
+                        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 1").fetchone():
+                            raise ValueError('Unsupported usage database without a schema version. No data was converted or removed.')
+                        self._create_schema(db)
+                        db.execute('PRAGMA user_version = 1')
                     db.commit()
                 except BaseException:
                     db.rollback()
                     raise
+                db.execute('PRAGMA journal_mode = WAL')
             self._ready = True
 
     @staticmethod
@@ -119,7 +126,6 @@ class UsageSqliteStore:
             latest_created_at TEXT NOT NULL, first_ordinal INTEGER NOT NULL,
             PRIMARY KEY (scope, scope_id, provider_id, model_id, usage_feature_key, currency_key)) WITHOUT ROWID''')
         db.execute('CREATE INDEX IF NOT EXISTS usage_totals_model ON usage_totals(provider_id, model_id)')
-        db.execute('CREATE TABLE IF NOT EXISTS usage_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
 
     @contextmanager
     def transaction(self, *, write: bool = False) -> Iterator[sqlite3.Connection]:
@@ -141,7 +147,7 @@ class UsageSqliteStore:
     def _upsert(cls, db: sqlite3.Connection, incoming: LlmUsageRecord) -> None:
         identity = _usage_identity(incoming)
         existing = db.execute('SELECT * FROM usage_records WHERE identity_key = ?', (identity,)).fetchone() if identity is not None else None
-        # Old ledgers can update a usage ID without a request/message identity.
+        # Records without request/message identity are keyed by usage ID.
         if existing is None:
             existing = db.execute('SELECT * FROM usage_records WHERE usage_id = ?', (incoming.usage_id,)).fetchone()
         previous = LlmUsageRecord(**{key: existing[key] for key in RECORD_FIELDS}) if existing is not None else None
@@ -264,10 +270,10 @@ class UsageSqliteStore:
                 exact_fields = (*TOKEN_FIELDS, 'record_count', 'estimated_record_count', 'latest_created_at', 'first_ordinal')
                 if (total is None or any(raw[field] != total[field] for field in exact_fields)
                         or not isclose(raw['cost_amount'], total['cost_amount'], rel_tol=1e-9, abs_tol=1e-9)):
-                    raise RuntimeError('Usage migration totals did not match the preserved details.')
+                    raise RuntimeError('Usage validation totals did not match the preserved details.')
                 count += 1
             if db.execute('SELECT COUNT(*) FROM usage_totals WHERE scope=?', (scope,)).fetchone()[0] != count:
-                raise RuntimeError('Usage migration contains totals without matching details.')
+                raise RuntimeError('Usage validation contains totals without matching details.')
         if db.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
             raise RuntimeError('Usage database integrity check failed.')
 

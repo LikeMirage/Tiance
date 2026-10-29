@@ -1,7 +1,5 @@
 from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
-from hashlib import sha256
-from json import dumps
 from uuid import uuid4
 
 from app.domain.llm.chat import (
@@ -15,7 +13,6 @@ from app.domain.llm.chat import (
 )
 from app.domain.llm.generation_params import LlmReasoningMode
 from app.domain.project.project_conversation import (
-    conversation_session_configuration_hash,
     ProjectConversationMessage,
     ProjectConversationMessageRole,
     ProjectConversationMessageStatus,
@@ -54,54 +51,8 @@ def _session_from_payload(payload: dict) -> ProjectConversationSession:
             payload.get("role_configuration_hash")
         ),
     )
-    return _migrate_session_settings_hash(session, payload)
+    return session
 
-
-def _migrate_session_settings_hash(
-    session: ProjectConversationSession,
-    payload: dict,
-) -> ProjectConversationSession:
-    removed_fields = ("return_cancelled_messages", "return_user_before_cancelled")
-    added_fields = (
-        "output_limit_action", "output_limit_save_partial",
-        "output_limit_message", "output_limit_max_recoveries",
-    )
-    stored_settings = payload.get("settings")
-    if (
-        not session.role_project_id
-        or not session.role_configuration_hash
-        or not isinstance(stored_settings, dict)
-        or not (any(key in stored_settings for key in removed_fields)
-                or any(key not in stored_settings for key in added_fields))
-    ):
-        return session
-    legacy_settings = asdict(session.settings)
-    enabled_tool_names = legacy_settings.get("enabled_tool_names")
-    if isinstance(enabled_tool_names, tuple):
-        legacy_settings["enabled_tool_names"] = sorted(enabled_tool_names)
-    for key in added_fields:
-        if key not in stored_settings:
-            legacy_settings.pop(key, None)
-    if any(key in stored_settings for key in removed_fields):
-        for key in removed_fields:
-            value = stored_settings.get(key)
-            legacy_settings[key] = value if isinstance(value, bool) else True
-    legacy_configuration = {
-        "provider_id": session.provider_id,
-        "model_id": session.model_id,
-        "reasoning_mode": session.reasoning_mode,
-        "settings": legacy_settings,
-    }
-    legacy_hash = sha256(dumps(
-        legacy_configuration, ensure_ascii=False, separators=(",", ":"), sort_keys=True,
-    ).encode("utf-8")).hexdigest()
-    if session.role_configuration_hash != legacy_hash:
-        return session
-    # Schema defaults and retired options must not mark an unchanged role as custom.
-    return replace(
-        session,
-        role_configuration_hash=conversation_session_configuration_hash(session),
-    )
 
 def _message_from_payload(payload: dict) -> ProjectConversationMessage:
     role = _message_role(payload.get("role"))

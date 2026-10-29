@@ -38,7 +38,7 @@ test("并发收到同一 request_id 时执行与提交都只有一次", async ()
   const replay = coordinator.run(request("concurrent"), executor);
 
   assert.strictEqual(replay, first);
-  await Promise.resolve();
+  await new Promise(setImmediate);
   assert.equal(executeCount, 1);
   releaseExecution();
   await Promise.all([first, replay]);
@@ -143,8 +143,7 @@ test("调用会话取消后立即停止等待且不伪装已开始动作被回�
     return { ok: true };
   });
 
-  await Promise.resolve();
-  await Promise.resolve();
+  await new Promise(setImmediate);
   assert.equal(coordinator.cancel("cancelled-wait"), true);
   await pending;
 

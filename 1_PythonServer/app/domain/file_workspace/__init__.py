@@ -5,6 +5,7 @@ from .file_entry import (
     FileEntryNode,
     FileEntryTree,
 )
+from .text_file_update import TextFileUpdate
 
 __all__ = [
     "ContentFileEntry",
@@ -12,4 +13,5 @@ __all__ = [
     "FileEntryKind",
     "FileEntryNode",
     "FileEntryTree",
+    "TextFileUpdate",
 ]

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.project_test_support import make_project_repository
+
 import asyncio
 from datetime import UTC, datetime
 import json
@@ -403,7 +405,7 @@ def build_market_service(
         project_kind=ProjectKind.PROJECT,
         allow_external_roots=True,
     )
-    repository = ProjectRepository(database_path, file_catalogs=(catalog,))
+    repository = make_project_repository(database_path, file_catalogs=(catalog,))
     project_service = ProjectService(repository, ProjectStorage(projects_root))
     if template_root is None:
         template_root = tmp_path / "default-template"

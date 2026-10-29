@@ -9,6 +9,16 @@ from app.backend_process import BackendProcessManager
 from app.backend_watchdog import ShellLease
 
 
+def _confirmed_close(api):
+    # Simulate the current frontend confirmation without starting a real JS dispatch.
+    api._close_coordinator._spawn = lambda action: None
+    request_id = api.request_window_close("exit")
+    try:
+        return api.close_window(request_id)
+    finally:
+        api._close_coordinator.dispose()
+
+
 def test_close_waits_for_pending_commits_before_destroying_window(monkeypatch):
     manager = BackendProcessManager(SimpleNamespace())
     manager._process = SimpleNamespace(poll=lambda: None)
@@ -28,7 +38,7 @@ def test_close_waits_for_pending_commits_before_destroying_window(monkeypatch):
     api._window = SimpleNamespace(
         url="http://127.0.0.1:18100", destroy=lambda: events.append("destroy"),
     )
-    api.close_window()
+    _confirmed_close(api)
     assert events == ["prepare", "wait", "prepare", "destroy"]
     assert api._allow_window_close
 
@@ -49,7 +59,7 @@ def test_preparation_failure_keeps_window_and_reopens_task_admission(monkeypatch
     api = ShellApi(SimpleNamespace(allow_remote_shell_api=False), manager)
     api._window = SimpleNamespace(url="http://127.0.0.1:18100", destroy=Mock())
     with pytest.raises(RuntimeError, match="窗口已保留"):
-        api.close_window()
+        _confirmed_close(api)
     api._window.destroy.assert_not_called()
     assert not api._allow_window_close
     assert methods == ["POST", "DELETE"]
@@ -70,7 +80,7 @@ def test_native_destroy_failure_resumes_backend_work():
         url="http://127.0.0.1:18100", destroy=Mock(side_effect=RuntimeError("window still open")),
     )
     with pytest.raises(RuntimeError, match="window still open"):
-        api.close_window()
+        _confirmed_close(api)
     manager.prepare_exit.assert_called_once()
     manager.cancel_exit_preparation.assert_called_once()
     assert not api._allow_window_close

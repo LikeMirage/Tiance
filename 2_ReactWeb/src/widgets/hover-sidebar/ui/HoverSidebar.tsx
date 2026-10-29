@@ -397,6 +397,17 @@ export const HoverSidebar = memo(function HoverSidebar({
         className="hover-sidebar__inner"
         onPointerEnter={() => setIsExpanded(true)}
         onPointerLeave={handleSidebarPointerLeave}
+        onFocus={(event) => {
+          if (event.target.matches(":focus-visible")) setIsExpanded(true);
+        }}
+        onBlur={(event) => {
+          if (shouldKeepSidebarForContextMenu(event.relatedTarget)) return;
+          if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+          if (!event.currentTarget.matches(":hover")) {
+            setIsExpanded(false);
+            setHoveredCatalogSection(null);
+          }
+        }}
       >
         <nav className="hover-sidebar__nav" aria-label={t("sidebar.aria.workspaceSections")}>
           {primarySidebarItems.map((item) => (

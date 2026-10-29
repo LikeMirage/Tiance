@@ -4,6 +4,7 @@ import {
   type ClientToolClaimLease,
 } from "../../../services/llm/claimClientToolRequest";
 import { renewClientToolClaim } from "../../../services/llm/renewClientToolClaim";
+import { createUuid } from "../../../shared/model/createUuid";
 import {
   submitClientToolResult,
   type ClientToolResultAck,
@@ -50,7 +51,7 @@ type ClientToolRequestSingleFlightOptions = {
   executorId?: string;
   executionStore?: ClientToolExecutionStore;
   submitResult?: ClientToolResultSubmitter;
-  claimRequest?: (requestId: string, executorId: string) => Promise<ClientToolClaimLease>;
+  claimRequest?: typeof claimClientToolRequest;
   renewClaim?: (requestId: string, ownership: ClientToolOwnership) => Promise<boolean>;
 };
 
@@ -122,41 +123,55 @@ export class ClientToolRequestSingleFlight {
     executor: ClientToolExecutor,
   ): SingleFlightEntry {
     const abortController = new AbortController();
-    const resultPromise = this.claimRequest(requestId, this.executorId).then(async (lease) => {
-      const ownership = normalizeOwnership(lease, this.executorId);
-      if (!ownership) {
-        this.executionStore.remove(requestId);
-        return null;
-      }
+    const existing = this.executionStore.read(requestId);
+    const attemptId = existing?.state === "claiming" ? existing.attemptId : createUuid();
+    if (!existing) this.executionStore.write(requestId, { state: "claiming", attemptId });
+    const stopDeadline = watchConfiguredDeadline(request.timeout_seconds, abortController);
+    let claiming = true;
+    const resultPromise = this.claimWithRetry(requestId, attemptId, request, abortController.signal)
+      .catch((error: unknown) => {
+        if (abortController.signal.aborted) return null;
+        throw error;
+      }).then(async (lease) => {
+        claiming = false;
+        if (!lease) {
+          if (this.executionStore.read(requestId)?.state === "claiming") this.executionStore.remove(requestId);
+          return null;
+        }
+        const ownership = normalizeOwnership(lease, this.executorId);
+        if (!ownership) {
+          this.executionStore.remove(requestId);
+          return null;
+        }
 
-      const stored = this.executionStore.read(requestId);
-      if (stored?.state === "completed") {
-        return { ownership, result: stored.result };
-      }
-      if (stored?.state === "executing" || lease.resumed) {
-        const result = interruptedClientToolResult();
-        this.executionStore.write(requestId, { state: "completed", result });
-        return { ownership, result };
-      }
+        const stored = this.executionStore.read(requestId);
+        if (stored?.state === "completed") {
+          return { ownership, result: stored.result };
+        }
+        if (stored?.state === "executing" || (lease.resumed && lease.attempt_id !== attemptId)) {
+          const result = interruptedClientToolResult();
+          this.executionStore.write(requestId, { state: "completed", result });
+          return { ownership, result };
+        }
 
-      this.executionStore.write(requestId, { state: "executing" });
-      const stopHeartbeat = this.startLeaseHeartbeat(
-        requestId,
-        ownership,
-        abortController,
-      );
-      try {
-        const result = await executeClientToolSafely(
-          request,
-          executor,
-          abortController.signal,
+        this.executionStore.write(requestId, { state: "executing" });
+        const stopHeartbeat = this.startLeaseHeartbeat(
+          requestId,
+          ownership,
+          abortController,
         );
-        this.executionStore.write(requestId, { state: "completed", result });
-        return { ownership, result };
-      } finally {
-        stopHeartbeat();
-      }
-    });
+        try {
+          const result = await executeClientToolSafely(
+            request,
+            executor,
+            abortController.signal,
+          );
+          this.executionStore.write(requestId, { state: "completed", result });
+          return { ownership, result };
+        } finally {
+          stopHeartbeat();
+        }
+      });
     const entry: SingleFlightEntry = {
       abortController,
       deliveryState: "retryable",
@@ -165,14 +180,45 @@ export class ClientToolRequestSingleFlight {
       submitPromise: null,
     };
     this.entries.set(requestId, entry);
-    void resultPromise.then(() => {
+    const settled = () => {
+      stopDeadline();
       entry.executionSettled = true;
       if (this.entries.get(requestId) === entry) {
         this.touch(requestId, entry);
         this.evictCompletedResults();
       }
+    };
+    void resultPromise.then(settled, () => {
+      stopDeadline();
+      // Only a failed claim can return to the claim stage. Never erase evidence
+      // of a started execution just because result delivery failed.
+      if (claiming && this.entries.get(requestId) === entry) this.entries.delete(requestId);
+      else settled();
     });
     return entry;
+  }
+
+  private async claimWithRetry(
+    requestId: string,
+    attemptId: string,
+    request: ChatClientToolRequestEvent,
+    signal: AbortSignal,
+  ): Promise<ClientToolClaimLease> {
+    let retryDelayMs = 1000;
+    while (true) {
+      signal.throwIfAborted();
+      try {
+        return await this.claimRequest(requestId, this.executorId, { attemptId, signal });
+      } catch (error) {
+        const status = error && typeof error === "object" && "status" in error ? Number(error.status) : 0;
+        // The configured tool budget bounds retries; these delays only pace
+        // transport attempts. Explicit 4xx errors await a later replay/login.
+        if (signal.aborted || !hasConfiguredDeadline(request.timeout_seconds)
+          || (status >= 400 && status < 500 && status !== 408 && status !== 429)) throw error;
+        await waitForClaimRetry(retryDelayMs, signal);
+        retryDelayMs = Math.min(retryDelayMs * 2, 5000);
+      }
+    }
   }
 
   private startLeaseHeartbeat(
@@ -181,15 +227,19 @@ export class ClientToolRequestSingleFlight {
     abortController: AbortController,
   ): () => void {
     const intervalMs = Math.max(1_000, Math.floor(ownership.leaseDurationSeconds * 1_000 / 3));
+    let stopped = false;
+    let pending = false;
     const timer = globalThis.setInterval(() => {
+      if (pending || stopped) return;
+      pending = true;
       void this.renewClaim(requestId, ownership).then((renewed) => {
-        if (!renewed) abortController.abort();
+        if (!stopped && !renewed) abortController.abort();
       }).catch(() => {
         // A transient network error does not prove ownership was lost. The
-        // backend lease remains the authority and a later renewal may succeed.
-      });
+        // backend request remains the authority and a later check may succeed.
+      }).finally(() => { pending = false; });
     }, intervalMs);
-    return () => globalThis.clearInterval(timer);
+    return () => { stopped = true; globalThis.clearInterval(timer); };
   }
 
   private startSubmit(
@@ -270,10 +320,10 @@ async function executeClientToolSafely(
   executor: ClientToolExecutor,
   signal: AbortSignal,
 ): Promise<ClientToolExecutionResult> {
-  if (signal.aborted) return cancelledClientToolResult();
+  if (signal.aborted) return cancelledClientToolResult(signal);
   let resolveCancelled: (() => void) | null = null;
   const cancelled = new Promise<ClientToolExecutionResult>((resolve) => {
-    resolveCancelled = () => resolve(cancelledClientToolResult());
+    resolveCancelled = () => resolve(cancelledClientToolResult(signal));
     signal.addEventListener("abort", resolveCancelled, { once: true });
   });
   const execution = (async (): Promise<ClientToolExecutionResult> => {
@@ -293,11 +343,45 @@ async function executeClientToolSafely(
   }
 }
 
-function cancelledClientToolResult(): ClientToolExecutionResult {
+function cancelledClientToolResult(signal: AbortSignal): ClientToolExecutionResult {
   return {
     ok: false,
-    error: "调用会话已停止等待；已开始的动作不会被伪装成已回滚。",
+    error: signal.reason?.name === "TimeoutError" ? "客户端工具执行超时。"
+      : "调用会话已停止等待；已开始的动作不会被伪装成已回滚。",
   };
+}
+
+function hasConfiguredDeadline(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function watchConfiguredDeadline(seconds: number | null | undefined, controller: AbortController) {
+  if (!hasConfiguredDeadline(seconds)) return () => undefined;
+  const deadline = performance.now() + seconds * 1000;
+  let timer: ReturnType<typeof setTimeout>;
+  const check = () => {
+    const remaining = deadline - performance.now();
+    if (remaining <= 0) controller.abort(new DOMException("客户端工具执行超时。", "TimeoutError"));
+    else timer = globalThis.setTimeout(check, Math.min(remaining, 2_147_483_647));
+  };
+  check();
+  return () => globalThis.clearTimeout(timer);
+}
+
+function waitForClaimRetry(delayMs: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      globalThis.clearTimeout(timer);
+      signal.removeEventListener("abort", onAbort);
+      reject(signal.reason);
+    };
+    const timer = globalThis.setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+    signal.addEventListener("abort", onAbort, { once: true });
+    if (signal.aborted) onAbort();
+  });
 }
 
 function interruptedClientToolResult(): ClientToolExecutionResult {

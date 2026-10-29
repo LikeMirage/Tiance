@@ -9,7 +9,7 @@ from pathlib import PurePosixPath
 from secrets import token_hex
 
 from app.core.errors import BadRequestError, NotFoundError
-from app.domain.file_workspace import ContentFileSnapshot, FileEntryTree
+from app.domain.file_workspace import ContentFileSnapshot, FileEntryTree, TextFileUpdate
 from app.domain.project.project_file import ProjectFileKind, ProjectFileNode
 from app.infra.file_workspace import FileWorkspaceStorage, get_file_workspace_storage
 from app.infra.projects import require_existing_project_root, watch_project_file_changes
@@ -185,6 +185,13 @@ class ProjectFileService:
                 content,
                 expected_mtime_ms=expected_mtime_ms,
             )
+        except ValueError as exc:
+            raise BadRequestError(str(exc)) from exc
+
+    def write_text_files(self, project_id: str, updates: list[TextFileUpdate]) -> list[ProjectFileNode]:
+        project_root = self._require_project_root(project_id)
+        try:
+            return self._storage.write_text_files(project_root, updates)
         except ValueError as exc:
             raise BadRequestError(str(exc)) from exc
 

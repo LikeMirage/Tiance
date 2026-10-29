@@ -25,6 +25,7 @@ export function WorkspaceWindowCloseModal({
 
   return (
     <ConfirmModal
+      dialogClassName="confirm-modal--square"
       cancelDisabled={isBusy}
       confirmDisabled={isBusy}
       confirmLabel={t("common.windowClosePrompt.hideToTray")}

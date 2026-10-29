@@ -89,7 +89,8 @@ def test_detail_and_total_write_failure_is_atomic(tmp_path, monkeypatch):
     assert_consistent(store)
 
 
-def test_concurrent_first_open_and_writes_are_deduplicated_without_lost_totals(tmp_path):
+@pytest.mark.parametrize('attempt', range(8))
+def test_concurrent_first_open_and_writes_are_deduplicated_without_lost_totals(tmp_path, attempt):
     barrier = Barrier(6)
     def write(index):
         store = UsageSqliteStore(tmp_path)
@@ -103,6 +104,46 @@ def test_concurrent_first_open_and_writes_are_deduplicated_without_lost_totals(t
     assert len(tuple(store.iter_records())) == 61
     assert store.model_totals()[0]['total_tokens'] == 61 * 15
     assert_consistent(store)
+
+
+def test_initialization_checks_schema_in_one_transaction(tmp_path, monkeypatch):
+    store = UsageSqliteStore(tmp_path)
+    original_connect = store._connect
+    observations = []
+
+    @contextmanager
+    def traced_connection():
+        with original_connect() as db:
+            def trace(statement):
+                if statement == 'PRAGMA user_version' or statement.startswith('SELECT 1 FROM sqlite_master'):
+                    observations.append((statement, db.in_transaction))
+            db.set_trace_callback(trace)
+            yield db
+
+    monkeypatch.setattr(store, '_connect', traced_connection)
+    store.ensure_ready()
+    assert len(observations) == 2
+    assert all(in_transaction for _, in_transaction in observations)
+    with original_connect() as db:
+        assert db.execute('PRAGMA auto_vacuum').fetchone()[0] == 2
+        assert db.execute('PRAGMA journal_mode').fetchone()[0] == 'wal'
+
+
+def test_failed_initial_creation_leaves_no_partial_schema_and_can_retry(tmp_path, monkeypatch):
+    store = UsageSqliteStore(tmp_path)
+    create = store._create_schema
+    def fail(db):
+        create(db)
+        raise RuntimeError('initialization interrupted')
+    with monkeypatch.context() as patch:
+        patch.setattr(store, '_create_schema', fail)
+        with pytest.raises(RuntimeError, match='initialization interrupted'):
+            store.ensure_ready()
+    with store._connect() as db:
+        assert db.execute('PRAGMA user_version').fetchone()[0] == 0
+        assert not db.execute("SELECT 1 FROM sqlite_master WHERE type='table'").fetchone()
+    store.ensure_ready()
+    assert tuple(store.iter_records()) == ()
 
 
 def test_cumulative_queries_never_read_detail_table_and_daily_query_uses_time_index(tmp_path, monkeypatch):

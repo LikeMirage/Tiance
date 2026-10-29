@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.project_test_support import make_project_repository
+
 import asyncio
 from datetime import UTC, datetime
 import json
@@ -291,7 +293,7 @@ def build_experience_market_service(
         experience_root,
         project_kind=ProjectKind.EXPERIENCE,
     )
-    repository = ProjectRepository(database_path, file_catalogs=(catalog,))
+    repository = make_project_repository(database_path, file_catalogs=(catalog,))
     project_service = ProjectService(
         repository,
         ProjectStorage(projects_root, experience_root=experience_root),

@@ -3,6 +3,7 @@
 # 所有方法均接收 workspace_root 参数，自身不持有路径状态
 
 from dataclasses import dataclass
+from collections.abc import Callable
 from functools import lru_cache
 import os
 from pathlib import Path
@@ -20,8 +21,10 @@ from app.domain.file_workspace import (
     FileEntryKind,
     FileEntryNode,
     FileEntryTree,
+    TextFileUpdate,
 )
 from app.infra.file_workspace.file_names import is_internal_write_temp_path
+from app.infra.file_workspace.text_transaction import text_file_transaction
 
 _IGNORED_RECURSIVE_SEARCH_DIR_NAMES = {
     ".git",
@@ -358,28 +361,18 @@ class FileWorkspaceStorage:
         content: str,
         expected_mtime_ms: int | None = None,
     ) -> FileEntryNode:
-        """写入文本文件内容（同目录临时文件替换，避免读到半写入内容）。"""
+        return self.write_text_files(workspace_root, [TextFileUpdate(target_path, content, expected_mtime_ms)])[0]
+
+    def write_text_files(
+        self, workspace_root: str, updates: list[TextFileUpdate],
+        *, after_write: Callable[[], None] | None = None,
+    ) -> list[FileEntryNode]:
         root = Path(workspace_root).resolve()
-        file_path = _resolve_within_root(root, target_path)
-        if expected_mtime_ms is not None:
-            if not file_path.is_file():
-                raise ConflictError("文件已被外部删除，请重新打开后再保存。")
-            current_mtime_ms = int(file_path.stat().st_mtime * 1000)
-            if current_mtime_ms != expected_mtime_ms:
-                raise ConflictError("文件已在外部发生变化，请重新加载后再保存。")
-        if not file_path.parent.is_dir():
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = file_path.with_name(f".{file_path.name}.{uuid4().hex}.tmp")
-        try:
-            tmp_path.write_text(content, encoding="utf-8")
-            atomic_replace_path(tmp_path, file_path)
-        finally:
-            if tmp_path.exists():
-                try:
-                    tmp_path.unlink()
-                except OSError:
-                    pass
-        return _build_file_node(file_path, root, include_mtime=True)
+        with text_file_transaction(root, updates, _resolve_within_root) as targets:
+            nodes = [_build_file_node(path, root, include_mtime=True) for path in targets]
+            if after_write is not None:
+                after_write()
+            return nodes
 
     def write_binary_file(
         self,

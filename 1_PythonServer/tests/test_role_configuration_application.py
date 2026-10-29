@@ -92,44 +92,6 @@ def test_default_role_is_created_once(tmp_path):
     assert seed.settings["output_limit_save_partial"] is True
 
 
-def test_legacy_role_binding_survives_removed_cancellation_settings(tmp_path):
-    project_service, conversation_service, role_service, _functional_settings = (
-        _build_services(tmp_path)
-    )
-    role = role_service.ensure_default_role()
-    project = project_service.create_project(name="旧配置兼容")
-    session = conversation_service.create_session(
-        project.project_id,
-        role_project_id=role.project_id,
-        settings={"enabled_tool_names": ["write_file", "read_file"]},
-    )
-    payload = _session_to_payload(session)
-    payload["settings"].update({
-        "return_cancelled_messages": False,
-        "return_user_before_cancelled": False,
-    })
-    legacy_settings = dict(payload["settings"])
-    legacy_settings["enabled_tool_names"] = sorted(legacy_settings["enabled_tool_names"])
-    payload["role_configuration_hash"] = sha256(dumps({
-        "provider_id": session.provider_id,
-        "model_id": session.model_id,
-        "reasoning_mode": session.reasoning_mode,
-        "settings": legacy_settings,
-    }, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")).hexdigest()
-
-    loaded = _session_from_payload(payload)
-
-    assert loaded.role_configuration_hash == session.role_configuration_hash
-    assert ProjectConversationSessionResponse.from_domain(loaded).role_status == "selected"
-    assert "return_cancelled_messages" not in _session_to_payload(loaded)["settings"]
-    assert "return_user_before_cancelled" not in _session_to_payload(loaded)["settings"]
-
-    payload["role_configuration_hash"] = None
-    assert ProjectConversationSessionResponse.from_domain(
-        _session_from_payload(payload),
-    ).role_status == "custom"
-
-
 def test_existing_role_cannot_restore_removed_cancellation_options(tmp_path):
     _project_service, _conversation_service, role_service, _functional_settings = (
         _build_services(tmp_path)

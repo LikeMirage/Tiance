@@ -89,7 +89,12 @@ async def finish_thread(function: Callable, /, *args, **kwargs):
 In particular, a caller's finally block must not remove staging/rollback files
 while this thread is still using them. Repeated cancellation also waits.
 """
-    worker = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
+    return await finish_commit(asyncio.to_thread(function, *args, **kwargs))
+
+
+async def finish_commit(operation):
+    """Finish an owned commit (including recording its result) before cancellation."""
+    worker = asyncio.ensure_future(operation)
     cancelled = False
     while not worker.done():
         try:

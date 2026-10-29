@@ -3,7 +3,7 @@ from time import monotonic
 import httpx
 from fastapi import APIRouter
 
-from app.infra.http_client import get_shared_http_client
+from app.infra.http_client import lease_http_client, get_shared_http_client
 from app.schemas.network_settings import (
     ExternalAccessSaveRequest,
     ExternalAccessStatusResponse,
@@ -68,7 +68,8 @@ def save_external_access(
 async def diagnose_github_connection() -> NetworkDiagnosticResponse:
     started_at = monotonic()
     try:
-        response = await get_shared_http_client().get(_GITHUB_TARGET)
+        async with lease_http_client(get_shared_http_client()) as client:
+            response = await client.get(_GITHUB_TARGET)
         elapsed_ms = round((monotonic() - started_at) * 1000)
         return NetworkDiagnosticResponse(
             ok=response.is_success,

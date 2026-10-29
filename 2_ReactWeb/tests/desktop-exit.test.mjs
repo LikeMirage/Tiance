@@ -6,6 +6,7 @@ import { createServer } from "vite";
 const vite = await createServer({ appType: "custom", logLevel: "silent",
   root: fileURLToPath(new URL("../", import.meta.url)), server: { middlewareMode: true } });
 const shell = await vite.ssrLoadModule("/src/features/desktop-shell/model/desktopShellStore.ts");
+const closeRequests = await vite.ssrLoadModule("/src/features/desktop-shell/model/desktopCloseRequest.ts");
 after(() => vite.close());
 
 const deferred = () => { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; };
@@ -50,7 +51,7 @@ after(() => { delete globalThis.window; });
 
 test("退出和收起托盘正常保存尺寸后执行原生操作", async (t) => {
   const { calls, timers } = setup(t);
-  await shell.closeDesktopShell();
+  await shell.closeDesktopShell("request-1");
   assert.equal(await shell.hideDesktopShellToTray(), true);
   assert.deepEqual(calls, ["save", "close", "save", "hide"]);
   assert.equal(timers.size, 0);
@@ -63,7 +64,7 @@ test("保存尺寸请求卡住时中止请求并继续退出，不无限等待",
     signal = init.signal;
     return new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }));
   });
-  const exiting = shell.closeDesktopShell();
+  const exiting = shell.closeDesktopShell("request-1");
   await turn();
   assert.ok(signal);
   assert.deepEqual(context.calls, []);
@@ -98,4 +99,89 @@ test("偏好等待超时不越过后端安装收尾，原生关闭失败向调�
   await exiting;
   window.pywebview.api.close_window = async () => { throw new Error("退出准备失败"); };
   await assert.rejects(shell.closeDesktopShell(), /退出准备失败/);
+});
+
+test("标题栏请求交给壳统一处理，完成时携带对应请求 ID", async (t) => {
+  const requests = [], completed = [];
+  setup(t, {
+    request_window_close: async (intent) => { requests.push(intent); return "request-1"; },
+    close_window: async (id) => { completed.push(id); return true; },
+  });
+  assert.equal(await closeRequests.requestDesktopWindowClose(), true);
+  assert.deepEqual(requests, ["close"]);
+  assert.equal(await shell.closeDesktopShell("request-1"), true);
+  assert.deepEqual(completed, ["request-1"]);
+  await closeRequests.requestDesktopWindowClose("exit");
+  assert.deepEqual(requests, ["close", "exit"]);
+  delete window.pywebview.api.request_window_close;
+  await assert.rejects(closeRequests.requestDesktopWindowClose(), TypeError);
+});
+
+function closeHeartbeat(t, overrides = {}) {
+  const reports = [], intervals = new Map();
+  setup(t, {
+    report_window_close: async (...args) => { reports.push(args); return true; },
+    ...overrides,
+  });
+  let sequence = 0;
+  t.mock.method(globalThis, "setInterval", (fn, delay) => {
+    assert.equal(delay, 1000);
+    const id = ++sequence;
+    intervals.set(id, fn);
+    return id;
+  });
+  t.mock.method(globalThis, "clearInterval", (id) => intervals.delete(id));
+  return { reports, intervals, tick: async () => {
+    for (const fn of intervals.values()) fn();
+    await turn();
+  } };
+}
+
+test("仅关闭过程中回报等待和保存状态，取消后停止", async (t) => {
+  const context = closeHeartbeat(t);
+  assert.equal(context.intervals.size, 0);
+  const request = closeRequests.observeDesktopCloseRequest("one");
+  await turn();
+  request.setState("saving");
+  await turn();
+  await context.tick();
+  request.cancel();
+  await turn();
+  assert.equal(context.intervals.size, 0);
+  assert.deepEqual(context.reports, [
+    ["one", "waiting"], ["one", "saving"], ["one", "saving"], ["one", "cancelled"],
+  ]);
+  request.cancel();
+  assert.equal(context.reports.length, 4);
+});
+
+test("壳已接管或旧请求失效时停止回报，组件卸载不冒充用户取消", async (t) => {
+  const context = closeHeartbeat(t);
+  const old = closeRequests.observeDesktopCloseRequest("old");
+  await turn();
+  old.stop();
+  assert.deepEqual(context.reports, [["old", "waiting"]]);
+  assert.equal(context.intervals.size, 0);
+  window.pywebview.api.report_window_close = async (...args) => {
+    context.reports.push(args);
+    return false;
+  };
+  const next = closeRequests.observeDesktopCloseRequest("new");
+  await turn();
+  next.cancel();
+  assert.equal(context.intervals.size, 0);
+  assert.deepEqual(context.reports, [["old", "waiting"], ["new", "waiting"]]);
+});
+
+test("回报调用卡住时不堆积请求，壳侧超时仍独立处理", async (t) => {
+  const pending = deferred();
+  let count = 0;
+  const context = closeHeartbeat(t, { report_window_close: () => { count += 1; return pending.promise; } });
+  const request = closeRequests.observeDesktopCloseRequest("one");
+  for (let i = 0; i < 20; i += 1) await context.tick();
+  assert.equal(count, 1);
+  request.stop();
+  pending.resolve(false);
+  await turn();
+  assert.equal(context.intervals.size, 0);
 });

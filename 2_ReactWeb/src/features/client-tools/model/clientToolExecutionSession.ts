@@ -5,6 +5,7 @@ const EXECUTOR_ID_KEY = "tiance.client-tool-executor-id";
 const EXECUTION_KEY_PREFIX = "tiance.client-tool-execution:";
 
 export type ClientToolExecutionRecord =
+  | { state: "claiming"; attemptId: string }
   | { state: "executing" }
   | { state: "completed"; result: ClientToolExecutionResult };
 
@@ -81,6 +82,9 @@ function storageKey(requestId: string): string {
 function parseRecord(value: unknown): ClientToolExecutionRecord | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
+  if (record.state === "claiming" && typeof record.attemptId === "string" && record.attemptId) {
+    return { state: "claiming", attemptId: record.attemptId };
+  }
   if (record.state === "executing") return { state: "executing" };
   if (record.state !== "completed") return null;
   const result = record.result;

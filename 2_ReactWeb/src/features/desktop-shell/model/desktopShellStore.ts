@@ -123,14 +123,14 @@ export async function toggleMaximizeDesktopShell() {
   await persistKnownDesktopWindowSizePreferences(false);
 }
 
-export async function closeDesktopShell() {
+export async function closeDesktopShell(requestId: string) {
   const api = getDesktopShellApi();
   if (!api) {
     return;
   }
 
   await persistDesktopShellWindowSizePreferences();
-  await api.close_window();
+  return api.close_window(requestId);
 }
 
 export async function getDesktopShellBounds() {
@@ -270,7 +270,7 @@ export async function persistDesktopShellWindowSizePreferences() {
   }
 }
 
-function getDesktopShellApi(): DesktopShellApi | null {
+export function getDesktopShellApi(): DesktopShellApi | null {
   return window.pywebview?.api ?? null;
 }
 

@@ -1,15 +1,18 @@
 {
   "schemaVersion": 1,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "LikeMirage"
   },
   "summary": "以深蓝雪山和冷峻夜色呈现昆仑雪境。",
   "license": "CC0-1.0",
-  "baseColors": ["black", "blue"],
+  "baseColors": [
+    "black",
+    "blue"
+  ],
   "preview": "preview.webp",
   "compatibility": {
     "themeSchemaVersion": 2,
-    "minTianceVersion": "0.1.0"
+    "minTianceVersion": "0.3.20"
   }
 }

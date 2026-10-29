@@ -311,13 +311,6 @@ class WorkspaceStateService:
         if active_category_id and self._project_repository.get_project_category(active_category_id) is None:
             active_category_id = None
 
-        fallback = self._selection_from_legacy_payload(payload)
-        if fallback and fallback.category_id not in selections:
-            selections[fallback.category_id] = fallback
-
-        if active_category_id is None:
-            active_category_id = fallback.category_id if fallback else None
-
         active_selection = selections.get(active_category_id or "") if active_category_id else None
         if active_selection is None and active_category_id:
             active_selection = WorkspaceCategorySelection(
@@ -352,18 +345,6 @@ class WorkspaceStateService:
             if selection is not None:
                 selections[category_id] = selection
         return selections
-
-    def _selection_from_legacy_payload(
-        self,
-        payload: dict[str, Any],
-    ) -> WorkspaceCategorySelection | None:
-        project_id = _stored_project_id(payload.get("project_id"))
-        if project_id is None:
-            return None
-        project = self._project_repository.get_project(project_id)
-        if project is None:
-            return None
-        return self._selection_from_payload(project.category_id, payload)
 
     def _selection_from_payload(
         self,

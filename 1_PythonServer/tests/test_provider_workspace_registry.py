@@ -1,3 +1,5 @@
+
+from tests.project_test_support import make_project_repository
 from dataclasses import replace
 from pathlib import Path
 
@@ -22,12 +24,12 @@ from app.services.project import ProjectService
 def test_provider_directories_are_registered_as_projects_and_stay_in_sync(tmp_path):
     database_path = tmp_path / "tiance.db"
     providers_path = tmp_path / "providers"
-    ensure_provider_file_storage(providers_path, database_path)
+    ensure_provider_file_storage(providers_path)
     ensure_database_schema(database_path)
 
     file_store = ProviderFileStore(providers_path)
     catalog_repository = ProviderCatalogRepository(file_store)
-    project_repository = ProjectRepository(
+    project_repository = make_project_repository(
         database_path,
         file_catalogs=(
             FileProjectCatalog(providers_path, project_kind=ProjectKind.PROVIDER),
@@ -56,12 +58,6 @@ def test_provider_directories_are_registered_as_projects_and_stay_in_sync(tmp_pa
     }
     assert len(provider_projects) == len(provider_ids)
     assert (providers_path / "catalog.json").is_file()
-    assert project_repository.list_database_projects(
-        project_kind=ProjectKind.PROVIDER,
-    ) == ()
-    assert project_repository.list_database_project_categories(
-        category_kind=ProjectKind.PROVIDER,
-    ) == ()
     openai_project = provider_projects[provider_project_id("openai")]
     assert openai_project.name == catalog_repository.get_entry("openai").display_name
     assert openai_project.root_path == str((providers_path / "openai").resolve())

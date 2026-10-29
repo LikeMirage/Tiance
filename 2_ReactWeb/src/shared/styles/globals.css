@@ -59,6 +59,25 @@ button {
   cursor: pointer;
 }
 
+/* Action controls keep their own borders and state colors, without a second
+   focus outline. Keep this global override authoritative for lazy-loaded UI;
+   do not blur controls or cancel keyboard events to hide focus decoration. */
+:where(
+  button,
+  a[href],
+  summary,
+  input:is([type="button"], [type="submit"], [type="reset"]),
+  [role="button"],
+  [role="tab"],
+  [role="option"],
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"],
+  [role="switch"]
+):focus {
+  outline: none !important;
+}
+
 ::selection {
   background: var(--color-text-selection-bg);
   color: var(--color-text-selection-text);

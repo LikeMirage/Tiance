@@ -30,5 +30,6 @@ export type FileWorkspaceApi = {
     content: string,
     options?: Pick<RequestInit, "signal"> & { expectedMtimeMs?: number | null },
   ) => Promise<FileWorkspaceNode>;
+  saveTextFiles: (files: { path: string; content: string; expected_mtime_ms?: number | null }[]) => Promise<FileWorkspaceNode[]>;
   workspaceKey: string;
 };

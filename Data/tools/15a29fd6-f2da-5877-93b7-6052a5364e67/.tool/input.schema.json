@@ -47,7 +47,7 @@
     "timeout_seconds": {
       "permission_type": "none",
       "default": 30,
-      "description": "命令内部超时时间，范围 1-300 秒。",
+      "description": "本次命令的内部执行时限，默认30秒，范围1–300秒。到期停止直接启动的命令并返回当时已收集的输出，不等待下级进程结束；不修改 tool.json 中的平台总执行时限，平台时限仍可能先到期。",
       "maximum": 300,
       "minimum": 1,
       "title": "内部超时秒数",

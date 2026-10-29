@@ -12,14 +12,14 @@ CommandRunner = Callable[[list[str], int], subprocess.CompletedProcess[str]]
 
 def resolve_tool_site_packages(tool_root: Path) -> Path:
     dependencies_root = tool_root / "dependencies" / "py313"
-    legacy_site_packages = dependencies_root / "site-packages"
+    default_site_packages = dependencies_root / "site-packages"
     pointer_file = dependencies_root / "active.json"
     if not pointer_file.is_file():
-        return legacy_site_packages
+        return default_site_packages
     try:
         payload = json.loads(pointer_file.read_text(encoding="utf-8-sig"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return legacy_site_packages
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise BadRequestError("工具依赖环境指针无法读取，请重新安装依赖。") from exc
     relative_value = payload.get("site_packages") if isinstance(payload, dict) else None
     if (
         not isinstance(payload, dict)
@@ -27,16 +27,16 @@ def resolve_tool_site_packages(tool_root: Path) -> Path:
         or not isinstance(relative_value, str)
         or not relative_value.strip()
     ):
-        return legacy_site_packages
+        raise BadRequestError("工具依赖环境指针无效，请重新安装依赖。")
     relative_path = Path(relative_value)
     resolved_root = dependencies_root.resolve(strict=False)
     resolved_target = (resolved_root / relative_path).resolve(strict=False)
     try:
         resolved_target.relative_to(resolved_root)
     except ValueError:
-        return legacy_site_packages
+        raise BadRequestError("工具依赖环境指针无效，请重新安装依赖。")
     if relative_path.is_absolute() or not resolved_target.is_dir():
-        return legacy_site_packages
+        raise BadRequestError("工具依赖环境指针无效，请重新安装依赖。")
     return resolved_target
 
 

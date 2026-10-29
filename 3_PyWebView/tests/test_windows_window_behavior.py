@@ -17,6 +17,16 @@ class _Event:
         return self
 
 
+def _confirmed_close(api):
+    # Simulate the current frontend confirmation without starting a real JS dispatch.
+    api._close_coordinator._spawn = lambda action: None
+    request_id = api.request_window_close("exit")
+    try:
+        return api.close_window(request_id)
+    finally:
+        api._close_coordinator.dispose()
+
+
 def test_select_external_files_returns_existing_unique_files(monkeypatch, tmp_path) -> None:
     first_file = tmp_path / "first.txt"
     second_file = tmp_path / "second.txt"
@@ -293,7 +303,7 @@ def test_explicit_close_bypasses_native_close_interception() -> None:
         url="http://127.0.0.1:18100",
     )
 
-    shell_api.close_window()
+    _confirmed_close(shell_api)
 
     assert destroyed == [True]
     assert prepared == [True]

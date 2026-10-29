@@ -194,31 +194,3 @@ def test_delta_preserves_json_types_and_key_order_across_random_edits() -> None:
         original = json_bytes(before)
         assert json_bytes(apply_delta(before, make_delta(before, after))) == json_bytes(after)
         assert json_bytes(before) == original
-
-
-def test_v6_schema_migration_rolls_back_if_interrupted(tmp_path: Path, monkeypatch) -> None:
-    session = session_path(tmp_path)
-    with connection_for(session) as connection:
-        connection.executescript("""
-            DROP TABLE conversation_audit_snapshot_blocks;
-            DROP TABLE conversation_audit_snapshots;
-            DROP TABLE conversation_audit_blocks;
-            UPDATE conversation_schema SET version = 5;
-        """)
-    db._initialized_database_paths.discard(db.database_path_from_session(session).resolve())
-    create_schema = db.create_audit_snapshot_schema
-
-    def interrupted(connection):
-        create_schema(connection)
-        raise RuntimeError("interrupted migration")
-
-    with monkeypatch.context() as patch:
-        patch.setattr(db, "create_audit_snapshot_schema", interrupted)
-        with pytest.raises(RuntimeError, match="interrupted"):
-            db.ensure_database(session.parents[2])
-    with connection_for(session) as connection:
-        assert connection.execute("SELECT version FROM conversation_schema").fetchone()[0] == 5
-        assert connection.execute("SELECT name FROM sqlite_master WHERE name = 'conversation_audit_blocks'").fetchall() == []
-    db.ensure_database(session.parents[2])
-    db.append_event(session, "model_exchanges", {"after": "recovery"})
-    assert db.read_events(session, "model_exchanges") == [{"after": "recovery"}]

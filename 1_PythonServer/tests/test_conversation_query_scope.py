@@ -94,12 +94,8 @@ def test_missing_database_reads_do_not_create_workspace(tmp_path):
     ([], 1),
     ([1, 7, 3], 8),
     ([-5, -2], -1),
-    (["17", 5], 18),
-    ([True, False, None, "junk", 3.0, "1.2", {}, []], 1),
-    ([2**70], 2**70 + 1),
-    (["１２", 1], 13),
 ])
-def test_next_sequence_preserves_existing_number_normalization(tmp_path, numbers, expected):
+def test_next_sequence_uses_current_integer_values(tmp_path, numbers, expected):
     conversations = tmp_path / ".Tiance" / "conversations"
     _seed(conversations, {str(i): {"sequence_number": value} for i, value in enumerate(numbers)})
     assert db.read_next_session_sequence_number(conversations) == expected
@@ -119,23 +115,6 @@ def test_numbering_does_not_decode_regular_session_payloads(tmp_path, monkeypatc
     monkeypatch.setattr(stores, "_session_from_payload", unexpected)
     store = stores.ConversationSessionStore(None, state_store=stores.ConversationStateStore())
     assert store.next_sequence_number(conversations) == 51
-
-
-def test_legacy_numbering_only_decodes_exceptional_records(tmp_path, monkeypatch):
-    conversations = tmp_path / ".Tiance" / "conversations"
-    _seed(conversations, {"regular": {"sequence_number": 20}, "legacy": {"sequence_number": "30"}, "missing": {}})
-    decoded = []
-    original = db._decode
-
-    def decode(raw):
-        payload = original(raw)
-        decoded.append(payload)
-        return payload
-
-    monkeypatch.setattr(db, "_decode", decode)
-    assert db.read_next_session_sequence_number(conversations) == 31
-    assert len(decoded) == 2
-    assert {"sequence_number": 20} not in decoded
 
 
 def test_sequence_reads_current_transaction_and_rolls_back_with_creation(tmp_path):
@@ -166,3 +145,12 @@ def test_concurrent_session_creation_keeps_unique_sequential_numbers(tmp_path):
     with ThreadPoolExecutor(max_workers=4) as executor:
         numbers = list(executor.map(create, range(16)))
     assert sorted(numbers) == list(range(1, 17))
+
+@pytest.mark.parametrize("value", ["17", True, False, None, "junk", 3.0, "1.2", {}, [], 2**70, "１２"])
+def test_sequence_rejects_non_current_values_without_conversion(tmp_path, value):
+    conversations = tmp_path / ".Tiance" / "conversations"
+    _seed(conversations, {"invalid": {"sequence_number": value}})
+    with pytest.raises(ValueError, match="会话序号必须是整数"):
+        db.read_next_session_sequence_number(conversations)
+    with db.read_connection_for_path(db.database_path_from_conversations(conversations)) as connection:
+        assert connection.execute("SELECT payload_json FROM conversation_sessions").fetchone()[0] == dumps({"sequence_number": value})

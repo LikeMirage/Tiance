@@ -11,10 +11,7 @@ from app.infra.database import ensure_database_schema
 from app.infra.projects import ProjectStorage
 from app.repositories.project.file_project_catalog import FileProjectCatalog
 from app.repositories.project.project_repository import ProjectRepository
-from app.services.application.project_file_catalog_migration import (
-    FILE_CATALOG_PROJECT_KINDS,
-    ProjectFileCatalogMigrationService,
-)
+from app.repositories.project.project_repository import COLLECTION_DIRECTORIES
 from app.services.project.projects import ProjectService
 
 
@@ -221,14 +218,14 @@ def test_project_service_uses_catalog_and_preserves_external_delete_contract(
             project_kind=project_kind,
             allow_external_roots=project_kind is ProjectKind.PROJECT,
         )
-        for project_kind in FILE_CATALOG_PROJECT_KINDS
+        for project_kind in COLLECTION_DIRECTORIES
     )
     repository = ProjectRepository(database_path, file_catalogs=catalogs)
-    ProjectFileCatalogMigrationService(repository).migrate()
     catalog = repository.get_file_catalog(ProjectKind.PROJECT)
     assert catalog is not None
     service = ProjectService(repository, ProjectStorage(projects_root))
 
+    service.ensure_builtin_project_categories()
     managed_project = service.create_project(name="托管项目")
     external_project = service.create_project(
         name="外部项目",
@@ -242,13 +239,6 @@ def test_project_service_uses_catalog_and_preserves_external_delete_contract(
     assert service.get_project_order() == (
         external_project.project_id,
         managed_project.project_id,
-    )
-    assert repository.list_database_projects(project_kind=ProjectKind.PROJECT) == ()
-    assert (
-        repository.list_database_project_categories(
-            category_kind=ProjectKind.PROJECT
-        )
-        == ()
     )
 
     service.delete_project(external_project.project_id)
@@ -269,7 +259,7 @@ def test_file_project_service_deletes_category_projects_and_does_not_recreate_de
             project_kind=kind,
             allow_external_roots=kind is ProjectKind.PROJECT,
         )
-        for kind in FILE_CATALOG_PROJECT_KINDS
+        for kind in COLLECTION_DIRECTORIES
     )
     repository = ProjectRepository(database_path, file_catalogs=catalogs)
     service = ProjectService(repository, ProjectStorage(projects_root))

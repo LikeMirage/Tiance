@@ -20,10 +20,8 @@ from app.repositories.project.conversation_database import (
     list_message_payloads_range,
     list_project_events_range,
     read_document,
-    read_meta,
     read_session,
-    read_session_state_payloads,
-    read_sessions,
+    read_session_index_page,
 )
 from app.repositories.project.conversation_storage import ProjectWorkspaceDirectoryResolver
 from app.repositories.project.project_repository import ProjectRepository
@@ -99,41 +97,19 @@ class ConversationDataViewRepository:
         revision_ms = _database_mtime(workspace_dir)
 
         if name == "index.json":
-            raw_index = read_meta(conversations_dir, "conversation_index", {})
-            index = raw_index if isinstance(raw_index, dict) else {}
-            stored_sessions = read_sessions(conversations_dir)
-            pinned_ids = {
-                str(value)
-                for value in index.get("pinned_session_ids", [])
-                if isinstance(value, str)
-            }
-            session_items = sorted(
-                stored_sessions.values(),
-                key=lambda item: (
-                    str(item.get("session_id") or "") in pinned_ids,
-                    str(item.get("created_at") or ""),
-                    int(item.get("sequence_number") or 0),
-                ),
-                reverse=True,
+            if page_size < 1 or (page is not None and page < 1):
+                raise BadRequestError("页码和每页条数必须大于 0。")
+            total_count, payload = read_session_index_page(
+                conversations_dir, page=page or 1, page_size=page_size,
             )
-            states = read_session_state_payloads(
-                conversations_dir,
-                set(stored_sessions),
-            )
-            payload = {
-                "active_session_id": index.get("active_session_id"),
-                "pinned_session_ids": sorted(pinned_ids & set(stored_sessions)),
-                "sessions": session_items,
-                "session_states": states,
-            }
             window = _page_window(
-                total_count=len(session_items),
+                total_count=total_count,
                 page=page,
                 page_size=page_size,
                 default_to_last=False,
             )
             return _paged_view(
-                _json(_slice_index_payload(payload, session_items, window)),
+                _json(payload),
                 revision_ms,
                 window,
             )
@@ -252,36 +228,6 @@ def _paged_view(
         has_previous=window.has_previous,
         has_next=window.has_next,
     )
-
-
-def _slice_index_payload(
-    payload: object,
-    sessions: list[dict],
-    window: _PageWindow,
-) -> object:
-    if not isinstance(payload, dict):
-        return payload
-    visible_sessions = sessions[window.start:window.end]
-    visible_ids = {
-        str(item.get("session_id"))
-        for item in visible_sessions
-        if item.get("session_id") is not None
-    }
-    result = dict(payload)
-    result["sessions"] = visible_sessions
-    states = payload.get("session_states")
-    if isinstance(states, dict):
-        result["session_states"] = {
-            session_id: value
-            for session_id, value in states.items()
-            if session_id in visible_ids
-        }
-    pinned = payload.get("pinned_session_ids")
-    if isinstance(pinned, list):
-        result["pinned_session_ids"] = [
-            session_id for session_id in pinned if str(session_id) in visible_ids
-        ]
-    return result
 
 
 def _require_session_id(value: str | None) -> str:
