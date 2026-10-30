@@ -148,7 +148,7 @@ export function useSessionMessages({
       if (options.older) existing.older = true;
       else existing.queued = { ...existing.queued, ...options, older: false,
         authoritative: existing.queued?.authoritative || options.authoritative };
-      return existing.promise;
+      return waitForHistoryRead(existing.promise, options.signal);
     }
     const controller = new AbortController();
     reloadControllersRef.current.set(key, controller);
@@ -266,7 +266,7 @@ export function useSessionMessages({
         }
       }
     })();
-    return job.promise;
+    return waitForHistoryRead(job.promise, options.signal);
   }, [publishSessionMessages]);
 
   const loadOlderSessionMessages = useCallback((pid: string, sessionId: string) =>
@@ -402,6 +402,21 @@ function countMessagesChars(messages: ChatMessage[]) {
 function pageFromResponse(response: ConversationMessageListResponse): HistoryPage {
   return { before: response.next_before_message_id, after: response.next_after_message_id ?? response.items.at(-1)?.message_id ?? null,
     revision: response.revision ?? 0, reset: response.reset_revision ?? 0, reconcile: false };
+}
+
+/** Cancel a caller's wait without cancelling the shared history read used by
+ * other views. A stream attachment must not retain its lease behind that read. */
+function waitForHistoryRead(read: Promise<boolean>, signal?: AbortSignal): Promise<boolean> {
+  if (!signal) return read;
+  if (signal.aborted) return Promise.resolve(false);
+  return new Promise((resolve, reject) => {
+    const abort = () => resolve(false);
+    signal.addEventListener("abort", abort, { once: true });
+    void read.then(
+      (value) => { signal.removeEventListener("abort", abort); resolve(value); },
+      (error) => { signal.removeEventListener("abort", abort); reject(error); },
+    );
+  });
 }
 
 export function mergeHistoryPage(current: ChatMessage[], incoming: ChatMessage[], options: {

@@ -7,6 +7,7 @@ MAX_PACKAGE_BYTES = 64 * MIB
 MAX_EXPANDED_BYTES = 256 * MIB
 MAX_PACKAGE_ENTRIES = 4096
 MAX_XML_NODES = 2_000_000
+# Office media and animation budgets; standalone static images use native rendering.
 MAX_IMAGE_PIXELS = 24_000_000
 MAX_IMAGE_BYTES = 32 * MIB
 MAX_RENDER_XML_BYTES = 4 * MIB

@@ -1,8 +1,10 @@
 from app.schemas.file_workspace_batch import TextFilesSaveRequest
 from contextlib import aclosing
+from pathlib import Path
 import json
 import mimetypes
 
+import asyncio
 from fastapi import APIRouter, Query, Request, Response, WebSocket, status
 from fastapi.responses import FileResponse, StreamingResponse
 
@@ -10,7 +12,7 @@ from app.api.event_stream import EventStreamResponse
 from app.api.event_socket import serve_event_socket
 from app.core.errors import BadRequestError
 from app.schemas.project import (
-    ProjectContentFileResponse,
+    ProjectContentFileScopesRequest,
     ProjectContentFileSnapshotResponse,
     ProjectFileCopyRequest,
     ProjectFileContentResponse,
@@ -32,6 +34,7 @@ from app.schemas.project import (
 )
 from app.services.project import get_project_file_service
 from app.services.file_preview.runtime import preview_file, validate_asset_version
+from app.services.file_workspace_scan import read_content_snapshot
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -97,14 +100,18 @@ def list_project_files(
     response_model=ProjectContentFileSnapshotResponse,
     summary="List project content files",
 )
-def list_project_content_files(project_id: str) -> ProjectContentFileSnapshotResponse:
-    service = get_project_file_service()
-    snapshot = service.list_content_files(project_id)
-    return ProjectContentFileSnapshotResponse(
-        project_id=project_id,
-        items=[ProjectContentFileResponse.from_domain(item) for item in snapshot.items],
-        unreadable_paths=list(snapshot.unreadable_paths),
-    )
+async def list_project_content_files(request: Request, project_id: str):
+    root = await asyncio.to_thread(get_project_file_service().get_project_root, project_id)
+    return await read_content_snapshot(request, project_id, root)
+
+
+@router.post('/{project_id}/files/snapshot', response_model=ProjectContentFileSnapshotResponse,
+             summary="Refresh selected project content paths")
+async def refresh_project_content_files(request: Request, project_id: str, payload: ProjectContentFileScopesRequest):
+    if any(Path(path).is_absolute() or '..' in Path(path).parts for path in payload.paths):
+        raise BadRequestError('文件路径必须位于项目内。')
+    root = await asyncio.to_thread(get_project_file_service().get_project_root, project_id)
+    return await read_content_snapshot(request, project_id, root, tuple(sorted(set(payload.paths))))
 
 
 @router.get(

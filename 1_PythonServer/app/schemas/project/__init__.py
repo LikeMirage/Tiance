@@ -7,6 +7,7 @@ from .conversation_attachments import (
 
 from .project_files import (
     ProjectContentFileResponse,
+    ProjectContentFileScopesRequest,
     ProjectContentFileSnapshotResponse,
     ProjectFileCopyRequest,
     ProjectFileContentResponse,

@@ -53,6 +53,10 @@ class ProjectContentFileResponse(BaseModel):
         return cls(name=entry.name, path=entry.path, mtime_ms=entry.mtime_ms)
 
 
+class ProjectContentFileScopesRequest(BaseModel):
+    paths: list[str]
+
+
 class ProjectContentFileSnapshotResponse(BaseModel):
     """项目内容文件的完整读取快照。"""
 

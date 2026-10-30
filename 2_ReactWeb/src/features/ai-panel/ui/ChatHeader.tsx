@@ -11,6 +11,7 @@ export type ChatPanelView = "chat" | "settings";
 
 type Props = {
   activeSession: ConversationSession | null;
+  displaySequence: number | null;
   activeView: ChatPanelView;
   canCreateConversation: boolean;
   isLoadingSession: boolean;
@@ -21,6 +22,7 @@ type Props = {
 
 export function ChatHeader({
   activeSession,
+  displaySequence,
   activeView,
   canCreateConversation,
   isLoadingSession,
@@ -30,7 +32,7 @@ export function ChatHeader({
 }: Props) {
   const { t } = useI18n();
   const title = activeSession
-    ? <SessionDisplayTitle session={activeSession} />
+    ? <SessionDisplayTitle session={activeSession} displaySequence={displaySequence} />
     : isLoadingSession
       ? ""
       : t("aiPanel.header.noSession");

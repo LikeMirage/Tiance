@@ -297,6 +297,7 @@ export function ProjectOverviewCard({
               popoverRef={usagePopoverRef}
               projectUsage={displayProjectUsage}
               sessions={displaySessions}
+              displaySequenceBySession={sessionTree.displaySequenceBySession}
               selectedSessionId={selectedUsageSessionId}
               onClose={onCloseUsage}
               onSelectSessionId={setSelectedUsageSessionId}
@@ -319,6 +320,7 @@ function ProjectUsagePopoverPortal({
   projectUsage: ProjectOverviewUsage;
   selectedSessionId: string | null;
   sessions: ProjectOverviewSessionWithDisplayUsage[];
+  displaySequenceBySession: ReadonlyMap<string, number>;
 }) {
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
 
@@ -390,6 +392,7 @@ function ProjectUsagePopover({
   projectUsage,
   selectedSessionId,
   sessions,
+  displaySequenceBySession,
 }: {
   onClose: () => void;
   onSelectSessionId: (sessionId: string | null) => void;
@@ -398,6 +401,7 @@ function ProjectUsagePopover({
   projectUsage: ProjectOverviewUsage;
   selectedSessionId: string | null;
   sessions: ProjectOverviewSessionWithDisplayUsage[];
+  displaySequenceBySession: ReadonlyMap<string, number>;
 }) {
   const { t } = useI18n();
   const selectedSession = selectedSessionId
@@ -458,7 +462,7 @@ function ProjectUsagePopover({
             >
               <span className="project-category-overview__usage-scope-main">
                 <span className="project-category-overview__usage-scope-title">
-                  {session.sequence_number}. {session.title.trim() || t("projectOverview.newConversation")}
+                  {displaySequenceBySession.get(session.session_id)}. {session.title.trim() || t("projectOverview.newConversation")}
                 </span>
               </span>
               <span

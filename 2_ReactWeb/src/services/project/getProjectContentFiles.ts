@@ -21,3 +21,12 @@ export function getProjectContentFiles(
     { signal: init?.signal },
   );
 }
+
+export function refreshProjectContentFiles(
+  projectId: string, paths: string[], init?: Pick<RequestInit, "signal">,
+) {
+  return fetchJson<ProjectContentFileSnapshot>(
+    `/api/projects/${encodeURIComponent(projectId)}/files/snapshot`,
+    { method: "POST", body: JSON.stringify({ paths }), signal: init?.signal },
+  );
+}

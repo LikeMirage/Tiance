@@ -1,8 +1,25 @@
+/* Oxanium SemiBold, limited to the Tiance wordmark; see fonts/oxanium-OFL.txt. */
+@font-face {
+  font-family: "Oxanium";
+  src: url("__TIANCE_WORDMARK_FONT__") format("truetype");
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+}
+
 :root {
-  color-scheme: dark;
+  color-scheme: __TIANCE_THEME_MODE__;
+  --startup-surface-base: __TIANCE_SURFACE_BASE__;
+  --startup-surface-titlebar: __TIANCE_SURFACE_TITLEBAR__;
+  --startup-border-separator: __TIANCE_BORDER_SEPARATOR__;
+  --startup-text-primary: __TIANCE_TEXT_PRIMARY__;
+  --startup-text-muted: __TIANCE_TEXT_MUTED__;
+  --startup-accent-rgb: __TIANCE_ACCENT_RGB__;
+  --startup-danger-text: __TIANCE_DANGER_TEXT__;
+  --startup-danger-border: __TIANCE_DANGER_BORDER__;
   font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
-  background: #080704;
-  color: #f1d6a0;
+  background: var(--startup-surface-base);
+  color: var(--startup-text-primary);
 }
 
 * { box-sizing: border-box; }
@@ -22,7 +39,8 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 14px;
-  background: rgba(8, 7, 4, 0.9);
+  border-bottom: 1px solid var(--startup-border-separator);
+  background: var(--startup-surface-titlebar);
   user-select: none;
 }
 
@@ -47,24 +65,46 @@ body[data-titlebar-visible="true"] .titlebar { display: flex; }
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: 2px;
   background: transparent;
   font-size: 1rem;
   line-height: 1;
 }
 
-.titlebar__button--close:hover { background: #762c25; }
+.titlebar__button--close:hover {
+  background: var(--startup-danger-border);
+  color: var(--startup-danger-text);
+}
 
 .loader { position: fixed; inset: 0; }
 
-.startup-background {
+.wordmark {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 75%;
+  display: grid;
+  place-items: center;
+  color: var(--startup-text-primary);
+  font-family: "Oxanium", "Bahnschrift", sans-serif;
+  font-size: clamp(80px, 12.5vw, 180px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  user-select: none;
   pointer-events: none;
+  animation: tiance-wordmark-breathe 2.8s ease-in-out infinite;
+}
+
+@keyframes tiance-wordmark-breathe {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+.loader[data-state="error"] .wordmark {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wordmark { animation: none; }
 }
 
 .startup-feedback {
@@ -78,18 +118,17 @@ body[data-titlebar-visible="true"] .titlebar { display: flex; }
 
 .status {
   margin: 0;
-  color: #f1d6a0;
+  color: var(--startup-text-muted);
   font-size: 14px;
   font-weight: 400;
   line-height: 1.6;
   letter-spacing: 0.08em;
-  text-shadow: 0 2px 8px #000, 0 0 3px #000;
 }
 
 .error {
   display: none;
   margin: 12px 0 0;
-  color: #ffc7b5;
+  color: var(--startup-danger-text);
   font-size: 14px;
   line-height: 1.6;
   overflow-wrap: anywhere;
@@ -101,9 +140,9 @@ body[data-titlebar-visible="true"] .titlebar { display: flex; }
   max-height: calc(100vh - 88px);
   overflow: auto;
   padding: 20px;
-  border: 1px solid rgba(241, 214, 160, 0.25);
-  border-radius: 12px;
-  background: rgba(8, 7, 4, 0.92);
+  border: 1px solid var(--startup-danger-border);
+  border-radius: 2px;
+  background: var(--startup-surface-base);
 }
 
 .loader[data-state="error"] .error { display: block; }
@@ -111,12 +150,12 @@ body[data-titlebar-visible="true"] .titlebar { display: flex; }
 
 button {
   padding: 8px 12px;
-  border: 1px solid rgba(241, 214, 160, 0.35);
-  border-radius: 8px;
-  background: rgba(241, 214, 160, 0.08);
+  border: 1px solid var(--startup-border-separator);
+  border-radius: 2px;
+  background: rgba(var(--startup-accent-rgb), 0.08);
   color: inherit;
   font: inherit;
   cursor: pointer;
 }
 
-button:hover { background: rgba(241, 214, 160, 0.18); }
+button:hover { background: rgba(var(--startup-accent-rgb), 0.18); }

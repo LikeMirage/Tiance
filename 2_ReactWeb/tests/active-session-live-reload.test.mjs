@@ -94,6 +94,21 @@ test("slow initial history is not cancelled by repeated refreshes or a child bec
   assert.equal(result.loadingSessionKeys.has("p/s"), false);
 });
 
+test("stopping a stream attachment releases its wait without cancelling the view's shared history read", async () => {
+  await setup();
+  const controller = new AbortController();
+  let settled = false;
+  await act(async () => {
+    void result.reloadSessionMessages("p", "s", { signal: controller.signal })
+      .then(value => { assert.equal(value, false); settled = true; });
+    controller.abort();
+  });
+  assert.equal(settled, true);
+  assert.equal(requests[0].aborted, false);
+  await respond(0, page([msg("m1")]));
+  assert.equal(result.sessionMessages["p/s"].length, 1);
+});
+
 test("idle main conversation receives completion after its child has ended; reconnect deduplicates", async () => {
   await setup({ sync: true });
   await respond(0, page([msg("m1")]));

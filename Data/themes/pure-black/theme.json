@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 2,
+  "id": "pure-black",
+  "registrationName": "极黑素简",
+  "mode": "dark",
+  "tokens": {
+    "color": {
+      "surface": {
+        "base": "#0A0B0E",
+        "panel": "#15171C",
+        "panelAlt": "#181B20",
+        "toolbar": "#101216",
+        "titlebar": "#0C0E11",
+        "statusbar": "#0A0B0E",
+        "sidebar": "#111318",
+        "canvas": "#0E1013",
+        "elevated": "#1A1D22",
+        "muted": "#1E2127",
+        "overlay": "rgba(255, 255, 255, 0.022)",
+        "menu": "rgba(24, 26, 31, 0.95)",
+        "input": "#16181D",
+        "inputHover": "#1A1D23",
+        "itemHover": "rgba(255, 255, 255, 0.045)",
+        "itemHoverStrong": "rgba(255, 255, 255, 0.07)"
+      },
+      "text": {
+        "primary": "#E6E8ED",
+        "secondary": "#A2A9B4",
+        "muted": "#737A86",
+        "heading": "#F5F6F9",
+        "headingAccent": "#FFFFFF",
+        "inverse": "#0A0B0E",
+        "selectionText": "#0A0B0E"
+      },
+      "border": {
+        "soft": "rgba(255, 255, 255, 0.085)",
+        "subtle": "rgba(255, 255, 255, 0.048)",
+        "strong": "rgba(255, 255, 255, 0.16)",
+        "focus": "rgba(231, 233, 237, 0.34)",
+        "separator": "rgba(255, 255, 255, 0.06)"
+      },
+      "accent": {
+        "base": "#E7E9ED",
+        "rgb": "231, 233, 237",
+        "hover": "#FFFFFF",
+        "text": "#FFFFFF",
+        "softText": "rgba(231, 233, 237, 0.72)",
+        "selectionText": "#FFFFFF",
+        "selectionBgSubtle": "rgba(231, 233, 237, 0.05)",
+        "selectionBg": "rgba(231, 233, 237, 0.08)",
+        "selectionBgHover": "rgba(231, 233, 237, 0.12)",
+        "selectionBorder": "rgba(231, 233, 237, 0.26)",
+        "textSelectionBg": "rgba(231, 233, 237, 0.85)"
+      },
+      "state": {
+        "danger": "#E0675E",
+        "dangerText": "#F09A92",
+        "dangerSoftText": "#D98A83",
+        "dangerBg": "rgba(224, 103, 94, 0.12)",
+        "dangerBorder": "rgba(224, 103, 94, 0.30)",
+        "warning": "#D8A64B",
+        "warningText": "#E8C176",
+        "success": "#4EB37F",
+        "successText": "#74CFA4"
+      },
+      "collapse": {
+        "fadeStart": "rgba(14, 16, 19, 0)",
+        "fadeMid": "rgba(14, 16, 19, 0.82)",
+        "fadeEnd": "rgba(14, 16, 19, 0.98)",
+        "caret": "rgba(231, 233, 237, 0.55)"
+      },
+      "scrollbar": {
+        "track": "transparent",
+        "thumb": "rgba(255, 255, 255, 0.13)",
+        "thumbHover": "rgba(255, 255, 255, 0.24)"
+      }
+    },
+    "structure": {
+      "color": "rgba(255, 255, 255, 0.065)",
+      "hoverColor": "rgba(255, 255, 255, 0.28)",
+      "activeColor": "rgba(255, 255, 255, 0.46)",
+      "enabled": true,
+      "lines": {
+        "titlebarBottom": true,
+        "statusbarTop": true,
+        "navigationRight": true,
+        "sidePanelRight": true,
+        "assistantPanelLeft": true,
+        "contentSplit": true
+      },
+      "width": 1
+    },
+    "shadow": {
+      "floating": "0 1px 2px rgba(0, 0, 0, 0.32), 0 16px 36px rgba(0, 0, 0, 0.50)",
+      "panel": "0 1px 2px rgba(0, 0, 0, 0.24), 0 10px 26px rgba(0, 0, 0, 0.32)"
+    },
+    "editor": {
+      "background": "#0E1013",
+      "foreground": "#D6DAE1",
+      "gutterBackground": "#0B0D10",
+      "gutterForeground": "#5B626D",
+      "activeLine": "rgba(255, 255, 255, 0.03)",
+      "selectionMatch": "rgba(231, 233, 237, 0.12)",
+      "tooltipBackground": "#191C21"
+    },
+    "background": {
+      "image": "",
+      "opacity": 0,
+      "blur": 0,
+      "overlay": "transparent",
+      "position": "center",
+      "size": "cover",
+      "repeat": "no-repeat"
+    }
+  },
+  "integrations": {
+    "codeMirror": "dark",
+    "shiki": "github-dark-default",
+    "mermaid": "dark",
+    "milkdown": "dark"
+  }
+}

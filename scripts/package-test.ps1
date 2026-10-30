@@ -5,6 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "package-providers.ps1")
+. (Join-Path $PSScriptRoot "package-theme.ps1")
 . (Join-Path $PSScriptRoot "gateway-build-integrity.ps1")
 $root = (Get-Location).Path
 $output = Join-Path $root $OutputDirectory
@@ -83,6 +84,7 @@ try {
         }
     }
 
+    Assert-PackageThemeSelection -Treeish $treeish
     $packageTree = New-PackageProviderTree -Treeish $treeish -TemporaryDirectory $work
     # These inputs are needed only while verifying the selected Git snapshot.
     $verificationPaths = @(& git ls-tree --name-only $packageTree -- global.json NuGet.Config nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props)

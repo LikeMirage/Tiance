@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "version": "1.0.0",
+  "author": {
+    "name": "LikeMirage"
+  },
+  "summary": "极简黑色界面，以细腻灰阶区分层次，减少视觉干扰。",
+  "license": "CC0-1.0",
+  "baseColors": [
+    "black",
+    "gray"
+  ],
+  "preview": "preview.webp",
+  "compatibility": {
+    "themeSchemaVersion": 2,
+    "minTianceVersion": "0.3.35"
+  }
+}

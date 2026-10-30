@@ -7,6 +7,7 @@
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "package-providers.ps1")
+. (Join-Path $PSScriptRoot "package-theme.ps1")
 . (Join-Path $PSScriptRoot "gateway-build-integrity.ps1")
 $root = (Get-Location).Path
 $output = Join-Path $root $OutputDirectory
@@ -81,6 +82,7 @@ function Get-PackageMetadata([string]$Path, [string]$AssetName) {
 
 New-Item -ItemType Directory -Force -Path $output, $currentTree, $incrementalTree, $fullProgramTree | Out-Null
 try {
+    Assert-PackageThemeSelection -Treeish $Tag
     $packageTree = New-PackageProviderTree -Treeish $Tag -TemporaryDirectory $work
     Invoke-Git @("archive", "--format=tar", "--output=$work/current.tar", $packageTree)
     tar -xf (Join-Path $work "current.tar") -C $currentTree

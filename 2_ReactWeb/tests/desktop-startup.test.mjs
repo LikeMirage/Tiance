@@ -56,7 +56,7 @@ async function createStartup({ health = [true], app = [true], dev = false, backe
       pywebview: { api: {
         reveal_window: async () => {},
         ensure_backend_running: async () => { backendCalls += 1; return { ok: backendOk }; },
-        prepare_gateway_access: async () => { desktopAuthCalls += 1; return desktopAuth; },
+        prepare_gateway_access: async () => { desktopAuthCalls += 1; return Array.isArray(desktopAuth) ? next(desktopAuth) : desktopAuth; },
         check_url_available: async (url) => {
           probes.push(url);
           if (url === state.gatewayHealthUrl) return next(health);
@@ -118,10 +118,23 @@ test("gateway waits keep one startup operation and only proceed after readiness"
 test("desktop identity failure prevents opening either frontend", async () => {
   const startup = await createStartup({ dev: true, desktopAuth: false });
   await startup.tick();
+  await startup.tick();
+  await startup.tick();
   assert.equal(startup.statuses.at(-1), "启动失败");
   assert.equal(startup.navigations.length, 0);
-  assert.equal(startup.probes.length, 1);
+  assert.equal(startup.probes.length, 3);
+  assert.equal(startup.desktopAuthCalls, 3);
   assert.equal(startup.timers.length, 0);
+});
+
+test("desktop identity readiness retries without restarting the backend or bypassing authentication", async () => {
+  const startup = await createStartup({ desktopAuth: [false, true] });
+  await startup.tick();
+  assert.equal(startup.navigations.length, 0);
+  await startup.tick();
+  assert.equal(startup.desktopAuthCalls, 2);
+  assert.equal(startup.backendCalls, 1);
+  assert.equal(startup.navigations.length, 1);
 });
 
 test("development frontend remains preferred when available", async () => {

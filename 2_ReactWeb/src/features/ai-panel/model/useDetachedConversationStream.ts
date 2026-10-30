@@ -25,6 +25,8 @@ type UseDetachedConversationStreamOptions = {
   activeSessionId: string | null;
   activeSessionKey: string | null;
   clientToolExecutor?: ClientToolExecutor | null;
+  createSessionStreamController: (sessionKey: string) => AbortController;
+  releaseSessionStreamController: (sessionKey: string, controller: AbortController) => void;
   isActive: boolean;
   isSessionMessagesPresented: (projectId: string, sessionId: string) => boolean;
   isThinkingStuckToBottom: (messageId: string) => boolean;
@@ -64,6 +66,8 @@ export function useDetachedConversationStream({
   activeSessionId,
   activeSessionKey,
   clientToolExecutor,
+  createSessionStreamController,
+  releaseSessionStreamController,
   isActive,
   isSessionMessagesPresented,
   isThinkingStuckToBottom,
@@ -98,7 +102,7 @@ export function useDetachedConversationStream({
     if (streamingSessionKeysRef.current.has(activeSessionKey)) return undefined;
     if (reconnectControllersRef.current.has(activeSessionKey)) return undefined;
 
-    const controller = new AbortController();
+    const controller = createSessionStreamController(activeSessionKey);
     reconnectControllersRef.current.set(activeSessionKey, controller);
     let assistantId: string | null = null;
     let initialAssistantMessage: ChatMessage | null = null;
@@ -135,16 +139,15 @@ export function useDetachedConversationStream({
     });
 
     const reconnect = async () => {
-      const [didReloadMessages] = await Promise.all([
-        reloadSessionMessages(projectId, activeSessionId, {
+      // Usage is independent of stream attachment and has no role in its lifetime.
+      void reloadSessionUsageSummary(projectId, activeSessionId, {
+        forceRefresh: true,
+      }).catch(() => undefined);
+      const didReloadMessages = await reloadSessionMessages(projectId, activeSessionId, {
           forceRefresh: true,
           authoritative: true,
           signal: controller.signal,
-        }).catch(() => false),
-        reloadSessionUsageSummary(projectId, activeSessionId, {
-          forceRefresh: true,
-        }).catch(() => undefined),
-      ]);
+        }).catch(() => false);
       if (controller.signal.aborted) return;
       dispatchProjectConversationUpdated({
         kind: "content",
@@ -275,6 +278,7 @@ export function useDetachedConversationStream({
           );
         }
         unmarkSessionStreaming(activeSessionKey, streamingLease);
+        releaseSessionStreamController(activeSessionKey, controller);
         if (!controller.signal.aborted) {
           void reloadSessionMessages(projectId, activeSessionId, {
             forceRefresh: true,
@@ -291,6 +295,8 @@ export function useDetachedConversationStream({
     activeSessionId,
     activeSessionKey,
     clientToolExecutor,
+    createSessionStreamController,
+    releaseSessionStreamController,
     isActive,
     isSessionMessagesPresented,
     isThinkingStuckToBottom,

@@ -272,6 +272,16 @@
   background: transparent;
 }
 
+.project-category-overview__grid--grid > .project-category-overview__card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-right: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--color-border-subtle);
+  pointer-events: none;
+}
+
 .project-category-overview__card--active,
 .project-category-overview__card--active:hover {
   background: transparent;

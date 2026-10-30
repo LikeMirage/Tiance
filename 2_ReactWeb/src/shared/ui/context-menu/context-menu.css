@@ -45,6 +45,30 @@
   white-space: nowrap;
 }
 
+.ds-context-menu__icon {
+  display: none;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+}
+
+.ds-context-menu--with-icons .ds-context-menu__icon {
+  display: inline-flex;
+}
+
+.ds-context-menu--with-icons .ds-context-menu__item {
+  gap: 8px;
+}
+
+.ds-context-menu__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .ds-context-menu__item:hover:not(:disabled) {
   background: var(--color-surface-item-hover-strong);
 }

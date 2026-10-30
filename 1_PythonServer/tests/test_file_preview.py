@@ -9,7 +9,7 @@ import pytest
 
 from app.core.errors import AppError, BadRequestError
 from app.services.file_preview import policy, runtime
-from app.services.file_preview.inspection import Package, inspect_file
+from app.services.file_preview.inspection import Package, inspect_file, inspect_image
 from app.services.file_preview.spreadsheet import spreadsheet_page
 from app.services.project.project_database import ProjectDatabaseService, _read_rows
 
@@ -229,13 +229,55 @@ def test_database_worker_retains_read_only_contract_and_result_schema(tmp_path):
         assert connection.execute("SELECT count(*) FROM items").fetchone()[0] == 1
 
 
-def test_images_are_checked_before_decode_and_animations_include_all_frames(tmp_path, monkeypatch):
+def test_static_image_inspection_only_reads_metadata_and_does_not_use_office_budgets(tmp_path, monkeypatch):
+    from PIL import Image
+    path = tmp_path / "image.png"
+    Image.new("RGB", (3, 3)).save(path)
+    monkeypatch.setattr(policy, "MAX_IMAGE_PIXELS", 4)
+    monkeypatch.setattr(policy, "MAX_IMAGE_BYTES", 1)
+    # Also exercise Pillow's own decode guard: it must not become another
+    # implicit size limit in this metadata-only path.
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 2)
+    def forbid_decode(*args, **kwargs):
+        raise AssertionError("Preview inspection must not decode the bitmap")
+    monkeypatch.setattr(Image.Image, "load", forbid_decode)
+    result = inspect_file(path)
+    assert result == {"mode": "inline", "size_bytes": path.stat().st_size, "width": 3, "height": 3}
+    assert Image.MAX_IMAGE_PIXELS == 2
+
+
+def test_large_static_image_passes_real_preview_worker_and_keeps_original_file(tmp_path):
+    from hashlib import sha256
+    from PIL import Image
+    path = tmp_path / "large.png"
+    # Same dimensions as the reported picture, with a small valid bitmap fixture.
+    with Image.new("1", (5606, 5064)) as image:
+        image.save(path)
+    original = sha256(path.read_bytes()).hexdigest()
+    result = asyncio.run(runtime.preview_file(Request(), path))
+    assert result["mode"] == "inline"
+    assert (result["width"], result["height"]) == (5606, 5064)
+    assert result["version"] == policy.version(path)
+    assert sha256(path.read_bytes()).hexdigest() == original
+
+
+def test_invalid_static_image_still_fails_and_restores_pillow_guard(tmp_path):
+    from PIL import Image, UnidentifiedImageError
+    path = tmp_path / "broken.png"
+    path.write_bytes(b"not an image")
+    previous_limit = Image.MAX_IMAGE_PIXELS
+    with pytest.raises(UnidentifiedImageError):
+        inspect_file(path)
+    assert Image.MAX_IMAGE_PIXELS == previous_limit
+
+
+def test_embedded_images_and_animations_keep_their_existing_budgets(tmp_path, monkeypatch):
     from PIL import Image
     path = tmp_path / "image.png"
     Image.new("RGB", (3, 3)).save(path)
     monkeypatch.setattr(policy, "MAX_IMAGE_PIXELS", 4)
     with pytest.raises(policy.PreviewLimit, match="像素"):
-        inspect_file(path)
+        inspect_image(path)
     path = tmp_path / "animation.gif"
     frames = [Image.new("RGB", (2, 2), color) for color in ("red", "green", "blue")]
     frames[0].save(path, save_all=True, append_images=frames[1:])

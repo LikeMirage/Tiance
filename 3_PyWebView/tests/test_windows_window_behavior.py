@@ -277,6 +277,40 @@ def test_windows_uses_borderless_manual_resize(monkeypatch) -> None:
     assert api_module._get_native_window_resize_mode(SimpleNamespace()) == "none"
 
 
+@pytest.mark.parametrize("native_started", [True, False])
+def test_caption_drag_restores_normal_bounds_and_state_before_native_move(monkeypatch, native_started) -> None:
+    shell_api = ShellApi(SimpleNamespace(
+        allow_remote_shell_api=False, frameless=True, min_width=800, min_height=600,
+    ), SimpleNamespace())
+    window = SimpleNamespace(url="http://127.0.0.1:18100", x=100, y=50, width=1100, height=800)
+    shell_api._window = window
+    monkeypatch.setattr(api_module, "_read_windows_native_window_bounds", lambda _window: None)
+    monkeypatch.setattr(api_module, "_get_windows_work_area_bounds",
+                        lambda _window: api_module.WindowBounds(0, 0, 1920, 1040))
+    monkeypatch.setattr(api_module, "_supports_native_window_drag", lambda _window: True)
+    monkeypatch.setattr(api_module, "mark", lambda *_args, **_kwargs: None)
+
+    def apply_bounds(_window, bounds):
+        for name in ("x", "y", "width", "height"):
+            setattr(window, name, getattr(bounds, name))
+        return True
+
+    monkeypatch.setattr(shell_api, "_apply_window_bounds", apply_bounds)
+
+    def start_native_drag(_window, **_kwargs):
+        assert shell_api.get_window_state()["maximized"] is False
+        assert (window.width, window.height) == (1100, 800)
+        assert (window.x, window.y) == (250, 100)
+        return native_started
+
+    monkeypatch.setattr(api_module, "_start_native_window_drag", start_native_drag)
+    assert shell_api.toggle_maximize_window()["maximized"] is True
+    assert (window.width, window.height) == (1920, 1040)
+    assert shell_api.start_window_drag(800, 120, 0.5, 20) is native_started
+    assert shell_api.get_window_state()["maximized"] is False
+    assert shell_api._restore_bounds == api_module.WindowBounds(250, 100, 1100, 800)
+
+
 def test_native_close_is_cancelled_until_frontend_confirms_exit(monkeypatch) -> None:
     shell_api = ShellApi(SimpleNamespace(), SimpleNamespace())
     close_requests: list[bool] = []

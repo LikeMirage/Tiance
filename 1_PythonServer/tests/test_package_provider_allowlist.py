@@ -30,7 +30,7 @@ def package_repo(tmp_path):
     repo.mkdir()
     _run(repo, "git", "init", "-q")
     _write(repo, ".gitattributes", (ROOT / ".gitattributes").read_text(encoding="utf-8-sig"))
-    for name in ("package-release.ps1", "package-test.ps1", "package-providers.ps1",
+    for name in ("package-release.ps1", "package-test.ps1", "package-providers.ps1", "package-theme.ps1",
                  "build-remote-gateway.ps1", "gateway-build-integrity.ps1"):
         target = repo / "scripts" / name
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -40,6 +40,9 @@ def package_repo(tmp_path):
                      "1_PythonServer/run.py", "2_ReactWeb/dist/index.html", "3_PyWebView/run.py"):
         _write(repo, relative, "fixture")
     _write(repo, "system/version.json", '{"version":"0.1.0"}')
+    _write(repo, "Data/themes/theme-settings.json", json.dumps({"schemaVersion": 1, "activeThemeId": "dark-gold"}))
+    for theme_id in ("dark-gold", "pure-white"):
+        _write(repo, f"Data/themes/{theme_id}/theme.json", json.dumps({"schemaVersion": 2, "id": theme_id}))
     for provider in ("public", "private"):
         for name in PUBLIC_FILES:
             _write(repo, f"Data/providers/{provider}/{name}", json.dumps({"id": provider}))
@@ -175,6 +178,48 @@ def test_release_filters_even_committed_private_files_without_changing_source(pa
             assert not any("/Data/" in path for path in archive.namelist())
     assert all(p.read_bytes() == content for p, content in before.items())
     assert (repo / ".git/index").read_bytes() == index_before
+
+
+@pytest.mark.parametrize("package_kind", ["release", "test"])
+def test_package_theme_uses_local_selection_committed_with_source(package_repo, package_kind):
+    repo = package_repo
+    settings = {"schemaVersion": 1, "activeThemeId": "pure-white", "updatedAt": "2026-10-30T00:00:00Z"}
+    _write(repo, "Data/themes/theme-settings.json", json.dumps(settings))
+    script = "package-release.ps1" if package_kind == "release" else "package-test.ps1"
+    args = ("-Version", "0.2.0", "-Tag", "HEAD", "-PreviousTag", "v0.1.0") if package_kind == "release" else ()
+    index_before = (repo / ".git/index").read_bytes()
+    rejected = _package(repo, script, *args, "-OutputDirectory", "old-theme", check=False)
+    assert rejected.returncode != 0
+    assert "Package theme selection differs" in rejected.stdout + rejected.stderr
+    assert not (repo / "old-theme/Tiance.zip").exists()
+    assert not (repo / "old-theme/Tiance").exists()
+    assert (repo / ".git/index").read_bytes() == index_before
+
+    _commit(repo)
+    _package(repo, script, *args, "-OutputDirectory", "current-theme")
+    if package_kind == "release":
+        with zipfile.ZipFile(repo / "current-theme/Tiance.zip") as archive:
+            assert json.loads(archive.read("Tiance/Data/themes/theme-settings.json")) == settings
+            assert json.loads(archive.read("Tiance/Data/themes/pure-white/theme.json"))["id"] == "pure-white"
+        for name in ("Tiance-update.zip", "Tiance-update-incremental.zip"):
+            with zipfile.ZipFile(repo / "current-theme" / name) as archive:
+                assert not any("/Data/" in path for path in archive.namelist())
+    else:
+        assert json.loads((repo / "current-theme/Tiance/Data/themes/theme-settings.json").read_text()) == settings
+    assert json.loads((repo / "Data/themes/theme-settings.json").read_text()) == settings
+
+
+@pytest.mark.parametrize("package_kind", ["release", "test"])
+def test_package_theme_requires_selected_definition_in_snapshot(package_repo, package_kind):
+    repo = package_repo
+    _write(repo, "Data/themes/theme-settings.json", '{"schemaVersion":1,"activeThemeId":"not-committed"}')
+    _commit(repo)
+    _write(repo, "Data/themes/not-committed/theme.json", '{"schemaVersion":2,"id":"not-committed"}')
+    script = "package-release.ps1" if package_kind == "release" else "package-test.ps1"
+    args = ("-Version", "0.2.0", "-Tag", "HEAD", "-PreviousTag", "v0.1.0") if package_kind == "release" else ()
+    rejected = _package(repo, script, *args, "-OutputDirectory", "missing-theme", check=False)
+    assert rejected.returncode != 0
+    assert "Selected theme is missing" in rejected.stdout + rejected.stderr
 
 
 @pytest.mark.parametrize("shell_name", ["powershell", "pwsh"])

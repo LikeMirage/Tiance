@@ -387,6 +387,7 @@ export function FileWorkspaceTree({
 
       {pendingDeleteNodeIds ? (
         <ConfirmModal
+          dialogClassName="confirm-modal--square"
           danger
           title={t("fileWorkspace.delete.title")}
           message={

@@ -15,6 +15,7 @@ type ContextMenuProps = {
   children: ReactNode;
   className?: string;
   minWidth?: number;
+  withIcons?: boolean;
   onClose: () => void;
   position: ContextMenuPosition;
 };
@@ -24,12 +25,14 @@ type ContextMenuItemProps = {
   children: ReactNode;
   danger?: boolean;
   disabled?: boolean;
+  icon?: ReactNode;
   onSelect: () => void;
 };
 
 type ContextMenuSubmenuProps = {
   children: ReactNode;
   disabled?: boolean;
+  icon?: ReactNode;
   label: ReactNode;
 };
 
@@ -43,6 +46,7 @@ export function ContextMenu({
   children,
   className,
   minWidth = 142,
+  withIcons = false,
   onClose,
   position,
 }: ContextMenuProps) {
@@ -84,7 +88,7 @@ export function ContextMenu({
       />
       <div
         ref={menuRef}
-        className={["ds-context-menu", className].filter(Boolean).join(" ")}
+        className={["ds-context-menu", withIcons ? "ds-context-menu--with-icons" : "", className].filter(Boolean).join(" ")}
         role="menu"
         style={style}
       >
@@ -100,6 +104,7 @@ export function ContextMenuItem({
   children,
   danger = false,
   disabled = false,
+  icon,
   onSelect,
 }: ContextMenuItemProps) {
   const pointerSelectRef = useRef(false);
@@ -140,7 +145,8 @@ export function ContextMenuItem({
         onSelect();
       }}
     >
-      {children}
+      <span className="ds-context-menu__icon" aria-hidden="true">{icon}</span>
+      <span className="ds-context-menu__label">{children}</span>
     </button>
   );
 }
@@ -148,6 +154,7 @@ export function ContextMenuItem({
 export function ContextMenuSubmenu({
   children,
   disabled = false,
+  icon,
   label,
 }: ContextMenuSubmenuProps) {
   return (
@@ -162,7 +169,8 @@ export function ContextMenuSubmenu({
         role="menuitem"
         type="button"
       >
-        {label}
+        <span className="ds-context-menu__icon" aria-hidden="true">{icon}</span>
+        <span className="ds-context-menu__label">{label}</span>
       </button>
       {!disabled ? (
         <div

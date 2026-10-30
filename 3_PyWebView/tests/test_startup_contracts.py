@@ -529,15 +529,12 @@ class StartupPageTests(unittest.TestCase):
             self.assertIn("const backendResult = await ensureBackendRunning();", page)
             self.assertIn("后端服务启动失败：${backendError}", page)
             self.assertIn('"textMuted"', page)
-            self.assertIn(
-                'class="startup-background" src="http://127.0.0.1:18000/app/startup-background.png"',
-                page,
-            )
+            self.assertIn('<div class="wordmark">Tiance</div>', page)
+            self.assertNotIn("startup-background.png", page)
             self.assertNotIn("data:image/", page)
             # WebView2 NavigateToString accepts at most 2 MB of HTML.
             self.assertLess(len(page.encode("utf-16-le")), 2 * 1024 * 1024)
             self.assertIn('id="summary" role="status"', page)
-            self.assertNotIn("wordmark", page)
             self.assertNotIn("filter: drop-shadow", page)
             self.assertNotIn('class="ring"', page)
 

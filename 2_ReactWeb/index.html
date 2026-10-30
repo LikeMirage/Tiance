@@ -4,8 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/favicon.ico" />
+    <link rel="preload" href="/fonts/oxanium-tiance.ttf" as="font" type="font/ttf" crossorigin />
     <title>Tiance</title>
     <style>
+      /* Oxanium SemiBold, limited to the Tiance wordmark; see fonts/oxanium-OFL.txt. */
+      @font-face {
+        font-family: "Oxanium";
+        src: url("/fonts/oxanium-tiance.ttf") format("truetype");
+        font-style: normal;
+        font-weight: 600;
+        font-display: block;
+      }
+
       :root {
         color-scheme: light dark;
         --tiance-boot-surface-base: rgb(30, 30, 30);
@@ -35,17 +45,32 @@
         position: fixed;
         inset: 0;
         z-index: 1;
-        background: #080704;
+        background: var(--tiance-boot-surface-base);
         pointer-events: none;
       }
 
-      .tiance-boot-placeholder__background {
+      .tiance-boot-placeholder__wordmark {
         position: absolute;
         inset: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        object-position: center 75%;
+        display: grid;
+        place-items: center;
+        color: var(--tiance-boot-text-primary);
+        font-family: "Oxanium", "Bahnschrift", sans-serif;
+        font-size: clamp(80px, 12.5vw, 180px);
+        font-weight: 600;
+        line-height: 1;
+        letter-spacing: 0.04em;
+        user-select: none;
+        animation: tiance-wordmark-breathe 2.8s ease-in-out infinite;
+      }
+
+      @keyframes tiance-wordmark-breathe {
+        0%, 100% { opacity: 0.45; }
+        50% { opacity: 1; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .tiance-boot-placeholder__wordmark { animation: none; }
       }
 
       .tiance-boot-placeholder__status {
@@ -54,13 +79,12 @@
         left: 50%;
         width: min(560px, calc(100vw - 48px));
         margin: 0;
-        color: #f1d6a0;
+        color: var(--tiance-boot-text-muted);
         font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
         font-size: 14px;
         font-weight: 400;
         line-height: 1.6;
         letter-spacing: 0.08em;
-        text-shadow: 0 2px 8px #000, 0 0 3px #000;
         text-align: center;
         transform: translateX(-50%);
       }
@@ -118,7 +142,7 @@
   <body>
     <div id="root"></div>
     <div id="tiance-boot-placeholder" class="tiance-boot-placeholder" aria-label="Tiance 正在启动">
-      <img class="tiance-boot-placeholder__background" src="/startup-background.png" alt="" />
+      <div class="tiance-boot-placeholder__wordmark">Tiance</div>
       <p class="tiance-boot-placeholder__status" role="status">正在加载界面</p>
     </div>
     <script>

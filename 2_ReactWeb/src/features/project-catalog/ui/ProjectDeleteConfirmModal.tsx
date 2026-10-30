@@ -27,6 +27,7 @@ export function ProjectDeleteConfirmModal({
 
   return (
     <ConfirmModal
+      dialogClassName="confirm-modal--square"
       cancelDisabled={isDeleting}
       danger={pendingDelete.mode !== "remove"}
       title={

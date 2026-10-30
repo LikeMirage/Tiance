@@ -1,3 +1,5 @@
+import { ArrowRight, FolderOpen, MinusCircle, PencilSimple, PushPin, Trash } from "@phosphor-icons/react";
+
 import type { Project, ProjectCategory } from "../../../entities/project/model/project";
 import {
   ContextMenu,
@@ -56,10 +58,11 @@ export function ProjectListContextMenu({
       ?.project_id === contextProject.project_id;
 
   return (
-    <ContextMenu onClose={onClose} position={{ x: contextMenu.x, y: contextMenu.y }}>
+    <ContextMenu withIcons onClose={onClose} position={{ x: contextMenu.x, y: contextMenu.y }}>
       {!isBatch ? (
         <>
           <ContextMenuItem
+            icon={<PushPin size={16} />}
             disabled={isCategoryFirstProject}
             onSelect={() => {
               onPinProjectToTop(contextMenu.primaryProjectId);
@@ -69,6 +72,7 @@ export function ProjectListContextMenu({
             {t("projectList.context.pinTop")}
           </ContextMenuItem>
           <ContextMenuItem
+            icon={<PencilSimple size={16} />}
             onSelect={() => {
               onStartRename(contextMenu.primaryProjectId);
               onClose();
@@ -77,6 +81,7 @@ export function ProjectListContextMenu({
             {t("common.actions.rename")}
           </ContextMenuItem>
           <ContextMenuItem
+            icon={<FolderOpen size={16} />}
             onSelect={() => {
               onRevealProject(contextMenu.primaryProjectId);
               onClose();
@@ -89,7 +94,7 @@ export function ProjectListContextMenu({
       {targetCategories.length > 0 ? (
         <>
           <ContextMenuSeparator />
-          <ContextMenuSubmenu label={t("projectList.context.moveTo")}>
+          <ContextMenuSubmenu icon={<ArrowRight size={16} />} label={t("projectList.context.moveTo")}>
             {targetCategories.map((category) => (
               <ContextMenuItem
                 key={category.category_id}
@@ -108,6 +113,7 @@ export function ProjectListContextMenu({
       {allImported ? (
         <>
           <ContextMenuItem
+            icon={<MinusCircle size={16} />}
             activation="click"
             onSelect={() => {
               requestDelete({
@@ -120,6 +126,7 @@ export function ProjectListContextMenu({
             {t("projectList.context.removeProject")}
           </ContextMenuItem>
           <ContextMenuItem
+            icon={<Trash size={16} />}
             activation="click"
             danger
             onSelect={() => {
@@ -135,6 +142,7 @@ export function ProjectListContextMenu({
         </>
       ) : allManaged ? (
         <ContextMenuItem
+          icon={<Trash size={16} />}
           activation="click"
           danger
           onSelect={() => {
@@ -149,6 +157,7 @@ export function ProjectListContextMenu({
         </ContextMenuItem>
       ) : (
         <ContextMenuItem
+          icon={<Trash size={16} />}
           activation="click"
           danger
           onSelect={() => {

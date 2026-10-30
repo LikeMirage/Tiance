@@ -18,6 +18,7 @@ export function ToolFolderDeleteConfirmModal({
 
   return (
     <ConfirmModal
+      dialogClassName="confirm-modal--square"
       danger
       confirmDisabled={isDeleting}
       confirmLabel={isDeleting ? "删除中" : "删除"}

@@ -247,11 +247,13 @@ function indexFixture(t) {
   }), (_id, nextHandlers) => {
     handlers = nextHandlers; watches++;
     return () => { stops++; };
-  });
+  }, (_id, paths, init) => new Promise((resolve, reject) => {
+    requests.push({ resolve, reject, signal: init.signal, paths });
+  }));
   return { files, requests, get handlers() { return handlers; },
     get watches() { return watches; }, get stops() { return stops; } };
 }
-const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
+const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
 
 test("整段历史的裸文件名共享一次扫描，未使用裸文件名时不扫描", async (t) => {
   const f = indexFixture(t);
@@ -265,7 +267,7 @@ test("整段历史的裸文件名共享一次扫描，未使用裸文件名时�
   assert.equal(f.stops, 0);
   stops[99]();
   assert.equal(f.stops, 1);
-  assert.equal(f.requests[0].signal.aborted, true);
+  assert.equal(f.requests[0].signal.aborted, false);
 });
 
 test("文件变化合并刷新；新增、移动、同名与删除更新链接，纯内容修改不重渲染历史", async (t) => {
@@ -273,13 +275,20 @@ test("文件变化合并刷新；新增、移动、同名与删除更新链接�
   let changes = 0;
   const stop = f.files.subscribe(() => changes++); t.after(stop);
   f.requests[0].resolve(snapshot([])); await flush();
-  for (const paths of [["a.md"], ["目录/a.md"], ["目录/a.md", "a.md"], []]) {
-    for (let i = 0; i < 5; i++) f.handlers.onChanged(paths);
+  const steps = [
+    { changed: ["a.md"], items: ["a.md"], expected: "a.md" },
+    { changed: ["a.md", "目录"], items: ["目录/a.md"], expected: "目录/a.md" },
+    { changed: ["a.md"], items: ["a.md"], expected: undefined },
+    { changed: ["目录", "a.md"], items: [], expected: undefined },
+  ];
+  for (const step of steps) {
+    for (let i = 0; i < 5; i++) f.handlers.onChanged(step.changed);
     const oldCount = f.requests.length;
     t.mock.timers.tick(200);
     assert.equal(f.requests.length, oldCount + 1);
-    f.requests.at(-1).resolve(snapshot(paths)); await flush();
-    assert.equal(f.files.getSnapshot().get("a.md")?.projectPath, paths.length === 1 ? paths[0] : undefined);
+    assert.deepEqual(f.requests.at(-1).paths, step.changed);
+    f.requests.at(-1).resolve(snapshot(step.items)); await flush();
+    assert.equal(f.files.getSnapshot().get("a.md")?.projectPath, step.expected);
   }
   const before = changes;
   f.handlers.onChanged(["a.md"]); t.mock.timers.tick(200);
@@ -292,7 +301,8 @@ test("过期扫描、项目关闭、断线与扫描失败不能把未经确认�
   let stop = f.files.subscribe(() => {});
   f.handlers.onChanged(["new.md"]);
   f.requests[0].resolve(snapshot(["old.md"])); await flush();
-  assert.equal(f.files.getSnapshot(), null);
+  assert.ok(f.files.getSnapshot().has("old.md"));
+  assert.equal(f.requests[0].signal.aborted, false);
   t.mock.timers.tick(200);
   f.requests[1].resolve(snapshot(["new.md"])); await flush();
   assert.ok(f.files.getSnapshot().has("new.md"));
@@ -310,4 +320,22 @@ test("过期扫描、项目关闭、断线与扫描失败不能把未经确认�
   f.requests[4].resolve(snapshot(["current.md"])); await flush();
   assert.ok(f.files.getSnapshot().has("current.md"));
   assert.ok(!f.files.getSnapshot().has("late.md"));
+});
+
+
+test("continuous log writes do not abort full scans or rebuild unchanged filename links", async (t) => {
+  const f = indexFixture(t);
+  let publications = 0;
+  const stop = f.files.subscribe(() => publications++); t.after(stop);
+  for (let i = 0; i < 10; i++) { f.handlers.onChanged(["Data/logs/backend.log"]); t.mock.timers.tick(200); }
+  assert.equal(f.requests.length, 1);
+  assert.equal(f.requests[0].signal.aborted, false);
+  f.requests[0].resolve(snapshot(["README.md", "Data/logs/backend.log"])); await flush();
+  const original = f.files.getSnapshot();
+  t.mock.timers.tick(200);
+  assert.deepEqual(f.requests[1].paths, ["Data/logs/backend.log"]);
+  f.requests[1].resolve(snapshot(["Data/logs/backend.log"])); await flush();
+  assert.equal(f.files.getSnapshot(), original);
+  assert.equal(publications, 1);
+  assert.equal(f.files.getSnapshot().size, 2);
 });

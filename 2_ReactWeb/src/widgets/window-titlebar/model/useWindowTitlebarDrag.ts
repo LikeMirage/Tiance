@@ -208,8 +208,9 @@ export function useWindowTitlebarDrag({
           startScreenY,
           clampDragAnchor(startClientX / Math.max(window.innerWidth, 1)),
           startClientY,
-        ).then((didStart) => {
+        ).catch(() => false).then((didStart) => {
           if (didStart) {
+            clearDragPerformanceMode();
             reportWindowDragMode("native");
             return;
           }
@@ -269,6 +270,7 @@ export function useWindowTitlebarDrag({
     [
       canStartNativeDrag,
       clearActiveDrag,
+      clearDragPerformanceMode,
       getBounds,
       isAvailable,
       isFrameless,

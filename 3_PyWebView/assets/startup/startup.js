@@ -185,6 +185,11 @@ async function advanceStartup() {
     try {
       if (!(await window.pywebview.api.prepare_gateway_access())) throw new Error("Desktop authentication unavailable");
     } catch (_error) {
+      if (startupAttempt < startupConfig.maxAttempts) {
+        setText("summary", "正在建立桌面连接");
+        window.setTimeout(runStartupCheck, getRetryDelay());
+        return;
+      }
       setPageState("error");
       setText("summary", "启动失败");
       setText("hint", "无法建立桌面身份，请关闭后重新启动。");

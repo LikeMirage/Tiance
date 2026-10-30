@@ -217,9 +217,10 @@ def inspect_file(path: Path) -> dict:
     elif extension == ".xls":
         raise policy.PreviewLimit("旧版 XLS 格式请用默认应用打开，或另存为 XLSX 后预览。")
     elif extension in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".ico"):
-        if size > policy.MAX_IMAGE_BYTES:
-            raise policy.PreviewLimit("图片文件超过 32 MiB，请用默认应用打开。")
-        result["width"], result["height"] = inspect_image(path)
+        from .image_metadata import inspect_standalone_image
+        # The original file is streamed to the browser, not decoded into a
+        # backend bitmap or copied into a JSON response.
+        result["width"], result["height"] = inspect_standalone_image(path)
     elif extension == ".svg":
         # SVG remains a browser-rendered image, with no scripts.
         if size > policy.MAX_SVG_BYTES:

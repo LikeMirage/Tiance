@@ -10,7 +10,9 @@ import type {
 } from "../../../entities/editor/model/editorReference";
 import type { ConversationMessageReferences } from "../../../entities/llm-chat/model/chatCompletion";
 import type { ConversationSession } from "../../../entities/llm-chat/model/conversation";
+import { buildConversationSessionTree } from "../../../entities/llm-chat/model/conversationSessionTree";
 import { stopChatCompletionStream } from "../../../services/llm/stopChatCompletionStream";
+import { HttpRequestError } from "../../../services/http/httpClient";
 import { useComposerResize } from "../model/useComposerResize";
 import {
   getLastMessageContextMeasurement,
@@ -145,6 +147,7 @@ export function ChatPanelController({
   sessionSelectionRequest,
 }: Props) {
   const [activeView, setActiveView] = useState<ChatPanelView>("chat");
+  const [stopError, setStopError] = useState<{ sessionKey: string; message: string } | null>(null);
   const [localFileActionError, setLocalFileActionError] = useState<string | null>(null);
   const latestReferencesRef = useRef(references);
   latestReferencesRef.current = references;
@@ -305,6 +308,10 @@ export function ChatPanelController({
     unmarkSessionStreaming,
   });
   const activeSession = sessions.find((session) => session.session_id === activeSessionId && session.settings) ?? null;
+  const displaySequenceBySession = useMemo(
+    () => buildConversationSessionTree(sessions, branchNodes).displaySequenceBySession,
+    [sessions, branchNodes],
+  );
   const handleRoleSessionUpdated = useCallback((updatedSession: ConversationSession) => {
     setSessions((current) => current.map((session) =>
       session.session_id === updatedSession.session_id ? updatedSession : session
@@ -649,6 +656,8 @@ export function ChatPanelController({
     activeSessionId,
     activeSessionKey,
     clientToolExecutor: combinedClientToolExecutor,
+    createSessionStreamController,
+    releaseSessionStreamController,
     isActive: isStreamPresentationVisible,
     isSessionMessagesPresented,
     isThinkingStuckToBottom,
@@ -721,6 +730,7 @@ export function ChatPanelController({
   const stopActiveGeneration = useCallback(() => {
     if (!projectId || !activeSessionId || !activeSessionKey) return;
     if (stoppingSessionKeysRef.current.has(activeSessionKey)) return;
+    setStopError(null);
     stoppingSessionKeysRef.current.add(activeSessionKey);
     setStoppingSessionKeys(new Set(stoppingSessionKeysRef.current));
     preserveCurrentView();
@@ -728,13 +738,20 @@ export function ChatPanelController({
     void (async () => {
       try {
         await stopChatCompletionStream(projectId, activeSessionId);
-        await reloadSessionMessages(projectId, activeSessionId, {
+        setSessionRuntimeStatus(projectId, activeSessionId, "idle");
+        void reloadSessionMessages(projectId, activeSessionId, {
           forceRefresh: true,
           shouldPreserveLocal: () => isSessionStreaming(activeSessionKey),
         }).catch(() => false);
-        await reloadSessions(projectId).catch(() => undefined);
-      } catch {
-        await reloadSessions(projectId).catch(() => undefined);
+        void reloadSessions(projectId).catch(() => undefined);
+      } catch (error) {
+        if (error instanceof HttpRequestError && error.code === "conversation_stop_settlement_failed") {
+          // The server confirmed the task ended, but saving failed. Show that
+          // failure without keeping a nonexistent task in the running state.
+          setSessionRuntimeStatus(projectId, activeSessionId, "error");
+        }
+        setStopError({ sessionKey: activeSessionKey, message: error instanceof Error ? error.message : "停止任务失败，请重试。" });
+        void reloadSessions(projectId).catch(() => undefined);
       } finally {
         stoppingSessionKeysRef.current.delete(activeSessionKey);
         setStoppingSessionKeys(new Set(stoppingSessionKeysRef.current));
@@ -742,6 +759,7 @@ export function ChatPanelController({
     })();
   }, [
     abortSessionStream,
+    setSessionRuntimeStatus,
     activeSessionId,
     activeSessionKey,
     isSessionStreaming,
@@ -797,6 +815,7 @@ export function ChatPanelController({
     <>
       <ChatHeader
         activeSession={activeSession}
+        displaySequence={activeSessionId ? displaySequenceBySession.get(activeSessionId) ?? null : null}
         activeView={activeView}
         canCreateConversation={Boolean(
           projectId && !isLoadingSessions && !sessionLoadError && !isCreatingConversation
@@ -821,6 +840,7 @@ export function ChatPanelController({
       <ChatPanelErrorNotice message={sessionLoadError} scopeKey={projectId} onRetry={retryLoadSessions} />
       <ChatPanelErrorNotice message={sessionSelectionError} scopeKey={activeSessionKey ?? projectId} />
       <ChatPanelErrorNotice message={branchError} scopeKey={activeSessionKey ?? projectId} />
+      <ChatPanelErrorNotice message={stopError?.sessionKey === activeSessionKey ? stopError.message : null} scopeKey={activeSessionKey ?? projectId} />
       <ChatPanelErrorNotice message={localFileActionError} scopeKey={activeSessionKey ?? projectId} />
 
       {activeView === "settings" && (

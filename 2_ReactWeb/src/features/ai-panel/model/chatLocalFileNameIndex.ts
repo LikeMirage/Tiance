@@ -5,7 +5,7 @@ import {
   type LocalFileNameIndex,
   type LocalFileReferenceContext,
 } from "../../../entities/local-file/model/localFileReference";
-import { getProjectContentFiles, type ProjectContentFileSnapshot } from "../../../services/project/getProjectContentFiles";
+import { getProjectContentFiles, refreshProjectContentFiles, type ProjectContentFileSnapshot } from "../../../services/project/getProjectContentFiles";
 import { watchProjectFileEvents } from "../../../services/project/watchProjectFileEvents";
 
 export function buildChatLocalFileNameIndex(
@@ -31,10 +31,15 @@ export function createChatLocalFileNameAvailability(
   context: LocalFileReferenceContext,
   loadSnapshot = getProjectContentFiles,
   watchFiles = watchProjectFileEvents,
+  loadChanges = refreshProjectContentFiles,
 ): LocalFileNameAvailability {
   let index: LocalFileNameIndex | null = null;
+  const files = new Map<string, ProjectContentFileSnapshot["items"][number]>();
+  const unreadable = new Set<string>();
+  const pending = new Set<string>();
   const listeners = new Set<() => void>();
-  let revision = 0;
+  let full = true;
+  let generation = 0;
   let request: AbortController | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopWatching: (() => void) | null = null;
@@ -45,26 +50,62 @@ export function createChatLocalFileNameAvailability(
     index = next;
     for (const listener of listeners) listener();
   };
-  const refresh = (expectedRevision: number) => {
+  const within = (path: string, scope: string) => !scope || scope === "." ||
+    path.toLowerCase() === scope.toLowerCase() || path.toLowerCase().startsWith(scope.toLowerCase() + "/");
+  const refresh = () => {
     timer = null;
-    if (!context.projectId || !listeners.size || !available) return;
-    request?.abort();
+    if (!context.projectId || !listeners.size || !available || request) return;
+    if (!full && !pending.size) return;
+    const isFull = full;
+    const paths = [...pending];
+    full = false;
+    pending.clear();
+    const expectedGeneration = generation;
     const controller = new AbortController();
     request = controller;
-    void loadSnapshot(context.projectId, { signal: controller.signal }).then((snapshot) => {
-      if (!controller.signal.aborted && expectedRevision === revision) {
-        publish(buildChatLocalFileNameIndex(snapshot, context));
+    const operation = isFull ? loadSnapshot(context.projectId, { signal: controller.signal })
+      : loadChanges(context.projectId, paths, { signal: controller.signal });
+    void operation.then((snapshot) => {
+      if (controller.signal.aborted || generation !== expectedGeneration) return;
+      if (snapshot.project_id !== context.projectId) throw new Error("Unexpected snapshot project");
+      const replacements = new Map(snapshot.items.map(item => [item.path, item]));
+      let changed = isFull;
+      // Content-only modifications do not rebuild the filename map or messages.
+      const existingPaths = !isFull && paths.every(path => files.has(path)) ? paths : files.keys();
+      for (const path of existingPaths) {
+        if ((isFull || paths.some(scope => within(path, scope))) && !replacements.has(path)) {
+          files.delete(path); changed = true;
+        }
       }
-    }, () => {
-      if (!controller.signal.aborted && expectedRevision === revision) publish(null);
+      for (const [path, item] of replacements) {
+        if (!files.has(path)) changed = true;
+        files.set(path, item);
+      }
+      for (const path of unreadable) {
+        if (isFull || paths.some(scope => within(path, scope))) unreadable.delete(path);
+      }
+      for (const path of snapshot.unreadable_paths) unreadable.add(path);
+      if (unreadable.size) publish(null);
+      else if (changed || index === null) publish(buildChatLocalFileNameIndex({
+        project_id: context.projectId!, items: [...files.values()], unreadable_paths: [],
+      }, context));
+    }).catch(() => {
+      if (!controller.signal.aborted && generation === expectedGeneration) {
+        publish(null); full = true;
+      }
+    }).finally(() => {
+      if (request !== controller) return;
+      request = null;
+      // Changes during a scan become one trailing update, never a replacement
+      // that cancels useful work. An error alone does not start a retry loop.
+      if (pending.size && available && listeners.size) schedule();
     });
   };
-  const scheduleRefresh = () => {
-    revision += 1;
-    if (timer !== null) clearTimeout(timer);
-    const expectedRevision = revision;
-    timer = setTimeout(() => refresh(expectedRevision), 200);
+  const schedule = () => {
+    if (timer !== null || request) return;
+    timer = setTimeout(refresh, 200);
   };
+  const invalidateAll = () => { full = true; pending.add(""); schedule(); };
 
   return {
     getSnapshot: () => index,
@@ -72,28 +113,28 @@ export function createChatLocalFileNameAvailability(
       listeners.add(listener);
       if (listeners.size === 1 && context.projectId && context.projectRootPath) {
         available = true;
+        full = true;
         stopWatching = watchFiles(context.projectId, {
-          onChanged: scheduleRefresh,
-          onOverflow: scheduleRefresh,
+          onChanged: (paths) => { for (const path of paths) pending.add(path.replaceAll("\\", "/")); schedule(); },
+          onOverflow: invalidateAll,
           onStatusChanged: (nextAvailable) => {
             if (available === nextAvailable) return;
             available = nextAvailable;
-            if (available) scheduleRefresh();
-            else { revision += 1; request?.abort(); publish(null); }
+            if (available) invalidateAll();
+            else { generation++; request?.abort(); publish(null); }
           },
         });
-        refresh(++revision);
+        refresh();
       }
       return () => {
         listeners.delete(listener);
         if (listeners.size) return;
-        revision += 1;
-        request?.abort();
-        request = null;
+        generation++;
+        request?.abort(); request = null;
         if (timer !== null) clearTimeout(timer);
         timer = null;
-        stopWatching?.();
-        stopWatching = null;
+        stopWatching?.(); stopWatching = null;
+        pending.clear(); files.clear(); unreadable.clear();
         index = null;
       };
     },

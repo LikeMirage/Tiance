@@ -361,6 +361,17 @@ export function useChatGeneration({
     let publishedRunningContent = false;
     let runAccepted = false;
     let streamWasCancelled = false;
+    let transportReleased = false;
+    const releaseTransport = () => {
+      if (transportReleased) return;
+      transportReleased = true;
+      streamAccumulator.clearFlushTimer();
+      if (shouldClearEventSequence) clearChatStreamEventSequence(streamSessionKey, streamEventSequenceState);
+      unmarkSessionStreaming(streamSessionKey, streamingLease);
+      releaseSessionStreamController(streamSessionKey, streamController);
+      sendingSessionKeysRef.current.delete(streamSessionKey);
+    };
+
 
     try {
       await streamChatCompletion(buildConversationRunRequest({
@@ -436,6 +447,8 @@ export function useChatGeneration({
             }
           : message,
       ));
+      setSessionRuntimeStatus(streamProjectId, sessionId, streamHadError ? "error" : "idle");
+      releaseTransport();
       await reloadSessionMessages(streamProjectId, sessionId, {
         forceRefresh: true,
       }).catch(() => undefined);
@@ -444,11 +457,6 @@ export function useChatGeneration({
         providerId: streamModel.providerId,
         modelId: streamModel.modelId,
       });
-      setSessionRuntimeStatus(
-        streamProjectId,
-        sessionId,
-        streamHadError ? "error" : "idle",
-      );
       await reloadSessions(streamProjectId);
       for (const delayMs of [2000, 5000, 10000]) {
         window.setTimeout(() => {
@@ -478,6 +486,9 @@ export function useChatGeneration({
       if (isAbortError(err)) {
         shouldClearEventSequence = true;
         streamAccumulator.finalizeCancelled();
+        // Stream ownership ends here; server task ownership is reconciled by
+        // the stop acknowledgement / run status, independently of history IO.
+        releaseTransport();
         await reloadSessions(streamProjectId);
         for (const delayMs of [300, 1200, 3000]) {
           window.setTimeout(() => {
@@ -496,6 +507,7 @@ export function useChatGeneration({
       if (isConversationStreamResyncRequired(err)) {
         shouldClearEventSequence = true;
         setSessionRuntimeStatus(streamProjectId, sessionId, "running");
+        releaseTransport();
         await Promise.all([
           reloadSessionMessages(streamProjectId, sessionId, {
             forceRefresh: true,
@@ -525,6 +537,7 @@ export function useChatGeneration({
             err.status === 409 ? "running" : "error",
           );
         }
+        releaseTransport();
         await Promise.all([
           reloadSessionMessages(streamProjectId, sessionId, {
             forceRefresh: true,
@@ -540,6 +553,7 @@ export function useChatGeneration({
           modelId: streamModel.modelId,
         });
       }
+      releaseTransport();
       await reloadSessions(streamProjectId);
       for (const delayMs of [300, 1200]) {
         window.setTimeout(() => {
@@ -553,13 +567,8 @@ export function useChatGeneration({
         projectId: streamProjectId,
         sessionId,
       });
-      if (shouldClearEventSequence) {
-        clearChatStreamEventSequence(streamSessionKey, streamEventSequenceState);
-      }
-      unmarkSessionStreaming(streamSessionKey, streamingLease);
+      releaseTransport();
       publishCurrentDraftSnapshot(streamProjectId, sessionId);
-      releaseSessionStreamController(streamSessionKey, streamController);
-      sendingSessionKeysRef.current.delete(streamSessionKey);
     }
   }, [
     activeModel,

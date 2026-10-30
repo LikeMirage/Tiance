@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from gzip import decompress as gzip_decompress
 from hashlib import sha256
 from json import dumps, loads
 from pathlib import Path
 import sqlite3
-from threading import Lock, local
+from threading import Lock, RLock, local
+from weakref import WeakValueDictionary
+from time import monotonic
+import logging
 from typing import Any, Iterator
 from zlib import error as zlib_error
 
@@ -16,7 +19,9 @@ from app.repositories.project.conversation_audit_snapshots import (
     collect_unreferenced_audit_blocks,
     restore_audit_snapshot,
     store_audit_snapshot,
+    store_prepared_audit_snapshot,
 )
+from app.repositories.project.conversation_audit_streaming import prepare_audit_snapshot
 from app.repositories.project.conversation_schema import (
     SCHEMA_VERSION,
     ensure_current_schema as _ensure_schema,
@@ -26,7 +31,21 @@ from app.repositories.project.conversation_schema import (
 
 DATABASE_FILE = "tiance.db"
 _thread_state = local()
-_database_initialization_lock = Lock()
+_database_lock_registry = Lock()
+_database_locks: WeakValueDictionary = WeakValueDictionary()
+_logger = logging.getLogger(__name__)
+
+
+def _database_write_lock(path: Path):
+    # Only writers to the same database serialize. Reads and other projects
+    # remain independent; SQLite still protects against external writers.
+    with _database_lock_registry:
+        lock = _database_locks.get(path)
+        if lock is None:
+            lock = RLock()
+            _database_locks[path] = lock
+        return lock
+
 _initialized_database_paths: set[Path] = set()
 # Derived request snapshots are readable documents, not conversation changes.
 _DERIVED_SESSION_DOCUMENTS = frozenset({"injection_preview"})
@@ -51,7 +70,10 @@ def session_id_from_session_dir(session_dir: Path) -> str:
 def ensure_database(workspace_dir: Path) -> Path:
     workspace_dir.mkdir(parents=True, exist_ok=True)
     path = database_path_from_workspace(workspace_dir).resolve()
-    with _database_initialization_lock:
+    # The common read path must never queue behind an active writer.
+    if path in _initialized_database_paths and path.is_file():
+        return path
+    with _database_write_lock(path):
         if path in _initialized_database_paths and path.is_file():
             return path
         _initialized_database_paths.discard(path)
@@ -70,65 +92,57 @@ def ensure_database(workspace_dir: Path) -> Path:
 
 @contextmanager
 def transaction_for_conversations(conversations_dir: Path) -> Iterator[sqlite3.Connection]:
-    path = database_path_from_conversations(conversations_dir).resolve()
-    active = getattr(_thread_state, "transactions", None)
-    if active is None:
-        active = {}
-        _thread_state.transactions = active
-    existing = active.get(path)
-    if existing is not None:
-        existing[1] += 1
-        try:
-            yield existing[0]
-        finally:
-            existing[1] -= 1
-        return
-
-    ensure_database(path.parent)
-    connection = _open_connection(path)
-    connection.execute("BEGIN IMMEDIATE")
-    active[path] = [connection, 1]
-    try:
+    with _write_connection(database_path_from_conversations(conversations_dir), track_all=True) as connection:
         yield connection
-        derived_changes = getattr(_thread_state, "derived_changes", {}).get(id(connection), 0)
-        changed = connection.total_changes > derived_changes
-        if changed:
-            _increment_conversation_revision(connection)
-        connection.commit()
-        if changed:
-            conversation_changes.publish(path)
-    except Exception:
-        connection.rollback()
-        raise
-    finally:
-        active.pop(path, None)
-        getattr(_thread_state, "visible_connections", set()).discard(id(connection))
-        getattr(_thread_state, "derived_changes", {}).pop(id(connection), None)
-        connection.close()
 
 
 @contextmanager
 def connection_for_path(path: Path) -> Iterator[sqlite3.Connection]:
+    with _write_connection(path, track_all=False) as connection:
+        yield connection
+
+
+@contextmanager
+def _write_connection(path: Path, *, track_all: bool) -> Iterator[sqlite3.Connection]:
     resolved = path.resolve()
-    active = getattr(_thread_state, "transactions", {})
+    active = getattr(_thread_state, "transactions", None)
+    if active is None:
+        active = {}
+        _thread_state.transactions = active
     existing = active.get(resolved)
     if existing is not None:
+        existing[2] = existing[2] or track_all
         yield existing[0]
         return
-    ensure_database(resolved.parent)
-    connection = _open_connection(resolved)
-    try:
-        yield connection
-        changed = id(connection) in getattr(_thread_state, "visible_connections", set())
-        if changed:
-            _increment_conversation_revision(connection)
-        connection.commit()
+    with _database_write_lock(resolved):
+        ensure_database(resolved.parent)
+        connection = _open_connection(resolved)
+        started = monotonic()
+        try:
+            # BEGIN belongs to the cleanup scope too: a failed BEGIN must not
+            # leave an open connection behind. Every nested writer reuses it.
+            connection.execute("BEGIN IMMEDIATE")
+            active[resolved] = [connection, 1, track_all]
+            yield connection
+            derived = getattr(_thread_state, "derived_changes", {}).get(id(connection), 0)
+            changed = (connection.total_changes > derived if active[resolved][2]
+                       else id(connection) in getattr(_thread_state, "visible_connections", set()))
+            if changed:
+                _increment_conversation_revision(connection)
+            connection.commit()
+        except BaseException:
+            connection.rollback()
+            raise
+        finally:
+            active.pop(resolved, None)
+            getattr(_thread_state, "visible_connections", set()).discard(id(connection))
+            getattr(_thread_state, "derived_changes", {}).pop(id(connection), None)
+            connection.close()
+            duration = monotonic() - started
+            if duration >= 1:
+                _logger.warning("Slow project database write: %.3fs, %s", duration, resolved)
         if changed:
             conversation_changes.publish(resolved)
-    finally:
-        getattr(_thread_state, "visible_connections", set()).discard(id(connection))
-        getattr(_thread_state, "derived_changes", {}).pop(id(connection), None)
-        connection.close()
 
 
 @contextmanager
@@ -751,11 +765,16 @@ def replace_message_payloads(session_dir: Path, payloads: list[dict[str, Any]]) 
 
 def append_event(session_dir: Path, kind: str, payload: dict[str, Any]) -> None:
     session_id = session_id_from_session_dir(session_dir)
-    with connection_for_path(database_path_from_session(session_dir)) as connection:
+    # Encoding and compression do not require a write transaction. Prepare
+    # first, then atomically insert blocks, manifest and its owning event.
+    with (
+        (prepare_audit_snapshot(payload) if kind == "model_exchanges" else nullcontext()) as prepared,
+        connection_for_path(database_path_from_session(session_dir)) as connection,
+    ):
         if not connection.in_transaction:
             connection.execute("BEGIN IMMEDIATE")
         stored_payload = (
-            store_audit_snapshot(connection, session_id, kind, payload)
+            store_prepared_audit_snapshot(connection, session_id, kind, prepared)
             if kind == "model_exchanges" else payload
         )
         ordinal = connection.execute(

@@ -1,3 +1,18 @@
+import {
+  ArrowClockwise,
+  ArrowSquareOut,
+  CaretDown,
+  CaretRight,
+  ChatCircleText,
+  ClipboardText,
+  Copy,
+  FilePlus,
+  FolderOpen,
+  FolderPlus,
+  PencilSimple,
+  Scissors,
+  Trash,
+} from "@phosphor-icons/react";
 import { flushSync } from "react-dom";
 
 import type { FileWorkspaceBrowserNode } from "../model/fileWorkspaceBrowserTreeModel";
@@ -59,8 +74,9 @@ export function FileWorkspaceRootContextMenu({
   const closeMenu = () => closeContextMenuNow(setContextMenu);
 
   return (
-    <ContextMenu onClose={closeMenu} position={{ x: contextMenu.x, y: contextMenu.y }}>
+    <ContextMenu withIcons onClose={closeMenu} position={{ x: contextMenu.x, y: contextMenu.y }}>
       <ContextMenuItem
+        icon={<FilePlus size={16} />}
         onSelect={() => runContextMenuAction(setContextMenu, () => {
           onCreateFile(undefined);
         })}
@@ -68,6 +84,7 @@ export function FileWorkspaceRootContextMenu({
         {t("fileWorkspace.context.createFile")}
       </ContextMenuItem>
       <ContextMenuItem
+        icon={<FolderPlus size={16} />}
         onSelect={() => runContextMenuAction(setContextMenu, () => {
           onCreateFolder(undefined);
         })}
@@ -76,6 +93,7 @@ export function FileWorkspaceRootContextMenu({
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem
+        icon={<ClipboardText size={16} />}
         disabled={!clipboard && !resolveSystemClipboardPaste}
         onSelect={() => {
           if (!clipboard && !resolveSystemClipboardPaste) {
@@ -101,6 +119,7 @@ export function FileWorkspaceRootContextMenu({
       ) : null}
       <ContextMenuSeparator />
       <ContextMenuItem
+        icon={<ArrowClockwise size={16} />}
         onSelect={() => runContextMenuAction(setContextMenu, () => {
           browser.refreshTree();
         })}
@@ -132,8 +151,9 @@ export function FileWorkspaceSelectionContextMenu({
   const selectedCount = nodeIds.length;
 
   return (
-    <ContextMenu onClose={closeMenu} position={{ x: contextMenu.x, y: contextMenu.y }}>
+    <ContextMenu withIcons onClose={closeMenu} position={{ x: contextMenu.x, y: contextMenu.y }}>
       <ContextMenuItem
+        icon={<Copy size={16} />}
         disabled={selectedCount === 0}
         onSelect={() => runContextMenuAction(setContextMenu, () => {
           copyToClipboard(browser, nodeIds, setClipboard, copyNodesToSystemClipboard);
@@ -142,6 +162,7 @@ export function FileWorkspaceSelectionContextMenu({
         {t("fileWorkspace.context.copyItems", { count: selectedCount })}
       </ContextMenuItem>
       <ContextMenuItem
+        icon={<Scissors size={16} />}
         disabled={selectedCount === 0}
         onSelect={() => runContextMenuAction(setContextMenu, () => {
           setClipboard({ mode: "cut", nodeIds });
@@ -151,6 +172,7 @@ export function FileWorkspaceSelectionContextMenu({
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem
+        icon={<ArrowClockwise size={16} />}
         onSelect={() => runContextMenuAction(setContextMenu, () => {
           browser.refreshTree();
         })}
@@ -158,6 +180,7 @@ export function FileWorkspaceSelectionContextMenu({
         {t("common.actions.refresh")}
       </ContextMenuItem>
       <ContextMenuItem
+        icon={<Trash size={16} />}
         danger
         disabled={selectedCount === 0}
         onSelect={() => runContextMenuAction(setContextMenu, () => {
@@ -208,9 +231,10 @@ export function FileWorkspaceNodeContextMenu({
   const targetParentNodeId = resolveNodeContextTargetParentId(node);
 
   return (
-    <ContextMenu onClose={closeMenu} position={{ x: contextMenu.x, y: contextMenu.y }}>
+    <ContextMenu withIcons onClose={closeMenu} position={{ x: contextMenu.x, y: contextMenu.y }}>
       {node.kind === "file" ? (
         <ContextMenuItem
+          icon={<ArrowSquareOut size={16} />}
           onSelect={() => runContextMenuAction(setContextMenu, () => {
             onOpenFile?.(node);
           })}
@@ -220,6 +244,7 @@ export function FileWorkspaceNodeContextMenu({
       ) : null}
       {onReferenceNode ? (
         <ContextMenuItem
+          icon={<ChatCircleText size={16} />}
           onSelect={() => runContextMenuAction(setContextMenu, () => {
             onReferenceNode(node);
           })}
@@ -229,6 +254,7 @@ export function FileWorkspaceNodeContextMenu({
       ) : null}
       {node.kind === "folder" ? (
         <ContextMenuItem
+          icon={isExpanded ? <CaretDown size={16} /> : <CaretRight size={16} />}
           onSelect={() => runContextMenuAction(setContextMenu, () => {
             browser.toggleNode(node.id);
           })}
@@ -237,6 +263,7 @@ export function FileWorkspaceNodeContextMenu({
         </ContextMenuItem>
       ) : null}
       <ContextMenuItem
+        icon={<FilePlus size={16} />}
         onSelect={() => runContextMenuAction(setContextMenu, () => {
           onCreateFile(targetParentNodeId ?? undefined);
         })}
@@ -244,6 +271,7 @@ export function FileWorkspaceNodeContextMenu({
         {t("fileWorkspace.context.createFile")}
       </ContextMenuItem>
       <ContextMenuItem
+        icon={<FolderPlus size={16} />}
         onSelect={() => runContextMenuAction(setContextMenu, () => {
           onCreateFolder(targetParentNodeId ?? undefined);
         })}
@@ -252,6 +280,7 @@ export function FileWorkspaceNodeContextMenu({
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem
+        icon={<FolderOpen size={16} />}
         onSelect={() => runContextMenuAction(setContextMenu, () => {
           void browser.revealNode(node.id).catch(() => undefined);
         })}
@@ -259,6 +288,7 @@ export function FileWorkspaceNodeContextMenu({
         {t("fileWorkspace.context.reveal")}
       </ContextMenuItem>
       <ContextMenuItem
+        icon={<Copy size={16} />}
         onSelect={() => runContextMenuAction(setContextMenu, () => {
           copyToClipboard(browser, [node.id], setClipboard, copyNodesToSystemClipboard);
         })}
@@ -266,6 +296,7 @@ export function FileWorkspaceNodeContextMenu({
         {t("fileWorkspace.context.copy")}
       </ContextMenuItem>
       <ContextMenuItem
+        icon={<Scissors size={16} />}
         onSelect={() => runContextMenuAction(setContextMenu, () => {
           setClipboard({ mode: "cut", nodeIds: [node.id] });
         })}
@@ -273,6 +304,7 @@ export function FileWorkspaceNodeContextMenu({
         {t("fileWorkspace.context.cut")}
       </ContextMenuItem>
       <ContextMenuItem
+        icon={<ClipboardText size={16} />}
         disabled={!clipboard && !resolveSystemClipboardPaste}
         onSelect={() => {
           if (!clipboard && !resolveSystemClipboardPaste) {
@@ -304,6 +336,7 @@ export function FileWorkspaceNodeContextMenu({
       ) : null}
       <ContextMenuSeparator />
       <ContextMenuItem
+        icon={<PencilSimple size={16} />}
         onSelect={() => runContextMenuAction(setContextMenu, () => {
           onRenameStart(node.id);
         })}
@@ -311,6 +344,7 @@ export function FileWorkspaceNodeContextMenu({
         {t("common.actions.rename")}
       </ContextMenuItem>
       <ContextMenuItem
+        icon={<ArrowClockwise size={16} />}
         onSelect={() => runContextMenuAction(setContextMenu, () => {
           browser.refreshTree();
         })}
@@ -318,6 +352,7 @@ export function FileWorkspaceNodeContextMenu({
         {t("common.actions.refresh")}
       </ContextMenuItem>
       <ContextMenuItem
+        icon={<Trash size={16} />}
         danger
         onSelect={() => runContextMenuAction(setContextMenu, () => {
           setPendingDeleteNodeIds([node.id]);

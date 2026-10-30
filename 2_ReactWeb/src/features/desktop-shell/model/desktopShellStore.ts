@@ -29,6 +29,7 @@ let desktopShellSnapshot = {
 let desktopShellBridgeBound = false;
 let desktopShellBridgeSubscribers = 0;
 let desktopShellBridgeSession = 0;
+let desktopWindowStateRevision = 0;
 let desktopShellSyncPromise: Promise<void> | null = null;
 let desktopShellRetryTimer: number | null = null;
 let desktopShellRetryAttempts = 0;
@@ -190,7 +191,18 @@ export async function startDesktopShellNativeDrag(
     return false;
   }
 
-  return api.start_window_drag(cursorScreenX, cursorScreenY, anchorRatio, dragOffsetY);
+  const bridgeSession = desktopShellBridgeSession;
+  try {
+    return await api.start_window_drag(cursorScreenX, cursorScreenY, anchorRatio, dragOffsetY);
+  } finally {
+    // Native drag can restore the window before returning either true or false.
+    // Reconcile the shared state used by both titlebar controls and resize handles.
+    if (bridgeSession === desktopShellBridgeSession && getDesktopShellApi() === api) {
+      await refreshDesktopShellWindowState(api).catch((error) => {
+        console.warn("Failed to synchronize window state after native drag.", error);
+      });
+    }
+  }
 }
 
 export async function startDesktopShellNativeResize(
@@ -233,9 +245,8 @@ export async function restoreDesktopShellForDrag(
     dragOffsetY,
   );
 
-  setDesktopShellState({
+  applyWindowState({
     ...desktopShellState,
-    available: true,
     maximized: false,
   });
   rememberNormalWindowSize(bounds);
@@ -252,9 +263,8 @@ export async function persistDesktopShellWindowSizePreferences() {
 
   try {
     await withinDesktopWindowSizeDeadline(async (signal) => {
-      const state = await api.get_window_state();
-      signal.throwIfAborted();
-      applyWindowState(state);
+      const state = await refreshDesktopShellWindowState(api, signal);
+      if (!state) return;
       if (state.maximized) {
         await persistKnownDesktopWindowSizePreferences(true, signal);
         return;
@@ -361,6 +371,7 @@ function setDesktopShellState(nextState: DesktopShellState) {
 }
 
 function applyWindowState(nextState: WindowStateSnapshot) {
+  desktopWindowStateRevision += 1;
   stopDesktopShellRetryLoop();
   setDesktopShellState({
     available: true,
@@ -369,6 +380,23 @@ function applyWindowState(nextState: WindowStateSnapshot) {
     minWidth: nextState.minWidth,
     minHeight: nextState.minHeight,
   });
+}
+
+async function refreshDesktopShellWindowState(api: DesktopShellApi, signal?: AbortSignal) {
+  const revision = ++desktopWindowStateRevision;
+  const bridgeSession = desktopShellBridgeSession;
+  const isCurrent = () => revision === desktopWindowStateRevision
+    && bridgeSession === desktopShellBridgeSession && getDesktopShellApi() === api;
+  try {
+    const nextState = await api.get_window_state();
+    signal?.throwIfAborted();
+    if (!isCurrent()) return null;
+    applyWindowState(nextState);
+    return nextState;
+  } catch (error) {
+    if (!isCurrent()) return null;
+    throw error;
+  }
 }
 
 function applyDesktopShellUnavailable() {
@@ -475,14 +503,13 @@ async function syncDesktopShellState() {
     }
 
     try {
-      const nextState = await api.get_window_state();
+      await refreshDesktopShellWindowState(api);
       const nextCapabilities = await loadDesktopShellCapabilities(api);
 
       if (!desktopShellBridgeBound || session !== desktopShellBridgeSession) {
         return;
       }
 
-      applyWindowState(nextState);
       setDesktopShellCapabilities(normalizeDesktopShellCapabilities(nextCapabilities));
     } catch {
       if (!desktopShellBridgeBound || session !== desktopShellBridgeSession) {

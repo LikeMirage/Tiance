@@ -74,6 +74,7 @@ class _ConversationRun:
     subscribers: dict[str, ConversationRunMailbox] = field(default_factory=dict)
     replay: ConversationRunReplayBuffer = field(default_factory=ConversationRunReplayBuffer)
     finished: bool = False
+    failure: Exception | None = None
 
 
 class ConversationRunManager:
@@ -273,10 +274,16 @@ class ConversationRunManager:
                     "request_id": request_id,
                 },
             )
-        task.cancel()
+        if not task.cancelling():
+            task.cancel()
 
-        await asyncio.gather(task, return_exceptions=True)
+        # A disconnected stop request must not cancel the run's save/settlement
+        # a second time. The manager retains ownership until it really ends.
+        await asyncio.gather(asyncio.shield(task), return_exceptions=True)
         await self._finish_run(run)
+        if run.failure is not None and not run.replay.has_settled_event:
+            raise AppError("任务已停止，但收尾保存失败，请查看错误记录。",
+                           code="conversation_stop_settlement_failed", status_code=500) from run.failure
         return True
 
     async def is_running(self, project_id: str, session_id: str) -> bool:
@@ -298,7 +305,8 @@ class ConversationRunManager:
                 if run.task is not None and not run.task.done()
             ]
             for run in runs:
-                run.task.cancel()
+                if not run.task.cancelling():
+                    run.task.cancel()
         if runs:
             results = await asyncio.gather(
                 *(run.task for run in runs if run.task is not None),
@@ -324,7 +332,8 @@ class ConversationRunManager:
                 await self._publish(run, payload)
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as error:
+            run.failure = error
             logger.exception("Conversation background generation failed", extra={"run_key": run.key})
             if not run.replay.has_settled_event:
                 await self._publish(

@@ -25,7 +25,7 @@ from app.services.desktop_local_path import get_desktop_local_path_service
 router = APIRouter(prefix="/desktop", tags=["desktop"])
 
 
-def _require_managed_shell(request: Request) -> None:
+async def _require_managed_shell(request: Request) -> None:
     if not is_managed_shell_request(
         request.headers.get(LEASE_INSTANCE_HEADER, ""),
         request.headers.get(LEASE_TOKEN_HEADER, ""),

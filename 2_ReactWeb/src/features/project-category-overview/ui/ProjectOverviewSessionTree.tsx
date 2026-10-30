@@ -297,7 +297,7 @@ function ProjectOverviewSessionTreeItem({
       >
         {isRenaming ? (
           <div className="project-category-overview__session-main">
-            <SessionSequence sequenceNumber={session.sequence_number} />
+            <SessionSequence sequenceNumber={node.displaySequence} />
             <StatusDot status={normalizedStatus} />
             <SessionInlineRename
               busy={renamingSessionBusy}
@@ -315,7 +315,7 @@ function ProjectOverviewSessionTreeItem({
             aria-expanded={isExpanded}
             onClick={handleSessionClick}
           >
-            <SessionSequence sequenceNumber={session.sequence_number} />
+            <SessionSequence sequenceNumber={node.displaySequence} />
             <StatusDot status={normalizedStatus} />
             <span className="project-category-overview__session-title">
               {session.pinned ? (
