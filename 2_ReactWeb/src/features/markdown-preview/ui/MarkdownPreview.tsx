@@ -1,4 +1,4 @@
-import { memo, useLayoutEffect, useMemo, useRef } from "react";
+import { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, TdHTMLAttributes, ThHTMLAttributes } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import rehypeRaw from "rehype-raw";
@@ -72,6 +72,13 @@ export const MarkdownPreview = memo(function MarkdownPreview({
     );
   }
 
+  if (renderStrategy === "responsive") {
+    return <ResponsiveMarkdownPreview content={content} isStreaming={isStreaming} mathErrorMode={mathErrorMode}
+      onPreviewHtmlCode={onPreviewHtmlCode} onSaveCodeBlock={onSaveCodeBlock}
+      localFileActions={localFileActions} resolveAssetUrl={resolveAssetUrl}
+      resolveLocalFileReference={resolveLocalFileReference} />;
+  }
+
   if (isStreaming) {
     return (
       <StreamingMarkdownPreview
@@ -98,13 +105,6 @@ export const MarkdownPreview = memo(function MarkdownPreview({
         resolveLocalFileReference={resolveLocalFileReference}
       />
     );
-  }
-
-  if (renderStrategy === "responsive") {
-    return <ResponsiveMarkdownPreview content={content} mathErrorMode={mathErrorMode}
-      onPreviewHtmlCode={onPreviewHtmlCode} onSaveCodeBlock={onSaveCodeBlock}
-      localFileActions={localFileActions} resolveAssetUrl={resolveAssetUrl}
-      resolveLocalFileReference={resolveLocalFileReference} />;
   }
 
   return (
@@ -169,9 +169,13 @@ const MarkdownRichContent = memo(function MarkdownRichContent({
   );
 });
 
-function ResponsiveMarkdownPreview({ content, mathErrorMode, ...props }: Omit<MarkdownPreviewProps, "isStreaming" | "renderStrategy">) {
+function ResponsiveMarkdownPreview({ content, isStreaming = false, mathErrorMode, ...props }: Omit<MarkdownPreviewProps, "renderStrategy">) {
+  const [hasStreamed, setHasStreamed] = useState(isStreaming);
+  if (isStreaming && !hasStreamed) setHasStreamed(true);
   const components = useMarkdownComponents({ ...props, codeBlocksAreStreaming: false, tableMathIsPrepared: true });
   return <DeferredMarkdownContent content={content} components={components}
+    deferRender={isStreaming}
+    pendingContent={hasStreamed ? <StreamingMarkdownPreview content={content} mathErrorMode={mathErrorMode} {...props} /> : undefined}
     className={markdownPreviewClassName("markdown-preview--responsive", mathErrorMode)} />;
 }
 

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { SlidingContent } from "../../../shared/ui/sliding-content/SlidingContent";
 import { CaretDown, CaretRight, Check, X } from "@phosphor-icons/react";
 
 import { submitToolPermissionDecision } from "../../../services/llm/submitToolPermissionDecision";
@@ -143,7 +144,7 @@ export function ToolProcessBlock({
           ) : null}
         </span>
       </button>
-      {isExpanded ? (
+      <SlidingContent expanded={isExpanded}>
         <div className="chat-msg__tools-list">
           {entries.map((entry) => (
             entry.type === "tool_preparing" ? (
@@ -161,7 +162,7 @@ export function ToolProcessBlock({
             )
           ))}
         </div>
-      ) : null}
+      </SlidingContent>
     </section>
   );
 }
@@ -301,7 +302,7 @@ function ToolProcessCard({
           ) : null}
         </span>
       </div>
-      {isExpanded ? (
+      <SlidingContent expanded={isExpanded}>
         <>
           {item.arguments ? (
             <ToolProcessPayload label="参数" value={item.arguments} />
@@ -314,7 +315,7 @@ function ToolProcessCard({
             />
           ) : null}
         </>
-      ) : null}
+      </SlidingContent>
     </article>
   );
 }

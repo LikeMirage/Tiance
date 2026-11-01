@@ -15,6 +15,7 @@ type UseVirtualMessageListOptions = {
   enabled: boolean;
   keepLastMessageMounted?: boolean;
   keepMessageMountedId?: string | null;
+  navigationMessageId?: string | null;
   estimateSize?: number;
   messages: ChatMessage[];
   overscanPx?: number;
@@ -37,6 +38,7 @@ export function useVirtualMessageList({
   enabled,
   keepLastMessageMounted = false,
   keepMessageMountedId = null,
+  navigationMessageId = null,
   estimateSize = DEFAULT_ESTIMATE_SIZE,
   messages,
   overscanPx = DEFAULT_OVERSCAN_PX,
@@ -180,6 +182,7 @@ export function useVirtualMessageList({
     }
 
     const pinnedIndexes = [keepLastMessageMounted ? messages.length - 1 : -1,
+      navigationMessageId ? messages.findIndex((message) => message.id === navigationMessageId) : -1,
       keepMessageMountedId ? messages.findIndex((message) => message.id === keepMessageMountedId) : -1];
     for (const index of pinnedIndexes) {
       if (index < 0 || items.some((item) => item.index === index)) continue;
@@ -193,6 +196,7 @@ export function useVirtualMessageList({
     enabled,
     keepLastMessageMounted,
     keepMessageMountedId,
+    navigationMessageId,
     layout.offsets,
     layout.totalSize,
     messages,
@@ -228,28 +232,10 @@ export function useVirtualMessageList({
     }
   }, [enabled, estimateSize, scrollParentRef]);
 
-  const scrollToMessage = useCallback((
-    messageId: string,
-    behavior: ScrollBehavior = "smooth",
-  ) => {
-    if (!enabled) return false;
-    const index = messages.findIndex((message) => message.id === messageId);
-    const scrollEl = scrollParentRef.current;
-    if (index < 0 || !scrollEl) return false;
-
-    const messageTop = offsetsRef.current[index] ?? 0;
-    scrollEl.scrollTo({
-      top: Math.max(0, contentTopRef.current + messageTop - 8),
-      behavior,
-    });
-    return true;
-  }, [enabled, messages, scrollParentRef]);
-
   return {
     isVirtualized: enabled,
     listRef,
     measureMessage,
-    scrollToMessage,
     totalSize: layout.totalSize,
     virtualItems,
   };

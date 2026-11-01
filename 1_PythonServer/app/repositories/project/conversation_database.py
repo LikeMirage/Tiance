@@ -147,7 +147,7 @@ def _write_connection(path: Path, *, track_all: bool) -> Iterator[sqlite3.Connec
 
 @contextmanager
 def read_connection_for_path(path: Path) -> Iterator[sqlite3.Connection | None]:
-    """Open an existing database without creating files or running migrations."""
+    """Read existing data; upgrade an old database before handing it to the reader."""
     resolved = path.resolve()
     active = getattr(_thread_state, "transactions", {})
     existing = active.get(resolved)
@@ -158,6 +158,16 @@ def read_connection_for_path(path: Path) -> Iterator[sqlite3.Connection | None]:
         yield None
         return
     connection = _open_read_connection(resolved)
+    try:
+        validate_current_schema(connection)
+    except RuntimeError:
+        connection.close()
+        _initialized_database_paths.discard(resolved)
+        ensure_database(resolved.parent)
+        connection = _open_read_connection(resolved)
+    except BaseException:
+        connection.close()
+        raise
     try:
         validate_current_schema(connection)
         yield connection

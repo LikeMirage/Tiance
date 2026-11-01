@@ -37,7 +37,23 @@ export function createChatDisplayProjector() {
       if (!entry || entry.status !== status || entry.sources.length !== end - start
         || entry.sources.some((source, index) => source !== messages[start + index])) {
         const sources = messages.slice(start, end);
-        entry = { sources, status, display: buildChatDisplayMessages(sources, { runtimeStatus: status }) };
+        let display = buildChatDisplayMessages(sources, { runtimeStatus: status });
+        if (sources[0].role === "user" && entry) {
+          // The socket's optimistic ID differs from persisted message IDs. Keep
+          // the one ordinary assistant view in this user turn mounted through
+          // reconciliation, without changing its authoritative ID or content.
+          // Output-limit fragments are separate saved messages, not this view.
+          const ordinaryAssistant = (message: ChatMessage) => message.role === "assistant" && message.finishReason !== "output_limit";
+          const previous = entry.display.filter(ordinaryAssistant);
+          const next = display.filter(ordinaryAssistant);
+          if (previous.length === 1 && next.length === 1) {
+            const displayKey = previous[0].displayKey ?? previous[0].id;
+            if ((next[0].displayKey ?? next[0].id) !== displayKey) {
+              display = display.map((message) => message === next[0] ? { ...message, displayKey } : message);
+            }
+          }
+        }
+        entry = { sources, status, display };
       }
       nextEntries.set(key, entry);
       for (const message of entry.display) result.push(message);

@@ -17,6 +17,10 @@ class LlmFunctionalModelSettingsRepository:
     def __init__(self, database_path: Path) -> None:
         self._database_path = database_path
 
+    def upgrade_settings(self, settings_id: str) -> None:
+        from app.migrations.functional_settings import upgrade_profiles
+        upgrade_profiles(self._database_path, settings_id)
+
     def get_settings(
         self,
         settings_id: str = DEFAULT_FUNCTIONAL_MODEL_SETTINGS_ID,

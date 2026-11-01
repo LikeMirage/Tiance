@@ -1,7 +1,9 @@
-"""Current global schema. Existing databases must already use this version."""
+"""Fresh global schema and the single initialization/upgrade entry point."""
 from datetime import UTC, datetime
 from pathlib import Path
-from app.infra.database.sqlite import database_transaction
+from app.infra.database.sqlite import database_connection
+from app.migrations.global_db import ensure_version
+from app.migrations.runner import schema_transaction
 
 SCHEMA_VERSION = 49
 SCHEMA_STATEMENTS = (
@@ -56,13 +58,21 @@ SCHEMA_STATEMENTS = (
 )
 
 def ensure_database_schema(database_path: Path) -> None:
-    with database_transaction(database_path) as connection:
-        tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
-        if tables:
-            version = connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] if 'schema_migrations' in tables else None
-            if version != SCHEMA_VERSION:
-                raise RuntimeError(f"Unsupported global database schema {version}; expected {SCHEMA_VERSION}. No data was converted or removed.")
-            return
-        for statement in SCHEMA_STATEMENTS:
-            connection.execute(statement)
-        connection.execute("INSERT INTO schema_migrations(version,name,applied_at) VALUES (?,?,?)", (SCHEMA_VERSION, 'current_schema', datetime.now(UTC).isoformat()))
+    with database_connection(database_path) as connection:
+        # Historical table replacements require FK enforcement off before BEGIN.
+        # The migration runner verifies all foreign keys before committing.
+        connection.execute("PRAGMA foreign_keys=OFF")
+        with schema_transaction(connection):
+            _ensure_schema(connection)
+    from app.migrations.functional_settings import upgrade_profiles
+    upgrade_profiles(database_path)
+
+
+def _ensure_schema(connection) -> None:
+    tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
+    if tables:
+        ensure_version(connection, SCHEMA_VERSION)
+        return
+    for statement in SCHEMA_STATEMENTS:
+        connection.execute(statement)
+    connection.execute("INSERT INTO schema_migrations(version,name,applied_at) VALUES (?,?,?)", (SCHEMA_VERSION, 'current_schema', datetime.now(UTC).isoformat()))

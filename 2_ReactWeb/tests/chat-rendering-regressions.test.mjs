@@ -20,6 +20,30 @@ const message = (id, role, extra = {}) => ({ id, role, content: "", thinkingCont
   processItems: [], toolCalls: [], createdAt: 1000, updatedAt: 2000, ...extra });
 const thinking = (id, extra = {}) => ({ id, type: "thinking", content: "分析", status: "done", startedAt: 1000, finishedAt: 2000, ...extra });
 
+test("流式临时消息换成正式记录时保留显示身份，采用正式正文和消息编号", () => {
+  const project = createChatDisplayProjector();
+  const user = message("handoff-user", "user");
+  const live = project([user, message("optimistic", "assistant", { content: "流式正文较长", status: "running" })], { runtimeStatus: "running" })[1];
+  const saved = message("persisted", "assistant", { content: "最终正文" });
+  const final = project([user, saved], { runtimeStatus: "idle" })[1];
+  assert.equal(final.displayKey ?? final.id, live.displayKey ?? live.id);
+  assert.equal(final.id, "persisted");
+  assert.equal(final.content, "最终正文");
+  const next = project([user, saved, message("next-user", "user"), message("next-answer", "assistant")]);
+  assert.equal(next[1].displayKey, final.displayKey);
+  assert.notEqual(next[3].displayKey ?? next[3].id, final.displayKey);
+  project([]);
+  assert.equal(project([user, saved])[1].displayKey, undefined, "切走释放显示身份缓存");
+});
+
+test("输出上限保存片段不继承普通最终回复的显示身份", () => {
+  const project = createChatDisplayProjector();
+  const user = message("limit-user", "user");
+  project([user, message("optimistic-limit", "assistant", { status: "running" })]);
+  const output = project([user, message("saved-limit", "assistant", { finishReason: "output_limit" })]);
+  assert.equal(output[1].displayKey ?? output[1].id, "saved-limit");
+});
+
 test("用户消息底栏显示记录的发送时间，编辑时间不会覆盖发送时间", () => {
   const [user] = mapConversationMessages([{message_id:"user-time",role:"user",content:"原始消息",status:"done",
     created_at:"2026-10-04T23:12:34+08:00",updated_at:"2026-10-05T00:00:00+08:00"}]);

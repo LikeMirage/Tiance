@@ -35,6 +35,7 @@ export function useBodyAutoScroll({
   const scrollPositionsRef = useRef(new Map<string, ChatScrollPosition>());
   const restoreRequestIdRef = useRef(0);
   const autoScrollEnabledRef = useRef(true);
+  const [isFollowingBottom, setIsFollowingBottom] = useState(true);
   const bottomFollowerRef = useRef<ChatBottomFollower | null>(null);
   const isSessionSettlingRef = useRef(false);
   const isNavigationGuardedRef = useRef(false);
@@ -45,9 +46,17 @@ export function useBodyAutoScroll({
   const [isSessionSettling, setIsSessionSettlingState] = useState(false);
   const [viewRestoreRequest, setViewRestoreRequest] =
     useState<ChatScrollRestoreRequest | null>(null);
+  // Scroll events may arrive before React publishes the new state. Keep the
+  // immutable restore target protected synchronously throughout restoration.
+  const pendingRestoreRef = useRef<ChatScrollRestoreRequest | null>(null);
+  const updateViewRestoreRequest = useCallback((request: ChatScrollRestoreRequest | null) => {
+    pendingRestoreRef.current = request;
+    setViewRestoreRequest(request);
+  }, []);
 
   const setAutoScrollEnabled = useCallback((enabled: boolean) => {
     autoScrollEnabledRef.current = enabled;
+    setIsFollowingBottom(enabled);
     if (!enabled) bottomFollowerRef.current?.cancel();
   }, []);
 
@@ -116,11 +125,13 @@ export function useBodyAutoScroll({
 
   const cacheCurrentView = useCallback(() => {
     const el = bodyRef.current;
-    if (!el || !activeSessionKey) return null;
+    if (!el || !activeSessionKey || !isChatViewActive || pendingRestoreRef.current
+      || presentedSessionKeyRef.current !== activeSessionKey) return null;
     const position = captureChatScrollPosition(el, NEAR_BOTTOM_PX);
+    if (!position.anchorMessageId) return null;
     scrollPositionsRef.current.set(activeSessionKey, position);
     return position;
-  }, [activeSessionKey]);
+  }, [activeSessionKey, isChatViewActive]);
 
   const preserveCurrentView = useCallback(() => {
     const position = cacheCurrentView();
@@ -129,6 +140,7 @@ export function useBodyAutoScroll({
   }, [cacheCurrentView, setAutoScrollEnabled]);
 
   const pauseAutoScrollForNavigation = useCallback(() => {
+    updateViewRestoreRequest(null);
     clearSettleTimers();
     startNavigationGuard();
     setIsSessionSettling(false);
@@ -138,6 +150,7 @@ export function useBodyAutoScroll({
     setAutoScrollEnabled,
     setIsSessionSettling,
     startNavigationGuard,
+    updateViewRestoreRequest,
   ]);
 
   const pauseForUserScroll = useCallback(() => {
@@ -145,12 +158,13 @@ export function useBodyAutoScroll({
     clearNavigationGuard();
     setIsSessionSettling(false);
     setAutoScrollEnabled(false);
-    setViewRestoreRequest(null);
-  }, [clearSettleTimers, clearNavigationGuard, setIsSessionSettling, setAutoScrollEnabled]);
+    updateViewRestoreRequest(null);
+  }, [clearSettleTimers, clearNavigationGuard, setIsSessionSettling, setAutoScrollEnabled, updateViewRestoreRequest]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     const el = bodyRef.current;
     if (!el) return;
+    updateViewRestoreRequest(null);
     clearNavigationGuard();
     setAutoScrollEnabled(true);
     if (behavior === "smooth" && bottomFollowerRef.current) {
@@ -167,11 +181,12 @@ export function useBodyAutoScroll({
         scrollTop: el.scrollHeight,
       });
     }
-  }, [activeSessionKey, clearNavigationGuard, setAutoScrollEnabled]);
+  }, [activeSessionKey, clearNavigationGuard, setAutoScrollEnabled, updateViewRestoreRequest]);
 
   const handleBodyScroll = useCallback(() => {
     const el = bodyRef.current;
     if (!el || !isChatViewActive) return;
+    if (pendingRestoreRef.current) return;
     if (isSessionSettlingRef.current) {
       setAutoScrollEnabled(true);
       return;
@@ -215,13 +230,14 @@ export function useBodyAutoScroll({
     clearNavigationGuard();
     isSessionSettlingRef.current = false;
     bottomFollowerRef.current?.cancel();
+    pendingRestoreRef.current = null;
   }, [activeSessionKey, isChatViewActive, clearSettleTimers, clearNavigationGuard]);
 
   useLayoutEffect(() => {
     if (!isChatViewActive) {
       setIsSessionSettling(false);
       presentedSessionKeyRef.current = null;
-      setViewRestoreRequest(null);
+      updateViewRestoreRequest(null);
       return undefined;
     }
 
@@ -244,7 +260,7 @@ export function useBodyAutoScroll({
       restoredSessionKeyRef.current = activeSessionKey;
       setIsSessionSettling(false);
       setAutoScrollEnabled(false);
-      setViewRestoreRequest(null);
+      updateViewRestoreRequest(null);
       return undefined;
     }
     if (!isNewPresentation) {
@@ -258,37 +274,33 @@ export function useBodyAutoScroll({
       restoredSessionKeyRef.current = activeSessionKey;
       setIsSessionSettling(false);
       setAutoScrollEnabled(false);
-      el.scrollTop = Math.min(
-        cachedPosition.scrollTop,
-        Math.max(0, el.scrollHeight - el.clientHeight),
-      );
       if (cachedPosition.anchorMessageId) {
         restoreRequestIdRef.current += 1;
-        setViewRestoreRequest({
+        updateViewRestoreRequest({
           behavior: "auto",
           messageId: cachedPosition.anchorMessageId,
           requestId: restoreRequestIdRef.current,
           sessionKey: activeSessionKey,
           viewportOffset: cachedPosition.anchorViewportOffset,
         });
+      } else {
+        el.scrollTop = cachedPosition.scrollTop;
       }
       return undefined;
     }
 
-    if (scrollMode === "restore") {
-      clearSettleTimers();
-      clearNavigationGuard();
-      setIsSessionSettling(true);
-      setAutoScrollEnabled(true);
-      setViewRestoreRequest(null);
-      restoredSessionKeyRef.current = activeSessionKey;
-      maxSettleTimerRef.current = window.setTimeout(
-        finishSessionSettle,
-        SESSION_SETTLE_MAX_MS,
-      );
-    } else {
-      return undefined;
-    }
+    // A fresh presentation also includes returning from settings in the same
+    // session. Without a reading bookmark it must resume bottom following.
+    clearSettleTimers();
+    clearNavigationGuard();
+    setIsSessionSettling(true);
+    setAutoScrollEnabled(true);
+    updateViewRestoreRequest(null);
+    restoredSessionKeyRef.current = activeSessionKey;
+    maxSettleTimerRef.current = window.setTimeout(
+      finishSessionSettle,
+      SESSION_SETTLE_MAX_MS,
+    );
 
     settleFrameRef.current = window.requestAnimationFrame(() => {
       settleFrameRef.current = null;
@@ -311,30 +323,26 @@ export function useBodyAutoScroll({
     setAutoScrollEnabled,
     setIsSessionSettling,
     startNavigationGuard,
+    updateViewRestoreRequest,
   ]);
 
   const handleViewRestoreHandled = useCallback((requestId: number) => {
-    setViewRestoreRequest((current) => (
-      current?.requestId === requestId ? null : current
-    ));
-    window.requestAnimationFrame(cacheCurrentView);
-  }, [cacheCurrentView]);
+    const request = pendingRestoreRef.current;
+    if (request?.requestId !== requestId || request.sessionKey !== activeSessionKey) return;
+    updateViewRestoreRequest(null);
+    // Do not leave a frame callback that can capture the next session's DOM.
+    cacheCurrentView();
+  }, [activeSessionKey, cacheCurrentView, updateViewRestoreRequest]);
 
   const syncAfterContentReady = useCallback(() => {
     const el = bodyRef.current;
     if (!el || !activeSessionKey) return;
+    if (pendingRestoreRef.current) return;
     if (autoScrollEnabledRef.current || isSessionSettlingRef.current) {
       if (isSessionSettlingRef.current) finishSessionSettle();
       else scrollElementToBottom(el);
       return;
     }
-    if (isNavigationGuardedRef.current) return;
-    const position = scrollPositionsRef.current.get(activeSessionKey);
-    if (!position?.anchorMessageId) return;
-    const anchor = Array.from(el.querySelectorAll<HTMLElement>("[data-chat-message-id]"))
-      .find((element) => element.dataset.chatMessageId === position.anchorMessageId);
-    if (!anchor) return;
-    el.scrollTop += anchor.getBoundingClientRect().top - el.getBoundingClientRect().top - position.anchorViewportOffset;
   }, [activeSessionKey, finishSessionSettle]);
 
   useLayoutEffect(() => {
@@ -360,11 +368,14 @@ export function useBodyAutoScroll({
     bottomFollowerRef.current = bottomFollower;
 
     const pauseForUpwardWheel = (event: WheelEvent) => {
-      if (event.deltaY >= 0) return;
+      if (event.deltaY >= 0 && !(pendingRestoreRef.current && event.deltaY > 0)) return;
       pauseForUserScroll();
     };
     const pauseForScrollKey = (event: KeyboardEvent) => {
-      if (!["ArrowUp", "Home", "PageUp"].includes(event.key)) return;
+      const keys = pendingRestoreRef.current
+        ? ["ArrowUp", "Home", "PageUp", "ArrowDown", "End", "PageDown", " "]
+        : ["ArrowUp", "Home", "PageUp"];
+      if (!keys.includes(event.key)) return;
       pauseForUserScroll();
     };
     const pauseForScrollbarPointer = (event: PointerEvent) => {
@@ -442,6 +453,8 @@ export function useBodyAutoScroll({
   }, [clearNavigationGuard, clearSettleTimers]);
 
   return {
+    isFollowingBottom,
+    pauseForUserScroll,
     bodyRef,
     handleBodyScroll,
     isSessionSettling,

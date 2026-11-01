@@ -96,6 +96,14 @@ export function useSessionMessages({
     const nextMessages = updater(currentMessages);
     if (nextMessages === currentMessages) return;
     sessionMessageSnapshotsRef.current[key] = nextMessages;
+    // Local stream IDs are not persisted IDs. After any local update the next
+    // idle read must reconcile the tail, not append a second copy of the reply.
+    const page = historyPagesRef.current.get(key);
+    if (page && !page.reconcile) {
+      const dirtyPage = { ...page, reconcile: true };
+      historyPagesRef.current.set(key, dirtyPage);
+      setHistoryPages((prev) => ({ ...prev, [key]: dirtyPage }));
+    }
     if (isSessionMessagesPresented(pid, sessionId)) {
       setSessionMessages((prev) => ({ ...prev, [key]: nextMessages }));
     }
@@ -207,14 +215,22 @@ export function useSessionMessages({
         if (controller.signal.aborted) return;
         const nextMessages = mapConversationMessages(response.items, response.run_outcomes, response.run_attempt_failures);
         const latest = sessionMessageSnapshotsRef.current[key] ?? [];
+        const keepLive = request.shouldPreserveLocal?.() ?? (!request.authoritative &&
+          latest.some((message) => message.role === "assistant" && message.status === "running"));
+        // A cursor read can start while streaming and finish after completion.
+        // Re-evaluate the checkpoint before publishing: keep the visible reply
+        // until a tail snapshot is ready, never publish live + persisted copies.
+        if (incremental && !keepLive && historyPagesRef.current.get(key)?.reconcile) {
+          incremental = false;
+          cursor = null;
+          continue;
+        }
         const replaced = previousPage && (response.reset_revision ?? 0) !== previousPage.reset;
         const tailReplacement = !incremental && !request.older;
         let merged = mergeHistoryPage(latest, nextMessages, {
           older: Boolean(request.older), replace: Boolean(replaced) || !previousPage,
           tail: tailReplacement,
         });
-        const keepLive = request.shouldPreserveLocal?.() ?? (!request.authoritative &&
-          latest.some((message) => message.role === "assistant" && message.status === "running"));
         if (keepLive && latest.length && !request.older) merged = mergeLiveChatNotifications(latest, nextMessages);
         sessionMessageSnapshotsRef.current[key] = reuseChatMessageRevisions(latest, merged);
         messageAccessedAtRef.current.set(key, Date.now());
@@ -223,7 +239,7 @@ export function useSessionMessages({
           page.after = previousPage!.after;
           // An older-page read is not an acknowledgement of newer messages.
           page.revision = previousPage!.revision;
-          page.reconcile = previousPage!.reconcile;
+          page.reconcile = historyPagesRef.current.get(key)?.reconcile ?? previousPage!.reconcile;
         } else if (previousPage && !replaced && (incremental || latest.some((m) => m.id === response.items[0]?.message_id))) {
           page.before = previousPage.before;
         }

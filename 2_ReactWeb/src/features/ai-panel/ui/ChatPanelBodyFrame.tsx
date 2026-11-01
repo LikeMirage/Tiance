@@ -15,6 +15,7 @@ import { ChatSettingsView } from "./ChatSettingsView";
 import { UserMessageNavigator } from "./UserMessageNavigator";
 
 type ChatPanelBodyFrameProps = {
+  isFollowingBottom: boolean;
   activeView: ChatPanelView;
   activeSessionKey: string | null;
   bodyRef: RefObject<HTMLDivElement | null>;
@@ -32,6 +33,7 @@ type ChatPanelBodyFrameProps = {
 };
 
 export function ChatPanelBodyFrame({
+  isFollowingBottom,
   activeView,
   activeSessionKey,
   bodyRef,
@@ -49,7 +51,7 @@ export function ChatPanelBodyFrame({
 }: ChatPanelBodyFrameProps) {
   const { readiness, isPreparing } = useChatContentReadiness(
     activeView === "chat" ? activeSessionKey : null,
-    Boolean(chat.isLoadingSession),
+    Boolean(chat.isLoadingSession || (viewRestoreRequest?.sessionKey === activeSessionKey && !chat.loadError)),
     onContentReady,
   );
   const navigationRequestIdRef = useRef(0);
@@ -118,7 +120,7 @@ export function ChatPanelBodyFrame({
         aria-hidden={isPreparing || undefined}
         onScroll={handleBodyScroll}
       >
-        <ChatProcessFoldProvider sessionKey={activeSessionKey}>
+        <ChatProcessFoldProvider sessionKey={activeSessionKey} isFollowing={isFollowingBottom}>
           {activeView === "settings" ? (
             <ChatSettingsView {...settings} />
           ) : (

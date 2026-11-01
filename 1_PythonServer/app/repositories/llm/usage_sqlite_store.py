@@ -12,6 +12,7 @@ from threading import RLock
 
 from app.domain.llm.usage import LlmUsageRecord
 from app.domain.usage_statistics import StatisticsMonth
+from app.migrations.usage_db import ensure_version
 
 USAGE_DATABASE_FILE = 'usage.db'
 TOKEN_FIELDS = ('prompt_tokens', 'completion_tokens', 'total_tokens', 'reasoning_tokens',
@@ -91,13 +92,13 @@ class UsageSqliteStore:
                 db.execute('BEGIN IMMEDIATE')
                 try:
                     version = db.execute('PRAGMA user_version').fetchone()[0]
-                    if version not in (0, 1):
-                        raise ValueError(f'Unsupported usage database version: {version}')
                     if version == 0:
                         if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 1").fetchone():
                             raise ValueError('Unsupported usage database without a schema version. No data was converted or removed.')
                         self._create_schema(db)
                         db.execute('PRAGMA user_version = 1')
+                    else:
+                        ensure_version(db, 1)
                     db.commit()
                 except BaseException:
                     db.rollback()

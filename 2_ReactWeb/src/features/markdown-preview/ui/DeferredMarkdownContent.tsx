@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { jsx, jsxs } from "react/jsx-runtime";
 import { toJsxRuntime } from "hast-util-to-jsx-runtime";
@@ -9,18 +9,26 @@ import { MARKDOWN_BLOCK_PREFIX, type MarkdownRenderDocument } from "../model/mar
 import { scheduleMarkdownMount } from "../model/markdownMountQueue";
 import { getMarkdownDomBlock, rememberMarkdownDomBlock } from "../model/markdownDomCache";
 
-type Props = { content: string; components: Components; className: string };
+type Props = { content: string; components: Components; className: string; deferRender?: boolean; pendingContent?: ReactNode };
 type Result = { content: string; document?: MarkdownRenderDocument; error?: string };
 
-export function DeferredMarkdownContent({ content, components, className }: Props) {
+export function DeferredMarkdownContent({ content, components, className, deferRender = false, pendingContent }: Props) {
   const [result, setResult] = useState<Result | null>(() => ({ content, document: getCachedMarkdownRender(content) }));
+  const [presentation, setPresentation] = useState<{ content: string; document: MarkdownRenderDocument | null }>({ content, document: null });
+  // A cached parse still needs fresh DOM after a content change or stream resume.
+  if (presentation.content !== content || (deferRender && presentation.document)) {
+    setPresentation({ content, document: null });
+  }
+  const onMounted = useCallback((document: MarkdownRenderDocument) => setPresentation({ content, document }), [content]);
   const [attempt, setAttempt] = useState(0);
   const cached = getCachedMarkdownRender(content);
   const current = result?.content === content ? result : null;
-  const document = current?.document ?? cached;
-  useContentLoadingTask(!document && !current?.error);
+  const document = deferRender ? undefined : current?.document ?? cached;
+  const hasPendingContent = pendingContent !== undefined;
+  const showPendingContent = hasPendingContent && (!document || document !== presentation.document);
+  useContentLoadingTask(!deferRender && !hasPendingContent && !document && !current?.error);
   useEffect(() => {
-    if (getCachedMarkdownRender(content)) return;
+    if (deferRender || getCachedMarkdownRender(content)) return;
     let disposed = false;
     const request = requestMarkdownRender(content);
     void request.promise.then((document) => {
@@ -29,18 +37,23 @@ export function DeferredMarkdownContent({ content, components, className }: Prop
       if (!disposed) setResult({ content, error: error instanceof Error ? error.message : "内容加载失败" });
     });
     return () => { disposed = true; request.cancel(); };
-  }, [content, attempt]);
+  }, [content, attempt, deferRender]);
 
-  if (document) return <RenderedMarkdownDocument key={content} document={document} components={components} className={className} />;
-  return <div className={className} aria-busy={!current?.error}>
+  return <>
+    {showPendingContent ? pendingContent : null}
+    {document ? <RenderedMarkdownDocument key={content} document={document} components={components} className={className}
+      hasPendingContent={hasPendingContent} onMounted={onMounted} /> : !deferRender && (!hasPendingContent || current?.error) && <div className={className} aria-busy={!current?.error && !hasPendingContent}>
     {current?.error ? <div role="alert" className="markdown-preview__load-error">
       <span>{current.error}</span>
       <button type="button" onClick={() => { setResult(null); setAttempt((value) => value + 1); }}>重试</button>
     </div> : null}
-  </div>;
+  </div>}
+  </>;
 }
 
-function RenderedMarkdownDocument({ document, components, className }: Omit<Props, "content"> & { document: MarkdownRenderDocument }) {
+function RenderedMarkdownDocument({ document, components, className, hasPendingContent, onMounted }: Pick<Props, "components" | "className"> & {
+  document: MarkdownRenderDocument; hasPendingContent: boolean; onMounted: (document: MarkdownRenderDocument) => void;
+}) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [targets, setTargets] = useState<Element[]>([]);
   const [mounted, setMounted] = useState(false);
@@ -81,7 +94,8 @@ function RenderedMarkdownDocument({ document, components, className }: Omit<Prop
     if (!remaining) finish();
     return () => { disposed = true; cancellations.forEach((cancel) => cancel()); };
   }, [document]);
-  useContentLoadingTask(!mounted || targets.length !== document.slots.length);
+  useLayoutEffect(() => { if (mounted) onMounted(document); }, [document, mounted, onMounted]);
+  useContentLoadingTask(!hasPendingContent && (!mounted || targets.length !== document.slots.length));
   const markup = useMemo(() => ({ __html: document.html }), [document]);
   const portals = useMemo(() => targets.map((target) => {
     const id = Number(target.getAttribute("data-markdown-slot"));
@@ -91,7 +105,8 @@ function RenderedMarkdownDocument({ document, components, className }: Omit<Prop
     }), target, String(id));
   }), [components, document, targets]);
   return <>
-    <div ref={rootRef} className={className} aria-busy={!mounted} aria-hidden={!mounted || undefined} style={!mounted ? { opacity: 0 } : undefined} dangerouslySetInnerHTML={markup} />
+    <div ref={rootRef} className={className} aria-busy={!mounted} aria-hidden={!mounted || undefined}
+      style={!mounted ? hasPendingContent ? { display: "none" } : { opacity: 0 } : undefined} dangerouslySetInnerHTML={markup} />
     {portals}
   </>;
 }

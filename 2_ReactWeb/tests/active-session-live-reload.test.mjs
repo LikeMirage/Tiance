@@ -163,6 +163,57 @@ test("bounded tail reconciliation preserves older loaded history and removes tra
   assert.deepEqual(merged.map((m) => m.id), ["m1", "m2", "m3"]);
 });
 
+test("completed stream reconciles its optimistic answer with the persisted answer", async () => {
+  await setup();
+  await respond(0, page([msg("m1", "user")], 1));
+  await act(async () => {
+    result.updateSessionMessages("p", "s", (items) => [...items, {
+      ...msg("optimistic2"), content: "answer", thinkingContent: "reasoning", status: "done",
+    }]);
+  });
+  state = { revision: 2, reset_revision: 0, project_revision: 2 };
+  await act(async () => {
+    void result.reloadSessionMessages("p", "s", { forceRefresh: true, authoritative: true });
+  });
+  assert.equal(requests[1].options.afterMessageId, null);
+  await respond(1, page([msg("m1", "user"), {
+    ...msg("msg_persisted2"), content: "answer", thinkingContent: "reasoning",
+  }], 2));
+  assert.deepEqual(result.sessionMessages["p/s"].map((m) => m.id), ["m1", "msg_persisted2"]);
+});
+
+test("ordinary refresh after local completion replaces the transient answer instead of appending its persisted copy", async () => {
+  await setup();
+  const user = msg("m1", "user");
+  await respond(0, page([user], 1));
+  await act(async () => result.updateSessionMessages("p", "s", (items) => [...items,
+    { ...msg("optimistic2"), content: "你好。", status: "done", usage: { total_tokens: 33000 } }]));
+  state = { revision: 2, reset_revision: 0, project_revision: 2 };
+  await act(async () => { void result.reloadSessionMessages("p", "s", { forceRefresh: true }); });
+  assert.equal(requests[1].options.afterMessageId, null, "local completion invalidates the append-only checkpoint");
+  await respond(1, page([user, { ...msg("persisted3"), content: "你好。", usage: { total_tokens: 33000 } }], 2));
+  assert.deepEqual(result.sessionMessages["p/s"].map((m) => m.id), ["m1", "persisted3"]);
+});
+
+test("an incremental read crossing stream completion never publishes both live and persisted answers", async () => {
+  await setup();
+  const user = msg("m1", "user");
+  await respond(0, page([user], 1));
+  await act(async () => result.updateSessionMessages("p", "s", (items) => [...items,
+    { ...msg("optimistic2"), content: "你好。", status: "running", usage: { total_tokens: 33000 } }]));
+  state = { revision: 2, reset_revision: 0, project_revision: 2 };
+  await act(async () => { void result.reloadSessionMessages("p", "s", { forceRefresh: true }); });
+  assert.equal(requests[1].options.afterMessageId, "m1");
+  await act(async () => result.updateSessionMessages("p", "s", items => items.map(m => ({ ...m, status: "done" }))));
+  const persisted = { ...msg("persisted3"), content: "你好。", usage: { total_tokens: 33000 } };
+  await respond(1, page([persisted], 2));
+  assert.deepEqual(result.sessionMessages["p/s"].map((m) => m.id), ["m1", "optimistic2"],
+    "keep the visible answer while fetching authoritative history; never show a duplicate intermediate snapshot");
+  assert.equal(requests[2].options.afterMessageId, null);
+  await respond(2, page([user, persisted], 2));
+  assert.deepEqual(result.sessionMessages["p/s"].map((m) => m.id), ["m1", "persisted3"]);
+});
+
 
 test("history replacement during a cursor read recovers with a bounded latest page", async () => {
   await setup();

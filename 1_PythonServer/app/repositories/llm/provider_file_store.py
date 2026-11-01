@@ -25,6 +25,14 @@ PROVIDER_RULES_FILE = "provider-rules.json"
 PROVIDER_MODEL_RULES_FILE = "model-rules.json"
 PROVIDER_SETTINGS_FILE = "provider-settings.json"
 PROVIDER_SCHEMA_VERSION = 1
+PROVIDER_FORMAT_VERSIONS = {
+    "modelDiscoveryUrlAutofillVersion": 1,
+    "generationUrlStorageVersion": 1,
+    "presetGenerationUrlDefaultsVersion": 2,
+    "modelDiscoveryStrategyVersion": 1,
+    "providerAuthContractVersion": 1,
+    "reasoningReplayModeVersion": 1,
+}
 _PROVIDER_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
 logger = logging.getLogger(__name__)
 

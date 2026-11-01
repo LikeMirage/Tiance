@@ -6,6 +6,7 @@ import {
 } from "../../../entities/workspace/model/workspaceLayoutPreferences";
 
 const MAX_WIDTH_RATIO = 0.45;
+const MIN_EDITOR_WIDTH = 280;
 const RESIZING_BODY_CLASS = "workspace-ai-panel-resizing";
 
 type UseAiPanelLayoutOptions = {
@@ -25,11 +26,46 @@ export function useAiPanelLayout({
   const startXRef = useRef(0);
   const startWidthRef = useRef(DEFAULT_WIDTH);
   const widthRef = useRef(width);
+  const preferredWidthRef = useRef(initialWidth);
+  const containerWidthRef = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const onWidthCommitRef = useRef(onWidthCommit);
 
   useEffect(() => {
     onWidthCommitRef.current = onWidthCommit;
   }, [onWidthCommit]);
+
+  useEffect(() => {
+    preferredWidthRef.current = initialWidth;
+    const nextWidth = clampAiPanelWidth(initialWidth, window.innerWidth, containerWidthRef.current);
+    widthRef.current = nextWidth;
+    setWidth(nextWidth);
+  }, [initialWidth]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateWidth = (containerWidth: number) => {
+      if (containerWidth <= 0) return;
+      containerWidthRef.current = containerWidth;
+      const nextWidth = clampAiPanelWidth(preferredWidthRef.current, window.innerWidth, containerWidth);
+      widthRef.current = nextWidth;
+      setWidth(nextWidth);
+    };
+    const handleWindowResize = () => updateWidth(container.getBoundingClientRect().width);
+    handleWindowResize();
+    window.addEventListener("resize", handleWindowResize);
+    const observer = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(([entry]) => updateWidth(entry.contentRect.width));
+    observer?.observe(container);
+
+    return () => {
+      window.removeEventListener("resize", handleWindowResize);
+      observer?.disconnect();
+    };
+  }, []);
 
   const handleResizeStart = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
@@ -45,7 +81,8 @@ export function useAiPanelLayout({
 
     const handleMove = (e: PointerEvent) => {
       const delta = startXRef.current - e.clientX;
-      const next = clampAiPanelWidth(startWidthRef.current + delta, window.innerWidth);
+      const next = clampAiPanelWidth(startWidthRef.current + delta, window.innerWidth, containerWidthRef.current);
+      preferredWidthRef.current = next;
       widthRef.current = next;
       setWidth(next);
     };
@@ -76,17 +113,21 @@ export function useAiPanelLayout({
   }, [isResizing]);
 
   const resetWidth = useCallback(() => {
-    const nextWidth = clampAiPanelWidth(DEFAULT_WIDTH, window.innerWidth);
+    preferredWidthRef.current = DEFAULT_WIDTH;
+    const nextWidth = clampAiPanelWidth(DEFAULT_WIDTH, window.innerWidth, containerWidthRef.current);
     widthRef.current = nextWidth;
     setWidth(nextWidth);
     onWidthCommitRef.current?.(nextWidth);
   }, []);
 
-  return { isResizing, resetWidth, width, handleResizeStart };
+  return { containerRef, isResizing, resetWidth, width, handleResizeStart };
 }
 
-function clampAiPanelWidth(width: number, viewportWidth: number): number {
+function clampAiPanelWidth(width: number, viewportWidth: number, containerWidth: number | null = null): number {
   const safeWidth = Number.isFinite(width) ? width : DEFAULT_WIDTH;
   const viewportMaxWidth = Math.max(MIN_WIDTH, Math.floor(viewportWidth * MAX_WIDTH_RATIO));
-  return Math.min(Math.max(Math.round(safeWidth), MIN_WIDTH), viewportMaxWidth);
+  const containerMaxWidth = containerWidth === null
+    ? viewportMaxWidth
+    : Math.max(MIN_WIDTH, Math.floor(containerWidth - MIN_EDITOR_WIDTH - 1));
+  return Math.min(Math.max(Math.round(safeWidth), MIN_WIDTH), viewportMaxWidth, containerMaxWidth);
 }

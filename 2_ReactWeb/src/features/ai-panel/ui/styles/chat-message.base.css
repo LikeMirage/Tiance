@@ -105,6 +105,26 @@
   margin-top: 4px;
 }
 
+.chat-msg__footer-content {
+  min-height: 46px;
+}
+
+/* Conversation bodies supply their own spacing; document-preview padding and
+   first/last paragraph margins must not add an empty line at the boundary. */
+.chat-msg .markdown-preview {
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.chat-msg .markdown-preview > :first-child {
+  margin-top: 0;
+}
+
+.chat-msg .markdown-preview > :last-child {
+  margin-bottom: 0;
+}
+
 .chat-msg__event {
   display: grid;
   grid-template-columns: minmax(16px, 1fr) auto minmax(16px, 1fr);
@@ -330,9 +350,9 @@
 
 .chat-msg__processed {
   display: grid;
-  gap: 6px;
+  gap: 0;
   min-width: 0;
-  padding-bottom: 2px;
+  padding-bottom: 0;
 }
 
 .chat-msg__processed-toggle {
@@ -382,6 +402,7 @@
   min-width: 0;
   padding-left: 12px;
   border-left: 1px solid rgba(var(--color-accent-rgb), 0.28);
+  padding-top: 6px;
 }
 
 .chat-msg__thinking-head {
@@ -438,25 +459,48 @@
     margin-top 180ms ease;
 }
 
-.chat-msg__thinking-content > .markdown-preview {
+.chat-msg__thinking-content .markdown-preview {
   min-height: 0;
   overflow: hidden;
 }
 
-.chat-msg__thinking-content--collapsed {
-  max-height: 0;
-  margin-top: -4px;
-  padding-bottom: 0;
-  opacity: 0;
+.chat-msg__thinking-content--preview:not([data-sliding]) {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
 }
 
-.chat-msg__markdown--streaming .markdown-preview > :last-child::after,
-.chat-msg__thinking-content--streaming .markdown-preview > :last-child::after,
-.chat-msg__thinking-content--streaming .markdown-preview:empty::after {
+.chat-msg__thinking-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.chat-msg__thinking-expand:hover {
+  color: var(--color-text-primary);
+}
+
+.chat-msg__markdown--streaming .markdown-preview,
+.chat-msg__thinking-content--streaming .markdown-preview {
+  position: relative;
+}
+
+.chat-msg__markdown--streaming .markdown-preview::after,
+.chat-msg__thinking-content--streaming .markdown-preview::after {
+  position: absolute;
+  right: 0;
+  bottom: 2px;
+  pointer-events: none;
   display: inline-block;
   width: 6px;
   height: 14px;
-  margin-left: 2px;
   background: var(--color-text-secondary);
   animation: cursor-blink 0.8s steps(2) infinite;
   content: "";

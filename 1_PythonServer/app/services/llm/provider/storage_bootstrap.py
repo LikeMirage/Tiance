@@ -20,6 +20,7 @@ from app.repositories.llm.provider_file_store import (
     PROVIDER_MODELS_FILE,
     PROVIDER_RULES_FILE,
     PROVIDER_SCHEMA_VERSION,
+    PROVIDER_FORMAT_VERSIONS,
     PROVIDER_SETTINGS_FILE,
     ProviderFileStore,
     ProviderFileStoreError,
@@ -31,7 +32,10 @@ from app.repositories.llm.provider_adaptation_rules_repository import (
 PROVIDER_PRESET_CATALOG_VERSION = 2
 
 
-def ensure_provider_file_storage(providers_path: Path) -> None:
+def ensure_provider_file_storage(providers_path: Path, database_path: Path | None = None) -> None:
+    from app.migrations.providers.storage import upgrade_storage
+    if upgrade_storage(providers_path, database_path):
+        return
     settings_file = providers_path / PROVIDER_SETTINGS_FILE
     if settings_file.is_file():
         store = ProviderFileStore(providers_path)
@@ -92,6 +96,7 @@ def ensure_provider_file_storage(providers_path: Path) -> None:
             {
                 "schemaVersion": PROVIDER_SCHEMA_VERSION,
                 "initializedAt": now,
+                **PROVIDER_FORMAT_VERSIONS,
                 "providerPresetCatalogVersion": PROVIDER_PRESET_CATALOG_VERSION,
                 "providerOrder": list(provider_manifests),
                 "updatedAt": now,

@@ -3,28 +3,35 @@ import type { WheelEvent } from "react";
 
 import type { ChatMessage } from "./chatMessage";
 
-export function useThinkingAutoScroll(messages: ChatMessage[]) {
+export function useThinkingAutoScroll(messages: ChatMessage[], onPauseReading?: () => void) {
   const thinkingContentRefs = useRef(new Map<string, HTMLDivElement>());
   const thinkingStickToBottomRefs = useRef(new Map<string, boolean>());
   const thinkingScrollFrameRefs = useRef(new Map<string, number>());
   const thinkingResizeObserversRef = useRef(new Map<string, ResizeObserver>());
 
-  const scrollThinkingContentToBottom = useCallback((messageId: string) => {
-    const previousFrame = thinkingScrollFrameRefs.current.get(messageId);
-    if (previousFrame !== undefined) {
-      window.cancelAnimationFrame(previousFrame);
-    }
+  const cancelThinkingScroll = useCallback((messageId: string) => {
+    const frame = thinkingScrollFrameRefs.current.get(messageId);
+    if (frame !== undefined) window.cancelAnimationFrame(frame);
+    thinkingScrollFrameRefs.current.delete(messageId);
+  }, []);
 
-    const frame = window.requestAnimationFrame(() => {
+  const scrollThinkingContentToBottom = useCallback((messageId: string) => {
+    if (thinkingScrollFrameRefs.current.has(messageId)) return;
+    const step = () => {
       thinkingScrollFrameRefs.current.delete(messageId);
       const el = thinkingContentRefs.current.get(messageId);
-      if (!el) return;
-      el.scrollTop = el.scrollHeight;
-      window.requestAnimationFrame(() => {
-        el.scrollTop = el.scrollHeight;
-      });
-    });
-    thinkingScrollFrameRefs.current.set(messageId, frame);
+      if (!el || thinkingStickToBottomRefs.current.get(messageId) === false) return;
+      const target = Math.max(0, el.scrollHeight - el.clientHeight);
+      const distance = target - el.scrollTop;
+      if (Math.abs(distance) <= 1 || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+        el.scrollTop = target;
+        return;
+      }
+      // A single animation follows the moving tail instead of restarting on every token.
+      el.scrollTop += distance * 0.35;
+      thinkingScrollFrameRefs.current.set(messageId, window.requestAnimationFrame(step));
+    };
+    thinkingScrollFrameRefs.current.set(messageId, window.requestAnimationFrame(step));
   }, []);
 
   useLayoutEffect(() => {
@@ -49,6 +56,7 @@ export function useThinkingAutoScroll(messages: ChatMessage[]) {
   }, []);
 
   const setThinkingContentRef = useCallback((messageId: string, node: HTMLDivElement | null) => {
+    if (node && thinkingContentRefs.current.get(messageId) === node) return;
     const existingObserver = thinkingResizeObserversRef.current.get(messageId);
     if (existingObserver) {
       existingObserver.disconnect();
@@ -67,7 +75,7 @@ export function useThinkingAutoScroll(messages: ChatMessage[]) {
           }
         });
         observer.observe(node);
-        const preview = node.querySelector(".markdown-preview");
+        const preview = node.querySelector(".sliding-content__inner") ?? node.querySelector(".markdown-preview");
         if (preview) {
           observer.observe(preview);
         }
@@ -80,12 +88,8 @@ export function useThinkingAutoScroll(messages: ChatMessage[]) {
     }
     thinkingContentRefs.current.delete(messageId);
     thinkingStickToBottomRefs.current.delete(messageId);
-    const frame = thinkingScrollFrameRefs.current.get(messageId);
-    if (frame !== undefined) {
-      window.cancelAnimationFrame(frame);
-      thinkingScrollFrameRefs.current.delete(messageId);
-    }
-  }, [scrollThinkingContentToBottom]);
+    cancelThinkingScroll(messageId);
+  }, [cancelThinkingScroll, scrollThinkingContentToBottom]);
 
   const handleThinkingContentScroll = useCallback((messageId: string) => {
     const el = thinkingContentRefs.current.get(messageId);
@@ -101,13 +105,17 @@ export function useThinkingAutoScroll(messages: ChatMessage[]) {
     if (!el || el.scrollHeight <= el.clientHeight) return;
     if (event.deltaY >= 0) return;
     thinkingStickToBottomRefs.current.set(messageId, false);
-  }, []);
+    cancelThinkingScroll(messageId);
+    onPauseReading?.();
+  }, [cancelThinkingScroll, onPauseReading]);
 
   const pauseThinkingAutoScroll = useCallback((messageId: string) => {
     const el = thinkingContentRefs.current.get(messageId);
     if (!el || el.scrollHeight <= el.clientHeight) return;
     thinkingStickToBottomRefs.current.set(messageId, false);
-  }, []);
+    cancelThinkingScroll(messageId);
+    onPauseReading?.();
+  }, [cancelThinkingScroll, onPauseReading]);
 
   const isThinkingStuckToBottom = useCallback((messageId: string) => (
     thinkingStickToBottomRefs.current.get(messageId) !== false

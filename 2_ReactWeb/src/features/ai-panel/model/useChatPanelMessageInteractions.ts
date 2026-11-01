@@ -2,13 +2,11 @@ import { useCallback, useMemo, useState } from "react";
 
 import type { EditorReferenceViewerPayload } from "../../../entities/editor/model/editorReference";
 import type { CodeBlockSavePayload } from "../../markdown-preview/model/codeBlockFile";
-import type { ChatMessage } from "./chatMessage";
 import type { ChatMessageItemInteractions } from "../ui/chatMessageItemTypes";
 import type { LocalFileReference } from "../../../entities/local-file/model/localFileReference";
 import type { MarkdownLocalFileActions } from "../../markdown-preview/ui/MarkdownLocalFileLink";
 
 type UseChatPanelMessageInteractionsOptions = {
-  activeSessionId: string | null;
   handleThinkingContentScroll: (messageId: string) => void;
   handleThinkingContentWheel: ChatMessageItemInteractions["onThinkingContentWheel"];
   onOpenReference?: (payload: EditorReferenceViewerPayload) => void;
@@ -19,18 +17,12 @@ type UseChatPanelMessageInteractionsOptions = {
   pauseThinkingAutoScroll: (messageId: string) => void;
   projectId: string | null;
   setThinkingContentRef: (messageId: string, node: HTMLDivElement | null) => void;
-  updateSessionMessages: (
-    projectId: string,
-    sessionId: string,
-    updater: (prev: ChatMessage[]) => ChatMessage[],
-  ) => void;
   getVariantNavigation?: ChatMessageItemInteractions["getVariantNavigation"];
   onExportAssistantMessage?: ChatMessageItemInteractions["onExportAssistantMessage"];
   onForkUserMessage?: ChatMessageItemInteractions["onForkUserMessage"];
 };
 
 export function useChatPanelMessageInteractions({
-  activeSessionId,
   handleThinkingContentScroll,
   handleThinkingContentWheel,
   onOpenReference,
@@ -41,21 +33,11 @@ export function useChatPanelMessageInteractions({
   pauseThinkingAutoScroll,
   projectId,
   setThinkingContentRef,
-  updateSessionMessages,
   getVariantNavigation,
   onExportAssistantMessage,
   onForkUserMessage,
 }: UseChatPanelMessageInteractionsOptions) {
   const [expandedUserMessageIds, setExpandedUserMessageIds] = useState<Set<string>>(() => new Set());
-
-  const toggleThinking = useCallback((messageId: string) => {
-    if (!projectId || !activeSessionId) return;
-    updateSessionMessages(projectId, activeSessionId, (prev) => prev.map((message) =>
-      message.id === messageId
-        ? { ...message, isThinkingExpanded: !message.isThinkingExpanded }
-        : message,
-    ));
-  }, [activeSessionId, projectId, updateSessionMessages]);
 
   const toggleUserMessageExpanded = useCallback((messageId: string) => {
     setExpandedUserMessageIds((prev) => {
@@ -87,7 +69,6 @@ export function useChatPanelMessageInteractions({
     resolveLocalFileReference,
     onThinkingContentScroll: handleThinkingContentScroll,
     onThinkingContentWheel: handleThinkingContentWheel,
-    onToggleThinking: toggleThinking,
     onToggleUserMessageExpanded: toggleUserMessageExpanded,
     onTouchMoveThinkingContent: pauseThinkingAutoScroll,
     projectId,
@@ -103,7 +84,6 @@ export function useChatPanelMessageInteractions({
     localFileActions,
     resolveLocalFileReference,
     setThinkingContentRef,
-    toggleThinking,
     toggleUserMessageExpanded,
     getVariantNavigation,
     onExportAssistantMessage,

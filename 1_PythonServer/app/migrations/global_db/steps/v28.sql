@@ -1,0 +1,1 @@
+-- Frozen from pre-v0.3.34 history; legacy source ledgers are retained for verified export.

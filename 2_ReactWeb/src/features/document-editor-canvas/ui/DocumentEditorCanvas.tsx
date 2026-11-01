@@ -421,7 +421,7 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
   };
 
   return (
-    <div className="workspace-page__canvas-chat-shell">
+    <div className="workspace-page__canvas-chat-shell" ref={aiPanel.containerRef}>
       {/* 编辑区主体 */}
       <div className="workspace-page__canvas-chat-main">
         <div className="doc-editor">

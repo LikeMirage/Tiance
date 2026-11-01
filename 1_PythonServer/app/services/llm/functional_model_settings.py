@@ -36,7 +36,11 @@ class LlmFunctionalModelSettingsService:
             return settings
 
         if settings is not None:
-            raise BadRequestError("功能模型配置版本与当前程序不一致，请在设置中重设此项；原配置未被修改。")
+            self._repository.upgrade_settings(profile_key)
+            upgraded = self._repository.get_settings(profile_key)
+            if upgraded is None or upgraded.version != expected_version:
+                raise BadRequestError(f"功能模型配置 {profile_key} 升级后版本不匹配；原配置已备份。")
+            return upgraded
 
         default_settings = get_default_functional_model_profile_settings(profile_key)
         if default_settings is None:

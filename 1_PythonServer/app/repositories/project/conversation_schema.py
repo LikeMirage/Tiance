@@ -1,7 +1,10 @@
-"""Current project schema, initialized atomically without historical upgrades."""
+"""Fresh project schema and the single initialization/upgrade entry point."""
 import sqlite3
 
-SCHEMA_VERSION = 6
+from app.migrations.project_db import ensure_version
+from app.migrations.runner import schema_transaction
+
+SCHEMA_VERSION = 8
 SCHEMA_STATEMENTS = (
     """CREATE TABLE conversation_schema (
             version INTEGER NOT NULL
@@ -172,17 +175,11 @@ def validate_current_schema(connection: sqlite3.Connection) -> None:
 
 
 def ensure_current_schema(connection: sqlite3.Connection) -> None:
-    connection.execute("SAVEPOINT initialize_project_schema")
-    try:
+    with schema_transaction(connection):
         tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
         if tables:
-            validate_current_schema(connection)
+            ensure_version(connection, SCHEMA_VERSION)
         else:
             for statement in SCHEMA_STATEMENTS:
                 connection.execute(statement)
             connection.execute("INSERT INTO conversation_schema(version) VALUES (?)", (SCHEMA_VERSION,))
-        connection.execute("RELEASE initialize_project_schema")
-    except BaseException:
-        connection.execute("ROLLBACK TO initialize_project_schema")
-        connection.execute("RELEASE initialize_project_schema")
-        raise

@@ -24,9 +24,11 @@ import {
 
 import type { ChatUsage } from "../../../entities/llm-chat/model/chatCompletion";
 import { Tooltip } from "../../../shared/ui/tooltip";
+import { SlidingContent } from "../../../shared/ui/sliding-content/SlidingContent";
+import { ChatThinkingContent } from "./ChatThinkingContent";
 import { LazyMarkdownPreview } from "../../markdown-preview/ui/LazyMarkdownPreview";
 import { resolveAssistantBodyContent } from "../model/chatDisplayMessages";
-import { ChatProcessFoldScope } from "../model/chatProcessFoldState";
+import { ChatProcessFoldScope, useAutomaticProcessFolds, useChatProcessFolds } from "../model/chatProcessFoldState";
 import { ConversationEventNotice, RunFailureNotice, MemoryCompactionNotice } from "./ChatRunNotices";
 import { createWorkspaceAssetUrl } from "../../document-editor-canvas/model/documentAssetUrls";
 import {
@@ -89,11 +91,8 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   const isUserMessageExpanded = expandedUserMessageIds.has(message.id);
   const isBodyStreaming =
     isStreamingMessage && message.content.trim().length > 0;
-  const shouldRenderThinking =
-    message.thinkingContent.trim().length > 0 ||
-    (isStreamingMessage && !isBodyStreaming && !message.retryStatus);
-  const shouldRenderProcessTimeline =
-    message.processItems !== undefined && message.processItems.length > 0;
+  const shouldRenderThinking = message.thinkingContent.trim().length > 0;
+  const shouldRenderProcessTimeline = message.role === "assistant" && message.processItems !== undefined;
   const isThinkingStreaming =
     isStreamingMessage &&
     !isBodyStreaming &&
@@ -103,7 +102,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
     message,
     clockTick,
   );
-  const usageToRender = !isStreamingMessage ? message.usage : null;
+  const hasAssistantBody = message.role === "assistant" && Boolean(resolveAssistantBodyContent(message).trim());
   const isMemoryCompactionStatus =
     message.role === "system" && message.name === "memory_compaction";
 
@@ -133,6 +132,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               elapsedSeconds={thinkingElapsedSeconds}
               interactions={interactions}
               isStreaming={isThinkingStreaming}
+              isStreamingMessage={isStreamingMessage}
               message={message}
             />
           ) : null}
@@ -150,16 +150,22 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             message={message}
             referencedUserMessage={referencedUserMessage}
           />
+          <SlidingContent expanded={!isStreamingMessage} className="chat-msg__footer">
+          <div className={hasAssistantBody ? "chat-msg__footer-content" : undefined}>
           <AssistantActions
             interactions={interactions}
-            isStreamingMessage={isStreamingMessage}
             message={message}
           />
+          {hasAssistantBody || message.usage ? (
+            <div className="chat-msg__usage" aria-hidden={!message.usage || undefined}
+              style={{ visibility: !message.usage ? "hidden" : undefined }}>
+              {message.usage ? formatChatUsage(message.usage) : "\u00a0"}
+            </div>
+          ) : null}
+          </div>
+          </SlidingContent>
           {message.finishReason === "output_limit" ? <div className="chat-msg__usage">输出已截断</div> : null}
           {message.retryStatus ? <RetryNotice message={message} /> : null}
-          {usageToRender ? (
-            <div className="chat-msg__usage">{formatChatUsage(usageToRender)}</div>
-          ) : null}
         </div>
       )}
     </ChatProcessFoldScope>
@@ -243,6 +249,7 @@ type ThinkingBlockProps = {
   elapsedSeconds: number | null;
   interactions: ChatMessageItemInteractions;
   isStreaming: boolean;
+  isStreamingMessage: boolean;
   message: ChatMessage;
 };
 
@@ -250,18 +257,27 @@ function ThinkingBlock({
   elapsedSeconds,
   interactions,
   isStreaming,
+  isStreamingMessage,
   message,
 }: ThinkingBlockProps) {
+  const { states, setExpanded, thinkingOffset, isFollowing } = useChatProcessFolds();
+  const automaticExpanded = useAutomaticProcessFolds(
+    `legacy-thinking:${thinkingOffset}`, message.isThinkingExpanded ? "expanded" : null,
+    isStreamingMessage, isFollowing,
+  ).has("expanded");
+  const foldKey = `thinking:${thinkingOffset}`;
+  const expanded = states[foldKey] ?? automaticExpanded;
   return (
     <section className="chat-msg__thinking">
       <div className="chat-msg__thinking-head">
         <button
           className="chat-msg__thinking-toggle"
           type="button"
-          onClick={() => interactions.onToggleThinking(message.id)}
+          aria-expanded={expanded}
+          onClick={() => setExpanded(foldKey, !expanded)}
         >
           <span aria-hidden="true">
-            {message.isThinkingExpanded ? (
+            {expanded ? (
               <CaretDown size={14} weight="bold" />
             ) : (
               <CaretRight size={14} weight="bold" />
@@ -273,33 +289,8 @@ function ThinkingBlock({
           <span className="chat-msg__thinking-timer">{elapsedSeconds}s</span>
         ) : null}
       </div>
-      <div
-        ref={(node) => interactions.setThinkingContentRef(message.id, node)}
-        className={[
-          "chat-msg__thinking-content",
-          isStreaming ? "chat-msg__thinking-content--streaming" : "",
-          message.isThinkingExpanded ? "" : "chat-msg__thinking-content--collapsed",
-        ].filter(Boolean).join(" ")}
-        aria-hidden={!message.isThinkingExpanded}
-        onScroll={() => interactions.onThinkingContentScroll(message.id)}
-        onWheel={(event) =>
-          interactions.onThinkingContentWheel(message.id, event)
-        }
-        onTouchMove={() => interactions.onTouchMoveThinkingContent(message.id)}
-      >
-        {message.isThinkingExpanded ? (
-          <LazyMarkdownPreview
-            content={message.thinkingContent}
-            isStreaming={isStreaming}
-            renderStrategy="responsive"
-            mathErrorMode="neutral"
-            localFileActions={interactions.localFileActions}
-            onPreviewHtmlCode={interactions.onPreviewHtmlCode}
-            onSaveCodeBlock={interactions.onSaveCodeBlock}
-            resolveLocalFileReference={interactions.resolveLocalFileReference}
-          />
-        ) : null}
-      </div>
+      <ChatThinkingContent content={message.thinkingContent} foldKey={foldKey} interactions={interactions}
+        isExpanded={expanded} isLiveSegment={isStreamingMessage} isStreaming={isStreaming} messageId={message.id} />
     </section>
   );
 }
@@ -488,7 +479,7 @@ function UserMessageBody({
 
   return (
     <>
-      <div
+      <SlidingContent expanded={isExpanded} collapsedHeight={112}
         ref={containerRef}
         className={[
           "chat-msg__user-content",
@@ -506,7 +497,7 @@ function UserMessageBody({
             <p className="chat-msg__text">{resolveUserMessageContent(message)}</p>
           )}
         </div>
-      </div>
+      </SlidingContent>
       <UserActions canExpand={canExpand} interactions={interactions} isExpanded={isExpanded}
         isSessionStreaming={isSessionStreaming} message={message} />
     </>
@@ -594,15 +585,12 @@ function UserReferenceIcon({ reference }: { reference: UserMessageReferenceDispl
 
 function AssistantActions({
   interactions,
-  isStreamingMessage,
   message,
 }: {
   interactions: ChatMessageItemInteractions;
-  isStreamingMessage: boolean;
   message: ChatMessage;
 }) {
   return (message.role === "assistant" || message.role === "error") &&
-    !isStreamingMessage &&
     message.content.trim().length > 0 ? (
     <div className="chat-msg__actions" aria-label="消息操作">
       <CopyMessageButton label="复制回复" text={message.content} />

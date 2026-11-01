@@ -854,7 +854,9 @@ def test_stream_feeds_generic_tool_image_after_all_tool_results():
     )
     request = replace(
         _request(),
-        project_id="00000000-0000-0000-0000-000000000001",
+        # The real audit service may resolve this ID; keep it synthetic so this
+        # unit test cannot open the installation's default project database.
+        project_id="project-1",
         provider_id="provider-1",
         model_id="model-1",
         tools=(

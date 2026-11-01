@@ -20,7 +20,12 @@ export function captureChatScrollPosition(
   const viewport = scrollElement.getBoundingClientRect();
   const anchor = Array.from(
     scrollElement.querySelectorAll<HTMLElement>("[data-chat-message-id]"),
-  ).find((element) => element.getBoundingClientRect().bottom > viewport.top);
+  ).find((element) => {
+    const rect = element.getBoundingClientRect();
+    // A virtual list can also mount an offscreen live reply or restore target.
+    // Neither is a reading anchor until it actually intersects the viewport.
+    return rect.bottom > viewport.top && rect.top < viewport.bottom;
+  });
   const distanceToBottom =
     scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight;
 

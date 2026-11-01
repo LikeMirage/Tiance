@@ -35,7 +35,11 @@ _SAFE_INHERITED_ENV_KEYS = (
     "HOME",
     "HOMEDRIVE",
     "HOMEPATH",
+    # Keep the OS account available for getpass/Git reflogs; this does not
+    # configure a Git author or inherit authentication credentials.
+    "LNAME",
     "LOCALAPPDATA",
+    "LOGNAME",
     "PATH",
     "PATHEXT",
     "ProgramData",
@@ -44,6 +48,8 @@ _SAFE_INHERITED_ENV_KEYS = (
     "SystemRoot",
     "TEMP",
     "TMP",
+    "USER",
+    "USERNAME",
     "USERPROFILE",
     "WINDIR",
 )

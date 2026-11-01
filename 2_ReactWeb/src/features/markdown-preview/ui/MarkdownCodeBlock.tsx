@@ -11,6 +11,7 @@ import {
   type SaveState,
 } from "./markdownCodeBlockActions";
 import { MarkdownMermaidBlock } from "./MarkdownMermaidBlock";
+import { SlidingContent } from "../../../shared/ui/sliding-content/SlidingContent";
 
 const MAX_HIGHLIGHTED_CODE_CHARS = 20_000;
 const MAX_HIGHLIGHT_CACHE_ENTRIES = 100;
@@ -144,7 +145,7 @@ export function MarkdownCodeBlock({
         </div>
       </div>
       <div className="markdown-preview__code-frame">
-        <div
+        <SlidingContent expanded={isExpanded} collapsedHeight={280}
           ref={codePreRef}
           className={[
             "markdown-preview__code-pre",
@@ -158,7 +159,7 @@ export function MarkdownCodeBlock({
           ) : (
             <pre className="markdown-preview__code-plain"><code>{code}</code></pre>
           )}
-        </div>
+        </SlidingContent>
         {canExpand ? (
           <button
             className={isExpanded ? "markdown-preview__code-expand-overlay markdown-preview__code-expand-overlay--collapse" : "markdown-preview__code-expand-overlay"}

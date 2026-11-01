@@ -1,0 +1,14 @@
+.sliding-content {
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+.sliding-content[data-sliding],
+.sliding-content[data-collapsed] {
+  overflow: hidden;
+}
+
+.sliding-content__inner {
+  display: flow-root;
+  min-height: 0;
+}

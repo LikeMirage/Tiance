@@ -4,6 +4,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   useSyncExternalStore,
   type RefObject,
 } from "react";
@@ -15,6 +16,8 @@ import { ContentReadinessContext } from "../../../shared/lib/contentReadiness";
 import { createChatDisplayProjector } from "../model/chatDisplayMessages";
 import { buildModelSwitches } from "../model/chatModelTransitions";
 import { buildChatProcessFoldIdentities } from "../model/chatProcessFoldState";
+import { findRenderedMessage, startChatMessageNavigation,
+  type ChatMessageNavigationRequest } from "../model/chatMessageNavigation";
 import {
   ChatMessageItem,
   type ChatMessageItemInteractions,
@@ -28,12 +31,7 @@ const VIRTUALIZE_MIN_HISTORICAL_MESSAGES = 28;
 const noPendingContent = () => 0;
 const subscribeNoContent = () => () => {};
 
-export type ChatMessageNavigationRequest = {
-  behavior?: ScrollBehavior;
-  messageId: string;
-  requestId: number;
-  viewportOffset?: number;
-};
+export type { ChatMessageNavigationRequest } from "../model/chatMessageNavigation";
 
 type ChatMessageListProps = {
   autoCollapseAssistantProcess: boolean;
@@ -42,6 +40,7 @@ type ChatMessageListProps = {
   interactions: ChatMessageItemInteractions;
   isActiveSessionStreaming: boolean;
   isLoadingSession?: boolean;
+  isHistoryReady?: boolean;
   loadError?: string;
   hasOlderMessages?: boolean;
   onLoadOlder?: () => Promise<boolean>;
@@ -60,6 +59,7 @@ export function ChatMessageList({
   interactions,
   isActiveSessionStreaming,
   isLoadingSession = false,
+  isHistoryReady = true,
   loadError, hasOlderMessages = false, onLoadOlder, onRetryLoad,
   messages,
   navigationRequest = null,
@@ -91,12 +91,13 @@ export function ChatMessageList({
     ? liveMessage?.id ?? null : null;
   const shouldVirtualize = historicalMessages.length >= VIRTUALIZE_MIN_HISTORICAL_MESSAGES;
   const virtualList = useVirtualMessageList({ enabled: shouldVirtualize, keepLastMessageMounted: true, keepMessageMountedId: activeAssistantId,
+    navigationMessageId: navigationRequest?.messageId,
     messages: displayMessages, scrollParentRef, sizeCacheRef: messageSizeCacheRef });
-  const navigationTargetIsRendered = Boolean(navigationRequest && virtualList.virtualItems.some(
-    (item) => item.message.id === navigationRequest.messageId,
-  ));
+  const navigationTargetExists = Boolean(navigationRequest && displayMessages.some(
+    (message) => message.id === navigationRequest.messageId));
 
   const olderLoadingRef = useRef(false);
+  const [olderLoadRevision, setOlderLoadRevision] = useState(0);
   const historyLoadRef = useRef({ hasOlderMessages, onLoadOlder, isLoadingSession, loadError });
   historyLoadRef.current = { hasOlderMessages, onLoadOlder, isLoadingSession, loadError };
   useEffect(() => {
@@ -107,7 +108,10 @@ export function ChatMessageList({
       const state = historyLoadRef.current;
       if (!state.hasOlderMessages || !state.onLoadOlder || state.isLoadingSession || state.loadError || olderLoadingRef.current) return;
       olderLoadingRef.current = true;
-      void state.onLoadOlder().catch(() => undefined).finally(() => { olderLoadingRef.current = false; });
+      void state.onLoadOlder().catch(() => undefined).finally(() => {
+        olderLoadingRef.current = false;
+        setOlderLoadRevision((value) => value + 1);
+      });
     };
     const scroll = () => {
       if (parent.scrollTop < previousTop && parent.scrollTop < 200) load();
@@ -120,14 +124,18 @@ export function ChatMessageList({
   }, [scrollParentRef]);
 
   useEffect(() => {
-    if (!navigationRequest || displayMessages.some((message) => message.id === navigationRequest.messageId)) return;
+    if (!navigationRequest || navigationTargetExists || !isHistoryReady) return;
     if (hasOlderMessages && onLoadOlder && !isLoadingSession && !loadError && !olderLoadingRef.current) {
       olderLoadingRef.current = true;
-      void onLoadOlder().catch(() => undefined).finally(() => { olderLoadingRef.current = false; });
+      void onLoadOlder().catch(() => undefined).finally(() => {
+        olderLoadingRef.current = false;
+        setOlderLoadRevision((value) => value + 1);
+      });
     } else if (!hasOlderMessages && !isLoadingSession) {
       onNavigationHandled?.(navigationRequest.requestId);
     }
-  }, [displayMessages, hasOlderMessages, isLoadingSession, loadError, navigationRequest, onLoadOlder, onNavigationHandled]);
+  }, [navigationTargetExists, hasOlderMessages, isHistoryReady, isLoadingSession, loadError,
+    navigationRequest, olderLoadRevision, onLoadOlder, onNavigationHandled]);
 
   useLayoutEffect(() => {
     const liveMessageId = liveMessage?.id;
@@ -172,25 +180,16 @@ export function ChatMessageList({
   }, [displayMessages]);
 
   useEffect(() => {
-    if (!navigationRequest || contentPending) return undefined;
-    if (!displayMessages.some((message) => message.id === navigationRequest.messageId)) return undefined;
-    const frameId = window.requestAnimationFrame(() => {
-      if (shouldVirtualize && !navigationTargetIsRendered) {
-        virtualList.scrollToMessage(navigationRequest.messageId, "auto");
-        return;
-      }
-      if (scrollRenderedMessageIntoView(
-        scrollParentRef.current,
-        navigationRequest.messageId,
-        shouldVirtualize ? "auto" : navigationRequest.behavior,
-        navigationRequest.viewportOffset,
-      )) {
-        onNavigationHandled?.(navigationRequest.requestId);
-      }
+    const scrollElement = scrollParentRef.current;
+    if (!navigationRequest || !navigationTargetExists || !scrollElement || contentPending || isLoadingSession) return;
+    return startChatMessageNavigation({
+      scrollElement,
+      request: shouldVirtualize ? { ...navigationRequest, behavior: "auto" } : navigationRequest,
+      isReady: () => !readiness?.getSnapshot(),
+      onHandled: (requestId) => onNavigationHandled?.(requestId),
     });
-    return () => window.cancelAnimationFrame(frameId);
-  }, [contentPending, displayMessages, navigationRequest, navigationTargetIsRendered, onNavigationHandled,
-    scrollParentRef, shouldVirtualize, virtualList.scrollToMessage]);
+  }, [contentPending, isLoadingSession, navigationRequest, navigationTargetExists, onNavigationHandled,
+    readiness, scrollParentRef, shouldVirtualize]);
 
   if (displayMessages.length === 0) {
     return (
@@ -355,34 +354,4 @@ function useStableModelSwitches(messages: ChatMessage[]) {
     previousRef.current = next;
     return next;
   }, [messages]);
-}
-
-function scrollRenderedMessageIntoView(
-  scrollElement: HTMLDivElement | null,
-  messageId: string,
-  behavior: ScrollBehavior = "smooth",
-  viewportOffset = 8,
-) {
-  if (!scrollElement) return false;
-  const messageElement = findRenderedMessage(scrollElement, messageId);
-  if (!messageElement) return false;
-  const scrollRect = scrollElement.getBoundingClientRect();
-  const messageRect = messageElement.getBoundingClientRect();
-  scrollElement.scrollTo({
-    top: Math.max(
-      0,
-      scrollElement.scrollTop + messageRect.top - scrollRect.top - viewportOffset,
-    ),
-    behavior,
-  });
-  return true;
-}
-
-function findRenderedMessage(
-  scrollElement: HTMLDivElement,
-  messageId: string,
-) {
-  return Array.from(
-    scrollElement.querySelectorAll<HTMLElement>("[data-chat-message-id]"),
-  ).find((element) => element.dataset.chatMessageId === messageId);
 }

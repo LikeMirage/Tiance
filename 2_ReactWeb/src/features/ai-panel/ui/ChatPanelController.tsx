@@ -519,6 +519,8 @@ export function ChatPanelController({
   const {
     bodyRef,
     handleBodyScroll,
+    isFollowingBottom,
+    pauseForUserScroll,
     isSessionSettling,
     pauseAutoScrollForNavigation,
     preserveCurrentView,
@@ -548,7 +550,7 @@ export function ChatPanelController({
     pauseThinkingAutoScroll,
     scrollThinkingContentToBottom,
     setThinkingContentRef,
-  } = useThinkingAutoScroll(messages);
+  } = useThinkingAutoScroll(messages, pauseForUserScroll);
   const {
     branchError,
     forkUserMessage,
@@ -578,7 +580,6 @@ export function ChatPanelController({
     expandedUserMessageIds,
     messageInteractions,
   } = useChatPanelMessageInteractions({
-    activeSessionId,
     handleThinkingContentScroll,
     handleThinkingContentWheel,
     onOpenReference,
@@ -589,7 +590,6 @@ export function ChatPanelController({
     pauseThinkingAutoScroll,
     projectId,
     setThinkingContentRef,
-    updateSessionMessages,
     getVariantNavigation,
     onExportAssistantMessage: openAssistantMessageExport,
     onForkUserMessage: (message) => {
@@ -852,6 +852,7 @@ export function ChatPanelController({
       )}
 
       <ChatPanelBodyFrame
+        isFollowingBottom={isFollowingBottom}
         activeSessionKey={activeSessionKey}
         activeView={activeView}
         bodyRef={bodyRef}
@@ -877,6 +878,7 @@ export function ChatPanelController({
             (activeSessionKey && loadingSessionKeys.has(activeSessionKey))
           ),
           messages,
+          isHistoryReady: Boolean(activeSessionKey && historyPages[activeSessionKey]),
           loadError: activeSessionKey ? messageLoadErrors[activeSessionKey] : undefined,
           hasOlderMessages: Boolean(activeSessionKey && historyPages[activeSessionKey]?.before),
           onLoadOlder: () => projectId && activeSessionId

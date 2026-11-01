@@ -1,0 +1,276 @@
+[
+  {
+    "version": 1,
+    "name": "initial_llm_provider_schema",
+    "add_columns": []
+  },
+  {
+    "version": 2,
+    "name": "provider_custom_models",
+    "add_columns": []
+  },
+  {
+    "version": 3,
+    "name": "provider_catalog_order",
+    "add_columns": []
+  },
+  {
+    "version": 4,
+    "name": "provider_custom_model_pricing",
+    "add_columns": []
+  },
+  {
+    "version": 5,
+    "name": "remove_derived_provider_endpoint_columns",
+    "add_columns": []
+  },
+  {
+    "version": 6,
+    "name": "projects",
+    "add_columns": []
+  },
+  {
+    "version": 7,
+    "name": "app_metadata",
+    "add_columns": []
+  },
+  {
+    "version": 8,
+    "name": "llm_functional_model_settings",
+    "add_columns": []
+  },
+  {
+    "version": 9,
+    "name": "llm_usage_records",
+    "add_columns": []
+  },
+  {
+    "version": 10,
+    "name": "provider_custom_model_cache_hit_pricing",
+    "add_columns": []
+  },
+  {
+    "version": 11,
+    "name": "conversation_session_sequence_number",
+    "add_columns": []
+  },
+  {
+    "version": 12,
+    "name": "core_data_integrity_constraints",
+    "add_columns": [
+      {
+        "table_name": "llm_usage_records",
+        "column_name": "usage_feature_key",
+        "column_definition": "TEXT NOT NULL DEFAULT 'main_chat'"
+      }
+    ]
+  },
+  {
+    "version": 13,
+    "name": "provider_api_key_sqlite_ciphertext",
+    "add_columns": [
+      {
+        "table_name": "provider_config_api_keys",
+        "column_name": "api_key_ciphertext",
+        "column_definition": "TEXT"
+      }
+    ]
+  },
+  {
+    "version": 14,
+    "name": "remove_provider_api_key_secret_refs",
+    "add_columns": [
+      {
+        "table_name": "provider_config_api_keys",
+        "column_name": "api_key_ciphertext",
+        "column_definition": "TEXT"
+      }
+    ]
+  },
+  {
+    "version": 15,
+    "name": "llm_usage_feature_key",
+    "add_columns": [
+      {
+        "table_name": "llm_usage_records",
+        "column_name": "usage_feature_key",
+        "column_definition": "TEXT NOT NULL DEFAULT 'main_chat'"
+      }
+    ]
+  },
+  {
+    "version": 16,
+    "name": "schema_column_contract_checks",
+    "add_columns": [
+      {
+        "table_name": "provider_config_api_keys",
+        "column_name": "api_key_ciphertext",
+        "column_definition": "TEXT"
+      },
+      {
+        "table_name": "llm_usage_records",
+        "column_name": "usage_feature_key",
+        "column_definition": "TEXT NOT NULL DEFAULT 'main_chat'"
+      }
+    ]
+  },
+  {
+    "version": 17,
+    "name": "llm_usage_memory_compression_feature_key",
+    "add_columns": [
+      {
+        "table_name": "llm_usage_records",
+        "column_name": "usage_feature_key",
+        "column_definition": "TEXT NOT NULL DEFAULT 'main_chat'"
+      }
+    ]
+  },
+  {
+    "version": 18,
+    "name": "project_categories",
+    "add_columns": [
+      {
+        "table_name": "projects",
+        "column_name": "category_id",
+        "column_definition": "TEXT NOT NULL DEFAULT 'daily-project'"
+      }
+    ]
+  },
+  {
+    "version": 19,
+    "name": "project_root_path_guard",
+    "add_columns": []
+  },
+  {
+    "version": 25,
+    "name": "drop_tool_registry_cache",
+    "add_columns": []
+  },
+  {
+    "version": 26,
+    "name": "workspace_activity_records",
+    "add_columns": []
+  },
+  {
+    "version": 27,
+    "name": "workspace_activity_baselines",
+    "add_columns": []
+  },
+  {
+    "version": 28,
+    "name": "move_provider_storage_to_files",
+    "add_columns": []
+  },
+  {
+    "version": 29,
+    "name": "llm_token_estimation_settings",
+    "add_columns": []
+  },
+  {
+    "version": 30,
+    "name": "project_kind",
+    "add_columns": [
+      {
+        "table_name": "projects",
+        "column_name": "project_kind",
+        "column_definition": "TEXT NOT NULL DEFAULT 'standard' CHECK (project_kind IN ('standard', 'role', 'theme'))"
+      }
+    ]
+  },
+  {
+    "version": 31,
+    "name": "project_category_kind_and_builtin_role_set",
+    "add_columns": [
+      {
+        "table_name": "project_categories",
+        "column_name": "category_kind",
+        "column_definition": "TEXT NOT NULL DEFAULT 'standard' CHECK (category_kind IN ('standard', 'role', 'theme'))"
+      }
+    ]
+  },
+  {
+    "version": 32,
+    "name": "project_category_kind_integrity",
+    "add_columns": []
+  },
+  {
+    "version": 33,
+    "name": "role_project_categories",
+    "add_columns": []
+  },
+  {
+    "version": 34,
+    "name": "remove_legacy_fixed_role_category",
+    "add_columns": []
+  },
+  {
+    "version": 35,
+    "name": "remove_recreated_legacy_role_category",
+    "add_columns": []
+  },
+  {
+    "version": 36,
+    "name": "prevent_legacy_role_category_recreation",
+    "add_columns": []
+  },
+  {
+    "version": 37,
+    "name": "rename_default_role_category",
+    "add_columns": []
+  },
+  {
+    "version": 38,
+    "name": "theme_project_kind",
+    "add_columns": []
+  },
+  {
+    "version": 39,
+    "name": "tool_project_kind",
+    "add_columns": []
+  },
+  {
+    "version": 40,
+    "name": "network_settings",
+    "add_columns": []
+  },
+  {
+    "version": 41,
+    "name": "literature_and_experience_project_kinds",
+    "add_columns": []
+  },
+  {
+    "version": 42,
+    "name": "provider_project_kind",
+    "add_columns": []
+  },
+  {
+    "version": 43,
+    "name": "decouple_usage_index_from_project_catalog",
+    "add_columns": []
+  },
+  {
+    "version": 44,
+    "name": "remove_database_tool_call_records",
+    "add_columns": []
+  },
+  {
+    "version": 45,
+    "name": "remove_legacy_active_theme_metadata",
+    "add_columns": []
+  },
+  {
+    "version": 46,
+    "name": "move_llm_usage_to_file_storage",
+    "add_columns": []
+  },
+  {
+    "version": 47,
+    "name": "rename_standard_project_kind_to_project",
+    "add_columns": []
+  },
+  {
+    "version": 48,
+    "name": "rename_literature_project_kind_to_knowledge",
+    "add_columns": []
+  }
+]

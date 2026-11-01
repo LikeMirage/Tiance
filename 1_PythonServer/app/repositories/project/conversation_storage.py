@@ -79,6 +79,7 @@ def _workspace_readme_content() -> str:
 - `README.md`：说明 `.Tiance` 内各文件和目录的用途。
 - `tiance.db`：项目会话、消息、分支、项目记忆、任务状态和工作区状态的唯一数据源。数据库使用 WAL 模式，允许界面读取与后台写入并行进行。
 - `tiance.db-wal`、`tiance.db-shm`：SQLite 运行期间自动维护的 WAL 文件，软件正常关闭或数据库检查点执行后可能消失，不应手工编辑或删除。
+- `tiance.db.before-v*-to-v*.*.bak`：程序自动升级数据库前创建的一致性备份；正常会话读写不使用该文件。
 
 ## conversations/sessions/
 

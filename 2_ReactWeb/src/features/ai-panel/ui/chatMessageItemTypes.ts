@@ -26,7 +26,6 @@ export type ChatMessageItemInteractions = {
     messageId: string,
     event: WheelEvent<HTMLDivElement>,
   ) => void;
-  onToggleThinking: (messageId: string) => void;
   onToggleUserMessageExpanded: (messageId: string) => void;
   onTouchMoveThinkingContent: (messageId: string) => void;
   projectId: string | null;

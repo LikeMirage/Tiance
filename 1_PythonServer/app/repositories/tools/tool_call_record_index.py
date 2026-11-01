@@ -11,6 +11,27 @@ from app.core.jsonl_tail import repair_jsonl_tail
 from app.domain.tools import ToolCallRecord
 
 
+# Bump when either the SQL schema or the meaning of indexed values changes.
+# This is a rebuildable cache version, not a records.jsonl format version.
+INDEX_SCHEMA_VERSION = 1
+_SCHEMA = (
+    """CREATE TABLE source (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        inode TEXT NOT NULL, size INTEGER NOT NULL, modified INTEGER NOT NULL,
+        generation TEXT NOT NULL, line_count INTEGER NOT NULL
+    )""",
+    """CREATE TABLE records (
+        position INTEGER PRIMARY KEY, length INTEGER NOT NULL,
+        record_id TEXT NOT NULL UNIQUE, tool_project_id TEXT NOT NULL,
+        tool_name TEXT NOT NULL, call_id TEXT NOT NULL,
+        source_project_id TEXT, session_id TEXT, ok INTEGER NOT NULL,
+        created_at TEXT NOT NULL, elapsed_ms INTEGER, dynamic INTEGER
+    )""",
+    "CREATE INDEX records_order ON records(created_at DESC, position ASC)",
+)
+_EXPECTED_SCHEMA = {" ".join(sql.split()) for sql in _SCHEMA}
+
+
 @contextmanager
 def record_index(
     path: Path, parse: Callable[[object], ToolCallRecord],
@@ -19,24 +40,35 @@ def record_index(
     repair_jsonl_tail(path, parse)
     with closing(sqlite3.connect(path.with_name("records-index.sqlite3"))) as connection:
         connection.row_factory = sqlite3.Row
-        connection.execute("""CREATE TABLE IF NOT EXISTS source (
-            singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
-            inode TEXT NOT NULL, size INTEGER NOT NULL, modified INTEGER NOT NULL,
-            generation TEXT NOT NULL, line_count INTEGER NOT NULL
-        )""")
-        connection.execute("""CREATE TABLE IF NOT EXISTS records (
-            position INTEGER PRIMARY KEY, length INTEGER NOT NULL,
-            record_id TEXT NOT NULL UNIQUE, tool_project_id TEXT NOT NULL,
-            tool_name TEXT NOT NULL, call_id TEXT NOT NULL,
-            source_project_id TEXT, session_id TEXT, ok INTEGER NOT NULL,
-            created_at TEXT NOT NULL, elapsed_ms INTEGER, dynamic INTEGER
-        )""")
-        connection.execute("""CREATE INDEX IF NOT EXISTS records_order
-            ON records(created_at DESC, position ASC)""")
         with connection:
             connection.execute("BEGIN IMMEDIATE")
+            _ensure_schema(connection)
             _synchronize(connection, path, parse)
         yield connection
+
+
+def _ensure_schema(connection: sqlite3.Connection) -> None:
+    version = connection.execute("PRAGMA user_version").fetchone()[0]
+    actual_schema = {
+        " ".join(row[0].split()) for row in connection.execute(
+            "SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT GLOB 'sqlite_*'"
+        )
+    }
+    if version == INDEX_SCHEMA_VERSION and actual_schema == _EXPECTED_SCHEMA:
+        return
+    # Only this dedicated derived database is reset. Transactional DDL means a
+    # failed replay also restores the previous schema, version and cached rows.
+    objects = connection.execute(
+        "SELECT type, name FROM sqlite_master "
+        "WHERE type IN ('view', 'table') AND name NOT GLOB 'sqlite_*' "
+        "ORDER BY type DESC"
+    ).fetchall()
+    for kind, name in objects:
+        quoted = '"' + name.replace('"', '""') + '"'
+        connection.execute(f"DROP {kind.upper()} {quoted}")
+    for sql in _SCHEMA:
+        connection.execute(sql)
+    connection.execute(f"PRAGMA user_version = {INDEX_SCHEMA_VERSION}")
 
 
 def _synchronize(connection: sqlite3.Connection, path: Path, parse) -> None:

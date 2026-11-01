@@ -88,8 +88,8 @@ def test_repeated_stop_during_final_commit_waits_and_does_not_duplicate_reply():
     asyncio.run(run())
 
 
-@pytest.mark.parametrize('version', [1, 2, 3, 4, 5, 7])
-def test_project_old_schema_rejected_without_changing_any_records(version):
+@pytest.mark.parametrize('version', [1, 2, 3, 4, 5, 8])
+def test_unsupported_or_malformed_project_schema_preserves_records(version):
     with closing(sqlite3.connect(':memory:')) as db:
         db.execute('CREATE TABLE conversation_schema(version INTEGER)')
         db.execute('INSERT INTO conversation_schema VALUES (?)', (version,))
@@ -113,7 +113,7 @@ def test_new_project_schema_failure_is_atomic_and_retry_succeeds(monkeypatch):
         monkeypatch.setattr(conversation_schema, 'SCHEMA_STATEMENTS', statements)
         conversation_schema.ensure_current_schema(db)
         conversation_schema.ensure_current_schema(db)
-        assert db.execute('SELECT version FROM conversation_schema').fetchall() == [(6,)]
+        assert db.execute('SELECT version FROM conversation_schema').fetchall() == [(conversation_schema.SCHEMA_VERSION,)]
 
 
 def test_new_global_schema_failure_rolls_back_all_tables(tmp_path, monkeypatch):

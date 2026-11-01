@@ -1,16 +1,26 @@
-import { createContext, useCallback, useContext, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import type { ChatMessage } from "./chatMessage";
 
 type FoldSnapshot = Readonly<Record<string, boolean>>;
 const EMPTY_FOLDS: FoldSnapshot = Object.freeze({});
+const EMPTY_AUTOMATIC_FOLDS: ReadonlySet<string> = new Set();
 
 // Panel-lifetime presentation state only. No messages, content or timings are stored here.
 export function createChatProcessFoldStore() {
   const snapshots = new Map<string, FoldSnapshot>();
+  const automaticSnapshots = new Map<string, ReadonlySet<string>>();
   const listeners = new Map<string, Set<() => void>>();
   return {
     get: (scope: string) => snapshots.get(scope) ?? EMPTY_FOLDS,
+    getAutomatic: (scope: string, group: string) =>
+      automaticSnapshots.get(JSON.stringify([scope, group])) ?? EMPTY_AUTOMATIC_FOLDS,
+    setAutomatic(scope: string, group: string, expanded: ReadonlySet<string>) {
+      const key = JSON.stringify([scope, group]);
+      if ((automaticSnapshots.get(key) ?? EMPTY_AUTOMATIC_FOLDS) === expanded) return;
+      automaticSnapshots.set(key, expanded);
+      listeners.get(scope)?.forEach((notify) => notify());
+    },
     set(scope: string, fold: string, expanded: boolean) {
       const previous = snapshots.get(scope) ?? EMPTY_FOLDS;
       if (previous[fold] === expanded) return;
@@ -30,15 +40,16 @@ export function createChatProcessFoldStore() {
 }
 
 type FoldStore = ReturnType<typeof createChatProcessFoldStore>;
-const PanelContext = createContext<{ store: FoldStore; sessionKey: string | null } | null>(null);
-const TurnContext = createContext<{ store: FoldStore; scope: string; thinkingOffset: number } | null>(null);
+const PanelContext = createContext<{ store: FoldStore; sessionKey: string | null; isFollowing: boolean } | null>(null);
+const TurnContext = createContext<{ store: FoldStore; scope: string; thinkingOffset: number; isFollowing: boolean } | null>(null);
 
-export function ChatProcessFoldProvider({ sessionKey, children }: {
+export function ChatProcessFoldProvider({ sessionKey, children, isFollowing = true }: {
   sessionKey: string | null;
+  isFollowing?: boolean;
   children: ReactNode;
 }) {
   const [store] = useState(createChatProcessFoldStore);
-  const value = useMemo(() => ({ store, sessionKey }), [store, sessionKey]);
+  const value = useMemo(() => ({ store, sessionKey, isFollowing }), [store, sessionKey, isFollowing]);
   return <PanelContext.Provider value={value}>{children}</PanelContext.Provider>;
 }
 
@@ -53,6 +64,7 @@ export function ChatProcessFoldScope({ turnId, thinkingOffset, children }: {
     store: panel.store,
     scope: JSON.stringify([panel.sessionKey, turnId]),
     thinkingOffset,
+    isFollowing: panel.isFollowing,
   }), [panel, turnId, thinkingOffset]);
   return <TurnContext.Provider value={value}>{children}</TurnContext.Provider>;
 }
@@ -67,7 +79,39 @@ export function useChatProcessFolds() {
   const setExpanded = useCallback((fold: string, expanded: boolean) => {
     store.set(scope, fold, expanded);
   }, [store, scope]);
-  return { states, setExpanded, thinkingOffset };
+  return { states, setExpanded, thinkingOffset, isFollowing: context.isFollowing };
+}
+
+/** Only a mounted live response (including its completion transition) may
+ * update automatic folds. History keeps its in-memory presentation even when
+ * following resumes, a virtual row remounts, or another response starts.
+ */
+export function useAutomaticProcessFolds(
+  group: string,
+  desiredKey: string | null,
+  isStreaming: boolean,
+  allowCollapse: boolean,
+) {
+  const context = useContext(TurnContext);
+  if (!context) throw new Error("Automatic folds require ChatProcessFoldScope");
+  const { store, scope } = context;
+  const subscribe = useCallback((notify: () => void) => store.subscribe(scope, notify), [store, scope]);
+  const getSnapshot = useCallback(() => store.getAutomatic(scope, group), [store, scope, group]);
+  const saved = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const previous = useRef({ scope, group, isStreaming: false });
+  const completingLiveResponse = previous.current.scope === scope && previous.current.group === group
+    && previous.current.isStreaming;
+  let expanded = saved;
+  if (isStreaming || completingLiveResponse) {
+    const desired = allowCollapse ? new Set<string>() : new Set(saved);
+    if (desiredKey !== null) desired.add(desiredKey);
+    if (desired.size !== saved.size || [...desired].some((key) => !saved.has(key))) expanded = desired;
+  }
+  useLayoutEffect(() => {
+    previous.current = { scope, group, isStreaming };
+    store.setAutomatic(scope, group, expanded);
+  }, [store, scope, group, isStreaming, expanded]);
+  return expanded;
 }
 
 export function buildChatProcessFoldIdentities(messages: ChatMessage[]) {

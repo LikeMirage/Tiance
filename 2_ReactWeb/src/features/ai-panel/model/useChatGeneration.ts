@@ -451,6 +451,7 @@ export function useChatGeneration({
       releaseTransport();
       await reloadSessionMessages(streamProjectId, sessionId, {
         forceRefresh: true,
+        authoritative: true,
       }).catch(() => undefined);
       void reloadSessionUsageSummary(streamProjectId, sessionId, { forceRefresh: true }).catch(() => undefined);
       emitLlmUsageChanged({

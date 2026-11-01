@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { CaretDown, CaretRight } from "@phosphor-icons/react";
+import { SlidingContent } from "../../../shared/ui/sliding-content/SlidingContent";
 
 import { LazyMarkdownPreview } from "../../markdown-preview/ui/LazyMarkdownPreview";
 import {
@@ -7,17 +8,14 @@ import {
   resolveAssistantMessageElapsedSeconds,
   resolveProcessElapsedSeconds,
 } from "../model/chatAssistantProcessTime";
-import {
-  useAssistantProcessAutoCollapse,
-  type AssistantProcessArchiveMode,
-} from "../model/useAssistantProcessAutoCollapse";
 import { resolveAssistantBodyContent } from "../model/chatDisplayMessages";
-import { useChatProcessFolds } from "../model/chatProcessFoldState";
+import { useAutomaticProcessFolds, useChatProcessFolds } from "../model/chatProcessFoldState";
 import type {
   ChatAssistantProcessItem,
   ChatMessage,
 } from "../model/chatMessage";
 import type { ChatMessageItemInteractions } from "./chatMessageItemTypes";
+import { ChatThinkingContent } from "./ChatThinkingContent";
 import { RunFailureNotice, ChatNotificationNotice } from "./ChatRunNotices";
 import {
   formatElapsedSeconds,
@@ -51,9 +49,11 @@ type RenderAssistantProcessItemOptions = {
   message: ChatMessage;
   resolveFoldExpanded: (foldId: string) => boolean;
   toggleFold: (foldId: string, currentExpanded: boolean) => void;
+  foldKey?: string;
 };
 
 type ThinkingProcessBlockProps = {
+  foldKey: string;
   clockTick: number;
   interactions: ChatMessageItemInteractions;
   isExpanded: boolean;
@@ -73,7 +73,7 @@ export function AssistantProcessTimeline({
   isStreamingMessage,
   message,
 }: AssistantProcessTimelineProps) {
-  const { states: manualFoldStates, setExpanded, thinkingOffset } = useChatProcessFolds();
+  const { states: manualFoldStates, setExpanded, thinkingOffset, isFollowing } = useChatProcessFolds();
   const items = message.processItems ?? EMPTY_PROCESS_ITEMS;
   const renderItems = useMemo(() => buildAssistantProcessRenderItems(items), [items]);
   const foldKeys = useMemo(() => {
@@ -90,61 +90,42 @@ export function AssistantProcessTimeline({
     () => resolveAssistantBodyContent(message).trim().length > 0,
     [message],
   );
-  const desiredArchiveMode = resolveAssistantProcessArchiveMode({
-    autoCollapseProcess,
-    isStreamingMessage,
-  });
-  const {
-    archiveMode,
-    processRegionRef,
-  } = useAssistantProcessAutoCollapse(desiredArchiveMode);
-  const partitionedItems = useMemo(() => (
-    partitionAssistantProcessItems(renderItems, archiveMode)
-  ), [
-    archiveMode,
-    renderItems,
-  ]);
   const autoExpandedFoldId = useMemo(() => (
     isStreamingMessage && !hasTrailingBodyContent
-      ? resolveLatestAutoExpandedFoldId(partitionedItems.visibleItems)
+      ? resolveLatestAutoExpandedFoldId(renderItems)
       : null
-  ), [hasTrailingBodyContent, isStreamingMessage, partitionedItems.visibleItems]);
+  ), [hasTrailingBodyContent, isStreamingMessage, renderItems]);
+  const desiredFoldKey = autoExpandedFoldId ? foldKeys.get(autoExpandedFoldId) : undefined;
+  const automaticFolds = useAutomaticProcessFolds(
+    `timeline:${thinkingOffset}`, desiredFoldKey ?? null, isStreamingMessage, isFollowing,
+  );
   const resolveFoldExpanded = (foldId: string) =>
-    manualFoldStates[foldKeys.get(foldId)!] ?? autoExpandedFoldId === foldId;
+    manualFoldStates[foldKeys.get(foldId)!] ?? automaticFolds.has(foldKeys.get(foldId)!);
   const toggleFold = (foldId: string, currentExpanded: boolean) => {
     setExpanded(foldKeys.get(foldId)!, !currentExpanded);
   };
+  if (!renderItems.length && !autoCollapseProcess) return null;
 
   return (
-    <section className="chat-msg__process" ref={processRegionRef}>
-      {partitionedItems.archivedItems.length > 0 ? (
+    <section className="chat-msg__process">
+      {renderItems.length > 0 || autoCollapseProcess ? (
         <ProcessedProcessBlock
+          showHeader={autoCollapseProcess}
           clockTick={clockTick}
           interactions={interactions}
           isStreamingMessage={isStreamingMessage}
-          items={partitionedItems.archivedItems}
+          items={renderItems}
+          foldKeys={foldKeys}
           lastRunningThinkingId={lastRunningThinkingId}
           message={message}
           resolveFoldExpanded={resolveFoldExpanded}
           toggleFold={toggleFold}
           totalElapsedSeconds={
             resolveAssistantMessageElapsedSeconds(message, clockTick) ??
-            resolveRenderItemsElapsedSeconds(partitionedItems.archivedItems, clockTick)
+            resolveRenderItemsElapsedSeconds(renderItems, clockTick)
           }
         />
       ) : null}
-      {partitionedItems.visibleItems.map((item) =>
-        renderAssistantProcessItem({
-          clockTick,
-          interactions,
-          isStreamingMessage,
-          item,
-          lastRunningThinkingId,
-          message,
-          resolveFoldExpanded,
-          toggleFold,
-        }),
-      )}
     </section>
   );
 }
@@ -192,39 +173,6 @@ function buildAssistantProcessRenderItems(items: ChatAssistantProcessItem[]) {
   return renderItems;
 }
 
-function partitionAssistantProcessItems(
-  items: AssistantProcessRenderItem[],
-  archiveMode: AssistantProcessArchiveMode,
-) {
-  if (items.length === 0) {
-    return { archivedItems: [], visibleItems: items };
-  }
-
-  if (archiveMode === "all") {
-    return { archivedItems: items, visibleItems: [] };
-  }
-
-  if (archiveMode === "none" || items.length <= 1) {
-    return { archivedItems: [], visibleItems: items };
-  }
-
-  return {
-    archivedItems: items.slice(0, -1),
-    visibleItems: items.slice(-1),
-  };
-}
-
-function resolveAssistantProcessArchiveMode({
-  autoCollapseProcess,
-  isStreamingMessage,
-}: {
-  autoCollapseProcess: boolean;
-  isStreamingMessage: boolean;
-}): AssistantProcessArchiveMode {
-  if (!autoCollapseProcess || isStreamingMessage) return "none";
-  return "all";
-}
-
 function renderAssistantProcessItem({
   clockTick,
   interactions,
@@ -234,6 +182,7 @@ function renderAssistantProcessItem({
   message,
   resolveFoldExpanded,
   toggleFold,
+  foldKey,
 }: RenderAssistantProcessItemOptions) {
   if (item.type === "notification") {
     return <ChatNotificationNotice key={item.id} message={item.message} />;
@@ -266,11 +215,12 @@ function renderAssistantProcessItem({
   const isExpanded = resolveFoldExpanded(item.id);
   return (
     <ThinkingProcessBlock
-      key={item.id}
+      key={foldKey ?? item.id}
+      foldKey={foldKey!}
       clockTick={clockTick}
       interactions={interactions}
       isExpanded={isExpanded}
-      isLiveSegment={item.id === lastRunningThinkingId}
+      isLiveSegment={isStreamingMessage && item.id === lastRunningThinkingId}
       isStreaming={isStreamingMessage && item.status === "running"}
       item={item}
       message={message}
@@ -280,32 +230,41 @@ function renderAssistantProcessItem({
 }
 
 function ProcessedProcessBlock({
+  showHeader,
   clockTick,
   interactions,
   isStreamingMessage,
   items,
+  foldKeys,
   lastRunningThinkingId,
   message,
   totalElapsedSeconds,
   resolveFoldExpanded,
   toggleFold,
 }: {
+  showHeader: boolean;
   clockTick: number;
   interactions: ChatMessageItemInteractions;
   isStreamingMessage: boolean;
   items: AssistantProcessRenderItem[];
+  foldKeys: Map<string, string>;
   lastRunningThinkingId: string | null;
   message: ChatMessage;
   totalElapsedSeconds: number | null;
   resolveFoldExpanded: RenderAssistantProcessItemOptions["resolveFoldExpanded"];
   toggleFold: RenderAssistantProcessItemOptions["toggleFold"];
 }) {
-  const { states, setExpanded } = useChatProcessFolds();
-  const isExpanded = states.processed ?? false;
+  const { states, setExpanded, isFollowing, thinkingOffset } = useChatProcessFolds();
+  const hasManualOpenChild = Object.entries(states).some(([key, value]) => key !== "processed" && value);
+  const automaticExpanded = useAutomaticProcessFolds(
+    `processed:${thinkingOffset}`, isStreamingMessage ? "expanded" : null,
+    isStreamingMessage, isFollowing && !hasManualOpenChild,
+  ).has("expanded");
+  const isExpanded = !showHeader || (states.processed ?? (hasManualOpenChild || automaticExpanded));
 
   return (
-    <section className="chat-msg__processed">
-      <button
+    <section className={showHeader ? "chat-msg__processed" : undefined}>
+      {showHeader ? <button
         className="chat-msg__processed-toggle"
         type="button"
         aria-expanded={isExpanded}
@@ -319,22 +278,23 @@ function ProcessedProcessBlock({
               <CaretRight size={14} weight="bold" />
             )}
           </span>
-          <span>已处理</span>
+          <span>{isStreamingMessage ? "处理中" : "已处理"}</span>
         </span>
         {totalElapsedSeconds !== null ? (
           <span className="chat-msg__processed-timer">
             {formatElapsedSeconds(totalElapsedSeconds)}
           </span>
         ) : null}
-      </button>
-      {isExpanded ? (
-        <div className="chat-msg__processed-list">
+      </button> : null}
+      <SlidingContent expanded={isExpanded}>
+        <div className={showHeader && items.length ? "chat-msg__processed-list" : undefined}>
           {items.map((item) =>
             renderAssistantProcessItem({
               clockTick,
               interactions,
               isStreamingMessage,
               item,
+              foldKey: foldKeys.get(item.id),
               lastRunningThinkingId,
               message,
               resolveFoldExpanded,
@@ -342,7 +302,7 @@ function ProcessedProcessBlock({
             }),
           )}
         </div>
-      ) : null}
+      </SlidingContent>
     </section>
   );
 }
@@ -386,6 +346,7 @@ function AssistantContentProcessBlock({
 }
 
 function ThinkingProcessBlock({
+  foldKey,
   clockTick,
   interactions,
   isExpanded,
@@ -403,6 +364,7 @@ function ThinkingProcessBlock({
         <button
           className="chat-msg__thinking-toggle"
           type="button"
+          aria-expanded={isExpanded}
           onClick={onToggleExpanded}
         >
           <span aria-hidden="true">
@@ -418,35 +380,8 @@ function ThinkingProcessBlock({
           <span className="chat-msg__thinking-timer">{elapsedSeconds}s</span>
         ) : null}
       </div>
-      {isExpanded ? (
-        <div
-          ref={(node) => {
-            if (isLiveSegment) {
-              interactions.setThinkingContentRef(message.id, node);
-            }
-          }}
-          className={[
-            "chat-msg__thinking-content",
-            isStreaming ? "chat-msg__thinking-content--streaming" : "",
-          ].filter(Boolean).join(" ")}
-          onScroll={() => interactions.onThinkingContentScroll(message.id)}
-          onWheel={(event) =>
-            interactions.onThinkingContentWheel(message.id, event)
-          }
-          onTouchMove={() => interactions.onTouchMoveThinkingContent(message.id)}
-        >
-          <LazyMarkdownPreview
-            content={item.content}
-            isStreaming={isStreaming}
-            renderStrategy="responsive"
-            mathErrorMode="neutral"
-            localFileActions={interactions.localFileActions}
-            onPreviewHtmlCode={interactions.onPreviewHtmlCode}
-            onSaveCodeBlock={interactions.onSaveCodeBlock}
-            resolveLocalFileReference={interactions.resolveLocalFileReference}
-          />
-        </div>
-      ) : null}
+      <ChatThinkingContent content={item.content} foldKey={foldKey} interactions={interactions}
+        isExpanded={isExpanded} isLiveSegment={isLiveSegment} isStreaming={isStreaming} messageId={message.id} />
     </section>
   );
 }
