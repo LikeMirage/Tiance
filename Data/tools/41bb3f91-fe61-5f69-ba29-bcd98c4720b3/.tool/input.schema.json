@@ -5,44 +5,162 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "action": {"permission_type": "filesystem_write",  "type": "string", "enum": ["inspect", "edit"] },
-    "input_path": {"permission_type": "filesystem_read",  "type": "string", "description": "工作区内的输入 DOCX 路径。" },
-    "output_path": {"permission_type": "filesystem_write",  "type": "string", "description": "工作区内的输出 DOCX 路径。" },
-    "overwrite": {"permission_type": "none",  "type": "boolean", "default": false, "description": "输出文件已存在时必须为 true；原位编辑时 dry_run 和正式提交都要传 true。" },
-    "backup": {"permission_type": "none",  "type": "boolean", "default": true, "description": "原位覆盖时备份到 .Tiance/tool-backups/word_document_editor；该策略纳入 validation_token。" },
-    "dry_run": {"permission_type": "none",  "type": "boolean", "default": false, "description": "edit 预演，不写文件；同时检查输出路径与覆盖策略并返回 validation_token。" },
-    "validation_token": {"permission_type": "none",  "type": "string", "pattern": "^dryrun:[0-9a-f]{64}$", "description": "同一输入文档版本、输出路径、operations、overwrite 和 backup 的 dry_run 返回值。" },
-    "theme": {"permission_type": "none",  "type": "object", "additionalProperties": true },
-    "operations": {"permission_type": "filesystem_write",  "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/editOperation" } },
+    "action": {
+      "permission_type": "filesystem_write",
+      "type": "string",
+      "enum": [
+        "inspect",
+        "edit"
+      ],
+      "description": "inspect 读取文档定位信息；edit 按 operations 预演或提交修改。"
+    },
+    "input_path": {
+      "permission_type": "filesystem_read",
+      "type": "string",
+      "description": "工作区内的输入 DOCX 路径。"
+    },
+    "output_path": {
+      "permission_type": "filesystem_write",
+      "type": "string",
+      "description": "工作区内的输出 DOCX 路径。"
+    },
+    "overwrite": {
+      "permission_type": "none",
+      "type": "boolean",
+      "default": false,
+      "description": "输出文件已存在时必须为 true；原位编辑时 dry_run 和正式提交都要传 true。"
+    },
+    "backup": {
+      "permission_type": "none",
+      "type": "boolean",
+      "default": true,
+      "description": "原位覆盖时备份到 .Tiance/tool-backups/word_document_editor；该策略纳入 validation_token。"
+    },
+    "dry_run": {
+      "permission_type": "none",
+      "type": "boolean",
+      "default": false,
+      "description": "edit 预演，不写文件；同时检查输出路径与覆盖策略并返回 validation_token。"
+    },
+    "validation_token": {
+      "permission_type": "none",
+      "type": "string",
+      "pattern": "^dryrun:[0-9a-f]{64}$",
+      "description": "同一输入文档版本、输出路径、operations、overwrite 和 backup 的 dry_run 返回值。"
+    },
+    "theme": {
+      "permission_type": "none",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "operations": {
+      "permission_type": "filesystem_write",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/editOperation"
+      },
+      "description": "edit 的有序修改列表；各项必须符合下方操作结构，使用 inspect 得到的真实定位信息。"
+    },
     "inspect": {
       "permission_type": "none",
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "include_paragraphs": { "type": "boolean", "default": true },
-        "include_tables": { "type": "boolean", "default": true },
-        "include_formulas": { "type": "boolean", "description": "局部 selection 查询时默认 false，避免返回全量公式清单。" },
-        "max_paragraphs": { "type": "integer", "minimum": 1, "maximum": 500, "default": 80 },
-        "max_text_chars": { "type": "integer", "minimum": 1000, "maximum": 100000, "default": 20000 },
-        "max_formulas": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 200 },
-        "document_fingerprint": { "$ref": "#/$defs/documentFingerprint" },
-        "selection": { "$ref": "#/$defs/selection" }
-      }
+        "include_paragraphs": {
+          "type": "boolean",
+          "default": true
+        },
+        "include_tables": {
+          "type": "boolean",
+          "default": true
+        },
+        "include_formulas": {
+          "type": "boolean",
+          "description": "局部 selection 查询时默认 false，避免返回全量公式清单。"
+        },
+        "max_paragraphs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 80
+        },
+        "max_text_chars": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 100000,
+          "default": 20000
+        },
+        "max_formulas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 200
+        },
+        "document_fingerprint": {
+          "$ref": "#/$defs/documentFingerprint"
+        },
+        "selection": {
+          "$ref": "#/$defs/selection"
+        }
+      },
+      "description": "inspect 的查询范围和返回内容选项；省略时使用各子字段默认值。"
     }
   },
-  "required": ["action"],
+  "required": [
+    "action"
+  ],
   "allOf": [
     {
-      "if": { "properties": { "action": { "const": "inspect" } }, "required": ["action"] },
-      "then": { "required": ["input_path"] }
+      "if": {
+        "properties": {
+          "action": {
+            "const": "inspect"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "input_path"
+        ]
+      }
     },
     {
-      "if": { "properties": { "action": { "const": "edit" } }, "required": ["action"] },
+      "if": {
+        "properties": {
+          "action": {
+            "const": "edit"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
       "then": {
-        "required": ["input_path", "output_path", "operations"],
+        "required": [
+          "input_path",
+          "output_path",
+          "operations"
+        ],
         "anyOf": [
-          { "properties": { "dry_run": { "const": true } }, "required": ["dry_run"] },
-          { "required": ["validation_token"] }
+          {
+            "properties": {
+              "dry_run": {
+                "const": true
+              }
+            },
+            "required": [
+              "dry_run"
+            ]
+          },
+          {
+            "required": [
+              "validation_token"
+            ]
+          }
         ]
       }
     }
@@ -57,69 +175,246 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "container": { "type": "string", "enum": ["body", "table"], "description": "当前工具的坐标编辑支持正文与表格；页眉页脚使用 set_header/set_footer。" },
-        "pageNumber": { "type": "integer", "minimum": 1 },
-        "paragraphIndex": { "type": "integer", "minimum": 1 },
-        "tableIndex": { "type": "integer", "minimum": 1 },
-        "rowIndex": { "type": "integer", "minimum": 1 },
-        "columnIndex": { "type": "integer", "minimum": 1 },
-        "cellParagraphIndex": { "type": "integer", "minimum": 1 },
-        "characterOffset": { "type": "integer", "minimum": 0, "description": "当前段落语义渲染文本中的零基位置；起点包含、终点不包含。公式字符计数不一致时工具会尝试局部校准或返回候选。" }
+        "container": {
+          "type": "string",
+          "enum": [
+            "body",
+            "table"
+          ],
+          "description": "当前工具的坐标编辑支持正文与表格；页眉页脚使用 set_header/set_footer。"
+        },
+        "pageNumber": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "paragraphIndex": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "tableIndex": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rowIndex": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "columnIndex": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "cellParagraphIndex": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "characterOffset": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "当前段落语义渲染文本中的零基位置；起点包含、终点不包含。公式字符计数不一致时工具会尝试局部校准或返回候选。"
+        }
       },
-      "required": ["container", "characterOffset"]
+      "required": [
+        "container",
+        "characterOffset"
+      ]
     },
     "wordRange": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "word_range" },
-        "start": { "$ref": "#/$defs/wordPosition" },
-        "end": { "$ref": "#/$defs/wordPosition" },
-        "nearestHeading": { "type": "string" },
-        "prefix": { "type": "string" },
-        "suffix": { "type": "string" }
+        "kind": {
+          "const": "word_range"
+        },
+        "start": {
+          "$ref": "#/$defs/wordPosition"
+        },
+        "end": {
+          "$ref": "#/$defs/wordPosition"
+        },
+        "nearestHeading": {
+          "type": "string"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "suffix": {
+          "type": "string"
+        }
       },
-      "required": ["kind", "start", "end"]
+      "required": [
+        "kind",
+        "start",
+        "end"
+      ]
     },
     "selection": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "start_anchor": { "type": "string", "minLength": 1 },
-        "end_anchor": { "type": "string", "minLength": 1 },
-        "formula_ref": { "type": "string", "pattern": "^formula:[0-9a-f]{16}$", "description": "inspect 返回的稳定公式引用。" },
-        "word_range": { "$ref": "#/$defs/wordRange", "description": "直接使用预览引用的结构坐标。适合用户在 Word 预览中框选的文字、公式或混合范围。" },
-        "document_fingerprint": { "$ref": "#/$defs/documentFingerprint" },
-        "expected_text": { "type": "string", "description": "引用中展示的语义文本。用于校验 word_range，并在偏移不一致时对同一段落或单元格内的候选范围排序；不进行全文模糊写入。" },
-        "boundary_mode": { "type": "string", "enum": ["exclusive", "inclusive"], "default": "exclusive" },
-        "expand": { "type": "string", "enum": ["none", "paragraph_end", "cell_end"], "default": "none" },
-        "start_occurrence": { "type": "integer", "minimum": 1, "default": 1 },
-        "end_occurrence": { "type": "integer", "minimum": 1, "default": 1 },
-        "match_case": { "type": "boolean", "default": true }
+        "start_anchor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "end_anchor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "formula_ref": {
+          "type": "string",
+          "pattern": "^formula:[0-9a-f]{16}$",
+          "description": "inspect 返回的稳定公式引用。"
+        },
+        "word_range": {
+          "$ref": "#/$defs/wordRange",
+          "description": "直接使用预览引用的结构坐标。适合用户在 Word 预览中框选的文字、公式或混合范围。"
+        },
+        "document_fingerprint": {
+          "$ref": "#/$defs/documentFingerprint"
+        },
+        "expected_text": {
+          "type": "string",
+          "description": "引用中展示的语义文本。用于校验 word_range，并在偏移不一致时对同一段落或单元格内的候选范围排序；不进行全文模糊写入。"
+        },
+        "boundary_mode": {
+          "type": "string",
+          "enum": [
+            "exclusive",
+            "inclusive"
+          ],
+          "default": "exclusive"
+        },
+        "expand": {
+          "type": "string",
+          "enum": [
+            "none",
+            "paragraph_end",
+            "cell_end"
+          ],
+          "default": "none"
+        },
+        "start_occurrence": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "end_occurrence": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "match_case": {
+          "type": "boolean",
+          "default": true
+        }
       },
       "oneOf": [
-        { "required": ["start_anchor"], "not": { "anyOf": [{ "required": ["formula_ref"] }, { "required": ["word_range"] }] } },
-        { "required": ["formula_ref"], "not": { "anyOf": [{ "required": ["start_anchor"] }, { "required": ["word_range"] }] } },
-        { "required": ["word_range"], "not": { "anyOf": [{ "required": ["start_anchor"] }, { "required": ["formula_ref"] }] } }
+        {
+          "required": [
+            "start_anchor"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "formula_ref"
+                ]
+              },
+              {
+                "required": [
+                  "word_range"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "formula_ref"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "start_anchor"
+                ]
+              },
+              {
+                "required": [
+                  "word_range"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "word_range"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "start_anchor"
+                ]
+              },
+              {
+                "required": [
+                  "formula_ref"
+                ]
+              }
+            ]
+          }
+        }
       ]
     },
     "style": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "font_family": { "type": "string" },
-        "east_asia_font": { "type": "string" },
-        "complex_script_font": { "type": "string" },
-        "font_size": { "type": "number", "exclusiveMinimum": 0 },
-        "bold": { "type": "boolean" },
-        "italic": { "type": "boolean" },
-        "underline": { "type": "boolean" },
-        "strike": { "type": "boolean" },
-        "color": { "type": "string", "description": "六位十六进制 RGB，例如 FF0000。", "examples": ["FF0000"] },
-        "align": { "type": "string" },
-        "space_before": { "type": "number" },
-        "space_after": { "type": "number" },
-        "line_spacing": { "type": "number" }
+        "font_family": {
+          "type": "string"
+        },
+        "east_asia_font": {
+          "type": "string"
+        },
+        "complex_script_font": {
+          "type": "string"
+        },
+        "font_size": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "bold": {
+          "type": "boolean"
+        },
+        "italic": {
+          "type": "boolean"
+        },
+        "underline": {
+          "type": "boolean"
+        },
+        "strike": {
+          "type": "boolean"
+        },
+        "color": {
+          "type": "string",
+          "description": "六位十六进制 RGB，例如 FF0000。",
+          "examples": [
+            "FF0000"
+          ]
+        },
+        "align": {
+          "type": "string"
+        },
+        "space_before": {
+          "type": "number"
+        },
+        "space_after": {
+          "type": "number"
+        },
+        "line_spacing": {
+          "type": "number"
+        }
       },
       "minProperties": 1
     },
@@ -127,50 +422,206 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "type": { "type": "string", "enum": ["heading", "paragraph", "bullets", "numbered", "table", "image", "equation", "page_break"] },
-        "text": { "type": "string" },
-        "latex": { "type": "string" },
-        "display": { "type": "boolean", "default": true },
-        "level": { "type": "integer", "minimum": 1, "maximum": 9 },
-        "items": { "type": "array" },
-        "rows": { "type": "array" },
-        "image_path": { "type": "string" },
-        "width": { "type": "number" },
-        "style": { "type": "object", "additionalProperties": true }
+        "type": {
+          "type": "string",
+          "enum": [
+            "heading",
+            "paragraph",
+            "bullets",
+            "numbered",
+            "table",
+            "image",
+            "equation",
+            "page_break"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "latex": {
+          "type": "string"
+        },
+        "display": {
+          "type": "boolean",
+          "default": true
+        },
+        "level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9
+        },
+        "items": {
+          "type": "array"
+        },
+        "rows": {
+          "type": "array"
+        },
+        "image_path": {
+          "type": "string"
+        },
+        "width": {
+          "type": "number"
+        },
+        "style": {
+          "type": "object",
+          "additionalProperties": true
+        }
       },
-      "required": ["type"]
+      "required": [
+        "type"
+      ]
     },
     "editOperation": {
       "oneOf": [
         {
-          "type": "object", "additionalProperties": false,
-          "properties": { "type": { "const": "replace_text" }, "old_text": { "type": "string", "minLength": 1 }, "new_text": { "type": "string" }, "match_case": { "type": "boolean", "default": true } },
-          "required": ["type", "old_text", "new_text"]
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "replace_text"
+            },
+            "old_text": {
+              "type": "string",
+              "minLength": 1
+            },
+            "new_text": {
+              "type": "string"
+            },
+            "match_case": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "required": [
+            "type",
+            "old_text",
+            "new_text"
+          ]
         },
         {
-          "type": "object", "additionalProperties": false,
-          "properties": { "type": { "const": "append_content" }, "elements": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/element" } } },
-          "required": ["type", "elements"]
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "append_content"
+            },
+            "elements": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/element"
+              }
+            }
+          },
+          "required": [
+            "type",
+            "elements"
+          ]
         },
         {
-          "type": "object", "additionalProperties": false,
-          "properties": { "type": { "enum": ["set_header", "set_footer"] }, "text": { "type": "string" } },
-          "required": ["type", "text"]
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "set_header",
+                "set_footer"
+              ]
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ]
         },
         {
-          "type": "object", "additionalProperties": false,
-          "properties": { "type": { "const": "selection" }, "selection": { "$ref": "#/$defs/selection" }, "action": { "enum": ["extract", "delete"] } },
-          "required": ["type", "selection", "action"]
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "selection"
+            },
+            "selection": {
+              "$ref": "#/$defs/selection"
+            },
+            "action": {
+              "enum": [
+                "extract",
+                "delete"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "selection",
+            "action"
+          ]
         },
         {
-          "type": "object", "additionalProperties": false,
-          "properties": { "type": { "const": "selection" }, "selection": { "$ref": "#/$defs/selection" }, "action": { "const": "format" }, "style": { "$ref": "#/$defs/style" } },
-          "required": ["type", "selection", "action", "style"]
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "selection"
+            },
+            "selection": {
+              "$ref": "#/$defs/selection"
+            },
+            "action": {
+              "const": "format"
+            },
+            "style": {
+              "$ref": "#/$defs/style"
+            }
+          },
+          "required": [
+            "type",
+            "selection",
+            "action",
+            "style"
+          ]
         },
         {
-          "type": "object", "additionalProperties": false,
-          "properties": { "type": { "const": "selection" }, "selection": { "$ref": "#/$defs/selection" }, "action": { "enum": ["insert", "replace"] }, "content_mode": { "enum": ["text", "equation", "markdown"], "default": "text" }, "content": { "type": "string", "minLength": 1 }, "style": { "$ref": "#/$defs/style" } },
-          "required": ["type", "selection", "action", "content"]
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "selection"
+            },
+            "selection": {
+              "$ref": "#/$defs/selection"
+            },
+            "action": {
+              "enum": [
+                "insert",
+                "replace"
+              ]
+            },
+            "content_mode": {
+              "enum": [
+                "text",
+                "equation",
+                "markdown"
+              ],
+              "default": "text"
+            },
+            "content": {
+              "type": "string",
+              "minLength": 1
+            },
+            "style": {
+              "$ref": "#/$defs/style"
+            }
+          },
+          "required": [
+            "type",
+            "selection",
+            "action",
+            "content"
+          ]
         }
       ]
     }

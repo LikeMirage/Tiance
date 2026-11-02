@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "精确替换一个文本文件中的字符串。默认 replace_all=false 且要求 old_text 仅出现一次。",
+  "description": "精确替换一个文本文件中的字符串。默认 replace_all=false 且要求 old_text 仅出现一次。 提交前复核文件变化并原子替换；成功只返回操作摘要，不返回正文或 diff。",
   "properties": {
     "file_path": {
       "permission_type": "filesystem_write",
@@ -44,7 +44,8 @@
         "gbk"
       ],
       "title": "编码",
-      "type": "string"
+      "type": "string",
+      "description": "目标文本文件的编码，用于解码和写回。"
     },
     "dry_run": {
       "permission_type": "none",

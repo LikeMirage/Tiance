@@ -1,18 +1,18 @@
 [
   {
     "title": "在当前会话查找一段原话",
-    "input": {"query": "引用信息", "mode": "contains"}
+    "content": "{\n  \"query\": \"引用信息\",\n  \"mode\": \"contains\"\n}"
   },
   {
     "title": "检索指定会话中的全部关键词",
-    "input": {"query": "Word 公式 表格", "session_id": "20260804063112-aa7b1c35", "mode": "all_terms", "roles": ["user", "assistant"]}
+    "content": "{\n  \"query\": \"Word 公式 表格\",\n  \"session_id\": \"20260804063112-aa7b1c35\",\n  \"mode\": \"all_terms\",\n  \"roles\": [\n    \"user\",\n    \"assistant\"\n  ]\n}"
   },
   {
     "title": "检索模型原始请求和响应",
-    "input": {"query": "reasoning_content", "sources": ["artifacts"], "mode": "contains"}
+    "content": "{\n  \"query\": \"reasoning_content\",\n  \"sources\": [\n    \"artifacts\"\n  ],\n  \"mode\": \"contains\"\n}"
   },
   {
     "title": "同时检索消息、模型交换和事件总账",
-    "input": {"query": "tool_call", "sources": ["messages", "model_exchanges", "journal"], "mode": "contains"}
+    "content": "{\n  \"query\": \"tool_call\",\n  \"sources\": [\n    \"messages\",\n    \"model_exchanges\",\n    \"journal\"\n  ],\n  \"mode\": \"contains\"\n}"
   }
 ]

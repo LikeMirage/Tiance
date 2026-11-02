@@ -25,6 +25,7 @@ from app.services.tools.tool_metadata import (
     standard_tool_description,
 )
 from app.services.tools.tool_projects import ToolProjectService, get_tool_project_service
+from app.services.tools.dynamic_tool_prompt import dynamic_tool_directory_entry_lines
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,7 +157,14 @@ class ToolRegistryService:
                                 if example_enabled(example)
                             ),
                         ),
-                        dynamic_injection_char_count=_dynamic_injection_char_count(summary),
+                        dynamic_injection_char_count=_dynamic_injection_char_count(
+                            summary,
+                            tuple(
+                                example_detail(index, example)
+                                for index, example in loaded_tool.examples
+                                if example_enabled(example)
+                            ),
+                        ),
                     )
                 )
         return tuple(entries), metadata_by_name
@@ -228,18 +236,11 @@ def _full_injection_char_count(
     return len(dumps(payload, ensure_ascii=False, sort_keys=True))
 
 
-def _dynamic_injection_char_count(summary: ToolSummary) -> int:
-    lines = [
-        "",
-        f"工具：{summary.name}",
-        f"显示名称：{summary.display_name}",
-        f"说明：{summary.description}",
-    ]
-    if summary.example_titles:
-        lines.append("应用示例：")
-        for index, title in enumerate(summary.example_titles, start=1):
-            lines.append(f"{index}. {title}")
-    return len("\n".join(lines))
+def _dynamic_injection_char_count(
+    summary: ToolSummary,
+    examples: tuple[ToolExampleDetail, ...] = (),
+) -> int:
+    return len("\n".join(dynamic_tool_directory_entry_lines(summary, examples)))
 
 
 @lru_cache

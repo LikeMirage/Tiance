@@ -113,7 +113,7 @@ def test_workspace_last_opened_keeps_selection_per_category(tmp_path):
     assert active_a.session_id == session_a.session_id
 
 
-def test_workspace_last_opened_ignores_stale_session(tmp_path):
+def test_workspace_last_opened_retains_session_hint_for_actual_project_loading(tmp_path):
     project_service, workspace_service, repository, _conversation_service = _create_services(tmp_path)
     project = project_service.create_project(name="项目 A")
     repository.set_metadata_value(
@@ -133,7 +133,9 @@ def test_workspace_last_opened_ignores_stale_session(tmp_path):
 
     assert state.project_id == project.project_id
     assert state.category_id == project.category_id
-    assert state.session_id is None
+    # Session existence belongs to loading that project's actual session list,
+    # not reading navigation preferences for every remembered category.
+    assert state.session_id == "missing-session"
     assert state.updated_at == "2026-06-20T00:00:00+00:00"
 
 
@@ -146,6 +148,29 @@ def test_workspace_last_opened_rejects_missing_session_on_save(tmp_path):
             project_id=project.project_id,
             session_id="missing-session",
         )
+
+
+def test_restore_preferences_never_opens_remembered_project_databases(tmp_path, monkeypatch):
+    project_service, service, repository, conversations = _create_services(tmp_path)
+    first = project_service.create_project(name="当前项目")
+    other_category = project_service.create_project_category(name="另一个分类")
+    other = project_service.create_project(name="旧库项目", category_id=other_category.category_id)
+    stored = dumps({"active_category_id": first.category_id, "category_selections": {
+        first.category_id: {"project_id": first.project_id, "session_id": "remembered"},
+        other.category_id: {"project_id": other.project_id, "session_id": "old-session"},
+    }})
+    repository.set_metadata_value(key=WORKSPACE_LAST_OPENED_KEY, value=stored, updated_at="now")
+
+    def must_not_read(*_args):
+        raise AssertionError("Reading a preference must not read or migrate any project database")
+
+    monkeypatch.setattr(conversations, "get_session", must_not_read)
+    restored = service.get_last_opened()
+    assert restored.session_id == "remembered"
+    assert {item.session_id for item in restored.category_selections} == {"remembered", "old-session"}
+    # Merely switching categories also must not inspect every remembered session.
+    changed = service.save_last_opened(category_id=other.category_id, session_id=None)
+    assert changed.session_id == "old-session"
 
 
 def test_workspace_layout_preferences_persist_project_overview_mode_per_category(tmp_path):

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "word_document_editor",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "author": {
     "name": "LikeMirage"
   },

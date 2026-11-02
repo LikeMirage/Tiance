@@ -1,5 +1,5 @@
 {
-  "description": "读取会话已启用工具的参数详情和应用示例，辅助动态加载工具按需补充上下文。",
+  "description": "按需读取工具的完整参数定义、操作指南或调用示例。",
   "registration_name": "工具信息加载",
   "execution": {
     "parallel": true

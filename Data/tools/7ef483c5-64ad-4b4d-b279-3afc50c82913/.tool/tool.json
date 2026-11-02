@@ -1,5 +1,5 @@
 {
-  "description": "处理 GitHub Pull Request。支持列表、详情、分支比较、创建和编辑 PR、评论、文件和审查列表、提交审查、更新分支与合并。写操作可用 dry_run=true 模拟。",
+  "description": "查看、创建、审查和合并 GitHub Pull Request。",
   "execution": {
     "parallel": true
   },

@@ -1,39 +1,28 @@
 [
   {
     "title": "克隆公共仓库到工作区子目录",
-    "input": {
-      "action": "clone",
-      "repository": "https://github.com/example/project.git",
-      "target_path": "project",
-      "dry_run": true
-    }
+    "content": "{\n  \"action\": \"clone\",\n  \"repository\": \"https://github.com/example/project.git\",\n  \"target_path\": \"project\",\n  \"dry_run\": true\n}"
   },
   {
     "title": "检查仓库及实际提交身份",
-    "input": {"action": "overview"}
+    "content": "{\n  \"action\": \"overview\"\n}"
   },
   {
     "title": "使用显式身份预演提交",
-    "input": {
-      "action": "commit",
-      "message": "说明本次修改",
-      "author_name": "Example User",
-      "author_email": "user@example.com",
-      "dry_run": true
-    }
+    "content": "{\n  \"action\": \"commit\",\n  \"message\": \"说明本次修改\",\n  \"author_name\": \"Example User\",\n  \"author_email\": \"user@example.com\",\n  \"dry_run\": true\n}"
   },
   {
     "title": "保存当前仓库的提交身份",
-    "input": {
-      "action": "configure_identity",
-      "identity_scope": "repository",
-      "author_name": "Example User",
-      "author_email": "user@example.com",
-      "dry_run": true
-    }
+    "content": "{\n  \"action\": \"configure_identity\",\n  \"identity_scope\": \"repository\",\n  \"author_name\": \"Example User\",\n  \"author_email\": \"user@example.com\",\n  \"dry_run\": true\n}"
   },
   {
     "title": "使用已有远端凭据预演推送",
-    "input": {"action": "push", "remote": "origin", "branch": "main", "dry_run": true}
+    "content": "{\n  \"action\": \"push\",\n  \"remote\": \"origin\",\n  \"branch\": \"main\",\n  \"dry_run\": true\n}"
+  },
+  {
+    "title": "提交身份与认证",
+    "content": "管理当前工作区的标准 Git 仓库。工具内嵌 Git 引擎，不要求电脑安装 Git，也不把 GitHub 登录作为本地操作或公共仓库读取的前提。支持克隆、状态、差异、历史、远端、分支、标签、子模块、提交、推送、拉取、恢复、撤销和重置。overview 与提交预演会返回最终作者身份及来源，身份不正确时可显式覆盖或调用 configure_identity 保存。HTTPS 私有仓库和推送可使用工具 config.json 中按主机配置的凭据；若系统已有 Git Credential Manager 会尝试复用，SSH 地址会复用系统 SSH。认证结果只返回来源，不返回密钥。所有写操作都可先传 dry_run=true 预演。",
+    "enabled": true,
+    "inject_content": false
   }
 ]

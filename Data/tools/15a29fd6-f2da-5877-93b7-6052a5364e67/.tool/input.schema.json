@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "执行并等待一个会自行结束的短命令。command 与 argv 必须且只能提供一个；复杂参数使用 argv。默认工作目录是工作区根目录，也允许指定工作区外的真实目录。不同目的或需要独立判断成败的查询应分开调用；同一目的可以组合后输出结构化 JSON。不启动 GUI、服务和后台程序，Python 脚本使用 run_python_script。",
+  "description": "执行并等待一个会自行结束的短命令。command 与 argv 必须且只能提供一个；复杂参数使用 argv。默认工作目录是工作区根目录，也允许指定工作区外的真实目录。不同目的或需要独立判断成败的查询应分开调用；同一目的可以组合后输出结构化 JSON。不启动 GUI、服务和后台程序，Python 脚本使用 run_python_script。 通过 command 提交大段、多行或复杂换行形式的 python -c 会被拒绝；请使用 run_python_script。argv 启动工作目录中的程序时使用 .\\程序名或绝对路径。",
   "properties": {
     "command": {
       "permission_type": "program_execute",

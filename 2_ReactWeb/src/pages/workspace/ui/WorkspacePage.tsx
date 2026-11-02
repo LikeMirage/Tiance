@@ -78,13 +78,11 @@ const APP_STATUS_BAR_INLINE_PADDING = 12;
 
 type WorkspacePageProps = {
   initialLayoutPreferences: WorkspaceLayoutPreferences | null;
-  onInitialWorkspaceSettled: () => void;
   themeControl: AppThemeControl;
 };
 
 export function WorkspacePage({
   initialLayoutPreferences,
-  onInitialWorkspaceSettled,
   themeControl,
 }: WorkspacePageProps) {
   const { t } = useI18n();
@@ -110,7 +108,7 @@ export function WorkspacePage({
   const [projectFileReferenceRequest, setProjectFileReferenceRequest] =
     useState<ProjectFileReferenceRequest | null>(null);
   const initialCatalogsReadyLoggedRef = useRef(false);
-  const initialWorkspaceSettledNotifiedRef = useRef(false);
+  const initialWorkspaceSettledLoggedRef = useRef(false);
   const projectCatalog = useProjectCatalog();
   const projectReferenceCatalog = useMemo(() => ({
     categories: projectCatalog.categories,
@@ -802,7 +800,7 @@ export function WorkspacePage({
 
   useEffect(() => {
     if (
-      initialWorkspaceSettledNotifiedRef.current ||
+      initialWorkspaceSettledLoggedRef.current ||
       projectCatalog.state === "loading" ||
       toolCatalog.state === "loading" ||
       providerCatalog.state === "loading" ||
@@ -811,11 +809,9 @@ export function WorkspacePage({
       return;
     }
 
-    initialWorkspaceSettledNotifiedRef.current = true;
+    initialWorkspaceSettledLoggedRef.current = true;
     markFrontendStartup("frontend: workspace initial content settled");
-    onInitialWorkspaceSettled();
   }, [
-    onInitialWorkspaceSettled,
     projectCatalog.state,
     providerCatalog.state,
     providerConfigState.error,

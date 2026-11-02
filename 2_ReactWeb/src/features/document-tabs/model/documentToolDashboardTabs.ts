@@ -67,7 +67,7 @@ function getToolDashboardTitle(view: ToolDashboardView) {
   if (view === "dependencies") return "工具依赖";
   if (view === "callRecords") return "调用记录";
   if (view === "permissions") return "权限配置";
-  if (view === "examples") return "应用场景";
+  if (view === "examples") return "使用说明";
   return "基础设置";
 }
 

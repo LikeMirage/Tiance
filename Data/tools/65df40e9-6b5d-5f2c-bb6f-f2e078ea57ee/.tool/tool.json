@@ -1,5 +1,5 @@
 {
-  "description": "把当前项目中的文本文件分块写入工作区自己的 SQLite FTS5 索引，并提供中文、英文、代码和路径全文检索。支持首次索引、增量更新、重建、状态、过期差异检查和高级查询；索引默认保存到 .Tiance/cache/text-search/index.sqlite3。",
+  "description": "为项目文本建立可增量更新的全文索引，适合反复检索较大的文档或代码集合。",
   "execution": {
     "parallel": true
   },

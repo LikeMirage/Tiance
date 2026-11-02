@@ -64,7 +64,7 @@ export function ToolManifestExamplesView({
         <div className="tool-dashboard__examples-toolbar">
           <button className="tool-dashboard__secondary-button" type="button" onClick={handleAddExample}>
             <Plus size={14} weight="bold" aria-hidden="true" />
-            <span>新增场景</span>
+            <span>新增说明</span>
           </button>
         </div>
         {examples.length > 0 ? (
@@ -82,15 +82,15 @@ export function ToolManifestExamplesView({
             ))}
           </div>
         ) : (
-          <p>暂无应用场景。</p>
+          <p>暂无使用说明。</p>
         )}
       </div>
 
       {deleteExampleIndex !== null ? (
         <ConfirmDialog
           confirmLabel="删除"
-          message="删除后会从 examples.json 中移除这个应用场景。"
-          title="删除应用场景"
+          message="删除这条使用说明？"
+          title="删除使用说明"
           onCancel={() => setDeleteExampleIndex(null)}
           onConfirm={() => {
             updateManifest((draft) => removeToolExample(draft, deleteExampleIndex));
@@ -117,7 +117,7 @@ function EditableExampleItem({
   onExampleChange: (updater: (example: EditableToolExample) => void) => void;
   onExpandedChange: (isExpanded: boolean) => void;
 }) {
-  const title = example.title.trim() || `应用场景 ${index + 1}`;
+  const title = example.title.trim() || `使用说明 ${index + 1}`;
   const contentPreview = getContentPreview(example.content);
 
   return (
@@ -137,7 +137,7 @@ function EditableExampleItem({
             <span>{contentPreview || "暂无内容。"}</span>
           </span>
           <span className="tool-dashboard__param-badges">
-            <span>场景 {index + 1}</span>
+            <span>说明 {index + 1}</span>
           </span>
         </button>
         <div className="tool-dashboard__example-actions">
@@ -153,7 +153,7 @@ function EditableExampleItem({
               draft.enabled = !draft.enabled;
             })}
           >
-            <span>启用案例</span>
+            <span>启用说明</span>
             <i aria-hidden="true" />
           </button>
           <button
@@ -197,9 +197,9 @@ function EditableExampleItem({
                 })}
               />
             </Field>
-            <Field className="tool-dashboard__field--wide" label="场景内容">
+            <Field className="tool-dashboard__field--wide" label="说明内容">
               <textarea
-                aria-label={`${title} 应用场景内容`}
+                aria-label={`${title} 使用说明内容`}
                 className="tool-dashboard__textarea tool-dashboard__scenario-textarea"
                 spellCheck={false}
                 value={example.content}
@@ -230,7 +230,7 @@ function normalizeToolExample(value: unknown): EditableToolExample | null {
 
 function buildEmptyExample(): EditableToolExample {
   return {
-    title: "新应用场景",
+    title: "新说明",
     content: "",
     enabled: true,
     injectContent: false,

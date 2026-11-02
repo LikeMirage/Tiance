@@ -1,5 +1,5 @@
 {
-  "description": "使用 DeepSeek 官方独立 Search/Fetch 接口搜索和读取网页，不调用对话模型。config.json 的 Key 优先，未填写时通过能力桥使用模型集 DeepSeek 的 Key；可用 configure 配置或清除工具 Key。搜索支持 1～50 条、可选正文及网站/语言/日期语法。短文本直接返回，长文本完整落盘并返回路径、大小和字符数。",
+  "description": "通过 DeepSeek 官方 Search/Fetch 接口搜索和读取网页，直接返回搜索结果或网页内容，不调用对话模型。",
   "execution": {
     "parallel": true
   },

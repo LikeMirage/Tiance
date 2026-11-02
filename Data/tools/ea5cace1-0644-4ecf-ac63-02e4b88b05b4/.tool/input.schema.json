@@ -1,7 +1,7 @@
 {
   "type": "object",
   "additionalProperties": false,
-  "description": "对当前项目中的 volume/page/block + FTS5 + sqlite-vec SQLite 数据库执行只读检查、检索和上下文读取。search 的六种 mode：exact 连续原文；keyword 关键词/FTS；vector 页级向量；hybrid 固定比例关键词+向量；auto 严格精确门控→内部多级字面锚点→动态权重；consensus 多路共识。结果会区分 exact / lexical_semantic / lexical_only / semantic_only；semantic_only 是语义近邻，不等于已确认出处。",
+  "description": "先 inspect 确认库具有 volume/page/block、FTS5 或 sqlite-vec 能力，再选择模式。只读打开原数据库；semantic_only 仅是语义近邻，不能当作原句出处。具体模式含义见 mode；完整要求见“数据库要求与结果判读”。",
   "properties": {
     "operation": {
       "permission_type": "none",

@@ -61,15 +61,22 @@ function response(id = "a") { return { project_id: "p", revision: 1, active_sess
   branch_nodes: [], message_variants: [] }; }
 function detail(id) { return { project_id: "p", revision: 2, session: session(id), state: state(`draft-${id}`) }; }
 function Harness(options) { value = useConversationSessions(options); return null; }
-async function setup() {
+async function setup(preferredSessionId = null) {
   requests = []; saves = []; lists = [];
-  props = { projectId: "p", activeProjectIdRef: { current: null }, activeSessionIdRef: { current: null },
+  props = { projectId: "p", preferredSessionId, activeProjectIdRef: { current: null }, activeSessionIdRef: { current: null },
     abortProjectStreams() {}, showChatView() {} };
   await act(async () => { renderer = create(React.createElement(Harness, props)); });
   await act(async () => { lists[0].resolve(response()); });
   assert.equal(value.draft, "draft-a");
 }
 afterEach(async () => { if (renderer) await act(async () => renderer.unmount()); renderer = null; });
+
+test("stale remembered session resolves against the actual list without losing the selected draft", async () => {
+  await setup("removed-session");
+  assert.equal(value.activeSessionId, "a");
+  assert.equal(value.draft, "draft-a");
+  assert.equal(requests.some(request => request.sid === "removed-session"), false);
+});
 
 test("selection hydrates settings and draft before switching; summaries never overwrite an unloaded draft", async () => {
   await setup();

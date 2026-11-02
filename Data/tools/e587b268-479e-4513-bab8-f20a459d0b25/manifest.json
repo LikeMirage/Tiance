@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "gui_keyboard",
-  "version": "6.0.2",
+  "version": "6.0.3",
   "author": {
     "name": "Tiance"
   },

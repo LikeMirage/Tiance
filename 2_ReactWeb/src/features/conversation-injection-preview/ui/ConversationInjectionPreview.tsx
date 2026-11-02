@@ -358,7 +358,7 @@ function ToolSchemaItem({ index, tool }: { index: number; tool: InjectionTool })
       </p>
       {description.examples.length > 0 ? (
         <div className="conversation-injection-preview__directory-examples">
-          <span>应用示例</span>
+          <span>使用说明</span>
           <ol>
             {description.examples.map((example, exampleIndex) => (
               <li key={`${exampleIndex}:${example.title}`}>
@@ -423,7 +423,7 @@ function DynamicToolDirectoryView({ content }: { content: string }) {
             ) : null}
             {tool.examples.length > 0 ? (
               <div className="conversation-injection-preview__directory-examples">
-                <span>应用示例</span>
+                <span>使用说明</span>
                 <ol>
                   {tool.examples.map((example, exampleIndex) => (
                     <li key={`${exampleIndex}:${example.title}`}>
@@ -709,7 +709,7 @@ function parseDynamicToolDirectory(content: string): DynamicToolDirectory {
       continue;
     }
 
-    if (line === "应用示例：") {
+    if (line === "使用说明：" || line === "应用示例：") {
       inExamples = true;
       continue;
     }
@@ -742,14 +742,14 @@ function readPrefixedLine(line: string, prefix: string): string {
 }
 
 function parseToolDescription(description: string) {
-  const marker = "\n\n应用示例：\n";
-  const markerIndex = description.indexOf(marker);
-  if (markerIndex < 0) {
+  const marker = /\n\n(?:使用说明|应用示例)：\n/.exec(description);
+  if (!marker) {
     return { examples: [] as ToolExamplePreview[], summary: description };
   }
+  const markerIndex = marker.index;
   const examples: ToolExamplePreview[] = [];
   description
-    .slice(markerIndex + marker.length)
+    .slice(markerIndex + marker[0].length)
     .split(/\r?\n/)
     .forEach((rawLine) => {
       const line = rawLine.trim();

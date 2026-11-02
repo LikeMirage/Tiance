@@ -26,5 +26,11 @@
   {
     "title": "预检编辑操作但不写文件",
     "content": "{\"action\":\"validate\",\"target_action\":\"edit\",\"input_path\":\"reports/sales_dashboard.xlsx\",\"operations\":[{\"type\":\"append_rows\",\"sheet\":\"销售看板\",\"rows\":[[\"东北\",80,90,100,110,\"=SUM(B8:E8)\",\"=F8/480\",\"B\"]]}]}"
+  },
+  {
+    "title": "Excel 提取规则",
+    "content": "调用 export_markdown 前必须先读取本工具目录 docs/excel-to-markdown-rules.md，按其中规则使用导出的 content.md、format.md 和规则报告。复杂宏、透视表、切片器和复杂图表不承诺完整反向还原。普通创建、编辑与预检不要求先执行导出。",
+    "enabled": true,
+    "inject_content": false
   }
 ]

@@ -1,7 +1,7 @@
 {
   "name": "github_repository",
   "registration_name": "GitHub 仓库",
-  "description": "管理 GitHub 远端仓库。支持列出、查看、创建、改名和修改设置、Fork、删除仓库。写操作可传 dry_run=true 先模拟；优先复用设定集 GitHub 登录，也可在高级配置提供 Token。",
+  "description": "管理 GitHub 远端仓库，包括创建、配置、Fork 和删除；本地版本管理使用 git_repository。",
   "execution": {
     "parallel": true
   },

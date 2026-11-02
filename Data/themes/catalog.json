@@ -93,6 +93,16 @@
       "created_at": "2026-10-30T08:22:18.384709+00:00",
       "updated_at": "2026-10-30T08:22:18.384709+00:00",
       "root_name": "pure-black"
+    },
+    {
+      "project_id": "b6ebcd21-d16f-58de-94ab-3dca18fc38e0",
+      "name": "绯雨红妆",
+      "category_id": "default-theme-category",
+      "is_default": false,
+      "sort_order": 8,
+      "created_at": "2026-11-02T06:31:42.106257+00:00",
+      "updated_at": "2026-11-02T06:31:42.106257+00:00",
+      "root_name": "crimson-rain"
     }
   ]
 }

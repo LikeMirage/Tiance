@@ -1,22 +1,22 @@
 [
   {
     "title": "默认等待脚本结束",
-    "content": "{\"script_text\":\"from pathlib import Path\\nprint('cwd =', Path.cwd())\\nprint('ok')\",\"timeout_seconds\":60}"
+    "content": "{\n  \"script_text\": \"from pathlib import Path\\nprint('cwd =', Path.cwd())\\nprint('ok')\",\n  \"timeout_seconds\": 60\n}"
   },
   {
     "title": "等待已有脚本结束",
-    "content": "{\"script_path\":\"scripts/check_data.py\",\"args\":[\"--limit\",\"20\"],\"run_mode\":\"wait\",\"timeout_seconds\":60,\"max_output_chars\":40000}"
+    "content": "{\n  \"script_path\": \"scripts/check_data.py\",\n  \"args\": [\n    \"--limit\",\n    \"20\"\n  ],\n  \"run_mode\": \"wait\",\n  \"timeout_seconds\": 60,\n  \"max_output_chars\": 40000\n}"
   },
   {
     "title": "启动后立即返回",
-    "content": "{\"script_path\":\"scripts/start_service.py\",\"run_mode\":\"detached\"}"
+    "content": "{\n  \"script_path\": \"scripts/start_service.py\",\n  \"run_mode\": \"detached\"\n}"
   },
   {
     "title": "等待模式传入 stdin",
-    "content": "{\"script_text\":\"import sys\\ntext = sys.stdin.read()\\nprint(text.upper())\",\"stdin\":\"hello ds tools\",\"run_mode\":\"wait\",\"timeout_seconds\":20}"
+    "content": "{\n  \"script_text\": \"import sys\\ntext = sys.stdin.read()\\nprint(text.upper())\",\n  \"stdin\": \"hello ds tools\",\n  \"run_mode\": \"wait\",\n  \"timeout_seconds\": 20\n}"
   },
   {
     "title": "接受具有业务含义的非零退出码",
-    "content": "{\"script_text\":\"import sys\\nprint('no differences')\\nsys.exit(2)\",\"expected_exit_codes\":[0,2],\"timeout_seconds\":20}"
+    "content": "{\n  \"script_text\": \"import sys\\nprint('no differences')\\nsys.exit(2)\",\n  \"expected_exit_codes\": [\n    0,\n    2\n  ],\n  \"timeout_seconds\": 20\n}"
   }
 ]

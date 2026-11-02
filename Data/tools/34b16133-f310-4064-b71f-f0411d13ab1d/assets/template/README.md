@@ -5,7 +5,7 @@
 制作前先阅读 [工具制作指南](docs/tool-development/README.md)，再按该索引阅读相应章节。配置与程序必须保持一致。
 
 - 工具清单与开关：`.tool/tool.json`
-- 输入、输出、案例、权限：`.tool/` 中的对应 JSON
+- 输入、输出、使用说明、权限：`.tool/` 中的对应 JSON
 - 程序入口：`program/main.py`
 - 可选业务配置：`program/config.json`
 - 依赖声明：`program/requirements.txt`

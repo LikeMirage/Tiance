@@ -1,1 +1,39 @@
-{"type":"object","additionalProperties":false,"required":["action","parameters"],"properties":{"action":{"permission_type": "external_data_modify", "type":"string","enum":["list_workflows","list_runs","get_run","list_jobs","get_job_logs","dispatch","rerun","rerun_failed","cancel","delete_run"]},"dry_run":{"permission_type": "none", "type":"boolean","default":false},"parameters":{"permission_type": "external_data_modify", "type":"object","description":"必须含 repository。运行操作使用 runId；任务日志使用 jobId；触发工作流使用 workflowId、ref，可选 inputs；列表可使用 branch、event、status、page、per_page。"}}}
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "action",
+    "parameters"
+  ],
+  "properties": {
+    "action": {
+      "permission_type": "external_data_modify",
+      "type": "string",
+      "enum": [
+        "list_workflows",
+        "list_runs",
+        "get_run",
+        "list_jobs",
+        "get_job_logs",
+        "dispatch",
+        "rerun",
+        "rerun_failed",
+        "cancel",
+        "delete_run"
+      ],
+      "description": "本次 GitHub 操作；所需业务字段填写在 parameters 中。"
+    },
+    "dry_run": {
+      "permission_type": "none",
+      "type": "boolean",
+      "default": false,
+      "description": "写操作为 true 时只校验并模拟，不提交远端修改；读取操作不受影响。"
+    },
+    "parameters": {
+      "permission_type": "external_data_modify",
+      "type": "object",
+      "description": "必须含 repository。运行操作使用 runId；任务日志使用 jobId；触发工作流使用 workflowId、ref，可选 inputs；列表可使用 branch、event、status、page、per_page。"
+    }
+  },
+  "description": "parameters 提供所选 action 的业务参数；仓库使用 owner/name 或 GitHub URL。认证优先复用天策 GitHub 登录，也可使用本工具 config.json 中的 Token。"
+}

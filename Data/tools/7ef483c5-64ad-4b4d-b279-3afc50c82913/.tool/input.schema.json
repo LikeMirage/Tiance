@@ -1,7 +1,41 @@
 {
-  "type":"object","additionalProperties":false,"required":["action","parameters"],"properties":{
-    "action":{"permission_type": "external_data_modify", "type":"string","enum":["list","get","compare","create","update","comment","list_reviews","list_comments","list_files","review","merge","update_branch"]},
-    "dry_run":{"permission_type": "none", "type":"boolean","default":false},
-    "parameters":{"permission_type": "external_data_modify", "type":"object","description":"必须含 repository。详情和修改使用 number；创建使用 title、head、base，可选 body、draft；审查使用 event(APPROVE/REQUEST_CHANGES/COMMENT)；合并可选 merge_method。"}
-  }
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "action",
+    "parameters"
+  ],
+  "properties": {
+    "action": {
+      "permission_type": "external_data_modify",
+      "type": "string",
+      "enum": [
+        "list",
+        "get",
+        "compare",
+        "create",
+        "update",
+        "comment",
+        "list_reviews",
+        "list_comments",
+        "list_files",
+        "review",
+        "merge",
+        "update_branch"
+      ],
+      "description": "本次 GitHub 操作；所需业务字段填写在 parameters 中。"
+    },
+    "dry_run": {
+      "permission_type": "none",
+      "type": "boolean",
+      "default": false,
+      "description": "写操作为 true 时只校验并模拟，不提交远端修改；读取操作不受影响。"
+    },
+    "parameters": {
+      "permission_type": "external_data_modify",
+      "type": "object",
+      "description": "必须含 repository。详情和修改使用 number；创建使用 title、head、base，可选 body、draft；审查使用 event(APPROVE/REQUEST_CHANGES/COMMENT)；合并可选 merge_method。"
+    }
+  },
+  "description": "parameters 提供所选 action 的业务参数；仓库使用 owner/name 或 GitHub URL。认证优先复用天策 GitHub 登录，也可使用本工具 config.json 中的 Token。"
 }

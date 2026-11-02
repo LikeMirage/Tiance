@@ -118,7 +118,7 @@ def _build_assistant_hint(
     hint.update(
         {
             "message": "工具调用失败。该工具已完整注入参数定义。",
-            "next_step": "根据错误原因修正参数后重试；如果需要典型用法，可读取该工具的应用示例。",
+            "next_step": "根据错误原因修正参数后重试；如果需要操作流程或调用示例，可读取该工具的使用说明。",
         }
     )
     if entry.example_titles:

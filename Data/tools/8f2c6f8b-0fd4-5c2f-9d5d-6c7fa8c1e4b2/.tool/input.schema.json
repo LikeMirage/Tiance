@@ -16,14 +16,27 @@
     "mode": {
       "permission_type": "tiance_data_read",
       "type": "string",
-      "enum": ["contains", "all_terms", "exact_content"],
+      "enum": [
+        "contains",
+        "all_terms",
+        "exact_content"
+      ],
       "default": "contains",
       "description": "contains 查找完整连续文字；all_terms 要求空白分隔的每个词都出现；exact_content 要求消息正文完全相同。"
     },
     "roles": {
       "permission_type": "tiance_data_read",
       "type": "array",
-      "items": {"type": "string", "enum": ["user", "assistant", "tool", "system", "error"]},
+      "items": {
+        "type": "string",
+        "enum": [
+          "user",
+          "assistant",
+          "tool",
+          "system",
+          "error"
+        ]
+      },
       "uniqueItems": true,
       "maxItems": 5,
       "description": "只过滤 messages 来源中的指定消息角色；省略时检索全部消息角色。"
@@ -33,16 +46,37 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["messages", "model_exchanges", "journal", "artifacts"]
+        "enum": [
+          "messages",
+          "model_exchanges",
+          "journal",
+          "artifacts"
+        ]
       },
       "uniqueItems": true,
       "minItems": 1,
       "maxItems": 4,
-      "default": ["messages"],
+      "default": [
+        "messages"
+      ],
       "description": "记录来源。messages 是正式会话消息；model_exchanges 是会话级模型交换记录；journal 是运行事件总账；artifacts 包含可完整还原的模型原始 HTTP 请求和响应等工件。"
     },
-    "limit": {"permission_type": "none", "type": "integer", "minimum": 1, "maximum": 100, "default": 20},
-    "offset": {"permission_type": "none", "type": "integer", "minimum": 0, "maximum": 1000000, "default": 0},
+    "limit": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 20,
+      "description": "本页最多返回的结果条数。"
+    },
+    "offset": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000,
+      "default": 0,
+      "description": "从第几条结果开始返回，首条为 0；翻页时保持查询条件不变。"
+    },
     "include_raw": {
       "permission_type": "tiance_data_read",
       "type": "boolean",
@@ -58,5 +92,8 @@
       "description": "摘要中在匹配位置前后保留的字符数。"
     }
   },
-  "required": ["query"]
+  "required": [
+    "query"
+  ],
+  "description": "直接以只读方式检索当前项目 .Tiance/tiance.db。查询默认针对当前会话正式消息；其他会话与记录来源须明确指定。结果只反映已保存的原始记录。"
 }

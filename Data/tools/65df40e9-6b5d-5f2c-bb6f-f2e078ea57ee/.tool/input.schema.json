@@ -6,7 +6,15 @@
     "operation": {
       "permission_type": "filesystem_write",
       "type": "string",
-      "enum": ["index", "update", "search", "check_changes", "status", "rebuild", "delete_index"],
+      "enum": [
+        "index",
+        "update",
+        "search",
+        "check_changes",
+        "status",
+        "rebuild",
+        "delete_index"
+      ],
       "default": "search",
       "description": "要执行的索引操作。"
     },
@@ -20,25 +28,62 @@
       "type": "string",
       "description": "索引数据库在工作区内的路径，默认 .Tiance/cache/text-search/index.sqlite3。"
     },
-    "query": {"permission_type": "filesystem_read", "type": "string", "description": "search 使用的查询文本。"},
+    "query": {
+      "permission_type": "filesystem_read",
+      "type": "string",
+      "description": "search 使用的查询文本。"
+    },
     "mode": {
       "permission_type": "none",
       "type": "string",
-      "enum": ["simple", "all", "any", "phrase", "raw"],
+      "enum": [
+        "simple",
+        "all",
+        "any",
+        "phrase",
+        "raw"
+      ],
       "default": "simple",
       "description": "检索模式。raw 直接使用 FTS5 MATCH 查询语法；其他模式会安全构造查询。"
     },
-    "path_prefix": {"permission_type": "filesystem_read", "type": "string", "description": "只返回指定工作区相对目录或文件下的结果。"},
+    "path_prefix": {
+      "permission_type": "filesystem_read",
+      "type": "string",
+      "description": "只返回指定工作区相对目录或文件下的结果。"
+    },
     "extensions": {
       "permission_type": "filesystem_read",
       "type": "array",
-      "items": {"type": "string"},
+      "items": {
+        "type": "string"
+      },
       "maxItems": 50,
       "description": "只返回指定扩展名，例如 [\".md\", \"py\"]。"
     },
-    "limit": {"permission_type": "none", "type": "integer", "minimum": 1, "maximum": 100, "default": 20},
-    "offset": {"permission_type": "none", "type": "integer", "minimum": 0, "maximum": 100000, "default": 0},
-    "context_chars": {"permission_type": "none", "type": "integer", "minimum": 40, "maximum": 1000, "default": 160},
+    "limit": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 20,
+      "description": "本页最多返回的结果条数。"
+    },
+    "offset": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100000,
+      "default": 0,
+      "description": "从第几条结果开始返回，首条为 0；翻页时保持查询条件不变。"
+    },
+    "context_chars": {
+      "permission_type": "none",
+      "type": "integer",
+      "minimum": 40,
+      "maximum": 1000,
+      "default": 160,
+      "description": "每个命中片段保留的上下文字符数。"
+    },
     "check_stale": {
       "permission_type": "none",
       "type": "boolean",
@@ -48,14 +93,23 @@
     "verification": {
       "permission_type": "none",
       "type": "string",
-      "enum": ["quick", "hash"],
+      "enum": [
+        "quick",
+        "hash"
+      ],
       "default": "quick",
       "description": "过期检查方式。quick 比较文件大小和纳秒修改时间；hash 重新读取内容并计算哈希。"
     },
     "change_type": {
       "permission_type": "none",
       "type": "string",
-      "enum": ["all", "new", "modified", "deleted", "unreadable"],
+      "enum": [
+        "all",
+        "new",
+        "modified",
+        "deleted",
+        "unreadable"
+      ],
       "default": "all",
       "description": "check_changes 只返回指定变化类型。"
     },
@@ -70,17 +124,23 @@
     "include_globs": {
       "permission_type": "filesystem_read",
       "type": "array",
-      "items": {"type": "string"},
+      "items": {
+        "type": "string"
+      },
       "maxItems": 100,
       "description": "可选包含规则，例如 [\"docs/**\", \"src/**/*.py\"]。"
     },
     "exclude_globs": {
       "permission_type": "filesystem_read",
       "type": "array",
-      "items": {"type": "string"},
+      "items": {
+        "type": "string"
+      },
       "maxItems": 100,
       "description": "额外排除规则，例如 [\"archive/**\", \"**/*.min.js\"]。"
     }
   },
-  "required": ["operation"]
+  "required": [
+    "operation"
+  ]
 }

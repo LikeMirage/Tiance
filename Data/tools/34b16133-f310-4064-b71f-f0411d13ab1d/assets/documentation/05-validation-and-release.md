@@ -2,7 +2,7 @@
 
 ## 最小验证流程
 
-1. 读取五份 JSON，核对调用名唯一、执行类型、明确的并发/动态/超时、程序入口和文件引用。参数、程序和案例一致。
+1. 读取五份 JSON，核对调用名唯一、执行类型、明确的并发/动态/超时、程序入口和文件引用。参数、程序和使用说明一致。逐条通过目录读取器核对 title/content 非空，再校验示例 JSON；Python 示例应能编译、补丁和多行文本应含真实换行，不能只检查外层 JSON 能否解析。
 2. 从工具根执行 `python -m unittest discover -s tests -v`。模板测试证明“尚未实现不能声称成功”，实现业务后须替换为业务成功、失败、参数和副作用测试，不能拿模板测试证明业务已可用。
 3. 直接测试 stdin/stdout。宿主启动会提供 tiance_runtime；手动启动需要把当前应用的 `1_PythonServer` 加入 PYTHONPATH，或用平台执行器。不要从 pip 安装同名包。
 4. 通过当前后端的 `ToolProjectConfigStorage.normalize_standard_file_content` 检查标准文件，再用 `tool_metadata.load_tool` 验证可加载；通过参数校验器验证合法与非法调用。不要在工具日常程序里导入后端服务来执行这些测试。

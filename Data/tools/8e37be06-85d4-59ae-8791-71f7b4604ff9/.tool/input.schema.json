@@ -110,5 +110,6 @@
   "required": [
     "action"
   ],
-  "type": "object"
+  "type": "object",
+  "description": "操作当前项目的前端编辑器标签。关闭动作只处理已保存标签，未保存标签会被跳过并说明，不强制丢弃编辑。"
 }

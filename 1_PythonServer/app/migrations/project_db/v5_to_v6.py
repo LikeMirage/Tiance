@@ -1,14 +1,14 @@
 """Losslessly convert v5 project audit records to the current v6 format."""
 
-from gzip import compress, decompress
+from gzip import compress
 from hashlib import sha256
 from json import dumps, loads
 import sqlite3
-from zlib import error as zlib_error
+
+from app.migrations.project_db.legacy_audit import read_legacy_artifact, restore_legacy_payload
 
 from app.repositories.project.conversation_audit_delta import json_bytes
 from app.repositories.project.conversation_audit_snapshots import (
-    MANIFEST_KEY,
     restore_audit_snapshot,
     store_audit_snapshot,
 )
@@ -57,8 +57,7 @@ def inspect_v5(connection: sqlite3.Connection) -> tuple[int, int]:
         "WHERE kind='model_exchanges' ORDER BY session_id, ordinal"
     ):
         payload = loads(raw)
-        if not isinstance(payload, dict) or MANIFEST_KEY in payload:
-            raise RuntimeError("Project v5 contains an unsupported logical audit record.")
+        restore_legacy_payload(connection, payload)
         event_count += 1
     artifact_count = 0
     for row in connection.execute(
@@ -67,7 +66,7 @@ def inspect_v5(connection: sqlite3.Connection) -> tuple[int, int]:
            FROM conversation_artifacts a JOIN conversation_artifact_payloads p
              ON p.artifact_id=a.artifact_id ORDER BY a.session_id, a.created_at, a.artifact_id"""
     ):
-        _read_legacy_artifact(row)
+        read_legacy_artifact(connection, row)
         artifact_count += 1
     return event_count, artifact_count
 
@@ -81,7 +80,7 @@ def upgrade(connection: sqlite3.Connection) -> tuple[int, int]:
         "SELECT session_id, ordinal, payload_json FROM conversation_session_events "
         "WHERE kind='model_exchanges' ORDER BY session_id, ordinal"
     ):
-        payload = loads(raw)
+        payload = restore_legacy_payload(connection, loads(raw))
         manifest = store_audit_snapshot(connection, session_id, "model_exchanges", payload)
         restored = restore_audit_snapshot(connection, session_id, "model_exchanges", manifest)
         if json_bytes(restored) != json_bytes(payload):
@@ -100,7 +99,7 @@ def upgrade(connection: sqlite3.Connection) -> tuple[int, int]:
              ON p.artifact_id=a.artifact_id ORDER BY a.session_id, a.created_at, a.artifact_id"""
     ):
         artifact_id, session_id, kind, encoding, size, digest, compression, stored_size, blob = row
-        payload = _read_legacy_artifact((artifact_id, encoding, size, digest, compression, stored_size, blob))
+        payload = read_legacy_artifact(connection, (artifact_id, encoding, size, digest, compression, stored_size, blob))
         manifest = store_audit_snapshot(connection, session_id, kind, payload)
         restored = restore_audit_snapshot(connection, session_id, kind, manifest)
         content = dumps(restored, ensure_ascii=False, separators=(",", ":")).encode(encoding or "utf-8")
@@ -118,20 +117,3 @@ def upgrade(connection: sqlite3.Connection) -> tuple[int, int]:
         raise RuntimeError("Project audit row counts changed during v5 conversion.")
     connection.execute("UPDATE conversation_schema SET version=6 WHERE version=5")
     return expected
-
-
-def _read_legacy_artifact(row: tuple) -> dict:
-    artifact_id, encoding, size, digest, compression, stored_size, blob = row
-    if compression != "gzip" or len(blob) != stored_size:
-        raise RuntimeError(f"HTTP audit {artifact_id} has an unsupported legacy payload.")
-    try:
-        content = decompress(blob)
-        payload = loads(content.decode(encoding or "utf-8"))
-    except (OSError, EOFError, UnicodeError, ValueError, zlib_error) as exc:
-        raise RuntimeError(f"HTTP audit {artifact_id} cannot be decoded.") from exc
-    if not isinstance(payload, dict):
-        raise RuntimeError(f"HTTP audit {artifact_id} is not a JSON object.")
-    canonical = dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(encoding or "utf-8")
-    if content != canonical or len(content) != size or sha256(content).hexdigest() != digest:
-        raise RuntimeError(f"HTTP audit {artifact_id} failed original integrity checks.")
-    return payload

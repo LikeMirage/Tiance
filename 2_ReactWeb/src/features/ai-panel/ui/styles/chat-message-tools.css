@@ -15,7 +15,6 @@
 
 .chat-msg__tools {
   display: grid;
-  gap: 6px;
   min-width: 0;
   margin: 0;
 }
@@ -100,11 +99,11 @@
   display: grid;
   gap: 6px;
   min-width: 0;
+  padding-top: 6px;
 }
 
 .chat-msg__tool-card {
   display: grid;
-  gap: 6px;
   max-width: 100%;
   min-width: 0;
   padding: 0;
@@ -282,6 +281,10 @@
   gap: 3px;
   min-width: 0;
   padding: 0 9px;
+}
+
+.chat-msg__tool-payload:first-child {
+  padding-top: 6px;
 }
 
 .chat-msg__tool-payload:last-child {

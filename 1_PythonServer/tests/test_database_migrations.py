@@ -114,6 +114,10 @@ def test_project_failure_rolls_back_entire_version_chain(tmp_path, monkeypatch, 
         ).fetchone() is None
     assert len(list(tmp_path.glob("*.bak"))) == 1
     monkeypatch.setattr(module, name, original)
+    # Deploying repaired migration code restarts the backend. Unchanged validation
+    # failures in a running process must not cause repeated backups on UI refresh.
+    from app.migrations import attempts
+    monkeypatch.setattr(attempts, "_failures", {})
     ensure_database(tmp_path)
     with closing(sqlite3.connect(path)) as db:
         assert db.execute("SELECT version FROM conversation_schema").fetchone()[0] == SCHEMA_VERSION

@@ -37,7 +37,7 @@
 | --- | --- |
 | `name` | 当前工具空间内唯一的稳定调用名。本创建器接受 1–64 位英文、数字、下划线，首位不是数字 |
 | `registration_name` | 非空注册显示名称 |
-| `description` | 用途、适用场景和关键限制；不粘贴整本手册 |
+| `description` | 简短用途、适用场景和选择边界；不要重复参数说明。重要长流程用一句话指向使用说明标题 |
 | `state.enabled` | 全局开关；新工具必须为 false，完成后按用户意愿开启 |
 | `loading.dynamic` | 初始只注入轻量目录，具体参数按需读取 |
 | `execution.parallel` | 必填布尔值；是否允许平台并发派发这个工具。共享写入、顺序依赖时关闭；关闭也不替代程序自己的锁与跨会话互斥 |
@@ -47,13 +47,13 @@
 | `runtime.host_capabilities` | Python 专用，可选能力名称数组；默认空，只申请实际需要的后端能力，不绑定工具调用名；详见 04 |
 | `runtime.client_capability` | client 专用，包含能力 name 与正整数 min_version，必须实际注册 |
 | `io` | 约定说明：Python 用 stdin_json/stdout_json；client 用 client_json/client_json |
-| `files` | 固定指向 .tool 下的输入、输出、案例、权限四份文件；保存时会标准化 |
+| `files` | 固定指向 .tool 下的输入、输出、使用说明、权限四份文件；保存时会标准化 |
 
 开关仍在本工具的 tool.json 中，没有另设全局工具设置表。不要增加已删除的工具关键词、旧式内嵌参数和旧 context/capabilities/ui 配置；源码标准化会移除若干旧字段，未被移除不代表运行时会使用。
 
 ## 输入 Schema
 
-根部为 `type: object`，使用 `properties`、`required`、`additionalProperties` 描述真实接口。参数说明放在该参数 `description`；根部 `description` 可以解释跨参数关系，不必复述所有参数。工具摘要、参数说明、案例内容不能相互矛盾。
+根部为 `type: object`，使用 `properties`、`required`、`additionalProperties` 描述真实接口。参数说明放在该参数 `description`；根部 `description` 可以解释跨参数关系，不必复述所有参数。工具摘要、参数说明、操作指南和调用示例不能相互矛盾。
 
 ```json
 {
@@ -79,16 +79,20 @@ output.schema.json 应描述真实返回。Python stdout 必须是 JSON 对象�
 
 建议结果包含 ok、简短 summary、结构化 data；失败包含 error 和可判定错误码。文件路径是合法结果信息，用户需要它来继续工作；图片应额外使用标准资源内容块，不能只给路径并声称模型已看见。
 
-## 案例
+## 使用说明与示例
 
-examples.json 是数组，条目为 `{ "title": "名称", "content": "说明和真实参数示例", "enabled": true, "inject_content": false }`。已启用标题会进入目录/说明，正文只有明确开启 inject_content 才注入。正文默认按需读取，可减少上下文占用。不要增加程序尚不支持的操作。
+examples.json 可以承载操作指南、特殊情况、注意事项和真实调用示例，不要求每条都是实际案例。它是数组，条目为 `{ "title": "名称", "content": "说明和真实参数示例", "enabled": true, "inject_content": false }`。已启用标题会进入目录/说明，正文只有明确开启 inject_content 才注入。正文默认按需读取，可减少上下文占用。正文只读取 `content` 字符串，不支持把示例参数另放在 `input` 字段。JSON 调用示例也应序列化后写入 content；验证反序列化后的参数与 Schema 一致，尤其检查反斜杠、换行和相对路径。不要增加程序尚不支持的操作。
+
+摘要只负责帮助选择工具，例如“编辑已有 Word 文档；首次使用前读取『定位与编辑流程』”。字段含义、默认值和取值范围放在对应参数中；跨参数约束放在 Schema 根部 description；长流程保存在有明确标题的说明条目中，通过 load_tool_info 的 get_examples 和 example_titles 按需读取。不要新增第二套摘要字段，也不要靠截断文字控制长度。
+
+只允许调用指定工具的后台功能任务不能依赖额外的说明读取调用。任务执行时必须看到的触发与提交约定应保留在参数定义或任务消息中，避免把它们仅搬进未注入的说明正文。
 
 ## 注册、注入和调用
 
 1. 按工具分类和项目目录读取清单；没有 tool.json 的空白项目被跳过。
-2. 清单存在就读取输入、输出和案例。即使 enabled=false，也必须是完整有效配置。调用名冲突或单个配置损坏可能导致整次注册表刷新失败，保留之前的索引；不能把改文件等同于刷新成功。
+2. 清单存在就读取输入、输出和使用说明。即使 enabled=false，也必须是完整有效配置。调用名冲突或单个配置损坏可能导致整次注册表刷新失败，保留之前的索引；不能把改文件等同于刷新成功。
 3. 标准加载注入调用名、组合说明和去掉权限元数据的输入 Schema；输出 Schema 不作为模型输入参数注入。
-4. 动态加载先提供轻量目录，通过 load_tool_info 获取详细参数/案例，再由 execute_dynamic_tool 转交。动态目标仍检查启用、会话选择、参数和权限，不是绕过工具边界的方法。
+4. 动态加载先提供轻量目录，通过 load_tool_info 获取详细参数或使用说明，再由 execute_dynamic_tool 转交。动态目标仍检查启用、会话选择、参数和权限，不是绕过工具边界的方法。
 5. 执行前校验参数、权限与运行配置；分发到 Python 子进程或已登记的 client 能力；结果回到统一工具循环。
 
 创建完整模板应最后发布 tool.json；更新已有工具时也要保证各份合同一致，不能假定单纯关闭开关就允许缺失 Schema。文件监听会刷新元数据，但它是异步的；保存接口遇到注册错误会返回失败。工具调用审计在工具项目 `.Tiance/tool-calls/records.jsonl`，调用方会话还会保存正式工具消息。

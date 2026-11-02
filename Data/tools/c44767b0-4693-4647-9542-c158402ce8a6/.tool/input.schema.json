@@ -15,7 +15,8 @@
         "plan_pull",
         "pull"
       ],
-      "type": "string"
+      "type": "string",
+      "description": "集合绑定、差异预览或执行动作；push/pull 使用对应预览返回的计划号。"
     },
     "collection": {
       "permission_type": "tiance_data_write",
@@ -28,7 +29,8 @@
         "tool",
         "provider"
       ],
-      "type": "string"
+      "type": "string",
+      "description": "目标集合类型；省略时从当前工作区确定，跨集合时必须明确指定。"
     },
     "repository": {
       "permission_type": "external_data_modify",
@@ -40,7 +42,8 @@
       "permission_type": "external_data_modify",
       "default": "main",
       "maxLength": 250,
-      "type": "string"
+      "type": "string",
+      "description": "绑定或同步使用的仓库分支。"
     },
     "remotePath": {
       "permission_type": "external_data_modify",
@@ -66,4 +69,3 @@
   ],
   "type": "object"
 }
-

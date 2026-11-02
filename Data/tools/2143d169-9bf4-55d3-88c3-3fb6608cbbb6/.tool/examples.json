@@ -5,7 +5,7 @@
   },
   {
     "title": "正则搜索 API 路由",
-    "content": "{\"query\":\"@router\\\\.(get|post|put|delete)\",\"regex\":true,\"include_globs\":[\"1_PythonServer/**/*.py\"],\"max_matches\":100}"
+    "content": "{\n  \"query\": \"@router\\\\.(get|post|put|delete)\",\n  \"regex\": true,\n  \"include_globs\": [\n    \"1_PythonServer/**/*.py\"\n  ],\n  \"max_matches\": 100\n}"
   },
   {
     "title": "搜索前端组件引用",

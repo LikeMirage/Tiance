@@ -1,10 +1,10 @@
 [
   {
-    "title": "按系统要求检查当前会话是否需要手动压缩",
+    "title": "用户明确要求手动压缩时登记请求",
     "content": "{}"
   },
   {
     "title": "提交系统要求的压缩结果",
-    "content": "{\"result\":{\"items\":[{\"content\":\"[当前状态] 已完成指定历史范围的压缩。\",\"keywords\":[\"当前状态\"]}],\"handoff\":\"后续从当前未压缩原文继续处理。\"}}"
+    "content": "{\n  \"result\": {\n    \"items\": [\n      {\n        \"content\": \"已完成订单汇总脚本，输出位于 reports/orders.csv；用户要求下一步复核总金额。\",\n        \"keywords\": [\n          \"订单汇总\",\n          \"金额复核\"\n        ]\n      }\n    ],\n    \"handoff\": \"订单汇总已完成，下一步核对来源表与 reports/orders.csv 的总金额。最近用户请求：复核订单总金额。\"\n  }\n}"
   }
 ]

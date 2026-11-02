@@ -1,11 +1,12 @@
 {
-  "description": "已知要查找的文本或正则表达式，需要定位命中文件、行号及附近上下文时使用；目标文件已经明确且需要读取内容时使用 read_file 或 read_many_files。使用内置 ripgrep 高速搜索，支持大小写、编码、路径过滤、ignore 规则、文件大小限制、总结果截断和上下文行。",
+  "description": "在项目文本中查找文字或正则表达式，返回命中行和附近上下文；适合精确定位。",
   "registration_name": "内容搜索",
   "execution": {
     "parallel": true
   },
   "files": {
-    "examples": ".tool/examples.json","permissions":".tool/permissions.json",
+    "examples": ".tool/examples.json",
+    "permissions": ".tool/permissions.json",
     "input_schema": ".tool/input.schema.json",
     "output_schema": ".tool/output.schema.json"
   },

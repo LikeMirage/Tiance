@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "structured_database_search",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "LikeMirage"
   },

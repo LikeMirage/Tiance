@@ -131,7 +131,7 @@ def standard_tool_description(
 ) -> str:
     if not examples:
         return description
-    lines = [description, "", "应用示例："]
+    lines = [description, "", "使用说明："]
     for index, example in enumerate(examples, start=1):
         heading = f"{index}. {example.title}" if example.title else f"{index}."
         lines.append(heading)

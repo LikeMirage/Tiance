@@ -368,9 +368,11 @@ class WorkspaceStateService:
         if project is None or project.category_id != category_id:
             return None
 
+        # This is a restoration hint, not a session read. Validating every saved
+        # category here opens unrelated project databases and can trigger their
+        # migrations during application startup. The selected project's session
+        # list resolves stale IDs when it is actually opened.
         session_id = _stored_session_id(payload.get("session_id"))
-        if session_id and not self._session_exists(project.project_id, session_id):
-            session_id = None
 
         return WorkspaceCategorySelection(
             category_id=category_id,

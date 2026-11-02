@@ -1,5 +1,5 @@
 {
-  "description": "管理 GitHub Release 和附件。支持列表、详情、创建、编辑、删除发布，列出、上传、删除附件。附件 path 必须位于当前会话项目内；写操作可用 dry_run=true 模拟。",
+  "description": "管理 GitHub Release 及其发布附件。",
   "execution": {
     "parallel": true
   },

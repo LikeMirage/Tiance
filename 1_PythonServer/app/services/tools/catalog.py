@@ -77,7 +77,7 @@ class ToolCatalogService:
                 if example_enabled(example)
             )
         if not titles and not indexes:
-            raise BadRequestError("必须指定要读取的示例标题、序号，或读取全部示例。")
+            raise BadRequestError("必须指定要读取的说明标题、序号，或读取全部说明。")
 
         examples_by_index = {
             index: example
@@ -89,7 +89,7 @@ class ToolCatalogService:
         for index in indexes:
             example = examples_by_index.get(index)
             if example is None:
-                raise NotFoundError(f"工具示例序号 '{index}' 不存在。")
+                raise NotFoundError(f"工具说明序号 '{index}' 不存在。")
             if index not in seen_indexes:
                 selected.append(example_detail(index, example))
                 seen_indexes.add(index)
@@ -107,7 +107,7 @@ class ToolCatalogService:
                     selected.append(example_detail(index, example))
                     seen_indexes.add(index)
             if not matched:
-                raise NotFoundError(f"工具示例 '{title}' 不存在。")
+                raise NotFoundError(f"工具说明 '{title}' 不存在。")
 
         return tuple(selected)
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
 
 import { I18nProvider } from "@/shared/i18n";
 
@@ -37,16 +37,6 @@ export function App({
 
   useEffect(() => {
     markFrontendStartup("frontend: App mounted");
-  }, []);
-
-  const handleInitialWorkspaceSettled = useCallback(() => {
-    window.requestAnimationFrame(() => {
-      markFrontendStartup("frontend: workspace handoff first frame");
-      window.requestAnimationFrame(() => {
-        markFrontendStartup("frontend: App handoff frame");
-        dismissFrontendBootPlaceholder();
-      });
-    });
   }, []);
 
   useEffect(() => {
@@ -127,13 +117,34 @@ export function App({
         <AppFrame>
           <WorkspacePage
             initialLayoutPreferences={initialWorkspaceLayoutPreferences}
-            onInitialWorkspaceSettled={handleInitialWorkspaceSettled}
             themeControl={themeControl}
           />
+          <FrontendBootHandoff ready={!themeControl.isBootstrapping} />
           <StartupAnnouncementPrompt />
           <StartupSoftwareUpdatePrompt />
         </AppFrame>
       </DesktopShellProvider>
     </I18nProvider>
   );
+}
+
+function FrontendBootHandoff({ ready }: { ready: boolean }) {
+  // Mount inside I18nProvider/AppFrame: the localized shell must exist before
+  // removing the launch cover. Catalog requests own their local loading/errors.
+  useEffect(() => {
+    if (!ready) return;
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      markFrontendStartup("frontend: workspace handoff first frame");
+      secondFrame = window.requestAnimationFrame(() => {
+        markFrontendStartup("frontend: App handoff frame");
+        dismissFrontendBootPlaceholder();
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+    };
+  }, [ready]);
+  return null;
 }

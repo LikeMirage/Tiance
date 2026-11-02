@@ -1,1 +1,41 @@
-{"type":"object","additionalProperties":false,"required":["action","parameters"],"properties":{"action":{"permission_type": "external_data_modify", "type":"string","enum":["list","get","create","update","comment","list_comments","list_labels","set_labels","add_assignees","remove_assignees","create_label","delete_label"]},"dry_run":{"permission_type": "none", "type":"boolean","default":false},"parameters":{"permission_type": "external_data_modify", "type":"object","description":"必须含 repository。详情和修改使用 number；创建使用 title，可选 body、labels、assignees；标签操作使用 name/color 或 labels；负责人操作使用 assignees。"}}}
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "action",
+    "parameters"
+  ],
+  "properties": {
+    "action": {
+      "permission_type": "external_data_modify",
+      "type": "string",
+      "enum": [
+        "list",
+        "get",
+        "create",
+        "update",
+        "comment",
+        "list_comments",
+        "list_labels",
+        "set_labels",
+        "add_assignees",
+        "remove_assignees",
+        "create_label",
+        "delete_label"
+      ],
+      "description": "本次 GitHub 操作；所需业务字段填写在 parameters 中。"
+    },
+    "dry_run": {
+      "permission_type": "none",
+      "type": "boolean",
+      "default": false,
+      "description": "写操作为 true 时只校验并模拟，不提交远端修改；读取操作不受影响。"
+    },
+    "parameters": {
+      "permission_type": "external_data_modify",
+      "type": "object",
+      "description": "必须含 repository。详情和修改使用 number；创建使用 title，可选 body、labels、assignees；标签操作使用 name/color 或 labels；负责人操作使用 assignees。"
+    }
+  },
+  "description": "parameters 提供所选 action 的业务参数；仓库使用 owner/name 或 GitHub URL。认证优先复用天策 GitHub 登录，也可使用本工具 config.json 中的 Token。"
+}

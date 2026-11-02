@@ -1,5 +1,14 @@
 [
-  {"title":"列出开放议题","input":{"action":"list","parameters":{"repository":"LikeMirage/Tiance","state":"open"}}},
-  {"title":"模拟创建议题","input":{"action":"create","dry_run":true,"parameters":{"repository":"LikeMirage/Tiance","title":"问题标题","body":"复现和预期"}}},
-  {"title":"模拟关闭议题","input":{"action":"update","dry_run":true,"parameters":{"repository":"LikeMirage/Tiance","number":3,"state":"closed","state_reason":"completed"}}}
+  {
+    "title": "列出开放议题",
+    "content": "{\n  \"action\": \"list\",\n  \"parameters\": {\n    \"repository\": \"LikeMirage/Tiance\",\n    \"state\": \"open\"\n  }\n}"
+  },
+  {
+    "title": "模拟创建议题",
+    "content": "{\n  \"action\": \"create\",\n  \"dry_run\": true,\n  \"parameters\": {\n    \"repository\": \"LikeMirage/Tiance\",\n    \"title\": \"问题标题\",\n    \"body\": \"复现和预期\"\n  }\n}"
+  },
+  {
+    "title": "模拟关闭议题",
+    "content": "{\n  \"action\": \"update\",\n  \"dry_run\": true,\n  \"parameters\": {\n    \"repository\": \"LikeMirage/Tiance\",\n    \"number\": 3,\n    \"state\": \"closed\",\n    \"state_reason\": \"completed\"\n  }\n}"
+  }
 ]

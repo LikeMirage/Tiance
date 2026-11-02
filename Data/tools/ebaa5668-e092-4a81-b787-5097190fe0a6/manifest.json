@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "gui_annotate",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": {
     "name": "Tiance"
   },

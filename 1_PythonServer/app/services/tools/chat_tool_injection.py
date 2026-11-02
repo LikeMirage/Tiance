@@ -15,7 +15,10 @@ from app.services.tools.catalog import ToolCatalogService, get_tool_catalog_serv
 from app.services.tools.dynamic_tool_contract import (
     DYNAMIC_TOOL_INFRASTRUCTURE_NAMES,
 )
-from app.services.tools.dynamic_tool_prompt import dynamic_tool_directory_intro_lines
+from app.services.tools.dynamic_tool_prompt import (
+    dynamic_tool_directory_entry_lines,
+    dynamic_tool_directory_intro_lines,
+)
 from app.services.tools.tool_metadata import normalize_tool_name, standard_tool_description
 
 
@@ -174,23 +177,8 @@ def _dynamic_tool_directory_prompt(
 
     lines: list[str] = dynamic_tool_directory_intro_lines()
     for summary in dynamic_summaries:
-        lines.extend(
-            [
-                "",
-                f"工具：{summary.name}",
-                f"显示名称：{summary.display_name}",
-                f"说明：{summary.description}",
-            ]
-        )
-        if summary.example_titles:
-            lines.append("应用示例：")
-            example_details = examples_by_tool.get(summary.name, ()) if examples_by_tool else ()
-            for index, title in enumerate(summary.example_titles, start=1):
-                lines.append(f"{index}. {title}")
-                if index <= len(example_details):
-                    example = example_details[index - 1]
-                    if example.inject_content and example.content:
-                        lines.append(example.content)
+        example_details = examples_by_tool.get(summary.name, ()) if examples_by_tool else ()
+        lines.extend(dynamic_tool_directory_entry_lines(summary, example_details))
     return "\n".join(lines)
 
 

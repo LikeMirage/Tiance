@@ -21,7 +21,7 @@
   },
   {
     "title": "在 Word 中插入复杂 Excel 表格",
-    "content": "完整调用过程：\n1. 先调用 Excel 工具，用 Markdown 双文件模式或传统结构化参数生成复杂 Excel，例如 tables/result.xlsx。复杂表格的合并、颜色、边框、尺寸和公式由 Excel 工具负责。\n2. 再写需要转换为 Word 的 Markdown 文件。在需要插入表格的位置单独写：\n\n{{table-ref\nsource=\"tables/result.xlsx\"\nsheet=\"汇总\"\nrange=\"A1:F12\"\n}}\n\nsource 相对于 Markdown 文件所在目录；sheet 和 range 可按实际 Excel 内容修改。不要把复杂表格的格式指令展开到 Markdown 正文。Excel 单元格中如果明确写成 $...$ 或 $$...$$，会转换为 Word 原生公式；普通 Excel 计算公式（例如 =SUM(A1:A3)）保留为文字，不会被误判为数学公式。\n3. 调用本工具：\n{\n  \"input_path\": \"docs/report.md\",\n  \"output_path\": \"docs/report.docx\"\n}\n\n工具会在转换前检测 table-ref 来源、工作表和区域，并把引用位置替换成 Word 表格。返回结果中的 table_references 会列出成功插入的来源；引用不存在或区域无效时会失败，不会生成缺少表格的 Word。普通 Markdown 表格仍直接写在 Markdown 中。"
+    "content": "完整调用过程：\n1. 先调用 Excel 工具，用当前 create 参数生成复杂 Excel，例如 tables/result.xlsx。复杂表格的合并、颜色、边框、尺寸和公式由 Excel 工具负责。\n2. 再写需要转换为 Word 的 Markdown 文件。在需要插入表格的位置单独写：\n\n{{table-ref\nsource=\"../tables/result.xlsx\"\nsheet=\"汇总\"\nrange=\"A1:F12\"\n}}\n\nsource 相对于 Markdown 文件所在目录；sheet 和 range 可按实际 Excel 内容修改。不要把复杂表格的格式指令展开到 Markdown 正文。Excel 单元格中如果明确写成 $...$ 或 $$...$$，会转换为 Word 原生公式；普通 Excel 计算公式（例如 =SUM(A1:A3)）保留为文字，不会被误判为数学公式。\n3. 调用本工具：\n{\n  \"input_path\": \"docs/report.md\",\n  \"output_path\": \"docs/report.docx\"\n}\n\n工具会在转换前检测 table-ref 来源、工作表和区域，并把引用位置替换成 Word 表格。返回结果中的 table_references 会列出成功插入的来源；引用不存在或区域无效时会失败，不会生成缺少表格的 Word。普通 Markdown 表格仍直接写在 Markdown 中。"
   },
   {
     "title": "从 Word 样本提取模板",
@@ -30,5 +30,11 @@
   {
     "title": "列出并使用模板",
     "content": "先调用：\n{\n  \"action\": \"list_templates\"\n}\n\n再把列表返回的 template_id 用于转换：\n{\n  \"action\": \"convert\",\n  \"input_path\": \"docs/report.md\",\n  \"template_id\": \"模板列表返回的标识\"\n}\n\n不传 template_id 或使用 builtin-default 时保持当前默认排版。"
+  },
+  {
+    "title": "排版与复杂内容",
+    "content": "将 Markdown 文件转换为 Word .docx，也可从现有 .docx 样本提取排版模板并列出模板。convert 支持可选 template_id；省略模板时保持内置默认排版。模板会提取精确纸张与页边距、分节信息、正文和标题样式、字体、字号、段落间距、行距、缩进、分页控制、页眉页脚文字、文档设置、表格样本及源样式摘要。转换支持标题、目录、段落、原生列表、任务列表、引用、普通 Markdown 表格、本地图片、网络图片、链接、脚注、尾注、Mermaid 图、块级 HTML 截图和可编辑的 Word 原生数学公式。复杂 Excel 表格不写入 Markdown 正文，先由 Excel 工具生成 .xlsx，再在 Markdown 中使用 {{table-ref source=\"...\" sheet=\"...\" range=\"A1:F12\"}} 占位指令；工具会检测引用并把表格插入 Word。目录使用单独一行 [TOC]；脚注使用 [^id] / [^id]: 内容；尾注使用 [^end:id] / [^end:id]: 内容。无法可靠转换的内容会保留源码或占位并返回 warning。",
+    "enabled": true,
+    "inject_content": false
   }
 ]

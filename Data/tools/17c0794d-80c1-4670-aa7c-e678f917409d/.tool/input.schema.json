@@ -61,5 +61,6 @@
         "maxProperties": 1
       }
     }
-  ]
+  ],
+  "description": "search 按需启动本工具的 Everything；首次启动可能需要用户确认管理员授权。正文检索前限定目录及类型。具体表达式见 query，启动流程见“启动与正文搜索”。"
 }

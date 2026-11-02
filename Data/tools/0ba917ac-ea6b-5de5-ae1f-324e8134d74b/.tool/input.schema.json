@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "应用 unified diff 补丁。支持 ---/+++ 文件头和 @@ hunk。默认直接应用；dry_run=true 时只验证和返回摘要。",
+  "description": "应用 unified diff 补丁。支持 ---/+++ 文件头和 @@ hunk。默认直接应用；dry_run=true 时只验证和返回摘要。 所有文件先验证和暂存，写入失败时回滚已提交文件；保留原有换行与 UTF-8 BOM。",
   "properties": {
     "patch_text": {
       "permission_type": "filesystem_write",

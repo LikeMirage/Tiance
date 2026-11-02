@@ -769,7 +769,8 @@ def test_mouse_preview_schema_and_examples_are_explicit() -> None:
     assert validate_tool_arguments({"action": "preview", **point}, schema)
     assert validate_tool_arguments({"action": "preview", "preview_action": "drag", **point}, schema)
     for example in loads((_tool_root("gui_mouse") / ".tool/examples.json").read_text(encoding="utf-8")):
-        assert not validate_tool_arguments(loads(example["content"]), schema), example["title"]
+        if example["content"].lstrip().startswith("{"):
+            assert not validate_tool_arguments(loads(example["content"]), schema), example["title"]
 
 
 @pytest.mark.skipif(os.name != "nt", reason="GUI工具只支持Windows")

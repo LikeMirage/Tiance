@@ -14,6 +14,7 @@ from typing import Any, Iterator
 from zlib import error as zlib_error
 
 from app.infra.conversation_changes import conversation_changes
+from app.migrations.attempts import initialization_attempt
 
 from app.repositories.project.conversation_audit_snapshots import (
     collect_unreferenced_audit_blocks,
@@ -77,15 +78,16 @@ def ensure_database(workspace_dir: Path) -> Path:
         if path in _initialized_database_paths and path.is_file():
             return path
         _initialized_database_paths.discard(path)
-        connection = _open_connection(path)
-        try:
-            _ensure_schema(connection)
-            connection.commit()
-            current_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0]).lower()
-            if current_mode != "wal":
-                connection.execute("PRAGMA journal_mode=WAL")
-        finally:
-            connection.close()
+        with initialization_attempt(path):
+            connection = _open_connection(path)
+            try:
+                _ensure_schema(connection)
+                connection.commit()
+                current_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0]).lower()
+                if current_mode != "wal":
+                    connection.execute("PRAGMA journal_mode=WAL")
+            finally:
+                connection.close()
         _initialized_database_paths.add(path)
     return path
 

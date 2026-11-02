@@ -91,7 +91,8 @@
         "gbk"
       ],
       "title": "编码",
-      "type": "string"
+      "type": "string",
+      "description": "文本解码方式；auto 按读取工具的编码检测顺序尝试。图片不使用此字段。"
     },
     "include_line_numbers": {
       "permission_type": "none",

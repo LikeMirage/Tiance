@@ -1,5 +1,14 @@
 [
-  {"title":"列出开放 PR","input":{"action":"list","parameters":{"repository":"LikeMirage/Tiance","state":"open"}}},
-  {"title":"模拟创建 PR","input":{"action":"create","dry_run":true,"parameters":{"repository":"LikeMirage/Tiance","title":"功能更新","head":"feature","base":"main","body":"变更说明"}}},
-  {"title":"模拟合并","input":{"action":"merge","dry_run":true,"parameters":{"repository":"LikeMirage/Tiance","number":12,"merge_method":"squash"}}}
+  {
+    "title": "列出开放 PR",
+    "content": "{\n  \"action\": \"list\",\n  \"parameters\": {\n    \"repository\": \"LikeMirage/Tiance\",\n    \"state\": \"open\"\n  }\n}"
+  },
+  {
+    "title": "模拟创建 PR",
+    "content": "{\n  \"action\": \"create\",\n  \"dry_run\": true,\n  \"parameters\": {\n    \"repository\": \"LikeMirage/Tiance\",\n    \"title\": \"功能更新\",\n    \"head\": \"feature\",\n    \"base\": \"main\",\n    \"body\": \"变更说明\"\n  }\n}"
+  },
+  {
+    "title": "模拟合并",
+    "content": "{\n  \"action\": \"merge\",\n  \"dry_run\": true,\n  \"parameters\": {\n    \"repository\": \"LikeMirage/Tiance\",\n    \"number\": 12,\n    \"merge_method\": \"squash\"\n  }\n}"
+  }
 ]

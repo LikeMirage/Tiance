@@ -151,15 +151,16 @@ internal static class TianceLauncher
 
             string chineseShortcut = Path.Combine(desktopPath, ChineseShortcutName);
             string englishShortcut = Path.Combine(desktopPath, EnglishShortcutName);
+            string iconPath = ResolveShortcutIconPath(projectRoot, launcherPath);
             bool existingShortcutUpdated = false;
             if (ShortcutTargets(chineseShortcut, launcherPath))
             {
-                ApplyShortcutAppUserModelId(chineseShortcut);
+                UpdateShortcutIdentity(chineseShortcut, iconPath);
                 existingShortcutUpdated = true;
             }
             if (ShortcutTargets(englishShortcut, launcherPath))
             {
-                ApplyShortcutAppUserModelId(englishShortcut);
+                UpdateShortcutIdentity(englishShortcut, iconPath);
                 existingShortcutUpdated = true;
             }
             if (existingShortcutUpdated)
@@ -214,22 +215,44 @@ internal static class TianceLauncher
 
     private static void CreateOrUpdateShortcut(string shortcutPath, string launcherPath, string projectRoot)
     {
+        string iconPath = ResolveShortcutIconPath(projectRoot, launcherPath);
         IShellLinkW link = (IShellLinkW)new CShellLink();
         link.SetPath(launcherPath);
         link.SetWorkingDirectory(projectRoot);
         link.SetDescription("Tiance");
-        link.SetIconLocation(launcherPath, 0);
+        link.SetIconLocation(iconPath, 0);
         SetShortcutAppUserModelId(link);
         ((IPersistFile)link).Save(shortcutPath, true);
+        NotifyShortcutChanged(shortcutPath, iconPath);
     }
 
-    private static void ApplyShortcutAppUserModelId(string shortcutPath)
+    private static void UpdateShortcutIdentity(string shortcutPath, string iconPath)
     {
         IShellLinkW link = (IShellLinkW)new CShellLink();
         IPersistFile persistFile = (IPersistFile)link;
         persistFile.Load(shortcutPath, 2);
+        // Preserve the user's target, arguments and working directory while
+        // updating the shared application icon as well as the taskbar identity.
+        link.SetIconLocation(iconPath, 0);
         SetShortcutAppUserModelId(link);
         persistFile.Save(shortcutPath, true);
+        NotifyShortcutChanged(shortcutPath, iconPath);
+    }
+
+    private static string ResolveShortcutIconPath(string projectRoot, string launcherPath)
+    {
+        string iconPath = Path.Combine(projectRoot, "3_PyWebView", "assets", "app-icon.ico");
+        return File.Exists(iconPath) ? iconPath : launcherPath;
+    }
+
+    private static void NotifyShortcutChanged(string shortcutPath, string iconPath)
+    {
+        // Refresh only these items; do not clear Explorer's entire icon cache
+        // or wait for Explorer before starting the application.
+        const uint updateItem = 0x00002000; // SHCNE_UPDATEITEM
+        const uint pathUnicodeAsync = 0x0005 | 0x2000; // SHCNF_PATHW | SHCNF_FLUSHNOWAIT
+        SHChangeNotify(updateItem, pathUnicodeAsync, iconPath, IntPtr.Zero);
+        SHChangeNotify(updateItem, pathUnicodeAsync, shortcutPath, IntPtr.Zero);
     }
 
     private static void SetShortcutAppUserModelId(IShellLinkW link)
@@ -308,6 +331,9 @@ internal static class TianceLauncher
 
     [DllImport("ole32.dll")]
     private static extern int PropVariantClear(ref PROPVARIANT pvar);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern void SHChangeNotify(uint eventId, uint flags, string item1, IntPtr item2);
 
     [ComImport]
     [Guid("00021401-0000-0000-C000-000000000046")]

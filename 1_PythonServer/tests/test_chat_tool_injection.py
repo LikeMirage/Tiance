@@ -36,7 +36,7 @@ def test_standard_tool_description_includes_example_titles_without_content_by_de
     assert len(tools) == 1
     assert tools[0].description == (
         "读取本地纯文本文件。\n\n"
-        "应用示例：\n"
+        "使用说明：\n"
         "1. 读取全文"
     )
 
@@ -62,7 +62,7 @@ def test_standard_tool_description_includes_only_explicitly_enabled_content():
 
     assert description == (
         "执行工具。\n\n"
-        "应用示例：\n"
+        "使用说明：\n"
         "1. 只显示标题\n"
         "2. 注入正文\n"
         '{"mode":"full"}'
