@@ -7,6 +7,7 @@ import { DEFAULT_OUTPUT_LIMIT_POLICY } from "../../../entities/llm-chat/model/ou
 
 export const DEFAULT_SESSION_SETTINGS: ConversationSessionSettings = {
   ...DEFAULT_OUTPUT_LIMIT_POLICY,
+  automatic_naming_enabled: true,
   global_memory_enabled: true,
   global_memory_extraction_enabled: true,
   memory_compression_enabled: true,

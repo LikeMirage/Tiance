@@ -48,6 +48,14 @@ export function RoleResponseContextPanel({
         </div>
         <div className="role-dashboard__toggle-grid">
           <RoleToggle
+            checked={response.automatic_naming_enabled}
+            label="启用自动命名"
+            onChange={(value) => editor.updateSection("response", {
+              ...response,
+              automatic_naming_enabled: value,
+            })}
+          />
+          <RoleToggle
             checked={response.streaming_enabled}
             label="流式输出"
             onChange={(value) => editor.updateSection("response", {

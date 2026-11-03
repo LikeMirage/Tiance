@@ -5,6 +5,7 @@ import type {
 } from "./chatCompletion";
 import type { OutputLimitPolicy } from "./outputLimitPolicy";
 export type ConversationSessionSettings = OutputLimitPolicy & {
+  automatic_naming_enabled: boolean;
   global_memory_enabled: boolean;
   global_memory_extraction_enabled: boolean;
   memory_compression_enabled: boolean;

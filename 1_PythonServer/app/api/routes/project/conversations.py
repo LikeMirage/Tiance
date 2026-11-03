@@ -8,10 +8,6 @@ from app.schemas.project import (
     ApplyConversationRoleRequest,
     ConversationImageAttachmentCreateRequest,
     ConversationImageAttachmentResponse,
-    ProjectConversationAutomaticNamingSettleRequest,
-    ProjectConversationAutomaticNamingSettleResponse,
-    ProjectConversationAutomaticTitleRequest,
-    ProjectConversationAutomaticTitleResponse,
     ProjectConversationBranchGroupDetailResponse,
     ProjectConversationBranchGroupListResponse,
     ProjectConversationBranchGroupResponse,
@@ -51,9 +47,6 @@ from app.services.project.conversation_background_tasks import (
 )
 from app.services.project.conversation_audit import get_conversation_audit_service
 from app.services.project.conversation_run_manager import get_conversation_run_manager
-from app.services.project.conversation_naming import (
-    get_project_conversation_naming_service,
-)
 from app.services.project.conversation_attachments import (
     get_conversation_attachment_service,
 )
@@ -419,42 +412,6 @@ def save_project_conversation_as_role(
         ),
         session=ProjectConversationSessionResponse.from_domain(session),
     )
-
-
-@router.post(
-    "/{project_id}/conversations/{function_session_id}/automatic-title",
-    response_model=ProjectConversationAutomaticTitleResponse,
-    summary="Apply an automatic title from a naming functional conversation",
-)
-def apply_project_conversation_automatic_title(
-    project_id: str,
-    function_session_id: str,
-    payload: ProjectConversationAutomaticTitleRequest,
-) -> ProjectConversationAutomaticTitleResponse:
-    result = get_project_conversation_naming_service().name_parent_session(
-        project_id,
-        function_session_id,
-        title=payload.title,
-    )
-    return ProjectConversationAutomaticTitleResponse.model_validate(result)
-
-
-@router.post(
-    "/{project_id}/conversations/{function_session_id}/automatic-naming/settle",
-    response_model=ProjectConversationAutomaticNamingSettleResponse,
-    summary="Settle an automatic naming functional conversation",
-)
-def settle_project_conversation_automatic_naming(
-    project_id: str,
-    function_session_id: str,
-    payload: ProjectConversationAutomaticNamingSettleRequest,
-) -> ProjectConversationAutomaticNamingSettleResponse:
-    result = get_project_conversation_naming_service().settle_automatic_naming(
-        project_id,
-        function_session_id,
-        outcome=payload.outcome,
-    )
-    return ProjectConversationAutomaticNamingSettleResponse.model_validate(result)
 
 
 @router.patch(

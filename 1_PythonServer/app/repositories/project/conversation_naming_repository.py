@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from app.core.atomic_replace import atomic_replace_path
 from app.core.errors import ConflictError, NotFoundError
+from app.migrations.functional_settings import upgrade_naming_tool_prompt
 from app.domain.project.conversation_branch import (
     ProjectConversationBranchNode,
     build_derived_session_title,
@@ -49,7 +50,10 @@ from app.repositories.project.project_repository import (
     ProjectRepository,
     get_project_repository,
 )
-from app.repositories.project.conversation_database import read_document, write_document
+from app.repositories.project.conversation_database import (
+    read_document, write_document, read_connection_for_path,
+    database_path_from_conversations,
+)
 
 
 AUTOMATIC_NAMING_TASK_FILE = "automatic_naming_task.json"
@@ -63,6 +67,13 @@ class ConversationNamingTaskCreation:
     session: ProjectConversationSession
     branch: ProjectConversationBranchNode
     task: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class ConversationNamingTaskRun:
+    session: ProjectConversationSession
+    task: dict[str, Any]
+    prompt: str
 
 
 class ProjectConversationNamingRepository:
@@ -116,7 +127,8 @@ class ProjectConversationNamingRepository:
                     f"Conversation session '{source_session_id}' was not found."
                 )
             if (
-                source_session.title != DEFAULT_SESSION_TITLE
+                not source_session.settings.automatic_naming_enabled
+                or source_session.title != DEFAULT_SESSION_TITLE
                 or source_session.manual_title
             ):
                 return None
@@ -176,7 +188,7 @@ class ProjectConversationNamingRepository:
                 message_count=len(copied_messages),
                 manual_title=True,
                 settings=functional_session_recursion_guard_settings(
-                    target_settings
+                    replace(target_settings, tools_enabled=True, enabled_tool_names=("submit_conversation_title",))
                 ),
             )
             function_state = _merge_session_state(
@@ -284,6 +296,60 @@ class ProjectConversationNamingRepository:
                 task=task,
             )
 
+    def list_pending_tasks(self, project_id: str) -> tuple[dict[str, Any], ...]:
+        directory = self._session_store.conversations_dir(project_id)
+        with read_connection_for_path(database_path_from_conversations(directory)) as connection:
+            if connection is None:
+                return ()
+            rows = connection.execute(
+                "SELECT payload_json FROM conversation_session_documents "
+                "WHERE kind = 'automatic_naming_task' "
+                "AND json_extract(payload_json, '$.status') = 'pending'",
+            ).fetchall()
+        return tuple(loads(row[0]) for row in rows)
+
+    def claim_task(self, project_id: str, function_session_id: str) -> ConversationNamingTaskRun | None:
+        """Atomically own an unstarted task; never rerun completed/failed work."""
+        directory = self._session_store.conversations_dir(project_id, for_write=True)
+        with conversation_write_lock(directory):
+            session_dir = self._session_store.require_session_dir(project_id, function_session_id, for_write=True)
+            task_path = session_dir / AUTOMATIC_NAMING_TASK_FILE
+            task = _read_json_object(task_path)
+            if not task or task.get("status") != "pending":
+                return None
+            source = self._session_store.read_session(project_id, task["source_session_id"])
+            if source is None or source.manual_title or source.title != DEFAULT_SESSION_TITLE:
+                _write_json_object(task_path, {**task, "status": "superseded", "completed_at": _utc_now()})
+                return None
+            if not source.settings.automatic_naming_enabled:
+                return None
+            state = self._session_store.read_session_state(directory, function_session_id)
+            if state.runtime_status == "running":
+                return None
+            with read_connection_for_path(database_path_from_conversations(directory)) as connection:
+                started = connection.execute(
+                    "SELECT 1 FROM conversation_runs WHERE session_id = ? LIMIT 1", (function_session_id,),
+                ).fetchone()
+            if started or not state.draft.strip():
+                self.settle_task(project_id, function_session_id, outcome="error")
+                return None
+            session = self._session_store.read_session(project_id, function_session_id)
+            if session is None:
+                return None
+            prompt = upgrade_naming_tool_prompt(state.draft)
+            session = replace(session, settings=replace(
+                session.settings, tools_enabled=True, enabled_tool_names=("submit_conversation_title",),
+                automatic_naming_enabled=False,
+                system_prompt=(upgrade_naming_tool_prompt(session.settings.system_prompt)
+                               if task.get("mode") == "dedicated" else session.settings.system_prompt),
+            ))
+            self._session_store.write_session(session_dir, session)
+            task = {**task, "status": "running", "started_at": _utc_now()}
+            _write_json_object(task_path, task)
+            self._session_store.write_session_runtime_status(directory, function_session_id, "running", _utc_now())
+            self._session_store.write_session_draft(directory, function_session_id, "", _utc_now())
+            return ConversationNamingTaskRun(session=session, task=task, prompt=prompt)
+
     def apply_title(
         self,
         project_id: str,
@@ -347,7 +413,8 @@ class ProjectConversationNamingRepository:
                     f"Conversation session '{source_session_id}' was not found."
                 )
             if (
-                source_session.title != DEFAULT_SESSION_TITLE
+                not source_session.settings.automatic_naming_enabled
+                or source_session.title != DEFAULT_SESSION_TITLE
                 or source_session.manual_title
             ):
                 superseded = {
@@ -446,6 +513,10 @@ class ProjectConversationNamingRepository:
                 },
             }
             _write_json_object(task_path, failed_task)
+            self._session_store.write_session_runtime_status(
+                conversations_dir, function_session_id,
+                "idle" if outcome == "cancelled" else "error", _utc_now(),
+            )
             return failed_task
 
     def _has_active_or_failed_task(

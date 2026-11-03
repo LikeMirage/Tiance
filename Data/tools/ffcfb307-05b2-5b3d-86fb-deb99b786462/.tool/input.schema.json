@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "根据已有会话内容生成的最终标题。",
+      "permission_type": "tiance_data_write"
+    }
+  },
+  "required": [
+    "title"
+  ]
+}

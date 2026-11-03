@@ -3,6 +3,7 @@ import type { MutableRefObject } from "react";
 
 import type {
   ConversationBranchNode,
+  ConversationDraftReferences,
   ConversationForkResponse,
   ConversationMessageVariant,
   ConversationRuntimeStatus,
@@ -17,6 +18,7 @@ import { isNotFoundRequestError } from "./chatPanelRequestErrors";
 import { getCachedProjectEntryWarmup } from "../../project-entry/model/projectEntryWarmup";
 import { buildSessionKey } from "./sessionKey";
 import { emptyConversationDraftReferences } from "./conversationDraftReferences";
+import { recoverConversationDraft } from "./conversationDraftRecovery";
 import { mergeStreamingRuntimeStatuses } from "./conversationRuntimeState";
 import {
   SessionStreamingRegistry,
@@ -286,6 +288,34 @@ export function useConversationSessions({
       runtime_status: runtimeStatus,
     });
   }, [updateSessionStateLocally]);
+
+  const restoreUnsentInput = useCallback((
+    pid: string,
+    sessionId: string,
+    rejectedDraft: string,
+    rejectedReferences: ConversationDraftReferences,
+    currentReferences?: ConversationDraftReferences,
+  ) => {
+    const snapshot = projectSessionSnapshotsRef.current.get(pid);
+    const current = latestDraftRef.current;
+    const isCurrent = activeProjectIdRef.current === pid
+      && activeSessionIdRef.current === sessionId
+      && current.projectId === pid && current.activeSessionId === sessionId;
+    const state = snapshot?.sessionStates[sessionId];
+    const recovered = recoverConversationDraft({
+      draft: isCurrent ? current.draft
+        : snapshot?.activeSessionId === sessionId ? snapshot.draft : state?.draft ?? "",
+      references: currentReferences ?? state?.references ?? [],
+    }, { draft: rejectedDraft, references: rejectedReferences });
+    if (isCurrent) {
+      latestDraftRef.current = { ...current, draft: recovered.draft };
+      setDraft(recovered.draft);
+    }
+    // Use the regular per-project save queue and stale-response protection, even
+    // if the user navigated away while the submission was being rejected.
+    saveSessionState(pid, sessionId, recovered);
+    return recovered.references;
+  }, [activeProjectIdRef, activeSessionIdRef, saveSessionState]);
 
   useEffect(() => {
     selectionRequestRef.current?.abort();
@@ -745,6 +775,7 @@ export function useConversationSessions({
     retryLoadSessions,
     saveConversationState,
     saveSessionState,
+    restoreUnsentInput,
     settledDraft: presentedSettledDraft,
     sessionStates: presentedSessionStates,
     sessionLoadError: selectionLoadError ?? sessionLoadError,

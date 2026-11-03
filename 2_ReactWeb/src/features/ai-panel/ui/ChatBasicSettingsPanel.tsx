@@ -193,6 +193,13 @@ export function ChatBasicSettingsPanel({
       />
 
       <SettingsToggle
+        checked={activeSessionSettings.automatic_naming_enabled}
+        label={t("aiPanel.basicSettings.automaticNaming")}
+        onChange={(checked) => onUpdateSessionSettings({
+          automatic_naming_enabled: checked,
+        })}
+      />
+      <SettingsToggle
         checked={activeSessionSettings.streaming_enabled}
         label={t("aiPanel.basicSettings.streamingOutput")}
         onChange={(checked) => onUpdateSessionSettings({

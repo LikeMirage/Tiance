@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from app.core.errors import AppError, BadRequestError, ConflictError, NotFoundError
 from app.domain.llm.chat import (
@@ -23,6 +24,7 @@ from app.services.project.conversation_background_tasks import (
 )
 from app.services.project.conversation_memory import ProjectConversationMemoryService
 from app.services.project.conversation_model_exchange import build_model_exchange_record
+from app.services.project.conversation_injection_preview import build_conversation_injection_preview
 from app.services.project.conversation_naming import ProjectConversationNamingService
 from app.services.project.conversation_long_term_memory import (
     ProjectConversationLongTermMemoryService,
@@ -106,6 +108,36 @@ class ConversationStreamPersistence:
         except AppError:
             return
 
+    def accept_request(
+        self, request: ChatCompletionRequest, existing_user: ProjectConversationMessage | None = None,
+    ) -> tuple[ChatCompletionRequest, ProjectConversationMessage | None]:
+        if not request.project_id or not request.session_id:
+            return request, None
+        requested_user = next((m for m in reversed(request.messages) if m.role == ChatMessageRole.USER), None)
+        if requested_user is None:
+            raise BadRequestError("会话提交必须包含用户消息。")
+        existing_user = existing_user or self.current_user_message(request)
+        message_id = existing_user.message_id if existing_user else requested_user.message_id or f"msg_{uuid4().hex[:16]}"
+        request = replace(request, run_id=request.run_id or f"run_{message_id}", user_message_id=message_id)
+        preview = build_conversation_injection_preview(request, preview_source="submitted_request")
+        references = references_from_chat_message(requested_user)
+        submission = {
+            "schema_version": 1, "recorded_at": datetime.now(UTC).isoformat(),
+            "run_id": request.run_id, "user_message_id": message_id, "stage": "received",
+            "request": preview["request"], "request_snapshot": preview["request_snapshot"],
+            "references": references,
+        }
+        user = self._conversation_service.accept_submission(
+            request.project_id, request.session_id, run_id=request.run_id, existing_user=existing_user,
+            submission=submission, user_fields={
+                "content": requested_user.content, "content_parts": requested_user.content_parts,
+                "references": references, "provider_id": request.provider_id, "model_id": request.model_id,
+                "message_id": message_id, "message_source": requested_user.internal_metadata.get("message_source"),
+                "continuation_of": requested_user.internal_metadata.get("continuation_of"),
+            },
+        )
+        return request, user
+
     def append_user_message(self, request: ChatCompletionRequest) -> ProjectConversationMessage | None:
         if not request.project_id or not request.session_id:
             return None
@@ -133,6 +165,10 @@ class ConversationStreamPersistence:
         )
         self._conversation_service.record_user_message_sent(message)
         return message
+
+    def record_submission_activity(self, message: ProjectConversationMessage | None) -> None:
+        if message is not None:
+            self._conversation_service.record_user_message_sent(message)
 
     def existing_request_turn(
         self,
@@ -496,22 +532,18 @@ class ConversationStreamPersistence:
         *,
         round_index: int,
         usage: ChatUsage | None,
+        status: str | None = None,
+        error_code: str | None = None,
+        error_message: str | None = None,
     ) -> None:
-        if assistant_message is None or not request.project_id or not request.session_id:
+        if not request.project_id or not request.session_id:
             return
-        try:
-            self._conversation_service.append_model_exchange(
-                request.project_id,
-                request.session_id,
-                build_model_exchange_record(
-                    request,
-                    assistant_message,
-                    round_index=round_index,
-                    usage=usage,
-                ),
-            )
-        except Exception:
-            logger.exception("Failed to record a model request and response round.")
+        self._conversation_service.append_model_exchange(
+            request.project_id, request.session_id,
+            build_model_exchange_record(request, assistant_message, round_index=round_index,
+                                        usage=usage, status=status, error_code=error_code,
+                                        error_message=error_message),
+        )
 
     def schedule_memory_compression(
         self,

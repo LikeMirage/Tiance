@@ -105,7 +105,9 @@ class ProviderCustomModelRepository:
         return ProviderCustomModel(
             provider_id=provider_id,
             model_id=_required_text(payload, "modelId"),
-            display_name=_required_text(payload, "displayName"),
+            # The save API permits an empty label; selectors use model_id then.
+            # Keep the same contract when reading the saved configuration.
+            display_name=_optional_text(payload, "displayName") or "",
             family_group=_optional_text(payload, "familyGroup") or "",
             capability_tags=tuple(
                 item for item in capability_tags if isinstance(item, str)

@@ -408,6 +408,7 @@
         "outputLimitMessage": "Automatic message",
         "outputLimitResetMessage": "Restore preset",
         "returnThinkingContent": "Return reasoning content from tool calls",
+        "automaticNaming": "Enable automatic naming",
         "streamingOutput": "Streaming output",
         "autoCollapseProcess": "Auto-collapse assistant process",
         "injectMessageTimestamps": "Inject user message timestamps",
@@ -516,6 +517,10 @@
           "globalMemory": {
             "title": "Global memory dashboard",
             "description": "View global long-term memories shared across projects. All projects read the same data."
+          },
+          "requestSubmissions": {
+            "title": "Submissions",
+            "description": "Inspect submitted input, references and model settings, including local preparation failures and final run outcomes."
           }
         }
       },
@@ -954,10 +959,14 @@
         "modelsPlaceholder": "Enter the full model list URL"
       },
       "cacheSettings": {
-        "title": "Cache settings", "retention": "Prefix cache lifetime threshold",
+        "title": "Cache settings",
+        "retention": "Prefix cache lifetime threshold",
         "unitAria": "Select cache lifetime unit",
         "hint": "Controls when long-term memory updates are folded into the leading prompt. It does not change the provider's actual cache lifetime.",
-        "units": { "minutes": "Minutes", "hours": "Hours" }
+        "units": {
+          "minutes": "Minutes",
+          "hours": "Hours"
+        }
       },
       "apiKey": {
         "add": "Add API key",

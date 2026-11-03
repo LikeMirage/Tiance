@@ -8,7 +8,7 @@ from gzip import compress as gzip_compress
 from json import dumps
 import logging
 from pathlib import Path
-from typing import Any, Coroutine
+from typing import Any, Callable, Coroutine
 from uuid import uuid4
 
 from app.domain.llm.chat import ChatCompletionRequest
@@ -59,6 +59,7 @@ class ConversationAuditService:
         self._tasks: dict[_AuditTaskKey, set[asyncio.Task[Any]]] = {}
         self._write_slots = asyncio.Semaphore(2)
         self._failed_http_exchanges: dict[str, _HttpExchangeWrite] = {}
+        self._failed_session_writes: dict[str, tuple] = {}
 
     async def record_http_exchange(
         self,
@@ -111,11 +112,27 @@ class ConversationAuditService:
         self,
         project_id: str,
         session_id: str,
-        coroutine: Coroutine[Any, Any, Any],
+        operation: Callable[[], Coroutine[Any, Any, Any]],
         *,
         name: str,
     ) -> asyncio.Task[Any]:
-        task = asyncio.create_task(coroutine, name=name)
+        job_id = f"audit_{uuid4().hex}"
+        async def execute() -> None:
+            try:
+                await operation()
+            except BaseException as exc:
+                self._failed_session_writes[job_id] = (project_id, session_id, operation, name)
+                try:
+                    await finish_thread(self.record_event,
+                        ChatCompletionRequest(provider_id="", model_id="", messages=(),
+                                              project_id=project_id, session_id=session_id),
+                        event_type="conversation.audit.failed",
+                        payload={"audit_id": job_id, "operation": name,
+                                 "error_type": type(exc).__name__, "error_message": str(exc)})
+                except Exception:
+                    logger.exception("Failed to record a conversation audit write failure.")
+                raise
+        task = asyncio.create_task(execute(), name=name)
         self._track_task(project_id, session_id, task)
         return task
 
@@ -125,6 +142,10 @@ class ConversationAuditService:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     async def close(self) -> None:
+        session_retries = tuple(self._failed_session_writes.values())
+        self._failed_session_writes.clear()
+        for project_id, session_id, operation, name in session_retries:
+            self.create_session_task(project_id, session_id, operation, name=name)
         retries = tuple(self._failed_http_exchanges.values())
         self._failed_http_exchanges.clear()
         for job in retries:
@@ -133,7 +154,7 @@ class ConversationAuditService:
         # cancellation handlers instead of draining a single stale snapshot.
         while tasks := tuple(task for values in self._tasks.values() for task in values):
             await asyncio.gather(*(asyncio.shield(task) for task in tasks), return_exceptions=True)
-        if self._failed_http_exchanges:
+        if self._failed_http_exchanges or self._failed_session_writes:
             raise RuntimeError("原始响应记录保存失败，请检查磁盘后重试退出。")
 
     def _begin_http_exchange(

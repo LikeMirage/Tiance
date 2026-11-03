@@ -33,6 +33,7 @@ export type RolePromptConfiguration = {
 };
 
 export type RoleResponseConfiguration = OutputLimitPolicy & {
+  automatic_naming_enabled: boolean;
   streaming_enabled: boolean;
   auto_collapse_assistant_process: boolean;
   malformed_tool_call_recovery_enabled: boolean;
@@ -156,6 +157,7 @@ function parseSectionPayload<Section extends RoleConfigurationSection>(
       } as RoleConfigurationSectionValueMap[Section];
     case "response":
       return {
+        automatic_naming_enabled: payload.automatic_naming_enabled !== false,
         ...DEFAULT_OUTPUT_LIMIT_POLICY,
         output_limit_action: ["stop", "retry", "send_message"].includes(String(payload.output_limit_action))
           ? payload.output_limit_action : "retry",

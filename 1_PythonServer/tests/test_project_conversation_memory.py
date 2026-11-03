@@ -602,6 +602,7 @@ def test_compaction_creates_named_function_session_and_replaces_source_history(
     )
     records = repository.list_compressions(PROJECT_ID, session.session_id)
     assert function_session.title == "主会话_1"
+    assert function_session.settings.automatic_naming_enabled is False
     assert function_node.relation_kind == "functional"
     assert function_node.function_type == "memory_compaction"
     assert function_node.created_by == "system"

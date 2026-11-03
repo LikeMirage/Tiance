@@ -206,7 +206,7 @@ def test_declared_network_policy_passes_through_dynamic_auto_approval_gate(tmp_p
 
 
 @pytest.mark.parametrize("approval_mode", ["follow_tool_policy", "auto_allow_ask"])
-def test_naming_with_real_tool_policy_respects_session_approval_mode(approval_mode):
+def test_conversation_management_with_real_tool_policy_respects_session_approval_mode(approval_mode):
     tool_root = Path(__file__).resolve().parents[2] / "Data/tools/d624fd9b-5b9c-5bf4-8126-6610868e64ba"
     schema = json.loads((tool_root / ".tool/input.schema.json").read_text(encoding="utf-8"))
 
@@ -227,8 +227,8 @@ def test_naming_with_real_tool_policy_respects_session_approval_mode(approval_mo
             client_tool_bridge_service=None, tool_permission_bridge_service=bridge,
         )
         call = ChatToolCall(
-            call_id="naming-call", name="manage_ai_conversations",
-            arguments=json.dumps({"action": "name_parent_session", "title": "会话标题"}),
+            call_id="management-call", name="manage_ai_conversations",
+            arguments=json.dumps({"action": "create_session"}),
         )
         error, pending = await loop._prepare_permission_gate(
             _request(), displayed_call=call, actual_calls=(call,),

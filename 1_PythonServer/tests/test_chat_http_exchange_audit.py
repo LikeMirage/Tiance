@@ -1,10 +1,36 @@
 from __future__ import annotations
 
 import asyncio
+import pytest
 
 from app.domain.llm.chat import ChatCompletionRequest
 from app.infra.llm import chat_remote_client as remote_client_module
 from app.infra.llm.chat_remote_client import ChatRemoteClient
+
+
+@pytest.mark.parametrize('streaming', [False, True])
+def test_client_setup_failure_is_audited_before_any_response(monkeypatch, streaming):
+    def unavailable():
+        raise RuntimeError('client setup failed')
+    monkeypatch.setattr(remote_client_module, 'get_shared_http_client', unavailable)
+    records=[]
+    async def record(request, exchange):
+        records.append(exchange)
+    async def run():
+        request=ChatCompletionRequest(provider_id='mock', model_id='mock', messages=())
+        kwargs=dict(request=request, on_exchange=record)
+        with pytest.raises(RuntimeError, match='client setup failed'):
+            if streaming:
+                async for _ in ChatRemoteClient()._stream_body('https://not-contacted.invalid', {}, {'model':'mock'}, **kwargs):
+                    pass
+            else:
+                await ChatRemoteClient()._post_json('https://not-contacted.invalid', {}, {'model':'mock'}, **kwargs)
+    asyncio.run(run())
+    assert len(records) == 1
+    assert records[0].response_status is None
+    assert records[0].transport_started is False
+    assert records[0].request_body == {'model':'mock'}
+    assert records[0].error_message == 'client setup failed'
 
 
 class _Response:

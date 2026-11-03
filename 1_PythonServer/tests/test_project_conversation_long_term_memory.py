@@ -119,6 +119,7 @@ def test_long_term_memory_success_advances_boundary_and_does_not_repeat(
         runner_calls[0].session_id,
     )
     assert function_session is not None
+    assert function_session.settings.automatic_naming_enabled is False
     assert function_session.settings.memory_compression_enabled is False
     assert function_session.settings.project_memory_extraction_enabled is False
     assert function_session.settings.global_memory_extraction_enabled is False
@@ -496,6 +497,187 @@ def test_unspecified_memory_mode_still_checks_both_profiles(tmp_path):
         PROJECT_ID, session.session_id, run_snapshot=_snapshot(conversation, session.session_id),
     ))
     assert sorted(request.usage_feature_key for request in runner_calls) == ["global_memory_management", "project_memory_management"]
+
+
+@pytest.mark.parametrize("scope", ["project", "global"])
+@pytest.mark.parametrize("active_blocking", [False, True])
+def test_opposite_memory_pass_does_not_wait_for_running_task(
+    tmp_path, scope, active_blocking,
+):
+    conversation, session, _, _, service = _create_services(
+        tmp_path,
+        settings_overrides={"blockingEnabled": active_blocking},
+        global_settings_overrides={
+            "blockingEnabled": active_blocking, "triggerTokenThreshold": 1,
+        },
+    )
+    conversation.update_session(
+        PROJECT_ID, session.session_id,
+        settings={
+            "project_memory_extraction_enabled": scope == "project",
+            "global_memory_extraction_enabled": scope == "global",
+        },
+        should_update_settings=True,
+    )
+    _append_turn(conversation, session.session_id, 1)
+    snapshot = _snapshot(conversation, session.session_id)
+    calls = []
+    complete = _successful_runner(conversation, calls)
+
+    async def exercise():
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def runner(request):
+            entered.set()
+            await release.wait()
+            await complete(request)
+
+        service.set_functional_conversation_runner(runner)
+        active = asyncio.create_task(service.manage_context_if_enabled(
+            PROJECT_ID, session.session_id,
+            blocking=active_blocking, run_snapshot=snapshot,
+        ))
+        try:
+            await asyncio.wait_for(entered.wait(), 5)
+            await asyncio.wait_for(service.manage_context_if_enabled(
+                PROJECT_ID, session.session_id,
+                blocking=not active_blocking, run_snapshot=snapshot,
+            ), 1)
+            assert not active.done()
+        finally:
+            release.set()
+            await asyncio.wait_for(active, 5)
+
+    asyncio.run(exercise())
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("scope", ["project", "global"])
+@pytest.mark.parametrize("queued_change", [None, "disable", "mode"])
+def test_matching_memory_pass_serializes_and_rechecks_queued_work(
+    tmp_path, scope, queued_change,
+):
+    conversation, session, project_repo, global_repo, service = _create_services(
+        tmp_path, global_settings_overrides={"triggerTokenThreshold": 1},
+    )
+    conversation.update_session(
+        PROJECT_ID, session.session_id,
+        settings={
+            "project_memory_extraction_enabled": scope == "project",
+            "global_memory_extraction_enabled": scope == "global",
+        },
+        should_update_settings=True,
+    )
+    _, assistant = _append_turn(conversation, session.session_id, 1)
+    snapshot = _snapshot(conversation, session.session_id)
+    calls = []
+    complete = _successful_runner(conversation, calls)
+
+    async def exercise():
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        queued = asyncio.Event()
+
+        class ObservedLock(asyncio.Lock):
+            async def acquire(self):
+                if self.locked():
+                    queued.set()
+                return await super().acquire()
+
+        service._scheduler._locks[(PROJECT_ID, session.session_id, scope)] = (ObservedLock(), 0)
+
+        async def runner(request):
+            entered.set()
+            await release.wait()
+            await complete(request)
+
+        service.set_functional_conversation_runner(runner)
+        active = asyncio.create_task(service.manage_context_if_enabled(
+            PROJECT_ID, session.session_id, blocking=False, run_snapshot=snapshot,
+        ))
+        pending = None
+        try:
+            await asyncio.wait_for(entered.wait(), 5)
+            pending = asyncio.create_task(service.manage_context_if_enabled(
+                PROJECT_ID, session.session_id, blocking=False, run_snapshot=snapshot,
+            ))
+            await asyncio.wait_for(queued.wait(), 5)
+            assert not pending.done()
+            if queued_change:
+                # A new boundary would trigger another extraction unless the
+                # queued check honors the user's current settings after waiting.
+                _append_turn(conversation, session.session_id, 2)
+            if queued_change == "disable":
+                conversation.update_session(
+                    PROJECT_ID, session.session_id,
+                    settings={f"{scope}_memory_extraction_enabled": False},
+                    should_update_settings=True,
+                )
+            elif queued_change == "mode":
+                service._functional_model_settings_service._settings[
+                    f"{scope}MemoryManagement"
+                ]["blockingEnabled"] = True
+        finally:
+            release.set()
+            await asyncio.wait_for(asyncio.gather(
+                active, *([pending] if pending is not None else []),
+            ), 5)
+
+    asyncio.run(exercise())
+    assert len(calls) == 1
+    repository = project_repo if scope == "project" else global_repo
+    assert repository.read_state(PROJECT_ID, session.session_id)[
+        "last_completed_boundary_message_id"
+    ] == assistant.message_id
+
+
+@pytest.mark.parametrize("background_scope", ["project", "global"])
+def test_background_memory_does_not_block_the_other_blocking_profile(
+    tmp_path, background_scope,
+):
+    conversation, session, _, _, service = _create_services(
+        tmp_path,
+        settings_overrides={"blockingEnabled": background_scope != "project"},
+        global_settings_overrides={
+            "blockingEnabled": background_scope != "global", "triggerTokenThreshold": 1,
+        },
+    )
+    _append_turn(conversation, session.session_id, 1)
+    snapshot = _snapshot(conversation, session.session_id)
+    calls = []
+    complete = _successful_runner(conversation, calls)
+
+    async def exercise():
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def runner(request):
+            if request.usage_feature_key == f"{background_scope}_memory_management":
+                entered.set()
+                await release.wait()
+            await complete(request)
+
+        service.set_functional_conversation_runner(runner)
+        background = asyncio.create_task(service.manage_context_if_enabled(
+            PROJECT_ID, session.session_id, blocking=False, run_snapshot=snapshot,
+        ))
+        try:
+            await asyncio.wait_for(entered.wait(), 5)
+            await asyncio.wait_for(service.manage_context_if_enabled(
+                PROJECT_ID, session.session_id, blocking=True, run_snapshot=snapshot,
+            ), 2)
+            assert not background.done()
+            assert len(calls) == 1
+            assert calls[0].usage_feature_key != f"{background_scope}_memory_management"
+        finally:
+            release.set()
+            await asyncio.wait_for(background, 5)
+
+    asyncio.run(exercise())
+    assert sorted(call.usage_feature_key for call in calls) == [
+        "global_memory_management", "project_memory_management",
+    ]
 
 
 def _create_services(

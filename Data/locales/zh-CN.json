@@ -429,7 +429,8 @@
         "systemPrompt": "系统提示词",
         "selectSystemPromptPreset": "选择预设提示词",
         "noSystemPromptPresets": "暂无预设",
-        "clearSystemPrompt": "清空系统提示词"
+        "clearSystemPrompt": "清空系统提示词",
+        "automaticNaming": "启用自动命名"
       },
       "memorySettings": {
         "enabled": "记忆压缩",
@@ -539,6 +540,10 @@
           "globalMemory": {
             "title": "全局记忆看板",
             "description": "查看跨项目共用的全局长期记忆，所有项目读取同一份数据。"
+          },
+          "requestSubmissions": {
+            "title": "发送记录",
+            "description": "查看提交时的输入、引用与模型设置，以及本地准备失败、运行失败或完成的结果。"
           }
         }
       },

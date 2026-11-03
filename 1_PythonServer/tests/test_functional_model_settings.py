@@ -140,8 +140,8 @@ def test_conversation_naming_defaults_to_cache_hit_optimization_mode():
     assert defaults["triggerTokenThreshold"] == 20_000
     assert defaults["output"]["format"] == "text"
     assert "当前唯一任务是" in defaults["prompt"]
-    assert "只能调用一次 manage_ai_conversations" in defaults["prompt"]
-    assert "action 必须使用 name_parent_session" in defaults["prompt"]
+    assert "只能调用一次 submit_conversation_title" in defaults["prompt"]
+    assert "name_parent_session" not in defaults["prompt"]
     assert "不得传入 session_id" in defaults["prompt"]
     assert "工具参数必须严格使用以下结构" not in defaults["prompt"]
     assert "如果工具执行失败，立即停止" in defaults["prompt"]

@@ -124,7 +124,7 @@ class ConversationStreamSettlement:
             self._persistence.settle_run,
             request,
             status=status,
-            attempt_count=max(1, request.upstream_attempt_index),
+            attempt_count=max(1, request.upstream_attempt_index) if last_model_request is not None else 0,
         )
         return (
             assistant_message,

@@ -26,6 +26,13 @@ def _merge_missing(settings: dict, defaults: dict) -> dict:
     return result
 
 
+def upgrade_naming_tool_prompt(prompt: str) -> str:
+    """Rename the submission contract, preserving the user's naming rules."""
+    return prompt.replace("manage_ai_conversations", "submit_conversation_title").replace(
+        "action 必须使用 name_parent_session。\n", "",
+    )
+
+
 def convert(profile: str, version: int, settings: dict) -> tuple[int, dict]:
     versions = _history()[profile]
     target = max(map(int, versions))
@@ -41,6 +48,8 @@ def convert(profile: str, version: int, settings: dict) -> tuple[int, dict]:
         if "prompt" in result and result["prompt"] in old_prompts:
             result["prompt"] = defaults["prompt"]
         result = _merge_missing(result, defaults)
+        if profile == "naming" and next_version == 29 and isinstance(result.get("prompt"), str):
+            result["prompt"] = upgrade_naming_tool_prompt(result["prompt"])
         version = next_version
     return version, result
 

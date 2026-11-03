@@ -535,6 +535,15 @@
       "sort_order": 12,
       "created_at": "2026-09-18T07:49:37.039741+00:00",
       "updated_at": "2026-09-18T07:49:37.039741+00:00"
+    },
+    {
+      "project_id": "ffcfb307-05b2-5b3d-86fb-deb99b786462",
+      "name": "提交会话标题",
+      "category_id": "toolset_c14f6e2593194fe88f2b218a0d7c6a9e",
+      "is_default": false,
+      "sort_order": 4,
+      "created_at": "2026-11-03T04:00:00+00:00",
+      "updated_at": "2026-11-03T04:00:00+00:00"
     }
   ]
 }

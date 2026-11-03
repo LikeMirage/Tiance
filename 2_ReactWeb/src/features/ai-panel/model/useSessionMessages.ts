@@ -168,8 +168,7 @@ export function useSessionMessages({
     const read = async (request: ReloadSessionMessagesOptions) => {
       const previousPage = historyPagesRef.current.get(key);
       const current = sessionMessageSnapshotsRef.current[key] ?? [];
-      const preservingLive = request.shouldPreserveLocal?.() ?? (!request.authoritative &&
-        current.some((message) => message.role === "assistant" && message.status === "running"));
+      const preservingLive = shouldPreserveLiveMessages(request, current);
       if (request.older && !previousPage?.before) return;
       const cached = !request.forceRefresh && !previousPage && !request.older
         ? getCachedProjectEntryWarmup(pid)?.sessionMessages[sessionId] : null;
@@ -215,8 +214,7 @@ export function useSessionMessages({
         if (controller.signal.aborted) return;
         const nextMessages = mapConversationMessages(response.items, response.run_outcomes, response.run_attempt_failures);
         const latest = sessionMessageSnapshotsRef.current[key] ?? [];
-        const keepLive = request.shouldPreserveLocal?.() ?? (!request.authoritative &&
-          latest.some((message) => message.role === "assistant" && message.status === "running"));
+        const keepLive = shouldPreserveLiveMessages(request, latest);
         // A cursor read can start while streaming and finish after completion.
         // Re-evaluate the checkpoint before publishing: keep the visible reply
         // until a tail snapshot is ready, never publish live + persisted copies.
@@ -385,6 +383,15 @@ export function useSessionMessages({
     loadOlderSessionMessages,
     updateSessionMessages,
   };
+}
+
+function shouldPreserveLiveMessages(request: ReloadSessionMessagesOptions, messages: ChatMessage[]) {
+  // Reconnection owns the durable checkpoint. A coalesced notification refresh
+  // must not turn that replacement into a notice-only merge of stale live data.
+  if (request.authoritative) return false;
+  return request.shouldPreserveLocal?.() ?? messages.some(
+    (message) => message.role === "assistant" && message.status === "running",
+  );
 }
 
 function countMessagesChars(messages: ChatMessage[]) {

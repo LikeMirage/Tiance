@@ -532,6 +532,7 @@
         "outputLimitRetrySavedHint": "Saved retry fragments are for viewing and are excluded from model context.",
         "outputLimitMessage": "Automatic message",
         "outputLimitResetMessage": "Restore preset",
+        "automaticNaming": "Enable automatic naming",
         "streamingOutput": "Streaming output",
         "autoCollapseProcess": "Auto-collapse assistant process",
         "malformedToolCallRecovery": "Recover malformed tool calls",
@@ -636,6 +637,10 @@
           "conversationJournal": {
             "title": "Conversation event journal",
             "description": "Inspect key message, model request, and tool execution events in their actual order."
+          },
+          "requestSubmissions": {
+            "title": "Submissions",
+            "description": "Inspect submitted input, references and model settings, including local preparation failures and final run outcomes."
           },
           "modelExchanges": {
             "title": "Model request records",

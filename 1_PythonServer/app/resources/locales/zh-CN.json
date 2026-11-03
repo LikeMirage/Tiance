@@ -408,6 +408,7 @@
         "outputLimitMessage": "自动发送的内容",
         "outputLimitResetMessage": "恢复预设内容",
         "returnThinkingContent": "工具调用时返回思考内容",
+        "automaticNaming": "启用自动命名",
         "streamingOutput": "流式输出",
         "autoCollapseProcess": "自动折叠处理过程",
         "injectMessageTimestamps": "注入用户消息时间戳",
@@ -516,6 +517,10 @@
           "globalMemory": {
             "title": "全局记忆看板",
             "description": "查看跨项目共用的全局长期记忆，所有项目读取同一份数据。"
+          },
+          "requestSubmissions": {
+            "title": "发送记录",
+            "description": "查看提交时的输入、引用与模型设置，以及本地准备失败、运行失败或完成的结果。"
           }
         }
       },
@@ -954,10 +959,14 @@
         "modelsPlaceholder": "输入完整模型列表地址"
       },
       "cacheSettings": {
-        "title": "缓存设置", "retention": "前缀缓存有效期阈值",
+        "title": "缓存设置",
+        "retention": "前缀缓存有效期阈值",
         "unitAria": "选择缓存有效期单位",
         "hint": "用于判断何时把长期记忆更新写入前部注入，不会改变供应商实际缓存时间。",
-        "units": { "minutes": "分钟", "hours": "小时" }
+        "units": {
+          "minutes": "分钟",
+          "hours": "小时"
+        }
       },
       "apiKey": {
         "add": "新增 API KEY",

@@ -27,7 +27,10 @@ from app.services.llm.token_estimation_settings import (
     TokenEstimationSettingsService,
     get_token_estimation_settings_service,
 )
-from app.services.project.conversation_functional_run import FunctionalConversationRunner
+from app.services.project.conversation_functional_run import (
+    FunctionalConversationRunner, FunctionalConversationScheduler,
+    build_functional_conversation_request,
+)
 from app.services.project.conversation_functional_runtime import (
     resolve_functional_conversation_model_target,
 )
@@ -107,14 +110,13 @@ class ProjectConversationLongTermMemoryService:
         self._token_estimation_settings_service = (
             token_estimation_settings_service
         )
-        self._functional_conversation_runner: FunctionalConversationRunner | None = None
-        self._locks: dict[tuple[str, str, str], asyncio.Lock] = {}
+        self._scheduler = FunctionalConversationScheduler()
 
     def set_functional_conversation_runner(
         self,
         runner: FunctionalConversationRunner,
     ) -> None:
-        self._functional_conversation_runner = runner
+        self._scheduler.bind(runner)
 
     async def manage_context_if_enabled(
         self,
@@ -125,14 +127,22 @@ class ProjectConversationLongTermMemoryService:
         session_snapshot: ProjectConversationSession | None = None,
         run_snapshot: ConversationRunSnapshot | None = None,
     ) -> None:
-        if run_snapshot is None or self._functional_conversation_runner is None:
+        if run_snapshot is None or not self._scheduler.ready:
             return
         for profile_definition in MEMORY_MANAGEMENT_PROFILES:
-            lock = self._locks.setdefault(
-                (profile_definition.repository.scope, project_id, session_id),
-                asyncio.Lock(),
-            )
-            async with lock:
+            if blocking is not None:
+                profile = await asyncio.to_thread(
+                    self._functional_model_settings_service.get_profile_settings,
+                    profile_definition.profile_key,
+                )
+                settings = profile.settings if profile is not None else {}
+                # An asynchronous extraction can hold this lock for minutes.
+                # Reject the other pass before waiting, not after it finishes.
+                if bool_setting(settings, "blockingEnabled", default_value=False) != blocking:
+                    continue
+            async with self._scheduler.serialize(
+                project_id, session_id, profile_definition.repository.scope,
+            ):
                 await self._manage_context_once(
                     profile_definition,
                     project_id,
@@ -210,8 +220,8 @@ class ProjectConversationLongTermMemoryService:
             "blockingEnabled",
             default_value=False,
         )
-        # The request runs separate blocking and background passes. Only the
-        # matching pass should load history and calculate the extraction plan.
+        # Recheck after acquiring the lock: settings may have changed while a
+        # matching pass was queued. Only that pass may read history and extract.
         if blocking is not None and is_blocking != blocking:
             return
         threshold = int_setting(
@@ -299,22 +309,15 @@ class ProjectConversationLongTermMemoryService:
                 project_id,
                 creation.session.session_id,
             )
-            request = ChatCompletionRequest(
-                provider_id=target.provider_id,
-                model_id=target.model_id,
+            request = build_functional_conversation_request(
                 project_id=project_id,
-                session_id=creation.session.session_id,
-                messages=(ChatMessage(role=ChatMessageRole.USER, content=prompt),),
+                session=creation.session,
+                prompt=prompt,
                 generation=target.generation,
-                record_usage=True,
-                usage_message_id=(
-                    f"system:{profile_definition.usage_feature_key}:{task_id}"
-                ),
-                usage_feature_key=profile_definition.usage_feature_key,
-                max_tool_calls=creation.session.settings.max_tool_calls,
-                upstream_retry_count=creation.session.settings.upstream_retry_count,
+                feature_key=profile_definition.usage_feature_key,
+                task_id=task_id,
             )
-            await self._functional_conversation_runner(request)
+            await self._scheduler.run(request)
             await asyncio.to_thread(
                 self._validate_function_run,
                 project_id,

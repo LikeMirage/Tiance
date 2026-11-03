@@ -13,7 +13,7 @@ from app.domain.llm.chat import (
 )
 from app.domain.llm.message_timestamp import model_visible_message_content
 
-InjectionPreviewSource = Literal["real_request", "draft_request"]
+InjectionPreviewSource = Literal["real_request", "draft_request", "submitted_request"]
 
 
 def build_conversation_injection_preview(
@@ -68,6 +68,8 @@ def build_conversation_injection_preview(
 
 
 def _description(preview_source: InjectionPreviewSource) -> str:
+    if preview_source == "submitted_request":
+        return "后端接收的会话提交，尚未组装模型上下文，也不表示已经向供应商发送。"
     if preview_source == "draft_request":
         return (
             "本文件记录当前输入框内容对应的下一次 AI 请求预览，"

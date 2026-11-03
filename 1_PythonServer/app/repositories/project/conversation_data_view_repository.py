@@ -20,6 +20,7 @@ from app.repositories.project.conversation_database import (
     list_message_payloads_range,
     list_project_events_range,
     read_document,
+    read_conversation_run,
     read_session,
     read_session_index_page,
 )
@@ -33,6 +34,7 @@ ConversationDataViewName = Literal[
     "messages.jsonl",
     "conversation_journal.jsonl",
     "model_exchanges.jsonl",
+    "request_submissions.jsonl",
     "model_http_exchanges.jsonl",
     "compressions.jsonl",
     "injection_preview.json",
@@ -156,7 +158,7 @@ class ConversationDataViewRepository:
                 end_ordinal=window.end,
             )
             return _paged_view(_jsonl(messages), revision_ms, window)
-        if name in {"compressions.jsonl", "model_exchanges.jsonl"}:
+        if name in {"compressions.jsonl", "model_exchanges.jsonl", "request_submissions.jsonl"}:
             event_kind = name.removesuffix(".jsonl")
             total_count = count_events(session_dir, event_kind)
             window = _page_window(total_count, page, page_size)
@@ -166,6 +168,10 @@ class ConversationDataViewRepository:
                 start_ordinal=window.start,
                 end_ordinal=window.end,
             )
+            if name == "request_submissions.jsonl":
+                events = [{**event, "outcome": read_conversation_run(
+                    workspace_dir, event["run_id"], session_id=resolved_session_id,
+                )} for event in events]
             return _paged_view(_jsonl(events), revision_ms, window)
         if name == "model_http_exchanges.jsonl":
             total_count = count_embedded_artifacts(

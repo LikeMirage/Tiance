@@ -120,3 +120,30 @@ test("failure leaves previous session intact and never writes an empty draft for
   assert.equal(value.sessionLoadError, "offline");
   assert.equal(saves.some(({ input }) => Object.hasOwn(input.session_drafts ?? {}, "b")), false);
 });
+
+test("rejected input recovery preserves new typing and references and persists the combined draft", async () => {
+  await setup();
+  const ref = (id) => ({ type: "file", reference: { id } });
+  await act(async () => { value.setDraft("new typing"); });
+  await act(async () => {
+    const references = value.restoreUnsentInput("p", "a", "rejected message", [ref("old"), ref("shared")], [ref("shared"), ref("new")]);
+    assert.deepEqual(references.map(item => item.reference.id), ["old", "shared", "new"]);
+    value.publishCurrentDraftSnapshot("p", "a");
+  });
+  assert.equal(value.draft, "rejected message\n\nnew typing");
+  assert.equal(value.settledDraft.draft, value.draft, "finally cannot publish a stale empty draft");
+  assert.equal(saves.at(-1).input.session_drafts.a, value.draft);
+  assert.deepEqual(saves.at(-1).input.session_references.a.map(item => item.reference.id), ["old", "shared", "new"]);
+});
+
+test("rejected input is saved to its original session without replacing the newly selected composer", async () => {
+  await setup();
+  await act(async () => { value.setDraft(""); value.saveSessionState("p", "a", { draft: "", references: [] }); });
+  await act(async () => { void value.activateSession("b"); });
+  await act(async () => { requests[0].resolve(detail("b")); });
+  await act(async () => { value.restoreUnsentInput("p", "a", "unsent", []); });
+  assert.equal(value.draft, "draft-b");
+  assert.equal(value.activeSessionId, "b");
+  assert.equal(saves.at(-1).input.session_drafts.a, "unsent");
+  assert.equal(value.sessionStates.a.draft, "unsent");
+});

@@ -532,6 +532,7 @@
         "outputLimitRetrySavedHint": "原请求重试时，保留片段仅供查看，不返回模型。",
         "outputLimitMessage": "自动发送的内容",
         "outputLimitResetMessage": "恢复预设内容",
+        "automaticNaming": "启用自动命名",
         "streamingOutput": "流式输出",
         "autoCollapseProcess": "自动折叠处理过程",
         "malformedToolCallRecovery": "工具调用容错",
@@ -636,6 +637,10 @@
           "conversationJournal": {
             "title": "会话事件总账",
             "description": "按真实发生顺序查看消息、模型请求和工具执行等关键事件。"
+          },
+          "requestSubmissions": {
+            "title": "发送记录",
+            "description": "查看提交时的输入、引用与模型设置，以及本地准备失败、运行失败或完成的结果。"
           },
           "modelExchanges": {
             "title": "模型请求记录",

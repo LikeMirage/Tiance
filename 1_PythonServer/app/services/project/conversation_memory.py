@@ -69,7 +69,10 @@ from app.services.project.conversation_memory_results import (
 from app.services.project.conversation_functional_runtime import (
     resolve_functional_conversation_model_target,
 )
-from app.services.project.conversation_functional_run import FunctionalConversationRunner
+from app.services.project.conversation_functional_run import (
+    FunctionalConversationRunner, FunctionalConversationScheduler,
+    build_functional_conversation_request,
+)
 from app.services.project.conversation_functional_settings import (
     bool_setting,
     int_setting,
@@ -118,8 +121,7 @@ class ProjectConversationMemoryService:
             token_estimation_settings_service
             or get_token_estimation_settings_service()
         )
-        self._functional_conversation_runner: FunctionalConversationRunner | None = None
-        self._compaction_locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self._scheduler = FunctionalConversationScheduler()
         self._memory_delivery = ProjectConversationMemoryDeliveryService(
             conversation_service,
             memory_repository,
@@ -131,7 +133,7 @@ class ProjectConversationMemoryService:
         self,
         runner: FunctionalConversationRunner,
     ) -> None:
-        self._functional_conversation_runner = runner
+        self._scheduler.bind(runner)
 
     async def is_blocking_enabled(self) -> bool:
         profile = await asyncio.to_thread(
@@ -154,13 +156,9 @@ class ProjectConversationMemoryService:
         session_snapshot: ProjectConversationSession | None = None,
         run_snapshot: ConversationRunSnapshot | None = None,
     ) -> None:
-        if run_snapshot is None or self._functional_conversation_runner is None:
+        if run_snapshot is None or not self._scheduler.ready:
             return
-        lock = self._compaction_locks.setdefault(
-            (project_id, session_id),
-            asyncio.Lock(),
-        )
-        async with lock:
+        async with self._scheduler.serialize(project_id, session_id, "memory_compression"):
             await self._compact_context_once(
                 project_id,
                 session_id,
@@ -584,18 +582,13 @@ class ProjectConversationMemoryService:
                 project_id,
                 creation.session.session_id,
             )
-            request = ChatCompletionRequest(
-                provider_id=provider_id,
-                model_id=model_id,
+            request = build_functional_conversation_request(
                 project_id=project_id,
-                session_id=creation.session.session_id,
-                messages=(ChatMessage(role=ChatMessageRole.USER, content=task_prompt),),
+                session=creation.session,
+                prompt=task_prompt,
                 generation=target.generation,
-                record_usage=True,
-                usage_message_id=f"system:memory_compression:{compression_id}",
-                usage_feature_key="memory_compression",
-                max_tool_calls=creation.session.settings.max_tool_calls,
-                upstream_retry_count=creation.session.settings.upstream_retry_count,
+                feature_key="memory_compression",
+                task_id=compression_id,
             )
             target = await asyncio.to_thread(
                 self._conversation_service.message_sync_target, project_id, creation.session.session_id,
@@ -623,7 +616,7 @@ class ProjectConversationMemoryService:
 
                 completion = asyncio.create_task(report_completion())
                 try:
-                    await self._functional_conversation_runner(request)
+                    await self._scheduler.run(request)
                     task = await asyncio.to_thread(
                         self._compaction_repository.read_task, project_id, creation.session.session_id,
                     )

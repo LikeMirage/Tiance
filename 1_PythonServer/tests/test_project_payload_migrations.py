@@ -19,7 +19,8 @@ from app.repositories.project.conversation_schema import SCHEMA_VERSION
 def test_mixed_legacy_audit_payloads_and_role_hash_are_upgraded(tmp_path, version):
     path = tmp_path / "tiance.db"
     settings = asdict(ProjectConversationSessionSettings())
-    for key in ("output_limit_action", "output_limit_save_partial", "output_limit_message", "output_limit_max_recoveries"):
+    # The legacy fixture must not contain settings introduced after v6/v7.
+    for key in ("automatic_naming_enabled", "output_limit_action", "output_limit_save_partial", "output_limit_message", "output_limit_max_recoveries"):
         settings.pop(key)
     settings.update(return_cancelled_messages=False, return_user_before_cancelled=True)
     configuration = {"provider_id": "p", "model_id": "m", "reasoning_mode": "high", "settings": settings}

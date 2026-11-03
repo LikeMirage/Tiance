@@ -30,6 +30,7 @@ ProjectConversationRuntimeStatus = Literal["idle", "running", "error"]
 
 
 class ProjectConversationSessionSettingsPatch(BaseModel):
+    automatic_naming_enabled: bool | None = None
     global_memory_enabled: bool | None = None
     global_memory_extraction_enabled: bool | None = None
     memory_compression_enabled: bool | None = None
@@ -83,31 +84,12 @@ class ProjectConversationDeleteRequest(BaseModel):
     session_ids: list[str] = Field(min_length=1)
 
 
-class ProjectConversationAutomaticTitleRequest(BaseModel):
-    title: str = Field(min_length=1)
-
-
-class ProjectConversationAutomaticTitleResponse(BaseModel):
-    applied: bool
-    source_session_id: str
-    title: str
-    status: Literal["completed", "superseded"]
-
-
-class ProjectConversationAutomaticNamingSettleRequest(BaseModel):
-    outcome: Literal["done", "error", "cancelled"]
-
-
-class ProjectConversationAutomaticNamingSettleResponse(BaseModel):
-    task_id: str
-    status: Literal["completed", "superseded", "failed"]
-
-
 class ProjectConversationSessionPinRequest(BaseModel):
     pinned: bool
 
 
 class ProjectConversationSessionSettingsResponse(BaseModel):
+    automatic_naming_enabled: bool = True
     global_memory_enabled: bool = True
     global_memory_extraction_enabled: bool = True
     memory_compression_enabled: bool = True
@@ -142,6 +124,7 @@ class ProjectConversationSessionSettingsResponse(BaseModel):
         session: ProjectConversationSession,
     ) -> "ProjectConversationSessionSettingsResponse":
         return cls(
+            automatic_naming_enabled=session.settings.automatic_naming_enabled,
             global_memory_enabled=session.settings.global_memory_enabled,
             global_memory_extraction_enabled=(
                 session.settings.global_memory_extraction_enabled

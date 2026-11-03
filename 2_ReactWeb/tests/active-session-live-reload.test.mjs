@@ -182,6 +182,49 @@ test("completed stream reconciles its optimistic answer with the persisted answe
   assert.deepEqual(result.sessionMessages["p/s"].map((m) => m.id), ["m1", "msg_persisted2"]);
 });
 
+for (const order of ["reconnect-first", "notification-first"]) {
+  test(`reconnect adopts its durable checkpoint when a ${order} refresh is coalesced`, async () => {
+    await setup();
+    const user = msg("m1", "user");
+    const saved = msg("saved3");
+    await respond(0, page([user], 1));
+    await act(async () => {
+      result.updateSessionMessages("p", "s", (items) => [
+        ...items, { ...msg("live2"), status: "running", content: "stale partial reply" },
+      ]);
+    });
+    state = { revision: 2, reset_revision: 0, project_revision: 2 };
+    const notification = { forceRefresh: true, shouldPreserveLocal: () => true };
+    const reconnect = { forceRefresh: true, authoritative: true };
+    await act(async () => {
+      void result.reloadSessionMessages("p", "s", notification);
+      for (const options of order === "reconnect-first"
+        ? [reconnect, notification] : [notification, reconnect]) {
+        void result.reloadSessionMessages("p", "s", options);
+      }
+    });
+    await respond(1, page([saved], 2));
+    assert.equal(result.sessionMessages["p/s"].at(-1).id, "live2",
+      "ordinary refreshes must preserve the live reply");
+    assert.equal(requests[2].options.afterMessageId, null,
+      "reconnection must read a durable tail snapshot");
+    await respond(2, page([user, saved], 2));
+    assert.deepEqual(result.sessionMessages["p/s"].map((m) => m.id), ["m1", "saved3"],
+      "a notification's live-preservation callback must not discard the checkpoint");
+    assert.equal(result.historyPages["p/s"].reconcile, false);
+
+    await act(async () => {
+      result.updateSessionMessages("p", "s", (items) => items.map((message) =>
+        message.id === saved.id ? { ...message, status: "running", content: "resumed output" } : message));
+    });
+    state = { revision: 3, reset_revision: 0, project_revision: 3 };
+    await act(async () => { void result.reloadSessionMessages("p", "s", notification); });
+    await respond(3, page([msg("saved4")], 3));
+    assert.equal(result.sessionMessages["p/s"].at(-1).content, "resumed output",
+      "ordinary updates after reconnection must still protect streaming output");
+  });
+}
+
 test("ordinary refresh after local completion replaces the transient answer instead of appending its persisted copy", async () => {
   await setup();
   const user = msg("m1", "user");

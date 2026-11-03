@@ -250,6 +250,7 @@ class RoleConfigurationApplicationService:
             },
             "prompt.json": {"system_prompt": settings.system_prompt},
             "response.json": {
+                "automatic_naming_enabled": settings.automatic_naming_enabled,
                 "streaming_enabled": settings.streaming_enabled,
                 "auto_collapse_assistant_process": (
                     settings.auto_collapse_assistant_process
@@ -473,6 +474,7 @@ class RoleConfigurationApplicationService:
 
         bool_files = {
             "response.json": (
+                "automatic_naming_enabled",
                 "streaming_enabled",
                 "auto_collapse_assistant_process",
                 "malformed_tool_call_recovery_enabled",

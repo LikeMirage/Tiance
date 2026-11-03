@@ -429,7 +429,8 @@
         "systemPrompt": "System prompt",
         "selectSystemPromptPreset": "Select prompt preset",
         "noSystemPromptPresets": "No presets available",
-        "clearSystemPrompt": "Clear system prompt"
+        "clearSystemPrompt": "Clear system prompt",
+        "automaticNaming": "Enable automatic naming"
       },
       "memorySettings": {
         "enabled": "Memory compression",
@@ -539,6 +540,10 @@
           "globalMemory": {
             "title": "Global memory dashboard",
             "description": "View global long-term memories shared across projects. All projects read the same data."
+          },
+          "requestSubmissions": {
+            "title": "Submissions",
+            "description": "Inspect submitted input, references and model settings, including local preparation failures and final run outcomes."
           }
         }
       },

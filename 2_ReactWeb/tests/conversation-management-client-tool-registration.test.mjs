@@ -239,43 +239,6 @@ test("创建子会话只提交显式覆盖项并由后端继承父配置", async
   assert.deepEqual(result.content.history_locator, conversationHistoryLocator("session-child"));
 });
 
-test("自动命名功能会话不传目标 ID 并由后端确定父会话", async () => {
-  let submittedBody = null;
-  installFetchRouter(async ({ init, method, url }) => {
-    if (
-      method === "POST"
-      && url.pathname.endsWith("/conversations/function-session/automatic-title")
-    ) {
-      submittedBody = JSON.parse(String(init.body));
-      return {
-        applied: true,
-        source_session_id: "session-a",
-        status: "completed",
-        title: "Token 统计设计",
-      };
-    }
-    throw new Error(`未处理的测试请求：${method} ${url}`);
-  });
-  const registration = createManagementRegistration();
-
-  const result = await registration.execute(clientToolRequest({
-    name: "manage_ai_conversations",
-    sessionId: "function-session",
-    arguments: {
-      action: "name_parent_session",
-      title: "Token 统计设计",
-    },
-  }));
-
-  assert.equal(result.ok, true, result.error);
-  assert.deepEqual(submittedBody, {
-    title: "Token 统计设计",
-  });
-  assert.equal(result.content.function_session_id, "function-session");
-  assert.equal(result.content.source_session_id, "session-a");
-  assert.equal(result.content.title, "Token 统计设计");
-});
-
 test("目标会话操作失败时仍保留会话身份与消息路径", async () => {
   installFetchRouter(({ method, url }) => {
     if (method === "GET" && url.pathname.endsWith("/conversations")) {
@@ -305,6 +268,32 @@ test("目标会话操作失败时仍保留会话身份与消息路径", async ()
   assert.equal(result.content.session_id, "session-a");
   assert.deepEqual(result.content.history_locator, conversationHistoryLocator("session-a"));
   assert.match(result.error, /配置写入失败/);
+});
+
+test("配置会话可关闭自动命名，显式 false 经请求和配置回读保持不变", async () => {
+  let savedSettings;
+  installFetchRouter(({ init, method, url }) => {
+    if (method === "GET" && url.pathname.endsWith("/conversations")) {
+      return sessionListResponse();
+    }
+    if (method === "PATCH" && url.pathname.endsWith("/conversations/session-a")) {
+      savedSettings = JSON.parse(String(init.body)).settings;
+      const session = conversationSession();
+      return { ...session, settings: { ...session.settings, ...savedSettings } };
+    }
+    throw new Error(`未处理的测试请求：${method} ${url}`);
+  });
+  const result = await createManagementRegistration().execute(clientToolRequest({
+    name: "manage_ai_conversations",
+    arguments: {
+      action: "configure_session",
+      session_id: "session-a",
+      configuration: { settings: { automatic_naming_enabled: false } },
+    },
+  }));
+  assert.equal(result.ok, true, result.error);
+  assert.deepEqual(savedSettings, { automatic_naming_enabled: false });
+  assert.equal(result.content.session.configuration.settings.automatic_naming_enabled, false);
 });
 
 function createManagementRegistration(overrides = {}) {

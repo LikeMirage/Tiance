@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from app.domain.llm.provider_config import ProviderConfig
 from app.domain.llm.provider_custom_model import ProviderCustomModel
 from app.repositories.llm.provider_file_store import ProviderFileStore
@@ -51,6 +53,25 @@ def test_model_catalog_filters_functional_and_vision_models(tmp_path):
 
     assert [model.model_id for model in text_models] == ["text-model", "vision-model"]
     assert [model.model_id for model in vision_models] == ["vision-model"]
+
+
+def test_optional_model_label_roundtrips_without_breaking_other_models(tmp_path):
+    service, configs, models = _create_service(tmp_path)
+    _save_provider_config(configs, provider_id="deepseek", enabled=True)
+    _save_provider_config(configs, provider_id="dmxapi", enabled=True)
+    original = _custom_model("dmxapi", "chat", tags=("reasoning",))
+    models.save_model(original)
+    unlabeled = replace(_custom_model("dmxapi", "chat-free", tags=()), display_name="")
+    assert models.save_model(unlabeled) == unlabeled
+    models.save_model(_custom_model("deepseek", "deepseek-flash", tags=("vision",)))
+
+    assert models.get_model(provider_id="dmxapi", model_id="chat") == original
+    entries = {(item.provider_id, item.model_id): item for item in service.list_models(kind="chat")}
+    assert entries[("dmxapi", "chat-free")].model_label == "chat-free"
+    assert ("deepseek", "deepseek-flash") in entries
+    # The same optional value must also allow subsequent edits and deletion.
+    assert models.save_model(replace(unlabeled, note="edited")).note == "edited"
+    assert models.delete_model(provider_id="dmxapi", model_id="chat-free")
 
 
 def _create_service(tmp_path):

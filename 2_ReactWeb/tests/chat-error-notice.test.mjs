@@ -48,6 +48,15 @@ test("操作错误八秒后消失，普通重绘不会延长显示时间", async
   assert.equal(notice.renderer.toJSON(), null);
 });
 
+test("未发送成功的错误保留到用户关闭，不因历史刷新或计时消失", async (t) => {
+  const notice = await mountNotice(t, { autoDismiss: false });
+  await notice.tick(60_000);
+  await notice.update({});
+  assert.ok(notice.renderer.toJSON());
+  await act(async () => notice.renderer.root.findByProps({ "aria-label": "关闭提示" }).props.onClick());
+  assert.equal(notice.renderer.toJSON(), null);
+});
+
 test("关闭提示立即生效，同样的操作再次失败仍能提示", async (t) => {
   const notice = await mountNotice(t);
   await act(async () => notice.renderer.root.findByProps({ "aria-label": "关闭提示" }).props.onClick());

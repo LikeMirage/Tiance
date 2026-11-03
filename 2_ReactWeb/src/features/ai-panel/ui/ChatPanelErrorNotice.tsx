@@ -5,6 +5,7 @@ type Props = {
   message: string | null;
   scopeKey: string | null;
   onRetry?: () => void;
+  autoDismiss?: boolean;
 };
 
 export function ChatPanelErrorNotice({ message, ...props }: Props) {
@@ -12,7 +13,7 @@ export function ChatPanelErrorNotice({ message, ...props }: Props) {
   return message ? <ErrorNotice key={message} message={message} {...props} /> : null;
 }
 
-function ErrorNotice({ message, scopeKey, onRetry }: Props) {
+function ErrorNotice({ message, scopeKey, onRetry, autoDismiss = true }: Props) {
   const [initialScopeKey] = useState(scopeKey);
   const [visible, setVisible] = useState(true);
   const [hovered, setHovered] = useState(false);
@@ -25,10 +26,10 @@ function ErrorNotice({ message, scopeKey, onRetry }: Props) {
   }, [isCurrentScope]);
 
   useEffect(() => {
-    if (!visible || !isCurrentScope || hovered || focused) return;
+    if (!autoDismiss || !visible || !isCurrentScope || hovered || focused) return;
     const timer = window.setTimeout(() => setVisible(false), 8_000);
     return () => window.clearTimeout(timer);
-  }, [focused, hovered, isCurrentScope, visible]);
+  }, [autoDismiss, focused, hovered, isCurrentScope, visible]);
 
   if (!visible || !isCurrentScope) return null;
 

@@ -48,6 +48,7 @@ from app.repositories.project.conversation_serialization import (
     _utc_now,
 )
 from app.repositories.project.conversation_storage import conversation_write_lock
+from app.repositories.project.conversation_audit_streaming import prepare_audit_snapshot
 from app.repositories.project.conversation_stores import (
     ConversationMessageStore,
     ConversationSessionStore,
@@ -55,6 +56,7 @@ from app.repositories.project.conversation_stores import (
 )
 from app.repositories.project.project_repository import ProjectRepository, get_project_repository
 from app.repositories.project.conversation_database import (
+    append_event,
     append_journal_event,
     begin_conversation_run,
     latest_user_message_id,
@@ -63,6 +65,7 @@ from app.repositories.project.conversation_database import (
     read_conversation_run,
     read_task_excerpt,
     settle_conversation_run,
+    transaction_for_conversations,
     write_document,
 )
 
@@ -764,6 +767,33 @@ class ProjectConversationRepository:
                 turn.items,
             ),
         )
+
+    def accept_submission(
+        self, project_id: str, session_id: str, *, run_id: str,
+        user_fields: dict, existing_user: ProjectConversationMessage | None,
+        submission: dict,
+    ) -> ProjectConversationMessage:
+        """Commit the input, run and receipt together, before any model preparation."""
+        conversations_dir = self._session_store.conversations_dir(project_id, for_write=True)
+        with (prepare_audit_snapshot(submission) as prepared,
+              conversation_write_lock(conversations_dir), transaction_for_conversations(conversations_dir)):
+            session_dir = self._session_store.require_session_dir(project_id, session_id, for_write=True)
+            user = existing_user or self.append_message(project_id, session_id, role="user", **user_fields)
+            existing_run = self.get_run(project_id, session_id, run_id)
+            if existing_run is not None and existing_run.user_message_id != user.message_id:
+                raise ConflictError("运行标识已经用于另一条用户消息。")
+            if existing_run is None:
+                self.begin_run(project_id, session_id, run_id=run_id,
+                               user_message_id=user.message_id, started_at=submission["recorded_at"])
+                append_event(session_dir, "request_submissions", submission, prepared_snapshot=prepared)
+                append_journal_event(
+                    session_dir.parent.parent.parent, session_id=session_id,
+                    run_id=run_id, turn_id=user.message_id, tool_call_id=None,
+                    event_type="conversation.request.received", occurred_at=submission["recorded_at"],
+                    payload={"provider_id": user.target_provider_id, "model_id": user.target_model_id,
+                             "submission_id": run_id, "stage": "received"},
+                )
+            return user
 
     def begin_run(
         self,

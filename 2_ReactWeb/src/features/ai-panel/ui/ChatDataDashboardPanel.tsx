@@ -6,6 +6,7 @@ export type ConversationDataFileName =
   | "messages.jsonl"
   | "conversation_journal.jsonl"
   | "model_exchanges.jsonl"
+  | "request_submissions.jsonl"
   | "model_http_exchanges.jsonl"
   | "session.json"
   | "index.json"
@@ -19,6 +20,11 @@ type ConversationDataDashboardItem = {
 };
 
 const CONVERSATION_DATA_DASHBOARDS: ConversationDataDashboardItem[] = [
+  {
+    descriptionKey: "aiPanel.dataDashboard.items.requestSubmissions.description",
+    fileName: "request_submissions.jsonl",
+    titleKey: "aiPanel.dataDashboard.items.requestSubmissions.title",
+  },
   {
     descriptionKey: "aiPanel.dataDashboard.items.compressions.description",
     fileName: "compressions.jsonl",

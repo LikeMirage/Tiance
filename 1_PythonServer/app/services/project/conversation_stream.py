@@ -185,6 +185,8 @@ class ProjectConversationStreamService:
             memory_service.set_functional_conversation_runner(
                 self._run_functional_conversation
             )
+        if hasattr(naming_service, "set_functional_conversation_runner"):
+            naming_service.set_functional_conversation_runner(self._run_functional_conversation)
         if long_term_memory_service is not None:
             long_term_memory_service.set_functional_conversation_runner(
                 self._run_functional_conversation
@@ -232,7 +234,9 @@ class ProjectConversationStreamService:
     ) -> AsyncGenerator[dict[str, object | None], None]:
         # One manager task owns all automatic user turns, so stop cancels the chain.
         shutdown_tasks.require_accepting()
-        request = replace(request, run_id=request.run_id or uuid4().hex, output_limit_budget=OutputLimitRecoveryBudget(), record_attempt_usage=True, emit_response_boundaries=True)
+        submitted_user = next((m for m in reversed(request.messages) if m.role == ChatMessageRole.USER), None)
+        stable_run_id = f"run_{submitted_user.message_id}" if submitted_user and submitted_user.message_id else uuid4().hex
+        request = replace(request, run_id=request.run_id or stable_run_id, output_limit_budget=OutputLimitRecoveryBudget(), record_attempt_usage=True, emit_response_boundaries=True)
         pending_user: dict | None = None
         conversation_notifications.open(request.project_id, request.session_id)
         try:
@@ -320,6 +324,7 @@ class ProjectConversationStreamService:
         run_user_message: ProjectConversationMessage | None = None
         final_assistant_message: ProjectConversationMessage | None = None
         model_round_serial = 0
+        audited_rounds: set[int] = set()
         persisted_tool_call_message_id: str | None = None
         persisted_tool_call_round_serial: int | None = None
         cancelled_tool_scopes: dict[str, ToolCancellationScope] = {}
@@ -357,7 +362,7 @@ class ProjectConversationStreamService:
             task = self._audit_service.create_session_task(
                 model_request.project_id,
                 model_request.session_id,
-                asyncio.to_thread(
+                lambda: asyncio.to_thread(
                     self._persistence.record_model_exchange,
                     model_request,
                     assistant_message,
@@ -366,6 +371,7 @@ class ProjectConversationStreamService:
                 ),
                 name="conversation-model-exchange-audit",
             )
+            audited_rounds.add(round_index)
             background_tasks.append(task)
 
         async def prepare_next_tool_loop_model_request(
@@ -471,23 +477,16 @@ class ProjectConversationStreamService:
                     yield settled_payload
                 yield {"kind": "done", "finish_reason": "replayed"}
                 return
-            await asyncio.to_thread(self._persistence.sync_session_metadata, request)
-            request = await self._prepare_image_references(request)
-            user_message = None
-            if existing_turn is not None:
-                run_user_message = existing_turn.user
-            else:
-                user_message = await asyncio.to_thread(self._persistence.append_user_message, request)
-                run_user_message = user_message or await asyncio.to_thread(
-                    self._persistence.current_user_message,
-                    request,
+            async def accept_submission() -> None:
+                nonlocal request, run_user_message
+                request, run_user_message = await asyncio.to_thread(
+                    self._persistence.accept_request, request,
+                    existing_turn.user if existing_turn is not None else None,
                 )
-            if run_user_message is not None:
-                request = replace(
-                    request,
-                    run_id=request.run_id or f"run_{run_user_message.message_id}",
-                    user_message_id=run_user_message.message_id,
-                )
+
+            # Commit and retain the identifiers before honoring cancellation.
+            # Model/config/image preparation must never precede this receipt.
+            await finish_commit(accept_submission())
             existing_run = await asyncio.to_thread(
                 self._persistence.run_outcome,
                 request,
@@ -512,11 +511,12 @@ class ProjectConversationStreamService:
                 else:
                     yield {"kind": "done", "finish_reason": "cancelled"}
                 return
-            await asyncio.to_thread(
-                self._persistence.begin_run,
-                request,
-                run_user_message,
-            )
+            started_payload = conversation_run_started_payload(run_user_message)
+            if started_payload is not None:
+                yield {**started_payload, "run_id": request.run_id}
+            await asyncio.to_thread(self._persistence.record_submission_activity, run_user_message)
+            await asyncio.to_thread(self._persistence.sync_session_metadata, request)
+            request = await self._prepare_image_references(request)
             memory_session_snapshot = await asyncio.to_thread(
                 self._persistence.session_snapshot,
                 request,
@@ -530,9 +530,6 @@ class ProjectConversationStreamService:
                 run_user_message,
             )
             await asyncio.to_thread(self._persistence.save_runtime_status, request, "running")
-            started_payload = conversation_run_started_payload(run_user_message)
-            if started_payload is not None:
-                yield {**started_payload, "run_id": request.run_id or f"run_{run_user_message.message_id}"}
             session_request = await asyncio.to_thread(
                 self._context_builder.rebuild_session_request_messages,
                 request,
@@ -1000,153 +997,47 @@ class ProjectConversationStreamService:
                 context_tokens_estimated=context_tokens_estimated,
             )
             raise
-        except httpx.HTTPStatusError as exc:
+        except Exception as exc:
             if await self._discard_removed_conversation(request):
                 await self._settlement.record_ai_run_elapsed(
-                    request,
-                    run_user_message,
-                    None,
-                    run_started_at=run_started_at,
+                    request, run_user_message, None, run_started_at=run_started_at,
                 )
                 return
-            error = upstream_http_error_message(exc)
-            failed_message, settled_payload = await self._settlement.settle_failed(
-                request,
-                run_user_message,
-                run_started_at=run_started_at,
-                content=error,
-                error_code="upstream_http_error",
-                attempt_count=upstream_attempt_index,
-                usage=usage,
-                usage_payload=usage_payload,
-                context_tokens=context_tokens,
-                context_tokens_estimated=context_tokens_estimated,
-            )
-            if last_model_request is not None and failed_message is not None:
-                schedule_model_exchange(
-                    last_model_request,
-                    failed_message,
-                    round_index=model_round_serial,
-                    round_usage=usage,
-                )
-            if settled_payload is not None:
-                yield settled_payload
-            yield {
-                "kind": "error",
-                "error": error,
-                "error_code": "upstream_http_error",
-            }
-        except httpx.RequestError as exc:
-            if await self._discard_removed_conversation(request):
-                await self._settlement.record_ai_run_elapsed(
-                    request,
-                    run_user_message,
-                    None,
-                    run_started_at=run_started_at,
-                )
-                return
-            error = local_exception_message(exc)
-            failed_message, settled_payload = await self._settlement.settle_failed(
-                request,
-                run_user_message,
-                run_started_at=run_started_at,
-                content=error,
-                error_code="upstream_connection_error",
-                attempt_count=upstream_attempt_index,
-                usage=usage,
-                usage_payload=usage_payload,
-                context_tokens=context_tokens,
-                context_tokens_estimated=context_tokens_estimated,
-            )
-            if last_model_request is not None and failed_message is not None:
-                schedule_model_exchange(
-                    last_model_request,
-                    failed_message,
-                    round_index=model_round_serial,
-                    round_usage=usage,
-                )
-            if settled_payload is not None:
-                yield settled_payload
-            yield {
-                "kind": "error",
-                "error": error,
-                "error_code": "upstream_connection_error",
-            }
-        except AppError as exc:
-            if await self._discard_removed_conversation(request):
-                await self._settlement.record_ai_run_elapsed(
-                    request,
-                    run_user_message,
-                    None,
-                    run_started_at=run_started_at,
-                )
-                return
-            failed_message, settled_payload = await self._settlement.settle_failed(
-                request,
-                run_user_message,
-                run_started_at=run_started_at,
-                content=exc.message,
-                error_code=exc.code,
-                attempt_count=upstream_attempt_index,
-                usage=usage,
-                usage_payload=usage_payload,
-                context_tokens=context_tokens,
-                context_tokens_estimated=context_tokens_estimated,
-            )
-            if last_model_request is not None and failed_message is not None:
-                schedule_model_exchange(
-                    last_model_request,
-                    failed_message,
-                    round_index=model_round_serial,
-                    round_usage=usage,
-                )
-            if settled_payload is not None:
-                yield settled_payload
-            yield {"kind": "error", "error": exc.message, "error_code": exc.code}
-        except Exception:
-            logger.exception("Conversation generation failed unexpectedly.")
-            if final_assistant_message is not None:
-                await asyncio.to_thread(self._persistence.save_runtime_status, request, "idle")
-                await asyncio.to_thread(
-                    self._persistence.settle_run,
-                    request,
-                    status="done",
-                    attempt_count=upstream_attempt_index,
-                )
-                await self._settlement.record_ai_run_elapsed(
-                    request,
-                    run_user_message,
-                    final_assistant_message,
-                    run_started_at=run_started_at,
-                )
-                settled_payload = conversation_run_settled_payload(
-                    run_user_message,
-                    final_assistant_message,
-                    status="done",
-                )
+            if isinstance(exc, httpx.HTTPStatusError):
+                error, error_code = upstream_http_error_message(exc), "upstream_http_error"
+            elif isinstance(exc, httpx.RequestError):
+                error, error_code = local_exception_message(exc), "upstream_connection_error"
+            elif isinstance(exc, AppError):
+                error, error_code = exc.message, exc.code
             else:
-                failed_message, settled_payload = await self._settlement.settle_failed(
-                    request,
-                    run_user_message,
-                    run_started_at=run_started_at,
-                    content="会话生成任务异常终止。",
-                    error_code="conversation_generation_failed",
-                    attempt_count=upstream_attempt_index,
-                    usage=usage,
-                    usage_payload=usage_payload,
-                    context_tokens=context_tokens,
+                logger.exception("Conversation generation failed unexpectedly.")
+                error, error_code = local_exception_message(exc), "conversation_generation_failed"
+            if final_assistant_message is not None:
+                # A follow-up failure cannot invalidate an already saved answer.
+                await asyncio.to_thread(self._persistence.save_runtime_status, request, "idle")
+                await asyncio.to_thread(self._persistence.settle_run, request,
+                                        status="done", attempt_count=upstream_attempt_index)
+                await self._settlement.record_ai_run_elapsed(
+                    request, run_user_message, final_assistant_message, run_started_at=run_started_at,
+                )
+                await asyncio.to_thread(self._audit_service.record_event, request,
+                    event_type="conversation.followup.failed",
+                    payload={"error_code": error_code, "error_message": error})
+                settled_payload = conversation_run_settled_payload(
+                    run_user_message, final_assistant_message, status="done")
+            else:
+                _, settled_payload = await self._settlement.settle_failed(
+                    request, run_user_message, run_started_at=run_started_at,
+                    content=error, error_code=error_code,
+                    attempt_count=upstream_attempt_index if last_model_request is not None else 0,
+                    usage=usage, usage_payload=usage_payload, context_tokens=context_tokens,
                     context_tokens_estimated=context_tokens_estimated,
                 )
-                if last_model_request is not None and failed_message is not None:
-                    schedule_model_exchange(
-                        last_model_request,
-                        failed_message,
-                        round_index=model_round_serial,
-                        round_usage=usage,
-                    )
             if settled_payload is not None:
                 yield settled_payload
-            raise
+            yield {"kind": "error", "error": error, "error_code": error_code}
+            if run_user_message is not None and not isinstance(exc, (AppError, httpx.RequestError, httpx.HTTPStatusError)):
+                raise
         else:
             if (
                 not "".join(answer_parts).strip()
@@ -1154,6 +1045,23 @@ class ProjectConversationStreamService:
                 and not assistant_content_parts
             ):
                 await asyncio.to_thread(self._persistence.save_runtime_status, request, "idle")
+        finally:
+            if (last_model_request is not None and model_round_serial not in audited_rounds
+                    and request.project_id and request.session_id
+                    and not await self._discard_removed_conversation(request)):
+                outcome = await asyncio.to_thread(self._persistence.run_outcome, request)
+                self._audit_service.create_session_task(
+                    request.project_id, request.session_id,
+                    lambda: asyncio.to_thread(
+                        self._persistence.record_model_exchange,
+                        last_model_request, final_assistant_message,
+                        round_index=model_round_serial, usage=usage,
+                        status=outcome.status if outcome else "error",
+                        error_code=outcome.error_code if outcome else None,
+                        error_message=outcome.error_message if outcome else None,
+                    ),
+                    name="conversation-model-exchange-audit",
+                )
 
     async def _discard_removed_conversation(self, request: ChatCompletionRequest) -> bool:
         if not request.project_id or not request.session_id:
@@ -1245,12 +1153,18 @@ class ProjectConversationStreamService:
         subscription = await self._run_manager.start(request, self)
         error: str | None = None
         error_code: str | None = None
-        async for payload in self._run_manager.stream(subscription):
-            if payload.get("kind") == "error":
-                value = payload.get("error")
-                error = value if isinstance(value, str) else "功能会话执行失败。"
-                code = payload.get("error_code")
-                error_code = code if isinstance(code, str) else None
+        try:
+            async for payload in self._run_manager.stream(subscription):
+                if payload.get("kind") == "error":
+                    value = payload.get("error")
+                    error = value if isinstance(value, str) else "功能会话执行失败。"
+                    code = payload.get("error_code")
+                    error_code = code if isinstance(code, str) else None
+        except asyncio.CancelledError:
+            # Cancelling a functional task owns cancellation of its child run;
+            # an ordinary browser disconnect still only unsubscribes.
+            await finish_commit(self._run_manager.stop(request.project_id, request.session_id))
+            raise
         if error:
             raise FunctionalConversationRunError(error, code=error_code)
 

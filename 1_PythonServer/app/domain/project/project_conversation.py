@@ -24,6 +24,7 @@ ProjectConversationToolApprovalMode = Literal[
 
 @dataclass(frozen=True, slots=True)
 class ProjectConversationSessionSettings:
+    automatic_naming_enabled: bool = True
     global_memory_enabled: bool = True
     global_memory_extraction_enabled: bool = True
     memory_compression_enabled: bool = True
@@ -55,6 +56,7 @@ def functional_session_recursion_guard_settings(
 ) -> ProjectConversationSessionSettings:
     return replace(
         settings,
+        automatic_naming_enabled=False,
         global_memory_extraction_enabled=False,
         memory_compression_enabled=False,
         project_memory_extraction_enabled=False,
@@ -85,6 +87,10 @@ def conversation_session_configuration_hash(
     session: ProjectConversationSession,
 ) -> str:
     settings = asdict(session.settings)
+    # The enabled default preserves the pre-option configuration fingerprint.
+    # Explicitly disabling naming still participates in role/custom detection.
+    if settings["automatic_naming_enabled"]:
+        settings.pop("automatic_naming_enabled")
     enabled_tool_names = settings.get("enabled_tool_names")
     if isinstance(enabled_tool_names, tuple):
         settings["enabled_tool_names"] = sorted(enabled_tool_names)

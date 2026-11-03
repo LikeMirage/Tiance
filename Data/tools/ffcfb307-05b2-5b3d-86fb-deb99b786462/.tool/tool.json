@@ -1,0 +1,32 @@
+{
+  "description": "自动命名功能会话提交来源会话的标题。",
+  "registration_name": "提交会话标题",
+  "execution": {
+    "parallel": true
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "permissions": ".tool/permissions.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "loading": {
+    "dynamic": false
+  },
+  "name": "submit_conversation_title",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 30,
+    "type": "python",
+    "host_capabilities": [
+      "conversation_naming"
+    ]
+  },
+  "state": {
+    "enabled": true
+  }
+}

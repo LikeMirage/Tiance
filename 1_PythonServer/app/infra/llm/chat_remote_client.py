@@ -133,32 +133,35 @@ class ChatRemoteClient:
         on_exchange: ChatExchangeCallback | None = None,
     ) -> dict[str, object]:
         started_at = datetime.now(UTC).isoformat()
-        async with lease_http_client(get_shared_http_client()) as client:
-            response = None
-            failure: BaseException | None = None
-            try:
+        response = None
+        failure: BaseException | None = None
+        transport_started = False
+        try:
+            async with lease_http_client(get_shared_http_client()) as client:
+                transport_started = True
                 response = await client.post(url, headers=headers, json=body)
                 response.raise_for_status()
                 if not response.content:
                     return {}
                 payload = response.json()
                 return payload if isinstance(payload, dict) else {}
-            except BaseException as exc:
-                failure = exc
-                raise
-            finally:
-                await _notify_exchange(
-                    request=request,
-                    on_exchange=on_exchange,
-                    started_at=started_at,
-                    url=url,
-                    headers=headers,
-                    body=body,
-                    response_status=getattr(response, "status_code", None),
-                    response_headers=dict(getattr(response, "headers", {}) or {}),
-                    response_body=response.content if response is not None else b"",
-                    failure=failure,
-                )
+        except BaseException as exc:
+            failure = exc
+            raise
+        finally:
+            await _notify_exchange(
+                request=request,
+                on_exchange=on_exchange,
+                started_at=started_at,
+                url=url,
+                headers=headers,
+                body=body,
+                response_status=getattr(response, "status_code", None),
+                response_headers=dict(getattr(response, "headers", {}) or {}),
+                response_body=response.content if response is not None else b"",
+                failure=failure,
+                transport_started=transport_started,
+            )
 
     async def _stream_body(
         self,
@@ -170,11 +173,13 @@ class ChatRemoteClient:
         on_exchange: ChatExchangeCallback | None = None,
     ) -> AsyncGenerator[bytes, None]:
         started_at = datetime.now(UTC).isoformat()
-        async with lease_http_client(get_shared_http_client()) as client:
-            response = None
-            failure: BaseException | None = None
-            capture = ResponseCapture() if on_exchange is not None and request is not None else None
-            try:
+        response = None
+        failure: BaseException | None = None
+        transport_started = False
+        capture = ResponseCapture() if on_exchange is not None and request is not None else None
+        try:
+            async with lease_http_client(get_shared_http_client()) as client:
+                transport_started = True
                 async with client.stream(
                     "POST",
                     url,
@@ -191,22 +196,23 @@ class ChatRemoteClient:
                         if capture is not None:
                             capture.write(chunk)
                         yield chunk
-            except BaseException as exc:
-                failure = exc
-                raise
-            finally:
-                if capture is not None:
-                    capture.seal()
-                    try:
-                        await _notify_exchange(
-                            request=request, on_exchange=on_exchange, started_at=started_at,
-                            url=url, headers=headers, body=body,
-                            response_status=getattr(response, "status_code", None),
-                            response_headers=dict(getattr(response, "headers", {}) or {}),
-                            response_body=capture, failure=failure,
-                        )
-                    finally:
-                        capture.release()
+        except BaseException as exc:
+            failure = exc
+            raise
+        finally:
+            if capture is not None:
+                capture.seal()
+                try:
+                    await _notify_exchange(
+                        request=request, on_exchange=on_exchange, started_at=started_at,
+                        url=url, headers=headers, body=body,
+                        response_status=getattr(response, "status_code", None),
+                        response_headers=dict(getattr(response, "headers", {}) or {}),
+                        response_body=capture, failure=failure,
+                        transport_started=transport_started,
+                    )
+                finally:
+                    capture.release()
 
 
 async def _notify_exchange(
@@ -221,6 +227,7 @@ async def _notify_exchange(
     response_headers: dict[str, str],
     response_body: bytes | ResponseBody,
     failure: BaseException | None,
+    transport_started: bool = True,
 ) -> None:
     if on_exchange is None or request is None:
         return
@@ -237,6 +244,7 @@ async def _notify_exchange(
                 response_status=response_status,
                 response_headers=_redact_headers(response_headers),
                 response_body=response_body,
+                transport_started=transport_started,
                 error_type=type(failure).__name__ if failure is not None else None,
                 error_message=(
                     _safe_error_message(failure, url=url, safe_url=safe_url, headers=headers)

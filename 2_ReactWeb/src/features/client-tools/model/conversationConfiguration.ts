@@ -21,6 +21,7 @@ export type ConversationConfiguration = {
 };
 
 const CONFIGURABLE_SETTING_KEYS = [
+  "automatic_naming_enabled",
   "global_memory_enabled",
   "global_memory_extraction_enabled",
   "memory_compression_enabled",

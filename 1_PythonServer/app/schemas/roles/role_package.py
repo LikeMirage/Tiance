@@ -33,6 +33,7 @@ class RolePromptConfiguration(RoleConfigurationContract):
 
 
 class RoleResponseConfiguration(RoleConfigurationContract):
+    automatic_naming_enabled: bool = True
     output_limit_action: OutputLimitAction = "retry"
     output_limit_save_partial: bool = False
     output_limit_message: str = DEFAULT_OUTPUT_LIMIT_MESSAGE

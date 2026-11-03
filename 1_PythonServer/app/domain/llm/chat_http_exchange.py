@@ -19,6 +19,7 @@ class ChatHttpExchange:
     response_body: bytes | ResponseBody
     error_type: str | None = None
     error_message: str | None = None
+    transport_started: bool = True
 
 
 class ChatHttpExchangeRecorder(Protocol):
@@ -64,6 +65,7 @@ def exchange_payload(exchange: ChatHttpExchange, response_body: dict[str, Any]) 
         "schema_version": 1,
         "started_at": exchange.started_at,
         "completed_at": exchange.completed_at,
+        "transport_started": exchange.transport_started,
         "request": {
             "url": exchange.request_url,
             "headers": exchange.request_headers,

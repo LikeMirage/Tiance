@@ -9,7 +9,6 @@ import { deleteProjectConversation } from "../../../services/project/deleteProje
 import { getProjectConversations } from "../../../services/project/getProjectConversations";
 import { getProjectConversationUsageSummary } from "../../../services/project/getProjectConversationUsageSummary";
 import { updateProjectConversation } from "../../../services/project/updateProjectConversation";
-import { applyAutomaticConversationTitle } from "../../../services/project/applyAutomaticConversationTitle";
 import type {
   ClientToolExecutionResult,
   ClientToolRegistration,
@@ -87,26 +86,6 @@ async function executeConversationManagementClientTool(
     const projectId = readOptionalString(request.project_id);
     if (!projectId) throw new Error("工具请求没有指定项目。");
     failureContext = { project_id: projectId };
-
-    if (action === "name_parent_session") {
-      const functionSessionId = readOptionalString(request.session_id);
-      if (!functionSessionId) {
-        throw new Error("父会话命名请求缺少调用会话。");
-      }
-      failureContext = sessionFailureContext(projectId, functionSessionId);
-      const result = await applyAutomaticConversationTitle(
-        projectId,
-        functionSessionId,
-        { title: readRequiredString(args, "title") },
-      );
-      notifySessionsChanged(projectId, result.source_session_id, "structure");
-      return clientToolSuccess({
-        action,
-        project_id: projectId,
-        function_session_id: functionSessionId,
-        ...result,
-      });
-    }
 
     const response = await getProjectConversations(projectId);
 

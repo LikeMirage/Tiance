@@ -379,6 +379,16 @@ class ProjectConversationService:
             user_message_id,
         )
 
+    def accept_submission(
+        self, project_id: str, session_id: str, *, run_id: str,
+        user_fields: dict, existing_user: ProjectConversationMessage | None, submission: dict,
+    ) -> ProjectConversationMessage:
+        message = self._repository.accept_submission(
+            project_id, session_id, run_id=run_id, user_fields=user_fields,
+            existing_user=existing_user, submission=submission,
+        )
+        return message
+
     def begin_run(
         self,
         project_id: str,

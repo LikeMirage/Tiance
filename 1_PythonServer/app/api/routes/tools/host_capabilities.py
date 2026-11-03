@@ -31,6 +31,24 @@ class RunStatusRequest(BaseModel):
     action: Literal['status', 'watch'] = 'status'
 
 
+class ConversationNamingRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    title: str = Field(min_length=1)
+
+
+@router.post('/conversation-naming')
+def submit_conversation_title(payload: ConversationNamingRequest, authorization: Annotated[str | None, Header()] = None):
+    grant = _authorize(authorization, HostCapability.CONVERSATION_NAMING)
+    if not grant.project_id or not grant.session_id:
+        raise BadRequestError('提交标题必须由自动命名功能会话发起。')
+    # Identity comes exclusively from the scoped grant. The repository verifies
+    # the functional branch, its parent and whether a manual title superseded it.
+    from app.services.project.conversation_naming import get_project_conversation_naming_service
+    return get_project_conversation_naming_service().name_parent_session(
+        grant.project_id, grant.session_id, title=payload.title,
+    )
+
+
 def _authorize(authorization: str | None, capability: HostCapability):
     scheme, _, token = (authorization or '').partition(' ')
     access = get_host_capability_access_service()

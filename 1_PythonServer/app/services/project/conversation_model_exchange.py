@@ -13,10 +13,13 @@ from app.services.project.conversation_injection_preview import (
 
 def build_model_exchange_record(
     request: ChatCompletionRequest,
-    assistant_message: ProjectConversationMessage,
+    assistant_message: ProjectConversationMessage | None,
     *,
     round_index: int,
     usage: ChatUsage | None,
+    status: str | None = None,
+    error_code: str | None = None,
+    error_message: str | None = None,
 ) -> dict[str, Any]:
     """Build a key-free record of one logical model request and response round."""
 
@@ -28,6 +31,10 @@ def build_model_exchange_record(
         "schema_version": 1,
         "recorded_at": datetime.now(UTC).isoformat(),
         "round_index": round_index,
+        "run_id": request.run_id,
+        "user_message_id": request.user_message_id,
+        "status": status or (assistant_message.status if assistant_message else "error"),
+        "error": {"code": error_code, "message": error_message} if error_code or error_message else None,
         "request": request_preview["request"],
         "request_snapshot": request_preview["request_snapshot"],
         "response": {
@@ -44,5 +51,5 @@ def build_model_exchange_record(
                 else None
             ),
             "usage": asdict(usage) if usage is not None else assistant_message.usage,
-        },
+        } if assistant_message is not None else None,
     }

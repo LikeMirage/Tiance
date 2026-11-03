@@ -1,5 +1,5 @@
 {
-  "description": "查询、创建和管理当前项目的 AI 会话及模型配置，支持后台自动命名；发送任务使用 interact_ai_conversation。",
+  "description": "查询、创建和管理当前项目的 AI 会话及模型配置；发送任务使用 interact_ai_conversation。",
   "execution": {
     "parallel": true
   },

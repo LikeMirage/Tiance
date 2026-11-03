@@ -99,6 +99,13 @@ export function ChatComposer({
         aria-label="调整输入区高度"
         onPointerDown={layout.onResizeStart}
       />
+      <ChatComposerReferences
+        references={input.references}
+        onRemoveFile={input.onRemoveFileReference}
+        onRemoveImage={input.onRemoveImageReference}
+        onRemoveText={input.onRemoveTextReference}
+        onOpenReference={input.onOpenReference}
+      />
       <div className="ai-panel__composer-toolbar">
         <ChatComposerAddMenu
           key={input.projectId}
@@ -123,13 +130,6 @@ export function ChatComposer({
           <CaretDown size={18} weight="bold" aria-hidden="true" />
         </button>
       </div>
-      <ChatComposerReferences
-        references={input.references}
-        onRemoveFile={input.onRemoveFileReference}
-        onRemoveImage={input.onRemoveImageReference}
-        onRemoveText={input.onRemoveTextReference}
-        onOpenReference={input.onOpenReference}
-      />
       <div className="ai-panel__composer-box">
         <ChatComposerTextArea input={input} />
         <div className="ai-panel__composer-actions">

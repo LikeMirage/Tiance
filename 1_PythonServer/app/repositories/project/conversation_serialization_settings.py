@@ -13,6 +13,7 @@ def _session_settings_from_payload(payload: object) -> ProjectConversationSessio
         return ProjectConversationSessionSettings()
     return ProjectConversationSessionSettings(
         **output_limit_settings_from_payload(payload),
+        automatic_naming_enabled=_optional_bool(payload.get("automatic_naming_enabled"), default_value=True),
         global_memory_enabled=_optional_bool(payload.get("global_memory_enabled"), default_value=True),
         global_memory_extraction_enabled=_optional_bool(
             payload.get("global_memory_extraction_enabled"),
@@ -88,6 +89,9 @@ def _merge_session_settings(
         return current
     return ProjectConversationSessionSettings(
         **output_limit_settings_from_payload(payload, current),
+        automatic_naming_enabled=_optional_bool(
+            payload.get("automatic_naming_enabled"), default_value=current.automatic_naming_enabled,
+        ),
         global_memory_enabled=_optional_bool(
             payload.get("global_memory_enabled"),
             default_value=current.global_memory_enabled,
@@ -204,6 +208,7 @@ def _merge_session_settings(
 
 def _session_settings_to_payload(settings: ProjectConversationSessionSettings) -> dict:
     payload = {
+        "automatic_naming_enabled": settings.automatic_naming_enabled,
         "global_memory_enabled": settings.global_memory_enabled,
         "global_memory_extraction_enabled": settings.global_memory_extraction_enabled,
         "memory_compression_enabled": settings.memory_compression_enabled,

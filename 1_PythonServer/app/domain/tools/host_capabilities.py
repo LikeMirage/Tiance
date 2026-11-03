@@ -20,6 +20,7 @@ class HostCapability(StrEnum):
     MEMORY_MANAGEMENT = "memory_management"
     TOOL_CATALOG = "tool_catalog"
     RUN_STATUS = "run_status"
+    CONVERSATION_NAMING = "conversation_naming"
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +30,7 @@ class HostCapabilityDefinition:
 
 
 HOST_CAPABILITIES = {
+    HostCapability.CONVERSATION_NAMING: HostCapabilityDefinition("/tools/capabilities/conversation-naming", "自动命名功能会话向自己的来源会话提交标题"),
     HostCapability.WEB_SEARCH: HostCapabilityDefinition("/llm/provider-capabilities/web-search", "使用当前供应商和模型执行内置搜索"),
     HostCapability.DEEPSEEK_WEB: HostCapabilityDefinition("/llm/provider-capabilities/deepseek-web", "复用模型集 DeepSeek 凭据执行 Search/Fetch"),
     HostCapability.GITHUB_SYNC: HostCapabilityDefinition("/github/sync/tool", "使用宿主 GitHub 登录同步仓库"),

@@ -12,9 +12,9 @@ const noop = () => {};
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
 let streams, history, lists, renderer, result, controllers, leases, options, messages, status;
 let nextId = 0;
-const mockStream = (_request, _handlers, { signal }) => {
+const mockStream = (_request, handlers, { signal }) => {
   const stream = deferred();
-  streams.push({ ...stream, signal });
+  streams.push({ ...stream, signal, handlers });
   signal.addEventListener("abort", () => stream.reject(new DOMException("aborted", "AbortError")), { once: true });
   return stream.promise;
 };
@@ -26,7 +26,9 @@ const mocks = {
   "../../../services/llm/streamChatCompletion": { streamChatCompletion: mockStream },
   "../../../services/llm/resumeChatCompletionStream": { resumeChatCompletionStream: (p, s, cb, signal) => mockStream({}, {}, { signal }) },
   "../../../services/llm/conversationStreamErrors": { isConversationStreamResyncRequired: () => false },
-  "../../../services/http/httpClient": { HttpRequestError: class extends Error {} },
+  "../../../services/http/httpClient": { HttpRequestError: class extends Error {
+    constructor(message, status, code) { super(message); this.status = status; this.code = code; }
+  } },
   "../../../services/http/httpErrors": { isAbortError: e => e.name === "AbortError" },
   "../../../shared/model/createUuid": { createUuid: () => String(++nextId) },
   "./sessionKey": { buildSessionKey: (p, s) => `${p}:${s}` },
@@ -34,7 +36,7 @@ const mocks = {
   "./conversationReferences": { hasConversationReferences: () => false },
   "./conversationDraftReferences": { emptyConversationDraftReferences: () => ({}), toConversationDraftReferences: x => x },
   "./chatStreamAccumulator": { createChatStreamAccumulator: ({ assistantId }) => ({
-    clearFlushTimer: noop, finalizeCancelled: noop, finalizeCompleted: noop, flushNow: noop,
+    clearFlushTimer: noop, finalizeCancelled: noop, finalizeCompleted: noop, flushNow: noop, handleEvent: noop,
     hadError: () => false, getAssistantId: () => assistantId,
   }) },
   "../../conversation-runtime/model/chatStreamEventSideEffects": { processChatStreamEventSideEffects: async () => true },
@@ -80,7 +82,7 @@ async function setup(detached = false) {
     reloadSessions: () => { const task = deferred(); lists.push(task); return task.promise; },
     reloadSessionUsageSummary: () => new Promise(() => {}),
     isSessionMessagesPresented: () => true, isThinkingStuckToBottom: () => false,
-    setDraft: noop, saveSessionState: noop, preserveCurrentView: noop, showChatView: noop,
+    setDraft: noop, saveSessionState: noop, restoreUnsentInput: noop, preserveCurrentView: noop, showChatView: noop,
     publishCurrentDraftSnapshot: noop, scrollThinkingContentToBottom: noop,
     streamEventSequenceState: {}, isNotFoundRequestError: () => false,
   };
@@ -126,4 +128,67 @@ test("resumed stream uses the same stop controller and does not wait for usage s
   await act(async () => controllers.abortSessionStream("p:s"));
   assert.equal(streams[0].signal.aborted, true);
   assert.equal(leases.has("p:s"), false);
+});
+
+test("pre-acceptance stream error restores input and survives authoritative history replacement", async () => {
+  await setup();
+  const recovered = [];
+  options.restoreUnsentInput = (...args) => recovered.push(args);
+  options.reloadSessionMessages = async () => { messages = []; return true; };
+  options.reloadSessionUsageSummary = async () => {};
+  options.reloadSessions = async () => {};
+  await act(async () => renderer.update(React.createElement(Harness, { detached: false })));
+  let sending;
+  await act(async () => { sending = result.send(); });
+  await act(async () => {
+    await streams[0].handlers.onEvent({ kind: "error", error: "会话生成任务异常终止。", error_code: "conversation_run_failed" });
+    streams[0].resolve();
+    await sending;
+  });
+  assert.deepEqual(recovered, [["p", "s", "hello", {}]]);
+  assert.equal(messages.length, 0, "no false sent user message remains");
+  assert.equal(result.sendError, "会话生成任务异常终止。");
+  assert.equal(leases.has("p:s"), false);
+  assert.equal(status, "error");
+});
+
+test("a rejected request restores its original session after navigation", async () => {
+  await setup();
+  const recovered = [];
+  options.restoreUnsentInput = (...args) => recovered.push(args);
+  options.reloadSessionMessages = async () => true;
+  options.reloadSessionUsageSummary = async () => {};
+  options.reloadSessions = async () => {};
+  await act(async () => renderer.update(React.createElement(Harness, { detached: false })));
+  let sending;
+  await act(async () => { sending = result.send(); });
+  options.activeProjectIdRef.current = "other-project";
+  options.activeSessionIdRef.current = "other-session";
+  await act(async () => {
+    streams[0].reject(new Error("connection failed"));
+    await sending;
+  });
+  assert.equal(recovered.length, 1);
+  assert.deepEqual(recovered[0].slice(0, 3), ["p", "s", "hello"]);
+  assert.equal(result.sendError, "connection failed");
+});
+
+test("an accepted failed run is not put back into the composer as an unsent draft", async () => {
+  await setup();
+  let recovered = false;
+  options.restoreUnsentInput = () => { recovered = true; };
+  options.reloadSessionMessages = async () => true;
+  options.reloadSessionUsageSummary = async () => {};
+  options.reloadSessions = async () => {};
+  await act(async () => renderer.update(React.createElement(Harness, { detached: false })));
+  let sending;
+  await act(async () => { sending = result.send(); });
+  await act(async () => {
+    await streams[0].handlers.onEvent({ kind: "conversation_run_started", user_message_id: "u", run_id: "run" });
+    await streams[0].handlers.onEvent({ kind: "error", error: "upstream failed" });
+    streams[0].resolve();
+    await sending;
+  });
+  assert.equal(recovered, false);
+  assert.equal(result.sendError, null);
 });

@@ -50,7 +50,7 @@ def test_naming_waits_until_context_reaches_token_threshold():
     service = _service(repository=repository)
 
     result = asyncio.run(
-        service.name_session_if_needed(
+        service._prepare_task_if_needed(
             "project-1",
             "session-1",
             run_snapshot=_snapshot(context_tokens=19_999),
@@ -67,7 +67,7 @@ def test_naming_creates_functional_session_at_default_20k_threshold():
     snapshot = _snapshot(context_tokens=20_000)
 
     result = asyncio.run(
-        service.name_session_if_needed(
+        service._prepare_task_if_needed(
             "project-1",
             "session-1",
             run_snapshot=snapshot,
@@ -82,8 +82,8 @@ def test_naming_creates_functional_session_at_default_20k_threshold():
     assert call["mode"] == "session"
     assert call["trigger"]["trigger_token_threshold"] == 20_000
     assert call["trigger"]["context_token_source"] == "provider_reported"
-    assert "只能调用一次 manage_ai_conversations" in call["task_prompt"]
-    assert "action 必须使用 name_parent_session" in call["task_prompt"]
+    assert "只能调用一次 submit_conversation_title" in call["task_prompt"]
+    assert "name_parent_session" not in call["task_prompt"]
     assert "session-1" not in call["task_prompt"]
 
 
@@ -99,7 +99,7 @@ def test_naming_uses_configured_prompt_without_dynamic_session_identity():
     )
 
     asyncio.run(
-        service.name_session_if_needed(
+        service._prepare_task_if_needed(
             "project-1",
             "session-1",
             run_snapshot=_snapshot(context_tokens=20_000),
@@ -120,7 +120,7 @@ def test_naming_uses_local_context_estimate_when_provider_usage_is_missing():
     )
 
     asyncio.run(
-        service.name_session_if_needed(
+        service._prepare_task_if_needed(
             "project-1",
             "session-1",
             run_snapshot=_snapshot(context_tokens=None),
@@ -261,7 +261,7 @@ def test_dedicated_naming_uses_configured_model_and_task_system_prompt():
     )
 
     asyncio.run(
-        service.name_session_if_needed(
+        service._prepare_task_if_needed(
             "project-1",
             "session-1",
             run_snapshot=_snapshot(context_tokens=20_000),
@@ -283,7 +283,7 @@ def test_naming_skips_manual_or_already_named_sessions():
     ):
         service = _service(repository=repository, session=session)
         result = asyncio.run(
-            service.name_session_if_needed(
+            service._prepare_task_if_needed(
                 "project-1",
                 "session-1",
                 run_snapshot=_snapshot(context_tokens=20_000),

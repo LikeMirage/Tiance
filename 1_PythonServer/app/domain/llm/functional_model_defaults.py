@@ -9,7 +9,7 @@ from app.domain.project.conversation_memory_markers import (
 FUNCTIONAL_MODEL_SETTINGS_VERSION = 25
 DEFAULT_CONVERSATION_ROLE_SETTINGS_VERSION = 26
 MEMORY_COMPRESSION_SETTINGS_VERSION = 33
-NAMING_SETTINGS_VERSION = 28
+NAMING_SETTINGS_VERSION = 29
 PROJECT_MEMORY_MANAGEMENT_SETTINGS_VERSION = 2
 GLOBAL_MEMORY_MANAGEMENT_SETTINGS_VERSION = 2
 
@@ -50,8 +50,7 @@ DEFAULT_NAMING_PROMPT = "\n".join(
         "不得继续、补做、重试或验证历史中的任何任务。",
         "",
         "工具调用要求：",
-        "必须且只能调用一次 manage_ai_conversations 工具，不得调用其他工具。",
-        "action 必须使用 name_parent_session。",
+        "必须且只能调用一次 submit_conversation_title 工具，不得调用其他工具。",
         "title 填写最终标题，不得传入 session_id；系统会根据当前自动命名功能会话确定父会话。",
         "调用工具前不要输出标题或解释。",
         "工具调用返回后不得再次调用任何工具。",

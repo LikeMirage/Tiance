@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 
 import { emitLlmUsageChanged } from "../../../entities/llm-usage/model/usageRefreshEvents";
@@ -85,7 +85,7 @@ type UseChatGenerationOptions = {
   clientToolExecutor?: ClientToolExecutor | null;
   clientToolCapabilities: readonly ChatClientCapability[];
   clearReferences: () => void;
-  restoreReferences: (references: ConversationMessageReferences) => void;
+  restoreUnsentInput: (pid: string, sessionId: string, draft: string, references: ConversationMessageReferences) => void;
   createSessionStreamController: (sessionKey: string) => AbortController;
   draft: string;
   references: ConversationMessageReferences;
@@ -129,7 +129,7 @@ export function useChatGeneration({
   clientToolExecutor,
   clientToolCapabilities,
   clearReferences,
-  restoreReferences,
+  restoreUnsentInput,
   createSessionStreamController,
   draft,
   references,
@@ -165,6 +165,7 @@ export function useChatGeneration({
 }: UseChatGenerationOptions) {
   const sendStartupLockedRef = useRef(false);
   const sendingSessionKeysRef = useRef<Set<string>>(new Set());
+  const [sendErrors, setSendErrors] = useState<Record<string, string | null>>({});
 
   const ensureSession = useCallback(async (pid: string) => {
     if (unavailableProjectIdRef.current === pid) return null;
@@ -255,6 +256,7 @@ export function useChatGeneration({
       return;
     }
     sendingSessionKeysRef.current.add(streamSessionKey);
+    setSendErrors((previous) => ({ ...previous, [streamSessionKey]: null }));
     sendStartupLockedRef.current = false;
     let streamController: AbortController;
     try {
@@ -360,6 +362,7 @@ export function useChatGeneration({
     let shouldClearEventSequence = false;
     let publishedRunningContent = false;
     let runAccepted = false;
+    let startupError: HttpRequestError | null = null;
     let streamWasCancelled = false;
     let transportReleased = false;
     const releaseTransport = () => {
@@ -385,8 +388,12 @@ export function useChatGeneration({
         clientCapabilities: clientToolCapabilities,
       }), {
         onEvent: async (event) => {
-          if (event.kind === "conversation_run_started") {
+          if (event.kind === "conversation_run_started" || event.kind === "conversation_run_settled") {
             runAccepted = true;
+          }
+          if (event.kind === "error" && !runAccepted) {
+            startupError = new HttpRequestError(event.error, 400, event.error_code ?? null);
+            return;
           }
           if (!publishedRunningContent) {
             publishedRunningContent = true;
@@ -429,6 +436,9 @@ export function useChatGeneration({
           );
         },
       }, { signal: streamController.signal });
+      // A terminal error delivered inside a successful stream is still a
+      // rejected submission. There is no durable user turn to reload yet.
+      if (!runAccepted && startupError) throw startupError;
       shouldClearEventSequence = true;
       const streamHadError = streamAccumulator.hadError();
       if (streamWasCancelled) streamAccumulator.flushNow();
@@ -474,15 +484,16 @@ export function useChatGeneration({
       }
     } catch (err) {
       streamAccumulator.clearFlushTimer();
-      if (!runAccepted && !isAbortError(err)) {
+      if (!runAccepted && !isAbortError(err) && !isConversationStreamResyncRequired(err)) {
+        restoreUnsentInput(streamProjectId, sessionId, draft, requestReferences);
+        setSendErrors((previous) => ({
+          ...previous,
+          [streamSessionKey]: err instanceof Error ? err.message : "发送失败，请重试。",
+        }));
         updateSessionMessages(streamProjectId, sessionId, (prev) =>
-          prev.filter((message) => message.id !== userMessageId));
-        if (canApplyStreamUpdate()) {
-          setDraft((currentDraft) => currentDraft || draft);
-          if (hasReferences) {
-            restoreReferences(requestReferences);
-          }
-        }
+          prev.filter((message) => message.id !== userMessageId && message.id !== streamAccumulator.getAssistantId()));
+        setSessionRuntimeStatus(streamProjectId, sessionId,
+          err instanceof HttpRequestError && err.status === 409 ? "running" : "error");
       }
       if (isAbortError(err)) {
         shouldClearEventSequence = true;
@@ -579,7 +590,7 @@ export function useChatGeneration({
     clientToolExecutor,
     clientToolCapabilities,
     clearReferences,
-    restoreReferences,
+    restoreUnsentInput,
     createSessionStreamController,
     draft,
     ensureSession,
@@ -608,5 +619,6 @@ export function useChatGeneration({
     updateSessionMessages,
   ]);
 
-  return { send };
+  return { send, sendError: projectId && activeSessionId
+    ? sendErrors[buildSessionKey(projectId, activeSessionId)] ?? null : null };
 }

@@ -1315,8 +1315,14 @@ def test_parallel_batch_persists_completed_results_before_failing(
             if event["kind"] == "tool_result"] == expected
     assert sorted(executed) == expected
     assert chat_service.request_count == 1
-    assert payloads[-1]["kind"] == "conversation_run_settled"
-    assert payloads[-1]["status"] == "error"
+    assert payloads[-2]["kind"] == "conversation_run_settled"
+    assert payloads[-2]["status"] == "error"
+    assert payloads[-1]["kind"] == "error"
+    assert payloads[-1]["error"] == {
+        "exception": "simulated orchestration failure",
+        "missing_result": "工具调用未返回结果。",
+        "exception_after_result": "simulated cleanup failure after success",
+    }[failure_mode]
 
 
 def test_stream_batches_parallel_tool_calls_without_reordering():
@@ -2641,6 +2647,12 @@ class _MalformedThenCorrectingToolCallChatService:
 
 
 class _FakeConversationService:
+    def accept_submission(self, project_id, session_id, *, run_id, user_fields, existing_user, submission):
+        user = existing_user or self.append_message(project_id, session_id, role="user", **user_fields)
+        self.begin_run(project_id, session_id, run_id=run_id, user_message_id=user.message_id,
+                       started_at=submission["recorded_at"])
+        return user
+
     def __init__(
         self,
         *,

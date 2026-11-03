@@ -116,6 +116,7 @@ SDK 从环境读取 `TIANCE_API_BASE_URL` 和 `TIANCE_HOST_CAPABILITY_TOKEN`，�
 | `github_releases` | `/github/platform/releases` | GitHub Release、附件查询及管理 |
 | `github_actions` | `/github/platform/actions` | GitHub Actions 工作流、运行及产物操作 |
 | `memory_management` | `/memory/management/tool` | 调用方项目记忆与全局记忆管理 |
+| `conversation_naming` | `/tools/capabilities/conversation-naming` | 自动命名功能会话向其来源会话提交标题；目标取自授权与分支关系 |
 | `tool_catalog` | `/tools/capabilities/catalog` | 读取本次调用范围内工具的参数和案例 |
 | `run_status` | `/tools/capabilities/run-status` | 只读查询所属生成任务，也可申请短期观察租约 |
 
@@ -150,6 +151,8 @@ call_host_capability("github_repositories", {"action": "list_repositories"}, tim
 五类 GitHub 平台能力使用 `{action, dryRun, parameters}` 合同，参数定义见 `app/schemas/github_platform.py`，各类动作及校验见 `app/services/application/github_platform.py` 的 `_ALLOWED`、`_MUTATIONS` 和校验函数。修改操作支持的预检并不代替真实权限与业务校验。五种能力各有固定资源域，仓库能力不能通过改 action 或工具名变成 Release 能力。认证使用宿主登录；工具自行配置的备用 GitHub Token 仍沿现有 SDK 受控请求头传递，不是模型参数。
 
 **记忆与工具资料：**
+
+自动命名的提交示例：`call_host_capability("conversation_naming", {"title": "订单汇总与核对"}, timeout_seconds=30)`。请求只接收 title，不能传入项目或会话 ID；当前调用必须属于有效的自动命名功能会话，后端核对任务、父节点和手动命名状态。普通会话即使声明此能力也不能冒充命名任务。标准工具是 `submit_conversation_title`，不再通过前端会话管理动作提交。工具的普通启用、参数权限和执行时限仍然生效。
 
 ```python
 call_host_capability("memory_management", {"operation": "list", "scope": "project"}, timeout_seconds=20)

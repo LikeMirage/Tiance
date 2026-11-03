@@ -55,7 +55,6 @@ import { resolveSessionSettings } from "../model/sessionSettings";
 import { buildSessionKey } from "../model/sessionKey";
 import type { CodeBlockSavePayload } from "../../markdown-preview/model/codeBlockFile";
 import type { ClientToolRegistration } from "../../client-tools/model/clientToolBridge";
-import { useAutomaticNamingConversationRuns } from "../../client-tools/model/useAutomaticNamingConversationRuns";
 import type { ConversationExportRequest } from "../../conversation-export/model/conversationExport";
 import { ConversationExportDialog } from "../../conversation-export/ui/ConversationExportDialog";
 import {
@@ -163,19 +162,6 @@ export function ChatPanelController({
     sessionKey: string;
   } | null>(null);
   const showChatView = useCallback(() => setActiveView("chat"), []);
-  const restoreRejectedReferences = useCallback((rejectedReferences: ConversationMessageReferences) => {
-    if (!onDraftReferencesChange) return;
-    const currentReferences = latestReferencesRef.current;
-    const currentIds = new Set(currentReferences.map((item) => `${item.type}:${item.reference.id}`));
-    const restoredReferences = [
-      ...rejectedReferences.filter(
-        (item) => !currentIds.has(`${item.type}:${item.reference.id}`),
-      ),
-      ...currentReferences,
-    ];
-    latestReferencesRef.current = restoredReferences;
-    onDraftReferencesChange(restoredReferences);
-  }, [onDraftReferencesChange]);
   const queueMessageNavigation = useCallback((sessionId: string, messageId: string) => {
     if (!projectId) return;
     variantNavigationRequestIdRef.current += 1;
@@ -261,6 +247,7 @@ export function ChatPanelController({
     retryLoadSessions,
     saveConversationState,
     saveSessionState,
+    restoreUnsentInput,
     settledDraft,
     sessionStates,
     sessionLoadError,
@@ -292,20 +279,6 @@ export function ChatPanelController({
     clientToolRegistrations,
     reloadSessionsForSelection,
     setSessionRuntimeStatus,
-  });
-  useAutomaticNamingConversationRuns({
-    backgroundRuns: backgroundConversationRuns,
-    branchNodes,
-    clientToolExecutor: combinedClientToolExecutor,
-    clientToolCapabilities,
-    markSessionStreaming,
-    projectId,
-    reloadSessions,
-    saveSessionState,
-    sessionStates,
-    sessions,
-    setSessionRuntimeStatus,
-    unmarkSessionStreaming,
   });
   const activeSession = sessions.find((session) => session.session_id === activeSessionId && session.settings) ?? null;
   const displaySequenceBySession = useMemo(
@@ -683,7 +656,17 @@ export function ChatPanelController({
     usageAreaRef,
   });
 
-  const { send } = useChatGeneration({
+  const restoreRejectedInput = useCallback((pid: string, sessionId: string, text: string, refs: ConversationMessageReferences) => {
+    const isCurrent = activeProjectIdRef.current === pid && activeSessionIdRef.current === sessionId;
+    const recoveredRefs = restoreUnsentInput(pid, sessionId, text, refs,
+      isCurrent ? latestReferencesRef.current : undefined);
+    if (isCurrent) {
+      latestReferencesRef.current = recoveredRefs;
+      onDraftReferencesChange?.(recoveredRefs);
+    }
+  }, [activeProjectIdRef, activeSessionIdRef, onDraftReferencesChange, restoreUnsentInput]);
+
+  const { send, sendError } = useChatGeneration({
     activeModel,
     activeProjectIdRef,
     activeSessionId,
@@ -692,7 +675,7 @@ export function ChatPanelController({
     clientToolExecutor: combinedClientToolExecutor,
     clientToolCapabilities,
     clearReferences: onClearReferences ?? (() => undefined),
-    restoreReferences: restoreRejectedReferences,
+    restoreUnsentInput: restoreRejectedInput,
     createSessionStreamController,
     draft,
     references,
@@ -841,6 +824,7 @@ export function ChatPanelController({
       <ChatPanelErrorNotice message={sessionSelectionError} scopeKey={activeSessionKey ?? projectId} />
       <ChatPanelErrorNotice message={branchError} scopeKey={activeSessionKey ?? projectId} />
       <ChatPanelErrorNotice message={stopError?.sessionKey === activeSessionKey ? stopError.message : null} scopeKey={activeSessionKey ?? projectId} />
+      <ChatPanelErrorNotice message={sendError} scopeKey={activeSessionKey ?? projectId} autoDismiss={false} />
       <ChatPanelErrorNotice message={localFileActionError} scopeKey={activeSessionKey ?? projectId} />
 
       {activeView === "settings" && (

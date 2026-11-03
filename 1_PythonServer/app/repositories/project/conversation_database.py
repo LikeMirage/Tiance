@@ -775,19 +775,20 @@ def replace_message_payloads(session_dir: Path, payloads: list[dict[str, Any]]) 
         )
 
 
-def append_event(session_dir: Path, kind: str, payload: dict[str, Any]) -> None:
+def append_event(session_dir: Path, kind: str, payload: dict[str, Any], *, prepared_snapshot=None) -> None:
     session_id = session_id_from_session_dir(session_dir)
     # Encoding and compression do not require a write transaction. Prepare
     # first, then atomically insert blocks, manifest and its owning event.
     with (
-        (prepare_audit_snapshot(payload) if kind == "model_exchanges" else nullcontext()) as prepared,
+        (nullcontext(prepared_snapshot) if prepared_snapshot is not None else
+         prepare_audit_snapshot(payload) if kind in {"model_exchanges", "request_submissions"} else nullcontext()) as prepared,
         connection_for_path(database_path_from_session(session_dir)) as connection,
     ):
         if not connection.in_transaction:
             connection.execute("BEGIN IMMEDIATE")
         stored_payload = (
             store_prepared_audit_snapshot(connection, session_id, kind, prepared)
-            if kind == "model_exchanges" else payload
+            if kind in {"model_exchanges", "request_submissions"} else payload
         )
         ordinal = connection.execute(
             """
@@ -880,7 +881,7 @@ def replace_events(session_dir: Path, kind: str, payloads: list[dict[str, Any]])
             "DELETE FROM conversation_session_events WHERE session_id = ? AND kind = ?",
             (session_id_from_session_dir(session_dir), kind),
         )
-        if kind == "model_exchanges":
+        if kind in {"model_exchanges", "request_submissions"}:
             connection.execute(
                 "DELETE FROM conversation_audit_snapshots WHERE session_id = ? AND stream = ?",
                 (session_id, kind),
@@ -1145,13 +1146,24 @@ def settle_conversation_run(
                 status,
                 None if has_attempt_failure else error_code,
                 None if has_attempt_failure else error_message,
-                max(1, int(attempt_count)),
+                max(0, int(attempt_count)),
                 settled_at,
                 run_id,
                 session_id,
             ),
         )
         if cursor.rowcount > 0:
+            user_message_id = connection.execute(
+                "SELECT user_message_id FROM conversation_runs WHERE run_id = ? AND session_id = ?",
+                (run_id, session_id),
+            ).fetchone()[0]
+            append_journal_event(
+                workspace_dir, session_id=session_id, run_id=run_id,
+                turn_id=user_message_id, tool_call_id=None, event_type=f"conversation.run.{status}",
+                occurred_at=settled_at,
+                payload={"status": status, "error_code": error_code,
+                         "error_message": error_message, "attempt_count": attempt_count},
+            )
             _touch_message_revision(connection, session_id)
         return cursor.rowcount > 0
 
@@ -1563,7 +1575,7 @@ def _restore_session_event(
     kind: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    if kind == "model_exchanges":
+    if kind in {"model_exchanges", "request_submissions"}:
         return restore_audit_snapshot(connection, session_id_from_session_dir(session_dir), kind, payload)
     return payload
 
