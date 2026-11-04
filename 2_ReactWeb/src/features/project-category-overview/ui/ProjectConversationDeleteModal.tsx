@@ -82,7 +82,7 @@ export function ProjectConversationDeleteModal({
         ? t("projectOverview.deleteSessionDeleting")
         : t("common.actions.delete")}
       danger
-      dialogClassName="project-conversation-delete-modal"
+      dialogClassName="project-conversation-delete-modal confirm-modal--square"
       message={t("projectOverview.deleteSessionMessage", { title })}
       onCancel={onCancel}
       onConfirm={() => onConfirm(Array.from(selectedSessionIds))}

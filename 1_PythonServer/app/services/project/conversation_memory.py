@@ -14,6 +14,7 @@ from typing import Any
 from uuid import uuid4
 
 from app.core.errors import AppError, ConflictError
+from app.domain.project.functional_task import failed_in_source_run
 from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatMessage,
@@ -77,9 +78,6 @@ from app.services.project.conversation_functional_settings import (
     bool_setting,
     int_setting,
     string_setting,
-)
-from app.services.project.conversation_functional_snapshot import (
-    context_token_measurement,
 )
 from app.services.project.conversation_run_snapshot import (
     ConversationRunSnapshot,
@@ -400,6 +398,9 @@ class ProjectConversationMemoryService:
             project_id,
             session_id,
         )
+        source_run_id = run_snapshot.model_request.run_id
+        if manual_request is None and any(failed_in_source_run(record, source_run_id) for record in records):
+            return
         active_record = latest_completed_compaction(records)
         if (
             active_record is not None
@@ -429,7 +430,8 @@ class ProjectConversationMemoryService:
             if manual_request is not None
             else build_conversation_compaction_plan
         )
-        plan = plan_builder(
+        plan = await asyncio.to_thread(
+            plan_builder,
             run_snapshot,
             records,
             target_token_count=target_tokens,
@@ -517,13 +519,9 @@ class ProjectConversationMemoryService:
                 manual_request,
             )
             return
-        trigger_context_tokens, trigger_source = _context_token_measurement(
-            run_snapshot,
-            token_estimation_settings,
-        )
         trigger = {
-            "context_token_count": trigger_context_tokens,
-            "context_token_source": trigger_source,
+            "source_run_id": source_run_id,
+            **plan.token_condition.trigger_metadata(),
             "trigger_type": (
                 "manual_tool"
                 if manual_request is not None
@@ -736,16 +734,6 @@ class ProjectConversationMemoryService:
             task is not None
             and task.get("status") in {"pending", "running"}
         )
-
-
-def _context_token_measurement(
-    run_snapshot: ConversationRunSnapshot,
-    token_estimation_settings: TokenEstimationSettings,
-) -> tuple[int, str]:
-    return context_token_measurement(
-        run_snapshot,
-        token_estimation_settings,
-    )
 
 
 def _function_task_token_measurements(

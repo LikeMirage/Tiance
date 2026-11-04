@@ -5,15 +5,15 @@ from typing import Any
 
 from app.domain.llm.chat import ChatMessage, ChatMessageContentPartType, ChatMessageRole
 from app.domain.llm.token_estimation_settings import TokenEstimationSettings
-from app.services.llm.usage.estimation import estimate_message_tokens
 from app.services.project.conversation_functional_snapshot import (
-    context_token_measurement,
     legal_conversation_snapshot_messages,
 )
 from app.services.project.conversation_message_groups import (
-    atomic_conversation_message_groups,
-    complete_group_message_ids,
     protocol_safe_message_ids,
+)
+from app.services.project.conversation_token_condition import (
+    HistoryTokenCondition,
+    evaluate_history_token_condition,
 )
 from app.services.project.conversation_request_provenance import conversation_message_id
 from app.services.project.conversation_run_snapshot import ConversationRunSnapshot
@@ -24,6 +24,7 @@ COMPACTION_SOURCE_TYPE = "conversation_context"
 
 @dataclass(frozen=True, slots=True)
 class ConversationCompactionPlan:
+    token_condition: HistoryTokenCondition
     active_record: dict[str, Any] | None
     source_messages: tuple[ChatMessage, ...]
     source_message_ids: tuple[str, ...]
@@ -86,58 +87,36 @@ def _build_conversation_compaction_plan(
         compaction_source_message_ids(active_record),
     )
     active_source_ids = set(ordered_active_source_ids)
-    visible_messages = tuple(
-        message
-        for message in request_messages
-        if (
-            (message_id := conversation_message_id(message)) is not None
-            and message_id not in active_source_ids
-        )
-    )
-    if not visible_messages:
-        return None
-
     target = max(1, target_token_count)
     reserve = max(0, protected_token_reserve)
-    if (
-        require_context_threshold
-        and _context_token_count(
-            run_snapshot,
-            token_estimation_settings,
-        ) < target + reserve
-    ):
+    evaluation = evaluate_history_token_condition(
+        request_messages,
+        threshold=target + reserve,
+        token_estimation_settings=token_estimation_settings,
+        excluded_message_ids=active_source_ids,
+    )
+    condition = evaluation.condition
+    if not evaluation.groups or (require_context_threshold and not condition.reached):
         return None
 
     protected_ids: set[str] = set()
     protected_tokens = 0
     if reserve > 0:
-        for group in reversed(
-            atomic_conversation_message_groups(visible_messages)
-        ):
-            group_ids = complete_group_message_ids(group)
-            if not group_ids:
-                continue
-            protected_ids.update(group_ids)
-            protected_tokens += sum(
-                estimate_message_tokens(message, token_estimation_settings)
-                for message in group
-            )
+        for group in reversed(evaluation.groups):
+            protected_ids.update(group.message_ids)
+            protected_tokens += group.token_count
             if protected_tokens >= reserve:
                 break
 
     selected_ids: list[str] = []
     selected_messages: list[ChatMessage] = []
     selected_tokens = 0
-    for group in atomic_conversation_message_groups(visible_messages):
-        group_ids = complete_group_message_ids(group)
-        if not group_ids or protected_ids.intersection(group_ids):
+    for group in evaluation.groups:
+        if protected_ids.intersection(group.message_ids):
             continue
-        selected_ids.extend(group_ids)
-        selected_messages.extend(group)
-        selected_tokens += sum(
-            estimate_message_tokens(message, token_estimation_settings)
-            for message in group
-        )
+        selected_ids.extend(group.message_ids)
+        selected_messages.extend(group.messages)
+        selected_tokens += group.token_count
         if selected_tokens >= target:
             break
     if not selected_ids:
@@ -166,6 +145,7 @@ def _build_conversation_compaction_plan(
         dict.fromkeys((*ordered_active_source_ids, *selected_ids))
     )
     return ConversationCompactionPlan(
+        token_condition=condition,
         active_record=active_record,
         source_messages=tuple(selected_messages),
         source_message_ids=source_message_ids,
@@ -175,16 +155,6 @@ def _build_conversation_compaction_plan(
         newly_covered_token_count=selected_tokens,
         protected_tail_token_count=protected_tokens,
     )
-
-
-def _context_token_count(
-    run_snapshot: ConversationRunSnapshot,
-    token_estimation_settings: TokenEstimationSettings,
-) -> int:
-    return context_token_measurement(
-        run_snapshot,
-        token_estimation_settings,
-    )[0]
 
 
 def latest_completed_compaction(

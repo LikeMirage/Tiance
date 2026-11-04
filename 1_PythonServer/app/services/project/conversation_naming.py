@@ -126,7 +126,8 @@ class ProjectConversationNamingService:
         token_estimation_settings = await asyncio.to_thread(
             self._token_estimation_settings_service.get_settings
         )
-        plan = build_conversation_naming_plan(
+        plan = await asyncio.to_thread(
+            build_conversation_naming_plan,
             run_snapshot,
             trigger_token_threshold=trigger_token_threshold,
             token_estimation_settings=token_estimation_settings,
@@ -160,8 +161,7 @@ class ProjectConversationNamingService:
             trigger={
                 "trigger_type": "automatic_threshold",
                 "trigger_token_threshold": trigger_token_threshold,
-                "context_token_count": plan.trigger_context_token_count,
-                "context_token_source": plan.trigger_context_token_source,
+                **plan.token_condition.trigger_metadata(),
                 "selected_context_token_count": (
                     plan.selected_context_token_count
                 ),

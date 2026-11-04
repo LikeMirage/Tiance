@@ -38,14 +38,15 @@ def _setup(tmp_path):
     return repository, session, source_dir
 
 
-def test_real_fork_reads_attachment_records_once_for_history_and_draft_refs(tmp_path, monkeypatch):
+@pytest.mark.parametrize("uri_only", [False, True])
+def test_real_fork_reads_attachment_records_once_for_history_and_draft_refs(tmp_path, monkeypatch, uri_only):
     repository, session, source_dir = _setup(tmp_path)
     payloads = [_add_attachment(source_dir, i) for i in range(31)]
     parts = tuple(ChatMessageContentPart(
         type=ChatMessageContentPartType.IMAGE_REF,
         image_ref=ChatImageRef(
             path=attachments.ATTACHMENT_URI_PREFIX + payload["attachment_id"],
-            attachment_id=payload["attachment_id"], mime_type="image/png",
+            attachment_id=None if uri_only else payload["attachment_id"], mime_type="image/png",
         ),
     ) for payload in payloads[:20])
     repository.append_message(
@@ -78,6 +79,22 @@ def test_real_fork_reads_attachment_records_once_for_history_and_draft_refs(tmp_
         ).read_bytes()
     assert not (target_dir / attachments.ATTACHMENTS_DIR / payloads[30]["stored_name"]).exists()
     assert read_events(source_dir, "attachments") == payloads
+
+
+@pytest.mark.parametrize("path,field,error", [
+    ("tiance-attachment://invalid", None, "地址无效"),
+    ("tiance-attachment://att_" + "1" * 32, "att_" + "2" * 32, "不一致"),
+])
+def test_invalid_or_conflicting_image_reference_cannot_be_silently_skipped(tmp_path, path, field, error):
+    from types import SimpleNamespace
+    from app.core.errors import AppError
+    message = SimpleNamespace(content_parts=(ChatMessageContentPart(
+        type=ChatMessageContentPartType.IMAGE_REF,
+        image_ref=ChatImageRef(path=path, attachment_id=field),
+    ),))
+    with pytest.raises(AppError, match=error):
+        attachments.copy_referenced_attachments(tmp_path / "source", tmp_path / "target", (message,))
+    assert not (tmp_path / "target").exists()
 
 
 def test_no_attachment_references_does_not_query_or_create_directory(tmp_path, monkeypatch):

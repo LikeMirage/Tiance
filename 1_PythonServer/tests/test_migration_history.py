@@ -89,7 +89,7 @@ def test_configuration_versions_upgrade_without_losing_custom_values(tmp_path):
                 "generation": {"maxOutputTokens": 12345, "temperature": 0.71}, "blockingEnabled": True}
     repository.save_settings(settings_id="memoryCompression", version=31, settings=settings)
     loaded = LlmFunctionalModelSettingsService(repository).get_profile_settings("memoryCompression")
-    assert loaded.version == 33
+    assert loaded.version == 34
     for key, value in settings.items():
         if key != "generation":
             assert loaded.settings[key] == value

@@ -281,7 +281,7 @@ def test_token_plan_compresses_fixed_target_and_keeps_token_reserve():
     assert plan.snapshot_boundary_message_id == "msg_7"
 
 
-def test_full_context_fixed_content_counts_toward_compaction_trigger():
+def test_provider_full_context_count_cannot_trigger_compaction_with_little_history():
     messages = tuple(
         tag_conversation_message(
             ChatMessage(
@@ -310,11 +310,10 @@ def test_full_context_fixed_content_counts_toward_compaction_trigger():
         token_estimation_settings=DEFAULT_TOKEN_ESTIMATION_SETTINGS,
     )
 
-    assert plan is not None
-    assert plan.newly_covered_token_count < 100
+    assert plan is None
     assert (
         build_conversation_compaction_plan(
-            replace(snapshot, context_tokens=109),
+            replace(snapshot, context_tokens=100_000),
             [],
             target_token_count=100,
             protected_token_reserve=10,

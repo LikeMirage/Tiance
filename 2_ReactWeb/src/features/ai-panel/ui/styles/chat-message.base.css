@@ -464,12 +464,6 @@
   overflow: hidden;
 }
 
-.chat-msg__thinking-content--preview:not([data-sliding]) {
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  scrollbar-width: thin;
-}
-
 .chat-msg__thinking-expand {
   display: flex;
   align-items: center;

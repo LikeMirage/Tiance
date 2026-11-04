@@ -250,7 +250,8 @@ class ProjectConversationLongTermMemoryService:
         token_estimation_settings = await asyncio.to_thread(
             self._token_estimation_settings_service.get_settings
         )
-        plan = build_long_term_memory_management_plan(
+        plan = await asyncio.to_thread(
+            build_long_term_memory_management_plan,
             messages,
             session.settings,
             previous_boundary_message_id=(
@@ -273,6 +274,8 @@ class ProjectConversationLongTermMemoryService:
         if target is None:
             return
         trigger = {
+            **plan.token_condition.trigger_metadata(),
+            "source_run_id": run_snapshot.model_request.run_id,
             "trigger_type": "incremental_token_threshold",
             "trigger_token_threshold": threshold,
             "newly_covered_token_count": plan.newly_covered_token_count,

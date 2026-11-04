@@ -142,7 +142,6 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     onConfirmProjectSession: handleConfirmToolSession,
     onExpandProject: handleExpandToolProject,
     onSelectProject: handleSelectToolProject,
-    persistWorkspaceSelection: false,
     projectId,
     selectedSessionId: activeSessionId,
   });

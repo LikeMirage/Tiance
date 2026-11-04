@@ -18,159 +18,105 @@ from app.services.workspace_state import (
 
 
 def test_workspace_last_opened_is_empty_by_default(tmp_path):
-    _project_service, workspace_service, _repository, _conversation_service = _create_services(tmp_path)
-
-    state = workspace_service.get_last_opened()
-
+    _, service, _, _ = _create_services(tmp_path)
+    state = service.get_last_opened()
     assert state.project_id is None
     assert state.category_id is None
-    assert state.session_id is None
     assert state.updated_at is None
+    assert not hasattr(state, "session_id")
 
 
-def test_workspace_last_opened_persists_project_and_session(tmp_path):
-    project_service, workspace_service, repository, conversation_service = _create_services(tmp_path)
-    project = project_service.create_project(name="项目 A")
-    session = conversation_service.create_session(
-        project.project_id,
-        title="会话 A",
-        provider_id=None,
-        model_id=None,
-        reasoning_mode=None,
-    )
+def test_workspace_last_opened_persists_only_project_selection(tmp_path):
+    from app.schemas.workspace import WorkspaceLastOpenedResponse
 
-    saved = workspace_service.save_last_opened(
-        project_id=project.project_id,
-        session_id=session.session_id,
-    )
-    loaded = workspace_service.get_last_opened()
-
+    projects, service, repository, conversations = _create_services(tmp_path)
+    project = projects.create_project(name="项目 A")
+    session = conversations.create_session(project.project_id, title="会话 A",
+        provider_id=None, model_id=None, reasoning_mode=None)
+    saved = service.save_last_opened(project_id=project.project_id)
     assert saved.project_id == project.project_id
     assert saved.category_id == project.category_id
-    assert saved.session_id == session.session_id
     assert saved.updated_at is not None
-    assert loaded == saved
-
-    raw = repository.get_metadata_value(WORKSPACE_LAST_OPENED_KEY)
-    assert raw is not None
-    payload = loads(raw)
+    assert service.get_last_opened() == saved
+    payload = loads(repository.get_metadata_value(WORKSPACE_LAST_OPENED_KEY))
     assert payload["project_id"] == project.project_id
-    assert payload["session_id"] == session.session_id
     assert payload["active_category_id"] == project.category_id
     assert payload["category_selections"][project.category_id]["project_id"] == project.project_id
-    assert payload["category_selections"][project.category_id]["session_id"] == session.session_id
+    assert "session_id" not in dumps(payload)
+    assert "session_id" not in WorkspaceLastOpenedResponse.from_domain(saved).model_dump_json()
+    # Opening another project never changes this project's own session selection.
+    other = projects.create_project(name="项目 B")
+    service.save_last_opened(project_id=other.project_id)
+    assert conversations.get_state(project.project_id)[0] == session.session_id
 
 
 def test_workspace_last_opened_keeps_selection_per_category(tmp_path):
-    project_service, workspace_service, _repository, conversation_service = _create_services(tmp_path)
-    category_a = project_service.create_project_category(name="分类 A")
-    category_b = project_service.create_project_category(name="分类 B")
-    project_a = project_service.create_project(name="项目 A", category_id=category_a.category_id)
-    project_b = project_service.create_project(name="项目 B", category_id=category_b.category_id)
-    session_a = conversation_service.create_session(
-        project_a.project_id,
-        title="会话 A",
-        provider_id=None,
-        model_id=None,
-        reasoning_mode=None,
-    )
-    session_b = conversation_service.create_session(
-        project_b.project_id,
-        title="会话 B",
-        provider_id=None,
-        model_id=None,
-        reasoning_mode=None,
-    )
-
-    workspace_service.save_last_opened(
-        project_id=project_a.project_id,
-        session_id=session_a.session_id,
-    )
-    workspace_service.save_last_opened(
-        project_id=project_b.project_id,
-        session_id=session_b.session_id,
-    )
-
-    active_b = workspace_service.get_last_opened()
-    assert active_b.category_id == category_b.category_id
-    assert active_b.project_id == project_b.project_id
-    assert active_b.session_id == session_b.session_id
-    assert {
-        selection.category_id: selection.session_id
-        for selection in active_b.category_selections
-    } == {
-        category_a.category_id: session_a.session_id,
-        category_b.category_id: session_b.session_id,
+    projects, service, _, _ = _create_services(tmp_path)
+    a = projects.create_project_category(name="分类 A")
+    b = projects.create_project_category(name="分类 B")
+    pa = projects.create_project(name="项目 A", category_id=a.category_id)
+    pb = projects.create_project(name="项目 B", category_id=b.category_id)
+    service.save_last_opened(project_id=pa.project_id)
+    service.save_last_opened(project_id=pb.project_id)
+    active = service.get_last_opened()
+    assert active.project_id == pb.project_id
+    assert {item.category_id: item.project_id for item in active.category_selections} == {
+        a.category_id: pa.project_id, b.category_id: pb.project_id,
     }
-
-    active_a = workspace_service.save_last_opened(
-        category_id=category_a.category_id,
-        session_id=None,
-    )
-
-    assert active_a.category_id == category_a.category_id
-    assert active_a.project_id == project_a.project_id
-    assert active_a.session_id == session_a.session_id
+    assert service.save_last_opened(category_id=a.category_id).project_id == pa.project_id
 
 
-def test_workspace_last_opened_retains_session_hint_for_actual_project_loading(tmp_path):
-    project_service, workspace_service, repository, _conversation_service = _create_services(tmp_path)
-    project = project_service.create_project(name="项目 A")
-    repository.set_metadata_value(
-        key=WORKSPACE_LAST_OPENED_KEY,
-        value=dumps({
-            "active_category_id": project.category_id,
-            "category_selections": {project.category_id: {
-                "project_id": project.project_id,
-                "session_id": "missing-session",
-                "updated_at": "2026-06-20T00:00:00+00:00",
-            }},
-        }),
-        updated_at="2026-06-20T00:00:00+00:00",
-    )
-
-    state = workspace_service.get_last_opened()
-
+def test_workspace_last_opened_ignores_old_global_session_hint(tmp_path):
+    projects, service, repository, _ = _create_services(tmp_path)
+    project = projects.create_project(name="项目 A")
+    repository.set_metadata_value(key=WORKSPACE_LAST_OPENED_KEY, value=dumps({
+        "active_category_id": project.category_id, "session_id": "stale",
+        "category_selections": {project.category_id: {
+            "project_id": project.project_id, "session_id": "missing-session",
+            "updated_at": "2026-06-20T00:00:00+00:00",
+        }},
+    }), updated_at="old")
+    state = service.get_last_opened()
     assert state.project_id == project.project_id
-    assert state.category_id == project.category_id
-    # Session existence belongs to loading that project's actual session list,
-    # not reading navigation preferences for every remembered category.
-    assert state.session_id == "missing-session"
     assert state.updated_at == "2026-06-20T00:00:00+00:00"
+    assert not hasattr(state, "session_id")
+    service.save_last_opened(project_id=project.project_id)
+    assert "session_id" not in repository.get_metadata_value(WORKSPACE_LAST_OPENED_KEY)
 
 
-def test_workspace_last_opened_rejects_missing_session_on_save(tmp_path):
-    project_service, workspace_service, _repository, _conversation_service = _create_services(tmp_path)
-    project = project_service.create_project(name="项目 A")
-
+def test_workspace_last_opened_validates_project_membership(tmp_path):
+    projects, service, _, _ = _create_services(tmp_path)
+    project = projects.create_project(name="项目 A")
+    other = projects.create_project_category(name="其他分类")
     with pytest.raises(NotFoundError):
-        workspace_service.save_last_opened(
-            project_id=project.project_id,
-            session_id="missing-session",
-        )
+        service.save_last_opened(project_id="00000000-0000-0000-0000-000000000000")
+    with pytest.raises(BadRequestError):
+        service.save_last_opened(category_id=other.category_id, project_id=project.project_id)
 
 
 def test_restore_preferences_never_opens_remembered_project_databases(tmp_path, monkeypatch):
-    project_service, service, repository, conversations = _create_services(tmp_path)
-    first = project_service.create_project(name="当前项目")
-    other_category = project_service.create_project_category(name="另一个分类")
-    other = project_service.create_project(name="旧库项目", category_id=other_category.category_id)
-    stored = dumps({"active_category_id": first.category_id, "category_selections": {
-        first.category_id: {"project_id": first.project_id, "session_id": "remembered"},
-        other.category_id: {"project_id": other.project_id, "session_id": "old-session"},
-    }})
-    repository.set_metadata_value(key=WORKSPACE_LAST_OPENED_KEY, value=stored, updated_at="now")
+    from app.repositories.project import conversation_database
 
-    def must_not_read(*_args):
-        raise AssertionError("Reading a preference must not read or migrate any project database")
+    projects, service, repository, _ = _create_services(tmp_path)
+    first = projects.create_project(name="当前项目")
+    category = projects.create_project_category(name="另一个分类")
+    other = projects.create_project(name="旧库项目", category_id=category.category_id)
+    repository.set_metadata_value(key=WORKSPACE_LAST_OPENED_KEY, value=dumps({
+        "active_category_id": first.category_id, "category_selections": {
+            first.category_id: {"project_id": first.project_id, "session_id": "remembered"},
+            other.category_id: {"project_id": other.project_id, "session_id": "old-session"},
+        },
+    }), updated_at="now")
 
-    monkeypatch.setattr(conversations, "get_session", must_not_read)
+    def must_not_read(*args, **kwargs):
+        raise AssertionError("Navigation must not read or migrate any project database")
+
+    monkeypatch.setattr(conversation_database, "_open_connection", must_not_read)
     restored = service.get_last_opened()
-    assert restored.session_id == "remembered"
-    assert {item.session_id for item in restored.category_selections} == {"remembered", "old-session"}
-    # Merely switching categories also must not inspect every remembered session.
-    changed = service.save_last_opened(category_id=other.category_id, session_id=None)
-    assert changed.session_id == "old-session"
+    assert restored.project_id == first.project_id
+    assert {item.project_id for item in restored.category_selections} == {first.project_id, other.project_id}
+    assert service.save_last_opened(category_id=other.category_id).project_id == other.project_id
+    assert service.save_last_opened(project_id=first.project_id).project_id == first.project_id
 
 
 def test_workspace_layout_preferences_persist_project_overview_mode_per_category(tmp_path):
@@ -467,5 +413,5 @@ def _create_services(tmp_path):
     conversation_service = ProjectConversationService(
         ProjectConversationRepository(repository),
     )
-    workspace_service = WorkspaceStateService(repository, conversation_service)
+    workspace_service = WorkspaceStateService(repository)
     return project_service, workspace_service, repository, conversation_service

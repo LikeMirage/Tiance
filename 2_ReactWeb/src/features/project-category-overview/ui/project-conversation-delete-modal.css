@@ -30,7 +30,7 @@
   padding: 8px 10px;
   overflow: auto;
   border: 1px solid var(--color-border-soft);
-  border-radius: 6px;
+  border-radius: 2px;
   background: var(--color-surface-input);
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   scrollbar-gutter: stable;

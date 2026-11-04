@@ -25,9 +25,7 @@ import { saveProjectOrder } from "../../../services/project/saveProjectOrder";
 import { watchProjectWorkspaceEvents } from "../../../services/project/watchProjectWorkspaceEvents";
 import {
   getWorkspaceLastOpened,
-  listenWorkspaceLastOpenedChanged,
   saveWorkspaceLastOpened,
-  type WorkspaceLastOpenedResponse,
 } from "../../../services/workspace/workspaceLastOpened";
 import {
   applyProjectOrder,
@@ -35,7 +33,6 @@ import {
   parseProjectImportConflict,
   persistProjectOrderSilently,
   resolveSelectedCategoryId,
-  resolveSelectedProjectId,
   type LoadState,
   type ProjectImportConflict,
 } from "./projectCatalogHelpers";
@@ -43,6 +40,7 @@ import {
   runProjectFolderImportBatch,
   type ProjectFolderImportBatchResult,
 } from "./projectFolderImportBatch";
+import { useProjectCatalogSelection, type ProjectCatalogSelection } from "./useProjectCatalogSelection";
 
 export type { ProjectImportConflict } from "./projectCatalogHelpers";
 
@@ -116,16 +114,21 @@ export type UseProjectCatalogResult = {
 export function useProjectCatalog(): UseProjectCatalogResult {
   const itemsRef = useRef<Project[]>([]);
   const categoriesRef = useRef<ProjectCategory[]>([]);
-  const selectedCategoryIdRef = useRef<string | null>(null);
-  const selectedProjectIdRef = useRef<string | null>(null);
-  const workspaceStateRef = useRef<WorkspaceLastOpenedResponse | null>(null);
+  const {
+    currentRef: selectionRef,
+    getCategorySelection,
+    restoreSavedSelections,
+    select: applySelection,
+    selection: {
+      categoryId: selectedCategoryId,
+      projectId: selectedProjectId,
+      sessionId: selectedSessionId,
+    },
+  } = useProjectCatalogSelection();
   const hasAppliedInitialWorkspaceStateRef = useRef(false);
   const hasLoadedCatalogRef = useRef(false);
   const [items, setItems] = useState<Project[]>([]);
   const [categories, setCategories] = useState<ProjectCategory[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
   const [state, setState] = useState<LoadState>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -144,6 +147,16 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     setPendingRenameProjectId(null);
   }, []);
 
+  const selectNavigation = useCallback((next: ProjectCatalogSelection, persist = true) => {
+    applySelection(next);
+    if (persist && next.categoryId) {
+      void saveWorkspaceLastOpened({
+        category_id: next.categoryId,
+        project_id: next.projectId,
+      }).catch(() => undefined);
+    }
+  }, [applySelection]);
+
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
@@ -151,18 +164,6 @@ export function useProjectCatalog(): UseProjectCatalogResult {
   useEffect(() => {
     categoriesRef.current = categories;
   }, [categories]);
-
-  useEffect(() => {
-    selectedCategoryIdRef.current = selectedCategoryId;
-  }, [selectedCategoryId]);
-
-  useEffect(() => {
-    selectedProjectIdRef.current = selectedProjectId;
-  }, [selectedProjectId]);
-
-  useEffect(() => listenWorkspaceLastOpenedChanged((workspaceState) => {
-    workspaceStateRef.current = workspaceState;
-  }), []);
 
   useEffect(
     () => listenProjectCatalogChanged(
@@ -204,9 +205,11 @@ export function useProjectCatalog(): UseProjectCatalogResult {
           : await getWorkspaceLastOpened().catch(() => null);
         if (cancelled) return;
 
-        workspaceStateRef.current = workspaceState;
+        // Only initial hydration reads saved navigation. Catalog refreshes
+        // validate the local choice; they do not reset category memories.
+        restoreSavedSelections(workspaceState);
         const requestedCategoryId =
-          workspaceState?.category_id ?? selectedCategoryIdRef.current;
+          selectionRef.current.categoryId ?? workspaceState?.category_id ?? null;
         const requestedCategory = loadedCategories.find(
           (category) => category.category_id === requestedCategoryId,
         );
@@ -218,26 +221,19 @@ export function useProjectCatalog(): UseProjectCatalogResult {
           matchingCategories,
           requestedCategoryId,
         );
-        const restoredSelection = resolveWorkspaceStateSelection(
-          workspaceState,
-          ordered,
-          nextCategoryId,
-        );
         hasAppliedInitialWorkspaceStateRef.current = true;
-        selectedCategoryIdRef.current = nextCategoryId;
+        itemsRef.current = ordered;
+        categoriesRef.current = loadedCategories;
         setItems(ordered);
         setCategories(loadedCategories);
-        setSelectedCategoryId(nextCategoryId);
-        setSelectedProjectId((current) =>
-          resolveSelectedProjectId(
-            ordered,
-            nextCategoryId,
-            restoredSelection?.projectId ?? current,
-          ),
-        );
-        setSelectedSessionId((current) => restoredSelection ? restoredSelection.sessionId : current);
+        const next = getCategorySelection(ordered, nextCategoryId);
+        const current = selectionRef.current;
+        applySelection({
+          ...next,
+          sessionId: next.projectId && current.categoryId === next.categoryId && current.projectId === next.projectId
+            ? current.sessionId : null,
+        });
         setExpandedProjectId((current) => {
-          if (restoredSelection) return null;
           return current && ordered.some((item) =>
             item.project_id === current && item.category_id === nextCategoryId
           )
@@ -257,7 +253,7 @@ export function useProjectCatalog(): UseProjectCatalogResult {
 
     void load();
     return () => { cancelled = true; };
-  }, [requestKey]);
+  }, [applySelection, getCategorySelection, requestKey, restoreSavedSelections, selectionRef]);
 
   const expandedProject = useMemo(
     () => items.find((item) => item.project_id === expandedProjectId) ?? null,
@@ -281,7 +277,7 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     setIsCreatingProject(true);
     setError(null);
     try {
-      const activeCategoryId = selectedCategoryIdRef.current;
+      const activeCategoryId = selectionRef.current.categoryId;
       const createdProject = await createProjectRequest({
         category_id: activeCategoryId,
         project_kind: projectKind,
@@ -289,9 +285,9 @@ export function useProjectCatalog(): UseProjectCatalogResult {
       const nextItems = [...itemsRef.current, createdProject];
       itemsRef.current = nextItems;
       setItems(nextItems);
-      selectedProjectIdRef.current = createdProject.project_id;
-      setSelectedProjectId(createdProject.project_id);
-      setSelectedSessionId(null);
+      selectNavigation({
+        categoryId: createdProject.category_id, projectId: createdProject.project_id, sessionId: null,
+      });
       setExpandedProjectId(null);
       setPendingRenameProjectId(createdProject.project_id);
       persistProjectOrderSilently(nextItems);
@@ -301,7 +297,7 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     } finally {
       setIsCreatingProject(false);
     }
-  }, []);
+  }, [selectNavigation, selectionRef]);
   const createProject = useCallback(
     () => createManagedProject("project"),
     [createManagedProject],
@@ -328,16 +324,10 @@ export function useProjectCatalog(): UseProjectCatalogResult {
       );
       const nextCategories = [...categoriesRef.current, createdCategory];
       categoriesRef.current = nextCategories;
-      selectedCategoryIdRef.current = createdCategory.category_id;
       setCategories(nextCategories);
-      setSelectedCategoryId(createdCategory.category_id);
+      selectNavigation({ categoryId: createdCategory.category_id, projectId: null, sessionId: null }, categoryKind === "project");
       setExpandedProjectId(null);
       setPendingRenameCategoryId(createdCategory.category_id);
-      if (categoryKind === "project") {
-        void saveWorkspaceLastOpened({
-          category_id: createdCategory.category_id,
-        }).catch(() => undefined);
-      }
     } catch (createError) {
       setError(createError instanceof Error
         ? createError.message
@@ -350,7 +340,7 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     } finally {
       setIsCreatingProjectCategory(false);
     }
-  }, []);
+  }, [selectNavigation]);
   const importProjectFolders = useCallback(async (
     rootPaths: string[],
   ): Promise<ProjectFolderImportBatchResult> => {
@@ -358,7 +348,7 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     setError(null);
     setDuplicateImportConflict(null);
     try {
-      const activeCategoryId = selectedCategoryIdRef.current;
+      const activeCategoryId = selectionRef.current.categoryId;
       const result = await runProjectFolderImportBatch(
         rootPaths,
         (rootPath) => createProjectRequest({
@@ -373,9 +363,9 @@ export function useProjectCatalog(): UseProjectCatalogResult {
         const lastCreatedProject = result.createdProjects.at(-1)!;
         itemsRef.current = nextItems;
         setItems(nextItems);
-        selectedProjectIdRef.current = lastCreatedProject.project_id;
-        setSelectedProjectId(lastCreatedProject.project_id);
-        setSelectedSessionId(null);
+        selectNavigation({
+          categoryId: lastCreatedProject.category_id, projectId: lastCreatedProject.project_id, sessionId: null,
+        });
         setExpandedProjectId(lastCreatedProject.project_id);
         persistProjectOrderSilently(nextItems);
       }
@@ -389,7 +379,7 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     } finally {
       setIsCreatingProject(false);
     }
-  }, []);
+  }, [selectNavigation, selectionRef]);
   const createProjectCategory = useCallback(
     () => createCategory("project"),
     [createCategory],
@@ -419,16 +409,14 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     setError(null);
     try {
       const createdProject = await createRoleProjectRequest({
-        category_id: selectedCategoryIdRef.current,
+        category_id: selectionRef.current.categoryId,
       });
       const nextItems = [...itemsRef.current, createdProject];
       itemsRef.current = nextItems;
       setItems(nextItems);
-      selectedCategoryIdRef.current = createdProject.category_id;
-      selectedProjectIdRef.current = createdProject.project_id;
-      setSelectedCategoryId(createdProject.category_id);
-      setSelectedProjectId(createdProject.project_id);
-      setSelectedSessionId(null);
+      selectNavigation({
+        categoryId: createdProject.category_id, projectId: createdProject.project_id, sessionId: null,
+      });
       setExpandedProjectId(null);
       setPendingRenameProjectId(createdProject.project_id);
       persistProjectOrderSilently(nextItems);
@@ -438,7 +426,7 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     } finally {
       setIsCreatingProject(false);
     }
-  }, []);
+  }, [selectNavigation, selectionRef]);
   const createProjectsFromFolders = useCallback(async (
     rootPaths: string[],
   ): Promise<ProjectFolderImportSummary> => {
@@ -464,18 +452,14 @@ export function useProjectCatalog(): UseProjectCatalogResult {
       await deleteProjectCategoryRequest(categoryId);
       if (
         deletingCategory
-        && selectedCategoryIdRef.current === deletingCategory.category_id
+        && selectionRef.current.categoryId === deletingCategory.category_id
       ) {
         const fallbackCategory = categoriesRef.current.find(
           (category) =>
             category.category_kind === deletingCategory.category_kind
             && category.category_id !== deletingCategory.category_id,
         );
-        selectedCategoryIdRef.current = fallbackCategory?.category_id ?? null;
-        selectedProjectIdRef.current = null;
-        setSelectedCategoryId(fallbackCategory?.category_id ?? null);
-        setSelectedProjectId(null);
-        setSelectedSessionId(null);
+        selectNavigation(getCategorySelection(itemsRef.current, fallbackCategory?.category_id ?? null));
         setExpandedProjectId(null);
       }
       setRequestKey((current) => current + 1);
@@ -485,7 +469,7 @@ export function useProjectCatalog(): UseProjectCatalogResult {
       setRequestKey((current) => current + 1);
       throw deleteError;
     }
-  }, []);
+  }, [selectNavigation, getCategorySelection, selectionRef]);
   const deleteProject = useCallback(async (
     projectId: string,
     options: { deleteFiles?: boolean } = {},
@@ -500,15 +484,9 @@ export function useProjectCatalog(): UseProjectCatalogResult {
       const nextItems = itemsRef.current.filter((item) => item.project_id !== projectId);
       itemsRef.current = nextItems;
       setItems(nextItems);
-      const activeCategoryId = selectedCategoryIdRef.current;
-      setSelectedProjectId((current) =>
-        current === projectId
-          ? resolveSelectedProjectId(nextItems, activeCategoryId, null)
-          : current,
-      );
-      setSelectedSessionId((current) =>
-        selectedProjectIdRef.current === projectId ? null : current,
-      );
+      if (selectionRef.current.projectId === projectId) {
+        selectNavigation(getCategorySelection(nextItems, selectionRef.current.categoryId));
+      }
       setExpandedProjectId((current) => (current === projectId ? null : current));
       persistProjectOrderSilently(nextItems);
     } catch (deleteError) {
@@ -516,20 +494,18 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     } finally {
       setDeletingProjectId((current) => (current === projectId ? null : current));
     }
-  }, []);
+  }, [selectNavigation, getCategorySelection, selectionRef]);
   const dismissImportConflict = useCallback(() => setDuplicateImportConflict(null), []);
   const selectProject = useCallback((projectId: string, sessionId?: string | null) => {
     const project = itemsRef.current.find((item) => item.project_id === projectId);
-    if (project) {
-      // Kept-alive collections can still show this project while the catalog's
-      // active category belongs to another collection. Restore both together.
-      selectedCategoryIdRef.current = project.category_id;
-      setSelectedCategoryId(project.category_id);
-    }
-    selectedProjectIdRef.current = projectId;
-    setSelectedProjectId(projectId);
-    setSelectedSessionId(sessionId ?? null);
-  }, []);
+    // Kept-alive collections can still show this project while the catalog's
+    // active category belongs to another collection. Restore both together.
+    selectNavigation({
+      categoryId: project?.category_id ?? selectionRef.current.categoryId,
+      projectId,
+      sessionId: sessionId ?? null,
+    });
+  }, [selectNavigation, selectionRef]);
   const expandProject = useCallback((projectId: string, sessionId?: string | null) => {
     selectProject(projectId, sessionId);
     setExpandedProjectId(projectId);
@@ -552,14 +528,10 @@ export function useProjectCatalog(): UseProjectCatalogResult {
   const jumpToImportConflictProject = useCallback(() => {
     const conflict = duplicateImportConflict;
     if (!conflict) return;
-    selectedCategoryIdRef.current = conflict.categoryId;
-    selectedProjectIdRef.current = conflict.projectId;
-    setSelectedCategoryId(conflict.categoryId);
-    setSelectedProjectId(conflict.projectId);
-    setSelectedSessionId(null);
+    selectNavigation({ categoryId: conflict.categoryId, projectId: conflict.projectId, sessionId: null });
     setExpandedProjectId(conflict.projectId);
     setDuplicateImportConflict(null);
-  }, [duplicateImportConflict]);
+  }, [selectNavigation, duplicateImportConflict]);
   const moveProjectToCategory = useCallback(async (projectId: string, categoryId: string) => {
     setError(null);
     try {
@@ -569,23 +541,18 @@ export function useProjectCatalog(): UseProjectCatalogResult {
       );
       itemsRef.current = nextItems;
       setItems(nextItems);
-      const activeCategoryId = selectedCategoryIdRef.current;
+      const activeCategoryId = selectionRef.current.categoryId;
       if (updated.category_id !== activeCategoryId) {
-        setSelectedProjectId((current) =>
-          current === projectId
-            ? resolveSelectedProjectId(nextItems, activeCategoryId, null)
-            : current,
-        );
-        setSelectedSessionId((current) =>
-          selectedProjectIdRef.current === projectId ? null : current,
-        );
+        if (selectionRef.current.projectId === projectId) {
+          selectNavigation(getCategorySelection(nextItems, activeCategoryId));
+        }
         setExpandedProjectId((current) => (current === projectId ? null : current));
       }
     } catch (moveError) {
       setError(moveError instanceof Error ? moveError.message : "项目移动失败。");
       throw moveError;
     }
-  }, []);
+  }, [selectNavigation, getCategorySelection, selectionRef]);
   const pinProjectToCategoryTop = useCallback(async (projectId: string) => {
     const project = itemsRef.current.find((item) => item.project_id === projectId);
     if (!project) {
@@ -678,36 +645,15 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     categoryId: string,
     options: { persistWorkspaceSelection?: boolean } = {},
   ) => {
-    const restoredSelection = resolveWorkspaceStateSelection(
-      workspaceStateRef.current,
-      itemsRef.current,
-      categoryId,
-    );
-    const nextProjectId = resolveSelectedProjectId(
-      itemsRef.current,
-      categoryId,
-      restoredSelection?.projectId ?? null,
-    );
-    selectedCategoryIdRef.current = categoryId;
-    selectedProjectIdRef.current = nextProjectId;
+    selectNavigation(getCategorySelection(itemsRef.current, categoryId), options.persistWorkspaceSelection !== false);
     setError(null);
     setDuplicateImportConflict(null);
-    setSelectedCategoryId(categoryId);
     setExpandedProjectId(null);
-    setSelectedProjectId(nextProjectId);
-    setSelectedSessionId(
-      restoredSelection?.projectId === nextProjectId ? restoredSelection.sessionId : null,
-    );
-    if (options.persistWorkspaceSelection !== false) {
-      void saveWorkspaceLastOpened({
-        category_id: categoryId,
-      }).catch(() => undefined);
-    }
-  }, []);
+  }, [selectNavigation, getCategorySelection]);
   const confirmSessionSelection = useCallback((projectId: string, sessionId: string | null) => {
-    if (selectedProjectIdRef.current !== projectId) return;
-    setSelectedSessionId(sessionId);
-  }, []);
+    if (selectionRef.current.projectId !== projectId) return;
+    applySelection({ ...selectionRef.current, sessionId });
+  }, [applySelection, selectionRef]);
 
   return useMemo(() => ({
     categories,
@@ -814,29 +760,4 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     selectedSessionId,
     state,
   ]);
-}
-
-function resolveWorkspaceStateSelection(
-  workspaceState: WorkspaceLastOpenedResponse | null,
-  items: readonly Project[],
-  categoryId: string | null,
-) {
-  if (!workspaceState || !categoryId) return null;
-  const categorySelection = workspaceState.category_selections[categoryId];
-  const candidateProjectId = categorySelection?.project_id ??
-    (workspaceState.category_id === categoryId ? workspaceState.project_id : null);
-  const candidateSessionId = categorySelection?.session_id ??
-    (workspaceState.category_id === categoryId ? workspaceState.session_id : null);
-  if (
-    candidateProjectId &&
-    items.some((item) =>
-      item.project_id === candidateProjectId && item.category_id === categoryId
-    )
-  ) {
-    return {
-      projectId: candidateProjectId,
-      sessionId: candidateSessionId,
-    };
-  }
-  return null;
 }

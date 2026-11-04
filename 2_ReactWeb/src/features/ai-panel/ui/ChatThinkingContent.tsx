@@ -37,8 +37,8 @@ export function ChatThinkingContent({ content, foldKey, interactions, isExpanded
         isStreaming ? "chat-msg__thinking-content--streaming" : "",
       ].filter(Boolean).join(" ")}
       onScroll={() => interactions.onThinkingContentScroll(messageId)}
-      onWheel={(event) => interactions.onThinkingContentWheel(messageId, event)}
-      onTouchMove={() => interactions.onTouchMoveThinkingContent(messageId)}
+      onWheel={fullyExpanded ? (event) => interactions.onThinkingContentWheel(messageId, event) : undefined}
+      onTouchMove={fullyExpanded ? () => interactions.onTouchMoveThinkingContent(messageId) : undefined}
     >
       <LazyMarkdownPreview
         content={content}

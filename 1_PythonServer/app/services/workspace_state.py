@@ -1,7 +1,6 @@
 from datetime import UTC, datetime
 from functools import lru_cache
 from json import dumps, loads
-from re import fullmatch
 from typing import Any
 
 from app.core.errors import BadRequestError, NotFoundError
@@ -17,10 +16,6 @@ from app.domain.workspace_state import (
 )
 from app.domain.project.project import ProjectKind
 from app.repositories.project import ProjectRepository, get_project_repository
-from app.services.project.project_conversations import (
-    ProjectConversationService,
-    get_project_conversation_service,
-)
 from app.services.project.project_ids import normalize_project_id
 
 WORKSPACE_LAST_OPENED_KEY = "workspace.last_opened"
@@ -44,10 +39,8 @@ class WorkspaceStateService:
     def __init__(
         self,
         project_repository: ProjectRepository,
-        conversation_service: ProjectConversationService,
     ) -> None:
         self._project_repository = project_repository
-        self._conversation_service = conversation_service
 
     def get_last_opened(self) -> WorkspaceLastOpenedState:
         raw = self._project_repository.get_metadata_value(WORKSPACE_LAST_OPENED_KEY)
@@ -248,11 +241,9 @@ class WorkspaceStateService:
         *,
         category_id: str | None = None,
         project_id: str | None = None,
-        session_id: str | None,
     ) -> WorkspaceLastOpenedState:
         category = _request_category_id(category_id)
         project = None
-        normalized_session_id = _request_session_id(session_id)
         if project_id is not None and project_id.strip():
             normalized_project_id = normalize_project_id(project_id)
             project = self._project_repository.get_project(normalized_project_id)
@@ -261,8 +252,6 @@ class WorkspaceStateService:
             if category is not None and category != project.category_id:
                 raise BadRequestError("项目不属于指定分类。")
             category = project.category_id
-            if normalized_session_id and not self._session_exists(project.project_id, normalized_session_id):
-                raise NotFoundError(f"Conversation session '{normalized_session_id}' was not found.")
 
         if category is None:
             raise BadRequestError("必须提供项目分类或项目。")
@@ -279,7 +268,6 @@ class WorkspaceStateService:
             selections[category] = WorkspaceCategorySelection(
                 category_id=category,
                 project_id=project.project_id,
-                session_id=normalized_session_id,
                 updated_at=now,
             )
         else:
@@ -287,7 +275,6 @@ class WorkspaceStateService:
             selections[category] = WorkspaceCategorySelection(
                 category_id=category,
                 project_id=current_selection.project_id if current_selection else None,
-                session_id=current_selection.session_id if current_selection else None,
                 updated_at=now,
             )
 
@@ -298,12 +285,6 @@ class WorkspaceStateService:
             updated_at=now,
         )
         return self.get_last_opened()
-
-    def _session_exists(self, project_id: str, session_id: str) -> bool:
-        try:
-            return self._conversation_service.get_session(project_id, session_id) is not None
-        except NotFoundError:
-            return False
 
     def _state_from_payload(self, payload: dict[str, Any]) -> WorkspaceLastOpenedState:
         selections = self._category_selections_from_payload(payload)
@@ -316,14 +297,12 @@ class WorkspaceStateService:
             active_selection = WorkspaceCategorySelection(
                 category_id=active_category_id,
                 project_id=None,
-                session_id=None,
                 updated_at=_optional_text(payload.get("updated_at")),
             )
 
         return WorkspaceLastOpenedState(
             project_id=active_selection.project_id if active_selection else None,
             category_id=active_selection.category_id if active_selection else None,
-            session_id=active_selection.session_id if active_selection else None,
             updated_at=active_selection.updated_at if active_selection else None,
             category_selections=tuple(selections.values()),
         )
@@ -360,7 +339,6 @@ class WorkspaceStateService:
             return WorkspaceCategorySelection(
                 category_id=category_id,
                 project_id=None,
-                session_id=None,
                 updated_at=_optional_text(payload.get("updated_at")),
             )
 
@@ -368,16 +346,9 @@ class WorkspaceStateService:
         if project is None or project.category_id != category_id:
             return None
 
-        # This is a restoration hint, not a session read. Validating every saved
-        # category here opens unrelated project databases and can trigger their
-        # migrations during application startup. The selected project's session
-        # list resolves stale IDs when it is actually opened.
-        session_id = _stored_session_id(payload.get("session_id"))
-
         return WorkspaceCategorySelection(
             category_id=category_id,
             project_id=project.project_id,
-            session_id=session_id,
             updated_at=_optional_text(payload.get("updated_at")),
         )
 
@@ -386,7 +357,6 @@ def _empty_last_opened() -> WorkspaceLastOpenedState:
     return WorkspaceLastOpenedState(
         project_id=None,
         category_id=None,
-        session_id=None,
         updated_at=None,
     )
 
@@ -641,31 +611,11 @@ def _stored_category_id(value: Any) -> str | None:
     return normalized or None
 
 
-def _stored_session_id(value: Any) -> str | None:
-    if not isinstance(value, str):
-        return None
-    normalized = value.strip()
-    if not normalized or not fullmatch(r"[A-Za-z0-9_-]+", normalized):
-        return None
-    return normalized
-
-
 def _request_category_id(value: str | None) -> str | None:
     if value is None:
         return None
     normalized = value.strip()
     return normalized or None
-
-
-def _request_session_id(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = value.strip()
-    if not normalized:
-        return None
-    if not fullmatch(r"[A-Za-z0-9_-]+", normalized):
-        raise BadRequestError("Conversation session id is invalid.")
-    return normalized
 
 
 def _optional_text(value: Any) -> str | None:
@@ -687,12 +637,10 @@ def _state_payload(
     return {
         "active_category_id": active_category_id,
         "project_id": active_selection.project_id,
-        "session_id": active_selection.session_id,
         "updated_at": active_selection.updated_at,
         "category_selections": {
             category_id: {
                 "project_id": selection.project_id,
-                "session_id": selection.session_id,
                 "updated_at": selection.updated_at,
             }
             for category_id, selection in selections.items()
@@ -704,5 +652,4 @@ def _state_payload(
 def get_workspace_state_service() -> WorkspaceStateService:
     return WorkspaceStateService(
         get_project_repository(),
-        get_project_conversation_service(),
     )

@@ -12,7 +12,6 @@ CollectionOverviewView = Literal["specialized", "online", "projects", "conversat
 class WorkspaceCategorySelection:
     category_id: str
     project_id: str | None
-    session_id: str | None
     updated_at: str | None
 
 
@@ -20,7 +19,6 @@ class WorkspaceCategorySelection:
 class WorkspaceLastOpenedState:
     project_id: str | None
     category_id: str | None
-    session_id: str | None
     updated_at: str | None
     category_selections: tuple[WorkspaceCategorySelection, ...] = ()
 

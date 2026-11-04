@@ -4,6 +4,8 @@ from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
+from hashlib import sha256
+import json
 from uuid import uuid4
 
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
@@ -63,6 +65,7 @@ from app.repositories.project.conversation_database import (
     list_conversation_run_attempt_failures,
     list_conversation_run_outcomes,
     read_conversation_run,
+    read_received_parts_digest,
     read_task_excerpt,
     settle_conversation_run,
     transaction_for_conversations,
@@ -791,9 +794,30 @@ class ProjectConversationRepository:
                     run_id=run_id, turn_id=user.message_id, tool_call_id=None,
                     event_type="conversation.request.received", occurred_at=submission["recorded_at"],
                     payload={"provider_id": user.target_provider_id, "model_id": user.target_model_id,
-                             "submission_id": run_id, "stage": "received"},
+                             "submission_id": run_id, "stage": "received",
+                             "content_parts_digest": _content_parts_digest(user.content_parts)},
                 )
             return user
+
+    def received_content_parts_match(self, project_id: str, session_id: str, message_id: str,
+                                     content_parts: tuple[ChatMessageContentPart, ...]) -> bool:
+        session_dir = self._session_store.require_session_dir(project_id, session_id)
+        digest = read_received_parts_digest(session_dir, message_id)
+        return digest is not None and digest == _content_parts_digest(content_parts)
+
+    def save_prepared_content_parts(
+        self, project_id: str, session_id: str, message_id: str, *,
+        expected: tuple[ChatMessageContentPart, ...], prepared: tuple[ChatMessageContentPart, ...],
+    ) -> ProjectConversationMessage:
+        conversations_dir = self._session_store.conversations_dir(project_id, for_write=True)
+        with conversation_write_lock(conversations_dir), transaction_for_conversations(conversations_dir):
+            session_dir = self._session_store.require_session_dir(project_id, session_id, for_write=True)
+            current = self._message_store.get_message_turn(session_dir, message_id).items[0]
+            if current.content_parts != expected:
+                raise ConflictError("图片准备期间用户消息发生变化。")
+            updated = replace(current, content_parts=prepared, updated_at=_utc_now())
+            self._message_store.update_message(session_dir, updated)
+            return updated
 
     def begin_run(
         self,
@@ -1257,6 +1281,11 @@ class ProjectConversationRepository:
     ) -> None:
         session_dir = self._session_store.require_session_dir(project_id, session_id, for_write=True)
         write_document(session_dir, "injection_preview", payload)
+
+
+def _content_parts_digest(parts: tuple[ChatMessageContentPart, ...]) -> str:
+    payload = json.dumps([asdict(part) for part in parts], ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _message_creation_times() -> tuple[str, str]:

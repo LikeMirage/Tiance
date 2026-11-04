@@ -166,6 +166,22 @@ class ConversationStreamPersistence:
         self._conversation_service.record_user_message_sent(message)
         return message
 
+    def save_prepared_user_attachments(
+        self, request: ChatCompletionRequest, user: ProjectConversationMessage | None,
+    ) -> ProjectConversationMessage | None:
+        if user is None or not request.project_id or not request.session_id:
+            return user
+        message = next((m for m in reversed(request.messages) if m.role == ChatMessageRole.USER), None)
+        # Capability filtering may omit images from the model request. It must
+        # never remove the user's original attachment from stored history.
+        if (message is None or len(message.content_parts) != len(user.content_parts)
+                or message.content_parts == user.content_parts):
+            return user
+        return self._conversation_service.save_prepared_content_parts(
+            request.project_id, request.session_id, user.message_id,
+            expected=user.content_parts, prepared=message.content_parts,
+        )
+
     def record_submission_activity(self, message: ProjectConversationMessage | None) -> None:
         if message is not None:
             self._conversation_service.record_user_message_sent(message)
@@ -199,7 +215,10 @@ class ConversationStreamPersistence:
         requested_references = references_from_chat_message(requested_user)
         if not (
             existing_user.content == requested_user.content
-            and existing_user.content_parts == requested_user.content_parts
+            and (existing_user.content_parts == requested_user.content_parts
+                 or self._conversation_service.received_content_parts_match(
+                     request.project_id, request.session_id, existing_user.message_id, requested_user.content_parts,
+                 ))
             and normalize_conversation_references(existing_user.references) == requested_references
             and existing_user.target_provider_id == request.provider_id
             and existing_user.target_model_id == request.model_id

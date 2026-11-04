@@ -55,8 +55,14 @@ async function mountCatalog(t, initialCategory = "knowledge") {
     updated_at: null,
   };
   t.mock.method(globalThis, "fetch", async (input, init = {}) => {
-    assert.equal(init.method ?? "GET", "GET", "navigation must not write server data");
     const path = new URL(input).pathname;
+    if (init.method === "PUT") {
+      assert.equal(path, "/api/workspace/last-opened");
+      const payload = JSON.parse(init.body);
+      assert.deepEqual(Object.keys(payload).sort(), ["category_id", "project_id"]);
+      return Response.json({ ...saved, ...payload });
+    }
+    assert.equal(init.method ?? "GET", "GET");
     const responses = {
       "/api/projects": { items: projects },
       "/api/projects/categories": { items: categories },

@@ -517,6 +517,12 @@ class ProjectConversationStreamService:
             await asyncio.to_thread(self._persistence.record_submission_activity, run_user_message)
             await asyncio.to_thread(self._persistence.sync_session_metadata, request)
             request = await self._prepare_image_references(request)
+            async def save_prepared_attachments() -> None:
+                nonlocal run_user_message
+                run_user_message = await asyncio.to_thread(
+                    self._persistence.save_prepared_user_attachments, request, run_user_message,
+                )
+            await finish_commit(save_prepared_attachments())
             memory_session_snapshot = await asyncio.to_thread(
                 self._persistence.session_snapshot,
                 request,

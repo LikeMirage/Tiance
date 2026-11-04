@@ -147,10 +147,10 @@ export function useWorkspaceProjectCollections(catalog: UseProjectCatalogResult)
       : null;
     if (!projectId) return;
     if (remembered.expandedProjectId === projectId) {
-      catalog.expandProject(projectId, remembered.sessionId);
+      catalog.expandProject(projectId);
       return;
     }
-    catalog.selectProject(projectId, remembered.sessionId);
+    catalog.selectProject(projectId);
   }, [catalog.expandProject, catalog.selectCategory, catalog.selectProject, collections]);
 
   return { activate, collections };

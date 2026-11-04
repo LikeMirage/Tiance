@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from app.core.atomic_replace import atomic_replace_path
 from app.core.errors import ConflictError, NotFoundError
+from app.domain.project.functional_task import failed_in_source_run
 from app.domain.project.conversation_branch import (
     ProjectConversationBranchNode,
     build_derived_session_title,
@@ -193,6 +194,7 @@ class ProjectConversationLongTermMemoryRepository:
                 project_id,
                 source_session_id,
                 original_graph,
+                source_run_id=trigger.get("source_run_id"),
             ):
                 raise ConflictError(
                     f"当前会话已有{self.definition.label}任务正在处理。"
@@ -464,6 +466,8 @@ class ProjectConversationLongTermMemoryRepository:
         project_id: str,
         source_session_id: str,
         graph: dict,
+        *,
+        source_run_id: str | None = None,
     ) -> bool:
         conversations_dir = self._session_store.conversations_dir(project_id)
         for node in self._branch_store.list_nodes(graph):
@@ -479,6 +483,8 @@ class ProjectConversationLongTermMemoryRepository:
                 / LONG_TERM_MEMORY_TASK_FILE
             )
             task = _read_json_object(task_path)
+            if task is not None and failed_in_source_run(task, source_run_id):
+                raise ConflictError(f"本轮{self.definition.label}已失败，等待下一次会话请求再尝试。")
             if task is None or task.get("status") not in ACTIVE_TASK_STATUSES:
                 continue
             state = self._session_store.read_session_state(

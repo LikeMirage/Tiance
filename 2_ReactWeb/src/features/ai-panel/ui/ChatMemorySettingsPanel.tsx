@@ -36,7 +36,7 @@ export function ChatMemorySettingsPanel({
           }, settings))}
         />
         <SettingsIntegerInput
-          description={t("aiPanel.memorySettings.contextTokenThresholdDescription")}
+          description={t("aiPanel.memorySettings.historyTokenThresholdDescription")}
           disabled={!settings.memory_compression_enabled}
           label={t("aiPanel.memorySettings.contextTokenThreshold")}
           min={1}

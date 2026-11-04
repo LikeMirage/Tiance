@@ -548,7 +548,7 @@
         "rawContextTokenReserve": "原文保护区",
         "rawContextTokenReserveDescription": "保留末尾至少 N Token 的原始消息；只按完整消息切割，因此实际保护区可能略大。",
         "contextTokenThreshold": "单次压缩目标",
-        "contextTokenThresholdDescription": "完整上下文达到 N Token 加原文保护区时创建压缩会话。系统提示词、工具定义、工作区信息、长期记忆和会话消息全部计入；单批最多压缩 N Token 的历史。",
+        "historyTokenThresholdDescription": "未压缩的对话历史达到目标值与原文保护区之和时触发。不计前置提示、工具定义、长期记忆和累计摘要；使用当前 Token 估算设置，保留完整工具调用组。",
         "units": {
           "token": "Tokens",
           "turn": "轮"
@@ -1039,7 +1039,7 @@
       },
       "conversationNaming": {
         "triggerTokenThreshold": "触发 Token 阈值",
-        "triggerTokenDescription": "会话最近一次完整请求的上下文达到该值后创建自动命名功能会话。默认 20K；供应商未返回真实用量时使用当前 Token 估算设置。",
+        "historyTriggerTokenDescription": "有效对话历史达到该值后创建自动命名功能会话，不计前置提示、工具定义、长期记忆和累计摘要。默认 20K；使用当前 Token 估算设置。",
         "cacheHitOptimizationMode": "缓存命中优化模式",
         "cacheHitOptimizationDescription": "复用触发命名的真实请求模型、生成设置和会话前缀，再追加自动命名任务。",
         "cacheHitOptimizationSettingsNote": "模型、推理、温度、Top P 和最大输出长度均跟随触发命名的最近一次真实请求。",

@@ -28,10 +28,12 @@ from tests.test_declared_host_capabilities import bridge, issue, headers
 from app.domain.tools.host_capabilities import HostCapability
 
 
-def service_for(fixture):
+def service_for(fixture, *, threshold=20_000):
     _, conversations, naming, *_ = fixture
     return ProjectConversationNamingService(
-        conversations, _FakeFunctionalModelSettingsService(_default_settings()),
+        conversations, _FakeFunctionalModelSettingsService({
+            **_default_settings(), "triggerTokenThreshold": threshold,
+        }),
         naming, _FakeTokenEstimationSettingsService(),
     )
 
@@ -75,7 +77,7 @@ def test_new_threshold_task_is_created_and_run_in_one_backend_flow(naming_attemp
         assistant_response=tag_conversation_message(ChatMessage(role=ChatMessageRole.ASSISTANT, content='完成订单分析'), boundary.message_id),
         context_tokens=20000,
     )
-    service = service_for(naming_attempt)
+    service = service_for(naming_attempt, threshold=1)
     calls = []
     async def run(request):
         calls.append(request)
@@ -97,7 +99,7 @@ def test_cancelled_creation_does_not_become_recoverable_pending_work(naming_atte
         assistant_response=tag_conversation_message(ChatMessage(role=ChatMessageRole.ASSISTANT, content='分析完成'), boundary.message_id),
         context_tokens=20000,
     )
-    service = service_for(naming_attempt)
+    service = service_for(naming_attempt, threshold=1)
     entered, release = threading.Event(), threading.Event()
     original = naming.create_task
     created = []

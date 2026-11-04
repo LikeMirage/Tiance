@@ -755,6 +755,32 @@ def append_message_payload(session_dir: Path, message_id: str, payload: dict[str
         )
 
 
+def update_message_payload(session_dir: Path, message_id: str, payload: dict[str, Any]) -> None:
+    session_id = session_id_from_session_dir(session_dir)
+    with connection_for_path(database_path_from_session(session_dir)) as connection:
+        cursor = connection.execute(
+            "UPDATE conversation_messages SET payload_json = ? WHERE session_id = ? AND message_id = ?",
+            (_encode(payload), session_id, message_id),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("Cannot update a missing conversation message.")
+        _touch_message_revision(connection, session_id, reset=True)
+
+
+def read_received_parts_digest(session_dir: Path, message_id: str) -> str | None:
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return None
+        row = connection.execute(
+            """SELECT payload_json FROM conversation_journal
+               WHERE session_id = ? AND turn_id = ? AND event_type = 'conversation.request.received'
+               ORDER BY event_id LIMIT 1""",
+            (session_id_from_session_dir(session_dir), message_id),
+        ).fetchone()
+    payload = _decode(row[0]) if row else None
+    return payload.get("content_parts_digest") if isinstance(payload, dict) else None
+
+
 def replace_message_payloads(session_dir: Path, payloads: list[dict[str, Any]]) -> None:
     session_id = session_id_from_session_dir(session_dir)
     with connection_for_path(database_path_from_session(session_dir)) as connection:

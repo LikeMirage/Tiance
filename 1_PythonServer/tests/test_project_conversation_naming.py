@@ -53,7 +53,7 @@ def test_naming_waits_until_context_reaches_token_threshold():
         service._prepare_task_if_needed(
             "project-1",
             "session-1",
-            run_snapshot=_snapshot(context_tokens=19_999),
+            run_snapshot=_snapshot(context_tokens=200_000, response_content="完成。"),
         )
     )
 
@@ -81,7 +81,8 @@ def test_naming_creates_functional_session_at_default_20k_threshold():
     assert call["target_model_id"] == "gpt-5.6-sol"
     assert call["mode"] == "session"
     assert call["trigger"]["trigger_token_threshold"] == 20_000
-    assert call["trigger"]["context_token_source"] == "provider_reported"
+    assert call["trigger"]["context_token_source"] == "local_estimate"
+    assert call["trigger"]["context_token_scope"] == "conversation_history"
     assert "只能调用一次 submit_conversation_title" in call["task_prompt"]
     assert "name_parent_session" not in call["task_prompt"]
     assert "session-1" not in call["task_prompt"]
@@ -181,7 +182,7 @@ def test_naming_boundary_rounds_forward_across_tool_call_and_results():
     assert plan.snapshot_boundary_message_id == "tool-result"
 
 
-def test_naming_local_estimate_uses_configured_ratios_but_provider_usage_wins():
+def test_naming_uses_configured_history_estimate_even_with_provider_usage():
     messages = (
         _tag(
             ChatMessage(role=ChatMessageRole.USER, content="a" * 80),
@@ -243,10 +244,8 @@ def test_naming_local_estimate_uses_configured_ratios_but_provider_usage_wins():
 
     assert local_plan is None
     assert dense_estimate_plan is not None
-    assert dense_estimate_plan.trigger_context_token_source == "local_estimate"
-    assert provider_plan is not None
-    assert provider_plan.trigger_context_token_count == 40
-    assert provider_plan.trigger_context_token_source == "provider_reported"
+    assert dense_estimate_plan.token_condition.trigger_metadata()["context_token_source"] == "local_estimate"
+    assert provider_plan is None
 
 
 def test_dedicated_naming_uses_configured_model_and_task_system_prompt():
@@ -717,7 +716,9 @@ def _default_settings() -> dict:
     }
 
 
-def _snapshot(*, context_tokens: int | None) -> ConversationRunSnapshot:
+def _snapshot(
+    *, context_tokens: int | None, response_content: str = "x" * 80_000,
+) -> ConversationRunSnapshot:
     messages = (
         ChatMessage(role=ChatMessageRole.SYSTEM, content="系统提示词"),
         _tag(
@@ -745,7 +746,7 @@ def _snapshot(*, context_tokens: int | None) -> ConversationRunSnapshot:
             ),
         ),
         assistant_response=_tag(
-            ChatMessage(role=ChatMessageRole.ASSISTANT, content="完成具体设计。"),
+            ChatMessage(role=ChatMessageRole.ASSISTANT, content=response_content),
             "assistant-2",
         ),
         context_tokens=context_tokens,

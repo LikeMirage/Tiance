@@ -14,7 +14,6 @@ from app.domain.workspace_state import (
 class WorkspaceCategorySelectionResponse(BaseModel):
     category_id: str
     project_id: str | None = None
-    session_id: str | None = None
     updated_at: str | None = None
 
     @classmethod
@@ -25,7 +24,6 @@ class WorkspaceCategorySelectionResponse(BaseModel):
         return cls(
             category_id=selection.category_id,
             project_id=selection.project_id,
-            session_id=selection.session_id,
             updated_at=selection.updated_at,
         )
 
@@ -33,7 +31,6 @@ class WorkspaceCategorySelectionResponse(BaseModel):
 class WorkspaceLastOpenedResponse(BaseModel):
     project_id: str | None = None
     category_id: str | None = None
-    session_id: str | None = None
     updated_at: str | None = None
     category_selections: dict[str, WorkspaceCategorySelectionResponse] = Field(default_factory=dict)
 
@@ -42,7 +39,6 @@ class WorkspaceLastOpenedResponse(BaseModel):
         return cls(
             project_id=state.project_id,
             category_id=state.category_id,
-            session_id=state.session_id,
             updated_at=state.updated_at,
             category_selections={
                 selection.category_id: WorkspaceCategorySelectionResponse.from_domain(selection)
@@ -54,7 +50,6 @@ class WorkspaceLastOpenedResponse(BaseModel):
 class WorkspaceLastOpenedSaveRequest(BaseModel):
     category_id: str | None = None
     project_id: str | None = None
-    session_id: str | None = None
 
 
 class WorkspaceLayoutPreferencesResponse(BaseModel):

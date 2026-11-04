@@ -105,9 +105,49 @@ def test_all_seven_project_kinds_and_external_root_import_once(tmp_path):
     upgrade_workspace_selection(path, repository)
     payload = json.loads(repository.get_metadata_value("workspace.last_opened"))
     assert payload["active_category_id"] == "c-project"
-    assert payload["category_selections"]["c-project"]["session_id"] == "session"
+    assert payload["category_selections"]["c-project"]["project_id"] == "p-project"
+    assert "session_id" not in json.dumps(payload)
     with closing(sqlite3.connect(path)) as db:
         assert db.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 7
+
+
+def test_workspace_selection_cleanup_preserves_projects_and_never_reads_project_data(tmp_path, monkeypatch):
+    import app.migrations.catalogs.workspace as workspace_migration
+
+    path = tmp_path / "global.db"
+    ensure_database_schema(path)
+    repository = ProjectRepository(path)
+    payload = {
+        "active_category_id": "c1", "project_id": "p1", "session_id": "stale1",
+        "updated_at": "old", "category_selections": {
+            "c1": {"project_id": "p1", "session_id": "stale1", "updated_at": "old"},
+            "c2": {"project_id": "p2", "session_id": "stale2", "updated_at": "older"},
+        },
+    }
+    repository.set_metadata_value(key="workspace.last_opened", value=json.dumps(payload), updated_at="old")
+    # Even a non-openable project DB must not affect this metadata-only change.
+    project_db = tmp_path / "projects/p1/.Tiance/tiance.db"
+    project_db.parent.mkdir(parents=True)
+    project_db.write_bytes(b"project data must remain untouched")
+    backups = []
+    backup = workspace_migration.backup_database
+    def record_backup(*args):
+        backups.append(backup(*args))
+    def must_not_read(*args):
+        raise AssertionError("Category selection cleanup must not resolve project content")
+    monkeypatch.setattr(workspace_migration, "backup_database", record_backup)
+    monkeypatch.setattr(repository, "get_project", must_not_read)
+    upgrade_workspace_selection(path, repository)
+    payload.pop("session_id")
+    for selection in payload["category_selections"].values():
+        selection.pop("session_id")
+    assert json.loads(repository.get_metadata_value("workspace.last_opened")) == payload
+    assert project_db.read_bytes() == b"project data must remain untouched"
+    assert len(backups) == 1
+    before = repository.get_metadata_value("workspace.last_opened")
+    upgrade_workspace_selection(path, repository)
+    assert repository.get_metadata_value("workspace.last_opened") == before
+    assert len(backups) == 1
 
 
 def test_old_provider_files_keep_custom_endpoints_auth_and_credentials(tmp_path):

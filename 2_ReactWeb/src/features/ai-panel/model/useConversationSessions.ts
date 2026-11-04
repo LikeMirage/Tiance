@@ -386,8 +386,11 @@ export function useConversationSessions({
     setActiveSessionId(restoredSessionId);
     activeSessionIdRef.current = restoredSessionId;
     setDraft(restoredSessionId ? snapshot.sessionStates[restoredSessionId]?.draft ?? "" : "");
+    if (restoredSessionId && restoredSessionId === preferredSessionId) {
+      void saveConversationState(pid, { active_session_id: restoredSessionId }).catch(() => undefined);
+    }
     latestAppliedRevisionsRef.current.set(pid, snapshot.revision);
-  }, [activeSessionIdRef, preferredSessionId]);
+  }, [activeSessionIdRef, preferredSessionId, saveConversationState]);
 
   const applySessionsResponse = useCallback((
     response: ConversationSessionListResponse,
@@ -422,8 +425,11 @@ export function useConversationSessions({
     setActiveSessionId(restoredSessionId);
     activeSessionIdRef.current = restoredSessionId;
     setDraft(restoredSessionId ? responseSessionStates[restoredSessionId]?.draft ?? "" : "");
+    if (restoredSessionId && restoredSessionId === preferredSessionId) {
+      void saveConversationState(response.project_id, { active_session_id: restoredSessionId }).catch(() => undefined);
+    }
     latestAppliedRevisionsRef.current.set(response.project_id, response.revision);
-  }, [activeSessionIdRef, mergeProtectedDrafts, preferredSessionId]);
+  }, [activeSessionIdRef, mergeProtectedDrafts, preferredSessionId, saveConversationState]);
 
   useLayoutEffect(() => {
     if (!projectId) {
@@ -596,6 +602,11 @@ export function useConversationSessions({
         current && sessionIds.has(current) ? current : nextActiveSessionId,
       );
       activeSessionIdRef.current = resolvedActiveSessionId;
+      // Initial hydration can already select an explicit overview/branch target.
+      // It then skips activateSession, so persist that selection here as well.
+      if (!previousActiveSessionId && resolvedActiveSessionId && resolvedActiveSessionId === preferredSessionId) {
+        void saveConversationState(pid, { active_session_id: resolvedActiveSessionId }).catch(() => undefined);
+      }
       setDraft((currentDraft) =>
         resolvedActiveSessionId
           ? resolvedActiveSessionId === previousActiveSessionId
@@ -637,6 +648,7 @@ export function useConversationSessions({
     releaseDraftRequest,
     snapshotDraftRequest,
     preferredSessionId,
+    saveConversationState,
   ]);
 
   const reloadSessionsForSelection = useCallback((pid: string) => {

@@ -444,7 +444,7 @@
         "compressionManager": "Compression memory manager",
         "injectionPreview": "Injection preview dashboard",
         "contextTokenThreshold": "Compaction target",
-        "contextTokenThresholdDescription": "Create a compaction conversation when the full context reaches N tokens plus the raw reserve. System prompts, tool definitions, workspace data, long-term memory, and messages all count; each batch compacts at most N tokens of history.",
+        "historyTokenThresholdDescription": "Trigger when uncompacted conversation history reaches the target plus the raw reserve. Excludes injected prompts, tool definitions, long-term memory, and summaries. Uses your token estimation settings and keeps tool call groups intact.",
         "rawContextTokenReserve": "Raw context reserve",
         "rawContextTokenReserveDescription": "Keep at least N tokens of the newest complete messages verbatim. Whole-message boundaries may make the actual reserve larger."
       },
@@ -663,7 +663,7 @@
       },
       "conversationNaming": {
         "triggerTokenThreshold": "Trigger token threshold",
-        "triggerTokenDescription": "Create an automatic naming functional conversation when the latest complete request context reaches this value. The default is 20K; the configured token estimator is used when the provider reports no usage.",
+        "historyTriggerTokenDescription": "Create an automatic naming conversation when eligible history reaches this value, excluding injected prompts, tool definitions, long-term memory, and summaries. Defaults to 20K and uses your token estimation settings.",
         "cacheHitOptimizationMode": "Cache-hit optimization mode",
         "cacheHitOptimizationDescription": "Reuse the model, generation settings, and conversation prefix from the real request that triggered naming, then append the automatic naming task.",
         "cacheHitOptimizationSettingsNote": "Model, reasoning, temperature, Top P, and maximum output length all follow the latest real request that triggered naming.",

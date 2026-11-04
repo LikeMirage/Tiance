@@ -4,6 +4,7 @@ import asyncio
 import json
 import sqlite3
 from threading import Event
+from dataclasses import replace
 
 import pytest
 
@@ -16,6 +17,65 @@ from app.services.project.conversation_audit import ConversationAuditService
 from app.services.project.conversation_stream import ProjectConversationStreamService
 from tests.test_conversation_database import _Projects
 from tests.test_chat_stream_cancellation import _FakeUsageService, _FakeNamingService, _FakeMemoryService
+
+
+def test_prepared_attachments_are_in_history_but_original_receipt_and_replay_are_preserved(tmp_path, monkeypatch):
+    from app.domain.llm.chat import ChatImageRef, ChatMessageContentPart, ChatMessageContentPartType
+    from app.repositories.project.conversation_database import read_events
+    from app.repositories.project.conversation_attachment_repository import ConversationAttachmentRepository
+    from app.services.project.conversation_attachments import ConversationAttachmentService
+    from app.services.project.conversation_image_references import ConversationImageReferenceResolver
+    from app.infra.file_workspace import FileWorkspaceStorage
+    projects, repo, service, request = setup_run(tmp_path)
+    source = tmp_path / 'source.png'
+    source.write_bytes(b'\x89PNG\r\n\x1a\nimage')
+    original = ChatMessageContentPart(type=ChatMessageContentPartType.IMAGE_REF,
+        image_ref=ChatImageRef(path='source.png', mime_type='image/png'))
+    request = replace(request, messages=(replace(request.messages[0], content_parts=(original,)),))
+    resolver = ConversationImageReferenceResolver(projects, FileWorkspaceStorage(),
+        attachment_service=ConversationAttachmentService(ConversationAttachmentRepository(projects), projects, FileWorkspaceStorage()))
+    service._image_reference_resolver = resolver
+    async def stop_after_prepare(value):
+        raise BadRequestError('stop after preparation')
+    monkeypatch.setattr(service, '_write_request_snapshot', stop_after_prepare)
+    events = asyncio.run(collect(service, request))
+    assert events[-1]['kind'] == 'error'
+    user = repo.list_messages('project-1', request.session_id)[0]
+    ref = user.content_parts[0].image_ref
+    assert ref.attachment_id and ref.path == 'tiance-attachment://' + ref.attachment_id
+    source.unlink()
+    directory = tmp_path / '.Tiance/conversations/sessions' / request.session_id
+    receipts = read_events(directory, 'request_submissions')
+    assert receipts[0]['request_snapshot']['messages'][-1]['content_parts'][0]['image_ref']['path'] == 'source.png'
+    replay = asyncio.run(collect(service, request))
+    assert replay[-1]['error'] == events[-1]['error']
+    assert len(repo.list_messages('project-1', request.session_id)) == 1
+    assert len(read_events(directory, 'request_submissions')) == 1
+    changed = replace(request, messages=(replace(request.messages[0], content_parts=()),))
+    mismatch = asyncio.run(collect(service, changed))
+    assert 'different content' in mismatch[-1]['error']
+    # A normal branch uses the persisted snapshot after the external image is gone.
+    boundary = repo.append_message('project-1', request.session_id, role='user', content='branch here')
+    repo.save_session_runtime_status('project-1', request.session_id, 'idle')
+    fork = repo.fork_session('project-1', request.session_id, source_message_id=boundary.message_id, draft='', references=[])
+    copied, path = ConversationAttachmentRepository(projects).read('project-1', fork.session.session_id, ref.path)
+    assert path.read_bytes() == b'\x89PNG\r\n\x1a\nimage'
+
+
+def test_model_capability_filter_cannot_remove_user_image_from_history(tmp_path, monkeypatch):
+    from app.domain.llm.chat import ChatImageRef, ChatMessageContentPart, ChatMessageContentPartType
+    _, repo, service, request = setup_run(tmp_path)
+    part = ChatMessageContentPart(type=ChatMessageContentPartType.IMAGE_REF,
+        image_ref=ChatImageRef(path='tiance-attachment://att_' + 'a' * 32))
+    request = replace(request, messages=(replace(request.messages[0], content_parts=(part,)),))
+    async def filter_images(value):
+        return replace(value, messages=tuple(replace(m, content_parts=()) for m in value.messages))
+    async def stop(value):
+        raise BadRequestError('stop before model')
+    monkeypatch.setattr(service, '_prepare_image_references', filter_images)
+    monkeypatch.setattr(service, '_write_request_snapshot', stop)
+    asyncio.run(collect(service, request))
+    assert repo.list_messages('project-1', request.session_id)[0].content_parts == (part,)
 
 
 def setup_run(tmp_path, chat=None):

@@ -389,6 +389,20 @@ class ProjectConversationService:
         )
         return message
 
+    def received_content_parts_match(
+        self, project_id: str, session_id: str, message_id: str,
+        content_parts: tuple[ChatMessageContentPart, ...],
+    ) -> bool:
+        return self._repository.received_content_parts_match(project_id, session_id, message_id, content_parts)
+
+    def save_prepared_content_parts(
+        self, project_id: str, session_id: str, message_id: str, *,
+        expected: tuple[ChatMessageContentPart, ...], prepared: tuple[ChatMessageContentPart, ...],
+    ) -> ProjectConversationMessage:
+        return self._repository.save_prepared_content_parts(
+            project_id, session_id, message_id, expected=expected, prepared=prepared,
+        )
+
     def begin_run(
         self,
         project_id: str,

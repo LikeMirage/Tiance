@@ -10,12 +10,12 @@ import { act, create } from "react-test-renderer";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 globalThis.window = { setTimeout, clearTimeout, setInterval, clearInterval };
-let requests = [], saves = [], lists = [], renderer, value, props;
+let requests = [], saves = [], lists = [], renderer, value, props, warmup = null;
 const mocks = {
   react: React,
   "./chatPanelRequestErrors": { isNotFoundRequestError: () => false },
   "../../../entities/llm-chat/model/projectConversationEvents": { dispatchProjectConversationUpdated() {} },
-  "../../project-entry/model/projectEntryWarmup": { getCachedProjectEntryWarmup: () => null },
+  "../../project-entry/model/projectEntryWarmup": { getCachedProjectEntryWarmup: () => warmup },
   "../../../services/project/saveProjectConversationState": {
     async saveProjectConversationState(pid, input) { saves.push({ pid, input }); },
   },
@@ -61,13 +61,13 @@ function response(id = "a") { return { project_id: "p", revision: 1, active_sess
   branch_nodes: [], message_variants: [] }; }
 function detail(id) { return { project_id: "p", revision: 2, session: session(id), state: state(`draft-${id}`) }; }
 function Harness(options) { value = useConversationSessions(options); return null; }
-async function setup(preferredSessionId = null) {
+async function setup(preferredSessionId = null, loaded = response(), cached = null) {
   requests = []; saves = []; lists = [];
+  warmup = cached;
   props = { projectId: "p", preferredSessionId, activeProjectIdRef: { current: null }, activeSessionIdRef: { current: null },
     abortProjectStreams() {}, showChatView() {} };
   await act(async () => { renderer = create(React.createElement(Harness, props)); });
-  await act(async () => { lists[0].resolve(response()); });
-  assert.equal(value.draft, "draft-a");
+  await act(async () => { lists[0]?.resolve(loaded); });
 }
 afterEach(async () => { if (renderer) await act(async () => renderer.unmount()); renderer = null; });
 
@@ -119,6 +119,43 @@ test("failure leaves previous session intact and never writes an empty draft for
   assert.equal(value.activeSessionId, "a");
   assert.equal(value.sessionLoadError, "offline");
   assert.equal(saves.some(({ input }) => Object.hasOwn(input.session_drafts ?? {}, "b")), false);
+  assert.equal(saves.some(({ input }) => input.active_session_id === "b"), false);
+});
+
+test("ordinary project entry restores its own active conversation without a global session hint", async () => {
+  await setup(null, response("b"));
+  assert.equal(lists[0].selectedId, null);
+  assert.equal(value.activeSessionId, "b");
+  assert.equal(value.draft, "draft-b");
+  assert.equal(saves.some(({ input }) => input.active_session_id), false);
+});
+
+test("explicit overview target selected during initial loading is persisted in that project", async () => {
+  await setup("b", response("b"));
+  assert.equal(lists[0].selectedId, "b");
+  assert.equal(value.activeSessionId, "b");
+  assert.ok(saves.some(({ pid, input }) => pid === "p" && input.active_session_id === "b"));
+  await act(async () => renderer.unmount());
+  renderer = null;
+  await setup(null, response("b"));
+  assert.equal(value.activeSessionId, "b");
+  assert.equal(value.draft, "draft-b");
+});
+
+test("warmup-selected overview target is persisted even when its cached active ID already matches", async () => {
+  await setup("b", response("b"), { conversations: response("b") });
+  assert.equal(value.activeSessionId, "b");
+  assert.ok(saves.some(({ pid, input }) => pid === "p" && input.active_session_id === "b"));
+});
+
+test("late initial response from a previous project cannot persist its selection into the new project", async () => {
+  await setup();
+  await act(async () => renderer.update(React.createElement(Harness, { ...props, projectId: "q", preferredSessionId: "b" })));
+  const pending = lists.find(item => item.pid === "q");
+  await act(async () => renderer.update(React.createElement(Harness, { ...props, projectId: "r" })));
+  await act(async () => pending.resolve({ ...response("b"), project_id: "q" }));
+  assert.equal(saves.some(({ input }) => input.active_session_id === "b"), false);
+  assert.equal(value.activeSessionId, null);
 });
 
 test("rejected input recovery preserves new typing and references and persists the combined draft", async () => {

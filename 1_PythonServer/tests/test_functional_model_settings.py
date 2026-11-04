@@ -40,7 +40,7 @@ def test_empty_functional_model_response_keeps_backend_defaults():
 
 
 def test_memory_compression_uses_current_prompt_contract_version():
-    assert get_functional_model_profile_settings_version("memoryCompression") == 33
+    assert get_functional_model_profile_settings_version("memoryCompression") == 34
     assert get_functional_model_profile_settings_version("naming") == (
         NAMING_SETTINGS_VERSION
     )

@@ -12,7 +12,6 @@ import {
 } from "../../../features/ai-panel/model/conversationSelectionMachine";
 import { createDefaultConversation } from "../../../features/ai-panel/model/createDefaultConversation";
 import type { ProjectEntryWarmupOptions } from "../../../features/project-entry/model/projectEntryWarmup";
-import { saveWorkspaceLastOpened } from "../../../services/workspace/workspaceLastOpened";
 
 type ProjectSelectionHandler = (
   projectId: string,
@@ -23,7 +22,6 @@ type UseWorkspaceConversationSelectionOptions = {
   onConfirmProjectSession: (projectId: string, sessionId: string | null) => void;
   onExpandProject: ProjectSelectionHandler;
   onSelectProject: ProjectSelectionHandler;
-  persistWorkspaceSelection?: boolean;
   projectId: string | null;
   selectedSessionId: string | null;
 };
@@ -32,7 +30,6 @@ export function useWorkspaceConversationSelection({
   onConfirmProjectSession,
   onExpandProject,
   onSelectProject,
-  persistWorkspaceSelection = true,
   projectId,
   selectedSessionId,
 }: UseWorkspaceConversationSelectionOptions) {
@@ -43,31 +40,12 @@ export function useWorkspaceConversationSelection({
     requestId: number;
     resolve: (confirmed: boolean) => void;
   } | null>(null);
-  const lastSavedWorkspaceSessionRef = useRef<string | null>(null);
   const [selectionState, dispatchSelection] = useReducer(
     reduceConversationSelection,
     initialConversationSelectionState,
   );
   const selectionStateRef = useRef(selectionState);
   selectionStateRef.current = selectionState;
-
-  const saveWorkspaceSessionSelection = useCallback((
-    nextProjectId: string,
-    nextSessionId: string | null,
-  ) => {
-    if (!persistWorkspaceSelection) return;
-    const key = `${nextProjectId}:${nextSessionId ?? ""}`;
-    if (lastSavedWorkspaceSessionRef.current === key) return;
-    lastSavedWorkspaceSessionRef.current = key;
-    void saveWorkspaceLastOpened({
-      project_id: nextProjectId,
-      session_id: nextSessionId,
-    }).catch(() => {
-      if (lastSavedWorkspaceSessionRef.current === key) {
-        lastSavedWorkspaceSessionRef.current = null;
-      }
-    });
-  }, [persistWorkspaceSelection]);
 
   useEffect(() => {
     dispatchSelection({ type: "project_changed", projectId });
@@ -150,8 +128,7 @@ export function useWorkspaceConversationSelection({
       dispatchSelection({ type: "sync_current", target });
     }
     onConfirmProjectSession(nextProjectId, nextSessionId);
-    saveWorkspaceSessionSelection(nextProjectId, nextSessionId);
-  }, [completeSelection, onConfirmProjectSession, saveWorkspaceSessionSelection]);
+  }, [completeSelection, onConfirmProjectSession]);
 
   const handleChatSessionSelectionResult = useCallback((
     result: ChatPanelSessionSelectionResult,
@@ -173,8 +150,7 @@ export function useWorkspaceConversationSelection({
     });
     completeSelection(result.requestId, false);
     onConfirmProjectSession(result.projectId, result.activeSessionId);
-    saveWorkspaceSessionSelection(result.projectId, result.activeSessionId);
-  }, [completeSelection, onConfirmProjectSession, saveWorkspaceSessionSelection]);
+  }, [completeSelection, onConfirmProjectSession]);
 
   const handleSelectOverviewSession = useCallback(async (
     targetProjectId: string,

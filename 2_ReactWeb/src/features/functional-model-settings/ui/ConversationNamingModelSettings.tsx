@@ -9,7 +9,7 @@ export function ConversationNamingModelSettings() {
       additionalNumberFields={[
         {
           defaultValue: 20_000,
-          description: t("functionalModelSettings.conversationNaming.triggerTokenDescription"),
+          description: t("functionalModelSettings.conversationNaming.historyTriggerTokenDescription"),
           key: "triggerTokenThreshold",
           label: t("functionalModelSettings.conversationNaming.triggerTokenThreshold"),
           min: 1,

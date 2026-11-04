@@ -8,7 +8,7 @@ from shutil import copy2
 from uuid import uuid4
 
 from app.core.atomic_replace import atomic_replace_path
-from app.core.errors import NotFoundError
+from app.core.errors import BadRequestError, NotFoundError
 from app.domain.llm.chat import ChatMessageContentPartType
 from app.domain.project.project_conversation import ProjectConversationMessage
 from app.repositories.project.conversation_database import append_event, read_events
@@ -170,15 +170,7 @@ def copy_referenced_attachments(
     messages: tuple[ProjectConversationMessage, ...],
     references: list[dict] | None = None,
 ) -> None:
-    attachment_ids = {
-        part.image_ref.attachment_id
-        for message in messages
-        for part in message.content_parts
-        if part.type == ChatMessageContentPartType.IMAGE_REF
-        and part.image_ref is not None
-        and part.image_ref.attachment_id
-    }
-    attachment_ids.update(_attachment_ids_from_value(references or []))
+    attachment_ids = referenced_attachment_ids(messages, references)
     if not attachment_ids:
         return
     source_dir = source_session_dir / ATTACHMENTS_DIR
@@ -210,6 +202,32 @@ def copy_referenced_attachments(
         )
 
 
+def referenced_attachment_ids(
+    messages: tuple[ProjectConversationMessage, ...],
+    references: list[dict] | None = None,
+) -> set[str]:
+    """Resolve the same URI identity used to read an image, before copying it.
+
+    Received messages may not have enriched attachment metadata yet. The URI
+    is sufficient; a conflicting redundant ID must never copy the wrong file.
+    """
+    ids = _attachment_ids_from_value(references or [])
+    for message in messages:
+        for part in message.content_parts:
+            if part.type != ChatMessageContentPartType.IMAGE_REF or part.image_ref is None:
+                continue
+            ref = part.image_ref
+            attachment_id = ref.attachment_id
+            if ref.path.startswith(ATTACHMENT_URI_PREFIX):
+                uri_id = attachment_id_from_uri(ref.path)
+                if attachment_id and attachment_id != uri_id:
+                    raise BadRequestError("会话附件地址与附件 ID 不一致。")
+                attachment_id = uri_id
+            if attachment_id:
+                ids.add(attachment_id)
+    return ids
+
+
 def _attachment_ids_from_value(value: object) -> set[str]:
     ids: set[str] = set()
     if isinstance(value, dict):
@@ -218,7 +236,7 @@ def _attachment_ids_from_value(value: object) -> set[str]:
     elif isinstance(value, list):
         for item in value:
             ids.update(_attachment_ids_from_value(item))
-    elif isinstance(value, str) and is_attachment_uri(value):
+    elif isinstance(value, str) and value.startswith(ATTACHMENT_URI_PREFIX):
         ids.add(attachment_id_from_uri(value))
     return ids
 

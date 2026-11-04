@@ -7,10 +7,9 @@ from app.domain.project.project_conversation import (
     ProjectConversationMessage,
     ProjectConversationSessionSettings,
 )
-from app.services.llm.usage.estimation import estimate_message_tokens
-from app.services.project.conversation_message_groups import (
-    atomic_conversation_message_groups,
-    complete_group_message_ids,
+from app.services.project.conversation_token_condition import (
+    HistoryTokenCondition,
+    evaluate_history_token_condition,
 )
 from app.services.project.conversation_request_messages import (
     build_conversation_request_messages,
@@ -19,6 +18,7 @@ from app.services.project.conversation_request_messages import (
 
 @dataclass(frozen=True, slots=True)
 class LongTermMemoryManagementPlan:
+    token_condition: HistoryTokenCondition
     newly_covered_message_ids: tuple[str, ...]
     newly_covered_token_count: int
     previous_boundary_message_id: str | None
@@ -50,26 +50,24 @@ def build_long_term_memory_management_plan(
         None,
         settings,
     )
-    selected_ids: list[str] = []
-    selected_tokens = 0
-    for group in atomic_conversation_message_groups(request_messages):
-        group_ids = complete_group_message_ids(group)
-        if not group_ids or not pending_raw_ids.intersection(group_ids):
-            continue
-        selected_ids.extend(group_ids)
-        selected_tokens += sum(
-            estimate_message_tokens(message, token_estimation_settings)
-            for message in group
-        )
-
-    if (
-        not selected_ids
-        or selected_tokens < max(1, trigger_token_threshold)
-    ):
+    evaluation = evaluate_history_token_condition(
+        request_messages,
+        threshold=trigger_token_threshold,
+        token_estimation_settings=token_estimation_settings,
+        included_message_ids=pending_raw_ids,
+    )
+    condition = evaluation.condition
+    if not condition.reached:
         return None
+    selected_ids = [
+        message_id
+        for group in evaluation.groups
+        for message_id in group.message_ids
+    ]
     return LongTermMemoryManagementPlan(
+        token_condition=condition,
         newly_covered_message_ids=tuple(dict.fromkeys(selected_ids)),
-        newly_covered_token_count=selected_tokens,
+        newly_covered_token_count=condition.token_count,
         previous_boundary_message_id=previous_boundary_message_id,
         snapshot_boundary_message_id=selected_ids[-1],
     )

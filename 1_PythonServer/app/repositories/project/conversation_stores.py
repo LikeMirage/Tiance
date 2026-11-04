@@ -32,6 +32,7 @@ from app.repositories.project.project_repository import ProjectRepository
 from app.repositories.project.conversation_database import (
     append_event,
     append_message_payload,
+    update_message_payload,
     count_message_payloads,
     delete_session,
     find_message_ordinal,
@@ -456,6 +457,9 @@ class ConversationMessageStore:
             session_dir,
             [_message_to_payload(message) for message in messages],
         )
+
+    def update_message(self, session_dir: Path, message: ProjectConversationMessage) -> None:
+        update_message_payload(session_dir, message.message_id, _message_to_payload(message))
 
     def append_naming_call_record(
         self,

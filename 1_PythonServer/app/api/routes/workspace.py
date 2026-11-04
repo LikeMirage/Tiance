@@ -125,7 +125,6 @@ def save_workspace_last_opened(
         service.save_last_opened(
             category_id=payload.category_id,
             project_id=payload.project_id,
-            session_id=payload.session_id,
         ),
     )
 
