@@ -31,12 +31,64 @@
 
 | 能力 | 版本 | 作用与源码 |
 | --- | --- | --- |
-| `editor.tabs` | 1 | 编辑器标签，查看 editorTabsClientTool.ts、backgroundEditorTabsClientTool.ts |
+| `editor.tabs` | 3 | 编辑器标签及文件内容定位，查看 editorTabsClientTool.ts、useDocumentReveal.ts；旧标签动作的后台项目处理见 backgroundEditorTabsClientTool.ts |
 | `conversation.management` | 1 | 会话列表、读取、创建、配置等，conversationManagementClientTool.ts |
 | `conversation.interaction` | 1 | 向会话发送任务、等待等，conversationInteractionClientTool.ts |
 | `tool.projects` | 1 | 分类查询、分类创建、工具模板创建，toolProjectClientTool.ts |
 
 以当前注册表为准，不能从这张表推断其他动作已开放。参数应读取对应工具 input.schema.json 和执行器，不要猜动作名。
+
+### editor.tabs v3：标签与内容定位
+
+标准工具调用名为 `editor_tabs_manager`。`list_tabs`、`open_file`、`focus_file`、`close_clean_tabs`、`close_others_clean` 保持原有语义；v2 引入 `reveal_file`，v3 保留单目标参数并增加文本多范围。工具清单引用 `{"name":"editor.tabs","min_version":3}`，使用 `client_json` 输入输出，不需要 Python 程序或新增后端业务路由。仅声明能力不会给旧前端增加实现，必须部署带 v3 执行器的前端。
+
+`reveal_file` 必填 `path` 和 `target`，不接受批量 `paths`。path 是调用方项目中的相对路径，示例使用 `/`；项目身份取自请求的 `project_id`，不能通过参数指定或回退为其他项目。target 只接受下面一种结构，不混用字段：
+
+| target.type | 必填字段 | 可选字段 | 含义 |
+| --- | --- | --- | --- |
+| `pdf_page` | `page` | 无 | PDF 页码，从 1 开始 |
+| `line_range` | `start_line`、`end_line` | 无 | 文本行号从 1 开始，含首尾行；end_line 不小于 start_line |
+| `text` | `text` | `occurrence` | 非空原文精确匹配；重复时必须指定第几处，从 1 开始 |
+| `text_ranges` | `ranges` | 无 | 非空数组，数量不设上限；元素为上面的 text 或 line_range，可以混合，不接受 PDF 或嵌套多范围 |
+
+```json
+{"action":"reveal_file","path":"reports/report.pdf","target":{"type":"pdf_page","page":8}}
+```
+
+```json
+{"action":"reveal_file","path":"src/main.py","target":{"type":"line_range","start_line":20,"end_line":35}}
+```
+
+```json
+{"action":"reveal_file","path":"docs/report.md","target":{"type":"text","text":"本季度销售额增长 12%"}}
+```
+
+```json
+{"action":"reveal_file","path":"src/main.py","target":{"type":"text","text":"return result","occurrence":2}}
+```
+
+混合多范围，先展示输入的第一项（第 40 至 48 行），不是自动选择文件中位置最靠前的那一项：
+
+```json
+{"action":"reveal_file","path":"src/main.py","target":{"type":"text_ranges","ranges":[{"type":"line_range","start_line":40,"end_line":48},{"type":"text","text":"return result","occurrence":2},{"type":"line_range","start_line":5,"end_line":8}]}}
+```
+
+执行与结果约定：
+
+- 未打开时打开文件，已打开时复用标签，已处于该标签时仍执行本次定位。不会另建重复标签，不为定位重新覆盖已打开文本的内容。
+- 文本定位以 CodeMirror 当前缓冲区为准，包括未保存及尚未经过输入防抖同步的文字；不拿磁盘内容计算位置。保留首尾空白、区分大小写，仅将 CRLF/CR 换行统一为 LF。按位置计数，包括重叠匹配；多处匹配且未指定 occurrence 时拒绝猜选。
+- 使用编辑器原生选区高亮并居中显示，不插入标记、不修改文件、不因为选中而产生脏状态。Markdown/HTML 切到源码模式，行号和原文均针对源码；它不是 Word 段落、表格单元格或渲染后 Markdown 的选区接口。
+- 多范围先针对同一个实时缓冲区完整解析，全部成功后一次性建立多选区；从输入 ranges[0] 居中展示，以其所在选区作为主选区。CodeMirror 会按文档位置整理选区，并合并重叠或重复范围，但不改变“先展示第一项”的约定。Schema 不设 maxItems，前端不按固定条数截断。任一项失败则整批不应用，返回从 1 开始的 range_index；保留原来的选区，不忽略失败项。
+- 页码定位等待 PDF 加载、页数检查及目标页实际渲染完成。文本定位等待编辑器选区应用，并检查内容和选区未被中途改变。历史阅读位置恢复不会把这次定位覆盖回去。
+- 仅在调用方项目就是当前编辑器前台项目时执行；后台项目返回 `PROJECT_NOT_ACTIVE`，不能把后台工作区标签记录更新冒充已展示。旧标签动作的后台处理不等于内容定位能力。
+- `pdf_page` 只支持 PDF；文本目标只支持当前以文本编辑器打开的文件，如 TXT、代码、JSON、Markdown、HTML。CSV/TSV 当前走表格预览，与 Word、Excel、PPT、图片等一样不支持这项文本选区合同，不支持时返回 `UNSUPPORTED_TARGET`。
+- 能打开 Office 不代表能在 Office 里定位文字。标准工具的摘要、action/path/target 和显式注入的短说明共同声明此边界。`UNSUPPORTED_TARGET` 另带 file_kind、requested_target、supported_target_types 和 suggested_action；Office 的 supported_target_types 为空，只能建议 open_file 展示完整文件，不得换一段原文/行号反复重试，也不能将打开预览称为已选中。开发资料本身不会自动进入模型上下文。
+- 成功结果包含 `ok:true`、`action`、`path`、`displayed:true`、`location`、`revealed_tab`。PDF location 返回 page/total_pages；文本返回 `type:"text_selection"`、行列范围、from/to、`source:"editor_buffer"`，原文匹配另带 match_count/occurrence。行列从 1 开始；from/to 是从 0 开始的 UTF-16 偏移，to 与 end_column 为结束边界、不包含该位置。输入行范围含首尾行文字，不额外选入末行后的换行。
+- 多范围 location 返回 `type:"text_selections"`、`source:"editor_buffer"`、ranges；ranges 按输入顺序逐项返回上述 text_selection 结构，即使实际高亮被合并也保留每项结果。单目标的输入及返回结构保持不变。
+- target 结构或数值非法返回 `INVALID_TARGET`。`TEXT_NOT_FOUND`、`AMBIGUOUS_TEXT`、`OCCURRENCE_OUT_OF_RANGE`、`LINE_OUT_OF_RANGE`、`PAGE_OUT_OF_RANGE` 返回明确失败，必要时带 match_count、total_lines 或 total_pages。加载、渲染和预览受限分别返回 `LOAD_FAILED`、`RENDER_FAILED`、`PREVIEW_UNAVAILABLE`/`CONTENT_UNAVAILABLE`；标签被标记为不存在且没有未保存内容时返回 `FILE_NOT_FOUND`，预览层先检测到资源不可用时也可能返回 `PREVIEW_UNAVAILABLE`。
+- 前端响应 signal 取消，标签关闭或切换返回 `NAVIGATION_INTERRUPTED`；同一编辑器的新定位替代旧请求，旧请求返回 `SUPERSEDED`；定位期间内容或选区变化返回 `SELECTION_CHANGED`。内部等待上限 30 秒，未确认显示返回 `REVEAL_TIMEOUT`，仍受工具清单及通用桥的总时间预算限制。取消不回滚已经打开的标签或已发生的界面移动。
+
+参数和结果以标准工具 `.tool/input.schema.json`、`.tool/output.schema.json` 为准；`target` 与其他界面操作参数同属 `ui_control`。扩展定位类型时，须一起修改桥合同、对应渲染器、输入输出 Schema、示例和本资料，不能只往工具参数中增加前端未实现的字段。
 
 ### tool.projects v1
 

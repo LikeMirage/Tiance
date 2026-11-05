@@ -16,4 +16,6 @@
 
 修改模板或资料后应同步验证整套文件，并更新 template_version。已有项目保留创建时的资料快照。本创建器的前端实现位于应用源码 `2_ReactWeb/src/features/client-tools/model/toolProjectClientTool.ts` 和 `toolProjectScaffold.ts`；模板和资料不写死在前端代码中。
 
+当前资料快照为 1.4.1（2026-11-05），包含 `editor.tabs v3` 的 PDF 页码、原文/行号混合多选区、无数量上限及从第一项展示、前台项目约束和完成/错误合同。创建器本身仍使用 `tool.projects v1`；资料里的其他能力版本不会改变创建动作的能力要求。
+
 工具需要前端在线，并使用携带 tool_project_id 的新版通用能力桥。更新程序后重启应用再使用。创建动作不切换用户当前项目；失败返回部分完成状态，不自动删除项目或重复创建。

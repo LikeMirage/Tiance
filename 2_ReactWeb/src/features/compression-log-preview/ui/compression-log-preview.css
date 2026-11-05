@@ -102,7 +102,7 @@
 }
 
 .compression-log-preview__metric--danger strong {
-  color: #f87171;
+  color: var(--color-danger-text);
 }
 
 .compression-log-preview__errors,
@@ -122,10 +122,10 @@
   flex-wrap: wrap;
   gap: 8px;
   padding: 9px 11px;
-  border: 1px solid rgba(248, 113, 113, 0.28);
+  border: 1px solid var(--color-danger-border);
   border-radius: 6px;
-  background: rgba(248, 113, 113, 0.08);
-  color: #fecaca;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
   font-size: 0.8rem;
 }
 
@@ -149,11 +149,11 @@
 
 .compression-log-preview__record--running,
 .compression-log-preview__record--pending {
-  border-color: rgba(251, 191, 36, 0.42);
+  border-color: color-mix(in srgb, var(--color-warning) 42%, transparent);
 }
 
 .compression-log-preview__record--failed {
-  border-color: rgba(248, 113, 113, 0.35);
+  border-color: var(--color-danger-border);
 }
 
 .compression-log-preview__record--collapsed {
@@ -267,11 +267,11 @@
 }
 
 .compression-log-preview__record-fact--danger dd {
-  color: #f87171;
+  color: var(--color-danger-text);
 }
 
 .compression-log-preview__record-fact--active dd {
-  color: #86efac;
+  color: var(--color-success-text);
 }
 
 .compression-log-preview__record-fact--superseded dd,
@@ -281,11 +281,11 @@
 
 .compression-log-preview__record-fact--running dd,
 .compression-log-preview__record-fact--pending dd {
-  color: #fbbf24;
+  color: var(--color-warning-text);
 }
 
 .compression-log-preview__record-fact--failed dd {
-  color: #f87171;
+  color: var(--color-danger-text);
 }
 
 .compression-log-preview__record-toggle {
@@ -352,15 +352,15 @@
 }
 
 .compression-log-preview__meta-item--good dd {
-  color: #86efac;
+  color: var(--color-success-text);
 }
 
 .compression-log-preview__meta-item--warn dd {
-  color: #fbbf24;
+  color: var(--color-warning-text);
 }
 
 .compression-log-preview__meta-item--bad dd {
-  color: #f87171;
+  color: var(--color-danger-text);
 }
 
 .compression-log-preview__items,
@@ -542,7 +542,7 @@
 
 .compression-log-preview__item-edit p {
   margin: 0;
-  color: #f87171;
+  color: var(--color-danger-text);
   font-size: 0.72rem;
   line-height: 1.35;
 }
@@ -595,7 +595,7 @@
 }
 
 .compression-log-preview__failure dd {
-  color: #fecaca;
+  color: var(--color-danger-text);
   overflow-wrap: anywhere;
 }
 

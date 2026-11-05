@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
+import { DocumentRevealError } from "../../../entities/editor/model/documentReveal";
 import { useDocumentReadingValue } from "../../../entities/editor/model/documentReadingState";
 import { HttpRequestError } from "../../../services/http/httpClient";
 import { LoadingBoundary } from "../../../shared/ui/loading-strip";
@@ -52,6 +53,11 @@ export function FilePreviewGate({ tab, src: sourceSrc, children, onMissing }: {
   const stopped = cancelled || current?.error || inspection?.mode === "blocked";
   const loading = !stopped && (pending || !inspection);
   const checkedSrc = state.checkedSrc ?? src;
+  useEffect(() => {
+    if (!stopped) return;
+    tab.revealRequest?.fail(new DocumentRevealError(cancelled ? "CANCELLED" : "PREVIEW_UNAVAILABLE",
+      cancelled ? "文件预览加载已取消。" : current?.error ?? inspection?.message ?? "无法预览此文件。"));
+  }, [tab.revealRequest, stopped, cancelled, current?.error, inspection?.message]);
   return (
     <div className="file-preview-session">
       {delimited || stopped ? <div className="file-preview-session__bar" role={stopped ? "status" : undefined}>

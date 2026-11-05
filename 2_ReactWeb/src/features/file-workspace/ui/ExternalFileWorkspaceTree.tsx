@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+import { useMemo, type KeyboardEvent } from "react";
 
 import { useDesktopFileDropTarget } from "../../desktop-shell/model/useDesktopFileDropTarget";
 import { useI18n } from "../../../shared/i18n";
@@ -33,6 +33,15 @@ export function ExternalFileWorkspaceTree({
     workspaceKey,
     workspaceRoot,
   });
+  const nodeDragData = useMemo(() => {
+    const source = treeProps.nodeDragData;
+    if (!source) return undefined;
+    return {
+      ...source,
+      startNativeDrag: (event: Parameters<typeof transfer.startNativeDrag>[0], node: Parameters<typeof transfer.startNativeDrag>[1], data: string) =>
+        transfer.startNativeDrag(event, node, { mimeType: source.mimeType, data }),
+    };
+  }, [treeProps.nodeDragData, transfer.startNativeDrag]);
   const { isFileDragOver, targetRef } = useDesktopFileDropTarget<HTMLDivElement>({
     enabled: allowExternalImport,
     onFileDrop: transfer.handleFileDrop,
@@ -75,6 +84,7 @@ export function ExternalFileWorkspaceTree({
       ) : null}
       <FileWorkspaceTree
         {...treeProps}
+        nodeDragData={nodeDragData}
         onCopyNodesToSystemClipboard={transfer.copyNodesToSystemClipboard}
         onPasteFromSystemClipboard={
           allowExternalImport ? transfer.resolveSystemClipboardPaste : undefined
@@ -98,6 +108,8 @@ function getTransferNotice(
   t: ReturnType<typeof useI18n>["t"],
 ) {
   switch (notice?.kind) {
+    case "drag_failed":
+      return t("fileWorkspace.external.dragFailed");
     case "clipboard_empty":
       return t("fileWorkspace.external.clipboardEmpty");
     case "import_failed":

@@ -282,6 +282,7 @@ export function useDetachedConversationStream({
         if (!controller.signal.aborted) {
           void reloadSessionMessages(projectId, activeSessionId, {
             forceRefresh: true,
+            authoritative: terminalRuntimeStatus !== null,
             preserveLocalIfShorter: terminalRuntimeStatus === null,
           }).catch(() => undefined);
           void reloadSessionUsageSummary(projectId, activeSessionId, {

@@ -180,8 +180,8 @@
 }
 
 .doc-editor__pagination-error {
-  background: color-mix(in srgb, var(--color-danger, #ef4444) 10%, transparent);
-  color: var(--color-danger, #ef4444);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
   flex: 0 0 auto;
   font-size: 12px;
   padding: 6px 12px;

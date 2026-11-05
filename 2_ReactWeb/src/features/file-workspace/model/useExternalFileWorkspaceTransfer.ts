@@ -13,9 +13,11 @@ import {
 } from "../../desktop-shell/model/desktopExternalFileTransfer";
 import type { DesktopFileDropEvent } from "../../desktop-shell/model/desktopFileDropBridge";
 import type { UseFileWorkspaceBrowserResult } from "./fileWorkspaceBrowserTypes";
+import { startDesktopFileDrag, type DesktopFileDragData } from "../../desktop-shell/model/desktopFileDrag";
 
 export type ExternalFileWorkspaceTransferNotice =
   | { kind: "clipboard_empty" }
+  | { kind: "drag_failed" }
   | { kind: "import_failed" }
   | { kind: "import_partial"; failedCount: number; importedCount: number }
   | { kind: "native_paths_unavailable" }
@@ -126,6 +128,14 @@ export function useExternalFileWorkspaceTransfer({
     }
   }, [workspaceRoot]);
 
+  const startNativeDrag = useCallback((
+    event: { preventDefault: () => void }, node: FileWorkspaceBrowserNode, data: DesktopFileDragData,
+  ) => {
+    const path = workspaceRoot ? resolveWorkspaceNodePath(workspaceRoot, node.path) : null;
+    setNotice(null);
+    return startDesktopFileDrag(event, path ? [path] : [], data, () => setNotice({ kind: "drag_failed" }));
+  }, [workspaceRoot]);
+
   const resolveSystemClipboardPaste = useCallback(async (
     clipboard: FileWorkspaceClipboardState,
   ): Promise<"internal" | "handled"> => {
@@ -158,6 +168,7 @@ export function useExternalFileWorkspaceTransfer({
     isImporting,
     notice,
     resolveSystemClipboardPaste,
+    startNativeDrag,
   };
 }
 

@@ -71,7 +71,7 @@ def write_clipboard_path_entries(paths: list[str]) -> bool:
     if os.name != "nt":
         return False
 
-    normalized_paths = _normalize_existing_paths(paths)
+    normalized_paths = normalize_existing_paths(paths)
     if not normalized_paths:
         return False
 
@@ -153,7 +153,7 @@ def _configure_clipboard_write_api(user32: Any, kernel32: Any) -> None:
     kernel32.GlobalUnlock.restype = wintypes.BOOL
 
 
-def _normalize_existing_paths(paths: list[str]) -> list[str]:
+def normalize_existing_paths(paths: list[str]) -> list[str]:
     if not isinstance(paths, list):
         return []
 
@@ -164,7 +164,7 @@ def _normalize_existing_paths(paths: list[str]) -> list[str]:
             continue
         try:
             path = Path(value).expanduser().resolve(strict=True)
-        except OSError:
+        except (OSError, RuntimeError, ValueError):
             continue
         if not path.is_file() and not path.is_dir():
             continue

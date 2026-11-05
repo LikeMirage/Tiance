@@ -44,6 +44,23 @@ test("输出上限保存片段不继承普通最终回复的显示身份", () =>
   assert.equal(output[1].displayKey ?? output[1].id, "saved-limit");
 });
 
+test("补齐跨越多页的工具轮次及用户消息时，已有正式回复保持同一个显示身份", () => {
+  const project = createChatDisplayProjector();
+  const messages = [message("question", "user"), ...Array.from({ length: 504 }, (_, n) =>
+    message(`saved-${n}`, "assistant", { content: n === 503 ? "最终回复" : `过程${n}` }))];
+  const first = project(messages.slice(-80)).at(-1);
+  const foldScope = buildChatProcessFoldIdentities([first]).get(first.id).turnId;
+  for (const count of [160, 240, 320, 400, 480, 505]) {
+    const display = project(messages.slice(-count));
+    assert.equal(display.at(-1).displayKey, first.displayKey);
+    assert.equal(display.at(-1).content, "最终回复");
+    assert.equal(display.at(-1).id, "saved-503");
+    assert.equal(buildChatProcessFoldIdentities(display).get("saved-503").turnId, foldScope);
+  }
+  const next = project([...messages, message("another-user", "user"), message("another-answer", "assistant")]);
+  assert.notEqual(next.at(-1).displayKey ?? next.at(-1).id, first.displayKey);
+});
+
 test("用户消息底栏显示记录的发送时间，编辑时间不会覆盖发送时间", () => {
   const [user] = mapConversationMessages([{message_id:"user-time",role:"user",content:"原始消息",status:"done",
     created_at:"2026-10-04T23:12:34+08:00",updated_at:"2026-10-05T00:00:00+08:00"}]);

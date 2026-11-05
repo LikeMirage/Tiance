@@ -76,6 +76,12 @@ function load(relative, mocks = {}) {
   return module.exports;
 }
 const reading = load("src/entities/editor/model/documentReadingState.tsx");
+const reveal = load("src/entities/editor/model/documentReveal.ts");
+const revealContext = load("src/entities/editor/model/documentRevealContext.tsx");
+const pdfReveal = load("src/features/pdf-preview/model/usePdfReveal.ts", {
+  "../../../entities/editor/model/documentReveal": reveal,
+  "../../../entities/editor/model/documentRevealContext": revealContext,
+});
 const filePreview = load("src/features/file-preview/model/filePreview.ts", {
   "../../../services/http/httpClient": {},
 });
@@ -92,6 +98,7 @@ test("PDF retains page on parent rerender and new version, clamps to a shorter d
   let loads = 0, pages = 8;
   const panZoom = { viewportRef: { current: null }, contentRef: { current: null } };
   const { PdfPreview } = load("src/features/pdf-preview/ui/PdfPreview.tsx", {
+    "../model/usePdfReveal": pdfReveal,
     "../../../entities/editor/model/documentReadingState": reading,
     "@phosphor-icons/react": new Proxy({}, { get: () => empty }),
     "../model/pdfPageImage": {},
@@ -150,6 +157,7 @@ test("preview gate preserves an unchanged rendering, replaces new versions and i
   const checks = [];
   let mounts = 0, releases = 0;
   const { FilePreviewGate } = load("src/features/file-preview/ui/FilePreviewGate.tsx", {
+    "../../../entities/editor/model/documentReveal": reveal,
     "../../../shared/ui/loading-strip": { LoadingBoundary },
     "../../../entities/editor/model/documentReadingState": reading,
     "../../../services/http/httpClient": { HttpRequestError: class extends Error {} },

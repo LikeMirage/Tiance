@@ -21,6 +21,7 @@ import {
   type PdfLoadingTask,
 } from "../model/pdfjsLoader";
 import { PdfPageView } from "./PdfPageView";
+import { usePdfReveal, type PdfPageRenderState } from "../model/usePdfReveal";
 import { PdfThumbnailStrip } from "./PdfThumbnailStrip";
 import { usePanZoomViewport } from "../../../shared/model/pan-zoom/usePanZoomViewport";
 import { ContextMenu, ContextMenuItem } from "../../../shared/ui/context-menu";
@@ -57,6 +58,7 @@ export function PdfPreview({
   const [isCreatingPageImage, setIsCreatingPageImage] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(src));
   const [numPages, setNumPages] = useState(0);
+  const [renderedPage, setRenderedPage] = useState<PdfPageRenderState | null>(null);
   const [pageImageMenu, setPageImageMenu] = useState<{ x: number; y: number } | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PdfDocumentProxy | null>(null);
   const [pdfjs, setPdfjs] = useState<PdfJsLib | null>(null);
@@ -156,7 +158,7 @@ export function PdfPreview({
     shouldStartPan: shouldStartPdfPan,
     zoom: scale,
   });
-  useDocumentReadingScroll("pdf", panZoom.viewportRef, Boolean(pdfDocument) && !isLoadingVisible, src);
+  const stopReadingRestore = useDocumentReadingScroll("pdf", panZoom.viewportRef, Boolean(pdfDocument) && !isLoadingVisible, src);
 
   const resolveFitWidthScale = useCallback(async (pageNumber: number) => {
     if (!pdfDocument || !panZoom.viewportRef.current) return;
@@ -198,7 +200,8 @@ export function PdfPreview({
     return () => observer.disconnect();
   }, [applyFitWidth, fitMode, panZoom.viewportRef]);
 
-  const selectPage = useCallback((pageNumber: number) => {
+  const selectPage = useCallback((pageNumber: number, signal?: AbortSignal) => {
+    if (signal?.aborted) return;
     const nextPage = clampPage(pageNumber);
     if (nextPage === currentPage) return;
 
@@ -220,7 +223,7 @@ export function PdfPreview({
         nextScale = undefined;
       }
 
-      if (pageSelectionRequestRef.current !== requestId) return;
+      if (signal?.aborted || pageSelectionRequestRef.current !== requestId) return;
       if (fitWidthRequestIdRef.current !== fitWidthRequestId || fitModeRef.current !== "width") return;
       if (nextScale !== undefined) {
         setScaleIfChanged(nextScale);
@@ -228,6 +231,9 @@ export function PdfPreview({
       setCurrentPage(nextPage);
     })();
   }, [clampPage, currentPage, fitMode, resolveFitWidthScale, setScaleIfChanged]);
+
+  usePdfReveal({ pdfDocument, errorMessage, currentPage, scale, rendered: renderedPage,
+    selectPage, viewport: panZoom.viewportRef, stopReadingRestore });
 
   const revealFile = async () => {
     if (!onRevealFile) return;
@@ -406,6 +412,7 @@ export function PdfPreview({
           ) : pdfDocument && pdfjs ? (
             <PdfPageView
               contentRef={panZoom.contentRef}
+              onRenderStateChange={setRenderedPage}
               onPageChange={selectPage}
               pageNumber={currentPage}
               pdfDocument={pdfDocument}

@@ -1,5 +1,6 @@
 import type { ChatClientToolRequestEvent } from "../../../entities/llm-chat/model/chatCompletion";
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
+import { DocumentRevealError, parseDocumentRevealTarget, type DocumentRevealResult, type DocumentRevealTarget } from "../../../entities/editor/model/documentReveal";
 import {
   isPinnedDocumentTab,
   isProjectConversationOverviewTab,
@@ -14,7 +15,7 @@ import { executeBackgroundEditorTabsClientTool } from "./backgroundEditorTabsCli
 export const EDITOR_TABS_TOOL_NAME = "editor_tabs_manager";
 export const EDITOR_TABS_CAPABILITY = Object.freeze({
   name: "editor.tabs",
-  version: 1,
+  version: 3,
 });
 
 type EditorTabsClientToolOptions = {
@@ -26,6 +27,7 @@ export type EditorTabsCapability = {
   closeTab: (tabId: string) => void;
   getSnapshot: () => EditorTabsSnapshot;
   openProjectFile: (projectId: string, path: string) => Promise<void>;
+  revealProjectFile: (projectId: string, path: string, target: DocumentRevealTarget, signal: AbortSignal) => Promise<DocumentRevealResult>;
   selectTab: (tabId: string) => void;
 };
 
@@ -39,13 +41,14 @@ export function createEditorTabsClientToolRegistration(
 ): ClientToolRegistration {
   return {
     capability: EDITOR_TABS_CAPABILITY,
-    execute: (request) => executeEditorTabsClientTool(request, options),
+    execute: (request, context) => executeEditorTabsClientTool(request, options, context?.signal ?? new AbortController().signal),
   };
 }
 
 async function executeEditorTabsClientTool(
   request: ChatClientToolRequestEvent,
   options: EditorTabsClientToolOptions,
+  signal: AbortSignal,
 ): Promise<ClientToolExecutionResult> {
   const currentProjectId = options.getProjectId();
   const projectId = readString(request.project_id);
@@ -60,6 +63,30 @@ async function executeEditorTabsClientTool(
   if (!action) return fail("缺少 action 参数。");
   const requestedPath = readPath(args.value.path);
   const requestedPaths = readPathList(args.value.paths);
+
+  if (action === "reveal_file") {
+    if (!requestedPath) return fail("reveal_file 需要 path 参数。", { error_code: "INVALID_PATH" });
+    try {
+      const target = parseDocumentRevealTarget(args.value.target);
+      if (projectId !== currentProjectId) {
+        return fail("目标项目未在当前编辑器前台打开，请先切换到该项目再定位。", { action, error_code: "PROJECT_NOT_ACTIVE" });
+      }
+      const documentTabs = options.getEditorTabs();
+      const location = await documentTabs.revealProjectFile(projectId, requestedPath, target, signal);
+      const snapshot = documentTabs.getSnapshot();
+      const tab = findProjectTabByPath(getProjectTabs(snapshot, projectId), requestedPath);
+      if (!tab || snapshot.activeTabId !== tab.id || signal.aborted) {
+        return fail("定位完成前目标标签已切换或请求已取消。", { action, error_code: "NAVIGATION_INTERRUPTED" });
+      }
+      return ok({ action, path: requestedPath, displayed: true, location, revealed_tab: serializeTab(tab, snapshot.activeTabId) });
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : "文件定位失败。", {
+        action, path: requestedPath,
+        error_code: error instanceof DocumentRevealError ? error.code : "REVEAL_FAILED",
+        ...(error instanceof DocumentRevealError ? error.details : {}),
+      });
+    }
+  }
 
   if (projectId !== currentProjectId) {
     return executeBackgroundEditorTabsClientTool({

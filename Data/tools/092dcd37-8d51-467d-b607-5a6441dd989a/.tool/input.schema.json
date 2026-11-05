@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "input_path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "本地音频或视频文件路径；相对路径基于当前工作区。音轨会上传至字节云端识别。以每段约 10 分钟为目标均分，整份最多 20 段；更长音频增加单段时长，并发识别后按原顺序合并。超长分段仍可能被上游拒绝，失败处理见使用说明。",
+      "permission_type": "network_access",
+      "permission_scope": "public_network"
+    },
+    "output_dir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "结果保存目录，省略为当前工作区。每次创建以源文件名开头的独立结果子目录，避免覆盖已有结果；最终路径由返回值给出。",
+      "permission_type": "filesystem_write"
+    },
+    "formats": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "enum": ["json", "txt", "srt", "ass"]},
+      "default": ["json"],
+      "description": "输出格式，可多选，省略为 [\"json\"]。JSON 保存句段及接口返回的词级时间戳；其他格式用于阅读或字幕导入。",
+      "permission_type": "none"
+    }
+  },
+  "required": ["input_path"]
+}

@@ -49,6 +49,7 @@ export function useDocumentReadingScroll(
 ) {
   const values = useReadingValues();
   const readyRef = useRef(ready);
+  const stopRestoreRef = useRef(() => {});
   readyRef.current = ready;
   useLayoutEffect(() => {
     const element = ref.current;
@@ -95,6 +96,7 @@ export function useDocumentReadingScroll(
     };
     // Allow delayed images/layout to settle until the user starts navigating.
     const onIntent = () => { restoring = false; };
+    stopRestoreRef.current = onIntent;
     restore();
     frame = requestAnimationFrame(restore);
     const observer = new ResizeObserver(restore);
@@ -126,4 +128,5 @@ export function useDocumentReadingScroll(
       element.ownerDocument.removeEventListener("keydown", onIntent, true);
     };
   }, [key, ready, ref, revision, values]);
+  return useCallback(() => stopRestoreRef.current(), []);
 }

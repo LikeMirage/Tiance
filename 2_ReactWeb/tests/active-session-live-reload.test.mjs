@@ -50,6 +50,7 @@ function load(name) {
     (name) => { assert.ok(name in mocks, name); return mocks[name]; }, module, module.exports);
   return module.exports;
 }
+mocks["./chatHistorySnapshot"] = load("chatHistorySnapshot");
 const { useSessionMessages, mergeHistoryPage } = load("useSessionMessages");
 const { useActiveSessionMessagesLoader, useActiveSessionLiveReload } = load("useChatPanelLifecycleEffects");
 const reloadSessions = async () => {};
@@ -180,6 +181,107 @@ test("completed stream reconciles its optimistic answer with the persisted answe
     ...msg("msg_persisted2"), content: "answer", thinkingContent: "reasoning",
   }], 2));
   assert.deepEqual(result.sessionMessages["p/s"].map((m) => m.id), ["m1", "msg_persisted2"]);
+});
+
+test("a completed long tool loop joins every saved page before replacing the live aggregate", async () => {
+  await setup();
+  const user = msg("m1", "user");
+  await respond(0, page([user], 1));
+  const live = { ...msg("optimistic2"), content: "final answer", status: "done" };
+  await act(async () => result.updateSessionMessages("p", "s", items => [...items, live]));
+  state = { revision: 2, reset_revision: 0, project_revision: 2 };
+  await act(async () => { void result.reloadSessionMessages("p", "s", { authoritative: true }); });
+  const saved = [user, ...Array.from({ length: 240 }, (_, i) => msg(`m${i + 3}`))];
+  saved.at(-1).content = "final answer";
+  let end = saved.length, request = 1;
+  while (end > 0) {
+    const start = Math.max(0, end - 80);
+    assert.strictEqual(result.sessionMessages["p/s"].at(-1), live, "retain the live view until the gap is filled");
+    await respond(request++, page(saved.slice(start, end), 2, {
+      has_more: start > 0, next_before_message_id: start > 0 ? saved[start].id : null,
+      next_after_message_id: saved[end - 1].id,
+    }));
+    end = start;
+  }
+  assert.deepEqual(result.sessionMessages["p/s"].map(m => m.id), saved.map(m => m.id));
+  assert.equal(result.sessionMessages["p/s"].at(-1).content, "final answer");
+  assert.equal(result.historyPages["p/s"].after, saved.at(-1).id);
+  assert.equal(result.historyPages["p/s"].before, null);
+});
+
+test("durable pages received during streaming cannot retain a live aggregate older than the last page", async () => {
+  await setup();
+  const user = msg("m1", "user");
+  await respond(0, page([user], 1));
+  await act(async () => result.updateSessionMessages("p", "s", items => [...items,
+    { ...msg("optimistic2"), status: "running", content: "live" }]));
+  state = { revision: 2, reset_revision: 0, project_revision: 2 };
+  await act(async () => { void result.reloadSessionMessages("p", "s", { forceRefresh: true }); });
+  const middle = [msg("m3"), msg("m4")];
+  await respond(1, page(middle, 2, { next_after_message_id: "m4" }));
+  await act(async () => result.updateSessionMessages("p", "s", items => items.map(m => m.id === "optimistic2"
+    ? { ...m, status: "done", content: "final answer" } : m)));
+  state = { revision: 3, reset_revision: 0, project_revision: 3 };
+  await act(async () => { void result.reloadSessionMessages("p", "s", { authoritative: true }); });
+  await respond(2, page([middle[1], { ...msg("m5"), content: "final answer" }], 3,
+    { has_more: true, next_before_message_id: "m4" }));
+  assert.deepEqual(result.sessionMessages["p/s"].map(m => m.id), ["m1", "m3", "m4", "m5"]);
+  assert.equal(requests.length, 3, "no rereading earlier history once the durable checkpoint overlaps");
+});
+
+test("older history loads through a partial turn to its user message in one publication", async () => {
+  await setup();
+  const tail = msg("m200");
+  await respond(0, page([tail], 1, { has_more: true, next_before_message_id: "m200" }));
+  await act(async () => { void result.loadOlderSessionMessages("p", "s"); });
+  await respond(1, page([msg("m100")], 1, { has_more: true, next_before_message_id: "m100" }));
+  assert.deepEqual(result.sessionMessages["p/s"].map(m => m.id), ["m200"]);
+  assert.equal(requests[2].options.beforeMessageId, "m100");
+  await respond(2, page([msg("m1", "user")], 1));
+  assert.deepEqual(result.sessionMessages["p/s"].map(m => m.id), ["m1", "m100", "m200"]);
+});
+
+test("a reset during tail backfill discards the mixed snapshot and reads the replacement", async () => {
+  await setup();
+  await respond(0, page([msg("m1", "user")], 1));
+  await act(async () => result.updateSessionMessages("p", "s", items => [...items, msg("optimistic2")]));
+  state = { revision: 2, reset_revision: 0, project_revision: 2 };
+  await act(async () => { void result.reloadSessionMessages("p", "s", { authoritative: true }); });
+  await respond(1, page([msg("m100")], 2, { has_more: true, next_before_message_id: "m100" }));
+  await respond(2, page([msg("changed3")], 3, { reset_revision: 3 }));
+  assert.equal(result.sessionMessages["p/s"].at(-1).id, "optimistic2");
+  await respond(3, page([msg("changed3")], 3, { reset_revision: 3 }));
+  assert.deepEqual(result.sessionMessages["p/s"].map(m => m.id), ["changed3"]);
+});
+
+test("the first long turn in an empty conversation also covers its locally submitted user message", async () => {
+  await setup();
+  await respond(0, page([], 1));
+  const user = msg("m1", "user"), live = { ...msg("optimistic2"), content: "answer" };
+  await act(async () => result.updateSessionMessages("p", "s", () => [user, live]));
+  state = { revision: 2, reset_revision: 0, project_revision: 2 };
+  await act(async () => { void result.reloadSessionMessages("p", "s", { authoritative: true }); });
+  await respond(1, page([msg("m100")], 2, { has_more: true, next_before_message_id: "m100" }));
+  assert.equal(result.sessionMessages["p/s"].at(-1).id, "optimistic2");
+  await respond(2, page([user, msg("m3")], 2));
+  assert.deepEqual(result.sessionMessages["p/s"].map(m => m.id), ["m1", "m3", "m100"]);
+});
+
+test("a failed backfill leaves the visible reply intact and a retry completes the handoff", async () => {
+  await setup();
+  const user = msg("m1", "user"), live = { ...msg("optimistic2"), content: "answer" };
+  await respond(0, page([user], 1));
+  await act(async () => result.updateSessionMessages("p", "s", items => [...items, live]));
+  state = { revision: 2, reset_revision: 0, project_revision: 2 };
+  await act(async () => { void result.reloadSessionMessages("p", "s", { authoritative: true }).catch(() => {}); });
+  await respond(1, page([msg("m100")], 2, { has_more: true, next_before_message_id: "m100" }));
+  await act(async () => requests[2].reject(new Error("temporary disconnect")));
+  assert.equal(result.sessionMessages["p/s"].at(-1).content, "answer");
+  assert.equal(result.messageLoadErrors["p/s"], "aiPanel.messageList.loadFailed");
+  await act(async () => { void result.reloadSessionMessages("p", "s", { authoritative: true }); });
+  await respond(3, page([user, { ...msg("m100"), content: "answer" }], 2));
+  assert.deepEqual(result.sessionMessages["p/s"].map(m => m.id), ["m1", "m100"]);
+  assert.equal(result.messageLoadErrors["p/s"], undefined);
 });
 
 for (const order of ["reconnect-first", "notification-first"]) {

@@ -81,6 +81,8 @@ export type ChatMessage = {
   id: string;
   /** Stable view identity; id remains the real message used by export/navigation. */
   displayKey?: string;
+  /** View-only fold scope retained when a partial turn gains its user row. */
+  displayTurnId?: string;
   role: "system" | "user" | "assistant" | "error" | "tool";
   content: string;
   contentParts?: ChatCompletionMessageContentPart[];

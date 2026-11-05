@@ -14,6 +14,7 @@ import type { ConversationRuntimeStatus } from "../../../entities/llm-chat/model
 import { useI18n } from "../../../shared/i18n";
 import { ContentReadinessContext } from "../../../shared/lib/contentReadiness";
 import { createChatDisplayProjector } from "../model/chatDisplayMessages";
+import { captureHistoryScrollAnchor } from "../model/chatHistoryScrollAnchor";
 import { buildModelSwitches } from "../model/chatModelTransitions";
 import { buildChatProcessFoldIdentities } from "../model/chatProcessFoldState";
 import { findRenderedMessage, startChatMessageNavigation,
@@ -97,9 +98,20 @@ export function ChatMessageList({
     (message) => message.id === navigationRequest.messageId));
 
   const olderLoadingRef = useRef(false);
+  const historyScrollAnchorRef = useRef<ReturnType<typeof captureHistoryScrollAnchor>>(null);
   const [olderLoadRevision, setOlderLoadRevision] = useState(0);
-  const historyLoadRef = useRef({ hasOlderMessages, onLoadOlder, isLoadingSession, loadError });
-  historyLoadRef.current = { hasOlderMessages, onLoadOlder, isLoadingSession, loadError };
+  const historyLoadRef = useRef({ hasOlderMessages, onLoadOlder, isLoadingSession, loadError, shouldVirtualize });
+  historyLoadRef.current = { hasOlderMessages, onLoadOlder, isLoadingSession, loadError, shouldVirtualize };
+  useLayoutEffect(() => {
+    if (shouldVirtualize || navigationRequest) {
+      historyScrollAnchorRef.current = null;
+      return;
+    }
+    historyScrollAnchorRef.current?.();
+    if (!olderLoadingRef.current && !isLoadingSession && !readiness?.getSnapshot()) {
+      historyScrollAnchorRef.current = null;
+    }
+  });
   useEffect(() => {
     const parent = scrollParentRef.current;
     if (!parent) return;
@@ -108,6 +120,7 @@ export function ChatMessageList({
       const state = historyLoadRef.current;
       if (!state.hasOlderMessages || !state.onLoadOlder || state.isLoadingSession || state.loadError || olderLoadingRef.current) return;
       olderLoadingRef.current = true;
+      historyScrollAnchorRef.current = state.shouldVirtualize ? null : captureHistoryScrollAnchor(parent);
       void state.onLoadOlder().catch(() => undefined).finally(() => {
         olderLoadingRef.current = false;
         setOlderLoadRevision((value) => value + 1);

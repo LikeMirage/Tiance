@@ -193,21 +193,21 @@
 }
 
 .conversation-messages-preview__record--assistant {
-  border-color: rgba(168, 162, 158, 0.18);
+  border-color: var(--color-border-subtle);
 }
 
 .conversation-messages-preview__record--tool-call {
-  border-color: rgba(96, 165, 250, 0.42);
+  border-color: var(--color-selection-accent-border);
   background: var(--color-surface-elevated);
 }
 
 .conversation-messages-preview__record--tool-result {
-  border-color: rgba(45, 212, 191, 0.38);
+  border-color: color-mix(in srgb, var(--color-success) 38%, transparent);
   background: var(--color-surface-elevated);
 }
 
 .conversation-messages-preview__record--invalid {
-  border-color: rgba(248, 113, 113, 0.42);
+  border-color: var(--color-danger-border);
   background: var(--color-surface-elevated);
 }
 
@@ -256,15 +256,15 @@
 }
 
 .conversation-messages-preview__record--tool-call .conversation-messages-preview__record-index {
-  color: #60a5fa;
+  color: var(--color-accent-text);
 }
 
 .conversation-messages-preview__record--tool-result .conversation-messages-preview__record-index {
-  color: #5eead4;
+  color: var(--color-success-text);
 }
 
 .conversation-messages-preview__record--invalid .conversation-messages-preview__record-index {
-  color: #fca5a5;
+  color: var(--color-danger-text);
 }
 
 .conversation-messages-preview__record-controls {
@@ -370,22 +370,22 @@
 }
 
 .conversation-messages-preview__record--tool-call pre {
-  border-color: rgba(96, 165, 250, 0.22);
+  border-color: var(--color-selection-accent-border);
 }
 
 .conversation-messages-preview__record--tool-result pre {
-  border-color: rgba(45, 212, 191, 0.2);
+  border-color: color-mix(in srgb, var(--color-success) 20%, transparent);
 }
 
 .conversation-messages-preview__record--invalid pre {
-  border-color: rgba(248, 113, 113, 0.22);
+  border-color: var(--color-danger-border);
 }
 
 .conversation-messages-preview__error-line {
   padding: 7px 9px;
-  border-left: 2px solid rgba(248, 113, 113, 0.7);
-  background: rgba(248, 113, 113, 0.1);
-  color: #fecaca;
+  border-left: 2px solid var(--color-danger);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
   font-size: 0.76rem;
   line-height: 1.45;
 }

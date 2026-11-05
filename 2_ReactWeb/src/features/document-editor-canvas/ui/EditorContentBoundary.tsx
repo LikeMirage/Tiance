@@ -3,6 +3,7 @@ import type { ErrorInfo, ReactNode } from "react";
 
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
+import { useDocumentRevealRequest } from "../../../entities/editor/model/documentRevealContext";
 
 export function buildEditorContentResetKey(tab: DocumentTab) {
   return [
@@ -25,8 +26,9 @@ function hashContent(content: string) {
 }
 
 export function EditorLazyBoundary({ children, resetKey }: { children: ReactNode; resetKey: string }) {
+  const revealRequest = useDocumentRevealRequest();
   return (
-    <EditorContentErrorBoundary resetKey={resetKey}>
+    <EditorContentErrorBoundary resetKey={resetKey} onError={revealRequest?.fail}>
       <Suspense fallback={<LoadingStrip ariaLabel="正在加载预览组件" mode="fill" surface="dark" visual="ring" />}>
         {children}
       </Suspense>
@@ -35,6 +37,7 @@ export function EditorLazyBoundary({ children, resetKey }: { children: ReactNode
 }
 
 type EditorContentErrorBoundaryProps = {
+  onError?: (error: unknown) => void;
   children: ReactNode;
   resetKey: string;
 };
@@ -58,12 +61,15 @@ class EditorContentErrorBoundary extends Component<
   }
 
   componentDidCatch(error: unknown, errorInfo: ErrorInfo) {
+    this.props.onError?.(error);
     console.error("Document preview crashed.", error, errorInfo);
   }
 
   componentDidUpdate(previousProps: EditorContentErrorBoundaryProps) {
     if (previousProps.resetKey !== this.props.resetKey && this.state.errorMessage) {
       this.setState({ errorMessage: null });
+    } else if (previousProps.onError !== this.props.onError && this.state.errorMessage) {
+      this.props.onError?.(new Error(this.state.errorMessage));
     }
   }
 

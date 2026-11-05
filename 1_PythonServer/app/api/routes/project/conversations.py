@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import asdict
 
 from fastapi import WebSocket, APIRouter, Query, status
 
@@ -34,6 +35,7 @@ from app.schemas.project import (
     SaveConversationAsRoleResponse,
 )
 from app.schemas.project.projects import ProjectResponse
+from app.schemas.project.project_conversations import ProjectConversationNavigationResponse
 from app.services.application.role_configuration import (
     get_role_configuration_application_service,
 )
@@ -572,6 +574,20 @@ def list_project_conversation_messages(
             ProjectConversationRunAttemptFailureResponse.from_domain(failure)
             for failure in page.run_attempt_failures
         ],
+    )
+
+
+@router.get(
+    "/{project_id}/conversations/{session_id}/messages/navigation",
+    response_model=ProjectConversationNavigationResponse,
+    summary="Get the complete lightweight user-message navigation index",
+)
+def get_project_conversation_navigation(project_id: str, session_id: str):
+    navigation = get_project_conversation_service().message_navigation(project_id, session_id)
+    return ProjectConversationNavigationResponse(
+        project_id=project_id, session_id=session_id,
+        revision=navigation.revision, reset_revision=navigation.reset_revision,
+        items=[asdict(item) for item in navigation.items],
     )
 
 

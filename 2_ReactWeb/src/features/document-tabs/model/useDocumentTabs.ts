@@ -43,6 +43,7 @@ import {
 } from "./documentToolDashboardTabs";
 import { useDocumentTabFileSync } from "./useDocumentTabFileSync";
 import { useDocumentTabRestore } from "./useDocumentTabRestore";
+import { useDocumentReveal } from "./useDocumentReveal";
 import {
   markDocumentTextContentAccessed,
   pruneDocumentTextContentCache,
@@ -329,6 +330,8 @@ export function useDocumentTabs() {
   ) => {
     renameWorkspacePath(getProjectDocumentSourceKey(projectId), previousPath, nextPath);
   }, [renameWorkspacePath]);
+
+  const revealProjectFile = useDocumentReveal({ getSnapshot, openNode, selectTab, tabs, activeTabId, setTabs });
 
   const openVirtualHtmlPreview = useCallback((html: string, options?: { projectId?: string | null }) => {
     const newTab = buildVirtualHtmlPreviewTab(html, {
@@ -894,6 +897,7 @@ export function useDocumentTabs() {
     restoreTabs,
     restoreWorkspaceTabs,
     saveActiveTab,
+    revealProjectFile,
     saveTab,
     saveTabAs,
     selectTab,
@@ -927,6 +931,7 @@ export function useDocumentTabs() {
     restoreTabs,
     restoreWorkspaceTabs,
     saveActiveTab,
+    revealProjectFile,
     saveTab,
     saveTabAs,
     selectTab,

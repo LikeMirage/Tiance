@@ -836,6 +836,10 @@ export function ChatPanelController({
       )}
 
       <ChatPanelBodyFrame
+        projectId={projectId}
+        sessionId={activeSessionId}
+        historyRevision={activeSessionKey ? historyPages[activeSessionKey]?.revision ?? null : null}
+        historyResetRevision={activeSessionKey ? historyPages[activeSessionKey]?.reset ?? null : null}
         isFollowingBottom={isFollowingBottom}
         activeSessionKey={activeSessionKey}
         activeView={activeView}

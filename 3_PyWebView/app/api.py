@@ -27,6 +27,7 @@ from app.windows_clipboard import (
     read_clipboard_path_entries,
     write_clipboard_path_entries,
 )
+from app.windows_file_drag import start_file_drag
 from app.windows_tray import WindowsTrayIcon
 from app.windows_foreground import allow_backend_foreground
 from app.window_close import WindowCloseCoordinator, show_native_exit_prompt
@@ -241,6 +242,9 @@ class ShellApi:
     def set_clipboard_path_entries(self, paths: list[str]) -> bool:
         self._require_allowed_window()
         return write_clipboard_path_entries(paths)
+
+    def start_file_drag(self, paths: list[str]) -> bool:
+        return start_file_drag(self._require_allowed_window(), paths)
 
     def copy_external_entries_to_directory(
         self,

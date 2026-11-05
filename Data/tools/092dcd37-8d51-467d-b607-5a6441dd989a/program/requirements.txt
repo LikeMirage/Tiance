@@ -1,0 +1,3 @@
+httpx==0.28.1
+# Windows x64 CPython 3.13 media module is bundled in program/vendor.
+# Other Python environments: install av==16.0.1 separately.

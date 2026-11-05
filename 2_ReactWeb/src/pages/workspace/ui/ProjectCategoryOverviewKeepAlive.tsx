@@ -258,6 +258,7 @@ export function ProjectCategoryOverviewKeepAlive({
               }
             }
           : handleMaximizedProjectChange}
+        onMaximizedProjectFollow={handleMaximizedProjectChange}
         onOverviewViewChange={handleOverviewViewChange}
         onOpenConversationBranches={(targetProjectId, sessionId) =>
           openConversationBranches(
@@ -396,6 +397,11 @@ export function ProjectCategoryOverviewKeepAlive({
                     categoryId,
                     projectId,
                   },
+                });
+              }}
+              onMaximizedProjectFollow={(projectId) => {
+                onLayoutPreferenceChange({
+                  projectOverviewMaximized: { categoryId, projectId },
                 });
               }}
               onOverviewViewChange={handleOverviewViewChange}

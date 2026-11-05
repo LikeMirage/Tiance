@@ -4,6 +4,7 @@ import { I18nProvider } from "@/shared/i18n";
 
 import { useAppTheme } from "./model/useAppTheme";
 import { useBrowserShellGuards } from "./model/useBrowserShellGuards";
+import { WorkspaceErrorBoundary } from "./ui/WorkspaceErrorBoundary";
 import { DesktopShellProvider } from "../features/desktop-shell/model/useDesktopShell";
 import { StartupSoftwareUpdatePrompt } from "../features/software-update/ui/StartupSoftwareUpdatePrompt";
 import { StartupAnnouncementPrompt } from "../features/announcements/ui/StartupAnnouncementPrompt";
@@ -113,17 +114,19 @@ export function App({
 
   return (
     <I18nProvider>
-      <DesktopShellProvider>
-        <AppFrame>
-          <WorkspacePage
-            initialLayoutPreferences={initialWorkspaceLayoutPreferences}
-            themeControl={themeControl}
-          />
-          <FrontendBootHandoff ready={!themeControl.isBootstrapping} />
-          <StartupAnnouncementPrompt />
-          <StartupSoftwareUpdatePrompt />
-        </AppFrame>
-      </DesktopShellProvider>
+      <WorkspaceErrorBoundary>
+        <DesktopShellProvider>
+          <AppFrame>
+            <WorkspacePage
+              initialLayoutPreferences={initialWorkspaceLayoutPreferences}
+              themeControl={themeControl}
+            />
+            <FrontendBootHandoff ready={!themeControl.isBootstrapping} />
+            <StartupAnnouncementPrompt />
+            <StartupSoftwareUpdatePrompt />
+          </AppFrame>
+        </DesktopShellProvider>
+      </WorkspaceErrorBoundary>
     </I18nProvider>
   );
 }

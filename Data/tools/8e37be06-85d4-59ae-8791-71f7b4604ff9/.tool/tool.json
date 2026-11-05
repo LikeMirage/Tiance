@@ -1,5 +1,5 @@
 {
-  "description": "在天策编辑器中打开、聚焦和整理项目文件标签，方便向用户展示产物。",
+  "description": "管理编辑器标签并展示项目文件。open_file 可打开 Office 等文件；reveal_file 仅定位 PDF 页码或纯文本源码选区，不支持 Word、Excel、PPT 内容定位。",
   "registration_name": "编辑器标签页管理",
   "execution": {
     "parallel": true
@@ -21,7 +21,7 @@
   "runtime": {
     "client_capability": {
       "name": "editor.tabs",
-      "min_version": 1
+      "min_version": 3
     },
     "timeout_seconds": 30,
     "type": "client"

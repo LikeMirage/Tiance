@@ -21,10 +21,167 @@
         "type": "object"
       },
       "type": "array"
+    },
+    "path": {
+      "type": "string"
+    },
+    "displayed": {
+      "type": "boolean",
+      "description": "仅目标实际展示完成时为 true。"
+    },
+    "error_code": {
+      "type": "string",
+      "description": "定位失败原因，如 TEXT_NOT_FOUND、AMBIGUOUS_TEXT、LINE_OUT_OF_RANGE、PAGE_OUT_OF_RANGE、PROJECT_NOT_ACTIVE、LOAD_FAILED、CANCELLED、SUPERSEDED、REVEAL_TIMEOUT。"
+    },
+    "match_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "location": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "pdf_page"
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "total_pages": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "type",
+            "page",
+            "total_pages"
+          ]
+        },
+        {
+          "$ref": "#/$defs/text_selection"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "text_selections"
+            },
+            "source": {
+              "const": "editor_buffer"
+            },
+            "ranges": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/text_selection"
+              },
+              "description": "按请求顺序返回每项解析后的范围；从第一项展示。实际重叠/重复选区会合并，但不丢失这里的对应结果。"
+            }
+          },
+          "required": [
+            "type",
+            "source",
+            "ranges"
+          ]
+        }
+      ]
+    },
+    "revealed_tab": {
+      "type": "object"
+    },
+    "range_index": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "多范围失败的输入项序号，从 1 开始；整批不应用选区。"
+    },
+    "file_kind": {
+      "type": "string",
+      "description": "前端实际使用的文件预览类型。"
+    },
+    "requested_target": {
+      "type": "string",
+      "description": "被拒绝的定位类型。"
+    },
+    "supported_target_types": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "该文件可用的定位类型；空数组表示不支持任何 reveal_file 定位方式。"
+    },
+    "suggested_action": {
+      "type": "string",
+      "enum": [
+        "open_file",
+        "reveal_file"
+      ],
+      "description": "可采用的动作。open_file 仅展示完整文件，不意味着完成选区定位。"
     }
   },
   "required": [
     "ok"
   ],
-  "type": "object"
+  "type": "object",
+  "$defs": {
+    "text_selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "text_selection"
+        },
+        "start_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "start_column": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_column": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "选区结束列，右端不包含。"
+        },
+        "from": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "to": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source": {
+          "const": "editor_buffer"
+        },
+        "match_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "occurrence": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "type",
+        "start_line",
+        "end_line",
+        "start_column",
+        "end_column",
+        "from",
+        "to",
+        "source"
+      ]
+    }
+  }
 }

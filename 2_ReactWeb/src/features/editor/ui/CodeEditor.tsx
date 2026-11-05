@@ -1,7 +1,9 @@
-import { Compartment, EditorState } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDocumentReadingScroll } from "../../../entities/editor/model/documentReadingState";
+import { useDocumentRevealRequest } from "../../../entities/editor/model/documentRevealContext";
+import { DocumentRevealError, resolveTextReveals } from "../../../entities/editor/model/documentReveal";
 
 import type { DocumentLanguage } from "../../../entities/editor/model/editorDocument";
 import { createEditorExtensions } from "./editor-config";
@@ -46,7 +48,8 @@ export function CodeEditor({
   const viewRef = useRef<EditorView | null>(null);
   const scrollRef = useRef<HTMLElement | null>(null);
   const [editorReady, setEditorReady] = useState(false);
-  useDocumentReadingScroll("source", scrollRef, editorReady);
+  const stopReadingRestore = useDocumentReadingScroll("source", scrollRef, editorReady);
+  const revealRequest = useDocumentRevealRequest();
   const onChangeRef = useRef(onChange);
   const onDirtyRef = useRef(onDirty);
   const onSaveRef = useRef(onSave);
@@ -111,6 +114,7 @@ export function CodeEditor({
     const state = EditorState.create({
       doc: value,
       extensions: [
+        EditorState.allowMultipleSelections.of(true),
         langCompartmentRef.current.of(createEditorExtensions(languageId, { readOnly, plainTextMode, onSave: saveCurrentDocument })),
         updateListener,
       ],
@@ -207,6 +211,36 @@ export function CodeEditor({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [languageId, readOnly, plainTextMode]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !editorReady || !revealRequest || revealRequest.signal.aborted || revealRequest.target.type === "pdf_page") return;
+    let frame = 0;
+    try {
+      const location = resolveTextReveals(view.state.doc, revealRequest.target);
+      const ranges = location.type === "text_selections" ? location.ranges : [location];
+      const first = ranges[0];
+      // CodeMirror sorts and merges overlapping ranges, while retaining the first input as primary.
+      const selection = EditorSelection.create(ranges.map((range) => EditorSelection.range(range.from, range.to)), 0);
+      const document = view.state.doc;
+      stopReadingRestore();
+      view.dispatch({
+        selection,
+        effects: EditorView.scrollIntoView(first.from + Math.floor((first.to - first.from) / 2), { y: "center" }),
+      });
+      view.focus();
+      // Let CodeMirror finish viewport measurement and native selection drawing.
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => {
+          if (revealRequest.signal.aborted) return;
+          if (view.state.doc !== document || !view.state.selection.eq(selection)) {
+            revealRequest.fail(new DocumentRevealError("SELECTION_CHANGED", "定位过程中内容或选区发生变化，请重试。"));
+          } else revealRequest.complete(location);
+        });
+      });
+    } catch (error) { revealRequest.fail(error); }
+    return () => cancelAnimationFrame(frame);
+  }, [editorReady, revealRequest, stopReadingRestore]);
 
   return <div className="code-editor-shell">
     <div ref={containerRef} className="code-editor" />

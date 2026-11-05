@@ -13,9 +13,21 @@
   display: flex;
   flex: 1;
   align-items: center;
+  gap: 6px;
   min-width: 0;
   padding: 0 12px;
   touch-action: none;
+}
+
+.window-titlebar__brand-icon {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  background-color: var(--color-text-primary);
+  /* Use the SVG silhouette so every theme supplies its own foreground color. */
+  -webkit-mask: url("/tiance-mark.svg") center / contain no-repeat;
+  mask: url("/tiance-mark.svg") center / contain no-repeat;
+  pointer-events: none;
 }
 
 .window-titlebar__title {

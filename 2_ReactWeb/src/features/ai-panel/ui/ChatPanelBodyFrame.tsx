@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type UIEventHandler } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject, type UIEventHandler } from "react";
 
-import { buildUserMessageNavigationItems } from "../model/userMessageNavigation";
+import { useConversationNavigation } from "../model/useConversationNavigation";
+import { ChatPanelErrorNotice } from "./ChatPanelErrorNotice";
 import { ChatProcessFoldProvider } from "../model/chatProcessFoldState";
 import { useChatContentReadiness } from "../model/useChatContentReadiness";
 import { ContentReadinessContext } from "../../../shared/lib/contentReadiness";
@@ -18,6 +19,10 @@ type ChatPanelBodyFrameProps = {
   isFollowingBottom: boolean;
   activeView: ChatPanelView;
   activeSessionKey: string | null;
+  projectId: string | null;
+  sessionId: string | null;
+  historyRevision: number | null;
+  historyResetRevision: number | null;
   bodyRef: RefObject<HTMLDivElement | null>;
   externalNavigationRequest?: (ChatMessageNavigationRequest & { sessionKey: string }) | null;
   viewRestoreRequest?: (ChatMessageNavigationRequest & { sessionKey: string }) | null;
@@ -36,6 +41,10 @@ export function ChatPanelBodyFrame({
   isFollowingBottom,
   activeView,
   activeSessionKey,
+  projectId,
+  sessionId,
+  historyRevision,
+  historyResetRevision,
   bodyRef,
   externalNavigationRequest = null,
   viewRestoreRequest = null,
@@ -57,10 +66,10 @@ export function ChatPanelBodyFrame({
   const navigationRequestIdRef = useRef(0);
   const [navigationRequest, setNavigationRequest] =
     useState<(ChatMessageNavigationRequest & { sessionKey: string }) | null>(null);
-  const navigationItems = useMemo(
-    () => buildUserMessageNavigationItems(chat.messages),
-    [chat.messages],
-  );
+  const navigation = useConversationNavigation({ projectId, sessionId,
+    revision: historyRevision, resetRevision: historyResetRevision,
+    running: chat.isActiveSessionStreaming, messages: chat.messages });
+  const navigationItems = navigation.items;
   const localNavigationRequest = navigationRequest?.sessionKey === activeSessionKey
     ? navigationRequest
     : null;
@@ -95,7 +104,7 @@ export function ChatPanelBodyFrame({
     activeView === "chat" && Boolean(activeSessionKey) && navigationItems.length >= 2;
   const messageNavigator = useMessageNavigatorActiveTurn({
     bodyRef,
-    enabled: hasMessageNavigator && isMessageNavigationTrackingEnabled,
+    enabled: activeView === "chat" && Boolean(activeSessionKey) && isMessageNavigationTrackingEnabled,
     items: navigationItems,
     messages: chat.messages,
     sessionKey: activeSessionKey,
@@ -110,6 +119,8 @@ export function ChatPanelBodyFrame({
 
   return (
     <ContentReadinessContext.Provider value={readiness}>
+    {activeView === "chat" ? <ChatPanelErrorNotice message={navigation.error} scopeKey={activeSessionKey}
+      onRetry={navigation.retry} autoDismiss={false} /> : null}
     <div className="ai-panel__body-frame" data-chat-loading={isPreparing || undefined} aria-busy={isPreparing}>
       <div
         id="ai-panel-message-scroll-region"
@@ -120,7 +131,8 @@ export function ChatPanelBodyFrame({
         aria-hidden={isPreparing || undefined}
         onScroll={handleBodyScroll}
       >
-        <ChatProcessFoldProvider sessionKey={activeSessionKey} isFollowing={isFollowingBottom}>
+        <ChatProcessFoldProvider sessionKey={activeSessionKey} isFollowing={isFollowingBottom}
+          visibleMessageKeys={messageNavigator.visibleMessageKeys}>
           {activeView === "settings" ? (
             <ChatSettingsView {...settings} />
           ) : (

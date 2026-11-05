@@ -107,7 +107,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
     message.role === "system" && message.name === "memory_compaction";
 
   return (
-    <ChatProcessFoldScope turnId={foldTurnId} thinkingOffset={foldThinkingOffset}>
+    <ChatProcessFoldScope turnId={foldTurnId} messageKey={message.displayKey ?? message.id} thinkingOffset={foldThinkingOffset}>
       {modelSwitchModelId ? <ModelSwitchNotice modelId={modelSwitchModelId} /> : null}
       {isMemoryCompactionStatus ? (
         <MemoryCompactionNotice message={message} />
@@ -117,6 +117,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
         <div
           className={buildChatMessageClass(message)}
           data-chat-message-id={message.id}
+          data-chat-message-key={message.displayKey ?? message.id}
         >
           <SystemMessage message={message} />
           {shouldRenderProcessTimeline ? (
@@ -260,10 +261,10 @@ function ThinkingBlock({
   isStreamingMessage,
   message,
 }: ThinkingBlockProps) {
-  const { states, setExpanded, thinkingOffset, isFollowing } = useChatProcessFolds();
+  const { states, setExpanded, thinkingOffset, allowAutomaticCollapse } = useChatProcessFolds();
   const automaticExpanded = useAutomaticProcessFolds(
     `legacy-thinking:${thinkingOffset}`, message.isThinkingExpanded ? "expanded" : null,
-    isStreamingMessage, isFollowing,
+    isStreamingMessage, allowAutomaticCollapse,
   ).has("expanded");
   const foldKey = `thinking:${thinkingOffset}`;
   const expanded = states[foldKey] ?? automaticExpanded;

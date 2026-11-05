@@ -5,13 +5,14 @@ import {
   PROJECT_FILE_DRAG_MIME_TYPE,
 } from "../../../entities/project/model/projectFileDragData";
 import type { ChatComposerInputState } from "./ChatComposerTypes";
+import { getDesktopFileDragData } from "../../desktop-shell/model/desktopFileDrag";
 
 export function handleChatComposerProjectFileDrop(
   event: DragEvent<HTMLElement>,
   input: ChatComposerInputState,
 ): boolean {
   const projectFile = parseProjectFileDragData(
-    event.dataTransfer.getData(PROJECT_FILE_DRAG_MIME_TYPE),
+    event.dataTransfer.getData(PROJECT_FILE_DRAG_MIME_TYPE) || getDesktopFileDragData(PROJECT_FILE_DRAG_MIME_TYPE) || "",
   );
   if (projectFile) {
     input.onDropProjectFile?.(projectFile);
@@ -21,5 +22,6 @@ export function handleChatComposerProjectFileDrop(
 }
 
 export function hasDraggedProjectFile(event: DragEvent<HTMLElement>) {
-  return Array.from(event.dataTransfer.types).includes(PROJECT_FILE_DRAG_MIME_TYPE);
+  return Array.from(event.dataTransfer.types).includes(PROJECT_FILE_DRAG_MIME_TYPE)
+    || getDesktopFileDragData(PROJECT_FILE_DRAG_MIME_TYPE) !== null;
 }

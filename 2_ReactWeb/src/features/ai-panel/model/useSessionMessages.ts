@@ -7,6 +7,7 @@ import type { ChatMessage } from "./chatMessage";
 import { mapConversationMessages } from "./chatMessage";
 import { buildSessionKey } from "./sessionKey";
 import { mergeLiveChatNotifications, reuseChatMessageRevisions } from "./chatNotifications";
+import { completeHistoryTail, HistorySnapshotChangedError } from "./chatHistorySnapshot";
 
 import { getConversationMessageState } from "../../../services/project/watchConversationChanges";
 import type { ConversationMessageListResponse } from "../../../entities/llm-chat/model/conversation";
@@ -49,6 +50,9 @@ export function useSessionMessages({
   const [sessionMessages, setSessionMessages] = useState<Record<string, ChatMessage[]>>({});
   const [loadingSessionKeys, setLoadingSessionKeys] = useState<Set<string>>(() => new Set());
   const sessionMessageSnapshotsRef = useRef<Record<string, ChatMessage[]>>({});
+  // Share immutable message objects, but never reconcile persisted pages against
+  // the UI's aggregate live reply (which may represent hundreds of saved rows).
+  const durableMessagesRef = useRef<Record<string, ChatMessage[]>>({});
   const messageAccessedAtRef = useRef(new Map<string, number>());
   const historyPagesRef = useRef(new Map<string, HistoryPage>());
   const [historyPages, setHistoryPages] = useState<Record<string, HistoryPage>>({});
@@ -139,6 +143,7 @@ export function useSessionMessages({
       historyPagesRef.current.set(key, page);
       setHistoryPages((prev) => ({ ...prev, [key]: page }));
       sessionMessageSnapshotsRef.current[key] = nextMessages;
+      durableMessagesRef.current[key] = nextMessages;
     }
     publishSessionMessages(pid, sessionId);
     return true;
@@ -212,8 +217,26 @@ export function useSessionMessages({
           incremental = false;
         }
         if (controller.signal.aborted) return;
+        if (!incremental && (!previousPage || response.reset_revision === previousPage.reset)) {
+          const checkpoint = request.older ? null : previousPage?.after
+            ?? (sessionMessageSnapshotsRef.current[key] ?? []).find((message) => message.role === "user")?.id
+            ?? null;
+          try {
+            response = await completeHistoryTail(response, checkpoint, (before) =>
+              getProjectConversationMessages(pid, sessionId, {
+                beforeMessageId: before, limit: CONVERSATION_MESSAGE_PAGE_SIZE, signal: controller.signal,
+              }), Boolean(request.older));
+          } catch (error) {
+            if (!(error instanceof HistorySnapshotChangedError)) throw error;
+            // Start a fresh snapshot if a branch/history edit crossed this read.
+            request = { ...request, older: false };
+            continue;
+          }
+        }
+        if (controller.signal.aborted) return;
         const nextMessages = mapConversationMessages(response.items, response.run_outcomes, response.run_attempt_failures);
         const latest = sessionMessageSnapshotsRef.current[key] ?? [];
+        const durable = durableMessagesRef.current[key] ?? [];
         const keepLive = shouldPreserveLiveMessages(request, latest);
         // A cursor read can start while streaming and finish after completion.
         // Re-evaluate the checkpoint before publishing: keep the visible reply
@@ -225,12 +248,16 @@ export function useSessionMessages({
         }
         const replaced = previousPage && (response.reset_revision ?? 0) !== previousPage.reset;
         const tailReplacement = !incremental && !request.older;
-        let merged = mergeHistoryPage(latest, nextMessages, {
+        const saved = reuseChatMessageRevisions(durable, mergeHistoryPage(durable, nextMessages, {
           older: Boolean(request.older), replace: Boolean(replaced) || !previousPage,
           tail: tailReplacement,
-        });
-        if (keepLive && latest.length && !request.older) merged = mergeLiveChatNotifications(latest, nextMessages);
-        sessionMessageSnapshotsRef.current[key] = reuseChatMessageRevisions(latest, merged);
+        }));
+        durableMessagesRef.current[key] = saved;
+        let merged = saved;
+        if (keepLive && latest.length) merged = request.older
+          ? mergeHistoryPage(latest, nextMessages, { older: true })
+          : mergeLiveChatNotifications(latest, nextMessages);
+        sessionMessageSnapshotsRef.current[key] = keepLive ? reuseChatMessageRevisions(latest, merged) : saved;
         messageAccessedAtRef.current.set(key, Date.now());
         const page = pageFromResponse(response);
         if (request.older) {
@@ -238,7 +265,7 @@ export function useSessionMessages({
           // An older-page read is not an acknowledgement of newer messages.
           page.revision = previousPage!.revision;
           page.reconcile = historyPagesRef.current.get(key)?.reconcile ?? previousPage!.reconcile;
-        } else if (previousPage && !replaced && (incremental || latest.some((m) => m.id === response.items[0]?.message_id))) {
+        } else if (previousPage && !replaced && (incremental || durable.some((m) => m.id === response.items[0]?.message_id))) {
           page.before = previousPage.before;
         }
         if (incremental && response.has_more) page.revision = previousPage?.revision ?? -1;
@@ -311,7 +338,9 @@ export function useSessionMessages({
     let retainedInactiveChars = 0;
     for (const key of inactiveKeys) {
       const messages = snapshots[key] ?? [];
-      const charCount = countMessagesChars(messages);
+      const durable = durableMessagesRef.current[key];
+      const charCount = countMessagesChars(messages)
+        + (durable && durable !== messages ? countMessagesChars(durable) : 0);
       const canRetain =
         retainedInactiveCaches < maxRetainedInactiveSessionMessageCaches &&
         retainedInactiveChars + charCount <= maxRetainedInactiveSessionMessageChars;
@@ -332,6 +361,7 @@ export function useSessionMessages({
       snapshotsChanged = true;
       messageAccessedAtRef.current.delete(key);
       historyPagesRef.current.delete(key);
+      delete durableMessagesRef.current[key];
       jobsRef.current.delete(key);
       reloadControllersRef.current.get(key)?.abort();
       reloadControllersRef.current.delete(key);
@@ -346,6 +376,7 @@ export function useSessionMessages({
       controller.abort();
       reloadControllersRef.current.delete(key);
       historyPagesRef.current.delete(key);
+      delete durableMessagesRef.current[key];
     }
     setLoadingSessionKeys((prev) => {
       const next = new Set([...prev].filter((key) => retainedKeys.has(key)));

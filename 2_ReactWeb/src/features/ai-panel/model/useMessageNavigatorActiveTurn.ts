@@ -13,7 +13,8 @@ type UseMessageNavigatorActiveTurnOptions = {
 
 type ActiveTurn = {
   sessionKey: string;
-  turnNumber: number;
+  turnNumber: number | null;
+  visibleMessageKeys: ReadonlySet<string>;
 };
 
 type ViewportMessageEntry = {
@@ -45,29 +46,36 @@ export function useMessageNavigatorActiveTurn({
     if (!enabled || !sessionKey) return;
     const body = bodyRef.current;
     if (!body) return;
-    const turnNumber = findViewportTurnNumber(
+    const { turnNumber, visibleMessageKeys } = readMessageViewport(
       body,
       messageTurnNumbers,
       userMessageTurnNumbers,
     );
-    if (turnNumber === null) return;
-
-    setActiveTurn((current) => (
-      current?.sessionKey === sessionKey && current.turnNumber === turnNumber
+    setActiveTurn((current) => {
+      const nextTurnNumber = turnNumber ?? (current?.sessionKey === sessionKey ? current.turnNumber : null);
+      return current?.sessionKey === sessionKey && current.turnNumber === nextTurnNumber
+        && current.visibleMessageKeys.size === visibleMessageKeys.size
+        && [...visibleMessageKeys].every((key) => current.visibleMessageKeys.has(key))
         ? current
-        : { sessionKey, turnNumber }
-    ));
+        : { sessionKey, turnNumber: nextTurnNumber, visibleMessageKeys };
+    });
   }, [bodyRef, enabled, messageTurnNumbers, sessionKey, userMessageTurnNumbers]);
+  const syncActiveTurnRef = useRef(syncActiveTurn);
+  syncActiveTurnRef.current = syncActiveTurn;
 
   const scheduleActiveTurnSync = useCallback(() => {
     if (frameIdRef.current !== null) return;
     frameIdRef.current = window.requestAnimationFrame(() => {
       frameIdRef.current = window.requestAnimationFrame(() => {
         frameIdRef.current = null;
-        syncActiveTurn();
+        syncActiveTurnRef.current();
       });
     });
-  }, [syncActiveTurn]);
+  }, []);
+
+  useEffect(() => {
+    if (enabled) scheduleActiveTurnSync();
+  }, [enabled, items, messages, scheduleActiveTurnSync]);
 
   useEffect(() => {
     scheduleActiveTurnSync();
@@ -77,11 +85,21 @@ export function useMessageNavigatorActiveTurn({
         frameIdRef.current = null;
       }
     };
-  }, [scheduleActiveTurnSync]);
+  }, [sessionKey, enabled, scheduleActiveTurnSync]);
+
+  useEffect(() => {
+    if (!enabled || !bodyRef.current || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(scheduleActiveTurnSync);
+    observer.observe(bodyRef.current);
+    // Includes explicit folds, images and layout changes without polling.
+    for (const child of bodyRef.current.children) observer.observe(child);
+    return () => observer.disconnect();
+  }, [bodyRef, enabled, sessionKey, messages.length, scheduleActiveTurnSync]);
 
   const selectTurn = useCallback((turnNumber: number) => {
     if (!sessionKey) return;
-    setActiveTurn({ sessionKey, turnNumber });
+    setActiveTurn((current) => ({ sessionKey, turnNumber,
+      visibleMessageKeys: current?.sessionKey === sessionKey ? current.visibleMessageKeys : new Set() }));
   }, [sessionKey]);
 
   const activeTurnNumber = activeTurn?.sessionKey === sessionKey &&
@@ -95,24 +113,29 @@ export function useMessageNavigatorActiveTurn({
   return {
     activeTurnNumber,
     activeUserMessageId,
+    visibleMessageKeys: enabled && activeTurn?.sessionKey === sessionKey ? activeTurn.visibleMessageKeys : null,
     scheduleActiveTurnSync,
     selectTurn,
   };
 }
 
-function buildMessageTurnNumbers(
+export function buildMessageTurnNumbers(
   messages: ChatMessage[],
   items: UserMessageNavigationItem[],
 ) {
-  const completedTurns = new Map(
+  const userTurns = new Map(
     items.map((item) => [item.userMessageId, item.turnNumber]),
   );
   const result = new Map<string, number>();
+  for (const item of items) {
+    result.set(item.userMessageId, item.turnNumber);
+    if (item.assistantMessageId) result.set(item.assistantMessageId, item.turnNumber);
+  }
   let currentTurnNumber: number | null = null;
 
   messages.forEach((message) => {
     if (message.role === "user") {
-      currentTurnNumber = completedTurns.get(message.id) ?? currentTurnNumber;
+      currentTurnNumber = userTurns.get(message.id) ?? null;
     }
     if (currentTurnNumber !== null) {
       result.set(message.id, currentTurnNumber);
@@ -122,7 +145,7 @@ function buildMessageTurnNumbers(
   return result;
 }
 
-function findViewportTurnNumber(
+export function readMessageViewport(
   body: HTMLDivElement,
   messageTurnNumbers: ReadonlyMap<string, number>,
   userMessageTurnNumbers: ReadonlyMap<string, number>,
@@ -130,15 +153,17 @@ function findViewportTurnNumber(
   const viewport = body.getBoundingClientRect();
   const messages = body.querySelectorAll<HTMLElement>("[data-chat-message-id]");
   const visibleEntries: ViewportMessageEntry[] = [];
+  const visibleMessageKeys = new Set<string>();
 
   for (const message of messages) {
     const messageId = message.dataset.chatMessageId;
     const turnNumber = messageId ? messageTurnNumbers.get(messageId) : undefined;
-    if (turnNumber === undefined) continue;
-
     const bounds = message.getBoundingClientRect();
     if (bounds.bottom <= viewport.top) continue;
     if (bounds.top >= viewport.bottom) break;
+    const messageKey = message.dataset.chatMessageKey ?? messageId;
+    if (messageKey) visibleMessageKeys.add(messageKey);
+    if (turnNumber === undefined) continue;
     visibleEntries.push({
       bottom: bounds.bottom,
       isUserMessage: Boolean(messageId && userMessageTurnNumbers.has(messageId)),
@@ -147,7 +172,7 @@ function findViewportTurnNumber(
     });
   }
 
-  return resolveViewportTurnNumber(viewport.top, viewport.bottom, visibleEntries);
+  return { turnNumber: resolveViewportTurnNumber(viewport.top, viewport.bottom, visibleEntries), visibleMessageKeys };
 }
 
 export function resolveViewportTurnNumber(

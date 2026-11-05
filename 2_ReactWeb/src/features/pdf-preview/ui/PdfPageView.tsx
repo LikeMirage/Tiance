@@ -10,6 +10,7 @@ import {
 } from "../model/pdfLinkAdapter";
 import { resolvePdfCanvasOutputScale } from "../model/pdfCanvasScale";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
+import type { PdfPageRenderState } from "../model/usePdfReveal";
 
 type PdfPageViewProps = {
   contentRef: RefObject<HTMLDivElement | null>;
@@ -18,6 +19,7 @@ type PdfPageViewProps = {
   pdfDocument: PdfDocumentProxy;
   pdfjs: PdfJsLib;
   scale: number;
+  onRenderStateChange?: (state: PdfPageRenderState) => void;
 };
 
 type TextLayerInstance = {
@@ -32,7 +34,10 @@ export function PdfPageView({
   pdfDocument,
   pdfjs,
   scale,
+  onRenderStateChange,
 }: PdfPageViewProps) {
+  const onRenderStateRef = useRef(onRenderStateChange);
+  onRenderStateRef.current = onRenderStateChange;
   const annotationLayerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const renderedPageRef = useRef<{ pageNumber: number; pdfDocument: PdfDocumentProxy } | null>(null);
@@ -58,6 +63,7 @@ export function PdfPageView({
       setIsPageLoading(shouldShowPageLoading);
       setAnnotationError(null);
       setRenderError(null);
+      onRenderStateRef.current?.({ document: pdfDocument, page: pageNumber, scale, state: "loading" });
 
       try {
         const page = await pdfDocument.getPage(pageNumber);
@@ -152,11 +158,13 @@ export function PdfPageView({
         if (!isCancelled) {
           renderedPageRef.current = { pageNumber, pdfDocument };
           setIsPageLoading(false);
+          onRenderStateRef.current?.({ document: pdfDocument, page: pageNumber, scale, state: "ready" });
         }
       } catch (err) {
         if (isCancelled) return;
         setIsPageLoading(false);
         setRenderError(err instanceof Error ? err.message : "PDF 页面渲染失败。");
+        onRenderStateRef.current?.({ document: pdfDocument, page: pageNumber, scale, state: "error", error: err instanceof Error ? err.message : "PDF 页面渲染失败。" });
       }
     };
 

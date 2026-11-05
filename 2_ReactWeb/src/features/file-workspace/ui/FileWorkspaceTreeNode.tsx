@@ -126,6 +126,7 @@ export const FileWorkspaceTreeNode = memo(function FileWorkspaceTreeNode({
       event.preventDefault();
       return;
     }
+    if (nodeDragData.startNativeDrag?.(event, node, dragData)) return;
     event.dataTransfer.effectAllowed = "copy";
     event.dataTransfer.setData(nodeDragData.mimeType, dragData);
     event.dataTransfer.setData("text/plain", node.path);

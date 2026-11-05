@@ -754,6 +754,10 @@ class ProjectConversationRepository:
     def message_sync_target(self, project_id: str, session_id: str) -> Path:
         return self._session_store.require_session_dir(project_id, session_id)
 
+    def message_navigation(self, project_id: str, session_id: str):
+        from app.repositories.project.conversation_navigation_repository import read_navigation
+        return read_navigation(self._session_store.require_session_dir(project_id, session_id))
+
     def get_message_turn(
         self,
         project_id: str,

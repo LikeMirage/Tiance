@@ -23,9 +23,11 @@ export function createChatDisplayProjector() {
     display: ChatMessage[];
   };
   let entries = new Map<string, Entry>();
+  let partialEntriesBySource = new Map<string, Entry>();
   let previous: ChatMessage[] = [];
   return (messages: ChatMessage[], options: BuildChatDisplayMessagesOptions = {}) => {
     const nextEntries = new Map<string, Entry>();
+    const nextPartialEntriesBySource = new Map<string, Entry>();
     const result: ChatMessage[] = [];
     let start = 0;
     for (let end = 1; end <= messages.length; end += 1) {
@@ -34,11 +36,18 @@ export function createChatDisplayProjector() {
       // Every preceding turn is closed, independently of the current run.
       const status = end === messages.length ? options.runtimeStatus : "idle";
       let entry = entries.get(key);
+      // Prepending an older page changes the first raw row of a partial turn.
+      // Match its existing rows before assigning a new React view identity.
+      if (!entry) {
+        for (let index = start; index < end && !entry; index += 1) {
+          entry = partialEntriesBySource.get(messages[index].id);
+        }
+      }
       if (!entry || entry.status !== status || entry.sources.length !== end - start
         || entry.sources.some((source, index) => source !== messages[start + index])) {
         const sources = messages.slice(start, end);
         let display = buildChatDisplayMessages(sources, { runtimeStatus: status });
-        if (sources[0].role === "user" && entry) {
+        if (entry) {
           // The socket's optimistic ID differs from persisted message IDs. Keep
           // the one ordinary assistant view in this user turn mounted through
           // reconciliation, without changing its authoritative ID or content.
@@ -48,18 +57,25 @@ export function createChatDisplayProjector() {
           const next = display.filter(ordinaryAssistant);
           if (previous.length === 1 && next.length === 1) {
             const displayKey = previous[0].displayKey ?? previous[0].id;
-            if ((next[0].displayKey ?? next[0].id) !== displayKey) {
-              display = display.map((message) => message === next[0] ? { ...message, displayKey } : message);
+            const displayTurnId = previous[0].displayTurnId
+              ?? (entry.sources[0].role !== "user" && sources[0].role === "user" ? entry.display[0].id : undefined);
+            if ((next[0].displayKey ?? next[0].id) !== displayKey || displayTurnId !== next[0].displayTurnId) {
+              display = display.map((message) => message === next[0]
+                ? { ...message, displayKey, ...(displayTurnId ? { displayTurnId } : {}) } : message);
             }
           }
         }
         entry = { sources, status, display };
       }
       nextEntries.set(key, entry);
+      if (entry.sources[0].role !== "user") {
+        for (const source of entry.sources) nextPartialEntriesBySource.set(source.id, entry);
+      }
       for (const message of entry.display) result.push(message);
       start = end;
     }
     entries = nextEntries;
+    partialEntriesBySource = nextPartialEntriesBySource;
     if (result.length === previous.length && result.every((message, index) => message === previous[index])) {
       return previous;
     }

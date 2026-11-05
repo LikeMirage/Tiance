@@ -1,0 +1,46 @@
+{
+  "platform": "Windows x64 CPython 3.13",
+  "version": "16.0.1+audio.1",
+  "wheel": {
+    "path": "av-16.0.1+audio.1-cp313-cp313-win_amd64.whl",
+    "bytes": 5082914,
+    "sha256": "b2f73e65eb64a95cf60bc3349079440e1a648828be9d49670fb7d6e73a699b93"
+  },
+  "libraries": [
+    {
+      "path": "av.libs/avcodec-62-8f4e15c3282c8ece5b79d40dd62d14dc.dll",
+      "bytes": 3776000,
+      "sha256": "98e4055d4c4e08a29086954033dc6cb7b924fe954b65d154cc36942c149aca83"
+    },
+    {
+      "path": "av.libs/avdevice-62-34e74446c1e1e2591c29d6e494b1c7d6.dll",
+      "bytes": 13312,
+      "sha256": "c9353f7ce453c087dbecadb984b3190fa629d25aac97ed91afd62a6aa7e7bff1"
+    },
+    {
+      "path": "av.libs/avfilter-11-bde718768a571cabc99f0ee4092aac1c.dll",
+      "bytes": 134144,
+      "sha256": "cf8883cd75e452ba7a035ff04fc7321e2eac6439eb164d4ce34e88dd946eee1d"
+    },
+    {
+      "path": "av.libs/avformat-62-e98ab6ea66d654be04a12c1c7f026233.dll",
+      "bytes": 1458176,
+      "sha256": "898556e78ae9804b0cf13f7753d7b7b3474c8bebf99de8353a5f22d79850a46c"
+    },
+    {
+      "path": "av.libs/avutil-60-0e0a772d1fab135a749452c7f557c2c0.dll",
+      "bytes": 703488,
+      "sha256": "0e0a772d1fab135a749452c7f557c2c008db5795e08e13da7ca077dd9f593109"
+    },
+    {
+      "path": "av.libs/swresample-6-81363080ba93cb69ee8229e8345f9a58.dll",
+      "bytes": 102912,
+      "sha256": "1808333aa6481251d66bf2ea501d85d3a0a5ae5f7b13a695e5ead207b1d424a6"
+    },
+    {
+      "path": "av.libs/swscale-9-fce91c8de39560ba85f59d9c49d13ab9.dll",
+      "bytes": 669184,
+      "sha256": "c087eda218e83ca97ab67e0b99a97fe91a94ce7e7d980ea9443bd617c951ab7e"
+    }
+  ]
+}

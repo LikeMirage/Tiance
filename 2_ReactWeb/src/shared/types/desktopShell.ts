@@ -107,6 +107,7 @@ export interface DesktopShellApi {
   get_clipboard_path_entries?: () => Promise<DesktopPathEntry[]>;
   select_external_files?: () => Promise<DesktopPathEntry[]>;
   set_clipboard_path_entries?: (paths: string[]) => Promise<boolean>;
+  start_file_drag?: (paths: string[]) => Promise<boolean>;
   copy_external_entries_to_directory?: (
     sourcePaths: string[],
     destinationRoot: string,

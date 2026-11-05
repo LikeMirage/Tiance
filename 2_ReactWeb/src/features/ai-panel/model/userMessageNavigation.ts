@@ -2,6 +2,7 @@ import type { ChatMessage } from "./chatMessage";
 import { resolveUserMessageContent } from "./userMessageReferences";
 
 export type UserMessageNavigationItem = {
+  assistantMessageId?: string;
   assistantPreview: string;
   turnNumber: number;
   userMessageId: string;
@@ -27,22 +28,41 @@ export function buildUserMessageNavigationItems(
     }
 
     const finalReply = findFinalReply(messages, index + 1, turnEnd);
-    if (!finalReply) continue;
 
     const userContent = resolveUserMessageContent(userMessage);
     const userPreview = normalizePreview(userContent);
-    const assistantPreview = normalizePreview(finalReply.content);
-    if (!userPreview || !assistantPreview) continue;
+    const assistantPreview = normalizePreview(finalReply?.content ?? "");
 
     items.push({
+      assistantMessageId: finalReply?.id,
       assistantPreview,
       turnNumber,
       userMessageId: userMessage.id,
-      userPreview,
+      userPreview: userPreview || "（附件消息）",
     });
   }
 
   return items;
+}
+
+/** The complete index owns numbering. Loaded body pages only enrich previews
+ * and add a newly submitted user message before it reaches the saved index. */
+export function mergeUserMessageNavigationItems(
+  index: UserMessageNavigationItem[], local: UserMessageNavigationItem[],
+): UserMessageNavigationItem[] {
+  const localById = new Map(local.map((item) => [item.userMessageId, item]));
+  const knownIds = new Set(index.map((item) => item.userMessageId));
+  const result = index.map((item) => {
+    const loaded = localById.get(item.userMessageId);
+    return loaded ? { ...item, userPreview: loaded.userPreview,
+      assistantPreview: loaded.assistantPreview || item.assistantPreview,
+      assistantMessageId: loaded.assistantMessageId ?? item.assistantMessageId } : item;
+  });
+  let turnNumber = result.at(-1)?.turnNumber ?? 0;
+  for (const item of local) {
+    if (!knownIds.has(item.userMessageId)) result.push({ ...item, turnNumber: ++turnNumber });
+  }
+  return result;
 }
 
 function findFinalReply(

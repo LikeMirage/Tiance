@@ -5,6 +5,7 @@ import {
   type DesktopFileDropEvent,
   subscribeNativeDesktopFileDrops,
 } from "./desktopFileDropBridge";
+import { hasDesktopFileDragData } from "./desktopFileDrag";
 
 const DROP_TARGET_ATTRIBUTE = "data-tiance-file-drop-target";
 const DROP_ID_EVENT_FIELD = "__tianceNativeFileDropId";
@@ -118,7 +119,7 @@ function createDropTargetId() {
 }
 
 function hasExternalFiles(event: DragEvent) {
-  return Array.from(event.dataTransfer?.types ?? []).includes("Files");
+  return !hasDesktopFileDragData() && Array.from(event.dataTransfer?.types ?? []).includes("Files");
 }
 
 function readDropId(event: DragEvent): string | null {

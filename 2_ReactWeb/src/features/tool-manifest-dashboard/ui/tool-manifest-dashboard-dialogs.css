@@ -5,7 +5,7 @@
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(15, 23, 42, 0.42);
+  background: rgba(0, 0, 0, 0.45);
 }
 
 .tool-dashboard__dialog {
@@ -51,8 +51,8 @@
 
 .tool-dashboard__dialog-button--danger,
 .tool-dashboard__danger-button {
-  border-color: rgba(225, 92, 76, 0.35);
-  color: var(--color-danger);
+  border-color: var(--color-danger-border);
+  color: var(--color-danger-text);
 }
 
 .tool-dashboard__secondary-button,
@@ -82,5 +82,5 @@
 
 .tool-dashboard__danger-button:hover,
 .tool-dashboard__dialog-button--danger:hover {
-  background: rgba(225, 92, 76, 0.1);
+  background: var(--color-danger-bg);
 }

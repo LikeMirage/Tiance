@@ -4,19 +4,20 @@
   "properties": {
     "action": {
       "permission_type": "ui_control",
-      "description": "要执行的标签页操作。内容生成或修改完成后，需要给用户展示结果文件时使用 open_file；目标文件已经打开时可用 focus_file。",
+      "description": "按展示目的选择动作：open_file 打开整个文件（可预览 Word/Excel/PPT 等）；focus_file 切换到已打开标签；reveal_file 打开或复用标签并定位内容，只支持 PDF 页码和纯文本源码选区。DOCX、XLS/XLSX、PPTX、CSV/TSV、图片等预览不支持 reveal_file；需要展示它们时用 open_file，不带 target，且不能声称已选中指定内容。reveal_file 要求目标项目已在编辑器前台。",
       "enum": [
         "list_tabs",
         "open_file",
         "focus_file",
         "close_clean_tabs",
-        "close_others_clean"
+        "close_others_clean",
+        "reveal_file"
       ],
       "type": "string"
     },
     "path": {
       "permission_type": "ui_control",
-      "description": "当前项目内的相对文件路径。open_file、focus_file、close_others_clean 可使用。支持文本、Markdown、代码、图片、PDF、Word、Excel、PPT 等项目文件；编辑器会按文件类型预览或编辑，不需要把 Office/PDF 当文本读取。",
+      "description": "当前项目内的相对路径。open_file、focus_file、close_others_clean、reveal_file 使用。能打开不等于能定位：open_file 可展示文本、图片、PDF、Word、Excel、PPT 等；reveal_file 仅限 .pdf（pdf_page）或由文本编辑器打开的源码文件，例如 .txt/.md/.py/.ts/.json/.html（text/line_range/text_ranges）。.docx/.xls/.xlsx/.pptx/.csv/.tsv 等不能调用 reveal_file，即使其中含有文字。已有标签保留未保存内容。",
       "minLength": 1,
       "type": "string"
     },
@@ -30,6 +31,145 @@
       "minItems": 1,
       "uniqueItems": true,
       "type": "array"
+    },
+    "target": {
+      "permission_type": "ui_control",
+      "description": "仅 reveal_file 使用，不能用于 Word/Excel/PPT、CSV/TSV、图片等预览文件。pdf_page 仅用于 PDF；text、line_range、text_ranges 仅用于纯文本源码编辑器，不代表所有含文字的文档。页码和行号从 1 开始；行范围含首尾行。原文按编辑器实时内容精确匹配（保留空白、区分大小写、统一换行），重复时必须给 occurrence，按位置从 1 计数且包含重叠匹配。Markdown/HTML 自动切到源码。text_ranges 的 ranges 可混合原文和行范围，非空且无数量上限；全部成功后一次性选中，从第一项居中展示，任一项失败整批报错并返回 range_index，不修改文件。",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "pdf_page"
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "type",
+            "page"
+          ],
+          "description": "仅 PDF 页码，不用于 Word/PPT 的页码。"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "line_range"
+            },
+            "start_line": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "end_line": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "大于等于 start_line。"
+            }
+          },
+          "required": [
+            "type",
+            "start_line",
+            "end_line"
+          ],
+          "description": "仅纯文本源码编辑器；不支持 Word/DOCX、Excel、PPT、CSV/TSV 或其他预览内容。"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "text"
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "description": "待选中的原文，不去掉首尾空白。"
+            },
+            "occurrence": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ],
+          "description": "仅纯文本源码编辑器；不支持 Word/DOCX、Excel、PPT、CSV/TSV 或其他预览内容。"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "text_ranges"
+            },
+            "ranges": {
+              "type": "array",
+              "minItems": 1,
+              "description": "按输入顺序的文本范围，可混合原文与行范围，数量无上限；从第一项展示。重叠或重复范围由编辑器合并高亮。",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "type": {
+                        "const": "line_range"
+                      },
+                      "start_line": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "end_line": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "大于等于 start_line。"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "start_line",
+                      "end_line"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "type": {
+                        "const": "text"
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "待选中的原文，不去掉首尾空白。"
+                      },
+                      "occurrence": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "text"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "type",
+            "ranges"
+          ],
+          "description": "仅纯文本源码编辑器；不支持 Word/DOCX、Excel、PPT、CSV/TSV 或其他预览内容。"
+        }
+      ]
     }
   },
   "allOf": [
@@ -105,11 +245,41 @@
           ]
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "reveal_file"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "path",
+          "target"
+        ],
+        "not": {
+          "required": [
+            "paths"
+          ]
+        }
+      },
+      "else": {
+        "not": {
+          "required": [
+            "target"
+          ]
+        }
+      }
     }
   ],
   "required": [
     "action"
   ],
   "type": "object",
-  "description": "操作当前项目的前端编辑器标签。关闭动作只处理已保存标签，未保存标签会被跳过并说明，不强制丢弃编辑。"
+  "description": "操作当前项目的前端编辑器标签。关闭动作只处理已保存标签，未保存标签会被跳过并说明，不强制丢弃编辑。 文件类型支持范围按 action 区分。UNSUPPORTED_TARGET 表示格式与定位方式不兼容；对 Office 等格式不要换 text 内容或行号反复尝试。可用 open_file 展示完整文件，同时明确说明尚未定位/选中。"
 }

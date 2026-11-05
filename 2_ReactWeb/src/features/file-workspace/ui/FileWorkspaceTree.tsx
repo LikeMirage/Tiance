@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { KeyboardEvent, MouseEvent } from "react";
+import type { DragEvent, KeyboardEvent, MouseEvent } from "react";
 
 import { useI18n } from "../../../shared/i18n";
 import { ConfirmModal } from "../../../shared/ui/confirm-modal/ConfirmModal";
@@ -49,6 +49,7 @@ export type FileWorkspaceTreeProps = {
 export type FileWorkspaceNodeDragDataConfig = {
   mimeType: string;
   getData: (node: FileWorkspaceBrowserNode) => string | null;
+  startNativeDrag?: (event: DragEvent<HTMLElement>, node: FileWorkspaceBrowserNode, data: string) => boolean;
 };
 
 export function FileWorkspaceTree({

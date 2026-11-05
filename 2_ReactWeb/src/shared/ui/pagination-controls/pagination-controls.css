@@ -1,7 +1,8 @@
 .pagination-controls {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-panel, #182333) 88%, transparent);
-  border-bottom: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.22));
+  background: var(--color-surface-toolbar);
+  border-bottom: 1px solid var(--color-border-soft);
+  color: var(--color-text-primary);
   display: flex;
   flex: 0 0 auto;
   gap: 14px;
@@ -12,7 +13,7 @@
 
 .pagination-controls__summary,
 .pagination-controls__actions > span {
-  color: var(--text-muted, #94a3b8);
+  color: var(--color-text-secondary);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -24,10 +25,10 @@
 }
 
 .pagination-controls button {
-  background: transparent;
-  border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.28));
+  background: var(--color-surface-input);
+  border: 1px solid var(--color-border-soft);
   border-radius: 4px;
-  color: inherit;
+  color: var(--color-text-secondary);
   cursor: pointer;
   font: inherit;
   min-height: 26px;
@@ -35,7 +36,9 @@
 }
 
 .pagination-controls button:hover:not(:disabled) {
-  background: color-mix(in srgb, currentColor 8%, transparent);
+  background: var(--color-surface-item-hover);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
 }
 
 .pagination-controls button:disabled {

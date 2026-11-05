@@ -73,7 +73,7 @@ export function AssistantProcessTimeline({
   isStreamingMessage,
   message,
 }: AssistantProcessTimelineProps) {
-  const { states: manualFoldStates, setExpanded, thinkingOffset, isFollowing } = useChatProcessFolds();
+  const { states: manualFoldStates, setExpanded, thinkingOffset, allowAutomaticCollapse } = useChatProcessFolds();
   const items = message.processItems ?? EMPTY_PROCESS_ITEMS;
   const renderItems = useMemo(() => buildAssistantProcessRenderItems(items), [items]);
   const foldKeys = useMemo(() => {
@@ -97,7 +97,7 @@ export function AssistantProcessTimeline({
   ), [hasTrailingBodyContent, isStreamingMessage, renderItems]);
   const desiredFoldKey = autoExpandedFoldId ? foldKeys.get(autoExpandedFoldId) : undefined;
   const automaticFolds = useAutomaticProcessFolds(
-    `timeline:${thinkingOffset}`, desiredFoldKey ?? null, isStreamingMessage, isFollowing,
+    `timeline:${thinkingOffset}`, desiredFoldKey ?? null, isStreamingMessage, allowAutomaticCollapse,
   );
   const resolveFoldExpanded = (foldId: string) =>
     manualFoldStates[foldKeys.get(foldId)!] ?? automaticFolds.has(foldKeys.get(foldId)!);
@@ -254,11 +254,11 @@ function ProcessedProcessBlock({
   resolveFoldExpanded: RenderAssistantProcessItemOptions["resolveFoldExpanded"];
   toggleFold: RenderAssistantProcessItemOptions["toggleFold"];
 }) {
-  const { states, setExpanded, isFollowing, thinkingOffset } = useChatProcessFolds();
+  const { states, setExpanded, allowAutomaticCollapse, thinkingOffset } = useChatProcessFolds();
   const hasManualOpenChild = Object.entries(states).some(([key, value]) => key !== "processed" && value);
   const automaticExpanded = useAutomaticProcessFolds(
     `processed:${thinkingOffset}`, isStreamingMessage ? "expanded" : null,
-    isStreamingMessage, isFollowing && !hasManualOpenChild,
+    isStreamingMessage, allowAutomaticCollapse && !hasManualOpenChild,
   ).has("expanded");
   const isExpanded = !showHeader || (states.processed ?? (hasManualOpenChild || automaticExpanded));
 

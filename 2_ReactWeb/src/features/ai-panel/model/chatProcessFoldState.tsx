@@ -40,21 +40,24 @@ export function createChatProcessFoldStore() {
 }
 
 type FoldStore = ReturnType<typeof createChatProcessFoldStore>;
-const PanelContext = createContext<{ store: FoldStore; sessionKey: string | null; isFollowing: boolean } | null>(null);
-const TurnContext = createContext<{ store: FoldStore; scope: string; thinkingOffset: number; isFollowing: boolean } | null>(null);
+const PanelContext = createContext<{ store: FoldStore; sessionKey: string | null; isFollowing: boolean;
+  visibleMessageKeys: ReadonlySet<string> | null } | null>(null);
+const TurnContext = createContext<{ store: FoldStore; scope: string; thinkingOffset: number; allowAutomaticCollapse: boolean } | null>(null);
 
-export function ChatProcessFoldProvider({ sessionKey, children, isFollowing = true }: {
+export function ChatProcessFoldProvider({ sessionKey, children, isFollowing = true, visibleMessageKeys = null }: {
   sessionKey: string | null;
   isFollowing?: boolean;
+  visibleMessageKeys?: ReadonlySet<string> | null;
   children: ReactNode;
 }) {
   const [store] = useState(createChatProcessFoldStore);
-  const value = useMemo(() => ({ store, sessionKey, isFollowing }), [store, sessionKey, isFollowing]);
+  const value = useMemo(() => ({ store, sessionKey, isFollowing, visibleMessageKeys }), [store, sessionKey, isFollowing, visibleMessageKeys]);
   return <PanelContext.Provider value={value}>{children}</PanelContext.Provider>;
 }
 
-export function ChatProcessFoldScope({ turnId, thinkingOffset, children }: {
+export function ChatProcessFoldScope({ turnId, messageKey, thinkingOffset, children }: {
   turnId: string;
+  messageKey?: string;
   thinkingOffset: number;
   children: ReactNode;
 }) {
@@ -64,8 +67,9 @@ export function ChatProcessFoldScope({ turnId, thinkingOffset, children }: {
     store: panel.store,
     scope: JSON.stringify([panel.sessionKey, turnId]),
     thinkingOffset,
-    isFollowing: panel.isFollowing,
-  }), [panel, turnId, thinkingOffset]);
+    allowAutomaticCollapse: panel.isFollowing || (panel.visibleMessageKeys !== null
+      && !panel.visibleMessageKeys.has(messageKey ?? turnId)),
+  }), [panel, turnId, messageKey, thinkingOffset]);
   return <TurnContext.Provider value={value}>{children}</TurnContext.Provider>;
 }
 
@@ -79,7 +83,7 @@ export function useChatProcessFolds() {
   const setExpanded = useCallback((fold: string, expanded: boolean) => {
     store.set(scope, fold, expanded);
   }, [store, scope]);
-  return { states, setExpanded, thinkingOffset, isFollowing: context.isFollowing };
+  return { states, setExpanded, thinkingOffset, allowAutomaticCollapse: context.allowAutomaticCollapse };
 }
 
 /** Only a mounted live response (including its completion transition) may
@@ -123,7 +127,7 @@ export function buildChatProcessFoldIdentities(messages: ChatMessage[]) {
       turnId = message.id;
       thinkingOffset = 0;
     }
-    identities.set(message.id, { turnId, thinkingOffset });
+    identities.set(message.id, { turnId: message.displayTurnId ?? turnId, thinkingOffset });
     thinkingOffset += countMessageThinkingSegments(message);
   }
   return identities;

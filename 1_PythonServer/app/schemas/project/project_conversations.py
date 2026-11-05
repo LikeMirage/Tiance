@@ -579,3 +579,19 @@ class ProjectConversationRunAttemptFailureResponse(BaseModel):
         failure: ProjectConversationRunAttemptFailure,
     ) -> "ProjectConversationRunAttemptFailureResponse":
         return cls(**{field: getattr(failure, field) for field in cls.model_fields})
+
+
+class ProjectConversationNavigationItemResponse(BaseModel):
+    user_message_id: str
+    turn_number: int
+    user_preview: str
+    assistant_preview: str
+    assistant_message_id: str | None
+
+
+class ProjectConversationNavigationResponse(BaseModel):
+    project_id: str
+    session_id: str
+    revision: int
+    reset_revision: int
+    items: list[ProjectConversationNavigationItemResponse]

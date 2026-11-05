@@ -7,6 +7,7 @@ import { ConfirmModal } from "../../../shared/ui/confirm-modal/ConfirmModal";
 import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "../../../shared/ui/context-menu";
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import { DocumentReadingStateProvider } from "../../../entities/editor/model/documentReadingState";
+import { DocumentRevealContext } from "../../../entities/editor/model/documentRevealContext";
 import type { EditorWorkspaceFileReference } from "../../../entities/editor/model/editorWorkspaceFileReference";
 import type {
   EditorPdfPageImageReferenceRequest,
@@ -253,6 +254,12 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
     isVirtualHtmlPreview,
   ]);
 
+  useEffect(() => {
+    if (!activeTab?.revealRequest || activeTab.revealRequest.target.type === "pdf_page") return;
+    setMarkdownMode("source");
+    setPreviewOpen(false);
+  }, [activeTab?.revealRequest]);
+
   useLayoutEffect(() => {
     const tabBar = tabBarRef.current;
     if (!tabBar || activeIdx < 0) {
@@ -465,6 +472,7 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
               aria-hidden={persistentEmptyContentVisible ? "true" : undefined}
             >
               <DocumentReadingStateProvider activeKey={activeTabId ?? ""} openKeys={tabs.map((tab) => tab.id)}>
+              <DocumentRevealContext.Provider value={activeTab?.revealRequest ?? null}>
               <DocumentEditorActiveContent
                 activeConversationMessageId={activeConversationMessageId}
                 activeConversationSessionId={activeConversationSessionId}
@@ -519,6 +527,7 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
                 toolDependencyTarget={toolDependencyTarget}
                 toolEntryCandidates={toolEntryCandidates}
               />
+              </DocumentRevealContext.Provider>
               </DocumentReadingStateProvider>
             </div>
           </div>

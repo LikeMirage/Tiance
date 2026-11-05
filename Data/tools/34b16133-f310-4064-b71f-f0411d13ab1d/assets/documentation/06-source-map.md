@@ -45,7 +45,12 @@
 | `2_ReactWeb/src/features/ai-panel/model/useChatPanelClientToolRegistry.ts` | 能力组合和后台会话复用 |
 | `2_ReactWeb/src/features/client-tools/model/toolProjectClientTool.ts`、`toolProjectScaffold.ts` | 分类和模板创建能力，模板文件最后发布清单 |
 | `2_ReactWeb/src/features/client-tools/model/conversationManagementClientTool.ts`、`conversationInteractionClientTool.ts` | 复用现有 API 的 client 示例 |
-| `2_ReactWeb/src/features/client-tools/model/editorTabsClientTool.ts` | 依赖真实前端状态的能力示例 |
+| `2_ReactWeb/src/features/client-tools/model/editorTabsClientTool.ts` | editor.tabs v3 注册、reveal_file 参数校验与结果；后台项目拒绝展示定位 |
+| `2_ReactWeb/src/entities/editor/model/documentReveal.ts`、`documentRevealContext.tsx` | 定位类型、精确文本匹配、请求完成/取消/超时及渲染器上下文 |
+| `2_ReactWeb/src/features/document-tabs/model/useDocumentReveal.ts` | 打开或复用标签，等待渲染回报，中断及新请求替代 |
+| `2_ReactWeb/src/features/editor/ui/CodeEditor.tsx` | 实时文本缓冲区、原生选区与居中显示 |
+| `2_ReactWeb/src/features/pdf-preview/model/usePdfReveal.ts`、`../ui/PdfPageView.tsx` | PDF 页码检查、实际页面渲染回报与定位完成 |
+| `2_ReactWeb/src/features/document-editor-canvas/ui/DocumentEditorCanvas.tsx` | 传递定位上下文，Markdown/HTML 切到源码模式 |
 | `2_ReactWeb/src/entities/llm-chat/model/chatCompletion.ts` | 前端请求字段与后端合同对应 |
 | `2_ReactWeb/src/services/http/httpClient.ts` | API 基址、认证、错误处理 |
 | `2_ReactWeb/src/services/tools/` | 现成分类/项目/文件/依赖/市场接口 |
@@ -65,5 +70,6 @@
 - 后端 `tests/test_tool_registry.py`、`test_tool_project_config_storage.py`、`test_tool_execution.py`、`test_tool_execution_arguments.py`、`test_tiance_runtime.py`。
 - 后端 `tests/test_project_creation_application.py`、`test_conversation_run_manager.py`、`test_tool_permission_runtime.py`、`test_tool_project_scaffolder.py`。
 - 前端 `tests/tool-project-client-tool.test.mjs`、`client-tool-bridge.test.mjs`、`client-tool-request-single-flight.test.mjs`、`conversation-management-client-tool-registration.test.mjs`。
+- 编辑器定位：前端 `tests/editor-reveal.test.mjs`、`code-editor-reveal.test.mjs`、`editor-tabs-client-tool-registration.test.mjs`、`document-reading.test.mjs`；后端 `tests/test_file_operation_tool_regressions.py` 中 editor_tabs 合同与示例检查。
 
 测试目录分别相对 1_PythonServer 和 2_ReactWeb。使用对应项目的依赖环境运行；前后端当前命令以 pyproject.toml、package.json 为准。优先运行与实际变更相关的测试，而非把“能导入模块”当作功能验证。

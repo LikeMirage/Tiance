@@ -1,0 +1,2 @@
+Version: 1.11.2
+Arguments: ['C:\\Users\\WW\\Desktop\\Tiance\\.codex_tmp\\asr-python-validation\\light-build\\venv\\Lib\\site-packages\\delvewheel\\__main__.py', 'repair', '--add-path', 'C:\\Users\\WW\\Desktop\\Tiance\\.codex_tmp\\asr-python-validation\\light-build\\ffmpeg-install\\bin', '-w', 'C:\\Users\\WW\\Desktop\\Tiance\\.codex_tmp\\asr-python-validation\\light-build\\wheels', 'C:\\Users\\WW\\Desktop\\Tiance\\.codex_tmp\\asr-python-validation\\light-build\\sources\\av-16.0.1\\dist\\av-16.0.1+audio.1-cp313-cp313-win_amd64.whl']

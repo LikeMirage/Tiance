@@ -241,6 +241,7 @@ function createEditorTabsCapability(
   return {
     closeTab: documentTabs.closeTab,
     getSnapshot: documentTabs.getSnapshot,
+    revealProjectFile: documentTabs.revealProjectFile,
     openProjectFile: async (projectId, path) => {
       await documentTabs.openNode({
         id: `project:${projectId}:${path}`,

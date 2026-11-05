@@ -42,6 +42,7 @@ type ProjectCategoryOverviewProps = {
   onImportProjectFolder?: (rootPath: string) => Promise<void>;
   onLayoutModeChange: (mode: ProjectOverviewLayoutMode) => void;
   onMaximizedProjectChange: (projectId: string | null) => void;
+  onMaximizedProjectFollow: (projectId: string) => void;
   onOverviewViewChange?: (view: ProjectOverviewView) => void;
   onOpenConversationBranches: (projectId: string, sessionId: string | null) => Promise<void>;
   onPrepareProject?: (projectId: string) => void;
@@ -70,6 +71,7 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
   onImportProjectFolder,
   onLayoutModeChange,
   onMaximizedProjectChange,
+  onMaximizedProjectFollow,
   onOverviewViewChange,
   onOpenConversationBranches,
   onPrepareProject,
@@ -169,11 +171,12 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
     }
     setOpenUsageProjectId(null);
     setFocusedProjectId(selectedProjectId);
-    onMaximizedProjectChange(selectedProjectId);
+    // Following selection only updates the layout; it must not navigate again.
+    onMaximizedProjectFollow(selectedProjectId);
   }, [
     isActive,
     maximizedProjectId,
-    onMaximizedProjectChange,
+    onMaximizedProjectFollow,
     projectIdsKey,
     projects,
     visibleSession?.projectId,

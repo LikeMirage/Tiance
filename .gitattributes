@@ -1,4 +1,6 @@
 runtime/** -text
+# Preserve the vendored wheel and its recorded hashes exactly as distributed.
+Data/tools/092dcd37-8d51-467d-b607-5a6441dd989a/program/vendor/** -text -whitespace
 # Bundled JavaScript contains intentional whitespace inside string literals.
 2_ReactWeb/dist/** -whitespace
 # Empty-key tool config templates are published; backups remain local.

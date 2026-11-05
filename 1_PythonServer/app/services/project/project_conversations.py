@@ -367,6 +367,9 @@ class ProjectConversationService:
     def message_sync_target(self, project_id: str, session_id: str):
         return self._repository.message_sync_target(project_id, session_id)
 
+    def message_navigation(self, project_id: str, session_id: str):
+        return self._repository.message_navigation(project_id, session_id)
+
     def get_message_turn(
         self,
         project_id: str,

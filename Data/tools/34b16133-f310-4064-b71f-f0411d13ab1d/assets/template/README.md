@@ -4,6 +4,8 @@
 
 制作前先阅读 [工具制作指南](docs/tool-development/README.md)，再按该索引阅读相应章节。配置与程序必须保持一致。
 
+需要在天策编辑器展示具体内容时，先查阅 [能力桥与接口](docs/tool-development/04-capability-bridges.md) 的 `editor.tabs v3`：已有 `reveal_file` 可定位 PDF 页码，或用原文/行号混合建立无数量上限的多选区并从第一项展示，无需重复开发打开文件、切换标签和居中逻辑。
+
 - 工具清单与开关：`.tool/tool.json`
 - 输入、输出、使用说明、权限：`.tool/` 中的对应 JSON
 - 程序入口：`program/main.py`

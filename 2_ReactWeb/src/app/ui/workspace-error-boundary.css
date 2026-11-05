@@ -1,0 +1,41 @@
+.workspace-recovery {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  min-height: 100vh;
+  padding: 24px;
+  color: var(--color-text-primary);
+  background: var(--color-surface-base);
+}
+
+.workspace-recovery__panel {
+  width: min(100%, 460px);
+  padding: 24px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 2px;
+  background: var(--color-surface-panel);
+}
+
+.workspace-recovery__panel h1 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.workspace-recovery__panel p {
+  margin: 0 0 20px;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.workspace-recovery__panel button {
+  padding: 6px 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 2px;
+  color: var(--color-text-primary);
+  background: var(--color-surface-input);
+  cursor: pointer;
+}
+
+.workspace-recovery__panel button:hover {
+  background: var(--color-surface-input-hover);
+}

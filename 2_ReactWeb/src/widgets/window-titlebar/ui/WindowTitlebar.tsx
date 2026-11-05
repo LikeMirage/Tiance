@@ -52,6 +52,7 @@ export function WindowTitlebar({ onRequestClose }: WindowTitlebarProps) {
         onPointerCancel={titlebarDrag.handleDragPointerEnd}
         onLostPointerCapture={titlebarDrag.clearActiveDrag}
       >
+        <span className="window-titlebar__brand-icon" aria-hidden="true" />
         <span className="window-titlebar__title">{t("common.productName")}</span>
       </div>
 

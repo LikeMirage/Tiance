@@ -1,4 +1,5 @@
 // 编辑器领域类型
+import type { DocumentRevealRequest } from "./documentReveal";
 
 export type EditorTabId = string;
 
@@ -13,6 +14,8 @@ export type DocumentFileSource = {
 };
 
 export type DocumentTab = {
+  /** Transient renderer command; never persisted with workspace tab paths. */
+  revealRequest?: DocumentRevealRequest;
   id: EditorTabId;
   title: string;
   displayPath: string;

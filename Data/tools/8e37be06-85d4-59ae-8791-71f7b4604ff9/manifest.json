@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "editor_tabs_manager",
-  "version": "1.0.6",
+  "version": "1.2.1",
   "author": {
     "name": "LikeMirage"
   },
   "license": "CC0-1.0",
   "compatibility": {
-    "minTianceVersion": "0.3.31",
+    "minTianceVersion": "0.3.40",
     "platforms": [
       "windows-x64"
     ]

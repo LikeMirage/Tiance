@@ -1,5 +1,11 @@
 [
   {
+    "title": "先区分打开文件与定位内容",
+    "enabled": true,
+    "inject_content": true,
+    "content": "open_file 可预览 Word、Excel、PPT 等完整文件；reveal_file 仅支持 PDF 的 pdf_page，以及纯文本源码的 text/line_range/text_ranges。DOCX、XLS/XLSX、PPTX、CSV/TSV、图片等不能定位选区，不能因为页面里有文字就当成纯文本。遇到 UNSUPPORTED_TARGET 不要换一段原文或行号重试；需要展示时改用 open_file（不带 target），并向用户说明只是打开预览，尚未选中指定内容。"
+  },
+  {
     "title": "查看当前打开的标签页",
     "content": "{\"action\":\"list_tabs\"}"
   },
@@ -8,11 +14,31 @@
     "content": "{\"action\":\"open_file\",\"path\":\"docs/report.md\"}"
   },
   {
-    "title": "生成后展示 Office 文件",
+    "title": "打开 Word 文件预览（不支持内容定位）",
     "content": "{\"action\":\"open_file\",\"path\":\"reports/project_report.docx\"}"
   },
   {
     "title": "清理其它已保存标签",
     "content": "{\"action\":\"close_others_clean\",\"path\":\"docs/report.md\"}"
+  },
+  {
+    "title": "显示 PDF 第 8 页",
+    "content": "{\"action\":\"reveal_file\",\"path\":\"reports/report.pdf\",\"target\":{\"type\":\"pdf_page\",\"page\":8}}"
+  },
+  {
+    "title": "选中源码第 20 至 35 行",
+    "content": "{\"action\":\"reveal_file\",\"path\":\"src/main.py\",\"target\":{\"type\":\"line_range\",\"start_line\":20,\"end_line\":35}}"
+  },
+  {
+    "title": "选中原文，找不到则报错",
+    "content": "{\"action\":\"reveal_file\",\"path\":\"docs/report.md\",\"target\":{\"type\":\"text\",\"text\":\"本季度销售额增长 12%\"}}"
+  },
+  {
+    "title": "选中重复内容的第 2 处",
+    "content": "{\"action\":\"reveal_file\",\"path\":\"src/main.py\",\"target\":{\"type\":\"text\",\"text\":\"return result\",\"occurrence\":2}}"
+  },
+  {
+    "title": "混合选中多个范围，从第一项展示",
+    "content": "{\"action\":\"reveal_file\",\"path\":\"src/main.py\",\"target\":{\"type\":\"text_ranges\",\"ranges\":[{\"type\":\"line_range\",\"start_line\":40,\"end_line\":48},{\"type\":\"text\",\"text\":\"return result\",\"occurrence\":2},{\"type\":\"line_range\",\"start_line\":5,\"end_line\":8}]}}"
   }
 ]

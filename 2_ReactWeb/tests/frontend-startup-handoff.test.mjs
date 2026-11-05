@@ -26,6 +26,7 @@ async function mount(t, { languageReady = true, themeReady = true } = {}) {
     '@/shared/i18n': { I18nProvider: ({ children }) => languageReady ? children : null },
     './model/useAppTheme': { useAppTheme: () => ({ isBootstrapping: !themeReady }) },
     './model/useBrowserShellGuards': { useBrowserShellGuards() {} },
+    './ui/WorkspaceErrorBoundary': { WorkspaceErrorBoundary: passthrough },
     '../features/desktop-shell/model/useDesktopShell': { DesktopShellProvider: passthrough },
     '../features/software-update/ui/StartupSoftwareUpdatePrompt': { StartupSoftwareUpdatePrompt: () => null },
     '../features/announcements/ui/StartupAnnouncementPrompt': { StartupAnnouncementPrompt: () => null },

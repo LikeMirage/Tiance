@@ -211,3 +211,19 @@ class ProjectConversationSessionState:
     references: list[dict]
     updated_at: str
     runtime_updated_at: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectConversationNavigationItem:
+    user_message_id: str
+    turn_number: int
+    user_preview: str
+    assistant_preview: str
+    assistant_message_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectConversationNavigation:
+    revision: int
+    reset_revision: int
+    items: tuple[ProjectConversationNavigationItem, ...]

@@ -28,6 +28,7 @@ const { LoadingBoundary } = load("src/shared/ui/loading-strip/LoadingBoundary.ts
 });
 const { EditorLazyBoundary } = load("src/features/document-editor-canvas/ui/EditorContentBoundary.tsx", {
   "../../../shared/ui/loading-strip": { LoadingStrip },
+  "../../../entities/editor/model/documentRevealContext": load("src/entities/editor/model/documentRevealContext.tsx"),
 });
 const rings = root => root.root.findAll(node => node.type === "div" && node.props.className?.includes("ds-loading-strip__ring-label"));
 const surface = root => root.root.findByProps({ className: "ds-loading-boundary" });

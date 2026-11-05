@@ -5,6 +5,11 @@
   "direction": "ltr",
   "messages": {
     "common": {
+      "frontendRecovery": {
+        "title": "The interface encountered an error",
+        "description": "Reload the interface to restore the view. This will not stop tasks running in the background.",
+        "reload": "Reload interface"
+      },
       "productName": "Tiance",
       "documentTitle": "Tiance",
       "actions": {
@@ -310,6 +315,7 @@
         "dropHint": "Release to copy into this folder.",
         "importing": "Copying external files...",
         "clipboardEmpty": "The system clipboard contains no files or folders.",
+        "dragFailed": "Unable to start dragging the file. Try again or use copy and paste.",
         "importFailed": "Failed to copy external files.",
         "importPartial": "Copied {importedCount} items; {failedCount} failed.",
         "pathsUnavailable": "The local paths of the dropped files are unavailable.",

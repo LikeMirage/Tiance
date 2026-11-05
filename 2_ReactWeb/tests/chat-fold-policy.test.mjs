@@ -14,8 +14,9 @@ const folds = await vite.ssrLoadModule("/src/features/ai-panel/model/chatProcess
 const { AssistantProcessTimeline } = await vite.ssrLoadModule("/src/features/ai-panel/ui/ChatAssistantProcessTimeline.tsx");
 const { ChatMessageItem } = await vite.ssrLoadModule("/src/features/ai-panel/ui/ChatMessageItem.tsx");
 await vite.ssrLoadModule("/src/features/markdown-preview/ui/MarkdownPreview.tsx");
-const wrap = (child, isFollowing = true) => createElement(folds.ChatProcessFoldProvider, { sessionKey: "test", isFollowing },
-  createElement(folds.ChatProcessFoldScope, { turnId: "user", thinkingOffset: 0 }, child));
+const wrap = (child, isFollowing = true) => createElement(folds.ChatProcessFoldProvider,
+  { sessionKey: "test", isFollowing, visibleMessageKeys: new Set(["assistant"]) },
+  createElement(folds.ChatProcessFoldScope, { turnId: "user", messageKey: "assistant", thinkingOffset: 0 }, child));
 const message = { id: "assistant", role: "assistant", content: "", thinkingContent: "", status: "running",
   usage: null, isThinkingExpanded: true, thinkingStartedAt: 1000, thinkingFinishedAt: null,
   createdAt: 1000, updatedAt: 1000, processItems: [], toolCalls: [] };
@@ -118,7 +119,7 @@ test("外层和内层均服从跟随状态，手动展开子项后外层不能�
   } finally { if (view) await act(async () => view.unmount()); }
 });
 
-test("手动展开的旧历史与新回复隔离，跨会话和虚拟卸载保留，重新打开面板重置", async () => {
+test("查看旧历史时屏外的新回复仍自动收起，手动展开跨会话和虚拟卸载保留", async () => {
   globalThis.window = { matchMedia: () => ({ matches: true }), requestAnimationFrame: () => 1, cancelAnimationFrame() {} };
   globalThis.getComputedStyle = () => ({ paddingTop: "0", paddingBottom: "0", borderTopWidth: "0", borderBottomWidth: "0" });
   globalThis.ResizeObserver = class { observe() {} disconnect() {} };
@@ -129,7 +130,8 @@ test("手动展开的旧历史与新回复隔离，跨会话和虚拟卸载保�
       autoCollapseProcess: true, clockTick: 1000, interactions, isStreamingMessage: live,
       message: { ...message, id, status: live ? "running" : "done", processItems: [{ id: `${id}-tool`, type: "tool_preparing", startedAt: 1000 }] },
     })));
-  const render = () => createElement(folds.ChatProcessFoldProvider, { sessionKey: session, isFollowing: following },
+  const render = () => createElement(folds.ChatProcessFoldProvider,
+    { sessionKey: session, isFollowing: following, visibleMessageKeys: new Set(["history"]) },
     showHistory ? timeline("history", false) : null, timeline("active", running));
   const button = (turn, name) => view.root.findByProps({ "data-test-turn": turn })
     .findAll((n) => n.type === "button" && n.props.className === name)[0];
@@ -142,9 +144,9 @@ test("手动展开的旧历史与新回复隔离，跨会话和虚拟卸载保�
     await act(async () => tools("history").props.onClick());
     following = false;
     await act(async () => view.update(render()));
-    following = true; running = false;
+    running = false;
     await act(async () => view.update(render()));
-    assert.equal(outer("active").props["aria-expanded"], false, "当前回复跟随时结束仍会自动收起");
+    assert.equal(outer("active").props["aria-expanded"], false, "正在查看旧历史时，屏外新回复结束也应自动收起");
     assert.equal(outer("history").props["aria-expanded"], true);
     assert.equal(tools("history").props["aria-expanded"], true);
     showHistory = false; await act(async () => view.update(render()));

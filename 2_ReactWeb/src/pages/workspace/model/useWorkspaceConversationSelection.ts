@@ -229,9 +229,14 @@ export function useWorkspaceConversationSelection({
     }
   }, [cancelProjectSelection, failProjectSelection, markProjectReady, onSelectProject, startSessionSelection]);
 
-  const visibleChatSession = visibleConversationSelection(selectionState) ?? (
-    projectId ? { projectId, sessionId: selectedSessionId } : null
-  );
+  // The project prop changes before the project_changed effect runs. Never let
+  // that intermediate render advertise the previous project to overview sync.
+  const pendingVisibleSession = visibleConversationSelection(selectionState);
+  const visibleChatSession = projectId
+    ? pendingVisibleSession?.projectId === projectId
+      ? pendingVisibleSession
+      : { projectId, sessionId: selectedSessionId }
+    : null;
   const chatSessionSelectionRequest: ChatPanelSessionSelectionRequest | null =
     selectionState.status === "selecting"
       ? {

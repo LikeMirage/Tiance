@@ -5,6 +5,11 @@
   "direction": "ltr",
   "messages": {
     "common": {
+      "frontendRecovery": {
+        "title": "界面遇到异常",
+        "description": "可以重新加载界面以恢复显示。此操作不会停止后台正在执行的任务。",
+        "reload": "重新加载界面"
+      },
       "productName": "天策",
       "documentTitle": "天策",
       "actions": {
@@ -310,6 +315,7 @@
         "dropHint": "松开后复制到当前文件夹。",
         "importing": "正在复制外部文件……",
         "clipboardEmpty": "系统剪贴板中没有可复制的文件或文件夹。",
+        "dragFailed": "无法开始文件拖拽，请重试或使用复制粘贴。",
         "importFailed": "外部文件复制失败。",
         "importPartial": "已复制 {importedCount} 项，{failedCount} 项失败。",
         "pathsUnavailable": "无法读取拖入文件的本机路径。",

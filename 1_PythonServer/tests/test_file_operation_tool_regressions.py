@@ -830,6 +830,55 @@ def test_editor_tabs_contract_rejects_parameters_for_another_action() -> None:
     )
 
 
+def test_editor_tabs_reveal_contract_and_examples() -> None:
+    from app.services.tools.tool_metadata import example_detail, load_tool, standard_tool_description
+
+    tool_dir = _EDITOR_TABS_MANAGER / ".tool"
+    schema = _read_json(tool_dir / "input.schema.json")
+    loaded = load_tool(str(_EDITOR_TABS_MANAGER))
+    details = tuple(example_detail(index, example) for index, example in loaded.examples)
+    for detail in details:
+        if detail.content.lstrip().startswith("{"):
+            assert validate_tool_arguments(json.loads(detail.content), schema) == []
+    # The format boundary must reach the model, not just the developer documentation.
+    scope_guide = next(detail for detail in details if detail.title == "先区分打开文件与定位内容")
+    assert scope_guide.inject_content
+    injected = standard_tool_description(loaded.manifest["description"], details)
+    assert scope_guide.content in injected
+    assert "DOCX" in injected and "UNSUPPORTED_TARGET" in injected
+    assert _read_json(tool_dir / "tool.json")["runtime"]["client_capability"] == {
+        "name": "editor.tabs", "min_version": 3,
+    }
+    target = {"type": "text", "text": "  preserve spaces  "}
+    for invalid in [
+        {"action": "reveal_file", "path": "a.txt"},
+        {"action": "reveal_file", "target": target},
+        {"action": "reveal_file", "path": "a.txt", "paths": ["b.txt"], "target": target},
+        {"action": "open_file", "path": "a.txt", "target": target},
+        {"action": "reveal_file", "path": "a.pdf", "target": {"type": "pdf_page", "page": 0}},
+        {"action": "reveal_file", "path": "a.txt", "target": {"type": "text", "text": ""}},
+        {"action": "reveal_file", "path": "a.txt", "target": {**target, "page": 1}},
+        {"action": "reveal_file", "path": "a.txt", "target": {"type": "text_ranges", "ranges": []}},
+        {"action": "reveal_file", "path": "a.txt", "target": {"type": "text_ranges", "ranges": [{"type": "pdf_page", "page": 1}]}},
+    ]:
+        assert validate_tool_arguments(invalid, schema), invalid
+    assert validate_tool_arguments({"action": "reveal_file", "path": "a.txt", "target": {
+        "type": "text_ranges", "ranges": [target] * 2048,
+    }}, schema) == []
+    output = _read_json(tool_dir / "output.schema.json")
+    for location in [
+        {"type": "pdf_page", "page": 3, "total_pages": 8},
+        {"type": "text_selection", "start_line": 1, "end_line": 2,
+         "start_column": 1, "end_column": 3, "from": 0, "to": 5, "source": "editor_buffer"},
+        {"type": "text_selections", "source": "editor_buffer", "ranges": [
+            {"type": "text_selection", "start_line": 1, "end_line": 2,
+             "start_column": 1, "end_column": 3, "from": 0, "to": 5, "source": "editor_buffer"},
+        ]},
+    ]:
+        assert validate_tool_arguments({"ok": True, "action": "reveal_file", "path": "a.txt",
+                                        "displayed": True, "location": location}, output) == []
+
+
 def test_run_python_script_warns_when_auto_detach_moves_to_background(
     monkeypatch,
     tmp_path: Path,

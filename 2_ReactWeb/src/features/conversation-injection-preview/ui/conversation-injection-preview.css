@@ -180,17 +180,17 @@
 }
 
 .conversation-injection-preview__record--memory {
-  border-color: rgba(249, 115, 22, 0.42);
+  border-color: var(--color-selection-accent-border);
   background: var(--color-surface-elevated);
 }
 
 .conversation-injection-preview__record--tool-call {
-  border-color: rgba(96, 165, 250, 0.42);
+  border-color: var(--color-selection-accent-border);
   background: var(--color-surface-elevated);
 }
 
 .conversation-injection-preview__record--tool-result {
-  border-color: rgba(45, 212, 191, 0.38);
+  border-color: color-mix(in srgb, var(--color-success) 38%, transparent);
   background: var(--color-surface-elevated);
 }
 
@@ -243,15 +243,15 @@
 }
 
 .conversation-injection-preview__record--memory .conversation-injection-preview__record-index {
-  color: #fb923c;
+  color: var(--color-accent-soft-text);
 }
 
 .conversation-injection-preview__record--tool-call .conversation-injection-preview__record-index {
-  color: #60a5fa;
+  color: var(--color-accent-text);
 }
 
 .conversation-injection-preview__record--tool-result .conversation-injection-preview__record-index {
-  color: #5eead4;
+  color: var(--color-success-text);
 }
 
 .conversation-injection-preview__record-controls {
@@ -342,9 +342,9 @@
 
 .conversation-injection-preview__memory-source {
   padding: 7px 9px;
-  border-left: 2px solid rgba(249, 115, 22, 0.68);
-  background: rgba(249, 115, 22, 0.1);
-  color: #fed7aa;
+  border-left: 2px solid var(--color-accent);
+  background: var(--color-selection-accent-bg-subtle);
+  color: var(--color-accent-text);
   font-size: 0.76rem;
   line-height: 1.45;
 }
@@ -366,15 +366,15 @@
 }
 
 .conversation-injection-preview__record--memory pre {
-  border-color: rgba(249, 115, 22, 0.2);
+  border-color: var(--color-selection-accent-border);
 }
 
 .conversation-injection-preview__record--tool-call pre {
-  border-color: rgba(96, 165, 250, 0.22);
+  border-color: var(--color-selection-accent-border);
 }
 
 .conversation-injection-preview__record--tool-result pre {
-  border-color: rgba(45, 212, 191, 0.2);
+  border-color: color-mix(in srgb, var(--color-success) 20%, transparent);
 }
 
 .conversation-injection-preview__tool-description {
@@ -590,7 +590,7 @@
   overflow: auto;
   border: 1px solid var(--color-border-subtle);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--color-surface-2) 84%, transparent);
+  background: var(--color-surface-input);
   color: var(--color-text-secondary);
   font: inherit;
   white-space: pre-wrap;

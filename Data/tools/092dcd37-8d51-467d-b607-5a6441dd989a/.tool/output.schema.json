@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "properties": {
+    "ok": {"type": "boolean"},
+    "summary": {"type": "string"},
+    "error": {"type": "string"},
+    "error_code": {"type": "string"},
+    "checkpoint_error": {"type": "string"},
+    "data": {
+      "type": "object",
+      "properties": {
+        "input_path": {"type": "string"},
+        "output_dir": {"type": "string"},
+        "duration_seconds": {"type": "number"},
+        "part_count": {"type": "integer"},
+        "files": {"type": "array", "items": {"type": "object", "properties": {"format": {"type": "string"}, "path": {"type": "string"}, "bytes": {"type": "integer"}}, "required": ["format", "path", "bytes"], "additionalProperties": false}},
+        "statistics": {"type": "object", "properties": {"segments": {"type": "integer"}, "words": {"type": "integer"}, "text_characters": {"type": "integer"}, "non_positive_word_durations": {"type": "integer"}}, "required": ["segments", "words", "text_characters", "non_positive_word_durations"], "additionalProperties": false},
+        "elapsed_seconds": {"type": "number"},
+        "job_file": {"type": "string"},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+        "completed_parts": {"type": "integer"},
+        "total_parts": {"type": "integer"},
+        "failed_parts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "part_number": {"type": "integer"},
+              "start_seconds": {"type": "number"},
+              "duration_seconds": {"type": "number"},
+              "task_id": {"type": "string"},
+              "error_stage": {"type": "string"},
+              "error_code": {"type": "string"},
+              "error": {"type": "string"}
+            },
+            "required": ["part_number", "start_seconds", "duration_seconds", "error_stage", "error_code", "error"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["ok"],
+  "additionalProperties": false
+}

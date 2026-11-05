@@ -123,20 +123,20 @@
 
 .tool-dependencies-dashboard__primary-button--success,
 .tool-dependencies-dashboard__secondary-button--success {
-  border-color: rgba(106, 158, 117, 0.48);
-  background: rgba(106, 158, 117, 0.12);
-  color: #9fc7a6;
+  border-color: color-mix(in srgb, var(--color-success) 48%, transparent);
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+  color: var(--color-success-text);
 }
 
 .tool-dependencies-dashboard__secondary-button--danger {
-  border-color: rgba(222, 96, 86, 0.36);
-  color: #e18f86;
+  border-color: var(--color-danger-border);
+  color: var(--color-danger-text);
 }
 
 .tool-dependencies-dashboard__secondary-button--danger:hover:not(:disabled) {
-  border-color: rgba(222, 96, 86, 0.52);
-  background: rgba(222, 96, 86, 0.1);
-  color: #e9aaa3;
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
 }
 
 .tool-dependencies-dashboard__icon-button:disabled,
@@ -157,9 +157,9 @@
 .tool-dependencies-dashboard__secondary-button--success,
 .tool-dependencies-dashboard__primary-button--success:disabled,
 .tool-dependencies-dashboard__secondary-button--success:disabled {
-  border-color: rgba(106, 158, 117, 0.48);
-  background: rgba(106, 158, 117, 0.12);
-  color: #9fc7a6;
+  border-color: color-mix(in srgb, var(--color-success) 48%, transparent);
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+  color: var(--color-success-text);
   opacity: 1;
 }
 
@@ -212,7 +212,7 @@
 }
 
 .tool-dependencies-dashboard__notice--error {
-  border-color: rgba(222, 96, 86, 0.36);
+  border-color: var(--color-danger-border);
   background: var(--color-danger-bg);
   color: var(--color-danger-soft-text);
 }
@@ -288,8 +288,8 @@
 }
 
 .tool-dependencies-dashboard__status--installed {
-  border-color: rgba(106, 158, 117, 0.32);
-  color: #9fc7a6 !important;
+  border-color: color-mix(in srgb, var(--color-success) 32%, transparent);
+  color: var(--color-success-text) !important;
 }
 
 .tool-dependencies-dashboard__status--version_mismatch {
@@ -303,7 +303,7 @@
 }
 
 .tool-dependencies-dashboard__status--invalid {
-  border-color: rgba(222, 96, 86, 0.36);
+  border-color: var(--color-danger-border);
   color: var(--color-danger-soft-text) !important;
 }
 

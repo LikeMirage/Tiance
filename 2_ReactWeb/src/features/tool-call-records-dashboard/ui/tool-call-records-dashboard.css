@@ -87,8 +87,8 @@
 }
 
 .tool-call-records-dashboard__notice--error {
-  border-color: rgba(255, 110, 110, 0.36);
-  color: var(--color-danger);
+  border-color: var(--color-danger-border);
+  color: var(--color-danger-text);
 }
 
 .tool-call-records-dashboard__list {
@@ -169,13 +169,13 @@
 }
 
 .tool-call-records-dashboard__status--ok {
-  border-color: rgba(63, 185, 122, 0.36);
-  color: #8ee6b4;
+  border-color: color-mix(in srgb, var(--color-success) 36%, transparent);
+  color: var(--color-success-text);
 }
 
 .tool-call-records-dashboard__status--error {
-  border-color: rgba(255, 110, 110, 0.36);
-  color: var(--color-danger);
+  border-color: var(--color-danger-border);
+  color: var(--color-danger-text);
 }
 
 .tool-call-records-dashboard__detail {
