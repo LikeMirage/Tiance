@@ -49,6 +49,11 @@ def _session_settings_from_payload(payload: object) -> ProjectConversationSessio
             default_value=1,
             minimum=0,
         ),
+        upstream_retry_interval_seconds=_optional_int_in_range(
+            payload.get("upstream_retry_interval_seconds"),
+            default_value=5,
+            minimum=0,
+        ),
         inject_message_timestamps=_optional_bool(
             payload.get("inject_message_timestamps"),
             default_value=True,
@@ -151,6 +156,15 @@ def _merge_session_settings(
             if "upstream_retry_count" in payload
             else current.upstream_retry_count
         ),
+        upstream_retry_interval_seconds=(
+            _optional_int_in_range(
+                payload.get("upstream_retry_interval_seconds"),
+                default_value=current.upstream_retry_interval_seconds,
+                minimum=0,
+            )
+            if "upstream_retry_interval_seconds" in payload
+            else current.upstream_retry_interval_seconds
+        ),
         inject_message_timestamps=_optional_bool(
             payload.get("inject_message_timestamps"),
             default_value=current.inject_message_timestamps,
@@ -224,6 +238,7 @@ def _session_settings_to_payload(settings: ProjectConversationSessionSettings) -
             settings.malformed_tool_call_recovery_enabled
         ),
         "upstream_retry_count": settings.upstream_retry_count,
+        "upstream_retry_interval_seconds": settings.upstream_retry_interval_seconds,
         "inject_message_timestamps": settings.inject_message_timestamps,
         "system_prompt": settings.system_prompt,
         "max_output_tokens": settings.max_output_tokens,

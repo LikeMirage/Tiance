@@ -1,0 +1,20 @@
+[
+  {
+    "content": "1. {\"action\":\"search\",\"queries\":[\"gear\",\"factory\",\"network\"],\"libraries\":[\"phosphor\",\"lucide\",\"tabler\",\"heroicons\"],\"limit\":10}\n2. 从搜索结果选择 ID，例：{\"action\":\"preview\",\"icons\":[\"phosphor:regular/gear\",\"lucide:factory\",\"heroicons:24/outline/cog-8-tooth\"],\"columns\":3}\n3. 调用已有图片读取工具读取 data.preview.path。不能仅看到路径就声称已查看图片。合并图中的编号、名称、库/样式与完整 ID 一一对应，data.items 也提供映射。\n4. 确定图标后：{\"action\":\"export\",\"icons\":[\"heroicons:24/outline/cog-8-tooth\"],\"formats\":[\"svg\",\"png\"],\"color\":\"#2563EB\",\"size\":512}\n搜索不自动生成图片；预览也不等于逐个导出。每次操作返回独立输出目录。",
+    "enabled": true,
+    "inject_content": false,
+    "title": "搜索→合并预览→查看→导出"
+  },
+  {
+    "content": "图库原始名称/标签主要是英文。把中文含义转为多个英文候选词，例如齿轮用 gear、cog、settings 分别查询；工具不调用翻译模型、不联网搜索。一个 query 内的多个词要求同时匹配，匹配范围包括名称、别名、标签、分类与样式。limit 是每个 query 的返回条数，不是图库上限；使用该 query 对应的 next_offset 单独继续查询。没有结果就换同义词，不会偷偷改写查询。四库完整收录，各种粗细/填充样式分别有稳定 ID；可在英文查询中加入样式词，或先 libraries 查看。Phosphor regular/bold/duotone 等都是不同的 ID。不要自行猜造 ID。",
+    "enabled": true,
+    "inject_content": false,
+    "title": "多库搜索、关键词与翻页"
+  },
+  {
+    "content": "现代 PowerPoint 可手动插入 SVG；常用 python-pptx 的 add_picture 接口不能直接插入 SVG，可用本工具同时导出的透明 PNG。SVG 保留原始 viewBox 与路径；PNG 为指定尺寸的透明正方形，保持图形比例和图标库设计的内边距。color 只替换 currentColor，不删除固定填色、fill=none 或双色 opacity。预览使用棋盘背景辅助查看白色/透明图形，导出的 PNG 没有棋盘背景或文字。每批输出附 manifest.json 和相关库的原始许可证，转交素材时一起保留。批量导出失败会返回 ok=false，files 列已成功文件，failures 列失败项，不以缺项冒充完成。",
+    "enabled": true,
+    "inject_content": false,
+    "title": "SVG/PNG 用于 PPT、配色与许可"
+  }
+]

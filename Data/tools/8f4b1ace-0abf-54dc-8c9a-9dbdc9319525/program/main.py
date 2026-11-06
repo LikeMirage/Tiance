@@ -213,6 +213,7 @@ def _completion_request(
             settings.get("malformed_tool_call_recovery_enabled", True)
         ),
         "upstream_retry_count": int(settings.get("upstream_retry_count", 1)),
+        "upstream_retry_interval_seconds": int(settings.get("upstream_retry_interval_seconds", 5)),
         "max_tool_calls": int(settings.get("max_tool_calls", 99999)),
         # 不声明桌面 client capability：目标 AI 仍可使用后端 Python/内部工具，
         # 但不会注入必须由桌面前端回执的 client-only 工具。

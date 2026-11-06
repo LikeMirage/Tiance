@@ -567,6 +567,7 @@ def test_compaction_creates_named_function_session_and_replaces_source_history(
             "enabled_tool_names": ["read_file"],
             "max_tool_calls": 17,
             "upstream_retry_count": 4,
+            "upstream_retry_interval_seconds": 19,
             "malformed_tool_call_recovery_enabled": False,
         },
     )
@@ -610,6 +611,7 @@ def test_compaction_creates_named_function_session_and_replaces_source_history(
     assert function_session.settings.enabled_tool_names == ("read_file",)
     assert function_session.settings.max_tool_calls == 17
     assert function_session.settings.upstream_retry_count == 4
+    assert function_session.settings.upstream_retry_interval_seconds == 19
     assert function_session.settings.malformed_tool_call_recovery_enabled is False
     assert conversation.get_cache_affinity_id(
         PROJECT_ID,
@@ -621,6 +623,7 @@ def test_compaction_creates_named_function_session_and_replaces_source_history(
     assert len(calls) == 1
     assert calls[0].max_tool_calls == 17
     assert calls[0].upstream_retry_count == 4
+    assert calls[0].upstream_retry_interval_seconds == 19
     assert records[-1]["status"] == "completed"
     assert records[-1]["result"] == COMPACTION_RESULT
     assert records[-1]["source_token_count"] == 186558

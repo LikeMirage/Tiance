@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "data": {
+      "description": "列库返回版本/样式/数量；搜索返回每个 query 的 total、items 与 next_offset；预览返回 PNG 绝对路径/尺寸及编号-ID 对照；导出返回 files 与 failures。写入操作还返回 manifest 与许可证路径，文件均含 size_bytes。",
+      "type": "object"
+    },
+    "error": {
+      "type": "string"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "type": "object"
+}

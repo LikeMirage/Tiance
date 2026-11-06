@@ -71,6 +71,7 @@ def build_functional_conversation_request(
         usage_feature_key=feature_key,
         max_tool_calls=session.settings.max_tool_calls,
         upstream_retry_count=session.settings.upstream_retry_count,
+        upstream_retry_interval_seconds=session.settings.upstream_retry_interval_seconds,
     )
 
 class FunctionalConversationRunError(RuntimeError):

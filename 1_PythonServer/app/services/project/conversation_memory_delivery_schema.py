@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 
-MEMORY_DELIVERY_SCHEMA_VERSION = 2
-SUPPORTED_MEMORY_DELIVERY_SCHEMA_VERSIONS = {1, MEMORY_DELIVERY_SCHEMA_VERSION}
+MEMORY_DELIVERY_SCHEMA_VERSION = 3
+SUPPORTED_MEMORY_DELIVERY_SCHEMA_VERSIONS = {1, 2, MEMORY_DELIVERY_SCHEMA_VERSION}
 GLOBAL_MEMORY_SCOPE = "global_memory"
 PROJECT_MEMORY_SCOPE = "project_memory"
 MEMORY_SCOPES = (GLOBAL_MEMORY_SCOPE, PROJECT_MEMORY_SCOPE)
@@ -32,6 +32,7 @@ def normalize_memory_delivery_state(payload: dict[str, Any]) -> dict[str, Any]:
         baseline[scope] = {
             "event_count": non_negative_int(scope_payload.get("event_count")),
             "items": normalize_memory_items(scope_payload.get("items")),
+            "source": normalize_memory_source(scope_payload.get("source")),
         }
         cursors[scope] = non_negative_int(cursor_payload.get(scope))
         if cursors[scope] < baseline[scope]["event_count"]:
@@ -57,6 +58,7 @@ def normalize_memory_delivery_state(payload: dict[str, Any]) -> dict[str, Any]:
                 scope: non_negative_int(cursor_after_payload.get(scope))
                 for scope in MEMORY_SCOPES
             },
+            "sources_after": normalize_memory_sources(raw_delivery.get("sources_after")),
         })
 
     cache_context_payload = payload.get("cache_context")
@@ -74,8 +76,33 @@ def normalize_memory_delivery_state(payload: dict[str, Any]) -> dict[str, Any]:
         },
         "baseline": baseline,
         "cursors": cursors,
+        "sources": normalize_memory_sources(payload.get("sources")),
         "deliveries": deliveries,
     }
+
+
+def normalize_memory_sources(value: object) -> dict[str, Any]:
+    if value is None:
+        return {scope: None for scope in MEMORY_SCOPES}
+    if not isinstance(value, dict):
+        raise ValueError("Conversation memory sources are invalid.")
+    return {scope: normalize_memory_source(value.get(scope)) for scope in MEMORY_SCOPES}
+
+
+def normalize_memory_source(value: object) -> dict[str, Any] | None:
+    # Old persisted delivery records have no source fingerprint. They are adopted
+    # lazily after comparing their known snapshot with the source's old prefix.
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("Conversation memory source checkpoint is invalid.")
+    fingerprint = value.get("sha256")
+    if (
+        not isinstance(fingerprint, str) or len(fingerprint) != 64
+        or any(char not in "0123456789abcdef" for char in fingerprint)
+    ):
+        raise ValueError("Conversation memory source fingerprint is invalid.")
+    return {"event_count": non_negative_int(value.get("event_count")), "sha256": fingerprint}
 
 
 def normalize_memory_items(value: object) -> list[dict[str, Any]]:

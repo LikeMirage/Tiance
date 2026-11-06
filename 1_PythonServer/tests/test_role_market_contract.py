@@ -106,6 +106,7 @@ def test_legacy_role_package_removes_cancellation_options_on_import(tmp_path) ->
         "return_user_before_cancelled": False,
         "streaming_enabled": False,
         "upstream_retry_count": 3,
+        "upstream_retry_interval_seconds": 12,
     })
     extracted = RolePackageArchive().validate_and_extract(
         archive_path=_write_role_archive(tmp_path, files),
@@ -118,6 +119,7 @@ def test_legacy_role_package_removes_cancellation_options_on_import(tmp_path) ->
     assert "return_user_before_cancelled" not in response
     assert response["streaming_enabled"] is False
     assert response["upstream_retry_count"] == 3
+    assert response["upstream_retry_interval_seconds"] == 12
 
 
 @pytest.mark.parametrize(

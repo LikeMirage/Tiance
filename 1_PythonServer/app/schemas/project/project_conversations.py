@@ -42,6 +42,7 @@ class ProjectConversationSessionSettingsPatch(BaseModel):
     auto_collapse_assistant_process: bool | None = None
     malformed_tool_call_recovery_enabled: bool | None = None
     upstream_retry_count: int | None = Field(default=None, ge=0)
+    upstream_retry_interval_seconds: int | None = Field(default=None, ge=0)
     inject_message_timestamps: bool | None = None
     system_prompt: str | None = None
     max_output_tokens: int | None = Field(default=None, ge=1)
@@ -101,6 +102,7 @@ class ProjectConversationSessionSettingsResponse(BaseModel):
     auto_collapse_assistant_process: bool = True
     malformed_tool_call_recovery_enabled: bool = True
     upstream_retry_count: int = Field(default=1, ge=0)
+    upstream_retry_interval_seconds: int = Field(default=5, ge=0)
     inject_message_timestamps: bool = True
     system_prompt: str = ""
     max_output_tokens: int = 32768
@@ -146,6 +148,7 @@ class ProjectConversationSessionSettingsResponse(BaseModel):
                 session.settings.malformed_tool_call_recovery_enabled
             ),
             upstream_retry_count=session.settings.upstream_retry_count,
+            upstream_retry_interval_seconds=session.settings.upstream_retry_interval_seconds,
             inject_message_timestamps=session.settings.inject_message_timestamps,
             system_prompt=session.settings.system_prompt,
             max_output_tokens=session.settings.max_output_tokens,

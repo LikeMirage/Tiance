@@ -38,6 +38,7 @@ export type RoleResponseConfiguration = OutputLimitPolicy & {
   auto_collapse_assistant_process: boolean;
   malformed_tool_call_recovery_enabled: boolean;
   upstream_retry_count: number;
+  upstream_retry_interval_seconds: number;
 };
 
 export type RoleContextConfiguration = {
@@ -174,6 +175,9 @@ function parseSectionPayload<Section extends RoleConfigurationSection>(
         upstream_retry_count: typeof payload.upstream_retry_count === "number"
           ? integerValue(payload.upstream_retry_count, 0)
           : 1,
+        upstream_retry_interval_seconds: typeof payload.upstream_retry_interval_seconds === "number"
+          ? integerValue(payload.upstream_retry_interval_seconds, 0)
+          : 5,
       } as RoleConfigurationSectionValueMap[Section];
     case "context":
       return {

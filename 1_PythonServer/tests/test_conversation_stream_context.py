@@ -42,7 +42,7 @@ def test_rebuild_session_request_messages_uses_full_persisted_history():
                 created_at="2026-01-01T00:00:00+00:00",
                 updated_at="2026-01-01T00:00:00+00:00",
                 message_count=106,
-                settings=ProjectConversationSessionSettings(),
+                settings=ProjectConversationSessionSettings(upstream_retry_interval_seconds=13),
             ),
         ),
         memory_service=object(),
@@ -80,6 +80,7 @@ def test_rebuild_session_request_messages_uses_full_persisted_history():
     ]
     assert rebuilt.cache_affinity_id == "lineage-session-1"
     assert rebuilt.inject_message_timestamps is True
+    assert rebuilt.upstream_retry_interval_seconds == 13
 
 
 def test_rebuild_session_request_messages_keeps_history_for_preview_draft():

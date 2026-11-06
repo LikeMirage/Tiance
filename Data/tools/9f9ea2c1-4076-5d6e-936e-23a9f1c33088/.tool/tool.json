@@ -1,0 +1,29 @@
+{
+  "description": "为 PPT、软件图标和界面按钮等场景离线跨库搜索图标，支持合并预览、配色及 SVG／透明 PNG 导出。",
+  "execution": {
+    "parallel": true
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json",
+    "permissions": ".tool/permissions.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "loading": {
+    "dynamic": true
+  },
+  "name": "icon_library",
+  "registration_name": "图标搜索与导出",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 180,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

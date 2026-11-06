@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "index": "index.json.gz",
+  "index_sha256": "970d3e1b9dec7f850f56c687c250ca09333bffd1db0c113a2eed2b24def17b95",
+  "libraries": [
+    {
+      "id": "phosphor",
+      "name": "Phosphor",
+      "version": "2.1.1",
+      "package": "@phosphor-icons/core",
+      "source": "https://github.com/phosphor-icons/core",
+      "package_url": "https://registry.npmjs.org/@phosphor-icons/core/-/core-2.1.1.tgz",
+      "package_integrity": "sha512-v4ARvrip4qBCImOE5rmPUylOEK4iiED9ZyKjcvzuezqMaiRASCHKcRIuvvxL/twvLpkfnEODCOJp5dM4eZilxQ==",
+      "license_file": "licenses/phosphor.txt",
+      "license": "MIT",
+      "styles": [
+        "bold",
+        "duotone",
+        "fill",
+        "light",
+        "regular",
+        "thin"
+      ],
+      "icon_count": 9072,
+      "svg_bytes": 4767507,
+      "archive": "phosphor.zip",
+      "archive_bytes": 3778393,
+      "archive_sha256": "15840ec52cdb8c3bb546e4609b7bac91ff6049e65eaf7f6dd8697113583321b6"
+    },
+    {
+      "id": "lucide",
+      "name": "Lucide",
+      "version": "1.70.0",
+      "package": "lucide-static",
+      "source": "https://github.com/lucide-icons/lucide",
+      "package_url": "https://registry.npmjs.org/lucide-static/-/lucide-static-1.70.0.tgz",
+      "package_integrity": "sha512-A9UgY98g94IuHQY7rl7/AFwHX7T1qNpzryim+Kw5CGhdV2STobtBY+ib/Z44ohyqXEJB88gvXFAeJ87uOOHKLw==",
+      "license_file": "licenses/lucide.txt",
+      "license": "ISC / MIT (see bundled notice)",
+      "styles": [
+        "outline"
+      ],
+      "icon_count": 2322,
+      "svg_bytes": 1120081,
+      "archive": "lucide.zip",
+      "archive_bytes": 886339,
+      "archive_sha256": "6e225e683003be51b328dcf042fd8c4195262f8a4abe4512e0d5004ef881e046"
+    },
+    {
+      "id": "tabler",
+      "name": "Tabler",
+      "version": "3.50.0",
+      "package": "@tabler/icons",
+      "source": "https://github.com/tabler/tabler-icons",
+      "package_url": "https://registry.npmjs.org/@tabler/icons/-/icons-3.50.0.tgz",
+      "package_integrity": "sha512-HflLxyrH1cqC7s7jzQGSjpsTAVIoaf7+/yHjbdM59rJQBMjliibp+LYhDPFxOMcwa1M8DNpOk6ENzQiWn9a1Dg==",
+      "license_file": "licenses/tabler.txt",
+      "license": "MIT",
+      "styles": [
+        "filled",
+        "outline"
+      ],
+      "icon_count": 6257,
+      "svg_bytes": 3661595,
+      "archive": "tabler.zip",
+      "archive_bytes": 2636347,
+      "archive_sha256": "217d7ccad79e5984bce567726d1a17e4ae6f310d507b467001ef92a0ddc99aa1"
+    },
+    {
+      "id": "heroicons",
+      "name": "Heroicons",
+      "version": "2.2.0",
+      "package": "heroicons",
+      "source": "https://github.com/tailwindlabs/heroicons",
+      "package_url": "https://registry.npmjs.org/heroicons/-/heroicons-2.2.0.tgz",
+      "package_integrity": "sha512-yOwvztmNiBWqR946t+JdgZmyzEmnRMC2nxvHFC90bF1SUttwB6yJKYeme1JeEcBfobdOs827nCyiWBS2z/brog==",
+      "license_file": "licenses/heroicons.txt",
+      "license": "MIT",
+      "styles": [
+        "16/solid",
+        "20/solid",
+        "24/outline",
+        "24/solid"
+      ],
+      "icon_count": 1288,
+      "svg_bytes": 693074,
+      "archive": "heroicons.zip",
+      "archive_bytes": 542033,
+      "archive_sha256": "6b9d5eb434b6dcc2cdc0db6f81e6da9faac9981d5c8ba2c125f1c61dc9828c6e"
+    }
+  ]
+}

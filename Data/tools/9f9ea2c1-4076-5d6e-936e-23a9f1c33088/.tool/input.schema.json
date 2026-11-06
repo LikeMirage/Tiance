@@ -1,0 +1,195 @@
+{
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "maxProperties": 1,
+          "properties": {
+            "action": {
+              "const": "libraries"
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "search"
+            },
+            "libraries": {},
+            "limit": {},
+            "offset": {},
+            "queries": {}
+          },
+          "required": [
+            "queries"
+          ]
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "preview"
+            },
+            "color": {},
+            "columns": {},
+            "icons": {},
+            "output_dir": {}
+          },
+          "required": [
+            "icons"
+          ]
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "export"
+            },
+            "color": {},
+            "formats": {},
+            "icons": {},
+            "output_dir": {},
+            "size": {}
+          },
+          "required": [
+            "icons"
+          ]
+        }
+      ]
+    }
+  ],
+  "description": "先 search 获取候选 ID，再 preview 选中的 ID 并用图片读取工具查看，最后 export。libraries 查看本地库与样式。各操作只接受相应参数。",
+  "properties": {
+    "action": {
+      "description": "列库、搜索、合并预览或导出。",
+      "enum": [
+        "libraries",
+        "search",
+        "preview",
+        "export"
+      ],
+      "options": [
+        {
+          "description": "",
+          "value": "libraries"
+        },
+        {
+          "description": "",
+          "value": "search"
+        },
+        {
+          "description": "",
+          "value": "preview"
+        },
+        {
+          "description": "",
+          "value": "export"
+        }
+      ],
+      "permission_type": "none",
+      "type": "string"
+    },
+    "color": {
+      "description": "preview/export 可选，#RRGGBB。替换图标的 currentColor；固定色与双色透明度保留。省略保留原配色，未定义的 currentColor 使用黑色。",
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "permission_type": "none",
+      "type": "string"
+    },
+    "columns": {
+      "description": "preview 列数；默认自动布局，每行最多 5 个，随数量增加行数，不截掉图标。",
+      "minimum": 1,
+      "permission_type": "none",
+      "type": "integer"
+    },
+    "formats": {
+      "default": [
+        "svg",
+        "png"
+      ],
+      "description": "export 输出格式，可多选。SVG 保留矢量，PNG 透明背景。",
+      "items": {
+        "enum": [
+          "svg",
+          "png"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "permission_type": "none",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "icons": {
+      "description": "preview/export 必填。从搜索结果选出的完整 ID，顺序即预览编号顺序；ID 包含库与样式。操作将创建输出文件。",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "permission_scope": "workspace_inside",
+      "permission_type": "filesystem_write",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "libraries": {
+      "description": "search 可选，省略则搜索所有本地库。",
+      "items": {
+        "enum": [
+          "phosphor",
+          "lucide",
+          "tabler",
+          "heroicons"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "permission_type": "none",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "limit": {
+      "default": 20,
+      "description": "search 每个查询返回的条数。响应提供总数及 next_offset，可继续翻页。",
+      "minimum": 1,
+      "permission_type": "none",
+      "type": "integer"
+    },
+    "offset": {
+      "default": 0,
+      "description": "search 每个查询跳过的匹配条数。",
+      "minimum": 0,
+      "permission_type": "none",
+      "type": "integer"
+    },
+    "output_dir": {
+      "description": "preview/export 输出父目录，默认当前工作区/icons；相对路径以工作区为基准。每次调用新建独立子目录，不覆盖历史产物。无工作区时须提供绝对路径。",
+      "minLength": 1,
+      "permission_type": "filesystem_write",
+      "type": "string"
+    },
+    "queries": {
+      "description": "search 必填。一个或多个英文关键词，各自搜索名称、标签与分类；中文意图先由你转为英文词。多个词按同时匹配，不同备选词放不同数组项。",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "permission_type": "none",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "size": {
+      "default": 512,
+      "description": "export 的 PNG 正方形边长，单位像素，保持原比例；不改变 SVG 的 viewBox。",
+      "minimum": 1,
+      "permission_type": "none",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "type": "object"
+}

@@ -528,6 +528,7 @@
         "defaultValue": "Default",
         "maxOutputTokens": "Max output length, including reasoning",
         "upstreamRetryCount": "Upstream retry count",
+        "upstreamRetryIntervalSeconds": "Retry interval (s)",
         "outputLimitAction": "Action at output limit",
         "outputLimitStop": "Stop",
         "outputLimitRetry": "Retry original request",

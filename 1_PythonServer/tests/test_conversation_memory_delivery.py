@@ -1,5 +1,3 @@
-import pytest
-
 from app.domain.project.project_conversation import ProjectConversationMessage
 from app.domain.llm.chat import ChatCompletionRequest, ChatMessage, ChatMessageRole
 from app.repositories.project.conversation_branch_copy import (
@@ -531,24 +529,31 @@ def test_memory_delivery_never_truncates_changes_at_one_hundred():
     assert "gm_149（新增）" in injected.messages[-1].content
 
 
-def test_memory_delivery_rejects_event_log_rewind_instead_of_marking_changes_consumed():
+def test_memory_delivery_keeps_history_when_original_event_log_is_unavailable():
     state = _initial_state(
         "user-1",
         [_add_event("gm_1", "已记录记忆", reason="明确事实")],
         [],
     )
 
-    with pytest.raises(ValueError, match="shorter than its delivery cursor"):
-        prepare_memory_delivery_state(
-            state,
-            last_model_response=_successful_response(),
-            user_message_id="user-2",
-            created_at="2026-07-14T00:01:00+00:00",
-            global_events=[],
-            project_events=[],
-            global_enabled=True,
-            project_enabled=True,
-        )
+    continued = prepare_memory_delivery_state(
+        state,
+        last_model_response=_successful_response(),
+        user_message_id="user-2",
+        created_at="2026-07-14T00:01:00+00:00",
+        global_events=[],
+        project_events=[],
+        global_enabled=True,
+        project_enabled=True,
+    )
+    assert continued["baseline"] == state["baseline"]
+    assert continued["deliveries"] == []
+    assert continued["sources"][GLOBAL_MEMORY_SCOPE]["event_count"] == 0
+    injected = inject_memory_delivery_context(
+        _request(_tagged_user("user-2", "继续")), continued,
+        global_enabled=True, project_enabled=True,
+    )
+    assert "已记录记忆" in injected.messages[0].content
 
 
 def test_cache_expiry_updates_snapshot_and_keeps_next_message_notification():

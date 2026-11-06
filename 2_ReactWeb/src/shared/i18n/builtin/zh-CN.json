@@ -528,6 +528,7 @@
         "defaultValue": "默认",
         "maxOutputTokens": "最大输出长度（含思维链）",
         "upstreamRetryCount": "上游失败重试次数",
+        "upstreamRetryIntervalSeconds": "重试间隔（s）",
         "outputLimitAction": "达到输出上限后的动作",
         "outputLimitStop": "停止",
         "outputLimitRetry": "重试原请求",

@@ -191,6 +191,12 @@ export function ChatBasicSettingsPanel({
         value={activeSessionSettings.upstream_retry_count}
         onCommit={(value) => onUpdateSessionSettings({ upstream_retry_count: value })}
       />
+      <SettingsIntegerInput
+        label={t("aiPanel.basicSettings.upstreamRetryIntervalSeconds")}
+        min={0}
+        value={activeSessionSettings.upstream_retry_interval_seconds}
+        onCommit={(value) => onUpdateSessionSettings({ upstream_retry_interval_seconds: value })}
+      />
 
       <SettingsToggle
         checked={activeSessionSettings.automatic_naming_enabled}

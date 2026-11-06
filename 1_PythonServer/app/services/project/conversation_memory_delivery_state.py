@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
 
 from app.domain.project.project_conversation import ProjectConversationMessage
+from app.services.project.conversation_memory_delivery_sync import (
+    memory_items_equal,
+    memory_source_checkpoints,
+    reconcile_memory_changes,
+    reconnect_memory_source,
+)
 from app.services.project.conversation_memory_delivery_schema import (
     GLOBAL_MEMORY_SCOPE,
     MEMORY_DELIVERY_SCHEMA_VERSION,
@@ -54,6 +61,7 @@ def prepare_memory_delivery_state(
 
     baseline = state["baseline"]
     cursors = state["cursors"]
+    sources = state["sources"]
     deliveries = state["deliveries"]
     cache_context = state["cache_context"]
     cache_expired = _cache_has_expired(
@@ -72,26 +80,62 @@ def prepare_memory_delivery_state(
         GLOBAL_MEMORY_SCOPE: [],
         PROJECT_MEMORY_SCOPE: [],
         "cursor_after": {},
+        "sources_after": {},
     }
 
     for scope in MEMORY_SCOPES:
         events = events_by_scope[scope]
-        if cursors[scope] > len(events):
-            raise ValueError("Conversation memory event log is shorter than its delivery cursor.")
+        known_items = apply_memory_changes(
+            baseline[scope]["items"],
+            (change for previous in deliveries for change in previous[scope]),
+        )
+        source = sources[scope]
+        source_count = source["event_count"] if source is not None else cursors[scope]
+        prefix, current_source = memory_source_checkpoints(events, source_count)
+        if source is not None:
+            continuous = prefix == source
+        else:
+            # v1/v2 had only an integer cursor; never trust it on another machine
+            # merely because that machine's log happens to be long enough.
+            prefix_items, _ = memory_snapshot_and_changes(
+                events[:source_count], start_index=source_count,
+            )
+            continuous = prefix is not None and memory_items_equal(prefix_items, known_items)
+        if source_count == 0 and cursors[scope] > 0 and events:
+            # A missing/emptied source returning may contain all old events again.
+            # Import its current facts, not its already-delivered intermediate changes.
+            continuous = False
         current_items, changes = memory_snapshot_and_changes(
             events,
-            start_index=cursors[scope],
+            start_index=source_count if continuous else len(events),
         )
+        if continuous:
+            changes = reconcile_memory_changes(known_items, [
+                {**change, "event_index": cursors[scope] + change["event_index"] - source_count}
+                for change in changes
+            ])
+            next_cursor = cursors[scope] + len(events) - source_count
+        else:
+            changes = reconnect_memory_source(
+                known_items, current_items, events=events,
+                cursor=cursors[scope], created_at=created_at,
+            )
+            # This is a conversation-local ordering position, not an offset into
+            # the new log. Advance even for an empty replacement source.
+            next_cursor = cursors[scope] + max(1, len(events))
         if enabled_by_scope[scope]:
             delivery[scope] = changes
         else:
             baseline[scope] = {
-                "event_count": len(events),
-                "items": current_items,
+                "event_count": next_cursor,
+                "items": apply_memory_changes(known_items, changes),
+                "source": current_source,
             }
             _remove_scope_from_deliveries(deliveries, scope)
-        cursors[scope] = len(events)
-        delivery["cursor_after"][scope] = len(events)
+        cursors[scope] = next_cursor
+        sources[scope] = current_source
+        delivery["cursor_after"][scope] = next_cursor
+        delivery["sources_after"][scope] = current_source
 
     if delivery[GLOBAL_MEMORY_SCOPE] or delivery[PROJECT_MEMORY_SCOPE]:
         if cache_expired:
@@ -109,6 +153,7 @@ def prepare_memory_delivery_state(
         },
         "baseline": baseline,
         "cursors": cursors,
+        "sources": sources,
         "deliveries": deliveries,
     }
 
@@ -130,7 +175,7 @@ def memory_snapshot_and_changes(
 
 def apply_memory_changes(
     items: list[dict[str, Any]],
-    changes: list[dict[str, Any]],
+    changes: Iterable[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     current = {
         item["id"]: {
@@ -170,17 +215,7 @@ def fold_missing_leading_memory_deliveries(
     for delivery in deliveries:
         if delivery["user_message_id"] in visible_message_ids:
             break
-        for scope in MEMORY_SCOPES:
-            baseline[scope] = {
-                "event_count": max(
-                    baseline[scope]["event_count"],
-                    delivery["cursor_after"][scope],
-                ),
-                "items": apply_memory_changes(
-                    baseline[scope]["items"],
-                    delivery[scope],
-                ),
-            }
+        _apply_delivery_to_baseline(baseline, delivery)
         folded_count += 1
 
     if folded_count == 0:
@@ -203,14 +238,18 @@ def _initial_state(
 ) -> dict[str, Any]:
     baseline: dict[str, dict[str, Any]] = {}
     cursors: dict[str, int] = {}
+    sources: dict[str, Any] = {}
     for scope in MEMORY_SCOPES:
         events = events_by_scope[scope]
         items, _changes = memory_snapshot_and_changes(events, start_index=len(events))
+        _, source = memory_source_checkpoints(events, len(events))
         baseline[scope] = {
             "event_count": len(events),
             "items": items,
+            "source": source,
         }
         cursors[scope] = len(events)
+        sources[scope] = source
     return {
         "schema_version": MEMORY_DELIVERY_SCHEMA_VERSION,
         "created_at": created_at,
@@ -222,6 +261,7 @@ def _initial_state(
         },
         "baseline": baseline,
         "cursors": cursors,
+        "sources": sources,
         "deliveries": [],
     }
 
@@ -271,6 +311,12 @@ def _apply_delivery_to_baseline(
     delivery: dict[str, Any],
 ) -> None:
     for scope in MEMORY_SCOPES:
+        previous = baseline[scope]
+        source = (
+            delivery["sources_after"][scope]
+            if delivery["cursor_after"][scope] >= previous["event_count"]
+            else previous["source"]
+        )
         baseline[scope] = {
             "event_count": max(
                 baseline[scope]["event_count"],
@@ -280,6 +326,7 @@ def _apply_delivery_to_baseline(
                 baseline[scope]["items"],
                 delivery[scope],
             ),
+            "source": source,
         }
 
 

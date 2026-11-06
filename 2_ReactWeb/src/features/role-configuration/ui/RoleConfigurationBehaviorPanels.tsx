@@ -45,6 +45,16 @@ export function RoleResponseContextPanel({
               })}
             />
           </RoleField>
+          <RoleField label="重试间隔（s）">
+            <RoleNumberInput
+              min={0}
+              value={response.upstream_retry_interval_seconds}
+              onCommit={(value) => editor.updateSection("response", {
+                ...response,
+                upstream_retry_interval_seconds: Math.floor(value ?? 0),
+              })}
+            />
+          </RoleField>
         </div>
         <div className="role-dashboard__toggle-grid">
           <RoleToggle

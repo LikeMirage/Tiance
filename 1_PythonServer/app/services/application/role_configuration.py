@@ -259,6 +259,7 @@ class RoleConfigurationApplicationService:
                     settings.malformed_tool_call_recovery_enabled
                 ),
                 "upstream_retry_count": settings.upstream_retry_count,
+                "upstream_retry_interval_seconds": settings.upstream_retry_interval_seconds,
                 "output_limit_action": settings.output_limit_action,
                 "output_limit_save_partial": settings.output_limit_save_partial,
                 "output_limit_message": settings.output_limit_message,
@@ -504,6 +505,11 @@ class RoleConfigurationApplicationService:
             settings,
             "upstream_retry_count",
             response.get("upstream_retry_count"),
+        )
+        _assign_valid_nonnegative_int(
+            settings,
+            "upstream_retry_interval_seconds",
+            response.get("upstream_retry_interval_seconds", 5),
         )
 
         memory = payloads["memory.json"]

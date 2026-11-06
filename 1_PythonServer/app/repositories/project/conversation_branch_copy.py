@@ -178,6 +178,10 @@ def _inherited_memory_delivery_state(
         scope: _memory_event_count(baseline, scope)
         for scope in _MEMORY_SCOPES
     }
+    inherited_sources = {
+        scope: deepcopy(baseline[scope].get("source"))
+        for scope in _MEMORY_SCOPES
+    }
     inherited_deliveries: list[dict[str, Any]] = []
     for delivery in deliveries:
         if not isinstance(delivery, dict):
@@ -191,7 +195,14 @@ def _inherited_memory_delivery_state(
         inherited_delivery = deepcopy(delivery)
         inherited_delivery["user_message_id"] = target_message_id
         inherited_deliveries.append(inherited_delivery)
-        inherited_cursors = _delivery_cursors(inherited_delivery)
+        delivery_cursors = _delivery_cursors(inherited_delivery)
+        delivery_sources = inherited_delivery.get("sources_after") or {}
+        for scope in _MEMORY_SCOPES:
+            # A disabled scope may already have folded further into its baseline
+            # while another scope still retains an older bound notification.
+            if delivery_cursors[scope] >= inherited_cursors[scope]:
+                inherited_cursors[scope] = delivery_cursors[scope]
+                inherited_sources[scope] = deepcopy(delivery_sources.get(scope))
 
     last_prepared_message_id = state.get("last_prepared_user_message_id")
     mapped_last_prepared_message_id = (
@@ -204,6 +215,7 @@ def _inherited_memory_delivery_state(
             scope: _non_negative_int(source_cursors.get(scope))
             for scope in _MEMORY_SCOPES
         }
+        inherited_sources = deepcopy(state.get("sources"))
     elif inherited_deliveries:
         mapped_last_prepared_message_id = inherited_deliveries[-1][
             "user_message_id"
@@ -213,6 +225,7 @@ def _inherited_memory_delivery_state(
         **deepcopy(state),
         "last_prepared_user_message_id": mapped_last_prepared_message_id,
         "cursors": inherited_cursors,
+        "sources": inherited_sources,
         "deliveries": inherited_deliveries,
     }
 

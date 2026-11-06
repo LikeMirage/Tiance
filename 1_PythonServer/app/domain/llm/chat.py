@@ -173,6 +173,7 @@ class ChatCompletionRequest:
     inject_message_timestamps: bool = False
     malformed_tool_call_recovery_enabled: bool = True
     upstream_retry_count: int = 1
+    upstream_retry_interval_seconds: int = 5
     upstream_attempt_index: int = 1
     upstream_attempt_count: int = 1
     max_tool_calls: int = 99999

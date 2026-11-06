@@ -528,6 +528,7 @@
         "defaultValue": "По умолчанию",
         "maxOutputTokens": "Максимальная длина вывода, включая рассуждение",
         "upstreamRetryCount": "Количество повторов запроса к провайдеру",
+        "upstreamRetryIntervalSeconds": "Интервал повторов (с)",
         "outputLimitAction": "Действие при лимите вывода",
         "outputLimitStop": "Остановить",
         "outputLimitRetry": "Повторить исходный запрос",

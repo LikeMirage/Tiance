@@ -202,6 +202,7 @@ class ChatCompletionRequestBody(BaseModel):
     messages: list[ChatMessageRequest] = Field(default_factory=list)
     malformed_tool_call_recovery_enabled: bool = True
     upstream_retry_count: int = Field(default=1, ge=0)
+    upstream_retry_interval_seconds: int = Field(default=5, ge=0)
     output_limit_action: OutputLimitAction = "retry"
     output_limit_save_partial: bool = False
     output_limit_message: str = DEFAULT_OUTPUT_LIMIT_MESSAGE
@@ -223,6 +224,7 @@ class ChatCompletionRequestBody(BaseModel):
                 self.malformed_tool_call_recovery_enabled
             ),
             upstream_retry_count=self.upstream_retry_count,
+            upstream_retry_interval_seconds=self.upstream_retry_interval_seconds,
             output_limit_action=self.output_limit_action,
             output_limit_save_partial=self.output_limit_save_partial,
             output_limit_message=self.output_limit_message,

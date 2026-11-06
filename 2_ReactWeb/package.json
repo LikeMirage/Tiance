@@ -1,7 +1,7 @@
 {
   "name": "tiance-web-client",
   "private": true,
-  "version": "0.3.40",
+  "version": "0.3.41",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"

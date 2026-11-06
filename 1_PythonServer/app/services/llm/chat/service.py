@@ -61,6 +61,7 @@ from app.services.llm.token_estimation_settings import (
 from app.domain.llm.provider_catalog import ProviderCatalogEntry
 from app.infra.llm.provider_profiles import resolve_provider_profile
 from app.services.llm.chat.request_validation import validate_chat_request_capabilities
+from app.services.llm.chat.retry import retry_after_seconds, wait_for_upstream_retry
 
 
 logger = logging.getLogger(__name__)
@@ -170,6 +171,9 @@ class ChatCompletionService:
                 if ordinary_failures >= request.upstream_retry_count:
                     raise
                 ordinary_failures += 1
+                await wait_for_upstream_retry(
+                    request.upstream_retry_interval_seconds, retry_after_seconds(exc),
+                )
                 continue
             await self._record_attempt_outcome(
                 attempt_request, status="completed", error_code=None, error_message=None,
@@ -243,6 +247,7 @@ class ChatCompletionService:
             provider_usage: ChatUsage | None = None
             done_event: ChatStreamEvent | None = None
             error_event: ChatStreamEvent | None = None
+            provider_retry_seconds = 0.0
             content_parts: list[str] = []
             thinking_parts: list[str] = []
             tool_calls: list[ChatToolCall] = []
@@ -299,6 +304,7 @@ class ChatCompletionService:
                 raise
             except Exception as exc:
                 error_code, error_message = _attempt_error(exc)
+                provider_retry_seconds = retry_after_seconds(exc)
                 error_event = ChatStreamEvent(
                     kind=ChatStreamEventKind.ERROR, error=error_message, error_code=error_code,
                 )
@@ -368,6 +374,10 @@ class ChatCompletionService:
                     attempt_index=attempt_index + 1,
                     attempt_count=max(attempt_count, attempt_index + 1),
                 )
+                if not limited:
+                    await wait_for_upstream_retry(
+                        request.upstream_retry_interval_seconds, provider_retry_seconds,
+                    )
                 continue
 
             await self._record_attempt_outcome(

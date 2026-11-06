@@ -42,6 +42,7 @@ class RoleResponseConfiguration(RoleConfigurationContract):
     auto_collapse_assistant_process: bool
     malformed_tool_call_recovery_enabled: bool
     upstream_retry_count: int = Field(ge=0)
+    upstream_retry_interval_seconds: int = Field(default=5, ge=0)
 
     @model_validator(mode="before")
     @classmethod

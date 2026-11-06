@@ -259,3 +259,34 @@ def test_role_catalog_follows_project_drag_order(tmp_path):
         default_role.project_id,
         other_role.project_id,
     ]
+
+
+def test_retry_interval_survives_role_application_save_and_reload(tmp_path):
+    projects, conversations, roles, _settings = _build_services(tmp_path)
+    role = roles.ensure_default_role()
+    response_path = tmp_path / "roles" / role.project_id / "response.json"
+    response = loads(response_path.read_text(encoding="utf-8"))
+    assert response["upstream_retry_interval_seconds"] == 5
+    response["upstream_retry_interval_seconds"] = 17
+    response_path.write_text(dumps(response), encoding="utf-8")
+    seed = roles.build_new_session_seed(role.project_id)
+    assert seed.settings["upstream_retry_interval_seconds"] == 17
+    project = projects.create_project(name="重试配置")
+    session = conversations.create_session(project.project_id, settings=seed.settings)
+    changed = conversations.update_session(
+        project.project_id, session.session_id,
+        settings={"upstream_retry_interval_seconds": 0}, should_update_settings=True,
+    )
+    saved_role, _ = roles.save_session_as_role(
+        project.project_id, session.session_id, name="立即重试", category_id=role.category_id,
+    )
+    saved_path = tmp_path / "roles" / saved_role.project_id / "response.json"
+    assert loads(saved_path.read_text(encoding="utf-8"))["upstream_retry_interval_seconds"] == 0
+    assert ProjectConversationSessionResponse.from_domain(changed).settings.upstream_retry_interval_seconds == 0
+    roles.apply_role(project.project_id, session.session_id, role.project_id)
+    reloaded = conversations.get_session(project.project_id, session.session_id)
+    assert reloaded.settings.upstream_retry_interval_seconds == 17
+    # A role created before this field existed has the same displayed/applied default.
+    response.pop("upstream_retry_interval_seconds")
+    response_path.write_text(dumps(response), encoding="utf-8")
+    assert roles.apply_role(project.project_id, session.session_id, role.project_id).settings.upstream_retry_interval_seconds == 5

@@ -17,6 +17,7 @@ export type ConversationSessionSettings = OutputLimitPolicy & {
   auto_collapse_assistant_process: boolean;
   malformed_tool_call_recovery_enabled: boolean;
   upstream_retry_count: number;
+  upstream_retry_interval_seconds: number;
   inject_message_timestamps: boolean;
   system_prompt: string;
   max_output_tokens: number;

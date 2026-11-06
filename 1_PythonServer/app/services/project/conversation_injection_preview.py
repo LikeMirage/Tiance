@@ -43,6 +43,7 @@ def build_conversation_injection_preview(
                 request.malformed_tool_call_recovery_enabled
             ),
             "upstream_retry_count": request.upstream_retry_count,
+            "upstream_retry_interval_seconds": request.upstream_retry_interval_seconds,
             "max_tool_calls": request.max_tool_calls,
             "message_count": len(request.messages),
             "system_message_count": len(system_messages),

@@ -36,6 +36,7 @@ class ProjectConversationSessionSettings:
     auto_collapse_assistant_process: bool = True
     malformed_tool_call_recovery_enabled: bool = True
     upstream_retry_count: int = 1
+    upstream_retry_interval_seconds: int = 5
     inject_message_timestamps: bool = True
     system_prompt: str = ""
     max_output_tokens: int = 32768

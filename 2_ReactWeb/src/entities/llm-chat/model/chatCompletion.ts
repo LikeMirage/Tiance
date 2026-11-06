@@ -57,6 +57,7 @@ export type ChatCompletionRequest = {
   messages: ChatCompletionMessageInput[];
   malformed_tool_call_recovery_enabled?: boolean;
   upstream_retry_count?: number;
+  upstream_retry_interval_seconds?: number;
   output_limit_action?: import("./outputLimitPolicy").OutputLimitAction;
   output_limit_save_partial?: boolean;
   output_limit_message?: string;
