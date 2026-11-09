@@ -5,7 +5,6 @@ import type {
 import type { TranslationKey } from "../../../shared/i18n";
 
 export type FunctionalModelSettingsSectionId =
-  | "default-conversation"
   | "conversation-naming"
   | "memory-compression"
   | "project-memory-management"
@@ -17,11 +16,6 @@ export type FunctionalModelSettingsSectionItem =
   };
 
 export const functionalModelSettingsSections: readonly FunctionalModelSettingsSectionItem[] = [
-  {
-    id: "default-conversation",
-    label: "默认会话角色",
-    labelKey: "functionalModelSettings.sections.defaultConversation",
-  },
   {
     id: "conversation-naming",
     label: "会话命名模型",
@@ -45,7 +39,7 @@ export const functionalModelSettingsSections: readonly FunctionalModelSettingsSe
 ];
 
 export const functionalModelSettingsNestedMenuConfig = {
-  defaultItemId: "default-conversation",
+  defaultItemId: "conversation-naming",
   items: functionalModelSettingsSections,
   storageKey: "tiance.settings.functional-model-section",
 } satisfies PersistentNestedMenuConfig<FunctionalModelSettingsSectionItem>;

@@ -8,7 +8,7 @@ import sqlite3
 
 import pytest
 
-from app.infra.database.schema import ensure_database_schema
+from app.infra.database.schema import ensure_database_schema, SCHEMA_VERSION as GLOBAL_SCHEMA_VERSION
 from app.repositories.project.conversation_database import read_connection_for_path
 from app.repositories.project.conversation_schema import SCHEMA_VERSION
 
@@ -28,12 +28,12 @@ def test_all_published_global_snapshots_upgrade(tmp_path, version):
     ensure_database_schema(path)
     ensure_database_schema(path)
     with closing(sqlite3.connect(path)) as db:
-        assert db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == 49
+        assert db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == GLOBAL_SCHEMA_VERSION
         assert db.execute("PRAGMA quick_check").fetchone()[0] == "ok"
         assert not db.execute("PRAGMA foreign_key_check").fetchall()
         if "app_metadata" in tables:
             assert db.execute("SELECT value FROM app_metadata WHERE key='user.custom'").fetchone()[0] == "keep"
-    assert len(list(tmp_path.glob("*.bak"))) == (0 if version == "49" else 1)
+    assert len(list(tmp_path.glob("*.bak"))) == (0 if int(version) == GLOBAL_SCHEMA_VERSION else 1)
 
 
 @pytest.mark.parametrize("version", [1, 2, 3, 4])

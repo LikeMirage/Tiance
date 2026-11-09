@@ -4,6 +4,18 @@
   "displayName": "English",
   "direction": "ltr",
   "messages": {
+    "defaultRoleSettings": {
+      "description": "Used for new conversations in each collection. Existing conversations can choose their own role.",
+      "collections": {
+        "project": "Projects",
+        "tool": "Tools",
+        "knowledge": "Knowledge",
+        "experience": "Experience",
+        "role": "Roles",
+        "provider": "Models",
+        "theme": "Themes"
+      }
+    },
     "common": {
       "frontendRecovery": {
         "title": "The interface encountered an error",
@@ -203,6 +215,7 @@
     },
     "workspace": {
       "settings": {
+        "defaultRoles": "Default roles",
         "title": "Settings",
         "panel": "Settings panel",
         "search": "Search settings",
@@ -222,7 +235,6 @@
         "functionalModel": "Default Functional Roles",
         "functionalModelCategories": "Default functional role categories",
         "functionalSections": {
-          "defaultConversation": "Default Conversation Role",
           "conversationNaming": "Conversation Naming Model",
           "memoryCompression": "Memory Management Model"
         }
@@ -1034,15 +1046,10 @@
         }
       },
       "sections": {
-        "defaultConversation": "Default Conversation Role",
         "conversationNaming": "Conversation Naming Model",
         "memoryCompression": "Memory Compression Model",
         "projectMemoryManagement": "Project Memory Management Model",
         "globalMemoryManagement": "Global Memory Management Model"
-      },
-      "defaultConversation": {
-        "role": "Role",
-        "description": "Use all settings from this role when creating a standard conversation."
       },
       "conversationNaming": {
         "triggerTokenThreshold": "Trigger token threshold",

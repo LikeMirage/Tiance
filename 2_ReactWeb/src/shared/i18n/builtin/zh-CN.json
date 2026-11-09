@@ -4,6 +4,18 @@
   "displayName": "简体中文",
   "direction": "ltr",
   "messages": {
+    "defaultRoleSettings": {
+      "description": "用于各集中新建的会话，已有会话仍可单独切换角色。",
+      "collections": {
+        "project": "项目集",
+        "tool": "工具集",
+        "knowledge": "知识集",
+        "experience": "经验集",
+        "role": "角色集",
+        "provider": "模型集",
+        "theme": "主题集"
+      }
+    },
     "common": {
       "frontendRecovery": {
         "title": "界面遇到异常",
@@ -203,6 +215,7 @@
     },
     "workspace": {
       "settings": {
+        "defaultRoles": "默认角色",
         "title": "设定集",
         "panel": "设定集面板",
         "search": "搜索设置项",
@@ -222,7 +235,6 @@
         "functionalModel": "默认功能角色",
         "functionalModelCategories": "默认功能角色分类",
         "functionalSections": {
-          "defaultConversation": "默认会话角色",
           "conversationNaming": "会话命名模型",
           "memoryCompression": "记忆管理模型"
         }
@@ -1034,15 +1046,10 @@
         }
       },
       "sections": {
-        "defaultConversation": "默认会话角色",
         "conversationNaming": "会话命名模型",
         "memoryCompression": "记忆压缩模型",
         "projectMemoryManagement": "项目记忆管理模型",
         "globalMemoryManagement": "全局记忆管理模型"
-      },
-      "defaultConversation": {
-        "role": "角色",
-        "description": "新建普通会话时使用此角色的全部配置。"
       },
       "conversationNaming": {
         "triggerTokenThreshold": "触发 Token 阈值",

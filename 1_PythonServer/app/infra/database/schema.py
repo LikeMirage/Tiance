@@ -5,8 +5,12 @@ from app.infra.database.sqlite import database_connection
 from app.migrations.global_db import ensure_version
 from app.migrations.runner import schema_transaction
 
-SCHEMA_VERSION = 49
+SCHEMA_VERSION = 50
 SCHEMA_STATEMENTS = (
+    """CREATE TABLE collection_default_roles (
+        project_kind TEXT PRIMARY KEY,
+        role_project_id TEXT NOT NULL
+    )""",
     """CREATE TABLE schema_migrations (
                 version INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,

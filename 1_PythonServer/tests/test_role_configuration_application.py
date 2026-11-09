@@ -4,9 +4,7 @@ from json import dumps, loads
 from app.infra.database import ensure_database_schema
 from app.infra.file_workspace import FileWorkspaceStorage
 from app.infra.projects import ProjectStorage
-from app.repositories.llm.functional_model_settings_repository import (
-    LlmFunctionalModelSettingsRepository,
-)
+from app.repositories.roles.default_role_repository import DefaultRoleRepository
 from app.repositories.project import ProjectRepository
 from app.repositories.project.conversation_repository import (
     ProjectConversationRepository,
@@ -23,12 +21,7 @@ from app.services.application.role_configuration import (
     RoleConfigurationApplicationService,
 )
 from app.services.document_conversion import MarkdownDocxService
-from app.services.llm.functional_model_settings import (
-    LlmFunctionalModelSettingsService,
-)
-from app.domain.llm.functional_model_defaults import (
-    DEFAULT_CONVERSATION_ROLE_SETTINGS_VERSION,
-)
+from app.domain.project import ProjectKind
 from app.services.project.project_conversations import ProjectConversationService
 from app.services.project.project_files import ProjectFileService
 from app.services.project.projects import ProjectService
@@ -45,9 +38,7 @@ def _build_services(tmp_path):
     conversation_service = ProjectConversationService(
         ProjectConversationRepository(repository),
     )
-    functional_settings_service = LlmFunctionalModelSettingsService(
-        LlmFunctionalModelSettingsRepository(database_path),
-    )
+    default_roles_repository = DefaultRoleRepository(database_path)
     role_service = RoleConfigurationApplicationService(
         project_service,
         conversation_service,
@@ -56,18 +47,18 @@ def _build_services(tmp_path):
             FileWorkspaceStorage(),
             MarkdownDocxService(),
         ),
-        functional_settings_service,
+        default_roles_repository,
     )
     return (
         project_service,
         conversation_service,
         role_service,
-        functional_settings_service,
+        default_roles_repository,
     )
 
 
 def test_default_role_is_created_once(tmp_path):
-    project_service, _conversation_service, role_service, functional_settings = (
+    project_service, _conversation_service, role_service, default_roles = (
         _build_services(tmp_path)
     )
 
@@ -81,9 +72,7 @@ def test_default_role_is_created_once(tmp_path):
         for project in project_service.list_projects()
         if project.name == DEFAULT_ROLE_NAME
     ] == [first]
-    default_settings = functional_settings.get_profile_settings("defaultConversation")
-    assert default_settings is not None
-    assert default_settings.settings == {"roleProjectId": first.project_id}
+    assert role_service.get_default_roles() == {kind.value: first.project_id for kind in ProjectKind}
     response = loads((tmp_path / "roles" / first.project_id / "response.json").read_text(encoding="utf-8"))
     assert response["output_limit_action"] == "send_message"
     assert response["output_limit_save_partial"] is True
@@ -93,7 +82,7 @@ def test_default_role_is_created_once(tmp_path):
 
 
 def test_existing_role_cannot_restore_removed_cancellation_options(tmp_path):
-    _project_service, _conversation_service, role_service, _functional_settings = (
+    _project_service, _conversation_service, role_service, _default_roles = (
         _build_services(tmp_path)
     )
     role = role_service.ensure_default_role()
@@ -114,7 +103,7 @@ def test_existing_role_cannot_restore_removed_cancellation_options(tmp_path):
 
 
 def test_role_application_ignores_invalid_fields_and_tracks_custom_state(tmp_path):
-    project_service, conversation_service, role_service, _functional_settings = (
+    project_service, conversation_service, role_service, _default_roles = (
         _build_services(tmp_path)
     )
     role = role_service.ensure_default_role()
@@ -200,7 +189,7 @@ def test_role_application_ignores_invalid_fields_and_tracks_custom_state(tmp_pat
 
 
 def test_new_session_seed_uses_configured_default_role(tmp_path):
-    project_service, _conversation_service, role_service, functional_settings = (
+    project_service, _conversation_service, role_service, default_roles = (
         _build_services(tmp_path)
     )
     default_role = role_service.ensure_default_role()
@@ -209,11 +198,7 @@ def test_new_session_seed_uses_configured_default_role(tmp_path):
         category_id=default_role.category_id,
     )
     role_service.initialize_role_project(selected_role.project_id)
-    functional_settings.save_profile_settings(
-        profile_key="defaultConversation",
-        settings={"roleProjectId": selected_role.project_id},
-        version=DEFAULT_CONVERSATION_ROLE_SETTINGS_VERSION,
-    )
+    default_roles.save(ProjectKind.PROJECT, selected_role.project_id)
 
     seed = role_service.build_new_session_seed()
 
@@ -221,26 +206,22 @@ def test_new_session_seed_uses_configured_default_role(tmp_path):
 
 
 def test_missing_configured_role_falls_back_to_default_role(tmp_path):
-    _project_service, _conversation_service, role_service, functional_settings = (
+    _project_service, _conversation_service, role_service, default_roles = (
         _build_services(tmp_path)
     )
     default_role = role_service.ensure_default_role()
-    functional_settings.save_profile_settings(
-        profile_key="defaultConversation",
-        settings={"roleProjectId": "missing-role"},
-        version=DEFAULT_CONVERSATION_ROLE_SETTINGS_VERSION,
-    )
+    default_roles.save(ProjectKind.PROJECT, "missing-role")
 
     seed = role_service.build_new_session_seed()
-    repaired = functional_settings.get_profile_settings("defaultConversation")
+    resolved = role_service.get_default_roles()
 
     assert seed.role_project_id == default_role.project_id
-    assert repaired is not None
-    assert repaired.settings == {"roleProjectId": default_role.project_id}
+    assert resolved["project"] == default_role.project_id
+    assert default_roles.get_all()["project"] == "missing-role"
 
 
 def test_role_catalog_follows_project_drag_order(tmp_path):
-    project_service, _conversation_service, role_service, _functional_settings = (
+    project_service, _conversation_service, role_service, _default_roles = (
         _build_services(tmp_path)
     )
     default_role = role_service.ensure_default_role()

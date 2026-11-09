@@ -15,7 +15,6 @@ from app.repositories.llm.functional_model_settings_repository import (
 
 FUNCTIONAL_MODEL_PROFILE_KEYS = frozenset(
     (
-        "defaultConversation",
         "projectMemoryManagement",
         "globalMemoryManagement",
         "memoryCompression",

@@ -591,10 +591,15 @@ function AssistantActions({
   interactions: ChatMessageItemInteractions;
   message: ChatMessage;
 }) {
-  return (message.role === "assistant" || message.role === "error") &&
-    message.content.trim().length > 0 ? (
+  if (message.role !== "assistant") return null;
+  const bodyContent = resolveAssistantBodyContent(message);
+  const hasBodyContent = bodyContent.trim().length > 0;
+  const hasExportContent = hasBodyContent || message.thinkingContent.trim().length > 0
+    || Boolean(message.processItems?.length || message.toolCalls?.length || message.usage);
+
+  return hasExportContent ? (
     <div className="chat-msg__actions" aria-label="消息操作">
-      <CopyMessageButton label="复制回复" text={message.content} />
+      {hasBodyContent ? <CopyMessageButton label="复制回复" text={bodyContent} /> : null}
       <button
         className="chat-msg__action"
         type="button"

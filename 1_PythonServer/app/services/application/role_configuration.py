@@ -13,9 +13,9 @@ from app.domain.project.project_conversation import (
     ProjectConversationSession,
     ProjectConversationSessionSettings,
 )
-from app.services.llm.functional_model_settings import (
-    LlmFunctionalModelSettingsService,
-    get_llm_functional_model_settings_service,
+from app.repositories.roles.default_role_repository import (
+    DefaultRoleRepository,
+    get_default_role_repository,
 )
 from app.services.project.project_conversations import (
     ProjectConversationService,
@@ -76,18 +76,17 @@ class RoleConfigurationApplicationService:
         project_service: ProjectService,
         conversation_service: ProjectConversationService,
         project_file_service: ProjectFileService,
-        functional_model_settings_service: LlmFunctionalModelSettingsService,
+        default_role_repository: DefaultRoleRepository,
     ) -> None:
         self._project_service = project_service
         self._conversation_service = conversation_service
         self._project_file_service = project_file_service
-        self._functional_model_settings_service = functional_model_settings_service
+        self._default_role_repository = default_role_repository
 
     def ensure_default_role(self) -> Project:
         with _DEFAULT_ROLE_LOCK:
             existing = self._find_default_role()
             if existing is not None:
-                self._ensure_default_conversation_role_setting(existing)
                 return existing
 
             project = self._project_service.create_role_project(
@@ -113,7 +112,6 @@ class RoleConfigurationApplicationService:
             except Exception:
                 self._project_service.delete_project(project.project_id)
                 raise
-            self._ensure_default_conversation_role_setting(project)
             return project
 
     def get_catalog(self) -> ConversationRoleCatalog:
@@ -142,12 +140,14 @@ class RoleConfigurationApplicationService:
     def build_new_session_seed(
         self,
         role_project_id: str | None = None,
+        *,
+        project_kind: ProjectKind = ProjectKind.PROJECT,
     ) -> ConversationRoleSeed:
         default_role = self.ensure_default_role()
         role = (
             self._require_role_project(role_project_id)
             if role_project_id
-            else self._resolve_default_conversation_role(default_role)
+            else self._resolve_default_conversation_role(default_role, project_kind)
         )
         seed = self._default_conversation_seed(role.project_id)
         return self._overlay_role_on_seed(seed, role.project_id)
@@ -218,7 +218,7 @@ class RoleConfigurationApplicationService:
         self,
         role_project_id: str,
     ) -> ProjectConversationSession:
-        seed = self.build_new_session_seed()
+        seed = self.build_new_session_seed(self.ensure_default_role().project_id)
         session = self._conversation_service.create_session(
             role_project_id,
             provider_id=seed.provider_id,
@@ -228,7 +228,10 @@ class RoleConfigurationApplicationService:
             role_project_id=role_project_id,
         )
         self.write_role_configuration(role_project_id, session)
-        return session
+        author_role = self._resolve_default_conversation_role(
+            self.ensure_default_role(), ProjectKind.ROLE,
+        )
+        return self.apply_role(role_project_id, session.session_id, author_role.project_id)
 
     def write_role_configuration(
         self,
@@ -335,42 +338,34 @@ class RoleConfigurationApplicationService:
             )
         )
 
-    def _ensure_default_conversation_role_setting(
-        self,
-        default_role: Project,
-    ) -> None:
-        self._resolve_default_conversation_role(default_role)
+    def get_default_roles(self) -> dict[str, str]:
+        default_role = self.ensure_default_role()
+        configured = self._default_role_repository.get_all()
+        valid_ids = {role.project_id for role in self._role_projects()}
+        return {
+            kind.value: configured.get(kind.value)
+            if configured.get(kind.value) in valid_ids else default_role.project_id
+            for kind in ProjectKind
+        }
+
+    def set_default_role(self, project_kind: ProjectKind, role_project_id: str) -> str:
+        role = self._require_role_project(role_project_id)
+        self._default_role_repository.save(project_kind, role.project_id)
+        return role.project_id
 
     def _resolve_default_conversation_role(
-        self,
-        default_role: Project,
+        self, default_role: Project, project_kind: ProjectKind,
     ) -> Project:
-        profile = self._functional_model_settings_service.get_profile_settings(
-            "defaultConversation",
-        )
-        payload = profile.settings if profile is not None else {}
-        configured_role_id = _strict_nonempty_string(payload.get("roleProjectId"))
+        configured_role_id = self._default_role_repository.get_all().get(project_kind.value)
         try:
             configured_role = (
                 self._project_service.get_project(configured_role_id)
-                if configured_role_id
-                else None
+                if configured_role_id else None
             )
         except BadRequestError:
             configured_role = None
-        if (
-            configured_role is not None
-            and configured_role.project_kind is ProjectKind.ROLE
-        ):
+        if configured_role is not None and configured_role.project_kind is ProjectKind.ROLE:
             return configured_role
-
-        if profile is None:
-            raise RuntimeError("默认会话角色设置不可用。")
-        self._functional_model_settings_service.save_profile_settings(
-            profile_key="defaultConversation",
-            settings={"roleProjectId": default_role.project_id},
-            version=profile.version,
-        )
         return default_role
 
     def _require_role_project(self, role_project_id: str) -> Project:
@@ -646,5 +641,5 @@ def get_role_configuration_application_service() -> (
         get_project_service(),
         get_project_conversation_service(),
         get_project_file_service(),
-        get_llm_functional_model_settings_service(),
+        get_default_role_repository(),
     )

@@ -4,7 +4,6 @@ import pytest
 
 from app.core.errors import BadRequestError
 from app.domain.llm.functional_model_defaults import (
-    DEFAULT_CONVERSATION_ROLE_SETTINGS_VERSION,
     DEFAULT_FUNCTIONAL_MAX_OUTPUT_TOKENS,
     GLOBAL_MEMORY_MANAGEMENT_SETTINGS_VERSION,
     NAMING_SETTINGS_VERSION,
@@ -50,9 +49,6 @@ def test_memory_compression_uses_current_prompt_contract_version():
     assert get_functional_model_profile_settings_version(
         "globalMemoryManagement"
     ) == GLOBAL_MEMORY_MANAGEMENT_SETTINGS_VERSION
-    assert get_functional_model_profile_settings_version("defaultConversation") == (
-        DEFAULT_CONVERSATION_ROLE_SETTINGS_VERSION
-    )
 
 
 def test_functional_model_save_rejects_stale_version(tmp_path):
@@ -210,31 +206,9 @@ def test_memory_management_defaults_are_scoped(
     assert "如果任意一次工具调用失败，立即停止" in defaults["prompt"]
 
 
-def test_default_conversation_role_settings_are_available(tmp_path):
+def test_default_roles_are_no_longer_functional_model_profiles(tmp_path):
     database_path = tmp_path / "tiance.db"
     ensure_database_schema(database_path)
-    repository = LlmFunctionalModelSettingsRepository(database_path)
-    service = LlmFunctionalModelSettingsService(repository)
-
-    settings = service.get_profile_settings("defaultConversation")
-
-    assert settings is not None
-    assert settings.version == DEFAULT_CONVERSATION_ROLE_SETTINGS_VERSION
-    assert settings.settings == {"roleProjectId": ""}
-
-
-def test_default_conversation_role_is_user_controlled(tmp_path):
-    database_path = tmp_path / "tiance.db"
-    ensure_database_schema(database_path)
-    repository = LlmFunctionalModelSettingsRepository(database_path)
-    service = LlmFunctionalModelSettingsService(repository)
-
-    defaults = deepcopy(get_default_functional_model_profile_settings("defaultConversation"))
-    defaults["roleProjectId"] = "role-1"
-    saved = service.save_profile_settings(
-        profile_key="defaultConversation",
-        settings=defaults,
-        version=DEFAULT_CONVERSATION_ROLE_SETTINGS_VERSION,
-    )
-
-    assert saved.settings["roleProjectId"] == "role-1"
+    service = LlmFunctionalModelSettingsService(LlmFunctionalModelSettingsRepository(database_path))
+    with pytest.raises(BadRequestError):
+        service.get_profile_settings("defaultConversation")

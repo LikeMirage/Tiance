@@ -59,6 +59,7 @@ type WorkspaceSidePanelProps = {
   onSelectNetworkSettings: () => void;
   onSelectAccessManagementSettings: () => void;
   onSelectAccessSecuritySettings: () => void;
+  onSelectDefaultRolesSettings: () => void;
   onSelectTokenEstimationSettings: () => void;
   onToggleFunctionalModelGroup: () => void;
 };
@@ -107,6 +108,7 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
   onSelectNetworkSettings,
   onSelectAccessManagementSettings,
   onSelectAccessSecuritySettings,
+  onSelectDefaultRolesSettings,
   onSelectTokenEstimationSettings,
   onToggleFunctionalModelGroup,
 }: WorkspaceSidePanelProps) {
@@ -120,6 +122,8 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
   );
   const normalizedSettingsSearchKeyword = normalizeSettingsSearchText(settingsSearchKeyword);
   const isSearchingSettings = normalizedSettingsSearchKeyword.length > 0;
+  const isDefaultRolesSettingsActive = activeSettingsSectionId === "default-roles";
+  const shouldShowDefaultRolesSearchResult = !isSearchingSettings || normalizeSettingsSearchText(`${t("workspace.settings.defaultRoles")} role default`).includes(normalizedSettingsSearchKeyword);
   const isTokenEstimationSettingsActive =
     activeSettingsSectionId === "token-estimation";
   const isLanguageSettingsActive = activeSettingsSectionId === "language";
@@ -374,6 +378,22 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
                 </span>
               </button>
             ) : null}
+            {shouldShowDefaultRolesSearchResult ? (
+              <button
+                className={
+                  isDefaultRolesSettingsActive
+                    ? "workspace-settings-panel__search-result workspace-settings-panel__search-result--active"
+                    : "workspace-settings-panel__search-result"
+                }
+                type="button"
+                aria-current={isDefaultRolesSettingsActive ? "page" : undefined}
+                onClick={onSelectDefaultRolesSettings}
+              >
+                <span className="workspace-settings-panel__search-result-title">
+                  {t("workspace.settings.defaultRoles")}
+                </span>
+              </button>
+            ) : null}
             {shouldShowTokenEstimationSearchResult ? (
               <button
                 className={
@@ -427,6 +447,7 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
               && !shouldShowNetworkSettingsSearchResult
               && !shouldShowAccessManagementSearchResult
               && !shouldShowAccessSecuritySearchResult
+              && !shouldShowDefaultRolesSearchResult
               && !shouldShowTokenEstimationSearchResult
               && filteredFunctionalModelSections.length === 0 ? (
               <div className="workspace-settings-panel__empty" role="status">
@@ -525,6 +546,18 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
               onClick={onSelectAccessSecuritySettings}
             >
               {t("workspace.settings.accessSecurity")}
+            </button>
+            <button
+              className={
+                isDefaultRolesSettingsActive
+                  ? "workspace-settings-panel__standalone workspace-settings-panel__standalone--active"
+                  : "workspace-settings-panel__standalone"
+              }
+              type="button"
+              aria-current={isDefaultRolesSettingsActive ? "page" : undefined}
+              onClick={onSelectDefaultRolesSettings}
+            >
+              {t("workspace.settings.defaultRoles")}
             </button>
             <button
               className={

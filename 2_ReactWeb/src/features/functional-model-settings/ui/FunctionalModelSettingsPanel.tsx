@@ -6,7 +6,6 @@ import {
 } from "../model/functionalModelSections";
 import { useI18n } from "../../../shared/i18n";
 import { ConversationNamingModelSettings } from "./ConversationNamingModelSettings";
-import { DefaultConversationRoleSettings } from "./DefaultConversationRoleSettings";
 import { MemoryCompressionModelSettings } from "./MemoryCompressionModelSettings";
 import {
   GlobalMemoryManagementModelSettings,
@@ -188,12 +187,6 @@ export function FunctionalModelSettingsPanel({
 
 function renderFunctionalModelSection(sectionId: FunctionalModelSettingsSectionId) {
   switch (sectionId) {
-    case "default-conversation":
-      return (
-        <div className="functional-model-settings">
-          <DefaultConversationRoleSettings />
-        </div>
-      );
     case "conversation-naming":
       return (
         <div className="functional-model-settings">

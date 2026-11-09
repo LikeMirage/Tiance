@@ -23,7 +23,7 @@ import {
 } from "../model/useFunctionalModelSettings";
 import { isRuntimeCapabilitiesUnavailable } from "../model/unavailableRuntimeCapabilities";
 
-type PromptFunctionalModelProfileKey = Exclude<FunctionalModelProfileKey, "defaultConversation">;
+type PromptFunctionalModelProfileKey = FunctionalModelProfileKey;
 
 const SESSION_MODEL_OPTION_PROVIDER_ID = "__session_model_source__";
 

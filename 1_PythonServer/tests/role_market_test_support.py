@@ -10,9 +10,7 @@ from app.domain.project import ProjectKind
 from app.infra.database import ensure_database_schema
 from app.infra.file_workspace import FileWorkspaceStorage
 from app.infra.projects import ProjectStorage
-from app.repositories.llm.functional_model_settings_repository import (
-    LlmFunctionalModelSettingsRepository,
-)
+from app.repositories.roles.default_role_repository import DefaultRoleRepository
 from app.repositories.project import FileProjectCatalog, ProjectRepository
 from app.repositories.project.conversation_repository import ProjectConversationRepository
 from app.repositories.roles import (
@@ -22,7 +20,6 @@ from app.repositories.roles import (
 from app.services.application.project_creation import ProjectCreationApplicationService
 from app.services.application.role_market import RoleMarketApplicationService
 from app.services.document_conversion import MarkdownDocxService
-from app.services.llm.functional_model_settings import LlmFunctionalModelSettingsService
 from app.services.project.project_conversations import ProjectConversationService
 from app.services.project.project_files import ProjectFileService
 from app.services.project.projects import ProjectService
@@ -80,9 +77,7 @@ def build_role_market_service(
     conversation_service = ProjectConversationService(
         ProjectConversationRepository(repository),
     )
-    settings_service = LlmFunctionalModelSettingsService(
-        LlmFunctionalModelSettingsRepository(database_path),
-    )
+    settings_service = DefaultRoleRepository(database_path)
     project_file_service = ProjectFileService(
         repository,
         FileWorkspaceStorage(),

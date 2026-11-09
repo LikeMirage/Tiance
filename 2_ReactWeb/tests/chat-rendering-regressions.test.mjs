@@ -11,6 +11,7 @@ const { buildChatDisplayMessages, createChatDisplayProjector } = await vite.ssrL
 const { mapConversationMessages } = await vite.ssrLoadModule("/src/features/ai-panel/model/chatMessage.ts");
 const { resolveProcessElapsedSeconds } = await vite.ssrLoadModule("/src/features/ai-panel/model/chatAssistantProcessTime.ts");
 const { ChatMessageItem } = await vite.ssrLoadModule("/src/features/ai-panel/ui/ChatMessageItem.tsx");
+await vite.ssrLoadModule("/src/features/markdown-preview/ui/MarkdownPreview.tsx");
 const { formatChatMessageTimestamp } = await vite.ssrLoadModule("/src/features/ai-panel/model/chatMessageTimestamp.ts");
 const { ChatProcessFoldProvider, buildChatProcessFoldIdentities, createChatProcessFoldStore } = await vite.ssrLoadModule("/src/features/ai-panel/model/chatProcessFoldState.tsx");
 after(() => vite.close());
@@ -19,6 +20,52 @@ const message = (id, role, extra = {}) => ({ id, role, content: "", thinkingCont
   usage: null, isThinkingExpanded: false, thinkingStartedAt: null, thinkingFinishedAt: null,
   processItems: [], toolCalls: [], createdAt: 1000, updatedAt: 2000, ...extra });
 const thinking = (id, extra = {}) => ({ id, type: "thinking", content: "分析", status: "done", startedAt: 1000, finishedAt: 2000, ...extra });
+
+const renderAssistant = (assistant, isSessionStreaming = false) => renderToStaticMarkup(
+  createElement(ChatProcessFoldProvider, { sessionKey: "assistant-actions" }, createElement(ChatMessageItem, {
+    message: assistant, expandedUserMessageIds: new Set(), interactions: {},
+    autoCollapseAssistantProcess: true, clockTick: 2000, isLastMessage: true,
+    isSessionStreaming, modelSwitchModelId: null, foldTurnId: "actions-user", foldThinkingOffset: 0,
+  })),
+);
+
+test("工具轮次异常结束或暂停，没有最终正文也保留导出入口，不复制过程说明", () => {
+  const tool = { id: "action-tool", callId: "action-call", name: "read_file", arguments: "{}",
+    result: "已读取", error: "", ok: true, status: "done", startedAt: 1000, finishedAt: 1500 };
+  for (const status of ["error", "cancelled"]) {
+    const display = buildChatDisplayMessages([
+      message("actions-user", "user"),
+      message("before-tool", "assistant", { content: "先读文件，再整理。" }),
+      message("tool-answer", "assistant", {
+        status, toolCalls: [tool], processItems: [{ id: tool.id, type: "tool", tool }],
+      }),
+    ], { runtimeStatus: "idle" });
+    const html = renderAssistant(display.find((item) => item.role === "assistant"));
+    assert.match(html, /aria-label="导出回复"/);
+    assert.doesNotMatch(html, /aria-label="复制回复"/);
+  }
+  const thinkingOnly = renderAssistant(message("thinking-only", "assistant", {
+    status: "cancelled", thinkingContent: "正在分析", processItems: [thinking("analysis")],
+  }));
+  assert.match(thinkingOnly, /aria-label="导出回复"/);
+  assert.doesNotMatch(thinkingOnly, /aria-label="复制回复"/);
+});
+
+test("复制入口只跟随正文，过程文字不能冒充最终回复，流式运行中不提前显示底栏", () => {
+  const process = { id: "explanation", type: "content", content: "调用工具前的说明。" };
+  const processOnly = message("process-only", "assistant", { status: "cancelled",
+    content: process.content, processItems: [process] });
+  assert.doesNotMatch(renderAssistant(processOnly), /aria-label="复制回复"/);
+  assert.match(renderAssistant(processOnly), /aria-label="导出回复"/);
+  for (const status of ["done", "error", "cancelled"]) {
+    const html = renderAssistant({ ...processOnly, status, content: process.content + "已生成的回复正文。" });
+    assert.match(html, /aria-label="复制回复"/);
+    assert.match(html, /aria-label="导出回复"/);
+  }
+  const running = renderAssistant({ ...processOnly, status: "running" }, true);
+  assert.doesNotMatch(running, /aria-label="(?:复制|导出)回复"/);
+  assert.doesNotMatch(renderAssistant(message("empty", "assistant")), /aria-label="(?:复制|导出)回复"/);
+});
 
 test("流式临时消息换成正式记录时保留显示身份，采用正式正文和消息编号", () => {
   const project = createChatDisplayProjector();

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "kind": "tiance-role-package",
+  "id": "4a9c3251-ba03-4b08-a22b-69f890ab441b",
+  "name": "模型管理者",
+  "version": "1.0.0",
+  "author": {
+    "name": "LikeMirage"
+  },
+  "summary": "帮助配置供应商和模型，核查协议参数、能力、价格并排查调用问题。",
+  "license": "MIT",
+  "compatibility": {
+    "minTianceVersion": "0.3.42"
+  }
+}

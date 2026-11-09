@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "defaults": {
+    "tool": "6b45757f-7c9e-409b-b5a8-9ea4c44bce9d",
+    "theme": "c63ccc86-290b-4883-98ac-025c1444af90",
+    "role": "679b23ac-12d6-4b95-a663-4ca638b8161a",
+    "provider": "4a9c3251-ba03-4b08-a22b-69f890ab441b"
+  }
+}

@@ -9,9 +9,11 @@ from app.schemas.roles import (
     RoleMarketSettingsUpdateRequest,
 )
 from app.services.application.role_market import get_role_market_application_service
+from .defaults import router as defaults_router
 
 
 router = APIRouter(prefix="/roles", tags=["roles"])
+router.include_router(defaults_router)
 
 
 @router.get("/market/settings", response_model=RoleMarketSettingsResponse)

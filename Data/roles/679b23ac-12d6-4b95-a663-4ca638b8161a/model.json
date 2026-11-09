@@ -1,0 +1,5 @@
+{
+  "provider_id": "deepseek",
+  "model_id": "deepseek-flash",
+  "reasoning_mode": "high"
+}

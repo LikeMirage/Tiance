@@ -19,6 +19,7 @@ import {
 } from "../../../features/functional-model-settings/model/functionalModelSections";
 import type { ProjectEntryWarmupOptions } from "../../../features/project-entry/model/projectEntryWarmup";
 import { FunctionalModelSettingsPanel } from "../../../features/functional-model-settings/ui/FunctionalModelSettingsPanel";
+import { DefaultRoleSettingsPanel } from "../../../features/default-role-settings/ui/DefaultRoleSettingsPanel";
 import { TokenEstimationSettingsPanel } from "../../../features/token-estimation-settings/ui/TokenEstimationSettingsPanel";
 import { NetworkSettingsPanel } from "../../../features/network-settings/ui/NetworkSettingsPanel";
 import { AccessManagementPanel } from "../../../features/access-management/ui/AccessManagementPanel";
@@ -274,6 +275,9 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
     });
   }, []);
 
+  const markDefaultRolesSettingsReady = useCallback(() => {
+    markSettingsSectionReady("default-roles");
+  }, [markSettingsSectionReady]);
   const markTokenEstimationSettingsReady = useCallback(() => {
     markSettingsSectionReady("token-estimation");
   }, [markSettingsSectionReady]);
@@ -534,6 +538,7 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
             onAccessManagementSettingsReady={markAccessManagementSettingsReady}
             onAccessSecuritySettingsReady={markAccessSecuritySettingsReady}
             onSelectFunctionalModelSection={onSelectFunctionalModelSection}
+            onDefaultRolesSettingsReady={markDefaultRolesSettingsReady}
             onTokenEstimationSettingsReady={markTokenEstimationSettingsReady}
           />
         );
@@ -620,6 +625,7 @@ function WorkspaceSettingsCanvas({
   onAccessManagementSettingsReady,
   onAccessSecuritySettingsReady,
   onSelectFunctionalModelSection,
+  onDefaultRolesSettingsReady,
   onTokenEstimationSettingsReady,
 }: {
   activeFunctionalModelSectionId: FunctionalModelSettingsSectionId;
@@ -634,8 +640,10 @@ function WorkspaceSettingsCanvas({
   onAccessManagementSettingsReady: () => void;
   onAccessSecuritySettingsReady: () => void;
   onSelectFunctionalModelSection: (sectionId: FunctionalModelSettingsSectionId) => void;
+  onDefaultRolesSettingsReady: () => void;
   onTokenEstimationSettingsReady: () => void;
 }) {
+  const isDefaultRolesDisplayed = displayedSettingsSectionId === "default-roles";
   const isTokenEstimationDisplayed =
     displayedSettingsSectionId === "token-estimation";
   const isLanguageDisplayed = displayedSettingsSectionId === "language";
@@ -647,7 +655,7 @@ function WorkspaceSettingsCanvas({
   const isAccessManagementDisplayed = displayedSettingsSectionId === "access-management";
   const isAccessSecurityDisplayed = displayedSettingsSectionId === "access-security";
   const isFunctionalModelDisplayed =
-    !isGithubDisplayed && !isGlobalMemoryDisplayed && !isSoftwareUpdateDisplayed && !isAnnouncementDisplayed && !isLanguageDisplayed && !isTokenEstimationDisplayed && !isNetworkDisplayed && !isAccessManagementDisplayed && !isAccessSecurityDisplayed;
+    !isDefaultRolesDisplayed && !isGithubDisplayed && !isGlobalMemoryDisplayed && !isSoftwareUpdateDisplayed && !isAnnouncementDisplayed && !isLanguageDisplayed && !isTokenEstimationDisplayed && !isNetworkDisplayed && !isAccessManagementDisplayed && !isAccessSecurityDisplayed;
 
   return (
     <div className="workspace-page__settings-canvas">
@@ -729,6 +737,12 @@ function WorkspaceSettingsCanvas({
         aria-hidden={isAccessSecurityDisplayed ? undefined : "true"}
       >
         <AccessSecurityPanel onReady={onAccessSecuritySettingsReady} />
+      </div>
+      <div className={isDefaultRolesDisplayed
+        ? "workspace-page__settings-view"
+        : "workspace-page__settings-view workspace-page__settings-view--hidden"}
+        aria-hidden={isDefaultRolesDisplayed ? undefined : "true"}>
+        <DefaultRoleSettingsPanel onReady={onDefaultRolesSettingsReady} />
       </div>
       <div
         className={

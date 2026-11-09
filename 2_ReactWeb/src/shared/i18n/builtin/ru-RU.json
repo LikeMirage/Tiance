@@ -4,6 +4,18 @@
   "displayName": "Русский",
   "direction": "ltr",
   "messages": {
+    "defaultRoleSettings": {
+      "description": "Для новых диалогов в каждой коллекции. В существующих диалогах роль можно изменить отдельно.",
+      "collections": {
+        "project": "Проекты",
+        "tool": "Инструменты",
+        "knowledge": "Знания",
+        "experience": "Опыт",
+        "role": "Роли",
+        "provider": "Модели",
+        "theme": "Темы"
+      }
+    },
     "common": {
       "frontendRecovery": {
         "title": "Ошибка интерфейса",
@@ -203,6 +215,7 @@
     },
     "workspace": {
       "settings": {
+        "defaultRoles": "Роли по умолчанию",
         "title": "Настройки",
         "panel": "Панель настроек",
         "search": "Поиск настроек",
@@ -222,7 +235,6 @@
         "functionalModel": "Функциональные роли по умолчанию",
         "functionalModelCategories": "Категории функциональных ролей по умолчанию",
         "functionalSections": {
-          "defaultConversation": "Роль диалога по умолчанию",
           "conversationNaming": "Модель именования диалогов",
           "memoryCompression": "Модель управления памятью"
         }
@@ -1034,15 +1046,10 @@
         }
       },
       "sections": {
-        "defaultConversation": "Роль диалога по умолчанию",
         "conversationNaming": "Модель именования диалогов",
         "memoryCompression": "Модель сжатия памяти",
         "projectMemoryManagement": "Модель управления памятью проекта",
         "globalMemoryManagement": "Модель управления глобальной памятью"
-      },
-      "defaultConversation": {
-        "role": "Роль",
-        "description": "Использовать все настройки этой роли при создании обычного диалога."
       },
       "conversationNaming": {
         "triggerTokenThreshold": "Порог токенов для запуска",

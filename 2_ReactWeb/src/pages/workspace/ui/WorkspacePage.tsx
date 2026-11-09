@@ -954,6 +954,9 @@ export function WorkspacePage({
     setActiveSettingsSectionId(sectionId);
     functionalModelSectionSelection.selectSection(sectionId);
   }, [functionalModelSectionSelection]);
+  const handleSelectDefaultRolesSettings = useCallback(() => {
+    setActiveSettingsSectionId("default-roles");
+  }, []);
   const handleSelectTokenEstimationSettings = useCallback(() => {
     setActiveSettingsSectionId("token-estimation");
   }, []);
@@ -1089,6 +1092,7 @@ export function WorkspacePage({
           onSelectNetworkSettings={handleSelectNetworkSettings}
           onSelectAccessManagementSettings={handleSelectAccessManagementSettings}
           onSelectAccessSecuritySettings={handleSelectAccessSecuritySettings}
+          onSelectDefaultRolesSettings={handleSelectDefaultRolesSettings}
           onSelectTokenEstimationSettings={handleSelectTokenEstimationSettings}
           onToggleFunctionalModelGroup={functionalModelSectionSelection.toggleSectionGroup}
         />

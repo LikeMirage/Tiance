@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from app.infra.database.schema import ensure_database_schema
+from app.infra.database.schema import ensure_database_schema, SCHEMA_VERSION as GLOBAL_SCHEMA_VERSION
 from app.migrations.project_db import v5_to_v6, v6_to_v7
 from app.migrations import runner
 from app.repositories.project.conversation_audit_snapshots import restore_audit_snapshot
@@ -133,7 +133,7 @@ def test_global_v48_upgrade_is_additive_and_keeps_legacy_backup(tmp_path):
     with closing(sqlite3.connect(backup)) as old:
         assert old.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == 48
     with closing(sqlite3.connect(path)) as db:
-        assert db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == 49
+        assert db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == GLOBAL_SCHEMA_VERSION
         assert db.execute(
             "SELECT activity_type,source_id,amount,project_id,session_id,user_message_id "
             "FROM workspace_activity_records"
@@ -149,7 +149,7 @@ def test_global_upgrade_preserves_unrelated_retired_project_rows(tmp_path):
         db.commit()
     ensure_database_schema(path)
     with closing(sqlite3.connect(path)) as db:
-        assert db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == 49
+        assert db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == GLOBAL_SCHEMA_VERSION
         assert db.execute("SELECT project_id FROM projects").fetchone()[0] == "must-not-disappear"
 
 

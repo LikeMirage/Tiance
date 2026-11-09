@@ -1,6 +1,7 @@
 import type { FunctionalModelSettingsSectionId } from "../../../features/functional-model-settings/model/functionalModelSections";
 
 export type WorkspaceSettingsSectionId =
+  | "default-roles"
   | "language"
   | "software-update"
   | "announcements"
@@ -13,9 +14,10 @@ export type WorkspaceSettingsSectionId =
   | FunctionalModelSettingsSectionId;
 
 const functionalModelSectionIds: readonly FunctionalModelSettingsSectionId[] = [
-  "default-conversation",
   "conversation-naming",
   "memory-compression",
+  "project-memory-management",
+  "global-memory-management",
 ];
 
 export function isFunctionalModelSettingsSection(

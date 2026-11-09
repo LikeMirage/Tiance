@@ -7,7 +7,6 @@ from app.domain.project.conversation_memory_markers import (
 
 
 FUNCTIONAL_MODEL_SETTINGS_VERSION = 25
-DEFAULT_CONVERSATION_ROLE_SETTINGS_VERSION = 26
 MEMORY_COMPRESSION_SETTINGS_VERSION = 34
 NAMING_SETTINGS_VERSION = 29
 PROJECT_MEMORY_MANAGEMENT_SETTINGS_VERSION = 2
@@ -167,8 +166,6 @@ DEFAULT_GLOBAL_MEMORY_MANAGEMENT_PROMPT = _memory_management_prompt(
 
 
 def get_functional_model_profile_settings_version(profile_key: str) -> int:
-    if profile_key == "defaultConversation":
-        return DEFAULT_CONVERSATION_ROLE_SETTINGS_VERSION
     if profile_key == "memoryCompression":
         return MEMORY_COMPRESSION_SETTINGS_VERSION
     if profile_key == "naming":
@@ -214,7 +211,6 @@ def get_default_functional_model_profile_settings(
             "prompt": DEFAULT_GLOBAL_MEMORY_MANAGEMENT_PROMPT,
             "triggerTokenThreshold": 100000,
         },
-        "defaultConversation": {"roleProjectId": ""},
         "naming": {
             "generation": _default_generation(DEFAULT_NAMING_MAX_OUTPUT_TOKENS),
             "modelKey": "",

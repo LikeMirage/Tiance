@@ -3,14 +3,15 @@ from json import dumps
 from pathlib import Path
 from shutil import copytree
 
+from app.core.errors import NotFoundError
 from app.domain.project import Project, ProjectKind
 from app.domain.project.project_conversation import ProjectConversationSession
 from app.services.application.role_configuration import (
     RoleConfigurationApplicationService,
 )
-from app.services.llm.functional_model_settings import (
-    LlmFunctionalModelSettingsService,
-    get_llm_functional_model_settings_service,
+from app.repositories.roles.default_role_repository import (
+    DefaultRoleRepository,
+    get_default_role_repository,
 )
 from app.services.project.project_conversations import (
     ProjectConversationService,
@@ -39,7 +40,7 @@ class ProjectCreationApplicationService:
         project_service: ProjectService,
         conversation_service: ProjectConversationService,
         project_file_service: ProjectFileService,
-        functional_model_settings_service: LlmFunctionalModelSettingsService,
+        default_role_repository: DefaultRoleRepository,
     ) -> None:
         self._project_service = project_service
         self._conversation_service = conversation_service
@@ -47,7 +48,7 @@ class ProjectCreationApplicationService:
             project_service,
             conversation_service,
             project_file_service,
-            functional_model_settings_service,
+            default_role_repository,
         )
 
     def create_project(
@@ -97,7 +98,12 @@ class ProjectCreationApplicationService:
         if self._conversation_service.list_sessions(project_id):
             return None
 
-        seed = self._role_configuration_service.build_new_session_seed()
+        project = self._project_service.get_project(project_id)
+        if project is None:
+            raise NotFoundError("项目不存在。")
+        seed = self._role_configuration_service.build_new_session_seed(
+            project_kind=project.project_kind,
+        )
         session = self._conversation_service.create_session(
             project_id,
             provider_id=seed.provider_id,
@@ -148,5 +154,5 @@ def get_project_creation_application_service() -> ProjectCreationApplicationServ
         get_project_service(),
         get_project_conversation_service(),
         get_project_file_service(),
-        get_llm_functional_model_settings_service(),
+        get_default_role_repository(),
     )

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "kind": "tiance-role-package",
+  "id": "6b45757f-7c9e-409b-b5a8-9ea4c44bce9d",
+  "name": "工具创建者",
+  "version": "1.0.0",
+  "author": {
+    "name": "LikeMirage"
+  },
+  "summary": "帮助创建、完善和验证天策独立工具，复用标准模板、制作资料与能力桥。",
+  "license": "MIT",
+  "compatibility": {
+    "minTianceVersion": "0.3.42"
+  }
+}

@@ -7,9 +7,7 @@ from app.infra.database import ensure_database_schema
 from app.infra.file_workspace import FileWorkspaceStorage
 from app.infra.projects import ProjectStorage
 from app.domain.project import ProjectKind
-from app.repositories.llm.functional_model_settings_repository import (
-    LlmFunctionalModelSettingsRepository,
-)
+from app.repositories.roles.default_role_repository import DefaultRoleRepository
 from app.repositories.project import ProjectRepository
 from app.repositories.project.file_project_catalog import FileProjectCatalog
 from app.repositories.project.conversation_repository import ProjectConversationRepository
@@ -18,7 +16,6 @@ from app.services.application.role_configuration import (
     RoleConfigurationApplicationService,
 )
 from app.services.document_conversion import MarkdownDocxService
-from app.services.llm.functional_model_settings import LlmFunctionalModelSettingsService
 from app.services.project.project_files import ProjectFileService
 from app.services.project.project_conversations import ProjectConversationService
 from app.services.project.projects import ProjectService
@@ -53,9 +50,7 @@ def test_theme_and_tool_creation_use_native_project_workspace(tmp_path, monkeypa
     conversation_service = ProjectConversationService(
         ProjectConversationRepository(repository),
     )
-    settings_service = LlmFunctionalModelSettingsService(
-        LlmFunctionalModelSettingsRepository(database_path),
-    )
+    default_roles = DefaultRoleRepository(database_path)
     creation_service = ProjectCreationApplicationService(
         project_service,
         conversation_service,
@@ -64,7 +59,7 @@ def test_theme_and_tool_creation_use_native_project_workspace(tmp_path, monkeypa
             FileWorkspaceStorage(),
             MarkdownDocxService(),
         ),
-        settings_service,
+        default_roles,
     )
 
     theme = creation_service.create_project(name=None, project_kind=ProjectKind.THEME)
@@ -95,9 +90,7 @@ def test_project_creation_creates_initial_conversation_with_default_role(tmp_pat
     conversation_service = ProjectConversationService(
         ProjectConversationRepository(project_repository),
     )
-    settings_service = LlmFunctionalModelSettingsService(
-        LlmFunctionalModelSettingsRepository(database_path),
-    )
+    default_roles = DefaultRoleRepository(database_path)
     project_file_service = ProjectFileService(
         project_repository,
         FileWorkspaceStorage(),
@@ -107,13 +100,13 @@ def test_project_creation_creates_initial_conversation_with_default_role(tmp_pat
         project_service,
         conversation_service,
         project_file_service,
-        settings_service,
+        default_roles,
     )
     role_service = RoleConfigurationApplicationService(
         project_service,
         conversation_service,
         project_file_service,
-        settings_service,
+        default_roles,
     )
     default_role = role_service.ensure_default_role()
     default_role_session = conversation_service.list_sessions(
@@ -175,9 +168,7 @@ def test_project_creation_does_not_duplicate_initial_conversation(tmp_path):
     conversation_service = ProjectConversationService(
         ProjectConversationRepository(project_repository),
     )
-    settings_service = LlmFunctionalModelSettingsService(
-        LlmFunctionalModelSettingsRepository(database_path),
-    )
+    default_roles = DefaultRoleRepository(database_path)
     project_file_service = ProjectFileService(
         project_repository,
         FileWorkspaceStorage(),
@@ -187,7 +178,7 @@ def test_project_creation_does_not_duplicate_initial_conversation(tmp_path):
         project_service,
         conversation_service,
         project_file_service,
-        settings_service,
+        default_roles,
     )
     project = project_service.create_project(name="已有会话")
     conversation_service.create_session(
@@ -215,9 +206,7 @@ def test_role_creation_initializes_editable_configuration_files(tmp_path):
     conversation_service = ProjectConversationService(
         ProjectConversationRepository(project_repository),
     )
-    settings_service = LlmFunctionalModelSettingsService(
-        LlmFunctionalModelSettingsRepository(database_path),
-    )
+    default_roles = DefaultRoleRepository(database_path)
     project_file_service = ProjectFileService(
         project_repository,
         FileWorkspaceStorage(),
@@ -227,7 +216,7 @@ def test_role_creation_initializes_editable_configuration_files(tmp_path):
         project_service,
         conversation_service,
         project_file_service,
-        settings_service,
+        default_roles,
     )
 
     role = creation_service.create_role_project(name="测试角色")

@@ -261,8 +261,12 @@ def create_project_conversation(
     settings = payload_settings
     role_project_id = payload.role_project_id
     if payload.created_by == "user":
+        project = get_project_service().get_project(project_id)
+        if project is None:
+            raise NotFoundError("项目不存在。")
         seed = get_role_configuration_application_service().build_new_session_seed(
             payload.role_project_id,
+            project_kind=project.project_kind,
         )
         provider_id = (
             payload.provider_id

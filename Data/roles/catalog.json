@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "categories.builtin_bootstrapped": "1"
+  },
+  "categories": [
+    {
+      "category_id": "default-role-category",
+      "name": "基础角色",
+      "is_default": true,
+      "sort_order": 0,
+      "created_at": "2026-08-04 01:43:59",
+      "updated_at": "2026-08-04 01:43:59"
+    }
+  ],
+  "projects": [
+    {
+      "project_id": "646a6632-75c4-443d-87a6-220e0455dcc1",
+      "name": "默认角色",
+      "category_id": "default-role-category",
+      "is_default": false,
+      "sort_order": 0,
+      "created_at": "2026-08-13T10:01:21.338444+00:00",
+      "updated_at": "2026-08-13T10:01:21.338444+00:00"
+    },
+    {
+      "project_id": "6b45757f-7c9e-409b-b5a8-9ea4c44bce9d",
+      "name": "工具创建者",
+      "category_id": "default-role-category",
+      "is_default": false,
+      "sort_order": 1,
+      "created_at": "2026-11-09T09:52:42.186467+00:00",
+      "updated_at": "2026-11-09T09:52:42.186467+00:00"
+    },
+    {
+      "project_id": "c63ccc86-290b-4883-98ac-025c1444af90",
+      "name": "主题创建者",
+      "category_id": "default-role-category",
+      "is_default": false,
+      "sort_order": 2,
+      "created_at": "2026-11-09T09:52:42.359704+00:00",
+      "updated_at": "2026-11-09T09:52:42.359704+00:00"
+    },
+    {
+      "project_id": "679b23ac-12d6-4b95-a663-4ca638b8161a",
+      "name": "角色创建者",
+      "category_id": "default-role-category",
+      "is_default": false,
+      "sort_order": 3,
+      "created_at": "2026-11-09T09:52:42.523314+00:00",
+      "updated_at": "2026-11-09T09:52:42.523314+00:00"
+    },
+    {
+      "project_id": "4a9c3251-ba03-4b08-a22b-69f890ab441b",
+      "name": "模型管理者",
+      "category_id": "default-role-category",
+      "is_default": false,
+      "sort_order": 4,
+      "created_at": "2026-11-09T09:52:42.694187+00:00",
+      "updated_at": "2026-11-09T09:52:42.694187+00:00"
+    }
+  ]
+}

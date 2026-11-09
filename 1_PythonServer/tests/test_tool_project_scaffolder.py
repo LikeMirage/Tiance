@@ -18,13 +18,12 @@ from app.infra.database import ensure_database_schema
 from app.infra.file_workspace import FileWorkspaceStorage
 from app.infra.projects import ProjectStorage
 from app.infra.tools.tool_project_config_storage import ToolProjectConfigStorage
-from app.repositories.llm.functional_model_settings_repository import LlmFunctionalModelSettingsRepository
+from app.repositories.roles.default_role_repository import DefaultRoleRepository
 from app.repositories.project import ProjectRepository
 from app.repositories.project.conversation_repository import ProjectConversationRepository
 from app.repositories.project.file_project_catalog import FileProjectCatalog
 from app.services.application.project_creation import ProjectCreationApplicationService
 from app.services.document_conversion import MarkdownDocxService
-from app.services.llm.functional_model_settings import LlmFunctionalModelSettingsService
 from app.services.project.project_conversations import ProjectConversationService
 from app.services.project.project_files import ProjectFileService
 from app.services.project.projects import ProjectService
@@ -64,7 +63,7 @@ def make_services(tmp_path, monkeypatch):
     conversations = ProjectConversationService(ProjectConversationRepository(repository))
     files = ProjectFileService(repository, FileWorkspaceStorage(), MarkdownDocxService())
     creation = ProjectCreationApplicationService(projects, conversations, files,
-        LlmFunctionalModelSettingsService(LlmFunctionalModelSettingsRepository(database)))
+        DefaultRoleRepository(database))
     monkeypatch.setattr("app.services.application.project_creation.get_project_creation_application_service", lambda: creation)
     tools = ToolProjectService(projects, files, tmp_path / "tools")
     registry = ToolRegistryService(tools)
