@@ -197,6 +197,7 @@ export function PdfPageView({
           ? "pdf-preview__page pdf-preview__page--loading-hidden"
           : "pdf-preview__page"}
         ref={contentRef}
+        data-pdf-page={pageNumber}
       >
         <canvas className="pdf-preview__canvas" ref={canvasRef} />
         <div className="textLayer pdf-preview__text-layer" ref={textLayerRef} />

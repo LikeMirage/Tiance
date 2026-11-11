@@ -36,6 +36,8 @@ export function useToolWorkspacePersistence({
 }: ToolWorkspacePersistenceOptions) {
   const [error, setError] = useState<string | null>(null);
   const hydratedWorkspaceKeyRef = useRef<string | null>(null);
+  const restoreFailureRef = useRef<{ key: string; error: Error } | null>(null);
+  const restoreWaitersRef = useRef(new Map<string, Set<(error?: Error, ready?: boolean) => void>>());
   const pendingSaveRef = useRef<PendingSave | null>(null);
   const restoreRequestIdRef = useRef(0);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -49,6 +51,29 @@ export function useToolWorkspacePersistence({
       : null,
     [activeToolFolderId, activeToolsetId],
   );
+
+  // File opens from the outer dashboard must follow restoration, never race it.
+  const waitForWorkspaceReady = useCallback((key: string, signal: AbortSignal): Promise<boolean> => {
+    if (signal.aborted) return Promise.resolve(false);
+    if (hydratedWorkspaceKeyRef.current === key) return Promise.resolve(true);
+    if (restoreFailureRef.current?.key === key) return Promise.reject(restoreFailureRef.current.error);
+    return new Promise((resolve, reject) => {
+      const waiters = restoreWaitersRef.current.get(key) ?? new Set();
+      const finish = (error?: Error, ready = false) => {
+        signal.removeEventListener("abort", abort);
+        waiters.delete(finish);
+        if (!waiters.size && restoreWaitersRef.current.get(key) === waiters) restoreWaitersRef.current.delete(key);
+        if (error) reject(error); else resolve(ready);
+      };
+      const abort = () => finish();
+      waiters.add(finish);
+      restoreWaitersRef.current.set(key, waiters);
+      signal.addEventListener("abort", abort, { once: true });
+    });
+  }, []);
+  const finishWorkspaceWaiters = useCallback((key: string, error?: Error, ready = false) => {
+    for (const finish of restoreWaitersRef.current.get(key) ?? []) finish(error, ready);
+  }, []);
 
   const flushPendingSave = useCallback(() => {
     if (saveTimerRef.current !== null) {
@@ -71,6 +96,7 @@ export function useToolWorkspacePersistence({
   useEffect(() => {
     const restoreRequestId = ++restoreRequestIdRef.current;
     hydratedWorkspaceKeyRef.current = null;
+    restoreFailureRef.current = null;
     setError(null);
 
     if (!activeWorkspaceKey || !activeToolsetId || !activeToolFolderId || !activeProjectId) {
@@ -127,13 +153,20 @@ export function useToolWorkspacePersistence({
         });
         if (restoreRequestId !== restoreRequestIdRef.current) return;
         hydratedWorkspaceKeyRef.current = activeWorkspaceKey;
+        finishWorkspaceWaiters(activeWorkspaceKey, undefined, true);
       } catch (restoreError) {
         if (restoreRequestId !== restoreRequestIdRef.current) return;
-        setError(formatToolWorkspaceError("工具标签恢复失败", restoreError));
+        const message = formatToolWorkspaceError("工具标签恢复失败", restoreError);
+        setError(message);
+        restoreFailureRef.current = { key: activeWorkspaceKey, error: new Error(message) };
+        finishWorkspaceWaiters(activeWorkspaceKey, restoreFailureRef.current.error);
       }
     })();
 
     return () => {
+      ++restoreRequestIdRef.current;
+      hydratedWorkspaceKeyRef.current = null;
+      finishWorkspaceWaiters(activeWorkspaceKey);
       flushPendingSave();
     };
   }, [
@@ -148,6 +181,7 @@ export function useToolWorkspacePersistence({
     documentTabs.openToolDashboard,
     documentTabs.restoreWorkspaceTabs,
     flushPendingSave,
+    finishWorkspaceWaiters,
   ]);
 
   useEffect(() => {
@@ -201,12 +235,14 @@ export function useToolWorkspacePersistence({
   ]);
 
   useEffect(() => () => {
+    for (const key of restoreWaitersRef.current.keys()) finishWorkspaceWaiters(key);
     flushPendingSave();
-  }, [flushPendingSave]);
+  }, [finishWorkspaceWaiters, flushPendingSave]);
 
   return {
     activeWorkspaceKey,
     error,
+    waitForWorkspaceReady,
   };
 }
 

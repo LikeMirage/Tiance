@@ -118,6 +118,7 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
     requestRenameSession,
     sessionActionBusy,
     sessionActionError,
+    setSessionActionError,
     sessionContextMenu,
     setSessionContextMenu,
     toggleSessionPinned,
@@ -594,6 +595,7 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
           busy={sessionActionBusy}
           contextMenu={sessionContextMenu}
           onClose={() => setSessionContextMenu(null)}
+          onError={setSessionActionError}
           onRequestDelete={requestDeleteSession}
           onRequestRename={requestRenameSession}
           onTogglePinned={(projectId, session) => {

@@ -41,6 +41,7 @@ type ContextMenuSeparatorProps = {
 };
 
 const VIEWPORT_PADDING = 8;
+const SUBMENU_WIDTH = 180;
 
 export function ContextMenu({
   children,
@@ -52,6 +53,7 @@ export function ContextMenu({
 }: ContextMenuProps) {
   const menuRef = useDismissableLayer<HTMLDivElement>({ onDismiss: onClose });
   const [resolvedPosition, setResolvedPosition] = useState(position);
+  const [submenuLayout, setSubmenuLayout] = useState({ side: "right", width: SUBMENU_WIDTH });
 
   useLayoutEffect(() => {
     const node = menuRef.current;
@@ -59,19 +61,34 @@ export function ContextMenu({
       setResolvedPosition(position);
       return;
     }
-    const rect = node.getBoundingClientRect();
-    const maxLeft = Math.max(VIEWPORT_PADDING, window.innerWidth - rect.width - VIEWPORT_PADDING);
-    const maxTop = Math.max(VIEWPORT_PADDING, window.innerHeight - rect.height - VIEWPORT_PADDING);
-    setResolvedPosition({
-      x: clamp(position.x, VIEWPORT_PADDING, maxLeft),
-      y: clamp(position.y, VIEWPORT_PADDING, maxTop),
-    });
+    const updatePosition = () => {
+      const rect = node.getBoundingClientRect();
+      const maxLeft = Math.max(VIEWPORT_PADDING, window.innerWidth - rect.width - VIEWPORT_PADDING);
+      const maxTop = Math.max(VIEWPORT_PADDING, window.innerHeight - rect.height - VIEWPORT_PADDING);
+      const x = clamp(position.x, VIEWPORT_PADDING, maxLeft);
+      const y = clamp(position.y, VIEWPORT_PADDING, maxTop);
+      const rightSpace = Math.max(0, window.innerWidth - x - rect.width - VIEWPORT_PADDING);
+      const leftSpace = Math.max(0, x - VIEWPORT_PADDING);
+      const side = rightSpace >= SUBMENU_WIDTH || rightSpace >= leftSpace ? "right" : "left";
+      const width = Math.min(SUBMENU_WIDTH, side === "right" ? rightSpace : leftSpace);
+      setResolvedPosition((previous) => previous.x === x && previous.y === y ? previous : { x, y });
+      setSubmenuLayout((previous) => previous.side === side && previous.width === width ? previous : { side, width });
+    };
+    updatePosition();
+    const observer = new ResizeObserver(updatePosition);
+    observer.observe(node);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updatePosition);
+    };
   }, [children, menuRef, position]);
 
-  const style: CSSProperties = {
+  const style: CSSProperties & { "--context-submenu-width": string } = {
     left: resolvedPosition.x,
     minWidth,
     top: resolvedPosition.y,
+    "--context-submenu-width": `${submenuLayout.width}px`,
   };
 
   return createPortal(
@@ -89,6 +106,7 @@ export function ContextMenu({
       <div
         ref={menuRef}
         className={["ds-context-menu", withIcons ? "ds-context-menu--with-icons" : "", className].filter(Boolean).join(" ")}
+        data-submenu-side={submenuLayout.side}
         role="menu"
         style={style}
       >

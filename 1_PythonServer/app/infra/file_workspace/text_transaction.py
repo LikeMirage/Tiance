@@ -2,6 +2,7 @@
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+import os
 import shutil
 from threading import RLock
 from uuid import uuid4
@@ -29,6 +30,8 @@ def text_file_transaction(
         recovery_failed = False
         try:
             for target, update in zip(targets, updates, strict=True):
+                if update.create_only and target.exists():
+                    raise ConflictError(f"初始化目标已存在，未覆盖：{update.path}")
                 if target.exists() and not target.is_file():
                     raise ValueError("保存目标不是文件。")
                 if update.expected_mtime_ms is not None and (
@@ -44,8 +47,12 @@ def text_file_transaction(
                 temporary.write_text(update.content, encoding="utf-8")
                 if backup is not None:
                     shutil.copy2(target, backup)
-            for target, temporary, backup in staged:
-                atomic_replace_path(temporary, target)
+            for (target, temporary, backup), update in zip(staged, updates, strict=True):
+                if update.create_only:
+                    # Atomic create-if-absent also protects against external editors.
+                    os.link(temporary, target)
+                else:
+                    atomic_replace_path(temporary, target)
                 replaced.append((target, backup))
             yield targets
         except BaseException as error:

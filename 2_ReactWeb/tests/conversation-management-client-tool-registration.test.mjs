@@ -39,7 +39,7 @@ after(async () => {
 
 test("会话列表默认只返回调用会话的上下级关系和实时摘要", async () => {
   installFetchRouter(({ method, url }) => {
-    if (method === "GET" && url.pathname.endsWith("/conversations")) {
+    if (method === "GET" && url.pathname.endsWith("/conversations/summaries")) {
       const response = sessionListResponse();
       response.items[0].title = "实时标题";
       return response;
@@ -63,12 +63,14 @@ test("会话列表默认只返回调用会话的上下级关系和实时摘要",
     session_id: "session-a",
     title: "实时标题",
     runtime_status: "idle",
+    parent_session_id: null, group: "root", depth: 0, display_number: 1,
+    relation_kind: "root", function_type: null, created_by: "user", child_count: 1,
   });
 });
 
 test("会话列表可显式查看项目全部会话", async () => {
   installFetchRouter(({ method, url }) => {
-    if (method === "GET" && url.pathname.endsWith("/conversations")) {
+    if (method === "GET" && url.pathname.endsWith("/conversations/summaries")) {
       return sessionListResponse();
     }
     throw new Error(`未处理的测试请求：${method} ${url}`);
@@ -93,7 +95,7 @@ test("会话列表可显式查看项目全部会话", async () => {
 
 test("会话列表关系深度分别限制父级链和自己的下级树", async () => {
   installFetchRouter(({ method, url }) => {
-    if (method === "GET" && url.pathname.endsWith("/conversations")) {
+    if (method === "GET" && url.pathname.endsWith("/conversations/summaries")) {
       return relatedSessionTreeResponse();
     }
     throw new Error(`未处理的测试请求：${method} ${url}`);

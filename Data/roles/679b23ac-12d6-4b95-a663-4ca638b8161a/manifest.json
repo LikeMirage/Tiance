@@ -3,13 +3,13 @@
   "kind": "tiance-role-package",
   "id": "679b23ac-12d6-4b95-a663-4ca638b8161a",
   "name": "角色创建者",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "LikeMirage"
   },
   "summary": "帮助编写和维护角色提示词及模型、工具、记忆等会话配置。",
   "license": "MIT",
   "compatibility": {
-    "minTianceVersion": "0.3.42"
+    "minTianceVersion": "0.3.43"
   }
 }

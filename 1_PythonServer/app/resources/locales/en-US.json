@@ -866,7 +866,8 @@
       "message": {
         "remove": "Remove \"{projectName}\" from {productName} only. Real files will not be deleted.",
         "delete": "This cannot be undone. Continue?",
-        "deleteLocal": "Delete the local folder and files for \"{projectName}\", and remove the project from {productName}."
+        "deleteLocal": "Delete the local folder and files for \"{projectName}\", and remove the project from {productName}.",
+        "removeWithData": "Remove the selected {count} project(s) and move their root .Tiance folders to the system Recycle Bin. Keep work files."
       },
       "confirm": {
         "remove": "Remove",
@@ -874,9 +875,15 @@
         "deleteLocal": "Delete",
         "removing": "Removing",
         "deleting": "Deleting"
-      }
+      },
+      "clearTianceData": "Also clear Tiance data (conversations, memories, attachments, etc.), keeping work files."
     },
     "projectOverview": {
+      "copySessionId": "Copy conversation ID",
+      "copySessionName": "Copy conversation name",
+      "sessionIdClipboard": "Conversation ID: {id}",
+      "sessionNameClipboard": "Conversation name: {title}",
+      "copySessionFailed": "Copy failed. Check clipboard permissions and try again.",
       "activeSessions": "Active {count}",
       "deleteFailed": "Failed to delete conversation.",
       "deleteSessionDeleting": "Deleting...",
@@ -1115,6 +1122,80 @@
           "memoryCompression": "Memory compression model",
           "providerWebSearch": "Provider web search"
         }
+      }
+    },
+    "telegramAccess": {
+      "intro": "Create a Telegram bot and enter its token. Send /start in a private chat, then allow your account here.",
+      "tokenSaved": "Saved; leave blank to keep the current token",
+      "tokenPlaceholder": "Obtain from @BotFather",
+      "tokenRequired": "Enter a Bot Token first.",
+      "editConnection": "Turn off access before changing the connection settings.",
+      "enabled": "Enable Telegram",
+      "advanced": "Advanced",
+      "apiHint": "Uses the official service by default (20 MB download limit). A self-hosted Local Bot API can receive larger files.",
+      "saving": "Saving…",
+      "save": "Save and connect",
+      "ready": "Ready. Keep Tiance running; minimizing to the tray is supported.",
+      "offline": "Desktop conversation entry is offline. Open the Tiance conversation panel.",
+      "pendingDelivery": "Pending deliveries:",
+      "users": "Authorized users",
+      "noUsers": "Send /start to the bot in a Telegram private chat.",
+      "allowed": "Allowed",
+      "denied": "Disabled",
+      "waiting": "Awaiting local approval",
+      "revoke": "Revoke access",
+      "allow": "Allow access",
+      "tabs": {
+        "aria": "Telegram access pages",
+        "connection": "Connection",
+        "logs": "Logs",
+        "quickStart": "Quick start",
+        "commands": "Commands and files",
+        "faq": "FAQ"
+      },
+      "logs": {
+        "current": "Current connection",
+        "refresh": "Refresh",
+        "hint": "Keeps the latest 1,000 events per connection; no tokens, message bodies or file content.",
+        "loading": "Loading records…",
+        "empty": "No records yet. New connection, intake and delivery events will appear here.",
+        "time": "Time",
+        "event": "Event",
+        "details": "Details",
+        "previous": "Previous",
+        "next": "Next"
+      },
+      "events": {
+        "configuration_failed": "Connection validation failed",
+        "enabled": "Access enabled",
+        "disabled": "Access disabled",
+        "authorized": "User authorized",
+        "revoked": "User access revoked",
+        "receive_failed": "Receiving failed; reconnecting",
+        "receive_recovered": "Receiving connection recovered",
+        "message_received": "Message received",
+        "callback_received": "Button action received",
+        "dispatch_failed": "Message processing failed",
+        "file_saved": "File saved in workspace",
+        "file_failed": "File intake failed",
+        "task_submitted": "Task accepted; awaiting preparation",
+        "submit_failed": "Task not submitted",
+        "task_completed": "Task completed; reply pending",
+        "task_failed": "Task failed; error reply pending",
+        "task_cancelled": "Task paused; notice pending",
+        "task_finished": "Task ended; reply pending",
+        "reply_sent": "Reply sent",
+        "reply_failed": "Reply delivery failed; retry pending"
+      },
+      "details": {
+        "user_id": "User ID",
+        "chat_id": "Chat ID",
+        "project_id": "Project ID",
+        "session_id": "Conversation ID",
+        "update_id": "Update ID",
+        "job_id": "Task ID",
+        "http_status": "HTTP status",
+        "error_type": "Error type"
       }
     }
   }

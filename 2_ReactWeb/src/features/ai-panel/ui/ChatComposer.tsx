@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 
 import { useDesktopFileDropTarget } from "../../desktop-shell/model/useDesktopFileDropTarget";
 import { ChatComposerAddMenu } from "./ChatComposerAddMenu";
+import { UserMessageHistoryMenu, type UserMessageHistoryState } from "./UserMessageHistoryMenu";
 import { ChatModelPicker } from "./ChatComposerModelPicker";
 import { ChatComposerReasoningControl } from "./ChatComposerReasoningControl";
 import { ChatComposerReferences } from "./ChatComposerReferences";
@@ -19,8 +20,8 @@ import type {
 } from "./ChatComposerTypes";
 import { ChatUsagePopover } from "./ChatComposerUsagePopover";
 import {
-  handleChatComposerProjectFileDrop,
-  hasDraggedProjectFile,
+  handleChatComposerReferenceDrop,
+  hasChatComposerReferenceDrag,
 } from "./chatComposerDrop";
 
 export type {
@@ -34,6 +35,7 @@ export type {
 } from "./ChatComposerTypes";
 
 type ChatComposerProps = {
+  userMessageHistory?: UserMessageHistoryState;
   conversationActions?: ReactNode;
   generation: ChatComposerGenerationState;
   input: ChatComposerInputState;
@@ -45,6 +47,7 @@ type ChatComposerProps = {
 };
 
 export function ChatComposer({
+  userMessageHistory,
   conversationActions,
   generation,
   input,
@@ -54,14 +57,18 @@ export function ChatComposer({
   reasoning,
   usage,
 }: ChatComposerProps) {
-  const [isProjectFileDragOver, setIsProjectFileDragOver] = useState(false);
+  const [isReferenceDragOver, setIsReferenceDragOver] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
-  useEffect(() => setIsAddMenuOpen(false), [input.externalFileDropScopeKey]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  useEffect(() => {
+    setIsAddMenuOpen(false);
+    setIsHistoryOpen(false);
+  }, [input.externalFileDropScopeKey]);
   const { isFileDragOver, targetRef } = useDesktopFileDropTarget({
     onFileDrop: input.onExternalFileDrop,
     scopeKey: input.externalFileDropScopeKey,
   });
-  const isDragOver = isProjectFileDragOver || isFileDragOver;
+  const isDragOver = isReferenceDragOver || isFileDragOver;
   const composerClassName = layout.isResizing
     ? `ai-panel__composer ai-panel__composer--resizing${isDragOver ? " ai-panel__composer--drag-over" : ""}`
     : `ai-panel__composer${isDragOver ? " ai-panel__composer--drag-over" : ""}`;
@@ -72,25 +79,25 @@ export function ChatComposer({
       className={composerClassName}
       style={{ "--chat-composer-height": `${layout.height}px` } as CSSProperties}
       onDragEnter={(event) => {
-        if (!hasDraggedProjectFile(event)) return;
+        if (!hasChatComposerReferenceDrag(event, input)) return;
         event.preventDefault();
-        setIsProjectFileDragOver(true);
+        setIsReferenceDragOver(true);
       }}
       onDragOver={(event) => {
-        if (!hasDraggedProjectFile(event)) return;
+        if (!hasChatComposerReferenceDrag(event, input)) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = "copy";
-        setIsProjectFileDragOver(true);
+        setIsReferenceDragOver(true);
       }}
       onDragLeave={(event) => {
         if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
-        setIsProjectFileDragOver(false);
+        setIsReferenceDragOver(false);
       }}
       onDrop={(event) => {
-        if (!hasDraggedProjectFile(event)) return;
+        if (!hasChatComposerReferenceDrag(event, input)) return;
         event.preventDefault();
-        setIsProjectFileDragOver(false);
-        handleChatComposerProjectFileDrop(event, input);
+        setIsReferenceDragOver(false);
+        handleChatComposerReferenceDrop(event, input);
       }}
     >
       <div
@@ -114,12 +121,21 @@ export function ChatComposer({
           onReferenceExternalPath={input.onReferenceExternalPath}
           isOpen={isAddMenuOpen}
           onOpenChange={(nextOpen) => {
-            if (nextOpen) modelPicker.onToggleOpen(() => false);
+            if (nextOpen) {
+              modelPicker.onToggleOpen(() => false);
+              setIsHistoryOpen(false);
+            }
             setIsAddMenuOpen(nextOpen);
           }}
           onSelectFiles={input.onSelectExternalFiles}
         />
         {conversationActions}
+        <UserMessageHistoryMenu history={userMessageHistory} isOpen={isHistoryOpen}
+          onOpenReference={input.onOpenReference}
+          onOpenChange={(open) => {
+            if (open) { setIsAddMenuOpen(false); modelPicker.onToggleOpen(() => false); }
+            setIsHistoryOpen(open);
+          }} />
         <button
           className="ai-panel__composer-scroll-bottom"
           type="button"
@@ -138,6 +154,7 @@ export function ChatComposer({
               ...modelPicker,
               onToggleOpen: (updater) => {
                 setIsAddMenuOpen(false);
+                setIsHistoryOpen(false);
                 modelPicker.onToggleOpen(updater);
               },
             }}

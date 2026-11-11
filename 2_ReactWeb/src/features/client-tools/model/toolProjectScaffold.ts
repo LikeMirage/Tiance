@@ -19,6 +19,7 @@ export type ToolProjectScaffold = Readonly<{
 export async function loadToolProjectScaffold(
   toolProjectId: string,
   signal: AbortSignal,
+  kind: "tool" | "role" = "tool",
 ): Promise<ToolProjectScaffold> {
   const response = await getProjectFileContent(toolProjectId, INDEX_PATH, { signal });
   const index: unknown = JSON.parse(response.content);
@@ -33,7 +34,9 @@ export async function loadToolProjectScaffold(
     const source = relativePath(readRequiredString(entry, "source"));
     const target = relativePath(readRequiredString(entry, "target"));
     if (!source.startsWith("assets/")) throw new Error("模板来源必须在工具自身的 assets/ 内。");
-    if (!/^(?:\.tool\/|program\/|assets\/|docs\/|tests\/|README\.md$)/.test(target)) {
+    if (!(kind === "role"
+      ? /^(?:(?:profile|model|generation|prompt|response|context|memory|tools)\.json$|docs\/|README\.md$)/
+      : /^(?:\.tool\/|program\/|assets\/|docs\/|tests\/|README\.md$)/).test(target)) {
       throw new Error(`模板不能写入此位置：${target}`);
     }
     const key = target.toLowerCase();
@@ -41,7 +44,9 @@ export async function loadToolProjectScaffold(
     destinations.add(key);
     return { source, target };
   });
-  for (const required of [...REQUIRED_FILES, documentation]) {
+  const requiredFiles = kind === "tool" ? REQUIRED_FILES
+    : ["profile.json", "model.json", "generation.json", "prompt.json", "response.json", "context.json", "memory.json", "tools.json"];
+  for (const required of [...requiredFiles, documentation]) {
     if (!entries.some((entry) => entry.target === required)) {
       throw new Error(`模板缺少必要文件：${required}`);
     }
@@ -53,7 +58,10 @@ export async function loadToolProjectScaffold(
     const file = await getProjectFileContent(toolProjectId, entry.source, { signal });
     files.push({ path: entry.target, content: file.content });
   }
-  validateStandardFiles(files);
+  if (kind === "tool") validateStandardFiles(files);
+  else for (const file of files.filter((item) => requiredFiles.includes(item.path))) {
+    if (!isJsonRecord(JSON.parse(file.content))) throw new Error(`角色模板无效：${file.path}`);
+  }
   return { version, documentation, files };
 }
 

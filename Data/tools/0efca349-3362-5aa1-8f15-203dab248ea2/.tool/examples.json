@@ -1,0 +1,14 @@
+[
+  {
+    "title": "查询连接与发送文件",
+    "content": "先调用 {\"action\":\"list_connections\",\"platform\":\"feishu\"} 获取 connection_id。手机消息来源标注包含连接 ID、用户 ID、接收聊天 ID。再调用 {\"action\":\"send_file\",\"platform\":\"feishu\",\"connection_id\":\"feishu:cli_example\",\"chat_id\":\"oc_example\",\"file_path\":\"outputs/报告.docx\",\"caption\":\"整理好的报告\"}。示例 ID 必须替换为真实值。文件路径可为工作区相对路径或任意可读绝对路径。"
+  },
+  {
+    "title": "平台边界与授权",
+    "content": "三个平台均复用 external_messaging 后端能力桥，不在工具内保存密钥。入站账号授权与外发目标独立；明确指定的目标可以不同于当前消息用户。Telegram 接收者需启动机器人；官方云端通常只允许上传不超过50 MB的文件。飞书使用应用机器人原文件上传，接收chat_id须对该应用可达。微信需要此连接已收到目标用户消息所提供的context_token，若失效请让用户再发消息，不偷偷改成其他接收者。超大文件以各平台实际拒绝为准，不截断内容。"
+  },
+  {
+    "title": "失败、部分成功与未知结果",
+    "content": "sent 表示平台确认发送。not_sent 为明确拒绝；unknown 表示无法确认，文件或部分附言可能已送达，必须先核对聊天；partial 表示部分内容已确认。工具不自动重试。外层执行时限使用 .tool/tool.json 的 runtime.timeout_seconds，网络空闲超时遵循天策网络设置。工具超时不能证明目标没有收到文件。正文附言保留完整，必要时拆分为后续文字。"
+  }
+]

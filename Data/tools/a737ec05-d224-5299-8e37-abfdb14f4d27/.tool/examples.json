@@ -1,38 +1,62 @@
 [
   {
-    "title": "精简列出当前可用主题",
-    "content": "{\"action\":\"list\"}"
+    "content": "{\"action\":\"list\"}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "精简列出当前可用主题"
   },
   {
-    "title": "查看当前主题核心信息",
-    "content": "{\"action\":\"get_current\"}"
+    "content": "{\"action\":\"get_current\"}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "查看当前主题核心信息"
   },
   {
-    "title": "完整克隆主题并覆盖指定颜色",
-    "content": "{\"action\":\"clone\",\"source_theme_id\":\"cloud-gate\",\"theme_id\":\"cloud-gate-night\",\"theme_name\":\"云海天门·夜\",\"surface_base\":\"#101820\",\"text_primary\":\"#edf4f6\",\"accent_base\":\"#79aabd\",\"accent_rgb\":\"121, 170, 189\"}"
+    "content": "{\"action\":\"clone\",\"source_theme_id\":\"cloud-gate\",\"theme_id\":\"cloud-gate-night\",\"theme_name\":\"云海天门·夜\",\"surface_base\":\"#101820\",\"text_primary\":\"#edf4f6\",\"accent_base\":\"#79aabd\",\"accent_rgb\":\"121, 170, 189\"}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "完整克隆主题并覆盖指定颜色"
   },
   {
-    "title": "从四个基础色派生完整主题配色",
-    "content": "{\"action\":\"derive_palette\",\"theme_id\":\"cloud-gate-night\",\"palette\":{\"background\":\"#101820\",\"panel\":\"#182630\",\"text\":\"#EDF4F6\",\"accent\":\"#79AABD\"}}"
+    "content": "{\"action\":\"derive_palette\",\"theme_id\":\"cloud-gate-night\",\"palette\":{\"background\":\"#101820\",\"panel\":\"#182630\",\"text\":\"#EDF4F6\",\"accent\":\"#79AABD\"}}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "从四个基础色派生完整主题配色"
   },
   {
-    "title": "直接调整卡片、边框和文字颜色",
-    "content": "{\"action\":\"edit\",\"theme_id\":\"dark-gold\",\"surface_panel\":\"rgba(34, 34, 34, 0.82)\",\"surface_panel_alt\":\"rgba(24, 24, 24, 0.68)\",\"border_soft\":\"rgba(222, 160, 89, 0.2)\",\"text_primary\":\"#f7f1e8\",\"text_muted\":\"rgba(247, 241, 232, 0.5)\",\"accent_selection_border\":\"rgba(222, 160, 89, 0.46)\"}"
+    "content": "{\"action\":\"edit\",\"theme_id\":\"dark-gold\",\"surface_panel\":\"rgba(34, 34, 34, 0.82)\",\"surface_panel_alt\":\"rgba(24, 24, 24, 0.68)\",\"border_soft\":\"rgba(222, 160, 89, 0.2)\",\"text_primary\":\"#f7f1e8\",\"text_muted\":\"rgba(247, 241, 232, 0.5)\",\"accent_selection_border\":\"rgba(222, 160, 89, 0.46)\"}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "直接调整卡片、边框和文字颜色"
   },
   {
-    "title": "设置主题背景图",
-    "content": "{\"action\":\"edit\",\"theme_id\":\"dark-gold\",\"background_image_path\":\"C:/Users/WW/Pictures/background.png\",\"background_opacity\":0.18,\"background_blur\":8,\"background_overlay\":\"rgba(0, 0, 0, 0.12)\",\"background_position\":\"center\",\"background_size\":\"cover\",\"background_repeat\":\"no-repeat\"}"
+    "content": "{\"action\":\"edit\",\"theme_id\":\"dark-gold\",\"background_image_path\":\"C:/Users/WW/Pictures/background.png\",\"background_opacity\":0.18,\"background_blur\":8,\"background_overlay\":\"rgba(0, 0, 0, 0.12)\",\"background_position\":\"center\",\"background_size\":\"cover\",\"background_repeat\":\"no-repeat\"}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "设置主题背景图"
   },
   {
-    "title": "切换当前主题",
-    "content": "{\"action\":\"switch\",\"theme_id\":\"dark-gold\"}"
+    "content": "{\"action\":\"switch\",\"theme_id\":\"dark-gold\"}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "切换当前主题"
   },
   {
-    "title": "删除未使用主题并清理独占背景图",
-    "content": "{\"action\":\"delete\",\"theme_id\":\"draft-theme\"}"
+    "content": "{\"action\":\"delete\",\"theme_id\":\"draft-theme\"}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "删除未使用主题并清理独占背景图"
   },
   {
-    "title": "恢复内置暗金和浅色主题备份",
-    "content": "{\"action\":\"restore\",\"restore_theme_ids\":[\"dark-gold\",\"light\"]}"
+    "content": "{\"action\":\"restore\",\"restore_theme_ids\":[\"dark-gold\",\"light\"]}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "恢复内置暗金和浅色主题备份"
+  },
+  {
+    "content": "在主题集该项目的会话内调用 {\"action\":\"initialize_current\"}。校验项目登记、分类、真实路径均属于主题集后才写入。已有 theme.json 不覆盖；缺失时放入工具自带的浅色起始模板，附 docs/theme-development/README.md。先读该文档再设计。普通项目、角色或工具目录会被拒绝。删除主题使用 delete，走系统回收站，不能删除当前正在使用的主题或本次调用项目。",
+    "enabled": true,
+    "inject_content": false,
+    "title": "在手动创建的主题文件夹里初始化"
   }
 ]

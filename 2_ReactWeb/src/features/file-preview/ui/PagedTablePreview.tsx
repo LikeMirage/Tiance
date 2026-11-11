@@ -5,13 +5,17 @@ import { readSpreadsheetPage, type FilePreviewInspection, type SpreadsheetPage }
 import { ContextMenu, ContextMenuItem } from "../../../shared/ui/context-menu";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import { renderSheetRangeToPngFile, type ExcelRange, type ExcelSelectionImageReferencePayload } from "../../office-preview/ui/excelSelectionImage";
+import { useDocumentRevealRequest } from "../../../entities/editor/model/documentRevealContext";
+import type { DocumentRevealRequest } from "../../../entities/editor/model/documentReveal";
+import { spreadsheetReferenceRange, spreadsheetReferenceMatches } from "../../office-preview/ui/spreadsheetReferenceSelection";
 
 export function PagedTablePreview({
-  src, fileName, displayPath, inspection, zoom, onLoadingVisibleChange, onCreateSelectionImageReference,
+  src, fileName, displayPath, inspection, zoom, onLoadingVisibleChange, onCreateSelectionImageReference, onMissing,
 }: {
   src: string; fileName: string; displayPath: string; inspection: FilePreviewInspection; zoom: number;
   onLoadingVisibleChange: (loading: boolean) => void;
   onCreateSelectionImageReference: ((payload: ExcelSelectionImageReferencePayload) => Promise<void>) | null;
+  onMissing?: (() => void) | null;
 }) {
   const [sheetName, setSheetName] = useDocumentReadingValue("excel:sheet", inspection.sheets?.[0]?.name ?? "");
   const [savedRow, setRow] = useDocumentReadingValue("excel:row", 0);
@@ -24,7 +28,11 @@ export function PagedTablePreview({
   const [attempt, setAttempt] = useState(0);
   const generation = useRef(0);
   const dragging = useRef(false);
+  const onMissingRef = useRef(onMissing);
+  onMissingRef.current = onMissing;
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const reveal = useDocumentRevealRequest();
+  const [pendingRange, setPendingRange] = useState<{ request: DocumentRevealRequest; range: ExcelRange; sheetName: string } | null>(null);
   const sheets = inspection.sheets ?? [];
   const sheet = Math.max(0, sheets.findIndex((item) => item.name === sheetName));
   const sheetInfo = sheets[sheet];
@@ -36,6 +44,54 @@ export function PagedTablePreview({
   useDocumentReadingScroll("excel-paged", scrollerRef, Boolean(current), inspection.version);
 
   useEffect(() => {
+    if (!reveal || reveal.signal.aborted || reveal.target.type !== "reference_image"
+      || reveal.target.reference.source !== "xlsx_range") return;
+    setRange(null); setPendingRange(null);
+    const reference = reveal.target.reference;
+    const target = spreadsheetReferenceRange(reference);
+    const sheetIndex = inspection.sheets?.findIndex(item => item.name === reference.sheetName) ?? -1;
+    const info = inspection.sheets?.[sheetIndex];
+    if (!target || !info || target.eri >= info.rows || target.eci >= info.columns) {
+      reveal.complete({ type: "reference", selected: false }); return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const pages: SpreadsheetPage[] = [];
+      for (let r = Math.floor(target.sri / rowCount) * rowCount; r <= target.eri; r += rowCount) {
+        for (let c = Math.floor(target.sci / columnCount) * columnCount; c <= target.eci; c += columnCount) {
+          const part = await readSpreadsheetPage(src, inspection.version!, sheetIndex, r, c, reveal.signal);
+          if (cancelled || reveal.signal.aborted) return;
+          pages.push(part);
+        }
+      }
+      const matches = spreadsheetReferenceMatches(reference, target, (r, c) => {
+        const part = pages.find(p => p.row_start === Math.floor(r / rowCount) * rowCount
+          && p.column_start === Math.floor(c / columnCount) * columnCount);
+        return part?.values[r - part.row_start]?.[c - part.column_start];
+      });
+      if (!matches) { reveal.complete({ type: "reference", selected: false }); return; }
+      setSheetName(info.name); setRow(Math.floor(target.sri / rowCount) * rowCount);
+      setColumn(Math.floor(target.sci / columnCount) * columnCount);
+      setPendingRange({ request: reveal, range: target, sheetName: info.name });
+    })().catch(error => { if (!cancelled && !reveal.signal.aborted) reveal.fail(error); });
+    return () => { cancelled = true; };
+  }, [reveal, src, inspection, rowCount, columnCount, setSheetName, setRow, setColumn]);
+
+  useEffect(() => {
+    if (!pendingRange || pendingRange.request !== reveal || reveal.signal.aborted || !current
+      || current.sheet_name !== pendingRange.sheetName
+      || current.row_start !== Math.floor(pendingRange.range.sri / rowCount) * rowCount
+      || current.column_start !== Math.floor(pendingRange.range.sci / columnCount) * columnCount) return;
+    setRange(pendingRange.range);
+    const frame = requestAnimationFrame(() => {
+      if (reveal.signal.aborted) return;
+      scrollerRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "center", inline: "center" });
+      reveal.complete({ type: "reference", selected: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingRange, reveal, current, rowCount, columnCount]);
+
+  useEffect(() => {
     const run = ++generation.current;
     const controller = new AbortController();
     setPage(null); setRange(null); setMenu(null); setError(null); setBusy(false);
@@ -43,7 +99,10 @@ export function PagedTablePreview({
     void readSpreadsheetPage(src, inspection.version!, sheet, row, column, controller.signal).then(
       (result) => { if (!controller.signal.aborted) setPage(result); },
       (reason: unknown) => {
-        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "工作表读取失败。");
+        if (!controller.signal.aborted) {
+          if (reason && typeof reason === "object" && "status" in reason && reason.status === 404) onMissingRef.current?.();
+          setError(reason instanceof Error ? reason.message : "工作表读取失败。");
+        }
       },
     ).finally(() => { if (generation.current === run && !controller.signal.aborted) onLoadingVisibleChange(false); });
     return () => { generation.current += 1; controller.abort(); };

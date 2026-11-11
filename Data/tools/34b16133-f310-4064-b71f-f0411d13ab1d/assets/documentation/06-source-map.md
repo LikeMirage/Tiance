@@ -73,3 +73,11 @@
 - 编辑器定位：前端 `tests/editor-reveal.test.mjs`、`code-editor-reveal.test.mjs`、`editor-tabs-client-tool-registration.test.mjs`、`document-reading.test.mjs`；后端 `tests/test_file_operation_tool_regressions.py` 中 editor_tabs 合同与示例检查。
 
 测试目录分别相对 1_PythonServer 和 2_ReactWeb。使用对应项目的依赖环境运行；前后端当前命令以 pyproject.toml、package.json 为准。优先运行与实际变更相关的测试，而非把“能导入模块”当作功能验证。
+
+## 管理工具新增入口（2026-11-10）
+
+- `1_PythonServer/app/services/application/project_scaffold.py`：工具/角色/主题目录检查与缺失文件批量安装。
+- `1_PythonServer/app/services/application/conversation_configuration.py`：完整角色基础与会话配置覆盖。
+- `2_ReactWeb/src/features/client-tools/model/collectionManagementActions.ts`：项目/分类查询、重命名、移动、删除复用。
+- `2_ReactWeb/src/features/client-tools/model/roleProjectClientTool.ts`：role.projects v1。
+- `1_PythonServer/tests/test_collection_scaffold.py`、`test_ai_conversation_clone.py`、`test_conversation_role_overrides.py`、`test_management_tool_contracts.py`：初始化边界与派生会话验证。

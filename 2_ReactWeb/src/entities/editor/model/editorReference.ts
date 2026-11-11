@@ -17,7 +17,17 @@ export type EditorTextReferenceDraft = {
   projectId: string | null;
   source: EditorTextReferenceSource;
   startLine?: number;
+  pageNumber?: number;
 };
+
+/** UI resolution only; never changes the saved historical reference. */
+export type ReferenceProject = {
+  project_id: string; name: string; project_kind: string; category_id: string; category_name: string;
+};
+export type ReferenceOpenResolution =
+  | { kind: "missing" }
+  | { kind: "folder"; path: string; name: string; project: ReferenceProject | null };
+export const REFERENCE_UNAVAILABLE = "所引用的原文件已发生变更，无法查看所引用内容。";
 
 export type EditorWordTextReferencePosition = {
   cellParagraphIndex?: number;

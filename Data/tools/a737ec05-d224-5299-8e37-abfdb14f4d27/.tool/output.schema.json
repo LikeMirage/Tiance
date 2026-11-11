@@ -1,26 +1,26 @@
 {
   "additionalProperties": true,
   "properties": {
-    "ok": {
-      "type": "boolean"
-    },
-    "summary": {
-      "type": "string"
-    },
     "data": {
       "type": "object"
-    },
-    "warnings": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
     },
     "error": {
       "type": "string"
     },
     "error_info": {
       "type": "object"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
     }
   },
   "required": [

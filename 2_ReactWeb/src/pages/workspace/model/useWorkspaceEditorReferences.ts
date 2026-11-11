@@ -1,3 +1,4 @@
+import { getEditorDocumentPath } from "../../../entities/editor/model/editorWorkspaceFileReference";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { EditorWorkspaceFileReference } from "../../../entities/editor/model/editorWorkspaceFileReference";
@@ -122,7 +123,7 @@ export function useWorkspaceEditorReferences({
     if (projectIdRef.current !== startedProjectId || activeTab?.projectId !== startedProjectId) {
       return false;
     }
-    return (activeTab.projectFilePath ?? activeTab.filePath ?? activeTab.displayPath) === sourceFilePath;
+    return getEditorDocumentPath(activeTab) === sourceFilePath;
   }, []);
 
   const handleDraftReferencesChange = useCallback((nextReferences: ConversationMessageReferences) => {
@@ -179,15 +180,6 @@ export function useWorkspaceEditorReferences({
     appendProjectFileReference(file);
   }, [appendProjectFileReference, projectId]);
 
-  const handleReferenceWorkspaceFile = useCallback((file: EditorWorkspaceFileReference) => {
-    if (!projectId || file.fileSource.kind !== "project" || file.fileSource.id !== projectId) return;
-    appendProjectFileReference({
-      kind: file.kind,
-      name: file.name,
-      path: file.path,
-      projectId,
-    });
-  }, [appendProjectFileReference, projectId]);
 
   const handleReferenceExternalPath = useCallback((externalReference: EditorExternalPathReferenceRequest) => {
     setReferenceItems((current) => {
@@ -212,6 +204,20 @@ export function useWorkspaceEditorReferences({
       ];
     });
   }, []);
+
+  const handleReferenceWorkspaceFile = useCallback((file: EditorWorkspaceFileReference) => {
+    if (file.fileSource.kind === "local") {
+      handleReferenceExternalPath({ kind: file.kind, name: file.name, path: file.path });
+      return;
+    }
+    if (!projectId || file.fileSource.kind !== "project" || file.fileSource.id !== projectId) return;
+    appendProjectFileReference({
+      kind: file.kind,
+      name: file.name,
+      path: file.path,
+      projectId,
+    });
+  }, [appendProjectFileReference, handleReferenceExternalPath, projectId]);
 
   const handleRemoveFileReference = useCallback((referenceId: string) => {
     setReferenceItems((current) => current.filter(

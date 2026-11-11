@@ -1,3 +1,4 @@
+import { documentDisplayPath } from "../../../entities/editor/model/documentFilePath";
 import type {
   DocumentFileSource,
   DocumentTab,
@@ -20,7 +21,7 @@ export function buildWorkspaceFileTab(
   return {
     id: makeTabId(source.key, filePath),
     title: node.name,
-    displayPath: filePath,
+    displayPath: documentDisplayPath(source, filePath),
     kind: preview.kind,
     languageId: preview.languageId,
     content: "",
@@ -34,7 +35,7 @@ export function buildWorkspaceFileTab(
     fileSource: source,
     filePath,
     projectId: source.projectId ?? (isProjectSource ? source.id : null),
-    projectFilePath: source.projectId || isProjectSource ? filePath : null,
+    projectFilePath: source.kind !== "local" && (source.projectId || isProjectSource) ? filePath : null,
     assetVersion: preview.kind === "text" ? null : Date.now(),
     mtimeMs: typeof node.mtimeMs === "number" ? node.mtimeMs : null,
     externalChange: null,
@@ -52,10 +53,10 @@ export function hydrateWorkspaceFileTab(
     ...tab,
     id: makeTabId(source.key, resolvedPath),
     title: getPathName(resolvedPath),
-    displayPath: resolvedPath,
+    displayPath: documentDisplayPath(source, resolvedPath),
     filePath: resolvedPath,
     projectFilePath:
-      source.projectId || isProjectFileSource(source)
+      source.kind !== "local" && (source.projectId || isProjectFileSource(source))
         ? resolvedPath
         : tab.projectFilePath,
     content: response.content,

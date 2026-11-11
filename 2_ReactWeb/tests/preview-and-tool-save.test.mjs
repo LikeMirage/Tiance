@@ -77,6 +77,7 @@ test("PPT renders the restored page once at fitted zoom; ready notification adds
     repairPresentationCanvasBlankBottomEdge(){},restorePresentationZoomAnchor(){},
   };
   const {PresentationPreview} = load("src/features/office-preview/ui/PresentationPreview.tsx", {
+    "../../../entities/editor/model/documentRevealContext": { useDocumentRevealRequest: () => null },
     "pptxviewjs":{PPTXViewer:Viewer},
     "@phosphor-icons/react": {CaretLeft:()=>null,CaretRight:()=>null},
     "../../../entities/editor/model/documentReadingState":{

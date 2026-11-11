@@ -12,9 +12,10 @@ export type ConversationNavigationResponse = {
   }[];
 };
 
-export function getConversationNavigation(projectId: string, sessionId: string, signal: AbortSignal) {
+export function getConversationNavigation(projectId: string, sessionId: string, signal: AbortSignal, query = "") {
+  const search = query ? `?${new URLSearchParams({ query })}` : "";
   return fetchJson<ConversationNavigationResponse>(
-    `/api/projects/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(sessionId)}/messages/navigation`,
+    `/api/projects/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(sessionId)}/messages/navigation${search}`,
     { signal },
   );
 }

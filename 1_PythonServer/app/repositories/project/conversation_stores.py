@@ -39,6 +39,7 @@ from app.repositories.project.conversation_database import (
     list_message_payloads,
     list_message_payloads_range,
     read_latest_message_payload,
+    read_message_payload,
     read_message_turn_payloads,
     read_conversation_list_snapshot,
     read_meta,
@@ -321,6 +322,12 @@ class ConversationMessageStore:
             _message_from_payload(payload)
             for payload in list_message_payloads(session_dir)
         )
+
+    def get_message(self, session_dir: Path, message_id: str) -> ProjectConversationMessage:
+        payload = read_message_payload(session_dir, message_id)
+        if payload is None:
+            raise NotFoundError(f"Conversation message '{message_id}' was not found.")
+        return _message_from_payload(payload)
 
     def get_latest_message(self, session_dir: Path) -> ProjectConversationMessage | None:
         payload = read_latest_message_payload(session_dir)

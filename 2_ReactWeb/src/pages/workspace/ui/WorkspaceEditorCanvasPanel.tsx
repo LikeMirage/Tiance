@@ -130,6 +130,13 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     projectId,
     selectedSessionId,
   });
+  const prepareReferenceFileOpen = useCallback(async () => {
+    if (!projectId) return false;
+    if (expandedProjectId === projectId) return true;
+    return onExpandProject(projectId, {
+      sessionId: visibleChatSession?.projectId === projectId ? visibleChatSession.sessionId : null,
+    });
+  }, [expandedProjectId, onExpandProject, projectId, visibleChatSession]);
   const {
     handleClearReferences,
     handleCreatePdfPageImageReference,
@@ -163,12 +170,15 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     handleOpenConversationDataFile: openConversationDataFile,
     handleOpenProjectFile: openProjectFile,
     handleOpenReference,
+    referenceOpenError,
     handlePreviewHtmlCode,
     handleSaveProjectCodeBlock,
     visibleActiveTab,
     visibleActiveTabId,
     visibleProjectTabs,
   } = useWorkspaceDocumentActions({
+    onPrepareFileOpen: prepareReferenceFileOpen,
+    sessionId: visibleChatSession?.projectId === projectId ? visibleChatSession.sessionId : null,
     documentTabs,
     onLayoutPreferenceChange,
     projectId,
@@ -582,7 +592,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       roleConfigurationContent={roleConfigurationContent}
       themeConfigurationContent={themeConfigurationContent}
       projectRootPath={selectedProject?.root_path ?? ""}
-      statusMessage={workspaceError}
+      statusMessage={referenceOpenError ?? workspaceError}
       tabs={shouldShowCategoryOverview ? [] : visibleProjectTabs}
     />
   );

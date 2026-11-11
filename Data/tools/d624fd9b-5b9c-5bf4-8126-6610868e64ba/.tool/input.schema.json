@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "管理当前项目的 AI 会话。list_sessions 默认返回调用会话的父级链和下级树；get_session_info 查看配置；get_session 按完成轮次读取消息。创建会话默认继承调用会话的模型和配置。发送任务使用 interact_ai_conversation。",
+  "description": "管理当前项目的会话。会话可任意层级嵌套：AI子会话 child、对话分支 fork、功能分支下的自动命名/记忆压缩/项目记忆/全局记忆。分组不是会话；操作用真实 session_id，不用界面序号。详见「会话结构与层级」「预览与精确删除」。",
   "properties": {
     "action": {
       "permission_type": "tiance_data_delete",
@@ -13,8 +13,10 @@
         "create_session",
         "configure_session",
         "stop_session",
+        "preview_delete",
         "delete_session",
-        "show_session"
+        "show_session",
+        "clone_session"
       ],
       "options": [
         {
@@ -22,7 +24,7 @@
           "value": "query_models"
         },
         {
-          "description": "简要列出会话的实时标题、ID 和运行状态，并返回聊天面板当前显示的 active_session_id。默认只列调用会话的父级链和自己的下级树；可通过 scope=all 查看项目全部会话。跨会话发送或汇报前用此状态确认目标未在运行；若为 running，先调用 wait，返回后重新检查。",
+          "description": "列出名称、ID、状态、父级、分类、层数和同组显示编号。支持指定关系中心、范围、分类及运行状态；不读取全部会话正文和配置。",
           "value": "list_sessions"
         },
         {
@@ -46,12 +48,20 @@
           "value": "stop_session"
         },
         {
-          "description": "删除目标会话，必须同时传 confirm=true。",
+          "value": "preview_delete",
+          "description": "只预览删除名单、数量和保留下级的预计新父级，不停止任务、不删除数据。目标参数与 delete_session 相同。"
+        },
+        {
+          "description": "删除一个或多个指定会话。session_id 与 session_ids 二选一；默认保留下级，include_descendants=true 才递归删除所有分类的后代。必须 confirm=true；不能删除调用会话及其祖先。",
           "value": "delete_session"
         },
         {
           "description": "在聊天面板中显示目标会话，不会发送消息。",
           "value": "show_session"
+        },
+        {
+          "value": "clone_session",
+          "description": "复刻调用会话，归入 AI 子会话；默认从最后一条已落盘用户消息创建分支，也可指定 source_message_id。复制此前历史、附件与符合边界的记忆；该用户消息进入草稿，尚未执行的当前轮不复制。不自动发送或切换界面。"
         }
       ],
       "title": "动作",
@@ -60,34 +70,27 @@
     "scope": {
       "permission_type": "tiance_data_read",
       "default": "related",
-      "description": "list_sessions 的查看范围。related 只返回调用会话的父级链和自己的下级树，不包含调用会话本身及同级会话；all 返回当前项目全部会话。",
+      "description": "仅 list_sessions。related=关系中心的祖先链与后代，不含自身、同级；all=项目全部；roots=顶层；children=直属下级；descendants=全部后代、不含自身。关系中心由 session_id 指定，省略取调用会话。",
       "enum": [
         "related",
-        "all"
-      ],
-      "options": [
-        {
-          "description": "只查看与调用会话有上下级关系的会话。",
-          "value": "related"
-        },
-        {
-          "description": "查看当前项目全部会话。",
-          "value": "all"
-        }
+        "all",
+        "roots",
+        "children",
+        "descendants"
       ],
       "title": "会话范围",
       "type": "string"
     },
     "relation_depth": {
       "permission_type": "tiance_data_read",
-      "description": "scope=related 时向上和向下各自最多查看多少级。1 表示直接父级与直接下级；省略表示不限层级。scope=all 时不要传。",
+      "description": "仅 list_sessions 的 related/descendants：最多向下几级，related 同时限制向上级数；1=直接一级，省略不限。分类筛选发生在遍历后，不会因中间节点分类不同而漏掉更深目标。",
       "minimum": 1,
       "title": "关系深度",
       "type": "integer"
     },
     "session_id": {
       "permission_type": "tiance_data_read",
-      "description": "目标会话 ID。get_session_info、get_session、configure_session、stop_session、delete_session 和 show_session 必填；create_session 不使用此参数。",
+      "description": "get_session_info/get_session/configure_session/stop_session/show_session 的目标 ID；list_sessions 的关系中心（省略为调用会话，all/roots 不传）；preview_delete/delete_session 的单个目标，与 session_ids 二选一。",
       "title": "会话 ID",
       "type": "string"
     },
@@ -112,7 +115,7 @@
     "configuration": {
       "permission_type": "tiance_data_write",
       "additionalProperties": false,
-      "description": "create_session 和 configure_session 共用的局部配置。create_session 先完整继承调用会话配置，再应用这里明确给出的字段；configure_session 只修改明确给出的字段。推理模式、采样参数支持性和最大输出长度会按目标模型的运行能力校验。",
+      "description": "先继承目标/调用会话，或 role_project_id 选择完整角色配置，再应用明确覆盖；model_source=caller 可仅继承调用会话模型及思考模式。不会修改角色模板或源会话。",
       "properties": {
         "title": {
           "description": "明确指定的会话标题。create_session 不传时使用新会话默认标题；传入后视为手动标题。",
@@ -286,6 +289,31 @@
             }
           },
           "type": "object"
+        },
+        "role_project_id": {
+          "type": "string",
+          "description": "可选角色项目 ID（从角色管理工具 list/get 获取）。提供时用角色完整配置作为基础，包括模型；省略继承原会话配置。",
+          "permission_type": "none",
+          "minLength": 1
+        },
+        "model_source": {
+          "type": "string",
+          "description": "base 使用基础配置的模型；caller 使用调用会话的供应商、模型和思考模式，不能与 provider_id/model_id 同传；显式 reasoning_mode 仍优先。",
+          "permission_type": "none",
+          "enum": [
+            "base",
+            "caller"
+          ],
+          "options": [
+            {
+              "value": "base",
+              "description": ""
+            },
+            {
+              "value": "caller",
+              "description": ""
+            }
+          ]
         }
       },
       "type": "object"
@@ -322,9 +350,60 @@
     "confirm": {
       "permission_type": "tiance_data_write",
       "default": false,
-      "description": "delete_session 的显式删除确认，必须为 true。",
+      "description": "仅 delete_session 必须为 true。preview_delete 不需要。确认执行传入的明确 ID 清单；不会弹出额外的业务确认窗口（工具权限询问仍按用户设置）。",
       "title": "确认删除",
       "type": "boolean"
+    },
+    "session_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "permission_type": "tiance_data_delete",
+      "title": "批量会话 ID",
+      "description": "仅 preview_delete/delete_session。当前项目内明确选择的多个会话，可跨同级或不同分支，与 session_id 二选一。不按名称或显示编号猜测。"
+    },
+    "include_descendants": {
+      "type": "boolean",
+      "default": false,
+      "permission_type": "tiance_data_delete",
+      "title": "包含全部后代",
+      "description": "仅 preview_delete/delete_session。默认 false，只删除指定 ID，保留下级并接到最近存活祖先，无祖先则置于顶层；true 将目标的所有递归后代一并纳入，不限层数、不限分类。"
+    },
+    "group": {
+      "type": "string",
+      "enum": [
+        "root",
+        "child",
+        "fork",
+        "functional",
+        "automatic_naming",
+        "memory_compaction",
+        "project_memory_management",
+        "global_memory_management"
+      ],
+      "permission_type": "tiance_data_read",
+      "title": "会话分类",
+      "description": "仅 list_sessions，省略不过滤。root=当前顶层；child=AI子会话；fork=对话分支；functional=四种功能分组总称；其余四项为自动命名、记忆压缩、项目记忆管理、全局记忆管理。按当前可见分组筛选，保留返回的真实来源关系。"
+    },
+    "runtime_status": {
+      "type": "string",
+      "enum": [
+        "idle",
+        "running",
+        "error"
+      ],
+      "permission_type": "tiance_data_read",
+      "title": "运行状态",
+      "description": "仅 list_sessions，省略不过滤。idle=当前空闲，running=运行中，error=会话运行异常；不是功能任务是否成功的判据。清理失败任务前应读取任务消息确认。"
+    },
+    "source_message_id": {
+      "type": "string",
+      "description": "仅 clone_session：从此已完成用户消息之前复制；省略取调用会话最后一条用户消息。消息进入新草稿，而非作为已完成历史。",
+      "permission_type": "none",
+      "minLength": 1
     }
   },
   "required": [

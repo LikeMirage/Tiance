@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useDocumentReadingScroll } from "../../../entities/editor/model/documentReadingState";
 import { useDocumentRevealRequest } from "../../../entities/editor/model/documentRevealContext";
 import { DocumentRevealError, resolveTextReveals } from "../../../entities/editor/model/documentReveal";
+import { findReferenceTextSelection } from "../model/referenceTextSelection";
 
 import type { DocumentLanguage } from "../../../entities/editor/model/editorDocument";
 import { createEditorExtensions } from "./editor-config";
@@ -214,10 +215,18 @@ export function CodeEditor({
 
   useEffect(() => {
     const view = viewRef.current;
-    if (!view || !editorReady || !revealRequest || revealRequest.signal.aborted || revealRequest.target.type === "pdf_page") return;
+    if (!view || !editorReady || !revealRequest || revealRequest.signal.aborted
+      || revealRequest.target.type === "pdf_page" || revealRequest.target.type === "reference_image") return;
     let frame = 0;
     try {
-      const location = resolveTextReveals(view.state.doc, revealRequest.target);
+      const location = revealRequest.target.type === "reference_text"
+        ? findReferenceTextSelection(view.state.doc, revealRequest.target.reference, languageId === "markdown")
+        : resolveTextReveals(view.state.doc, revealRequest.target);
+      if (!location) {
+        view.dispatch({ selection: EditorSelection.cursor(view.state.selection.main.head) });
+        revealRequest.complete({ type: "reference", selected: false });
+        return;
+      }
       const ranges = location.type === "text_selections" ? location.ranges : [location];
       const first = ranges[0];
       // CodeMirror sorts and merges overlapping ranges, while retaining the first input as primary.
@@ -240,7 +249,7 @@ export function CodeEditor({
       });
     } catch (error) { revealRequest.fail(error); }
     return () => cancelAnimationFrame(frame);
-  }, [editorReady, revealRequest, stopReadingRestore]);
+  }, [editorReady, revealRequest, stopReadingRestore, languageId]);
 
   return <div className="code-editor-shell">
     <div ref={containerRef} className="code-editor" />

@@ -11,6 +11,7 @@ from weakref import WeakValueDictionary
 from app.core.atomic_replace import atomic_replace_path
 from app.core.errors import ConflictError
 from app.infra.projects.project_storage import require_existing_project_root
+from app.infra.projects.workspace_lifecycle import workspace_access, workspace_file_access
 
 WORKSPACE_DIR = ".Tiance"
 WORKSPACE_README_FILE = "README.md"
@@ -51,6 +52,10 @@ _WRITE_QUEUES: WeakValueDictionary[str, _WriteQueue] = WeakValueDictionary()
 class ProjectWorkspaceDirectoryResolver:
     def resolve_workspace_dir(self, project_root: Path, *, for_write: bool = False) -> Path:
         workspace_dir = require_existing_project_root(project_root) / WORKSPACE_DIR
+        with workspace_access(workspace_dir):
+            return self._resolve_available(workspace_dir, for_write=for_write)
+
+    def _resolve_available(self, workspace_dir: Path, *, for_write: bool) -> Path:
         if for_write:
             ensure_workspace_readme(workspace_dir)
         from app.repositories.project.conversation_database import ensure_database
@@ -235,6 +240,11 @@ def append_jsonl(path: Path, payload: dict) -> None:
 
 
 def atomic_write_text(path: Path, content: str) -> None:
+    with workspace_file_access(path):
+        _atomic_write_available_text(path, content)
+
+
+def _atomic_write_available_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
     try:

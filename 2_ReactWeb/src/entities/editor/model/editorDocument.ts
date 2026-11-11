@@ -1,5 +1,6 @@
 // 编辑器领域类型
 import type { DocumentRevealRequest } from "./documentReveal";
+import type { ReferenceOpenResolution } from "./editorReference";
 
 export type EditorTabId = string;
 
@@ -7,7 +8,7 @@ export type DocumentLanguage = "javascript" | "typescript" | "python" | "html" |
 
 export type DocumentFileSource = {
   key: string;
-  kind: "project" | "tool-dashboard" | "tool-folder" | "toolset";
+  kind: "project" | "tool-dashboard" | "tool-folder" | "toolset" | "local";
   id: string;
   label?: string | null;
   projectId?: string | null;
@@ -16,6 +17,8 @@ export type DocumentFileSource = {
 export type DocumentTab = {
   /** Transient renderer command; never persisted with workspace tab paths. */
   revealRequest?: DocumentRevealRequest;
+  referenceResolution?: ReferenceOpenResolution;
+  referenceOrigin?: import("./editorReference").EditorReferenceViewerPayload;
   id: EditorTabId;
   title: string;
   displayPath: string;

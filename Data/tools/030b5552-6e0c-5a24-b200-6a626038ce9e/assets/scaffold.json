@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "template_version": "1.0.0",
+  "documentation": "docs/role-development/README.md",
+  "files": [
+    {
+      "source": "assets/template/profile.json",
+      "target": "profile.json"
+    },
+    {
+      "source": "assets/template/model.json",
+      "target": "model.json"
+    },
+    {
+      "source": "assets/template/generation.json",
+      "target": "generation.json"
+    },
+    {
+      "source": "assets/template/prompt.json",
+      "target": "prompt.json"
+    },
+    {
+      "source": "assets/template/response.json",
+      "target": "response.json"
+    },
+    {
+      "source": "assets/template/context.json",
+      "target": "context.json"
+    },
+    {
+      "source": "assets/template/memory.json",
+      "target": "memory.json"
+    },
+    {
+      "source": "assets/template/tools.json",
+      "target": "tools.json"
+    },
+    {
+      "source": "assets/documentation/README.md",
+      "target": "docs/role-development/README.md"
+    }
+  ]
+}

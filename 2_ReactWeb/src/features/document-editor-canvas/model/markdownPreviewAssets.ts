@@ -19,7 +19,7 @@ export function createMarkdownAssetUrlResolver(
     return undefined;
   }
 
-  if (source.kind === "project" || source.kind === "tool-folder") {
+  if (source.kind === "project" || source.kind === "tool-folder" || source.kind === "local") {
     return (src) => {
       const assetPath = resolveMarkdownAssetPath(currentPath, src);
       return assetPath ? createWorkspaceAssetUrl(source, assetPath) ?? src : src;

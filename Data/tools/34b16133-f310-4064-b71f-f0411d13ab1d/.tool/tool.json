@@ -1,5 +1,5 @@
 {
-  "description": "查看或创建工具分类，生成配齐标准文件和制作资料的空白工具；创建后默认关闭。",
+  "description": "查看、创建、删除和整理工具，附制作文档；仅允许在工具集已登记项目根目录补齐标准内容，保留已有文件。新工具默认关闭。",
   "execution": {
     "parallel": false
   },
@@ -17,10 +17,10 @@
     "dynamic": true
   },
   "name": "create_blank_tool",
-  "registration_name": "新建空白工具",
+  "registration_name": "工具管理",
   "runtime": {
     "client_capability": {
-      "min_version": 1,
+      "min_version": 2,
       "name": "tool.projects"
     },
     "timeout_seconds": 180,

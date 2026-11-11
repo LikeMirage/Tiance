@@ -13,7 +13,7 @@
   "runtime": {
     "type": "client",
     "timeout_seconds": 180,
-    "client_capability": {"name": "tool.projects", "min_version": 1}
+    "client_capability": {"name": "tool.projects", "min_version": 2}
   },
   "io": {"input": "client_json", "output": "client_json"}
 }
@@ -32,11 +32,22 @@
 | 能力 | 版本 | 作用与源码 |
 | --- | --- | --- |
 | `editor.tabs` | 3 | 编辑器标签及文件内容定位，查看 editorTabsClientTool.ts、useDocumentReveal.ts；旧标签动作的后台项目处理见 backgroundEditorTabsClientTool.ts |
-| `conversation.management` | 1 | 会话列表、读取、创建、配置等，conversationManagementClientTool.ts |
+| `conversation.management` | 3 | 会话层级/分类查询、读取、创建、配置、删除预览、精确批量及递归删除，conversationManagementClientTool.ts |
 | `conversation.interaction` | 1 | 向会话发送任务、等待等，conversationInteractionClientTool.ts |
-| `tool.projects` | 1 | 分类查询、分类创建、工具模板创建，toolProjectClientTool.ts |
+| `tool.projects` | 2 | 工具分类、查询、新建、原地初始化、重命名、移动、开关与删除，toolProjectClientTool.ts |
+| `role.projects` | 1 | 角色分类、查询、新建、原地初始化、重命名、移动与删除，roleProjectClientTool.ts |
 
 以当前注册表为准，不能从这张表推断其他动作已开放。参数应读取对应工具 input.schema.json 和执行器，不要猜动作名。
+
+### conversation.management v3：会话树与删除范围
+
+每个会话都可以继续拥有 `child` AI 子会话、`fork` 历史分支，以及自动命名、记忆压缩、项目记忆管理、全局记忆管理四类功能会话，结构不限固定层数；分组标题不是会话。功能任务的防递归设置与树结构是两回事。
+
+`list_sessions` 的 scope 支持 related/all/roots/children/descendants，session_id 指定关系中心，group/runtime_status 可筛选。行数据含 parent_session_id、group、depth、display_number、relation_kind、function_type、created_by、child_count；编号不是身份，始终用 session_id 操作。查询复用普通会话摘要接口和共享树构建规则。
+
+`preview_delete`/`delete_session` 使用 session_id 或 session_ids（二选一），include_descendants 默认 false。true 才展开目标全部后代；保留下级沿存活祖先重新挂接。预览只读；执行需 confirm=true。严格按预览执行时，把返回的完整 session_ids 配合 include_descendants=false 传回，避免新建后代改变范围。调用者及其祖先受保护，删除结果返回实际删除 ID；不会撤销已经提交的记忆等产物。
+
+新增批量 API 是通用项目会话接口 `DELETE /api/projects/{project_id}/conversations`，接收明确 session_ids 和可选 protected_session_id，复用原删除流程；不是按工具名添加的后端专用入口。工具运行时使用请求中的 project_id/session_id，不跟随当前界面选择。使用 v2 参数需在工具清单中设置 min_version=2；旧客户端不会降级忽略参数。
 
 ### editor.tabs v3：标签与内容定位
 
@@ -90,15 +101,23 @@
 
 参数和结果以标准工具 `.tool/input.schema.json`、`.tool/output.schema.json` 为准；`target` 与其他界面操作参数同属 `ui_control`。扩展定位类型时，须一起修改桥合同、对应渲染器、输入输出 Schema、示例和本资料，不能只往工具参数中增加前端未实现的字段。
 
-### tool.projects v1
+### tool.projects v2 与 role.projects v1
 
-- `{"action":"list_categories"}`：返回 category_id、name、readonly。
-- `{"action":"create_category","name":"我的工具"}`：调用既有分类创建接口并返回分类。
-- `{"action":"create_tool","category_id":"已查询的分类 ID","name":"工具名称","call_name":"optional_call_name"}`：从执行工具自身 `assets/scaffold.json` 读取模板，创建并装配新项目。
+`tool.projects` 提供 list_categories/create_category/list/get/create_tool/initialize_current/rename/move/delete/set_state；`role.projects` 提供相同管理动作，创建动作为 create_role，没有 set_state。读取参数 Schema 获取各动作必填字段；不能用分类名称代替 ID。
 
-索引合同：version=1、template_version 字符串、documentation 为生成后的文档入口路径、files 为 source/target 数组。source 必须是该工具 assets 下的相对路径；target 必须在新项目内且不能覆盖 .Tiance。全部读取与基本检查成功后才创建；五份标准 JSON 和 program/main.py 必须存在。清单的 name/registration_name 用调用参数或新项目身份生成；state.enabled 始终强制 false；其他模板设置保留。最后写清单，避免注册半成品。资料与模板属于工具项目，更新它们不需要把正文写进前端源码。
+模板由执行工具自己的 `assets/scaffold.json` 描述。索引 version=1、template_version 为字符串、documentation 为生成后的资料路径、files 为 source/target 数组。工具模板包含五份标准 JSON 与 program/main.py；角色模板包含八份配置 JSON。目标不能是 `.Tiance`。所有内容读取及校验完成后才创建项目。
 
-使用了现有 API：`GET/POST /api/tools/categories`、`POST /api/tools/categories/{category_id}/projects`、项目文件读取及工具文件内容保存。前端复用带当前认证的 httpClient，不把用户登录凭据交给模型或工具包。完成后通过目录事件刷新列表，不强制用户切换正在查看的项目。
+initialize_current 绑定 request.project_id，不使用界面活动项目。后端统一检查登记的集、分类和真实目录必须对应，拒绝符号链接/junction，整组补缺失败回滚；已有文件不覆盖。工具新清单强制 state.enabled=false；初始化既有清单返回其真实开关。模板不在前端源码内硬编码，说明与程序一起存放于工具项目。
+
+使用已有项目/分类/角色/工具生命周期 API；批量初始化接口为 `POST /api/projects/{id}/files/scaffold`，body 为 `{project_kind, files:[{path,content}]}`。它复用项目文件事务，只接收 tool/role/theme 三种集。角色完整配置查询为 `GET /api/projects/roles/{id}/configuration`。前端沿用已认证的 httpClient，不向工具暴露登录凭据。完成后通知目录刷新，不切换用户项目。
+
+创建失败时保留已知项目身份；若响应丢失，先查询核实。不能盲目重建，也不能把系统回收站操作描述为可数据库回滚。delete 拒绝当前调用项目和正在执行的管理工具。用户已有文件通过普通文件工具编辑，不因模板更新而自动替换。
+
+### 会话角色选择与复刻
+
+`create_session`、`clone_session`、`configure_session` 共用 configuration：role_project_id 选完整角色（包括模型），不传则以来源/目标会话为基础；model_source=caller 只取调用者的模型和思考模式；显式 provider_id/model_id 必须成对且不能与 caller 来源同时传入；显式 settings 等覆盖基础。先校验再单次写入，覆盖后的配置不回写角色模板。
+
+clone_session 使用调用会话为源，默认选最后一条已完成用户消息，也可传 source_message_id。复用用户编辑分支流程：复制该消息之前的历史、附件和记忆交付快照，该消息及引用留在新会话草稿。分组关系是 AI 子会话（child/ai），历史类型为 fork。创建不自动运行或切换；当前工具调用所在回合不被复制。后续用会话交互工具发送新任务。源会话继续执行，派生内容不追随其后续写入。
 
 ### 扩展新的前端能力
 
@@ -170,6 +189,7 @@ SDK 从环境读取 `TIANCE_API_BASE_URL` 和 `TIANCE_HOST_CAPABILITY_TOKEN`，�
 | `memory_management` | `/memory/management/tool` | 调用方项目记忆与全局记忆管理 |
 | `conversation_naming` | `/tools/capabilities/conversation-naming` | 自动命名功能会话向其来源会话提交标题；目标取自授权与分支关系 |
 | `tool_catalog` | `/tools/capabilities/catalog` | 读取本次调用范围内工具的参数和案例 |
+| `external_messaging` | `/tools/capabilities/external-messaging` | 列出脱敏机器人连接，向显式目标聊天发送文件；当前实现 Telegram |
 | `run_status` | `/tools/capabilities/run-status` | 只读查询所属生成任务，也可申请短期观察租约 |
 
 注册表位于 `1_PythonServer/app/domain/tools/host_capabilities.py`。SDK 提供 `list_host_capabilities()`，本地返回 name/path/description 清单，不发请求、不泄露凭据，也不代表本次调用获准使用清单里的全部能力。注册表同时供清单校验、SDK 和网关读取，避免各自维护不同列表。
@@ -263,3 +283,20 @@ watch 返回绑定该任务的只读 token 和 lease_seconds（当前 90 秒）�
 浏览器 API 走现有 httpClient，遵守访问密码和认证；Python 工具默认没有浏览器 Cookie，本机 127.0.0.1 不代表免授权。确实需要宿主能力时按上文扩展，不能通过关安全设置解决。
 
 桌面壳 API 是另一个边界，见 `3_PyWebView/app/api.py` 及前端 desktop 服务的实际定义；不是写个 client 能力名就能调用任意本机动作。桌面、浏览器和远程访问的能力可能不同，需要明确判断，不假定远程前端的电脑就是后端所在电脑。
+
+
+### 第三方机器人文件发送
+
+`external_messaging` 使用已配置的连接，不向工具暴露 Token。`platform` 支持 `telegram`、`feishu`、`wechat`；`action` 为 `list_connections` / `send_file`，发送时再传 `connection_id`、`chat_id`、绝对 `file_path`，可选 `caption`。微信还要求指定接收者曾发消息取得有效回复凭据。消息 ID 可能为数字或字符串，不能按 Telegram 的数字格式限制其他平台。独立工具自行解析相对路径。例：
+
+```python
+call_host_capability("external_messaging", {
+    "platform": "telegram", "action": "send_file",
+    "connection_id": "telegram:123456", "chat_id": "987654321",
+    "file_path": "C:/work/report.docx", "caption": "请查收报告。"
+}, timeout_seconds=600)
+```
+
+示例 ID 必须换成实际目标；工具可先用 `list_connections` 查询，手机用户消息正文也会标注来源。后端不要求目标等于上个发送者，不要求由手机任务发起；普通工具参数应准确标注 `filesystem_read`、`credential_use`、`external_data_modify` 和 `network_access`，不能省略发送目标授权。连接本身须已启用，Telegram 也须允许向该聊天投递。
+
+`sent` 才是全部确认，`not_sent` 是明确失败，`unknown` 需核对是否已送达，`partial` 需查看已确认消息 ID 并避免重传文件。没有自动重试或无限等待；超时遵守工具与网络配置。不要用宽泛 except 把 unknown 改成“未发送”。凭据只由后端适配器读取。未来增加平台在 `app/services/mobile/manager.py` 与 `messaging.py` 注册适配器，通用连接表、作用域查询、授权与会话运行保持共用；独立工具是否扩展平台由工具作者决定。

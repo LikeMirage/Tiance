@@ -112,9 +112,10 @@ class ConversationBranchStore:
         relation_kind: str,
         source_message_id: str | None,
         function_type: str | None = None,
+        history_mode: str | None = None,
     ) -> ProjectConversationBranchNode:
         normalized_relation_kind = _child_relation_kind(relation_kind)
-        history_mode = (
+        history_mode = history_mode or (
             HISTORY_MODE_FORK
             if normalized_relation_kind == RELATION_KIND_FORK
             else (

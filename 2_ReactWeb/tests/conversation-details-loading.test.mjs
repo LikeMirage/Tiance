@@ -11,10 +11,12 @@ import { act, create } from "react-test-renderer";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 globalThis.window = { setTimeout, clearTimeout, setInterval, clearInterval };
 let requests = [], saves = [], lists = [], renderer, value, props, warmup = null;
+let serverChangeListener;
 const mocks = {
   react: React,
   "./chatPanelRequestErrors": { isNotFoundRequestError: () => false },
-  "../../../entities/llm-chat/model/projectConversationEvents": { dispatchProjectConversationUpdated() {} },
+  "../../../entities/llm-chat/model/projectConversationEvents": { dispatchProjectConversationUpdated() {},
+    listenProjectConversationUpdated(listener) { serverChangeListener = listener; return () => { serverChangeListener = null; }; } },
   "../../project-entry/model/projectEntryWarmup": { getCachedProjectEntryWarmup: () => warmup },
   "../../../services/project/saveProjectConversationState": {
     async saveProjectConversationState(pid, input) { saves.push({ pid, input }); },
@@ -70,6 +72,26 @@ async function setup(preferredSessionId = null, loaded = response(), cached = nu
   await act(async () => { lists[0]?.resolve(loaded); });
 }
 afterEach(async () => { if (renderer) await act(async () => renderer.unmount()); renderer = null; });
+
+test("手机新会话通知刷新列表，保留桌面会话和未发送草稿，不回写手机选择", async () => {
+  await setup();
+  await act(async () => value.setDraft("desktop typing"));
+  const saveCount = saves.length;
+  await act(async () => serverChangeListener({ source: "server", kind: "structure", projectId: "p" }));
+  const refreshed = response("b");
+  refreshed.items.push(session("phone-new", false));
+  await act(async () => lists.at(-1).resolve(refreshed));
+  assert.equal(value.activeSessionId, "a");
+  assert.equal(value.draft, "desktop typing");
+  assert.ok(value.sessions.some(s => s.session_id === "phone-new"));
+  assert.equal(saves.length, saveCount);
+  const count = lists.length;
+  await act(async () => {
+    serverChangeListener({ source: "server", kind: "structure", projectId: "other" });
+    serverChangeListener({ kind: "structure", projectId: "p" });
+  });
+  assert.equal(lists.length, count, "other projects and local events must not cause a reload loop");
+});
 
 test("stale remembered session resolves against the actual list without losing the selected draft", async () => {
   await setup("removed-session");

@@ -1,3 +1,4 @@
+import { documentDisplayPath } from "../../../entities/editor/model/documentFilePath";
 import {
   useCallback,
   useEffect,
@@ -132,7 +133,7 @@ export function useDocumentTabFileSync({
           if (tab.isDirty && res.content === tab.savedContent && res.content !== tab.content) {
             return {
               ...tab,
-              displayPath: resolvedPath,
+              displayPath: documentDisplayPath(tab.fileSource, resolvedPath),
               filePath: resolvedPath,
               mtimeMs: res.mtime_ms,
               projectFilePath: isProjectFileSource(tab.fileSource, tab.projectId)
@@ -144,7 +145,7 @@ export function useDocumentTabFileSync({
           if (tab.isDirty && res.content !== tab.content) {
             return {
               ...tab,
-              displayPath: resolvedPath,
+              displayPath: documentDisplayPath(tab.fileSource, resolvedPath),
               filePath: resolvedPath,
               mtimeMs: res.mtime_ms,
               projectFilePath: isProjectFileSource(tab.fileSource, tab.projectId)
@@ -164,7 +165,7 @@ export function useDocumentTabFileSync({
           return {
             ...tab,
             content: res.content,
-            displayPath: resolvedPath,
+            displayPath: documentDisplayPath(tab.fileSource, resolvedPath),
             filePath: resolvedPath,
             mtimeMs: res.mtime_ms,
             assetVersion: null,
@@ -344,7 +345,7 @@ export function useDocumentTabFileSync({
         ...tab,
         id: renamedId,
         title: getPathName(renamedPath),
-        displayPath: renamedPath,
+        displayPath: documentDisplayPath(tab.fileSource, renamedPath),
         filePath: renamedPath,
         projectFilePath: isProjectFileSource(tab.fileSource, tab.projectId)
           ? renamedPath
@@ -428,7 +429,10 @@ async function workspaceFileMetadata(
   if (!normalizedPath) return { exists: false, mtimeMs: null };
 
   try {
-    const tree = await runtime.getApi().listTree({
+    if (runtime.readMetadata) return await runtime.readMetadata(normalizedPath);
+    const listTree = runtime.getApi().listTree;
+    if (!listTree) return { exists: null, mtimeMs: null };
+    const tree = await listTree({
       parentPath: getWorkspaceParentPath(normalizedPath),
     });
     const item = tree.items.find((candidate) => normalizeWorkspacePath(candidate.path) === normalizedPath);

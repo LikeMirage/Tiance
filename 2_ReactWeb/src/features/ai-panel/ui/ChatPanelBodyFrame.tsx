@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type RefObject, type UIEventHandler } from "react";
+import { useCallback, useEffect, type RefObject, type UIEventHandler } from "react";
 
-import { useConversationNavigation } from "../model/useConversationNavigation";
+import type { useConversationNavigation } from "../model/useConversationNavigation";
 import { ChatPanelErrorNotice } from "./ChatPanelErrorNotice";
 import { ChatProcessFoldProvider } from "../model/chatProcessFoldState";
 import { useChatContentReadiness } from "../model/useChatContentReadiness";
@@ -13,16 +13,15 @@ import {
   type ChatMessageNavigationRequest,
 } from "./ChatMessageList";
 import { ChatSettingsView } from "./ChatSettingsView";
+import type { UserMessageNavigationItem } from "../model/userMessageNavigation";
 import { UserMessageNavigator } from "./UserMessageNavigator";
 
 type ChatPanelBodyFrameProps = {
   isFollowingBottom: boolean;
   activeView: ChatPanelView;
   activeSessionKey: string | null;
-  projectId: string | null;
-  sessionId: string | null;
-  historyRevision: number | null;
-  historyResetRevision: number | null;
+  navigation: ReturnType<typeof useConversationNavigation>;
+  onSelectUserMessage: (item: UserMessageNavigationItem) => void;
   bodyRef: RefObject<HTMLDivElement | null>;
   externalNavigationRequest?: (ChatMessageNavigationRequest & { sessionKey: string }) | null;
   viewRestoreRequest?: (ChatMessageNavigationRequest & { sessionKey: string }) | null;
@@ -30,7 +29,6 @@ type ChatPanelBodyFrameProps = {
   isMessageNavigationTrackingEnabled: boolean;
   onBodyScroll: UIEventHandler<HTMLDivElement>;
   onActiveUserMessageChange?: (messageId: string | null) => void;
-  onMessageNavigationStart: () => void;
   onExternalNavigationHandled?: (requestId: number) => void;
   onViewRestoreHandled?: (requestId: number) => void;
   onContentReady?: () => void;
@@ -41,10 +39,8 @@ export function ChatPanelBodyFrame({
   isFollowingBottom,
   activeView,
   activeSessionKey,
-  projectId,
-  sessionId,
-  historyRevision,
-  historyResetRevision,
+  navigation,
+  onSelectUserMessage,
   bodyRef,
   externalNavigationRequest = null,
   viewRestoreRequest = null,
@@ -52,7 +48,6 @@ export function ChatPanelBodyFrame({
   isMessageNavigationTrackingEnabled,
   onActiveUserMessageChange,
   onBodyScroll,
-  onMessageNavigationStart,
   onExternalNavigationHandled,
   onViewRestoreHandled,
   onContentReady,
@@ -63,16 +58,7 @@ export function ChatPanelBodyFrame({
     Boolean(chat.isLoadingSession || (viewRestoreRequest?.sessionKey === activeSessionKey && !chat.loadError)),
     onContentReady,
   );
-  const navigationRequestIdRef = useRef(0);
-  const [navigationRequest, setNavigationRequest] =
-    useState<(ChatMessageNavigationRequest & { sessionKey: string }) | null>(null);
-  const navigation = useConversationNavigation({ projectId, sessionId,
-    revision: historyRevision, resetRevision: historyResetRevision,
-    running: chat.isActiveSessionStreaming, messages: chat.messages });
   const navigationItems = navigation.items;
-  const localNavigationRequest = navigationRequest?.sessionKey === activeSessionKey
-    ? navigationRequest
-    : null;
   const activeExternalNavigationRequest = externalNavigationRequest?.sessionKey === activeSessionKey
     ? externalNavigationRequest
     : null;
@@ -80,12 +66,8 @@ export function ChatPanelBodyFrame({
     ? viewRestoreRequest
     : null;
   const effectiveNavigationRequest =
-    localNavigationRequest ?? activeExternalNavigationRequest ?? activeViewRestoreRequest;
+    activeExternalNavigationRequest ?? activeViewRestoreRequest;
   const handleNavigationHandled = useCallback((requestId: number) => {
-    if (localNavigationRequest?.requestId === requestId) {
-      setNavigationRequest((current) => current?.requestId === requestId ? null : current);
-      return;
-    }
     if (activeExternalNavigationRequest?.requestId === requestId) {
       onExternalNavigationHandled?.(requestId);
       return;
@@ -96,7 +78,6 @@ export function ChatPanelBodyFrame({
   }, [
     activeExternalNavigationRequest?.requestId,
     activeViewRestoreRequest?.requestId,
-    localNavigationRequest?.requestId,
     onExternalNavigationHandled,
     onViewRestoreHandled,
   ]);
@@ -153,18 +134,8 @@ export function ChatPanelBodyFrame({
           items={navigationItems}
           onSelect={(item) => {
             if (!activeSessionKey) return;
-            onMessageNavigationStart();
-            if (activeExternalNavigationRequest) {
-              onExternalNavigationHandled?.(activeExternalNavigationRequest.requestId);
-            }
-            navigationRequestIdRef.current += 1;
             messageNavigator.selectTurn(item.turnNumber);
-            setNavigationRequest({
-              behavior: "smooth",
-              messageId: item.userMessageId,
-              requestId: navigationRequestIdRef.current,
-              sessionKey: activeSessionKey,
-            });
+            onSelectUserMessage(item);
           }}
         />
       ) : null}

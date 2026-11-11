@@ -14,6 +14,7 @@ from typing import Any, Iterator
 from zlib import error as zlib_error
 
 from app.infra.conversation_changes import conversation_changes
+from app.infra.projects.workspace_lifecycle import workspace_access
 from app.migrations.attempts import initialization_attempt
 
 from app.repositories.project.conversation_audit_snapshots import (
@@ -69,6 +70,11 @@ def session_id_from_session_dir(session_dir: Path) -> str:
 
 
 def ensure_database(workspace_dir: Path) -> Path:
+    with workspace_access(workspace_dir):
+        return _ensure_database_available(workspace_dir)
+
+
+def _ensure_database_available(workspace_dir: Path) -> Path:
     workspace_dir.mkdir(parents=True, exist_ok=True)
     path = database_path_from_workspace(workspace_dir).resolve()
     # The common read path must never queue behind an active writer.
@@ -106,6 +112,12 @@ def connection_for_path(path: Path) -> Iterator[sqlite3.Connection]:
 
 @contextmanager
 def _write_connection(path: Path, *, track_all: bool) -> Iterator[sqlite3.Connection]:
+    with workspace_access(path.parent), _write_connection_available(path, track_all=track_all) as connection:
+        yield connection
+
+
+@contextmanager
+def _write_connection_available(path: Path, *, track_all: bool) -> Iterator[sqlite3.Connection]:
     resolved = path.resolve()
     active = getattr(_thread_state, "transactions", None)
     if active is None:
@@ -149,6 +161,12 @@ def _write_connection(path: Path, *, track_all: bool) -> Iterator[sqlite3.Connec
 
 @contextmanager
 def read_connection_for_path(path: Path) -> Iterator[sqlite3.Connection | None]:
+    with workspace_access(path.parent), _read_connection_available(path) as connection:
+        yield connection
+
+
+@contextmanager
+def _read_connection_available(path: Path) -> Iterator[sqlite3.Connection | None]:
     """Read existing data; upgrade an old database before handing it to the reader."""
     resolved = path.resolve()
     active = getattr(_thread_state, "transactions", {})
@@ -531,6 +549,18 @@ def list_message_payloads(session_dir: Path) -> list[dict[str, Any]]:
             (session_id,),
         ).fetchall()
     return [value for row in rows if isinstance((value := _decode(row[0])), dict)]
+
+
+def read_message_payload(session_dir: Path, message_id: str) -> dict[str, Any] | None:
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return None
+        row = connection.execute(
+            "SELECT payload_json FROM conversation_messages WHERE session_id = ? AND message_id = ?",
+            (session_id_from_session_dir(session_dir), message_id),
+        ).fetchone()
+    payload = _decode(row[0]) if row is not None else None
+    return payload if isinstance(payload, dict) else None
 
 
 def read_latest_message_payload(session_dir: Path) -> dict[str, Any] | None:

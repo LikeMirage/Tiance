@@ -4,6 +4,7 @@ export type PendingProjectDelete = {
   mode: ProjectDeleteMode;
   projectIds: string[];
   projectNames: string[];
+  clearTianceData?: boolean;
 } | null;
 
 export type ProjectContextMenuState = {

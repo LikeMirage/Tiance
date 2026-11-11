@@ -102,7 +102,7 @@ async function harness(initial) {
       state.current = { tabs: [...state.current.tabs, next], activeTabId: next.id };
       setTabs(state.current.tabs); setActive(next.id);
     }, []);
-    const reveal = useDocumentReveal({ getSnapshot, openNode, selectTab, tabs, activeTabId, setTabs });
+    const { revealProjectFile: reveal } = useDocumentReveal({ getSnapshot, openNode, selectTab, tabs, activeTabId, setTabs });
     current = { reveal, tabs, activeTabId, setTabs, selectTab };
     return null;
   }

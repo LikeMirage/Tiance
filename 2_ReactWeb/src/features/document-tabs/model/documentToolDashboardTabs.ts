@@ -150,6 +150,7 @@ export async function saveToolDashboardContent(
     files.push({ path: TOOL_EXAMPLES_FILE, content: formatDashboardJson(examples) });
   }
   files.push({ path: TOOL_MANIFEST_FILE, content: formatDashboardJson(manifest) });
+  if (!api.saveTextFiles) throw new Error("此文件来源不支持工具配置批量保存。");
   return api.saveTextFiles(files);
 }
 
@@ -241,7 +242,7 @@ function buildToolDashboardPlaceholder(title: string, view: ToolDashboardView): 
 }
 
 async function readToolPermissionsOrDefault(
-  api: FileWorkspaceApi,
+  api: Pick<FileWorkspaceApi, "readTextFile">,
 ): Promise<Record<string, unknown>> {
   try {
     const file = await api.readTextFile(TOOL_PERMISSIONS_FILE);

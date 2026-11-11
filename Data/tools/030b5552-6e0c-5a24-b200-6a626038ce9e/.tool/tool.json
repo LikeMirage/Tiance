@@ -1,0 +1,32 @@
+{
+  "description": "查看、创建、删除和整理角色，附制作文档；仅允许在角色集已登记项目根目录补齐标准内容，保留已有文件。可查看角色整套配置。",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json",
+    "permissions": ".tool/permissions.json"
+  },
+  "io": {
+    "input": "client_json",
+    "output": "client_json"
+  },
+  "loading": {
+    "dynamic": true
+  },
+  "name": "manage_roles",
+  "registration_name": "角色管理",
+  "runtime": {
+    "client_capability": {
+      "min_version": 1,
+      "name": "role.projects"
+    },
+    "timeout_seconds": 180,
+    "type": "client"
+  },
+  "state": {
+    "enabled": true
+  }
+}

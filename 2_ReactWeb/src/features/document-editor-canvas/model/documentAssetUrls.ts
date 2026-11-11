@@ -4,6 +4,8 @@ import type {
 } from "../../../entities/editor/model/editorDocument";
 import { parseToolFolderWorkspaceKey } from "../../../entities/tool/model/toolFolderFileMutation";
 import { env } from "../../../shared/config/env";
+import { documentDisplayPath } from "../../../entities/editor/model/documentFilePath";
+import { localFileEndpoint } from "../../../services/editor/localEditorFiles";
 
 export function resolveDocumentAssetUrl(tab: DocumentTab | null) {
   if (!tab?.fileSource || !tab.filePath) {
@@ -24,6 +26,10 @@ export function createWorkspaceAssetUrl(source: DocumentFileSource, path: string
 
   if (source.kind === "project") {
     return withAssetVersion(projectAssetUrl(source.id, normalizedPath), version);
+  }
+
+  if (source.kind === "local") {
+    return withAssetVersion(`${env.apiBaseUrl}${localFileEndpoint(documentDisplayPath(source, normalizedPath), "asset")}`, version);
   }
 
   if (source.kind === "tool-folder") {

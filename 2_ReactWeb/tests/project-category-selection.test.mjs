@@ -44,6 +44,7 @@ async function setup() {
     "../../../services/project/getProjectOrder": { getProjectOrder: async () => ({ project_ids: [] }) },
     "../../../services/project/saveProjectOrder": { saveProjectOrder: async () => {} },
     "../../../services/project/watchProjectWorkspaceEvents": { watchProjectWorkspaceEvents: () => () => {} },
+    "../../../services/project/watchWorkspaceCatalogChanges": { watchWorkspaceCatalogChanges: () => () => {} },
     "../../../services/project/deleteProject": { deleteProject: async () => {} },
     "../../../services/project/createProjectCategory": {
       createProjectCategory: async () => category("c"),

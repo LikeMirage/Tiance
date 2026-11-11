@@ -4,6 +4,7 @@ from dataclasses import asdict
 from fastapi import WebSocket, APIRouter, Query, status
 
 from app.core.errors import ConflictError, NotFoundError
+from app.core.shutdown_tasks import finish_thread, shutdown_tasks
 from app.schemas.llm.usage import LlmSessionUsageSummaryResponse
 from app.schemas.project import (
     ApplyConversationRoleRequest,
@@ -35,7 +36,7 @@ from app.schemas.project import (
     SaveConversationAsRoleResponse,
 )
 from app.schemas.project.projects import ProjectResponse
-from app.schemas.project.project_conversations import ProjectConversationNavigationResponse
+from app.schemas.project.project_conversations import ProjectConversationNavigationResponse, ProjectConversationCloneRequest
 from app.services.application.role_configuration import (
     get_role_configuration_application_service,
 )
@@ -247,69 +248,9 @@ def create_project_conversation(
     project_id: str,
     payload: ProjectConversationCreateRequest,
 ) -> ProjectConversationSessionResponse:
-    service = get_project_conversation_service()
-    payload_settings = (
-        payload.settings.model_dump(exclude_unset=True)
-        if payload.settings
-        else None
-    )
-    provider_id = payload.provider_id
-    model_id = payload.model_id
-    reasoning_mode = (
-        payload.reasoning_mode.value if payload.reasoning_mode else None
-    )
-    settings = payload_settings
-    role_project_id = payload.role_project_id
-    if payload.created_by == "user":
-        project = get_project_service().get_project(project_id)
-        if project is None:
-            raise NotFoundError("项目不存在。")
-        seed = get_role_configuration_application_service().build_new_session_seed(
-            payload.role_project_id,
-            project_kind=project.project_kind,
-        )
-        provider_id = (
-            payload.provider_id
-            if "provider_id" in payload.model_fields_set
-            else seed.provider_id
-        )
-        model_id = (
-            payload.model_id
-            if "model_id" in payload.model_fields_set
-            else seed.model_id
-        )
-        if "reasoning_mode" in payload.model_fields_set:
-            reasoning_mode = (
-                payload.reasoning_mode.value
-                if payload.reasoning_mode
-                else None
-            )
-        else:
-            reasoning_mode = seed.reasoning_mode
-        settings = dict(seed.settings)
-        settings.update(payload_settings or {})
-        has_explicit_configuration = bool(
-            {"provider_id", "model_id", "reasoning_mode", "settings"}
-            & payload.model_fields_set
-        )
-        role_project_id = (
-            None if has_explicit_configuration else seed.role_project_id
-        )
-    session = service.create_session(
-        project_id,
-        title=payload.title,
-        provider_id=provider_id,
-        model_id=model_id,
-        reasoning_mode=reasoning_mode,
-        manual_title="title" in payload.model_fields_set,
-        set_active=payload.activate,
-        parent_session_id=payload.parent_session_id,
-        created_by=payload.created_by,
-        role_project_id=role_project_id,
-        settings=settings,
-    )
-    return ProjectConversationSessionResponse.from_domain(session)
-
+    from app.services.application.conversation_creation import create_conversation
+    return create_conversation(project_id, payload, service=get_project_conversation_service(),
+                               projects=get_project_service(), roles=get_role_configuration_application_service())
 
 @router.patch(
     "/{project_id}/conversations/state",
@@ -353,22 +294,26 @@ def update_project_conversation(
     session_id: str,
     payload: ProjectConversationSessionUpdateRequest,
 ) -> ProjectConversationSessionResponse:
+    from app.services.application.conversation_configuration import resolve_configuration
+    changes = resolve_configuration(payload.model_dump(mode="json", exclude_unset=True))
     service = get_project_conversation_service()
     session = service.update_session(
         project_id,
         session_id,
         title=payload.title,
         should_update_title="title" in payload.model_fields_set,
-        provider_id=payload.provider_id,
-        should_update_provider="provider_id" in payload.model_fields_set,
-        model_id=payload.model_id,
-        should_update_model="model_id" in payload.model_fields_set,
-        reasoning_mode=payload.reasoning_mode.value if payload.reasoning_mode else None,
-        should_update_reasoning="reasoning_mode" in payload.model_fields_set,
+        provider_id=changes.get("provider_id"),
+        should_update_provider="provider_id" in changes,
+        model_id=changes.get("model_id"),
+        should_update_model="model_id" in changes,
+        reasoning_mode=changes.get("reasoning_mode"),
+        should_update_reasoning="reasoning_mode" in changes,
         manual_title=True,
         should_update_manual_title="title" in payload.model_fields_set,
-        settings=payload.settings.model_dump(exclude_unset=True) if payload.settings else None,
-        should_update_settings="settings" in payload.model_fields_set,
+        settings=changes.get("settings"),
+        should_update_settings="settings" in changes,
+        role_project_id=changes.get("role_project_id"),
+        should_update_role_project_id="role_project_id" in changes,
     )
     return ProjectConversationSessionResponse.from_domain(session)
 
@@ -479,6 +424,38 @@ async def fork_project_conversation(
     )
 
 
+@router.post("/{project_id}/conversations/{session_id}/clone", status_code=status.HTTP_201_CREATED)
+@shutdown_tasks.request
+async def clone_project_conversation(project_id: str, session_id: str, payload: ProjectConversationCloneRequest) -> dict:
+    from app.services.application.conversation_configuration import resolve_configuration
+    changes = await finish_thread(
+        resolve_configuration, payload.configuration.model_dump(mode="json", exclude_unset=True),
+    )
+    shutdown_tasks.commit_started()
+    result = await finish_thread(
+        get_project_conversation_service().fork_session,
+        project_id, session_id, source_message_id=payload.source_message_id,
+        draft=None, references=None, created_by="ai", configuration=changes,
+    )
+    return {"session": ProjectConversationSessionResponse.from_domain(result.session),
+            "state": ProjectConversationSessionStateResponse.from_domain(result.state),
+            "branch": ProjectConversationBranchNodeResponse.from_domain(result.branch),
+            "source_message_id": result.source_message.message_id,
+            "history_boundary": "before_source_user_message", "activated": False}
+
+
+@router.delete(
+    "/{project_id}/conversations",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete an explicit selection of project conversations",
+)
+async def delete_project_conversations(
+    project_id: str,
+    payload: ProjectConversationDeleteRequest,
+) -> None:
+    await _delete_project_conversations(project_id, None, payload)
+
+
 @router.delete(
     "/{project_id}/conversations/{session_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -489,37 +466,53 @@ async def delete_project_conversation(
     session_id: str,
     payload: ProjectConversationDeleteRequest,
 ) -> None:
+    await _delete_project_conversations(project_id, session_id, payload)
+
+
+@shutdown_tasks.request
+async def _delete_project_conversations(
+    project_id: str,
+    session_id: str | None,
+    payload: ProjectConversationDeleteRequest,
+) -> None:
     service = get_project_conversation_service()
+    protection = ({"protected_session_id": payload.protected_session_id}
+                  if payload.protected_session_id is not None else {})
     selected_session_ids = await asyncio.to_thread(
         service.validate_session_deletion,
         project_id,
         session_id,
         session_ids=tuple(payload.session_ids),
+        **protection,
     )
-    await asyncio.gather(*(
-        get_conversation_run_manager().stop(project_id, selected_session_id)
-        for selected_session_id in selected_session_ids
-    ))
-    await asyncio.gather(*(
-        get_conversation_background_task_registry().cancel_session(
+    runs = get_conversation_run_manager()
+    with runs.prevent_new_runs(project_id, selected_session_ids):
+        await asyncio.gather(*(
+            runs.stop(project_id, selected_session_id)
+            for selected_session_id in selected_session_ids
+        ))
+        await asyncio.gather(*(
+            get_conversation_background_task_registry().cancel_session(
+                project_id,
+                selected_session_id,
+            )
+            for selected_session_id in selected_session_ids
+        ))
+        await asyncio.gather(*(
+            get_conversation_audit_service().wait_session(
+                project_id,
+                selected_session_id,
+            )
+            for selected_session_id in selected_session_ids
+        ))
+        shutdown_tasks.commit_started()
+        await finish_thread(
+            service.delete_session,
             project_id,
-            selected_session_id,
+            session_id,
+            session_ids=selected_session_ids,
+            **protection,
         )
-        for selected_session_id in selected_session_ids
-    ))
-    await asyncio.gather(*(
-        get_conversation_audit_service().wait_session(
-            project_id,
-            selected_session_id,
-        )
-        for selected_session_id in selected_session_ids
-    ))
-    await asyncio.to_thread(
-        service.delete_session,
-        project_id,
-        session_id,
-        session_ids=selected_session_ids,
-    )
 
 
 @router.get(
@@ -586,8 +579,8 @@ def list_project_conversation_messages(
     response_model=ProjectConversationNavigationResponse,
     summary="Get the complete lightweight user-message navigation index",
 )
-def get_project_conversation_navigation(project_id: str, session_id: str):
-    navigation = get_project_conversation_service().message_navigation(project_id, session_id)
+def get_project_conversation_navigation(project_id: str, session_id: str, query: str = ""):
+    navigation = get_project_conversation_service().message_navigation(project_id, session_id, query=query)
     return ProjectConversationNavigationResponse(
         project_id=project_id, session_id=session_id,
         revision=navigation.revision, reset_revision=navigation.reset_revision,
@@ -636,6 +629,16 @@ def conversation_message_sync_state(project_id: str, session_id: str):
     from app.repositories.project.conversation_database import read_message_sync_state
     target = get_project_conversation_service().message_sync_target(project_id, session_id)
     return read_message_sync_state(target)
+
+
+@router.get(
+    "/{project_id}/conversations/{session_id}/messages/{message_id}",
+    response_model=ProjectConversationMessageResponse,
+    summary="Get one conversation message including its references",
+)
+def get_project_conversation_message(project_id: str, session_id: str, message_id: str):
+    message = get_project_conversation_service().get_message(project_id, session_id, message_id)
+    return ProjectConversationMessageResponse.from_domain(message)
 
 
 @router.websocket("/{project_id}/conversations/{session_id}/events")

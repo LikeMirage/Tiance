@@ -97,3 +97,7 @@ Data/tools/**/dependencies/py313/site-packages/playwright/driver/node.exe
 /测试包/
 /测试包-*/
 /.tiance-running.lock
+
+# Private device-management tool. Never include in source or distributions.
+/Data/tools/9cb3e689-385b-46a5-9561-7d0382b1ac0e/
+Data/tools/**/远程收件/

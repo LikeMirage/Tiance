@@ -13,7 +13,7 @@ import { createProjectCategory as createProjectCategoryRequest } from "../../../
 import { createProject as createProjectRequest } from "../../../services/project/createProject";
 import { createRoleProject as createRoleProjectRequest } from "../../../services/project/createRoleProject";
 import { deleteProjectCategory as deleteProjectCategoryRequest } from "../../../services/project/deleteProjectCategory";
-import { deleteProject as deleteProjectRequest } from "../../../services/project/deleteProject";
+import { deleteProject as deleteProjectRequest, type DeleteProjectOptions } from "../../../services/project/deleteProject";
 import { getProjectCategories } from "../../../services/project/getProjectCategories";
 import { getProjectOrder } from "../../../services/project/getProjectOrder";
 import { getProjects } from "../../../services/project/getProjects";
@@ -23,6 +23,7 @@ import { renameProjectCategory as renameProjectCategoryRequest } from "../../../
 import { renameProject as renameProjectRequest } from "../../../services/project/renameProject";
 import { saveProjectOrder } from "../../../services/project/saveProjectOrder";
 import { watchProjectWorkspaceEvents } from "../../../services/project/watchProjectWorkspaceEvents";
+import { watchWorkspaceCatalogChanges } from "../../../services/project/watchWorkspaceCatalogChanges";
 import {
   getWorkspaceLastOpened,
   saveWorkspaceLastOpened,
@@ -69,7 +70,7 @@ export type UseProjectCatalogResult = {
   createProjectFromFolder: (rootPath: string) => Promise<void>;
   createProjectsFromFolders: (rootPaths: string[]) => Promise<ProjectFolderImportSummary>;
   deleteProjectCategory: (categoryId: string) => Promise<void>;
-  deleteProject: (projectId: string, options?: { deleteFiles?: boolean }) => Promise<void>;
+  deleteProject: (projectId: string, options?: DeleteProjectOptions) => Promise<void>;
   deletingProjectId: string | null;
   dismissImportConflict: () => void;
   duplicateImportConflict: ProjectImportConflict | null;
@@ -176,6 +177,8 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     () => watchProjectWorkspaceEvents(() => dispatchProjectCatalogChanged()),
     [],
   );
+
+  useEffect(() => watchWorkspaceCatalogChanges(() => itemsRef.current.map(item => item.project_id)), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -472,7 +475,7 @@ export function useProjectCatalog(): UseProjectCatalogResult {
   }, [selectNavigation, getCategorySelection, selectionRef]);
   const deleteProject = useCallback(async (
     projectId: string,
-    options: { deleteFiles?: boolean } = {},
+    options: DeleteProjectOptions = {},
   ) => {
     const project = itemsRef.current.find((item) => item.project_id === projectId);
     if (!project) throw new Error("项目不存在。");
@@ -480,7 +483,7 @@ export function useProjectCatalog(): UseProjectCatalogResult {
     setDeletingProjectId(projectId);
     setError(null);
     try {
-      await deleteProjectRequest(projectId, { deleteFiles: options.deleteFiles });
+      await deleteProjectRequest(projectId, options);
       const nextItems = itemsRef.current.filter((item) => item.project_id !== projectId);
       itemsRef.current = nextItems;
       setItems(nextItems);

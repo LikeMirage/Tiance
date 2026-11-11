@@ -9,6 +9,7 @@ const { watchEventSocket, EVENT_SOCKET_RECONNECT_DELAY_MS } = await vite.ssrLoad
 const { watchProjectFileEvents } = await vite.ssrLoadModule("/src/services/project/watchProjectFileEvents.ts");
 const { watchProjectWorkspaceEvents } = await vite.ssrLoadModule("/src/services/project/watchProjectWorkspaceEvents.ts");
 const { watchThemeWorkspaceEvents } = await vite.ssrLoadModule("/src/services/theme/watchThemeWorkspaceEvents.ts");
+const { watchWorkspaceCatalogChanges } = await vite.ssrLoadModule("/src/services/project/watchWorkspaceCatalogChanges.ts");
 after(() => vite.close());
 
 class Socket {
@@ -24,6 +25,31 @@ function setup(t) {
   t.mock.property(globalThis, "WebSocket", Socket);
   t.mock.timers.enable({ apis: ["setTimeout"] });
 }
+
+test("全局列表通知覆盖远端新会话，合并重复项目，重连后核对所有集", (t) => {
+  setup(t);
+  const events = [];
+  const oldWindow = globalThis.window;
+  globalThis.window = { dispatchEvent: event => events.push(event) };
+  t.after(() => { globalThis.window = oldWindow; });
+  let projects = ["project-a", "tool-b"];
+  const stop = watchWorkspaceCatalogChanges(() => projects); t.after(stop);
+  const socket = Socket.instances[0];
+  socket.message({kind:"changed", projects:["phone-project", "phone-project"], catalog:false});
+  assert.deepEqual(events.map(e => e.detail?.projectId), ["phone-project"]);
+  assert.equal(events[0].detail.source, "server");
+  socket.message({kind:"heartbeat"});
+  assert.equal(events.length, 1);
+  events.length = 0;
+  socket.message({kind:"ready"});
+  assert.equal(events[0].type, "tiance:project-catalog-changed");
+  assert.deepEqual(events.slice(1).map(e => e.detail.projectId), projects);
+  socket.disconnect(); t.mock.timers.tick(EVENT_SOCKET_RECONNECT_DELAY_MS);
+  projects = ["role-c"];
+  events.length = 0;
+  Socket.instances[1].message({kind:"ready"});
+  assert.deepEqual(events.slice(1).map(e => e.detail.projectId), projects);
+});
 
 test("通知使用独立 WebSocket；HTTPS 保持 WSS，关闭后拒收晚到消息", (t) => {
   setup(t);

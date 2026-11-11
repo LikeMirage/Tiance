@@ -177,3 +177,78 @@ def test_closing_an_unfinished_chat_stream_releases_its_retired_pool(monkeypatch
             await stream.aclose()
             await shared.close_shared_http_clients()
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("previous,current", [
+    (None, "http://127.0.0.1:6001"),
+    ("http://127.0.0.1:6001", "http://127.0.0.1:6002"),
+    ("http://127.0.0.1:6001", None),
+])
+def test_system_proxy_changes_apply_to_new_requests_without_interrupting_streams(
+    monkeypatch, previous, current,
+):
+    async def run():
+        await shared.close_shared_http_clients()
+        proxy = [previous]
+        monkeypatch.setattr(shared, "_get_system_proxy", lambda: proxy[0])
+        release = asyncio.Event()
+
+        class Body(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield b"first"
+                await release.wait()
+                yield b"last"
+
+        calls = 0
+        def handle(request):
+            nonlocal calls
+            calls += 1
+            return httpx.Response(200, stream=Body()) if calls == 1 else httpx.Response(200, text="new")
+
+        clients = _factory(monkeypatch, handle)
+        shared.configure_shared_http_client(DEFAULT_NETWORK_SETTINGS)
+        stream = ChatRemoteClient()._stream_body("https://example.test", {}, {})
+        try:
+            assert await anext(stream) == b"first"
+            old = clients[0]
+            # The user changes the OS proxy, without saving Tiance settings.
+            proxy[0] = current
+            async with shared.lease_http_client(shared.get_shared_http_client()) as latest:
+                assert latest is not old
+                assert (await latest.get("https://example.test")).text == "new"
+            assert shared.get_shared_http_client() is latest
+            assert not old.is_closed
+            release.set()
+            assert await anext(stream) == b"last"
+            with pytest.raises(StopAsyncIteration):
+                await anext(stream)
+            await asyncio.wait_for(old.closed_event.wait(), 2)
+            assert old.close_count == 1
+            assert not latest.is_closed
+            assert len(clients) == 2
+        finally:
+            await stream.aclose()
+            await shared.close_shared_http_clients()
+    asyncio.run(run())
+
+
+def test_saving_same_system_mode_refreshes_changed_proxy_and_retires_idle_pool(monkeypatch):
+    async def run():
+        await shared.close_shared_http_clients()
+        proxy = ["http://127.0.0.1:6001"]
+        monkeypatch.setattr(shared, "_get_system_proxy", lambda: proxy[0])
+        _factory(monkeypatch, lambda request: httpx.Response(200))
+        try:
+            shared.configure_shared_http_client(DEFAULT_NETWORK_SETTINGS)
+            old = shared.get_shared_http_client()
+            proxy[0] = "http://127.0.0.1:6002"
+            # The synchronous settings route can run on a worker thread.
+            await asyncio.to_thread(shared.configure_shared_http_client, DEFAULT_NETWORK_SETTINGS)
+            await asyncio.wait_for(old.closed_event.wait(), 2)
+            latest = shared.get_shared_http_client()
+            assert latest is not old
+            shared.configure_shared_http_client(DEFAULT_NETWORK_SETTINGS)
+            assert shared.get_shared_http_client() is latest
+        finally:
+            await shared.close_shared_http_clients()
+    asyncio.run(run())

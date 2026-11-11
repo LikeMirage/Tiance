@@ -4,8 +4,9 @@ from pathlib import Path
 from app.infra.database.sqlite import database_connection
 from app.migrations.global_db import ensure_version
 from app.migrations.runner import schema_transaction
+from app.infra.database.mobile_schema import MOBILE_SCHEMA
 
-SCHEMA_VERSION = 50
+SCHEMA_VERSION = 52
 SCHEMA_STATEMENTS = (
     """CREATE TABLE collection_default_roles (
         project_kind TEXT PRIMARY KEY,
@@ -77,6 +78,6 @@ def _ensure_schema(connection) -> None:
     if tables:
         ensure_version(connection, SCHEMA_VERSION)
         return
-    for statement in SCHEMA_STATEMENTS:
+    for statement in SCHEMA_STATEMENTS + MOBILE_SCHEMA:
         connection.execute(statement)
     connection.execute("INSERT INTO schema_migrations(version,name,applied_at) VALUES (?,?,?)", (SCHEMA_VERSION, 'current_schema', datetime.now(UTC).isoformat()))

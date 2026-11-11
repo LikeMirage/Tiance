@@ -1,3 +1,4 @@
+import { fetchJson } from "../../../services/http/httpClient";
 import type {
   ConversationSession,
   ConversationSessionSettings,
@@ -13,6 +14,8 @@ import { isJsonRecord, type JsonRecord } from "./conversationClientToolValues";
 type ConfigurableConversationSettings = ConversationSessionSettings;
 
 export type ConversationConfiguration = {
+  role_project_id?: string;
+  model_source?: "base" | "caller";
   model_id?: string | null;
   provider_id?: string | null;
   reasoning_mode?: DsLlmReasoningMode | null;
@@ -79,6 +82,15 @@ export async function buildChildConversationCreateInput(
   source: ConversationSession,
   configuration: ConversationConfiguration,
 ): Promise<CreateProjectConversationInput> {
+  if (configuration.role_project_id) {
+    const base = await resolveRoleBase(source, configuration.role_project_id);
+    const input = await buildChildConversationCreateInput(base, {
+      provider_id: base.provider_id, model_id: base.model_id, reasoning_mode: base.reasoning_mode,
+      ...configuration, role_project_id: undefined,
+      ...{ settings: { ...base.settings, ...configuration.settings } },
+    });
+    return { ...input, role_project_id: configuration.role_project_id };
+  }
   const providerId = configuration.provider_id ?? source.provider_id;
   const modelId = configuration.model_id ?? source.model_id;
   const settings = { ...(configuration.settings ?? {}) };
@@ -121,6 +133,15 @@ export async function buildConversationUpdateInput(
   session: ConversationSession,
   configuration: ConversationConfiguration,
 ): Promise<UpdateProjectConversationInput> {
+  if (configuration.role_project_id) {
+    const base = await resolveRoleBase(session, configuration.role_project_id);
+    const input = await buildChildConversationCreateInput(base, {
+      provider_id: base.provider_id, model_id: base.model_id, reasoning_mode: base.reasoning_mode,
+      ...configuration, role_project_id: undefined,
+      ...{ settings: { ...base.settings, ...configuration.settings } },
+    });
+    return { ...input, role_project_id: configuration.role_project_id };
+  }
   const providerId = configuration.provider_id ?? session.provider_id;
   const modelId = configuration.model_id ?? session.model_id;
   const settings = { ...(configuration.settings ?? {}) };
@@ -280,4 +301,21 @@ function pickConfigurableSettings(
 
 function hasOwn(record: object, key: PropertyKey): boolean {
   return Object.prototype.hasOwnProperty.call(record, key);
+}
+
+async function resolveRoleBase(source: ConversationSession, roleId: string): Promise<ConversationSession> {
+  const seed = await fetchJson<Pick<ConversationSession, "provider_id" | "model_id" | "reasoning_mode" | "settings">>(
+    `/api/projects/roles/${encodeURIComponent(roleId)}/configuration`,
+  );
+  return { ...source, ...seed };
+}
+
+/** Model inheritance is independent of the role used as the settings base. */
+export function resolveCallerModel(configuration: ConversationConfiguration, caller: ConversationSession) {
+  if (configuration.model_source !== "caller") return configuration;
+  if (configuration.provider_id !== undefined || configuration.model_id !== undefined) {
+    throw new Error("model_source=caller 不能同时指定 provider_id/model_id。");
+  }
+  return { ...configuration, provider_id: caller.provider_id, model_id: caller.model_id,
+    reasoning_mode: configuration.reasoning_mode === undefined ? caller.reasoning_mode : configuration.reasoning_mode };
 }

@@ -1,3 +1,4 @@
+import { documentDisplayPath } from "../../../entities/editor/model/documentFilePath";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type {
@@ -331,7 +332,7 @@ export function useDocumentTabs() {
     renameWorkspacePath(getProjectDocumentSourceKey(projectId), previousPath, nextPath);
   }, [renameWorkspacePath]);
 
-  const revealProjectFile = useDocumentReveal({ getSnapshot, openNode, selectTab, tabs, activeTabId, setTabs });
+  const { revealProjectFile, revealReference } = useDocumentReveal({ getSnapshot, openNode, selectTab, tabs, activeTabId, setTabs });
 
   const openVirtualHtmlPreview = useCallback((html: string, options?: { projectId?: string | null }) => {
     const newTab = buildVirtualHtmlPreviewTab(html, {
@@ -453,13 +454,15 @@ export function useDocumentTabs() {
 
   const openVirtualReferenceViewer = useCallback((
     payload: EditorReferenceViewerPayload,
-    options?: { projectId?: string | null },
+    options?: { projectId?: string | null; resolution?: DocumentTab["referenceResolution"] },
   ) => {
     const newTab = buildVirtualReferenceViewerTab(payload, {
       projectId: options?.projectId ?? null,
     });
+    newTab.referenceResolution = options?.resolution;
     const existing = tabsRef.current.find((tab) => tab.id === newTab.id);
     if (existing) {
+      setTabs((current) => current.map(tab => tab.id === newTab.id ? newTab : tab));
       setActiveTabId(existing.id);
       return;
     }
@@ -650,7 +653,7 @@ export function useDocumentTabs() {
             ? {
               ...item,
               content: item.content === savedSnapshot ? savedSnapshot : item.content,
-              displayPath: isPinnedDocumentTab(item) ? item.displayPath : savedFilePath,
+              displayPath: isPinnedDocumentTab(item) ? item.displayPath : documentDisplayPath(item.fileSource, savedFilePath),
               filePath: isPinnedDocumentTab(item) ? item.filePath : savedFilePath,
               projectFilePath: isProjectFileSource(item.fileSource, item.projectId)
                 ? savedFilePath
@@ -712,7 +715,7 @@ export function useDocumentTabs() {
             ? {
               ...item,
               content: item.content === contentSnapshot ? contentSnapshot : item.content,
-              displayPath: savedFilePath,
+              displayPath: documentDisplayPath(item.fileSource, savedFilePath),
               filePath: savedFilePath,
               projectFilePath: isProjectFileSource(item.fileSource, item.projectId)
                 ? savedFilePath
@@ -793,7 +796,7 @@ export function useDocumentTabs() {
               ...item,
               id: nextTabId,
               title: getPathName(savedFilePath),
-              displayPath: savedFilePath,
+              displayPath: documentDisplayPath(item.fileSource, savedFilePath),
               filePath: savedFilePath,
               projectFilePath: isProjectFileSource(item.fileSource, item.projectId)
                 ? savedFilePath
@@ -898,6 +901,7 @@ export function useDocumentTabs() {
     restoreWorkspaceTabs,
     saveActiveTab,
     revealProjectFile,
+    revealReference,
     saveTab,
     saveTabAs,
     selectTab,
@@ -932,6 +936,7 @@ export function useDocumentTabs() {
     restoreWorkspaceTabs,
     saveActiveTab,
     revealProjectFile,
+    revealReference,
     saveTab,
     saveTabAs,
     selectTab,

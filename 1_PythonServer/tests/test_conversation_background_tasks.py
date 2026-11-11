@@ -57,6 +57,10 @@ def test_delete_stops_main_run_and_background_tasks_before_removing_session():
     calls: list[str] = []
 
     class RunManager:
+        def prevent_new_runs(self, project_id, session_ids):
+            from contextlib import nullcontext
+            return nullcontext()
+
         async def stop(self, project_id: str, session_id: str) -> bool:
             calls.append(f"stop:{project_id}:{session_id}")
             return True

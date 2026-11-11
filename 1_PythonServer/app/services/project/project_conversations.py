@@ -1,4 +1,5 @@
 from functools import lru_cache
+from app.infra.workspace_catalog_changes import workspace_catalog_changes
 from typing import Protocol
 
 from app.core.errors import NotFoundError
@@ -191,6 +192,8 @@ class ProjectConversationService:
         role_project_id: str | None = None,
         parent_session_id: str | None = None,
         created_by: str = "user",
+        inherit_configuration: bool = True,
+        reasoning_mode_set: bool = False,
     ) -> ProjectConversationSession:
         session = self._repository.create_session(
             project_id,
@@ -204,8 +207,11 @@ class ProjectConversationService:
             role_project_id=role_project_id,
             parent_session_id=parent_session_id,
             created_by=created_by,
+            inherit_configuration=inherit_configuration,
+            reasoning_mode_set=reasoning_mode_set,
         )
         self._record_conversation_created(session)
+        workspace_catalog_changes.publish(project_id)
         return session
 
     def update_session(
@@ -228,7 +234,7 @@ class ProjectConversationService:
         role_project_id: str | None = None,
         should_update_role_project_id: bool = False,
     ) -> ProjectConversationSession:
-        return self._repository.update_session(
+        session = self._repository.update_session(
             project_id,
             session_id,
             title=title,
@@ -246,6 +252,8 @@ class ProjectConversationService:
             role_project_id=role_project_id,
             should_update_role_project_id=should_update_role_project_id,
         )
+        workspace_catalog_changes.publish(project_id)
+        return session
 
     def set_session_pinned(
         self,
@@ -254,48 +262,57 @@ class ProjectConversationService:
         *,
         pinned: bool,
     ) -> ProjectConversationSession:
-        return self._repository.set_session_pinned(
+        session = self._repository.set_session_pinned(
             project_id,
             session_id,
             pinned=pinned,
         )
+        workspace_catalog_changes.publish(project_id)
+        return session
 
     def validate_session_deletion(
         self,
         project_id: str,
-        session_id: str,
+        session_id: str | None,
         *,
         session_ids: tuple[str, ...],
+        protected_session_id: str | None = None,
     ) -> tuple[str, ...]:
         return self._repository.validate_session_deletion(
             project_id,
             session_id,
             session_ids=session_ids,
+            protected_session_id=protected_session_id,
         )
 
     def delete_session(
         self,
         project_id: str,
-        session_id: str,
+        session_id: str | None,
         *,
         session_ids: tuple[str, ...],
+        protected_session_id: str | None = None,
     ) -> None:
         replacement = self._repository.delete_session(
             project_id,
             session_id,
             session_ids=session_ids,
+            protected_session_id=protected_session_id,
         )
         if replacement is not None:
             self._record_conversation_created(replacement)
+        workspace_catalog_changes.publish(project_id)
 
     def fork_session(
         self,
         project_id: str,
         source_session_id: str,
         *,
-        source_message_id: str,
-        draft: str,
-        references: list[dict],
+        source_message_id: str | None,
+        draft: str | None,
+        references: list[dict] | None,
+        created_by: str = "user",
+        configuration: dict | None = None,
     ) -> ProjectConversationForkResult:
         result = self._repository.fork_session(
             project_id,
@@ -303,8 +320,11 @@ class ProjectConversationService:
             source_message_id=source_message_id,
             draft=draft,
             references=references,
+            created_by=created_by,
+            configuration=configuration,
         )
         self._record_conversation_created(result.session)
+        workspace_catalog_changes.publish(project_id)
         return result
 
     def _record_conversation_created(self, session: ProjectConversationSession) -> None:
@@ -322,6 +342,7 @@ class ProjectConversationService:
             session_id,
             runtime_status,
         )
+        workspace_catalog_changes.publish(project_id)
 
     def reconcile_missing_run_runtime_status(
         self,
@@ -367,8 +388,14 @@ class ProjectConversationService:
     def message_sync_target(self, project_id: str, session_id: str):
         return self._repository.message_sync_target(project_id, session_id)
 
-    def message_navigation(self, project_id: str, session_id: str):
-        return self._repository.message_navigation(project_id, session_id)
+    def get_message(self, project_id: str, session_id: str, message_id: str) -> ProjectConversationMessage:
+        return self._repository.get_message(project_id, session_id, message_id)
+
+    def message_navigation(self, project_id: str, session_id: str, *, query: str = ""):
+        return self._repository.message_navigation(project_id, session_id, query=query)
+
+    def recent_history(self, project_id: str, session_id: str, *, limit: int):
+        return self._repository.recent_history(project_id, session_id, limit=limit)
 
     def get_message_turn(
         self,

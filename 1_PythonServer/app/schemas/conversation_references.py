@@ -73,6 +73,7 @@ class ConversationTextReference(_ConversationReferenceBase):
         pattern=r"^sha256:[0-9a-f]{64}$",
     )
     end_line: int | None = Field(default=None, alias="endLine", ge=1)
+    page_number: int | None = Field(default=None, alias="pageNumber", ge=1)
     file_name: str = Field(alias="fileName")
     file_path: str = Field(alias="filePath")
     location: ConversationWordTextLocation | None = None

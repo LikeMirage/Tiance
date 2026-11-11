@@ -80,6 +80,18 @@ def test_project_file_reference_still_requires_project_id():
         ])
 
 
+def test_pdf_text_reference_preserves_page_through_message_and_draft():
+    payload = {"type": "text", "reference": {
+        "id": "pdf-text-1", "content": "Selected text", "displayPath": "report.pdf",
+        "fileName": "report.pdf", "filePath": "report.pdf", "projectId": "project-a",
+        "source": "pdf", "pageNumber": 7,
+    }}
+    request = ChatMessageRequest(role=ChatMessageRole.USER, content="检查", references=[payload])
+    assert request.to_domain().internal_metadata["conversation_references"] == [payload]
+    draft = ProjectConversationStateSaveRequest(session_references={"session-1": [payload]})
+    assert draft.session_references["session-1"].to_payload() == [payload]
+
+
 def test_word_text_reference_preserves_structured_location():
     payload = {
         "type": "text",

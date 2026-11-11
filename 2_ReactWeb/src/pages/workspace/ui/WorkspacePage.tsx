@@ -63,6 +63,8 @@ import type { WorkspaceSettingsSectionId } from "../model/workspaceSettingsSecti
 import { markFrontendStartup } from "../../../shared/model/startup-timing/startupTiming";
 import { useI18n } from "../../../shared/i18n";
 import { WorkspaceNavigationProvider } from "../../../shared/model/workspaceNavigation";
+import { ReferenceProjectNavigationContext } from "../../../entities/editor/model/referenceProjectNavigation";
+import type { ReferenceProject } from "../../../entities/editor/model/editorReference";
 import type { AppThemeControl } from "../../../shared/theme";
 import { revealProjectFile } from "../../../services/project/revealProjectFile";
 import { saveWorkspaceLayoutPreferences } from "../../../services/workspace/workspaceLayoutPreferences";
@@ -983,6 +985,26 @@ export function WorkspacePage({
     () => ({ openGithubSettings: handleOpenGithubSettings }),
     [handleOpenGithubSettings],
   );
+  const handleOpenReferencedProject = useCallback(async (target: ReferenceProject) => {
+    const sections: Record<string, HoverSidebarSectionId> = {
+      project: "overview", knowledge: "knowledge", experience: "experience",
+      role: "roles", theme: "themes", provider: "models", tool: "tools",
+    };
+    const section = sections[target.project_kind];
+    if (!section) throw new Error("无法识别这个项目所属的项目集。");
+    await requestUnsavedTransition([projectDocumentTabs, toolDocumentTabs], "switch", async () => {
+      if (target.project_kind === "tool") {
+        toolCatalog.selectToolset(target.category_id);
+        toolFolders.expandFolder(target.project_id);
+      } else {
+        projectCatalog.selectCategory(target.category_id, { persistWorkspaceSelection: target.project_kind === "project" });
+        projectCatalog.expandProject(target.project_id);
+        await preloadProjectEntry(target.project_id);
+      }
+      setActiveSection(section);
+    });
+  }, [requestUnsavedTransition, projectDocumentTabs, toolDocumentTabs, toolCatalog.selectToolset,
+    toolFolders.expandFolder, projectCatalog.selectCategory, projectCatalog.expandProject]);
   const handleSelectNetworkSettings = useCallback(() => {
     setActiveSettingsSectionId("network");
   }, []);
@@ -1047,6 +1069,7 @@ export function WorkspacePage({
     "--workspace-side-panel-width": `${sidePanelLayout.sidePanelWidth}px`,
   } as CSSProperties;
   return (
+    <ReferenceProjectNavigationContext.Provider value={handleOpenReferencedProject}>
     <WorkspaceNavigationProvider value={workspaceNavigation}>
       <main className="workspace-page" aria-label="workspace">
       <WindowTitlebar onRequestClose={handleRequestCloseWindow} />
@@ -1116,6 +1139,7 @@ export function WorkspacePage({
           activeThemeId={themeControl.activeThemeId}
           isThemeLoading={themeControl.isLoading}
           activeToolWorkspaceKey={activeToolWorkspaceKey}
+          waitForToolWorkspaceReady={toolWorkspaceTabs.waitForWorkspaceReady}
           layoutPreferences={layoutPreferences}
           projectWorkspaceError={projectWorkspaceTabs.error}
           projectFileReferenceRequest={projectFileReferenceRequest}
@@ -1214,6 +1238,7 @@ export function WorkspacePage({
       />
       </main>
     </WorkspaceNavigationProvider>
+    </ReferenceProjectNavigationContext.Provider>
   );
 }
 

@@ -110,6 +110,7 @@ export function OfficePreview({
           inspection={inspection}
           onCreateSelectionImageReference={onCreateSpreadsheetRangeImageReference}
           onLoadingVisibleChange={setIsContentLoadingVisible}
+          onMissing={onMissing}
           src={src}
           zoom={zoom}
         />

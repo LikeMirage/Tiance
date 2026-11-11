@@ -6,6 +6,7 @@ import type { DsLlmReasoningMode } from "../../entities/llm-runtime/model/genera
 import { fetchJson } from "../http/httpClient";
 
 export type UpdateProjectConversationInput = {
+  role_project_id?: string | null;
   title?: string | null;
   provider_id?: string | null;
   model_id?: string | null;

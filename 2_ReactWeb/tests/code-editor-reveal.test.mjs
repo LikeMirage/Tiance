@@ -72,6 +72,7 @@ test("CodeEditor selects its live buffer, centers it and acknowledges without ed
     "../../../entities/editor/model/documentReadingState": { useDocumentReadingScroll: () => stopRestore },
     "../../../entities/editor/model/documentRevealContext": context,
     "../../../entities/editor/model/documentReveal": reveal,
+    "../model/referenceTextSelection": { findReferenceTextSelection: (doc, ref) => { try { return reveal.resolveReferenceText(doc, ref); } catch { return null; } } },
     "./editor-config": { createEditorExtensions: () => [] },
     "../../file-preview/model/previewPolicy": { needsPlainTextMode: () => false },
     "./editor.css": {},

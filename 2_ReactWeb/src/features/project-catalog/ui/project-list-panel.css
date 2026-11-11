@@ -169,3 +169,19 @@
   color: var(--color-text-primary);
   cursor: pointer;
 }
+.project-delete-confirm__clear-data {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: -6px 0 18px;
+  color: var(--color-text-primary);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.project-delete-confirm__clear-data input {
+  flex: none;
+  margin: 3px 0 0;
+  accent-color: var(--color-accent);
+}

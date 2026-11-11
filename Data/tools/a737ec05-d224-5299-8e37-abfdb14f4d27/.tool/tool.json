@@ -1,14 +1,13 @@
 {
-  "description": "查看、制作、修改和切换天策主题，包括配色与背景图片。",
-  "registration_name": "主题设计工具",
+  "description": "查看、创建、复制、修改、切换和删除天策主题，设计配色与背景；仅允许在主题集已登记项目根目录补齐标准内容，保留已有文件。",
   "execution": {
     "parallel": true
   },
   "files": {
     "examples": ".tool/examples.json",
-    "permissions": ".tool/permissions.json",
     "input_schema": ".tool/input.schema.json",
-    "output_schema": ".tool/output.schema.json"
+    "output_schema": ".tool/output.schema.json",
+    "permissions": ".tool/permissions.json"
   },
   "io": {
     "input": "stdin_json",
@@ -18,6 +17,7 @@
     "dynamic": true
   },
   "name": "theme_designer",
+  "registration_name": "主题管理",
   "runtime": {
     "entry": "program/main.py",
     "timeout_seconds": 60,

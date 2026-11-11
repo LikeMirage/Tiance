@@ -7,6 +7,7 @@ import re
 import shutil
 import zipfile
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from tempfile import gettempdir
 from uuid import uuid4
@@ -22,8 +23,9 @@ from app.schemas.software_update import (
 )
 
 
-RELEASE_API_URL = "https://api.github.com/repos/LikeMirage/Tiance/releases/latest"
+RELEASES_URL = "https://github.com/LikeMirage/Tiance/releases"
 UPDATE_MANIFEST_ASSET = "update.json"
+LATEST_MANIFEST_URL = f"{RELEASES_URL}/latest/download/{UPDATE_MANIFEST_ASSET}"
 UPDATE_PACKAGE_ASSET = "Tiance-update.zip"
 INCREMENTAL_UPDATE_PACKAGE_ASSET = "Tiance-update-incremental.zip"
 VERSION_PATTERN = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
@@ -52,16 +54,6 @@ class ReleaseAsset:
 
 
 @dataclass(frozen=True, slots=True)
-class ReleaseInfo:
-    version: str
-    name: str
-    notes: str
-    published_at: str | None
-    manifest: ReleaseAsset | None
-    assets: dict[str, ReleaseAsset]
-
-
-@dataclass(frozen=True, slots=True)
 class UpdatePackageManifest:
     asset_name: str
     sha256: str
@@ -74,26 +66,25 @@ class UpdateManifest:
     version: str
     full: UpdatePackageManifest
     incremental: UpdatePackageManifest | None
+    name: str = ""
+    notes: str = ""
+    published_at: str | None = None
 
 
 class SoftwareUpdateService:
     async def check(self) -> SoftwareUpdateCheckResponse:
         settings = get_settings()
-        release = await self._load_latest_release()
+        manifest = await self._load_latest_manifest()
         selected_package = None
-        if (
-            _version_tuple(release.version) > _version_tuple(settings.app_version)
-            and release.manifest is not None
-        ):
-            manifest = await self._load_manifest(release.manifest)
+        if _version_tuple(manifest.version) > _version_tuple(settings.app_version):
             selected_package = _select_update_package(manifest, settings.app_version)
         return SoftwareUpdateCheckResponse(
             currentVersion=settings.app_version,
-            latestVersion=release.version,
-            updateAvailable=_version_tuple(release.version) > _version_tuple(settings.app_version),
-            releaseName=release.name,
-            releaseNotes=release.notes,
-            publishedAt=release.published_at,
+            latestVersion=manifest.version,
+            updateAvailable=_version_tuple(manifest.version) > _version_tuple(settings.app_version),
+            releaseName=manifest.name,
+            releaseNotes=manifest.notes,
+            publishedAt=manifest.published_at,
             downloadSize=selected_package.size if selected_package else None,
             sourceCheckout=(settings.project_root_path / ".git").exists(),
         )
@@ -103,24 +94,20 @@ class SoftwareUpdateService:
         if (settings.project_root_path / ".git").exists():
             raise ConflictError("源码工作区不能使用在线覆盖更新，请通过 Git 更新源码。")
 
-        release = await self._load_latest_release()
-        if _version_tuple(release.version) <= _version_tuple(settings.app_version):
+        manifest = await self._load_latest_manifest()
+        if _version_tuple(manifest.version) <= _version_tuple(settings.app_version):
             raise ConflictError("当前已经是最新版本。")
-        if release.manifest is None:
-            raise SoftwareUpdateError("最新版本缺少在线更新文件。", code="update_assets_missing")
-
-        manifest = await self._load_manifest(release.manifest)
         selected_package = _select_update_package(manifest, settings.app_version)
-        release_package = release.assets.get(selected_package.asset_name)
-        if release_package is None:
-            raise SoftwareUpdateError("最新版本缺少所需的更新包。", code="update_assets_missing")
-        if manifest.version != release.version:
-            raise SoftwareUpdateError("更新清单与 GitHub Release 不一致。", code="update_manifest_mismatch")
-        if selected_package.size != release_package.size:
-            raise SoftwareUpdateError("更新文件大小与发布清单不一致。", code="update_size_mismatch")
+        # Pin the package to the manifest version: a new release appearing during
+        # download must not redirect us to a different version's archive.
+        release_package = ReleaseAsset(
+            name=selected_package.asset_name,
+            url=f"{RELEASES_URL}/download/v{manifest.version}/{selected_package.asset_name}",
+            size=selected_package.size,
+        )
 
-        update_root = _update_cache_root() / release.version
-        temporary_root = update_root.with_name(f".{release.version}-{uuid4().hex}.tmp")
+        update_root = _update_cache_root() / manifest.version
+        temporary_root = update_root.with_name(f".{manifest.version}-{uuid4().hex}.tmp")
         shutil.rmtree(temporary_root, ignore_errors=True)
         temporary_root.mkdir(parents=True, exist_ok=False)
         archive_path = temporary_root / selected_package.asset_name
@@ -134,7 +121,7 @@ class SoftwareUpdateService:
             payload_root = temporary_root / "payload"
             _extract_update_archive(archive_path, payload_root)
             stage_root = payload_root / "Tiance"
-            _validate_staged_payload(stage_root, release.version)
+            _validate_staged_payload(stage_root, manifest.version)
             archive_path.unlink(missing_ok=True)
             shutil.rmtree(update_root, ignore_errors=True)
             os.replace(temporary_root, update_root)
@@ -144,59 +131,31 @@ class SoftwareUpdateService:
 
         final_stage_root = update_root / "payload" / "Tiance"
         return SoftwareUpdateDownloadResponse(
-            version=release.version,
+            version=manifest.version,
             stagePath=str(final_stage_root),
             packageSize=selected_package.size,
         )
 
-    async def _load_latest_release(self) -> ReleaseInfo:
+    async def _load_latest_manifest(self) -> UpdateManifest:
         async with lease_http_client(get_shared_http_client()) as client:
             try:
-                response = await client.get(
-                    RELEASE_API_URL,
-                    headers={"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"},
-                )
-                response.raise_for_status()
-                payload = response.json()
-            except (httpx.HTTPError, ValueError) as exc:
-                raise SoftwareUpdateError("无法连接 GitHub 检查更新。", code="update_check_failed") from exc
-
-            tag_name = payload.get("tag_name") if isinstance(payload, dict) else None
-            version = tag_name[1:] if isinstance(tag_name, str) and tag_name.startswith("v") else tag_name
-            if not isinstance(version, str) or VERSION_PATTERN.fullmatch(version) is None:
-                raise SoftwareUpdateError("GitHub 最新版本号格式无效。", code="update_version_invalid")
-            assets: dict[str, ReleaseAsset] = {}
-            for raw_asset in payload.get("assets", []):
-                if not isinstance(raw_asset, dict):
-                    continue
-                name = raw_asset.get("name")
-                url = raw_asset.get("browser_download_url")
-                size = raw_asset.get("size")
-                if isinstance(name, str) and isinstance(url, str) and isinstance(size, int):
-                    assets[name] = ReleaseAsset(name=name, url=url, size=size)
-            return ReleaseInfo(
-                version=version,
-                name=str(payload.get("name") or f"Tiance v{version}"),
-                notes=str(payload.get("body") or ""),
-                published_at=payload.get("published_at") if isinstance(payload.get("published_at"), str) else None,
-                manifest=assets.get(UPDATE_MANIFEST_ASSET),
-                assets=assets,
-            )
-
-    async def _load_manifest(self, asset: ReleaseAsset) -> UpdateManifest:
-        if asset.size <= 0 or asset.size > MAX_MANIFEST_BYTES:
-            raise SoftwareUpdateError("更新清单大小无效。", code="update_manifest_invalid")
-        async with lease_http_client(get_shared_http_client()) as client:
-            try:
-                response = await client.get(asset.url)
-                response.raise_for_status()
-                if len(response.content) > MAX_MANIFEST_BYTES:
-                    raise ValueError("manifest too large")
-                payload = response.json()
+                async with client.stream(
+                    "GET", LATEST_MANIFEST_URL,
+                    headers={"Accept": "application/json", "Cache-Control": "no-cache"},
+                ) as response:
+                    response.raise_for_status()
+                    content = bytearray()
+                    async for chunk in response.aiter_bytes(16 * 1024):
+                        content.extend(chunk)
+                        if len(content) > MAX_MANIFEST_BYTES:
+                            raise ValueError("manifest too large")
+                payload = json.loads(content)
                 schema_version = payload["schemaVersion"]
                 version = payload["version"]
-            except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-                raise SoftwareUpdateError("无法读取在线更新清单。", code="update_manifest_invalid") from exc
+            except httpx.HTTPError as exc:
+                raise _update_network_error(exc, "更新清单") from exc
+            except (ValueError, KeyError, TypeError) as exc:
+                raise SoftwareUpdateError("在线更新清单格式无效。", code="update_manifest_invalid") from exc
             if (
                 schema_version != 1
                 or not isinstance(version, str)
@@ -213,7 +172,18 @@ class SoftwareUpdateService:
                 )
             except (KeyError, TypeError, ValueError) as exc:
                 raise SoftwareUpdateError("在线更新清单内容无效。", code="update_manifest_invalid") from exc
-            return UpdateManifest(version=version, full=full, incremental=incremental)
+            name = payload.get("releaseName", f"Tiance v{version}")
+            notes = payload.get("releaseNotes", "")
+            published_at = payload.get("publishedAt")
+            if (
+                not isinstance(name, str) or not isinstance(notes, str)
+                or (published_at is not None and not isinstance(published_at, str))
+            ):
+                raise SoftwareUpdateError("在线更新说明格式无效。", code="update_manifest_invalid")
+            return UpdateManifest(
+                version=version, full=full, incremental=incremental,
+                name=name, notes=notes, published_at=published_at,
+            )
 
     async def _download_package(self, asset: ReleaseAsset, target: Path) -> tuple[int, str]:
         if asset.size <= 0 or asset.size > MAX_UPDATE_PACKAGE_BYTES:
@@ -232,13 +202,38 @@ class SoftwareUpdateService:
                             digest.update(chunk)
                             output.write(chunk)
             except httpx.HTTPError as exc:
-                raise SoftwareUpdateError("更新包下载失败。", code="update_download_failed") from exc
+                raise _update_network_error(exc, "更新包") from exc
             return written, digest.hexdigest()
 
 
 class SoftwareUpdateError(AppError):
     def __init__(self, message: str, *, code: str) -> None:
         super().__init__(message, code=code, status_code=502)
+
+
+def _update_network_error(error: httpx.HTTPError, resource: str) -> SoftwareUpdateError:
+    if isinstance(error, httpx.HTTPStatusError):
+        response = error.response
+        status = response.status_code
+        if status == 429 or (status == 403 and response.headers.get("x-ratelimit-remaining") == "0"):
+            retry = response.headers.get("retry-after", "")
+            reset = response.headers.get("x-ratelimit-reset", "")
+            detail = "请稍后重试。"
+            if retry.isdigit() and len(retry) < 10:
+                detail = f"请在 {int(retry)} 秒后重试。"
+            elif reset.isdigit() and len(reset) < 12:
+                try:
+                    local_time = datetime.fromtimestamp(int(reset), timezone.utc).astimezone()
+                    detail = f"可在本机时间 {local_time:%Y-%m-%d %H:%M:%S} 后重试。"
+                except (ValueError, OverflowError, OSError):
+                    pass
+            return SoftwareUpdateError(f"GitHub 暂时限制访问{resource}。{detail}", code="update_rate_limited")
+        if status == 404:
+            return SoftwareUpdateError(f"GitHub 发布中找不到{resource}（HTTP 404）。", code="update_assets_missing")
+        return SoftwareUpdateError(f"获取{resource}失败：服务器返回 HTTP {status}。", code="update_http_error")
+    if isinstance(error, httpx.TimeoutException):
+        return SoftwareUpdateError(f"获取{resource}超时，请检查网络或代理后重试。", code="update_timeout")
+    return SoftwareUpdateError(f"获取{resource}时网络连接失败（{type(error).__name__}），请检查网络设置。", code="update_connection_failed")
 
 
 def _version_tuple(value: str) -> tuple[int, int, int]:

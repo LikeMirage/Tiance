@@ -1,0 +1,9 @@
+{
+  "global_memory_enabled": true,
+  "global_memory_extraction_enabled": true,
+  "memory_compression_enabled": true,
+  "memory_context_token_trigger_threshold": 250000,
+  "memory_raw_context_token_reserve": 30000,
+  "project_memory_enabled": true,
+  "project_memory_extraction_enabled": true
+}

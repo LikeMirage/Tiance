@@ -228,6 +228,7 @@ export function useProjectOverviewSessionActions({
     requestRenameSession,
     sessionActionBusy,
     sessionActionError,
+    setSessionActionError,
     sessionContextMenu,
     setSessionContextMenu,
     toggleSessionPinned,

@@ -1,5 +1,12 @@
 import { fetchJson } from "../http/httpClient";
 
+export type DatabaseSource = { kind: "project"; projectId: string } | { kind: "local" };
+
+function databaseEndpoint(source: DatabaseSource) {
+  return source.kind === "local" ? "/api/editor/local/databases"
+    : `/api/projects/${encodeURIComponent(source.projectId)}/databases`;
+}
+
 export type ProjectDatabaseObjectType = "table" | "view" | "index" | "trigger";
 
 export type ProjectDatabaseObject = {
@@ -88,19 +95,19 @@ export type ProjectDatabaseQueryResult = {
 };
 
 export function getProjectDatabaseOverview(
-  projectId: string,
+  source: DatabaseSource,
   path: string,
   init?: RequestInit,
 ) {
   const query = new URLSearchParams({ path });
   return fetchJson<ProjectDatabaseOverview>(
-    `/api/projects/${encodeURIComponent(projectId)}/databases/overview?${query.toString()}`,
+    `${databaseEndpoint(source)}/overview?${query.toString()}`,
     init,
   );
 }
 
 export function getProjectDatabaseTableData(
-  projectId: string,
+  source: DatabaseSource,
   input: {
     limit: number;
     objectName: string;
@@ -116,13 +123,13 @@ export function getProjectDatabaseTableData(
     offset: String(input.offset),
   });
   return fetchJson<ProjectDatabaseRows>(
-    `/api/projects/${encodeURIComponent(projectId)}/databases/table-data?${query.toString()}`,
+    `${databaseEndpoint(source)}/table-data?${query.toString()}`,
     init,
   );
 }
 
 export function getProjectDatabaseTableSchema(
-  projectId: string,
+  source: DatabaseSource,
   input: {
     objectName: string;
     path: string;
@@ -134,13 +141,13 @@ export function getProjectDatabaseTableSchema(
     object_name: input.objectName,
   });
   return fetchJson<ProjectDatabaseTableSchema>(
-    `/api/projects/${encodeURIComponent(projectId)}/databases/table-schema?${query.toString()}`,
+    `${databaseEndpoint(source)}/table-schema?${query.toString()}`,
     init,
   );
 }
 
 export function queryProjectDatabase(
-  projectId: string,
+  source: DatabaseSource,
   input: {
     limit: number;
     path: string;
@@ -149,7 +156,7 @@ export function queryProjectDatabase(
   init?: RequestInit,
 ) {
   return fetchJson<ProjectDatabaseQueryResult>(
-    `/api/projects/${encodeURIComponent(projectId)}/databases/query`,
+    `${databaseEndpoint(source)}/query`,
     {
       ...init,
       method: "POST",

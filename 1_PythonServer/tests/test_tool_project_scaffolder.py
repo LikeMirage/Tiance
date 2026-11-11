@@ -109,7 +109,7 @@ def test_complete_scaffold_uses_existing_creation_and_file_services(tmp_path, mo
 def test_creator_metadata_and_templates_are_current_standard_files():
     loaded = load_tool(str(CREATOR))
     assert loaded.name == "create_blank_tool"
-    assert loaded.manifest["runtime"]["client_capability"] == {"name": "tool.projects", "min_version": 1}
+    assert loaded.manifest["runtime"]["client_capability"] == {"name": "tool.projects", "min_version": 2}
     storage = ToolProjectConfigStorage()
     for root in (CREATOR, CREATOR / "assets/template"):
         for path in (root / ".tool").glob("*.json"):
@@ -120,7 +120,9 @@ def test_creator_metadata_and_templates_are_current_standard_files():
 
 
 @pytest.mark.parametrize("args,decision", [
-    ({"action": "list_categories"}, "allow"),
+    # The action parameter covers writes too; current per-parameter permission
+    # policy conservatively asks for the management capability for every action.
+    ({"action": "list_categories"}, "ask"),
     ({"action": "create_category", "name": "新分类"}, "ask"),
     ({"action": "create_tool", "name": "新工具", "category_id": "category"}, "ask"),
 ])
@@ -140,6 +142,8 @@ def test_creator_read_and_write_permissions(args, decision):
     ({"action": "create_tool", "name": 1, "category_id": "category"}, False),
     ({"action": "create_tool", "name": "", "category_id": "category"}, False),
     ({"action": "create_tool", "name": "工具", "category_id": "category", "call_name": "bad name"}, False),
+    ({"action": "create_tool", "name": "工具", "category_id": "category", "call_name": "UpperCase"}, False),
+    ({"action": "create_tool", "name": "工具", "category_id": "category", "call_name": "_private"}, False),
     ({"action": "create_tool", "name": "工具", "category_id": "category", "extra": True}, False),
     ({"action": "create_category", "name": "分类", "category_id": "category"}, False),
     ({"action": "list_categories", "name": "额外参数"}, False),

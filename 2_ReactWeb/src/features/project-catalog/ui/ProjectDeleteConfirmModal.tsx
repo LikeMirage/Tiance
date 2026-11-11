@@ -10,6 +10,7 @@ type ProjectDeleteConfirmModalProps = {
   isDeleting: boolean;
   onCancel: () => void;
   onConfirm: (pendingDelete: NonNullable<PendingProjectDelete>) => void;
+  onChangeClearTianceData: (checked: boolean) => void;
   pendingDelete: NonNullable<PendingProjectDelete>;
 };
 
@@ -19,6 +20,7 @@ export function ProjectDeleteConfirmModal({
   isDeleting,
   onCancel,
   onConfirm,
+  onChangeClearTianceData,
   pendingDelete,
 }: ProjectDeleteConfirmModalProps) {
   const { t } = useI18n();
@@ -29,7 +31,7 @@ export function ProjectDeleteConfirmModal({
     <ConfirmModal
       dialogClassName="confirm-modal--square"
       cancelDisabled={isDeleting}
-      danger={pendingDelete.mode !== "remove"}
+      danger={pendingDelete.mode !== "remove" || pendingDelete.clearTianceData === true}
       title={
         itemKind === "role"
           ? t(isBatch ? "roleDelete.batchTitle" : "roleDelete.title")
@@ -52,7 +54,19 @@ export function ProjectDeleteConfirmModal({
       }
       onCancel={onCancel}
       onConfirm={() => onConfirm(pendingDelete)}
-    />
+    >
+      {pendingDelete.mode === "remove" ? (
+        <label className="project-delete-confirm__clear-data">
+          <input
+            type="checkbox"
+            checked={pendingDelete.clearTianceData === true}
+            disabled={isDeleting || Boolean(error)}
+            onChange={(event) => onChangeClearTianceData(event.target.checked)}
+          />
+          <span>{t("projectDelete.clearTianceData")}</span>
+        </label>
+      ) : null}
+    </ConfirmModal>
   );
 }
 
@@ -78,6 +92,9 @@ function getProjectDeleteDialogMessage(
   productName: string,
 ) {
   const count = pendingDelete.projectIds.length;
+  if (pendingDelete.mode === "remove" && pendingDelete.clearTianceData) {
+    return t("projectDelete.message.removeWithData", { count });
+  }
   if (count > 1) {
     if (pendingDelete.mode === "remove") {
       return t("projectDelete.batch.message.remove", { count, productName });

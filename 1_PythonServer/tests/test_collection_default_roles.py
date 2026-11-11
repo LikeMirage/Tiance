@@ -118,6 +118,9 @@ def make_v49(database, role_payload):
     ensure_database_schema(database)
     with closing(sqlite3.connect(database)) as db:
         db.execute("DROP TABLE collection_default_roles")
+        db.execute("DROP TABLE mobile_records")
+        db.execute("DROP TABLE mobile_receipts")
+        db.execute("DROP TABLE mobile_connections")
         db.execute("DELETE FROM schema_migrations")
         db.execute("INSERT INTO schema_migrations VALUES (49, 'previous', 'now')")
         db.execute("INSERT INTO llm_functional_model_settings VALUES ('defaultConversation',26,?,'now','now')", (dumps(role_payload),))

@@ -227,10 +227,15 @@ def test_release_json_is_accepted_by_current_updater(package_repo, shell_name):
     from app.services.application.software_update import _extract_update_archive, _validate_staged_payload
 
     repo = package_repo
+    notes = "更新说明：保留中文与换行。\n第二行。"
+    _write(repo, "release-notes.md", notes)
     _package(repo, "package-release.ps1", "-Version", "0.2.0", "-Tag", "v0.2.0",
-             "-PreviousTag", "v0.1.0", "-OutputDirectory", "output", shell_name=shell_name)
+             "-PreviousTag", "v0.1.0", "-OutputDirectory", "output",
+             "-ReleaseNotesFile", "release-notes.md", shell_name=shell_name)
     index = json.loads((repo / "output/update.json").read_text(encoding="utf-8"))
     assert index["version"] == "0.2.0"
+    assert index["releaseName"] == "Tiance v0.2.0"
+    assert index["releaseNotes"].replace("\r\n", "\n") == notes
     for name in ("Tiance-update.zip", "Tiance-update-incremental.zip"):
         stage = repo / f"stage-{name}"
         _extract_update_archive(repo / "output" / name, stage)

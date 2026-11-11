@@ -23,7 +23,9 @@ export type FileWorkspaceWatchHandlers = ProjectFileWatchHandlers;
 
 export type DocumentFileSourceRuntime = {
   source: DocumentFileSource;
-  getApi: () => FileWorkspaceApi;
+  getApi: () => Pick<FileWorkspaceApi, "readTextFile" | "saveTextFile">
+    & Partial<Pick<FileWorkspaceApi, "listTree" | "saveTextFiles">>;
+  readMetadata?: (path: string) => Promise<{ exists: boolean; mtimeMs: number | null }>;
   publishSavedNode?: (node: FileWorkspaceNode) => void;
   subscribeMutations?: (handler: (mutation: FileWorkspaceMutation) => void) => () => void;
   watchFileEvents?: (handlers: FileWorkspaceWatchHandlers) => () => void;

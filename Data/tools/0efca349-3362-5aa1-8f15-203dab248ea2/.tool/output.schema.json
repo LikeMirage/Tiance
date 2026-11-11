@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "required": [
+    "ok"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "sent",
+        "not_sent",
+        "unknown",
+        "partial"
+      ]
+    },
+    "message_ids": {
+      "type": "array",
+      "items": {
+        "type": ["integer", "string"]
+      }
+    },
+    "error": {
+      "type": "string"
+    }
+  },
+  "description": "list_connections 返回脱敏连接列表；send_file 返回状态、已确认的消息 ID、目标 ID、文件路径和大小。unknown 不能证明未发送，partial 表示文件已发送但后续附言未全部确认。"
+}

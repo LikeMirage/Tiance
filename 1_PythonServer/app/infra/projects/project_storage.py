@@ -152,6 +152,33 @@ class ProjectStorage:
         recycle_path(source)
         return True
 
+    def validate_project_data_recycle(self, project_root: str) -> Path:
+        # Validate the actual deletion target, not the whole project. An
+        # external workspace may itself contain Tiance's managed collections.
+        raw_source = Path(project_root).expanduser()
+        if _is_link_like(raw_source):
+            raise ValueError("项目路径不能是符号链接或连接点。")
+        source = raw_source.resolve()
+        workspace = source / ".Tiance"
+        if _is_link_like(workspace):
+            raise ValueError("天策数据目录不能是符号链接或连接点。")
+        if workspace.resolve().parent != source:
+            raise ValueError("天策数据目录必须位于该项目根目录内。")
+        for managed_root in self._managed_roots():
+            managed = managed_root.resolve()
+            if workspace == managed or workspace in managed.parents:
+                raise ValueError("天策数据清理不能包含项目集根目录。")
+        if workspace.exists() and not workspace.is_dir():
+            raise NotADirectoryError(".Tiance 不是文件夹，已停止清理。")
+        return workspace
+
+    def recycle_project_data(self, project_root: str) -> bool:
+        workspace = self.validate_project_data_recycle(project_root)
+        if not workspace.exists():
+            return False
+        recycle_path(workspace)
+        return True
+
     def remove_empty_project_root(self, project_root: str) -> None:
         """Clean up an empty directory whose initial registration failed, never its contents."""
         source = self.validate_project_recycle(project_root)

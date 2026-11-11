@@ -1,35 +1,29 @@
 {
-  "version": 1,
   "fallback": "ask",
   "policies": {
-    "unknown": {
+    "credential_use": {
       "all": "ask"
     },
-    "filesystem_read": {
-      "workspace_inside": "allow",
-      "workspace_outside": "allow",
-      "unresolved": "allow"
+    "external_data_modify": {
+      "all": "ask"
     },
-    "filesystem_write": {
-      "workspace_inside": "allow",
-      "workspace_outside": "ask",
-      "unresolved": "ask"
+    "external_data_read": {
+      "all": "allow"
     },
     "filesystem_delete": {
+      "unresolved": "ask",
       "workspace_inside": "ask",
-      "workspace_outside": "ask",
-      "unresolved": "ask"
+      "workspace_outside": "ask"
     },
-    "program_execute": {
-      "workspace_program": "allow",
-      "system_program": "ask",
-      "unresolved": "ask"
+    "filesystem_read": {
+      "unresolved": "allow",
+      "workspace_inside": "allow",
+      "workspace_outside": "allow"
     },
-    "process_control": {
-      "all": "ask"
-    },
-    "runtime_modify": {
-      "all": "ask"
+    "filesystem_write": {
+      "unresolved": "ask",
+      "workspace_inside": "allow",
+      "workspace_outside": "ask"
     },
     "network_access": {
       "loopback": "allow",
@@ -37,35 +31,41 @@
       "public_network": "allow",
       "unresolved": "ask"
     },
-    "credential_use": {
+    "process_control": {
       "all": "ask"
     },
-    "external_data_read": {
-      "all": "allow"
+    "program_execute": {
+      "system_program": "ask",
+      "unresolved": "ask",
+      "workspace_program": "allow"
     },
-    "external_data_modify": {
+    "runtime_modify": {
       "all": "ask"
+    },
+    "tiance_data_delete": {
+      "current_project": "ask",
+      "global_data": "ask",
+      "other_project": "ask",
+      "unresolved": "ask"
     },
     "tiance_data_read": {
       "current_project": "allow",
-      "other_project": "allow",
       "global_data": "allow",
+      "other_project": "allow",
       "unresolved": "allow"
     },
     "tiance_data_write": {
       "current_project": "allow",
-      "other_project": "ask",
       "global_data": "ask",
-      "unresolved": "ask"
-    },
-    "tiance_data_delete": {
-      "current_project": "ask",
       "other_project": "ask",
-      "global_data": "ask",
       "unresolved": "ask"
     },
     "ui_control": {
       "all": "allow"
+    },
+    "unknown": {
+      "all": "ask"
     }
-  }
+  },
+  "version": 1
 }

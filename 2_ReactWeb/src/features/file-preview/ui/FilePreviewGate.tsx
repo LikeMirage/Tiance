@@ -55,6 +55,9 @@ export function FilePreviewGate({ tab, src: sourceSrc, children, onMissing }: {
   const checkedSrc = state.checkedSrc ?? src;
   useEffect(() => {
     if (!stopped) return;
+    if (tab.referenceOrigin && inspection?.mode === "blocked" && !current?.error) {
+      tab.revealRequest?.complete({ type: "reference", selected: false }); return;
+    }
     tab.revealRequest?.fail(new DocumentRevealError(cancelled ? "CANCELLED" : "PREVIEW_UNAVAILABLE",
       cancelled ? "文件预览加载已取消。" : current?.error ?? inspection?.message ?? "无法预览此文件。"));
   }, [tab.revealRequest, stopped, cancelled, current?.error, inspection?.message]);

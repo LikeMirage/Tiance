@@ -1,12 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import { createDocumentExternalFileActions } from "../model/documentExternalFileActions";
+import type { DocumentExternalFileActions } from "../model/documentExternalFileActions";
+import { REFERENCE_UNAVAILABLE } from "../../../entities/editor/model/editorReference";
 
 type DocumentOpenFallbackContentProps = {
   activeTab: DocumentTab;
   detail?: string | null;
   heading: string;
+  actions?: DocumentExternalFileActions | null;
+  extraAction?: { label: string; run: () => Promise<void> };
+  reference?: boolean;
 };
 
 
@@ -24,9 +29,14 @@ export function DocumentOpenFallbackContent({
   activeTab,
   detail = null,
   heading,
+  actions,
+  extraAction,
+  reference = false,
 }: DocumentOpenFallbackContentProps) {
   const [actionError, setActionError] = useState<string | null>(null);
-  const externalFileActions = createDocumentExternalFileActions(activeTab);
+  const [missing, setMissing] = useState(false);
+  useEffect(() => { setMissing(false); setActionError(null); }, [activeTab.id, activeTab.referenceResolution]);
+  const externalFileActions = actions === undefined ? createDocumentExternalFileActions(activeTab) : actions;
 
   const runAction = async (action: (() => Promise<void>) | null) => {
     if (!action) return;
@@ -34,20 +44,21 @@ export function DocumentOpenFallbackContent({
     try {
       await action();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "操作失败。");
+      if (reference && err && typeof err === "object" && "status" in err && err.status === 404) setMissing(true);
+      else setActionError(err instanceof Error ? err.message : "操作失败。");
     }
   };
 
   return (
     <div className="doc-editor__unsupported" role="status">
       <div className="doc-editor__unsupported-card">
-        <strong>{heading}</strong>
+        <strong>{missing ? REFERENCE_UNAVAILABLE : heading}</strong>
         {detail ? <span>{detail}</span> : null}
         <span className="doc-editor__unsupported-name">{activeTab.title}</span>
         <span className="doc-editor__unsupported-path" title={activeTab.displayPath}>
           {activeTab.displayPath}
         </span>
-        <div className="doc-editor__unsupported-actions">
+        {!missing && externalFileActions ? <div className="doc-editor__unsupported-actions">
           <button
             className="doc-editor__unsupported-button"
             disabled={!externalFileActions.revealFile}
@@ -64,7 +75,9 @@ export function DocumentOpenFallbackContent({
           >
             用默认应用打开
           </button>
-        </div>
+          {extraAction ? <button className="doc-editor__unsupported-button" type="button"
+            onClick={() => { void runAction(extraAction.run); }}>{extraAction.label}</button> : null}
+        </div> : null}
         {actionError ? (
           <span className="doc-editor__unsupported-error">{actionError}</span>
         ) : null}

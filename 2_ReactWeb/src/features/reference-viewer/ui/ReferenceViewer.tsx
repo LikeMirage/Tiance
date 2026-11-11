@@ -1,4 +1,11 @@
-import { useMemo } from "react";
+import { useContext, useMemo } from "react";
+import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
+import { REFERENCE_UNAVAILABLE } from "../../../entities/editor/model/editorReference";
+import { ReferenceProjectNavigationContext } from "../../../entities/editor/model/referenceProjectNavigation";
+import { referenceOriginalFile } from "../../../entities/editor/model/referenceNavigation";
+import { DocumentOpenFallbackContent } from "../../document-editor-canvas/ui/UnsupportedDocumentContent";
+import { openDesktopLocalPath, revealDesktopLocalPath } from "../../../services/desktop/localPathApi";
+import { resolveFileReference } from "../../../services/editor/localEditorFiles";
 
 import type { EditorReferenceViewerPayload } from "../../../entities/editor/model/editorReference";
 import { textReferenceLocationLabel } from "../../../entities/editor/model/editorTextReferenceLocation";
@@ -8,10 +15,38 @@ import "./reference-viewer.css";
 
 type ReferenceViewerProps = {
   content: string;
+  activeTab?: DocumentTab;
 };
 
-export function ReferenceViewer({ content }: ReferenceViewerProps) {
+export function ReferenceViewer({ content, activeTab }: ReferenceViewerProps) {
   const payload = useMemo(() => parsePayload(content), [content]);
+  const navigateProject = useContext(ReferenceProjectNavigationContext);
+  const resolution = activeTab?.referenceResolution;
+  if (activeTab && payload && resolution) {
+    const original = referenceOriginalFile(payload);
+    const project = resolution.kind === "folder" ? resolution.project : null;
+    const checkedFolder = async () => {
+      const result = await resolveFileReference(original, activeTab.projectId!, null);
+      if (result.kind !== "folder") throw new Error("引用目标已经不是文件夹。");
+      return result;
+    };
+    return <DocumentOpenFallbackContent
+      activeTab={{ ...activeTab, title: project?.name ?? original.fileName,
+        displayPath: resolution.kind === "folder" ? resolution.path : original.displayPath }}
+      heading={resolution.kind === "missing" ? REFERENCE_UNAVAILABLE : project ? "天策项目" : "文件夹"}
+      detail={project?.category_name}
+      reference
+      actions={resolution.kind === "missing" ? null : {
+        openNativeFile: async () => openDesktopLocalPath((await checkedFolder()).path),
+        revealFile: async () => revealDesktopLocalPath((await checkedFolder()).path),
+      }}
+      extraAction={project && navigateProject ? { label: "前往此项目", run: async () => {
+        const checked = await checkedFolder();
+        if (!checked.project) throw new Error("此文件夹已不在天策项目列表中。");
+        await navigateProject(checked.project);
+      } } : undefined}
+    />;
+  }
   if (!payload) {
     return (
       <div className="reference-viewer reference-viewer--empty">

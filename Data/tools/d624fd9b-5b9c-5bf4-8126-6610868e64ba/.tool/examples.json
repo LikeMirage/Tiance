@@ -1,11 +1,23 @@
 [
   {
+    "title": "会话结构与层级",
+    "content": "每个项目有多棵会话树。每个会话下都可以有：AI子会话 child、对话分支 fork（用户编辑历史消息派生）、功能分支 functional。功能分支按 automatic_naming 自动命名、memory_compaction 记忆压缩、project_memory_management 项目记忆管理、global_memory_management 全局记忆管理分成四组。分组标题不是会话，没有独立 session_id；组内的每条会话仍是独立会话，也可以继续拥有上述下级，结构没有固定层数上限。\n新建普通会话是顶层，create_session 创建调用会话的 AI 子会话，不会自动复制全部历史。功能会话默认关闭自身的自动功能触发，结构可递归不代表后台任务会无限递归。\n列表为带父 ID 的平表，不是按输出顺序推断父子。parent_session_id/depth/group 表示当前可见位置；relation_kind/function_type/created_by 保留来源。删除父级后，下级可能提升为顶层但来源仍为 functional/fork/child。display_number 仅在各自同组内编号，删除/增减后会变化；任何操作必须传 session_id。active_session_id 是用户当前看的会话，caller_session_id 是调用者，两者不必相同。"
+  },
+  {
+    "title": "定位某层级与功能分类",
+    "content": "项目顶层：{\"action\": \"list_sessions\", \"scope\": \"roots\"}\n指定父级下的全部直属分组（不含父级）：{\"action\": \"list_sessions\", \"scope\": \"children\", \"session_id\": \"sess_parent\"}\n只看该父级直属的压缩会话：{\"action\": \"list_sessions\", \"scope\": \"children\", \"session_id\": \"sess_parent\", \"group\": \"memory_compaction\"}\n查该父级任意深度的全部功能会话：{\"action\": \"list_sessions\", \"scope\": \"descendants\", \"session_id\": \"sess_parent\", \"group\": \"functional\"}\n筛选异常运行可追加 runtime_status=error。但运行状态不是功能提交状态，不能把 idle 等同成功，也不能仅据 error 自动清理；需查看消息确认。过滤在遍历后执行，因此经过其他分组也能找到更深的匹配会话。"
+  },
+  {
+    "title": "预览与精确删除",
+    "content": "仅删指定的一条或多条会话：session_id 或 session_ids 二选一，include_descendants 默认 false。保留下级会自动接到最近仍存活的祖先，无祖先则成为顶层。include_descendants=true 时递归包含各目标所有分类、所有深度的后代，重复目标与重叠子树只删除一次。清理某层级/分类时先 list_sessions 筛选出真实 ID，不能把分组当会话，不能传筛选条件直接删除，尤其不要为清空某组而误删父会话。\n预览：{\"action\": \"preview_delete\", \"session_ids\": [\"sess_a\", \"sess_b\"], \"include_descendants\": true}\n预览不停止任务、不修改数据，返回 session_ids、count 和 reparented_sessions。若要严格按预览名单执行，将返回的完整 session_ids 原样作为删除参数，并保持 include_descendants=false，再传 confirm=true：{\"action\": \"delete_session\", \"session_ids\": [\"sess_a\", \"sess_a_child\", \"sess_b\"], \"include_descendants\": false, \"confirm\": true}\n若执行时仍传 include_descendants=true，会按执行时最新树重新展开。单次执行只删展开时的明确 ID 清单；此后新建的后代不在清单内，会保留，不能宣称整组永久为空。\n调用者自身及祖先不可删除，防止工具未返回自己先被中止。目标运行中时复用后端正常停止、取消相关后台任务、等待审计落盘，再批量删除；ID 无效或保护检查失败则整批拒绝。删除会话不会清除已提交的项目/全局长期记忆，也不会回滚已写回其他会话的结果。纯清理功能记录不等于撤销其产物。"
+  },
+  {
     "title": "查询模型选择器中的对话模型",
     "content": "先按供应商或模型名称搜索聊天面板实际可选的模型。\n\n输入参数：\n{\n  \"action\": \"query_models\",\n  \"query\": \"模型关键词\"\n}\n\n再使用查询结果中真实存在的 provider_id 和 model_id 精确查询该模型的推理模式与运行能力：\n{\n  \"action\": \"query_models\",\n  \"provider_id\": \"查询结果中的供应商ID\",\n  \"model_id\": \"查询结果中的模型ID\"\n}"
   },
   {
     "title": "列出自己的关联会话",
-    "content": "默认只列出调用会话的父级链和自己的下级树，不包含调用会话本身，也不会混入同级会话；省略 relation_depth 表示不限层级。每项只包含实时 title、session_id 和 runtime_status，顶层 active_session_id 表示聊天面板当前正在显示的会话。\n\n输入参数：\n{\n  \"action\": \"list_sessions\"\n}\n\n只查看直接父级和直接下级：\n{\n  \"action\": \"list_sessions\",\n  \"relation_depth\": 1\n}\n\n取得目标 session_id 后，可使用 interact_ai_conversation 发送任务；后台委派时可要求目标 AI 完成后通过消息末尾自动附带的来源会话 ID 直接汇报。"
+    "content": "默认列出调用会话的祖先链和全部后代，不含自身、同级；省略 relation_depth 不限层数。每项返回名称、ID、状态、父级、分类、层数和同组编号。\n\n{\"action\": \"list_sessions\"}\n\n只看直接父级与下级：{\"action\": \"list_sessions\", \"relation_depth\": 1}"
   },
   {
     "title": "列出项目全部会话",
@@ -32,7 +44,19 @@
     "content": "使用与创建会话相同的 configuration 结构修改已有会话，只改变明确给出的字段。切换模型前先用 query_models 取得真实供应商、模型及可选推理模式。\n\n只修改模型无关设置的输入参数：\n{\n  \"action\": \"configure_session\",\n  \"session_id\": \"sess_xxx\",\n  \"configuration\": {\n    \"settings\": {\n      \"max_tool_calls\": 40\n    }\n  }\n}"
   },
   {
-    "title": "停止、显示或删除会话",
-    "content": "停止运行中的会话：\n{\n  \"action\": \"stop_session\",\n  \"session_id\": \"sess_xxx\"\n}\n\n在聊天面板中显示会话：\n{\n  \"action\": \"show_session\",\n  \"session_id\": \"sess_xxx\"\n}\n\n删除会话必须显式确认：\n{\n  \"action\": \"delete_session\",\n  \"session_id\": \"sess_xxx\",\n  \"confirm\": true\n}"
+    "title": "停止或显示会话",
+    "content": "停止目标运行：{\"action\": \"stop_session\", \"session_id\": \"sess_target\"}\n显示目标（会切换聊天面板）：{\"action\": \"show_session\", \"session_id\": \"sess_target\"}"
+  },
+  {
+    "title": "角色配置的组合顺序",
+    "content": "create_session / clone_session / configure_session 共用 configuration。省略时继承调用会话（configure 则保留目标配置）；{role_project_id:\"实际角色ID\"} 使用角色整套设置含模型；加 model_source:\"caller\" 继承调用者模型；也可明确 provider_id+model_id。settings 和 reasoning_mode 最后覆盖。角色模板及源会话不变。用 query_models 确认目标模型能力，角色没有模型时需明确指定。",
+    "enabled": true,
+    "inject_content": false
+  },
+  {
+    "title": "复刻会话的历史边界",
+    "content": "clone_session 等同于编辑调用会话最后一条用户消息的分支流程，分类为 AI 子会话。复制该消息以前的完整历史，原消息及引用进入草稿。可传 source_message_id 选择更早的用户消息。源会话可以继续运行，当前轮中的未完成工具调用不复制；历史中的附件和覆盖边界内已完成压缩快照继承，正在做的压缩不延迟追写到新会话。可在 configuration 选择角色/模型，也可后续 configure_session。创建不等于发送，使用会话交互工具发送任务。",
+    "enabled": true,
+    "inject_content": false
   }
 ]

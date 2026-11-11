@@ -58,6 +58,34 @@ def test_run_status_identity_changes_and_cancel_is_immediate():
     asyncio.run(run_test())
 
 
+def test_stop_for_an_old_remote_button_cannot_cancel_current_run():
+    async def run_test():
+        manager = ConversationRunManager()
+        await manager.start(_request(), _ControlledStreamService())
+        current = await manager.get_run_status("project-1", "session-1")
+        assert not await manager.stop("project-1", "session-1", expected_run_id="old-run")
+        assert await manager.get_run_status("project-1", "session-1") == current
+        assert await manager.stop("project-1", "session-1", expected_run_id=current["run_id"])
+        await manager.close()
+    asyncio.run(run_test())
+
+
+def test_remote_resubscription_cannot_attach_to_a_new_generation():
+    async def run_test():
+        manager = ConversationRunManager()
+        first = await manager.start(_request(), _ControlledStreamService())
+        assert first.run_id
+        await manager.stop("project-1", "session-1")
+        second = await manager.start(_request(), _ControlledStreamService())
+        assert second.run_id != first.run_id
+        with pytest.raises(NotFoundError):
+            await manager.subscribe("project-1", "session-1", expected_run_id=first.run_id)
+        resumed = await manager.subscribe("project-1", "session-1", expected_run_id=second.run_id)
+        assert resumed.run_id == second.run_id
+        await manager.close()
+    asyncio.run(run_test())
+
+
 def test_tool_context_uses_live_manager_identity_not_persisted_turn_identity():
     from dataclasses import replace
     from app.services.project.conversation_run_context import active_run_id_for

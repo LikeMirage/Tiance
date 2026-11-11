@@ -8,6 +8,7 @@ from tempfile import NamedTemporaryFile
 from uuid import UUID
 
 from app.core.atomic_replace import atomic_replace_path
+from app.infra.projects.workspace_lifecycle import workspace_access
 
 
 PROJECT_IDENTITY_RELATIVE_PATH = Path(".Tiance") / "project.json"
@@ -42,6 +43,11 @@ def write_project_identity(
     project_root: str | Path,
     identity: ProjectIdentity,
 ) -> bool:
+    with workspace_access(Path(project_root) / ".Tiance"):
+        return _write_available_project_identity(project_root, identity)
+
+
+def _write_available_project_identity(project_root: str | Path, identity: ProjectIdentity) -> bool:
     root = Path(project_root).resolve()
     if not root.is_dir():
         raise FileNotFoundError("项目文件夹不存在。")

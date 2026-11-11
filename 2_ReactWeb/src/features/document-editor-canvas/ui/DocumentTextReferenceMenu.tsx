@@ -40,6 +40,7 @@ export function useDocumentTextReferenceMenu({
       contentMarkdown?: string;
       documentFingerprint?: string;
       endLine?: number;
+      pageNumber?: number;
       location?: EditorWordTextReferenceLocation;
       startLine?: number;
       x: number;
@@ -56,6 +57,7 @@ export function useDocumentTextReferenceMenu({
         contentMarkdown: selection.contentMarkdown,
         documentFingerprint: selection.documentFingerprint,
         endLine: selection.endLine,
+        pageNumber: selection.pageNumber,
         location: selection.location,
         source,
         startLine: selection.startLine,
@@ -84,6 +86,7 @@ export function useDocumentTextReferenceMenu({
       {
         content: selected.content,
         contentMarkdown: renderedSelectionMarkdown(selected.range),
+        pageNumber: source === "pdf" ? readPdfPage(selected.range) : undefined,
         documentFingerprint: source === "office"
           ? readDocumentFingerprint(event.currentTarget)
           : undefined,
@@ -132,6 +135,7 @@ function buildEditorTextReferenceDraft(
     contentMarkdown?: string;
     documentFingerprint?: string;
     endLine?: number;
+    pageNumber?: number;
     location?: EditorWordTextReferenceLocation;
     source: EditorTextReferenceSource;
     startLine?: number;
@@ -144,6 +148,7 @@ function buildEditorTextReferenceDraft(
     displayPath: tab.displayPath,
     documentFingerprint: selection.documentFingerprint,
     endLine: selection.endLine,
+    pageNumber: selection.pageNumber,
     fileName: tab.title,
     filePath,
     location: selection.location,
@@ -165,4 +170,11 @@ function readSelectedTextInside(surface: HTMLElement) {
 function readDocumentFingerprint(surface: HTMLElement) {
   return surface.querySelector<HTMLElement>("[data-document-fingerprint]")
     ?.dataset.documentFingerprint;
+}
+
+function readPdfPage(range: Range) {
+  const node = range.startContainer;
+  const element = node instanceof Element ? node : node.parentElement;
+  const page = Number(element?.closest<HTMLElement>("[data-pdf-page]")?.dataset.pdfPage);
+  return Number.isSafeInteger(page) && page > 0 ? page : undefined;
 }

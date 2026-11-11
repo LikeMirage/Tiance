@@ -3,6 +3,7 @@ from pathlib import Path
 from shutil import rmtree
 from uuid import uuid4
 
+from app.domain.project.project_conversation import conversation_session_configuration_hash
 from app.core.atomic_replace import atomic_replace_path
 from app.core.errors import ConflictError, NotFoundError
 from app.domain.project.conversation_branch import (
@@ -14,12 +15,13 @@ from app.repositories.project.conversation_branch_copy import (
     write_derived_session_snapshot,
 )
 from app.repositories.project.conversation_branch_store import (
-    CREATED_BY_USER,
+    RELATION_KIND_CHILD,
     RELATION_KIND_FORK,
     ConversationBranchStore,
 )
 from app.repositories.project.conversation_serialization import (
     _merge_session_state,
+    _merge_session_settings,
     _new_session_id,
     _utc_now,
 )
@@ -47,9 +49,11 @@ class ProjectConversationBranchRepository:
         project_id: str,
         source_session_id: str,
         *,
-        source_message_id: str,
-        draft: str,
-        references: list[dict],
+        source_message_id: str | None,
+        draft: str | None,
+        references: list[dict] | None,
+        created_by: str = "user",
+        configuration: dict | None = None,
     ) -> ProjectConversationForkResult:
         conversations_dir = self._session_store.conversations_dir(project_id, for_write=True)
         with conversation_write_lock(conversations_dir):
@@ -66,10 +70,13 @@ class ProjectConversationBranchRepository:
                 conversations_dir,
                 source_session_id,
             )
-            if source_state.runtime_status == "running":
+            if source_state.runtime_status == "running" and created_by != "ai":
                 raise ConflictError("当前会话正在生成，完成或停止后才能创建分支。")
 
             source_messages = self._message_store.list_messages(source_session_dir)
+            if source_message_id is None:
+                source_message_id = next((message.message_id for message in reversed(source_messages)
+                                          if message.role == "user" and message.status == "done"), None)
             source_index = next(
                 (
                     message_index
@@ -84,6 +91,8 @@ class ProjectConversationBranchRepository:
             if source_message.role != "user" or source_message.status != "done":
                 raise ConflictError("只能从已完成的用户消息创建分支。")
 
+            draft = source_message.content if draft is None else draft
+            references = source_message.references if references is None else references
             now = _utc_now()
             graph = self._branch_store.read_graph(conversations_dir)
             parent_branch = self._branch_store.ensure_root_node(
@@ -97,8 +106,9 @@ class ProjectConversationBranchRepository:
                 parent=parent_branch,
                 session_id=target_session_id,
                 created_at=now,
-                created_by=CREATED_BY_USER,
-                relation_kind=RELATION_KIND_FORK,
+                created_by=created_by,
+                relation_kind=RELATION_KIND_CHILD if created_by == "ai" else RELATION_KIND_FORK,
+                history_mode="fork",
                 source_message_id=source_message_id,
             )
             source_origin_id = source_message.origin_message_id or source_message.message_id
@@ -137,6 +147,19 @@ class ProjectConversationBranchRepository:
                 message_count=len(copied_messages),
                 manual_title=False,
             )
+            if configuration:
+                fields = {key: value for key, value in configuration.items()
+                          if key in {"title", "provider_id", "model_id", "reasoning_mode", "role_project_id"}}
+                child_session = replace(child_session, **fields,
+                    settings=_merge_session_settings(child_session.settings, configuration.get("settings")),
+                    manual_title="title" in configuration)
+                if configuration.get("role_project_id"):
+                    child_session = replace(child_session,
+                        role_configuration_hash=conversation_session_configuration_hash(child_session))
+                elif ("role_project_id" in configuration or
+                      conversation_session_configuration_hash(child_session)
+                      != conversation_session_configuration_hash(source_session)):
+                    child_session = replace(child_session, role_project_id=None, role_configuration_hash=None)
             child_state = _merge_session_state(
                 target_session_id,
                 {
@@ -170,7 +193,7 @@ class ProjectConversationBranchRepository:
                 next_index = self._session_store.index_after_session_write(
                     conversations_dir,
                     child_session,
-                    set_active=True,
+                    set_active=created_by != "ai",
                 )
                 self._session_store.write_session_runtime_status(
                     conversations_dir,

@@ -38,6 +38,7 @@ def test_large_document_is_chunked_without_losing_text_or_source_positions(tmp_p
     result = inspect_file(path)
     assert result["mode"] == "paged"
     assert result["word"]["chunks"] > 100
+    assert len(result["word"]["ranges"]) == result["word"]["chunks"]
     assert result["word"]["fingerprint"] == "sha256:" + sha256(before).hexdigest()
     # Check separated chunks, including random access to the final one.
     for index in (0, 5, result["word"]["chunks"] - 1):
@@ -45,6 +46,7 @@ def test_large_document_is_chunked_without_losing_text_or_source_positions(tmp_p
         archive, root = unpack(chunk)
         actual = [e.text for e in root.iter(W + "t")]
         source = [int(key) for key in chunk["locations"]]
+        assert result["word"]["ranges"][index] == [min(source), max(source)]
         assert actual == [paragraphs[number - 1] for number in source]
         assert len(actual) <= policy.WORD_CHUNK_BLOCKS
         assert sum(part.file_size for part in archive.infolist()) < policy.MAX_WORD_PART_BYTES

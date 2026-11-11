@@ -872,8 +872,17 @@
       "selected": "{count} files selected",
       "pull": "Pull selected",
       "push": "Push selected",
-      "location": { "local": "Local only", "remote": "Remote only", "both": "Local and remote" },
-      "status": { "same": "Same", "local-only": "Local only", "remote-only": "Remote only", "different": "Different" },
+      "location": {
+        "local": "Local only",
+        "remote": "Remote only",
+        "both": "Local and remote"
+      },
+      "status": {
+        "same": "Same",
+        "local-only": "Local only",
+        "remote-only": "Remote only",
+        "different": "Different"
+      },
       "confirmPushTitle": "Confirm selected push",
       "confirmPullTitle": "Confirm selected pull",
       "planSummary": "Add {add} · Update {update} · Delete {delete}",
@@ -950,7 +959,7 @@
       "tabs": {
         "external": "External Access",
         "wechat": "WeChat",
-        "dingtalk": "DingTalk",
+        "feishu": "Feishu",
         "telegram": "Telegram"
       },
       "external": {
@@ -1233,6 +1242,7 @@
       }
     },
     "projectDelete": {
+      "clearTianceData": "Also clear Tiance data (conversations, memories, attachments, etc.), keeping work files.",
       "batch": {
         "title": {
           "remove": "Remove Selected Projects",
@@ -1252,6 +1262,7 @@
         "deleteLocal": "Delete Local Files"
       },
       "message": {
+        "removeWithData": "Remove the selected {count} project(s) and move their root .Tiance folders to the system Recycle Bin. Keep work files.",
         "remove": "Remove \"{projectName}\" from {productName} only. Real files will not be deleted.",
         "delete": "Move the project folder to the system Recycle Bin and remove the project?",
         "deleteLocal": "Move the local folder for \"{projectName}\" to the system Recycle Bin and remove the project from {productName}."
@@ -1287,13 +1298,28 @@
       "filterPanelAria": "Online role filters",
       "noResults": "No online roles match these filters.",
       "empty": "This role source has no roles yet.",
-      "filters": { "all": "All" },
-      "filterGroups": { "authors": "Authors", "statuses": "Status" },
-      "statuses": { "not-installed": "Not installed", "installed": "Installed", "update-available": "Update available" },
+      "filters": {
+        "all": "All"
+      },
+      "filterGroups": {
+        "authors": "Authors",
+        "statuses": "Status"
+      },
+      "statuses": {
+        "not-installed": "Not installed",
+        "installed": "Installed",
+        "update-available": "Update available"
+      },
       "install": {
-        "title": "Download online role", "message": "Choose the local role category for “{name}”.",
-        "category": "Local category", "confirm": "Download and install", "download": "Download",
-        "update": "Update", "installed": "Installed", "installingShort": "Installing", "failed": "Role installation failed",
+        "title": "Download online role",
+        "message": "Choose the local role category for “{name}”.",
+        "category": "Local category",
+        "confirm": "Download and install",
+        "download": "Download",
+        "update": "Update",
+        "installed": "Installed",
+        "installingShort": "Installing",
+        "failed": "Role installation failed",
         "updateTitle": "Update online role",
         "updateMessage": "Update “{name}” from v{current} to v{next}. This replaces role configuration files; its local category, name, and conversation history stay unchanged.",
         "updateConfirm": "Confirm update"
@@ -1303,25 +1329,47 @@
       "ariaLabel": "Online Tools",
       "sourceLabel": "Online tool source",
       "sourcePlaceholder": "Enter a published tool repository URL",
-      "connect": "Connect", "connecting": "Connecting", "useDefault": "Default source",
-      "loading": "Loading online tools…", "notConnected": "No online tool source is connected.",
-      "toolCount": "{count} tools", "updatedAt": "Updated {value}", "cached": "Local cache",
-      "searchPlaceholder": "Search tools, call names, or purposes", "filter": "Filter",
+      "connect": "Connect",
+      "connecting": "Connecting",
+      "useDefault": "Default source",
+      "loading": "Loading online tools…",
+      "notConnected": "No online tool source is connected.",
+      "toolCount": "{count} tools",
+      "updatedAt": "Updated {value}",
+      "cached": "Local cache",
+      "searchPlaceholder": "Search tools, call names, or purposes",
+      "filter": "Filter",
       "filterPanelAria": "Online tool filters",
-      "noResults": "No online tools match these filters.", "empty": "This tool source has no entries yet.",
-      "filters": { "all": "All" },
-      "filterGroups": { "authors": "Authors", "runtimes": "Runtime", "platforms": "Platform", "statuses": "Status" },
+      "noResults": "No online tools match these filters.",
+      "empty": "This tool source has no entries yet.",
+      "filters": {
+        "all": "All"
+      },
+      "filterGroups": {
+        "authors": "Authors",
+        "runtimes": "Runtime",
+        "platforms": "Platform",
+        "statuses": "Status"
+      },
       "statuses": {
-        "not-installed": "Not installed", "installed": "Installed",
-        "update-available": "Update available", "call-name-conflict": "Call name conflict"
+        "not-installed": "Not installed",
+        "installed": "Installed",
+        "update-available": "Update available",
+        "call-name-conflict": "Call name conflict"
       },
       "install": {
-        "title": "Download online tool", "message": "Choose the local category and call name for “{name}”. Tool packages may contain executable code; install only from a trusted source.",
-        "category": "Local category", "callName": "Tool call name",
+        "title": "Download online tool",
+        "message": "Choose the local category and call name for “{name}”. Tool packages may contain executable code; install only from a trusted source.",
+        "category": "Local category",
+        "callName": "Tool call name",
         "callNameHint": "Used by AI calls; lowercase letters, numbers, and underscores only.",
         "callNameConflict": "The published call name is already used. An available name is suggested and can be edited.",
-        "confirm": "Download and install", "download": "Download", "update": "Update", "installed": "Installed",
-        "installingShort": "Installing", "failed": "Tool installation failed",
+        "confirm": "Download and install",
+        "download": "Download",
+        "update": "Update",
+        "installed": "Installed",
+        "installingShort": "Installing",
+        "failed": "Tool installation failed",
         "updateTitle": "Update online tool",
         "updateMessage": "Update “{name}” from v{current} to v{next}. The program snapshot is updated while the local call name, enabled state, dynamic loading state, dependencies, program/config.json, and conversation data are preserved.",
         "updateConfirm": "Confirm update"
@@ -1336,24 +1384,43 @@
       "ariaLabel": "Online Providers",
       "sourceLabel": "Online provider source",
       "sourcePlaceholder": "Enter a published provider repository URL",
-      "connect": "Connect", "connecting": "Connecting", "useDefault": "Default source",
-      "loading": "Loading online providers…", "notConnected": "No online provider source is connected.",
-      "providerCount": "{count} providers", "modelCount": "{count} models",
-      "updatedAt": "Updated {value}", "cached": "Local cache",
-      "searchPlaceholder": "Search providers, protocols, or adaptations", "filter": "Filter",
+      "connect": "Connect",
+      "connecting": "Connecting",
+      "useDefault": "Default source",
+      "loading": "Loading online providers…",
+      "notConnected": "No online provider source is connected.",
+      "providerCount": "{count} providers",
+      "modelCount": "{count} models",
+      "updatedAt": "Updated {value}",
+      "cached": "Local cache",
+      "searchPlaceholder": "Search providers, protocols, or adaptations",
+      "filter": "Filter",
       "filterPanelAria": "Online provider filters",
-      "noResults": "No online providers match these filters.", "empty": "This provider source has no entries yet.",
-      "filters": { "all": "All" },
-      "filterGroups": { "authors": "Authors", "protocols": "Protocols", "statuses": "Status" },
+      "noResults": "No online providers match these filters.",
+      "empty": "This provider source has no entries yet.",
+      "filters": {
+        "all": "All"
+      },
+      "filterGroups": {
+        "authors": "Authors",
+        "protocols": "Protocols",
+        "statuses": "Status"
+      },
       "statuses": {
-        "not-installed": "Not installed", "installed": "Installed",
+        "not-installed": "Not installed",
+        "installed": "Installed",
         "update-available": "Update available"
       },
       "install": {
-        "title": "Download online provider", "message": "Choose the local provider category for “{name}”.",
-        "category": "Local category", "confirm": "Download and install", "download": "Download",
-        "update": "Update", "installed": "Installed",
-        "installingShort": "Installing", "failed": "Provider installation failed",
+        "title": "Download online provider",
+        "message": "Choose the local provider category for “{name}”.",
+        "category": "Local category",
+        "confirm": "Download and install",
+        "download": "Download",
+        "update": "Update",
+        "installed": "Installed",
+        "installingShort": "Installing",
+        "failed": "Provider installation failed",
         "updateTitle": "Update online provider",
         "updateMessage": "Update “{name}” from v{current} to v{next}. Only the package manifest and protocol adaptation rules are updated. API keys, endpoints, protocol selection, enabled state, models, local category, and conversation data are unchanged.",
         "updateConfirm": "Confirm update"
@@ -1377,10 +1444,23 @@
       "noResults": "No online projects match these filters.",
       "empty": "This project source has no projects yet.",
       "previewAlt": "Preview of {name}",
-      "filters": { "all": "All" },
-      "filterGroups": { "authors": "Authors", "tags": "Tags", "statuses": "Status" },
-      "statuses": { "not-installed": "Not installed", "installed": "Installed" },
-      "stats": { "files": "{count} files", "conversations": "{count} conversations", "branches": "{count} branches" },
+      "filters": {
+        "all": "All"
+      },
+      "filterGroups": {
+        "authors": "Authors",
+        "tags": "Tags",
+        "statuses": "Status"
+      },
+      "statuses": {
+        "not-installed": "Not installed",
+        "installed": "Installed"
+      },
+      "stats": {
+        "files": "{count} files",
+        "conversations": "{count} conversations",
+        "branches": "{count} branches"
+      },
       "install": {
         "title": "Download online project",
         "message": "Choose the local project category for “{name}”. The snapshot may contain files, conversations, branches, and memory.",
@@ -1388,7 +1468,12 @@
         "confirm": "Download and import",
         "download": "Download",
         "installed": "Installed",
-        "phases": { "queued": "Queued", "downloading": "Downloading", "extracting": "Extracting", "importing": "Importing" }
+        "phases": {
+          "queued": "Queued",
+          "downloading": "Downloading",
+          "extracting": "Extracting",
+          "importing": "Importing"
+        }
       }
     },
     "knowledgeContent": {
@@ -1419,10 +1504,23 @@
       "noResults": "No online knowledge matches these filters.",
       "empty": "This knowledge source has no content yet.",
       "previewAlt": "Preview of {name}",
-      "filters": { "all": "All" },
-      "filterGroups": { "authors": "Authors", "tags": "Tags", "statuses": "Status" },
-      "statuses": { "not-installed": "Not installed", "installed": "Installed" },
-      "stats": { "files": "{count} files", "conversations": "{count} conversations", "branches": "{count} branches" },
+      "filters": {
+        "all": "All"
+      },
+      "filterGroups": {
+        "authors": "Authors",
+        "tags": "Tags",
+        "statuses": "Status"
+      },
+      "statuses": {
+        "not-installed": "Not installed",
+        "installed": "Installed"
+      },
+      "stats": {
+        "files": "{count} files",
+        "conversations": "{count} conversations",
+        "branches": "{count} branches"
+      },
       "install": {
         "title": "Download online knowledge",
         "message": "Choose the local knowledge category for “{name}”. The full snapshot may contain files, conversations, branches, and memory.",
@@ -1430,7 +1528,12 @@
         "confirm": "Download and import",
         "download": "Download",
         "installed": "Installed",
-        "phases": { "queued": "Queued", "downloading": "Downloading", "extracting": "Extracting", "importing": "Importing" }
+        "phases": {
+          "queued": "Queued",
+          "downloading": "Downloading",
+          "extracting": "Extracting",
+          "importing": "Importing"
+        }
       }
     },
     "experienceMarket": {
@@ -1451,10 +1554,23 @@
       "noResults": "No online experience matches the filters.",
       "empty": "This experience source has no content yet.",
       "previewAlt": "Preview of {name}",
-      "filters": { "all": "All" },
-      "filterGroups": { "authors": "Authors", "tags": "Tags", "statuses": "Status" },
-      "statuses": { "not-installed": "Not installed", "installed": "Installed" },
-      "stats": { "files": "{count} files", "conversations": "{count} conversations", "branches": "{count} branches" },
+      "filters": {
+        "all": "All"
+      },
+      "filterGroups": {
+        "authors": "Authors",
+        "tags": "Tags",
+        "statuses": "Status"
+      },
+      "statuses": {
+        "not-installed": "Not installed",
+        "installed": "Installed"
+      },
+      "stats": {
+        "files": "{count} files",
+        "conversations": "{count} conversations",
+        "branches": "{count} branches"
+      },
       "install": {
         "title": "Download online experience",
         "message": "Choose the local experience category for “{name}”. The complete snapshot may include files, conversations, branches, and memory.",
@@ -1462,7 +1578,12 @@
         "confirm": "Download and import",
         "download": "Download",
         "installed": "Installed",
-        "phases": { "queued": "Queued", "downloading": "Downloading", "extracting": "Extracting", "importing": "Importing" }
+        "phases": {
+          "queued": "Queued",
+          "downloading": "Downloading",
+          "extracting": "Extracting",
+          "importing": "Importing"
+        }
       }
     },
     "themeMarket": {
@@ -1490,19 +1611,44 @@
         "dark": "Dark",
         "light": "Light"
       },
-      "filterGroups": { "modes": "Mode", "authors": "Author", "baseColors": "Base color", "statuses": "Status" },
-      "statuses": { "not-installed": "Not installed", "installed": "Installed", "update-available": "Update available" },
+      "filterGroups": {
+        "modes": "Mode",
+        "authors": "Author",
+        "baseColors": "Base color",
+        "statuses": "Status"
+      },
+      "statuses": {
+        "not-installed": "Not installed",
+        "installed": "Installed",
+        "update-available": "Update available"
+      },
       "baseColors": {
-        "black": "Black", "white": "White", "gray": "Gray", "red": "Red",
-        "orange": "Orange", "gold": "Gold", "green": "Green", "cyan": "Cyan",
-        "blue": "Blue", "purple": "Purple", "pink": "Pink", "brown": "Brown"
+        "black": "Black",
+        "white": "White",
+        "gray": "Gray",
+        "red": "Red",
+        "orange": "Orange",
+        "gold": "Gold",
+        "green": "Green",
+        "cyan": "Cyan",
+        "blue": "Blue",
+        "purple": "Purple",
+        "pink": "Pink",
+        "brown": "Brown"
       },
       "install": {
-        "title": "Download online theme", "message": "Choose the local theme category for “{name}”.",
-        "category": "Local category", "confirm": "Download and install", "download": "Download",
-        "update": "Update", "installed": "Installed", "installing": "Downloading, verifying, and installing…",
-        "installingShort": "Installing", "failed": "Theme installation failed",
-        "updateTitle": "Update online theme", "updateMessage": "Update “{name}” from v{current} to v{next}. Theme definitions and assets are updated; the local category, project name, conversation data, and non-theme files are preserved.",
+        "title": "Download online theme",
+        "message": "Choose the local theme category for “{name}”.",
+        "category": "Local category",
+        "confirm": "Download and install",
+        "download": "Download",
+        "update": "Update",
+        "installed": "Installed",
+        "installing": "Downloading, verifying, and installing…",
+        "installingShort": "Installing",
+        "failed": "Theme installation failed",
+        "updateTitle": "Update online theme",
+        "updateMessage": "Update “{name}” from v{current} to v{next}. Theme definitions and assets are updated; the local category, project name, conversation data, and non-theme files are preserved.",
         "updateConfirm": "Update"
       },
       "errors": {
@@ -1512,6 +1658,11 @@
       }
     },
     "projectOverview": {
+      "copySessionId": "Copy conversation ID",
+      "copySessionName": "Copy conversation name",
+      "sessionIdClipboard": "Conversation ID: {id}",
+      "sessionNameClipboard": "Conversation name: {title}",
+      "copySessionFailed": "Copy failed. Check clipboard permissions and try again.",
       "activeSessions": "Active {count}",
       "deleteFailed": "Failed to delete conversation.",
       "deleteSessionDeleting": "Deleting...",
@@ -1648,7 +1799,10 @@
         "title": "Cache settings",
         "retention": "Prefix cache lifetime threshold",
         "unitAria": "Select cache lifetime unit",
-        "units": { "minutes": "Minutes", "hours": "Hours" }
+        "units": {
+          "minutes": "Minutes",
+          "hours": "Hours"
+        }
       },
       "reasoningReplay": {
         "title": "Reasoning replay",
@@ -1810,6 +1964,81 @@
           "memoryCompression": "Memory compression model",
           "providerWebSearch": "Provider web search"
         }
+      }
+    },
+    "telegramAccess": {
+      "connection": "Bot connection",
+      "intro": "Create a Telegram bot and enter its token. Send /start in a private chat, then allow your account here.",
+      "tokenSaved": "Saved; leave blank to keep the current token",
+      "tokenPlaceholder": "Obtain from @BotFather",
+      "tokenRequired": "Enter a Bot Token first.",
+      "editConnection": "Turn off access before changing the connection settings.",
+      "enabled": "Enable Telegram",
+      "advanced": "Advanced",
+      "apiHint": "Uses the official service by default (20 MB download limit). A self-hosted Local Bot API can receive larger files.",
+      "saving": "Saving…",
+      "save": "Save and connect",
+      "ready": "Ready. Keep Tiance running; minimizing to the tray is supported.",
+      "offline": "Desktop conversation entry is offline. Open the Tiance conversation panel.",
+      "pendingDelivery": "Pending deliveries:",
+      "users": "Authorized users",
+      "noUsers": "Send /start to the bot in a Telegram private chat.",
+      "allowed": "Allowed",
+      "denied": "Disabled",
+      "waiting": "Awaiting local approval",
+      "revoke": "Revoke access",
+      "allow": "Allow access",
+      "tabs": {
+        "aria": "Telegram access pages",
+        "connection": "Connection",
+        "logs": "Logs",
+        "quickStart": "Quick start",
+        "commands": "Commands and files",
+        "faq": "FAQ"
+      },
+      "logs": {
+        "current": "Current connection",
+        "refresh": "Refresh",
+        "hint": "Keeps the latest 1,000 events per connection; no tokens, message bodies or file content.",
+        "loading": "Loading records…",
+        "empty": "No records yet. New connection, intake and delivery events will appear here.",
+        "time": "Time",
+        "event": "Event",
+        "details": "Details",
+        "previous": "Previous",
+        "next": "Next"
+      },
+      "events": {
+        "configuration_failed": "Connection validation failed",
+        "enabled": "Access enabled",
+        "disabled": "Access disabled",
+        "authorized": "User authorized",
+        "revoked": "User access revoked",
+        "receive_failed": "Receiving failed; reconnecting",
+        "receive_recovered": "Receiving connection recovered",
+        "message_received": "Message received",
+        "callback_received": "Button action received",
+        "dispatch_failed": "Message processing failed",
+        "file_saved": "File saved in workspace",
+        "file_failed": "File intake failed",
+        "task_submitted": "Task accepted; awaiting preparation",
+        "submit_failed": "Task not submitted",
+        "task_completed": "Task completed; reply pending",
+        "task_failed": "Task failed; error reply pending",
+        "task_cancelled": "Task paused; notice pending",
+        "task_finished": "Task ended; reply pending",
+        "reply_sent": "Reply sent",
+        "reply_failed": "Reply delivery failed; retry pending"
+      },
+      "details": {
+        "user_id": "User ID",
+        "chat_id": "Chat ID",
+        "project_id": "Project ID",
+        "session_id": "Conversation ID",
+        "update_id": "Update ID",
+        "job_id": "Task ID",
+        "http_status": "HTTP status",
+        "error_type": "Error type"
       }
     }
   }

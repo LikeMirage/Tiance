@@ -13,6 +13,7 @@ import {
 } from "@phosphor-icons/react";
 
 import { useDocumentReadingValue, useDocumentReadingScroll } from "../../../entities/editor/model/documentReadingState";
+import { useDocumentRevealRequest } from "../../../entities/editor/model/documentRevealContext";
 import { ContextMenu, ContextMenuItem } from "../../../shared/ui/context-menu";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import type {
@@ -59,6 +60,8 @@ export function PresentationPreview({
   zoom,
   onZoomChange,
 }: PresentationPreviewProps) {
+  const reveal = useDocumentRevealRequest();
+  const [renderedSlide, setRenderedSlide] = useState<{ src: string | null; page: number; zoom: number } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hasInitialZoom, setHasInitialZoom] = useDocumentReadingValue("ppt:initial-zoom", false);
   const didApplyInitialZoomRef = useRef(hasInitialZoom);
@@ -270,7 +273,7 @@ export function PresentationPreview({
     initialZoomRef.current = null;
     let cancelled = false;
     void renderSlide(currentSlide, zoom).then((rendered) => {
-      if (!cancelled && rendered) setState("ready");
+      if (!cancelled && rendered) { setState("ready"); setRenderedSlide({ src, page: currentSlide + 1, zoom }); }
     }).catch((err: unknown) => {
       if (cancelled) return;
       setState("error");
@@ -281,6 +284,19 @@ export function PresentationPreview({
       slideRenderRunIdRef.current += 1;
     };
   }, [currentSlide, loadedSource, renderReady, renderSlide, src, zoom]);
+
+  useEffect(() => {
+    if (!reveal || reveal.signal.aborted || reveal.target.type !== "reference_image"
+      || reveal.target.reference.source !== "ppt_slide" || loadedSource !== src || !slideCount) return;
+    const page = reveal.target.reference.slideNumber;
+    if (!page || !Number.isSafeInteger(page) || page < 1 || page > slideCount) {
+      reveal.complete({ type: "reference", selected: false }); return;
+    }
+    setCurrentSlide(page - 1);
+    if (renderedSlide?.src === src && renderedSlide.page === page && renderedSlide.zoom === zoom) {
+      reveal.complete({ type: "reference", selected: true });
+    }
+  }, [reveal, loadedSource, src, slideCount, renderedSlide, zoom, setCurrentSlide]);
 
   useEffect(() => {
     if (state !== "ready" || slideCount <= 0) return undefined;

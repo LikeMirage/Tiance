@@ -22,6 +22,8 @@ import { useChatStreamControllers } from "../model/useChatStreamControllers";
 import { useChatModelOptions } from "../model/useChatModelOptions";
 import { useThinkingAutoScroll } from "../model/useThinkingAutoScroll";
 import { useBodyAutoScroll } from "../model/useBodyAutoScroll";
+import { useConversationNavigation } from "../model/useConversationNavigation";
+import type { UserMessageNavigationItem } from "../model/userMessageNavigation";
 import { useConversationUsage } from "../model/useConversationUsage";
 import { useSessionMessages } from "../model/useSessionMessages";
 import { useSessionSettingsEditor } from "../model/useSessionSettingsEditor";
@@ -162,11 +164,11 @@ export function ChatPanelController({
     sessionKey: string;
   } | null>(null);
   const showChatView = useCallback(() => setActiveView("chat"), []);
-  const queueMessageNavigation = useCallback((sessionId: string, messageId: string) => {
+  const queueMessageNavigation = useCallback((sessionId: string, messageId: string, behavior: ScrollBehavior = "auto") => {
     if (!projectId) return;
     variantNavigationRequestIdRef.current += 1;
     setVariantNavigationRequest({
-      behavior: "auto",
+      behavior,
       messageId,
       requestId: variantNavigationRequestIdRef.current,
       sessionKey: buildSessionKey(projectId, sessionId),
@@ -507,6 +509,17 @@ export function ChatPanelController({
     messages,
     navigationTargetSessionKey: variantNavigationRequest?.sessionKey ?? null,
   });
+  const userMessageNavigation = useConversationNavigation({
+    projectId, sessionId: activeSessionId,
+    revision: activeSessionKey ? historyPages[activeSessionKey]?.revision ?? null : null,
+    resetRevision: activeSessionKey ? historyPages[activeSessionKey]?.reset ?? null : null,
+    running: isActiveSessionRunningPresentation, messages,
+  });
+  const selectUserMessage = useCallback((item: UserMessageNavigationItem) => {
+    if (!activeSessionId) return;
+    pauseAutoScrollForNavigation();
+    queueMessageNavigation(activeSessionId, item.userMessageId, "smooth");
+  }, [activeSessionId, pauseAutoScrollForNavigation, queueMessageNavigation]);
   const handleExternalNavigationHandled = useCallback((requestId: number) => {
     setVariantNavigationRequest((current) => (
       current?.requestId === requestId ? null : current
@@ -836,10 +849,8 @@ export function ChatPanelController({
       )}
 
       <ChatPanelBodyFrame
-        projectId={projectId}
-        sessionId={activeSessionId}
-        historyRevision={activeSessionKey ? historyPages[activeSessionKey]?.revision ?? null : null}
-        historyResetRevision={activeSessionKey ? historyPages[activeSessionKey]?.reset ?? null : null}
+        navigation={userMessageNavigation}
+        onSelectUserMessage={selectUserMessage}
         isFollowingBottom={isFollowingBottom}
         activeSessionKey={activeSessionKey}
         activeView={activeView}
@@ -850,7 +861,6 @@ export function ChatPanelController({
           !isSessionSettling && variantNavigationRequest === null
         }
         onActiveUserMessageChange={handleActiveUserMessageChange}
-        onMessageNavigationStart={pauseAutoScrollForNavigation}
         onExternalNavigationHandled={handleExternalNavigationHandled}
         onViewRestoreHandled={onViewRestoreHandled}
         onContentReady={syncAfterContentReady}
@@ -904,6 +914,11 @@ export function ChatPanelController({
 
       {activeView === "chat" ? (
         <ChatComposer
+          userMessageHistory={projectId && activeSessionId ? {
+            projectId, sessionId: activeSessionId, messages,
+            resetRevision: activeSessionKey ? historyPages[activeSessionKey]?.reset ?? null : null,
+            navigation: userMessageNavigation, onLocate: selectUserMessage,
+          } : undefined}
           conversationActions={
             <ChatConversationActions
               onExport={activeSession ? openConversationExport : undefined}

@@ -1,7 +1,7 @@
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Header, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.errors import BadRequestError, NotFoundError
 from app.domain.tools.host_capabilities import HostCapability
@@ -15,6 +15,30 @@ from app.services.tools.host_capability_access import (
 from app.services.project.conversation_run_manager import get_conversation_run_manager
 
 router = APIRouter(prefix='/tools/capabilities', tags=['tools'])
+
+
+class ExternalMessagingRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    action: Literal['list_connections', 'send_file']
+    platform: str = Field(min_length=1, max_length=64)
+    connection_id: str | None = Field(default=None, max_length=256)
+    chat_id: str | None = Field(default=None, max_length=256)
+    file_path: str | None = None
+    caption: str = ''
+
+    @model_validator(mode='after')
+    def require_destination(self):
+        if self.action == 'send_file' and not all(value and value.strip() for value in (self.connection_id, self.chat_id, self.file_path)):
+            raise ValueError('send_file 必须明确提供 connection_id、chat_id 和 file_path。')
+        return self
+
+
+@router.post('/external-messaging')
+async def external_messaging(payload: ExternalMessagingRequest, authorization: Annotated[str | None, Header()] = None):
+    grant = _authorize(authorization, HostCapability.EXTERNAL_MESSAGING)
+    from app.services.mobile.messaging import execute
+    from app.services.mobile.service import get_mobile_service
+    return await execute(get_mobile_service().repository, payload, grant)
 
 
 class CatalogRequest(BaseModel):

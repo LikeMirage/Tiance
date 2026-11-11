@@ -872,8 +872,17 @@
       "selected": "已选择 {count} 个文件",
       "pull": "拉取所选",
       "push": "提交所选",
-      "location": { "local": "仅本地", "remote": "仅远端", "both": "本地与远端" },
-      "status": { "same": "一致", "local-only": "仅本地", "remote-only": "仅远端", "different": "内容不同" },
+      "location": {
+        "local": "仅本地",
+        "remote": "仅远端",
+        "both": "本地与远端"
+      },
+      "status": {
+        "same": "一致",
+        "local-only": "仅本地",
+        "remote-only": "仅远端",
+        "different": "内容不同"
+      },
       "confirmPushTitle": "确认提交所选文件",
       "confirmPullTitle": "确认拉取所选文件",
       "planSummary": "新增 {add} · 更新 {update} · 删除 {delete}",
@@ -950,7 +959,7 @@
       "tabs": {
         "external": "外部访问",
         "wechat": "微信接入",
-        "dingtalk": "钉钉接入",
+        "feishu": "飞书接入",
         "telegram": "Telegram 接入"
       },
       "external": {
@@ -1233,6 +1242,7 @@
       }
     },
     "projectDelete": {
+      "clearTianceData": "同时清除天策数据（会话、记忆、附件等），保留工作文件。",
       "batch": {
         "title": {
           "remove": "移除所选项目",
@@ -1252,6 +1262,7 @@
         "deleteLocal": "删除本地文件"
       },
       "message": {
+        "removeWithData": "移除所选 {count} 个项目，将各项目根目录下的 .Tiance 移入系统回收站，保留工作文件。",
         "remove": "仅从 {productName} 移除“{projectName}”，不会删除真实文件。",
         "delete": "将项目文件夹移入系统回收站并移除项目，确认继续？",
         "deleteLocal": "将“{projectName}”的本地文件夹移入系统回收站，同时从 {productName} 移除项目。"
@@ -1287,13 +1298,28 @@
       "filterPanelAria": "在线角色筛选条件",
       "noResults": "没有符合筛选条件的在线角色。",
       "empty": "这个角色源暂时没有角色。",
-      "filters": { "all": "全部" },
-      "filterGroups": { "authors": "作者", "statuses": "状态" },
-      "statuses": { "not-installed": "未安装", "installed": "已安装", "update-available": "待更新" },
+      "filters": {
+        "all": "全部"
+      },
+      "filterGroups": {
+        "authors": "作者",
+        "statuses": "状态"
+      },
+      "statuses": {
+        "not-installed": "未安装",
+        "installed": "已安装",
+        "update-available": "待更新"
+      },
       "install": {
-        "title": "下载在线角色", "message": "选择“{name}”要保存到的本地角色分类。",
-        "category": "本地分类", "confirm": "下载并安装", "download": "下载",
-        "update": "更新", "installed": "已安装", "installingShort": "安装中", "failed": "角色安装失败",
+        "title": "下载在线角色",
+        "message": "选择“{name}”要保存到的本地角色分类。",
+        "category": "本地分类",
+        "confirm": "下载并安装",
+        "download": "下载",
+        "update": "更新",
+        "installed": "已安装",
+        "installingShort": "安装中",
+        "failed": "角色安装失败",
         "updateTitle": "更新在线角色",
         "updateMessage": "将“{name}”从 v{current} 更新到 v{next}。更新将替换该角色的配置文件，本地分类、角色名称和历史会话不会改变。",
         "updateConfirm": "确认更新"
@@ -1303,25 +1329,47 @@
       "ariaLabel": "在线工具",
       "sourceLabel": "在线工具源",
       "sourcePlaceholder": "输入工具仓库发布地址",
-      "connect": "连接", "connecting": "连接中", "useDefault": "默认源",
-      "loading": "正在读取在线工具…", "notConnected": "尚未连接在线工具源。",
-      "toolCount": "{count} 个工具", "updatedAt": "更新于 {value}", "cached": "本地缓存",
-      "searchPlaceholder": "搜索工具、调用名或用途", "filter": "筛选",
+      "connect": "连接",
+      "connecting": "连接中",
+      "useDefault": "默认源",
+      "loading": "正在读取在线工具…",
+      "notConnected": "尚未连接在线工具源。",
+      "toolCount": "{count} 个工具",
+      "updatedAt": "更新于 {value}",
+      "cached": "本地缓存",
+      "searchPlaceholder": "搜索工具、调用名或用途",
+      "filter": "筛选",
       "filterPanelAria": "在线工具筛选条件",
-      "noResults": "没有符合筛选条件的在线工具。", "empty": "这个工具源暂时没有内容。",
-      "filters": { "all": "全部" },
-      "filterGroups": { "authors": "作者", "runtimes": "运行方式", "platforms": "平台", "statuses": "状态" },
+      "noResults": "没有符合筛选条件的在线工具。",
+      "empty": "这个工具源暂时没有内容。",
+      "filters": {
+        "all": "全部"
+      },
+      "filterGroups": {
+        "authors": "作者",
+        "runtimes": "运行方式",
+        "platforms": "平台",
+        "statuses": "状态"
+      },
       "statuses": {
-        "not-installed": "未安装", "installed": "已安装",
-        "update-available": "待更新", "call-name-conflict": "调用名冲突"
+        "not-installed": "未安装",
+        "installed": "已安装",
+        "update-available": "待更新",
+        "call-name-conflict": "调用名冲突"
       },
       "install": {
-        "title": "下载在线工具", "message": "选择“{name}”的本地分类和调用名称。工具包可能包含可执行代码，请确认来源可信。",
-        "category": "本地分类", "callName": "工具调用名称",
+        "title": "下载在线工具",
+        "message": "选择“{name}”的本地分类和调用名称。工具包可能包含可执行代码，请确认来源可信。",
+        "category": "本地分类",
+        "callName": "工具调用名称",
         "callNameHint": "供 AI 调用，只能使用小写英文、数字和下划线。",
         "callNameConflict": "原调用名称已被占用，已给出可用名称；也可以自行修改。",
-        "confirm": "下载并安装", "download": "下载", "update": "更新", "installed": "已安装",
-        "installingShort": "安装中", "failed": "工具安装失败",
+        "confirm": "下载并安装",
+        "download": "下载",
+        "update": "更新",
+        "installed": "已安装",
+        "installingShort": "安装中",
+        "failed": "工具安装失败",
         "updateTitle": "更新在线工具",
         "updateMessage": "将“{name}”从 v{current} 更新到 v{next}。程序快照会更新；本地调用名、启用或停用状态、动态加载状态、依赖、program/config.json 和会话数据均保留。",
         "updateConfirm": "确认更新"
@@ -1336,24 +1384,43 @@
       "ariaLabel": "在线供应商",
       "sourceLabel": "在线供应商源",
       "sourcePlaceholder": "输入供应商仓库发布地址",
-      "connect": "连接", "connecting": "连接中", "useDefault": "默认源",
-      "loading": "正在读取在线供应商…", "notConnected": "尚未连接在线供应商源。",
-      "providerCount": "{count} 个供应商", "modelCount": "{count} 个模型",
-      "updatedAt": "更新于 {value}", "cached": "本地缓存",
-      "searchPlaceholder": "搜索供应商、协议或适配说明", "filter": "筛选",
+      "connect": "连接",
+      "connecting": "连接中",
+      "useDefault": "默认源",
+      "loading": "正在读取在线供应商…",
+      "notConnected": "尚未连接在线供应商源。",
+      "providerCount": "{count} 个供应商",
+      "modelCount": "{count} 个模型",
+      "updatedAt": "更新于 {value}",
+      "cached": "本地缓存",
+      "searchPlaceholder": "搜索供应商、协议或适配说明",
+      "filter": "筛选",
       "filterPanelAria": "在线供应商筛选条件",
-      "noResults": "没有符合筛选条件的在线供应商。", "empty": "这个供应商源暂时没有内容。",
-      "filters": { "all": "全部" },
-      "filterGroups": { "authors": "作者", "protocols": "协议", "statuses": "状态" },
+      "noResults": "没有符合筛选条件的在线供应商。",
+      "empty": "这个供应商源暂时没有内容。",
+      "filters": {
+        "all": "全部"
+      },
+      "filterGroups": {
+        "authors": "作者",
+        "protocols": "协议",
+        "statuses": "状态"
+      },
       "statuses": {
-        "not-installed": "未安装", "installed": "已安装",
+        "not-installed": "未安装",
+        "installed": "已安装",
         "update-available": "待更新"
       },
       "install": {
-        "title": "下载在线供应商", "message": "选择“{name}”要保存到的本地供应商分类。",
-        "category": "本地分类", "confirm": "下载并安装", "download": "下载",
-        "update": "更新", "installed": "已安装",
-        "installingShort": "安装中", "failed": "供应商安装失败",
+        "title": "下载在线供应商",
+        "message": "选择“{name}”要保存到的本地供应商分类。",
+        "category": "本地分类",
+        "confirm": "下载并安装",
+        "download": "下载",
+        "update": "更新",
+        "installed": "已安装",
+        "installingShort": "安装中",
+        "failed": "供应商安装失败",
         "updateTitle": "更新在线供应商",
         "updateMessage": "将“{name}”从 v{current} 更新到 v{next}。本次只更新包清单和协议适配规则；API Key、接口地址、协议选择、启用状态、模型列表、本地分类和会话数据均不修改。",
         "updateConfirm": "确认更新"
@@ -1377,10 +1444,23 @@
       "noResults": "没有符合筛选条件的在线项目。",
       "empty": "这个项目源暂时没有项目。",
       "previewAlt": "{name} 项目预览",
-      "filters": { "all": "全部" },
-      "filterGroups": { "authors": "作者", "tags": "标签", "statuses": "状态" },
-      "statuses": { "not-installed": "未安装", "installed": "已安装" },
-      "stats": { "files": "{count} 文件", "conversations": "{count} 会话", "branches": "{count} 分支" },
+      "filters": {
+        "all": "全部"
+      },
+      "filterGroups": {
+        "authors": "作者",
+        "tags": "标签",
+        "statuses": "状态"
+      },
+      "statuses": {
+        "not-installed": "未安装",
+        "installed": "已安装"
+      },
+      "stats": {
+        "files": "{count} 文件",
+        "conversations": "{count} 会话",
+        "branches": "{count} 分支"
+      },
       "install": {
         "title": "下载在线项目",
         "message": "选择“{name}”要保存到的本地项目分类。项目快照可能包含文件、会话、分支和记忆。",
@@ -1388,7 +1468,12 @@
         "confirm": "下载并导入",
         "download": "下载",
         "installed": "已安装",
-        "phases": { "queued": "等待中", "downloading": "下载中", "extracting": "解压中", "importing": "导入中" }
+        "phases": {
+          "queued": "等待中",
+          "downloading": "下载中",
+          "extracting": "解压中",
+          "importing": "导入中"
+        }
       }
     },
     "knowledgeContent": {
@@ -1419,10 +1504,23 @@
       "noResults": "没有符合筛选条件的在线知识。",
       "empty": "这个知识源暂时没有内容。",
       "previewAlt": "{name} 知识项目预览",
-      "filters": { "all": "全部" },
-      "filterGroups": { "authors": "作者", "tags": "标签", "statuses": "状态" },
-      "statuses": { "not-installed": "未安装", "installed": "已安装" },
-      "stats": { "files": "{count} 文件", "conversations": "{count} 会话", "branches": "{count} 分支" },
+      "filters": {
+        "all": "全部"
+      },
+      "filterGroups": {
+        "authors": "作者",
+        "tags": "标签",
+        "statuses": "状态"
+      },
+      "statuses": {
+        "not-installed": "未安装",
+        "installed": "已安装"
+      },
+      "stats": {
+        "files": "{count} 文件",
+        "conversations": "{count} 会话",
+        "branches": "{count} 分支"
+      },
       "install": {
         "title": "下载在线知识",
         "message": "选择“{name}”要保存到的本地知识分类。完整快照可能包含文件、会话、分支和记忆。",
@@ -1430,7 +1528,12 @@
         "confirm": "下载并导入",
         "download": "下载",
         "installed": "已安装",
-        "phases": { "queued": "等待中", "downloading": "下载中", "extracting": "解压中", "importing": "导入中" }
+        "phases": {
+          "queued": "等待中",
+          "downloading": "下载中",
+          "extracting": "解压中",
+          "importing": "导入中"
+        }
       }
     },
     "experienceMarket": {
@@ -1451,10 +1554,23 @@
       "noResults": "没有符合筛选条件的在线经验。",
       "empty": "这个经验源暂时没有内容。",
       "previewAlt": "{name} 经验项目预览",
-      "filters": { "all": "全部" },
-      "filterGroups": { "authors": "作者", "tags": "标签", "statuses": "状态" },
-      "statuses": { "not-installed": "未安装", "installed": "已安装" },
-      "stats": { "files": "{count} 文件", "conversations": "{count} 会话", "branches": "{count} 分支" },
+      "filters": {
+        "all": "全部"
+      },
+      "filterGroups": {
+        "authors": "作者",
+        "tags": "标签",
+        "statuses": "状态"
+      },
+      "statuses": {
+        "not-installed": "未安装",
+        "installed": "已安装"
+      },
+      "stats": {
+        "files": "{count} 文件",
+        "conversations": "{count} 会话",
+        "branches": "{count} 分支"
+      },
       "install": {
         "title": "下载在线经验",
         "message": "选择“{name}”要保存到的本地经验分类。完整快照可能包含文件、会话、分支和记忆。",
@@ -1462,7 +1578,12 @@
         "confirm": "下载并导入",
         "download": "下载",
         "installed": "已安装",
-        "phases": { "queued": "等待中", "downloading": "下载中", "extracting": "解压中", "importing": "导入中" }
+        "phases": {
+          "queued": "等待中",
+          "downloading": "下载中",
+          "extracting": "解压中",
+          "importing": "导入中"
+        }
       }
     },
     "themeMarket": {
@@ -1490,19 +1611,44 @@
         "dark": "深色",
         "light": "浅色"
       },
-      "filterGroups": { "modes": "明暗", "authors": "作者", "baseColors": "基色", "statuses": "状态" },
-      "statuses": { "not-installed": "未安装", "installed": "已安装", "update-available": "待更新" },
+      "filterGroups": {
+        "modes": "明暗",
+        "authors": "作者",
+        "baseColors": "基色",
+        "statuses": "状态"
+      },
+      "statuses": {
+        "not-installed": "未安装",
+        "installed": "已安装",
+        "update-available": "待更新"
+      },
       "baseColors": {
-        "black": "黑色", "white": "白色", "gray": "灰色", "red": "红色",
-        "orange": "橙色", "gold": "金色", "green": "绿色", "cyan": "青色",
-        "blue": "蓝色", "purple": "紫色", "pink": "粉色", "brown": "棕色"
+        "black": "黑色",
+        "white": "白色",
+        "gray": "灰色",
+        "red": "红色",
+        "orange": "橙色",
+        "gold": "金色",
+        "green": "绿色",
+        "cyan": "青色",
+        "blue": "蓝色",
+        "purple": "紫色",
+        "pink": "粉色",
+        "brown": "棕色"
       },
       "install": {
-        "title": "下载在线主题", "message": "选择“{name}”要保存到的本地主题分类。",
-        "category": "本地分类", "confirm": "下载并安装", "download": "下载",
-        "update": "更新", "installed": "已安装", "installing": "正在下载、校验并安装…",
-        "installingShort": "安装中", "failed": "主题安装失败",
-        "updateTitle": "更新在线主题", "updateMessage": "将“{name}”从 v{current} 更新到 v{next}。主题定义和资源会更新；本地分类、项目名称、会话数据和非主题文件均保留。",
+        "title": "下载在线主题",
+        "message": "选择“{name}”要保存到的本地主题分类。",
+        "category": "本地分类",
+        "confirm": "下载并安装",
+        "download": "下载",
+        "update": "更新",
+        "installed": "已安装",
+        "installing": "正在下载、校验并安装…",
+        "installingShort": "安装中",
+        "failed": "主题安装失败",
+        "updateTitle": "更新在线主题",
+        "updateMessage": "将“{name}”从 v{current} 更新到 v{next}。主题定义和资源会更新；本地分类、项目名称、会话数据和非主题文件均保留。",
         "updateConfirm": "确认更新"
       },
       "errors": {
@@ -1512,6 +1658,11 @@
       }
     },
     "projectOverview": {
+      "copySessionId": "复制会话ID",
+      "copySessionName": "复制会话名称",
+      "sessionIdClipboard": "会话ID：{id}",
+      "sessionNameClipboard": "会话名称：{title}",
+      "copySessionFailed": "复制失败，请检查剪贴板权限后重试。",
       "activeSessions": "活跃 {count}",
       "deleteFailed": "会话删除失败。",
       "deleteSessionDeleting": "删除中...",
@@ -1648,7 +1799,10 @@
         "title": "缓存设置",
         "retention": "前缀缓存有效期阈值",
         "unitAria": "选择缓存有效期单位",
-        "units": { "minutes": "分钟", "hours": "小时" }
+        "units": {
+          "minutes": "分钟",
+          "hours": "小时"
+        }
       },
       "reasoningReplay": {
         "title": "思考回传",
@@ -1810,6 +1964,81 @@
           "memoryCompression": "记忆压缩模型",
           "providerWebSearch": "内置网络搜索"
         }
+      }
+    },
+    "telegramAccess": {
+      "connection": "机器人连接",
+      "intro": "创建 Telegram 机器人后填写 Token。首次在手机发送 /start，再在这里允许自己的账号访问。",
+      "tokenSaved": "已保存；留空保持原 Token",
+      "tokenPlaceholder": "从 @BotFather 获取",
+      "tokenRequired": "请先填写 Bot Token。",
+      "editConnection": "修改连接配置前，请先关闭接入。",
+      "enabled": "启用 Telegram 接入",
+      "advanced": "高级设置",
+      "apiHint": "默认使用官方服务。大文件可使用自部署的 Local Bot API；官方云端下载上限为 20 MB。",
+      "saving": "正在保存…",
+      "save": "保存并连接",
+      "ready": "手机消息入口已就绪。天策需保持运行，可最小化到托盘。",
+      "offline": "桌面会话入口未连接，请打开天策对话区。",
+      "pendingDelivery": "待回传消息：",
+      "users": "允许访问的用户",
+      "noUsers": "请先在 Telegram 私聊机器人发送 /start。",
+      "allowed": "已允许",
+      "denied": "已停用",
+      "waiting": "等待本机确认",
+      "revoke": "撤销访问",
+      "allow": "允许访问",
+      "tabs": {
+        "aria": "Telegram 接入页面",
+        "connection": "连接配置",
+        "logs": "记录日志",
+        "quickStart": "快速开始",
+        "commands": "指令与文件",
+        "faq": "常见问题"
+      },
+      "logs": {
+        "current": "当前连接",
+        "refresh": "刷新",
+        "hint": "每个连接保留最近 1,000 条接入记录；不保存 Token、消息正文或文件内容。",
+        "loading": "正在读取记录…",
+        "empty": "暂无记录。新发生的连接、收件和回传事件会显示在这里。",
+        "time": "时间",
+        "event": "事件",
+        "details": "详细信息",
+        "previous": "上一页",
+        "next": "下一页"
+      },
+      "events": {
+        "configuration_failed": "连接配置验证失败",
+        "enabled": "已启用接入",
+        "disabled": "已关闭接入",
+        "authorized": "已允许用户访问",
+        "revoked": "已撤销用户访问",
+        "receive_failed": "接收连接异常，正在重连",
+        "receive_recovered": "接收连接已恢复",
+        "message_received": "收到消息",
+        "callback_received": "收到按钮操作",
+        "dispatch_failed": "消息处理失败",
+        "file_saved": "文件已保存至工作区",
+        "file_failed": "文件接收失败",
+        "task_submitted": "任务已接收，等待会话准备",
+        "submit_failed": "任务未提交",
+        "task_completed": "任务已完成，结果待回传",
+        "task_failed": "任务失败，错误信息待回传",
+        "task_cancelled": "任务已暂停，通知待回传",
+        "task_finished": "任务已结束，结果待回传",
+        "reply_sent": "回复已发送",
+        "reply_failed": "回复发送失败，等待重试"
+      },
+      "details": {
+        "user_id": "用户 ID",
+        "chat_id": "聊天 ID",
+        "project_id": "项目 ID",
+        "session_id": "会话 ID",
+        "update_id": "平台消息 ID",
+        "job_id": "任务 ID",
+        "http_status": "HTTP 状态码",
+        "error_type": "错误类型"
       }
     }
   }

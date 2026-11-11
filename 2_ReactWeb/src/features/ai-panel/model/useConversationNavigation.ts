@@ -44,5 +44,6 @@ export function useConversationNavigation({ projectId, sessionId, revision, rese
     if (resetRevision !== null && resetRevision !== snapshot.reset) return snapshot.items;
     return mergeUserMessageNavigationItems(snapshot.items, buildUserMessageNavigationItems(messages));
   }, [key, messages, resetRevision, snapshot]);
-  return { items, error: failure?.key === key ? failure.message : null, retry };
+  const error = failure?.key === key ? failure.message : null;
+  return { items, error, retry, isLoading: Boolean(projectId && sessionId && snapshot?.key !== key && !error) };
 }

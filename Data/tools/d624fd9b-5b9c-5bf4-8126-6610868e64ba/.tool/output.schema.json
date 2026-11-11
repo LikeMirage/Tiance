@@ -1,24 +1,40 @@
 {
   "additionalProperties": false,
-  "description": "返回会话管理动作的真实结果。list_sessions 按指定范围提供会话定位摘要；会话详细属性与关系由 get_session_info 返回；最近消息和用量由 get_session 返回。",
+  "description": "会话查询返回与界面一致的父子层级和分组；删除预览返回明确清单和预计归属；执行成功返回实际提交并已删除的 ID，不返回整批会话配置或历史。",
   "oneOf": [
     {
       "properties": {
-        "ok": { "const": false }
+        "ok": {
+          "const": false
+        }
       },
-      "required": ["error"]
+      "required": [
+        "error"
+      ]
     },
     {
       "properties": {
-        "ok": { "const": true },
-        "action": { "const": "query_models" }
+        "ok": {
+          "const": true
+        },
+        "action": {
+          "const": "query_models"
+        }
       },
-      "required": ["count", "providers", "models"]
+      "required": [
+        "count",
+        "providers",
+        "models"
+      ]
     },
     {
       "properties": {
-        "ok": { "const": true },
-        "action": { "const": "list_sessions" }
+        "ok": {
+          "const": true
+        },
+        "action": {
+          "const": "list_sessions"
+        }
       },
       "required": [
         "project_id",
@@ -27,13 +43,20 @@
         "caller_session_id",
         "scope",
         "relation_depth",
-        "sessions"
+        "sessions",
+        "anchor_session_id",
+        "group_filter",
+        "status_filter"
       ]
     },
     {
       "properties": {
-        "ok": { "const": true },
-        "action": { "const": "get_session_info" }
+        "ok": {
+          "const": true
+        },
+        "action": {
+          "const": "get_session_info"
+        }
       },
       "required": [
         "project_id",
@@ -43,8 +66,12 @@
     },
     {
       "properties": {
-        "ok": { "const": true },
-        "action": { "const": "get_session" }
+        "ok": {
+          "const": true
+        },
+        "action": {
+          "const": "get_session"
+        }
       },
       "required": [
         "project_id",
@@ -62,45 +89,91 @@
     },
     {
       "properties": {
-        "ok": { "const": true },
-        "action": { "enum": ["create_session", "configure_session"] }
-      },
-      "required": ["project_id", "session", "runtime_status", "history_locator"]
-    },
-    {
-      "properties": {
-        "ok": { "const": true },
-        "action": { "const": "name_parent_session" }
+        "ok": {
+          "const": true
+        },
+        "action": {
+          "enum": [
+            "create_session",
+            "configure_session"
+          ]
+        }
       },
       "required": [
         "project_id",
-        "function_session_id",
-        "source_session_id",
-        "title",
-        "applied",
-        "status"
+        "session",
+        "runtime_status",
+        "history_locator"
       ]
     },
     {
       "properties": {
-        "ok": { "const": true },
-        "action": { "const": "stop_session" }
+        "ok": {
+          "const": true
+        },
+        "action": {
+          "const": "stop_session"
+        }
       },
-      "required": ["project_id", "stopped_session_id", "runtime_status", "history_locator"]
+      "required": [
+        "project_id",
+        "stopped_session_id",
+        "runtime_status",
+        "history_locator"
+      ]
     },
     {
       "properties": {
-        "ok": { "const": true },
-        "action": { "const": "delete_session" }
+        "ok": {
+          "const": true
+        },
+        "action": {
+          "const": "delete_session"
+        }
       },
-      "required": ["project_id", "deleted_session_id"]
+      "required": [
+        "project_id",
+        "count",
+        "target_session_ids",
+        "include_descendants",
+        "deleted_session_ids"
+      ]
     },
     {
       "properties": {
-        "ok": { "const": true },
-        "action": { "const": "show_session" }
+        "ok": {
+          "const": true
+        },
+        "action": {
+          "const": "show_session"
+        }
       },
-      "required": ["project_id", "session_id", "shown", "runtime_status", "history_locator"]
+      "required": [
+        "project_id",
+        "session_id",
+        "shown",
+        "runtime_status",
+        "history_locator"
+      ]
+    },
+    {
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "action": {
+          "const": "preview_delete"
+        }
+      },
+      "required": [
+        "project_id",
+        "target_session_ids",
+        "include_descendants",
+        "session_ids",
+        "count",
+        "sessions",
+        "reparented_sessions"
+      ]
     }
   ],
   "properties": {
@@ -129,7 +202,7 @@
       ]
     },
     "caller_session_id": {
-      "description": "发起本次工具调用的会话 ID。scope=related 时以此会话为关系中心；没有调用会话且 scope=all 时为 null。",
+      "description": "实际发起工具调用的会话，与界面 active_session_id、指定关系中心无关。",
       "type": [
         "string",
         "null"
@@ -139,12 +212,15 @@
       "description": "list_sessions 实际使用的查看范围。",
       "enum": [
         "related",
-        "all"
+        "all",
+        "roots",
+        "children",
+        "descendants"
       ],
       "type": "string"
     },
     "relation_depth": {
-      "description": "scope=related 实际使用的最大关系深度；null 表示不限层级。scope=all 时固定为 null。",
+      "description": "related/descendants 的最大关系深度；省略时 null 表示不限。其他范围为 null。",
       "minimum": 1,
       "type": [
         "integer",
@@ -170,7 +246,7 @@
       "type": "object"
     },
     "sessions": {
-      "description": "list_sessions 按 scope 和 relation_depth 筛选后的会话定位摘要。标题在执行时从最新会话列表实时取得。",
+      "description": "list_sessions 或 preview_delete 的会话摘要。层级以当前存活父链为准，配置与消息按需单独读取。",
       "items": {
         "additionalProperties": false,
         "properties": {
@@ -184,11 +260,80 @@
           },
           "runtime_status": {
             "description": "会话当前运行状态。",
-            "enum": ["idle", "running", "error"],
+            "enum": [
+              "idle",
+              "running",
+              "error"
+            ],
             "type": "string"
+          },
+          "parent_session_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "当前可见父会话 ID；null 为顶层。父级可能不在本次筛选结果中。"
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "root",
+              "child",
+              "fork",
+              "automatic_naming",
+              "memory_compaction",
+              "project_memory_management",
+              "global_memory_management"
+            ],
+            "description": "当前界面的具体分组。"
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "从当前项目顶层开始的会话层数，顶层为 0，分类折叠标题不计一层。"
+          },
+          "display_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "当前同组显示编号，只供用户定位，不是 ID。"
+          },
+          "relation_kind": {
+            "type": "string",
+            "description": "持久化的来源关系 root/child/fork/functional；提升为顶层后仍可保留原关系类型。"
+          },
+          "function_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "child_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "所有分类的直属下级总数，未受本次查询筛选影响。"
           }
         },
-        "required": ["session_id", "title", "runtime_status"],
+        "required": [
+          "session_id",
+          "title",
+          "runtime_status",
+          "parent_session_id",
+          "group",
+          "depth",
+          "display_number",
+          "relation_kind",
+          "function_type",
+          "created_by",
+          "child_count"
+        ],
         "type": "object"
       },
       "type": "array"
@@ -215,23 +360,6 @@
     },
     "session_id": {
       "description": "get_session 读取或 show_session 已显示的目标会话 ID。",
-      "type": "string"
-    },
-    "function_session_id": {
-      "description": "提交自动命名结果的功能会话 ID。",
-      "type": "string"
-    },
-    "source_session_id": {
-      "description": "自动命名实际修改的来源会话 ID。",
-      "type": "string"
-    },
-    "applied": {
-      "description": "自动命名标题是否实际写入来源会话。",
-      "type": "boolean"
-    },
-    "status": {
-      "description": "自动命名任务的最终状态。",
-      "enum": ["completed", "superseded"],
       "type": "string"
     },
     "title": {
@@ -279,10 +407,18 @@
       "additionalProperties": false,
       "description": "原始历史的稳定定位信息。需要检索完整历史时，调用指定工具并传入该会话 ID。",
       "properties": {
-        "tool_name": { "const": "conversation_history_search", "type": "string" },
-        "session_id": { "type": "string" }
+        "tool_name": {
+          "const": "conversation_history_search",
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        }
       },
-      "required": ["tool_name", "session_id"],
+      "required": [
+        "tool_name",
+        "session_id"
+      ],
       "type": "object"
     },
     "stopped_session_id": {
@@ -290,12 +426,89 @@
       "type": "string"
     },
     "deleted_session_id": {
-      "description": "delete_session 已删除的会话 ID。",
+      "description": "使用单个 session_id 执行删除时返回的目标 ID；完整范围见 deleted_session_ids。",
       "type": "string"
     },
     "error": {
       "description": "动作失败时的稳定错误说明。",
       "type": "string"
+    },
+    "anchor_session_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "list_sessions 实际关系中心；all/roots 时为 null。"
+    },
+    "group_filter": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "list_sessions 的分类筛选，null 表示不过滤。"
+    },
+    "status_filter": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "list_sessions 的运行状态筛选，null 表示不过滤。"
+    },
+    "target_session_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "用户/AI明确选择的目标，去重后保留；尚未展开后代。"
+    },
+    "session_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "preview_delete 完整待删清单。要固定此次预览范围，执行时原样传入 session_ids 并使用 include_descendants=false。"
+    },
+    "deleted_session_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "delete_session 执行成功时已删除的完整 ID 清单。"
+    },
+    "include_descendants": {
+      "type": "boolean",
+      "description": "本次是否将目标的全部后代展开加入清单。"
+    },
+    "reparented_sessions": {
+      "type": "array",
+      "description": "预览中保留下级的预计新父级；parent_session_id=null 表示成为顶层。这是预览时的快照。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "previous_parent_session_id": {
+            "type": "string"
+          },
+          "parent_session_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "session_id",
+          "title",
+          "previous_parent_session_id",
+          "parent_session_id"
+        ]
+      }
     }
   },
   "required": [

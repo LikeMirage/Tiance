@@ -10,6 +10,7 @@ import { ProjectDeleteConfirmModal } from "./ProjectDeleteConfirmModal";
 import { ProjectListContextMenu } from "./ProjectListContextMenu";
 import type { PendingProjectDelete, ProjectContextMenuState } from "./projectListPanelTypes";
 import type { ProjectKind } from "../../../entities/project/model/project";
+import { PROJECT_DRAG_MIME_TYPE, serializeProjectDragData } from "../../../entities/project/model/projectDragData";
 
 import "../../../shared/ui/catalog-list-entry/catalog-list-entry.css";
 import "./project-list-panel.css";
@@ -88,6 +89,7 @@ export const ProjectListPanel = memo(function ProjectListPanel({
   } | null>(null);
   const dragStartProjectIdsRef = useRef<string[]>([]);
   const dragPreviewProjectIdsRef = useRef<string[]>([]);
+  const isProjectOrderDropRef = useRef(false);
 
   const orderedProjectIds = useRef<string[]>([]);
   orderedProjectIds.current = filteredProjects.map((p) => p.project_id);
@@ -106,9 +108,9 @@ export const ProjectListPanel = memo(function ProjectListPanel({
     listAnimation.clearAnimationSnapshot();
   }, [projectCatalog, listAnimation]);
 
-  const commitDrop = useCallback(async () => {
+  const commitDrop = useCallback(async (projectIds: string[]) => {
     try {
-      await projectCatalog.persistProjectOrder(dragPreviewProjectIdsRef.current.slice());
+      await projectCatalog.persistProjectOrder(projectIds);
     } finally {
       listAnimation.clearAnimationSnapshot();
     }
@@ -193,6 +195,7 @@ export const ProjectListPanel = memo(function ProjectListPanel({
         pending.projectIds,
         (projectId) => projectCatalog.deleteProject(projectId, {
             deleteFiles: pending.mode === "delete-local",
+            clearTianceData: pending.mode === "remove" && pending.clearTianceData === true,
           }),
       );
       replaceSelection(result.remainingProjectIds);
@@ -315,6 +318,13 @@ export const ProjectListPanel = memo(function ProjectListPanel({
           if (!draggingProjectId) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
+        }}
+        onDrop={(e) => {
+          if (!draggingProjectId) return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = "move";
+          isProjectOrderDropRef.current = true;
         }}>
         {filteredProjects.map((proj) => {
           const isActive = proj.project_id === projectCatalog.selectedProjectId;
@@ -346,10 +356,11 @@ export const ProjectListPanel = memo(function ProjectListPanel({
                   return;
                 }
                 setDraggingProjectId(proj.project_id);
+                isProjectOrderDropRef.current = false;
                 dragStartProjectIdsRef.current = projectCatalog.items.map((x) => x.project_id);
                 dragPreviewProjectIdsRef.current = dragStartProjectIdsRef.current.slice();
-                e.dataTransfer.effectAllowed = "move";
-                e.dataTransfer.setData("text/plain", proj.project_id);
+                e.dataTransfer.effectAllowed = "copyMove";
+                e.dataTransfer.setData(PROJECT_DRAG_MIME_TYPE, serializeProjectDragData(proj));
               }}
               onDragOver={(e) => {
                 if (!draggingProjectId) return;
@@ -371,11 +382,18 @@ export const ProjectListPanel = memo(function ProjectListPanel({
               onDragEnd={() => {
                 const preview = dragPreviewProjectIdsRef.current;
                 const start = dragStartProjectIdsRef.current;
-                if (preview.length > 0 && preview.some((id, i) => id !== start[i])) {
-                  void commitDrop();
+                // Only a drop inside this list commits its preview. A reference
+                // drop elsewhere (or Escape) must restore the starting order.
+                if (isProjectOrderDropRef.current && preview.length > 0 && preview.some((id, i) => id !== start[i])) {
+                  const originalOrder = start.slice();
+                  void commitDrop(preview.slice()).catch((error) => {
+                    projectCatalog.previewProjectOrder(originalOrder);
+                    setProjectActionError(error instanceof Error ? error.message : "项目排序保存失败。");
+                  });
                 } else {
                   restoreDrag();
                 }
+                isProjectOrderDropRef.current = false;
                 setDraggingProjectId(null);
                 setDragHoverTarget(null);
               }}
@@ -547,6 +565,9 @@ export const ProjectListPanel = memo(function ProjectListPanel({
             setProjectDeleteError(null);
           }}
           onConfirm={(pending) => void confirmProjectDelete(pending)}
+          onChangeClearTianceData={(clearTianceData) => {
+            setPendingDelete((current) => current ? { ...current, clearTianceData } : null);
+          }}
           pendingDelete={pendingDelete}
         />
       )}

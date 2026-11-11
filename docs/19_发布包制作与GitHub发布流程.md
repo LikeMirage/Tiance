@@ -29,6 +29,7 @@
 - 本地项目、会话、数据库、日志和市场缓存；
 - GitHub 登录信息、供应商凭证及其他私人密钥；
 - `3_PyWebView/vendor/webview2-fixed` 固定 WebView2 环境。
+- 私人工具 `Data/tools/9cb3e689-385b-46a5-9561-7d0382b1ac0e`（MCP 设备中枢）：源码索引、工具目录清单、完整包和在线工具市场均须排除。保留本机目录，不以删除本机文件实现过滤。
 - 根目录 `docs/`、`assets/` 和 `README.md`。
 
 Windows 10/11 通常已经具有系统 WebView2 Runtime。当前发布包使用系统运行时，不额外携带固定 WebView2 环境。
@@ -137,7 +138,7 @@ git push origin vX.Y.Z
 从标签生成压缩包，而不是压缩当前目录。推荐使用仓库内脚本：
 
 ```powershell
-./scripts/package-release.ps1 -Version <版本号> -Tag v<版本号> -PreviousTag v<上一版本号>
+./scripts/package-release.ps1 -Version <版本号> -Tag v<版本号> -PreviousTag v<上一版本号> -ReleaseNotesFile 发布说明.md
 ```
 
 在线更新包使用文件级差分，只包含本次版本新增或修改的程序文件，并在包内写入删除清单。`system/update-manifest.json` 格式如下：
@@ -155,7 +156,7 @@ git push origin vX.Y.Z
 
 脚本会同时生成 `Tiance.zip`、`Tiance-update.zip`、`Tiance-update-incremental.zip` 和 `update.json`。
 
-`update.json` 是软件校验更新包的发布合同。版本、文件名、大小和 SHA-256 任一项不一致，后端都会拒绝进入安装阶段。
+`update.json` 是软件检查版本、展示发布说明及校验更新包的发布合同。客户端通过最新版附件直链读取，不再调用 GitHub REST Releases API。发布时将同一份 UTF-8 发布说明传给打包脚本的 `-ReleaseNotesFile` 和下方 `gh release create --notes-file`，避免软件内与 GitHub 正文不一致。版本、文件名、大小和 SHA-256 任一项不一致，后端都会拒绝进入安装阶段。
 
 完整安装包使用根目录 `runtime`，差分更新包只携带本次变化的程序文件。新发布规则从下一正式版本开始生效，用户 `Data/` 永不参与更新。
 
@@ -202,7 +203,8 @@ gh release create vX.Y.Z `
   发布包/update.json `
   --repo LikeMirage/Tiance `
   --verify-tag `
-  --title "Tiance vX.Y.Z"
+  --title "Tiance vX.Y.Z" `
+  --notes-file 发布说明.md
 ```
 
 也可以在 GitHub 网页的 Releases 页面选择已经推送的标签，手工上传同一个压缩包。软件内置的 `GitHub 发布` 工具是应用能力入口，不是维护者发布自己仓库的必要条件。无论使用哪种入口，都不能绕过前面的标签和内容校验。
@@ -215,6 +217,7 @@ gh release create vX.Y.Z `
 - Release 标签最终指向本次提交；
 - `Tiance.zip` 可以完整下载；
 - `Tiance-update.zip`、`Tiance-update-incremental.zip` 与 `update.json` 可以完整下载；
+- `https://github.com/LikeMirage/Tiance/releases/latest/download/update.json` 可匿名读取，版本及发布说明正确，两种程序包均可通过清单版本的固定标签地址下载；
 - 下载文件大小与本地包一致；
 - GitHub 返回附件摘要时，其 SHA-256 与本地 `Get-FileHash` 结果一致；
 - 在一个新的短目录中解压后，能够从根目录启动 `Tiance.exe`；

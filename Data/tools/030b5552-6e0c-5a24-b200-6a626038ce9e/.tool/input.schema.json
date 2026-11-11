@@ -1,0 +1,205 @@
+{
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "action": {
+              "const": "list_categories"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "create_category"
+            },
+            "name": {}
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "list"
+            },
+            "category_id": {}
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "get"
+            },
+            "project_id": {}
+          },
+          "required": [
+            "project_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "create_role"
+            },
+            "category_id": {},
+            "name": {}
+          },
+          "required": [
+            "name",
+            "category_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "initialize_current"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "rename"
+            },
+            "name": {},
+            "project_id": {}
+          },
+          "required": [
+            "project_id",
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "move"
+            },
+            "category_id": {},
+            "project_id": {}
+          },
+          "required": [
+            "project_id",
+            "category_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "action": {
+              "const": "delete"
+            },
+            "confirm": {},
+            "project_id": {}
+          },
+          "required": [
+            "project_id",
+            "confirm"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  ],
+  "description": "需要前端在线。先 list/list_categories 核对对象。initialize_current 绑定调用会话的工作区，必须属于角色集，不能传路径或任意项目 ID。创建成功先读 documentation_path；中途失败先检查返回项目，避免重复创建。角色配置修改使用普通文件编辑工具，文件说明见创建时附带文档。",
+  "properties": {
+    "action": {
+      "description": "选择管理动作。初始化只补缺失文件，不覆盖已有配置；不会切换当前项目。",
+      "enum": [
+        "list_categories",
+        "create_category",
+        "list",
+        "get",
+        "create_role",
+        "initialize_current",
+        "rename",
+        "move",
+        "delete"
+      ],
+      "options": [
+        {
+          "description": "查看当前集的分类 ID 和名称。",
+          "value": "list_categories"
+        },
+        {
+          "description": "按 name 创建分类。",
+          "value": "create_category"
+        },
+        {
+          "description": "列出当前集的项目，可按 category_id 筛选。",
+          "value": "list"
+        },
+        {
+          "description": "按 project_id 读取对象的当前配置。",
+          "value": "get"
+        },
+        {
+          "description": "指定分类和名称，新建角色及制作说明。",
+          "value": "create_role"
+        },
+        {
+          "description": "只在调用工作区所属集根目录补缺文件，已有内容保留。",
+          "value": "initialize_current"
+        },
+        {
+          "description": "修改项目显示名称，保留身份与路径。",
+          "value": "rename"
+        },
+        {
+          "description": "移动到同一集的目标分类。",
+          "value": "move"
+        },
+        {
+          "description": "核对 project_id 并 confirm=true，使用项目回收流程。",
+          "value": "delete"
+        }
+      ],
+      "permission_scope": "global_data",
+      "permission_type": "tiance_data_write",
+      "type": "string"
+    },
+    "category_id": {
+      "description": "创建/移动的真实分类 ID；list 可按分类筛选。",
+      "minLength": 1,
+      "permission_type": "none",
+      "type": "string"
+    },
+    "confirm": {
+      "const": true,
+      "description": "确认已核对删除对象，delete 必须 true；将项目连同其会话和附件送入系统回收站，不能删除当前调用项目。",
+      "permission_scope": "global_data",
+      "permission_type": "tiance_data_delete",
+      "type": "boolean"
+    },
+    "name": {
+      "description": "创建或重命名时的显示名称。",
+      "maxLength": 160,
+      "minLength": 1,
+      "permission_type": "none",
+      "type": "string"
+    },
+    "project_id": {
+      "description": "get/rename/move/delete/set_state 的目标项目 ID；不是名称或路径。initialize_current 不接受此参数。",
+      "minLength": 1,
+      "permission_type": "none",
+      "type": "string"
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "type": "object"
+}

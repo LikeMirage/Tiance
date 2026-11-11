@@ -1,0 +1,32 @@
+{
+  "name": "external_send_file",
+  "registration_name": "对外文件发送",
+  "description": "通过天策已连接的 Telegram、飞书或微信机器人，向指定接收 ID 发送本地文件和附言。无需手机发起任务；微信需接收者先发消息取得回复凭据。",
+  "state": {
+    "enabled": true
+  },
+  "loading": {
+    "dynamic": true
+  },
+  "execution": {
+    "parallel": true
+  },
+  "runtime": {
+    "type": "python",
+    "entry": "program/main.py",
+    "timeout_seconds": 600,
+    "host_capabilities": [
+      "external_messaging"
+    ]
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "files": {
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json",
+    "examples": ".tool/examples.json",
+    "permissions": ".tool/permissions.json"
+  }
+}

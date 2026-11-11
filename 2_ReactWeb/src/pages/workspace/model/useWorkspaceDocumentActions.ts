@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import type { EditorReferenceViewerPayload } from "../../../entities/editor/model/editorReference";
@@ -14,23 +14,43 @@ import type { useDocumentTabs } from "../../../features/document-tabs/model/useD
 import type { CodeBlockSavePayload } from "../../../features/markdown-preview/model/codeBlockFile";
 import { generateProjectMarkdownDocx } from "../../../services/project/generateProjectMarkdownDocx";
 import { getConversationDataView } from "../../../services/project/getConversationDataView";
+import { resolveFileReference } from "../../../services/editor/localEditorFiles";
+import { createLocalDocumentSource } from "../../../features/document-tabs/model/localDocumentFileSource";
+import type { DocumentFileSourceRuntime } from "../../../features/document-tabs/model/documentFileSources";
+import { getProjectDocumentSourceKey } from "../../../features/document-tabs/model/documentFileSources";
+import { makeTabId } from "../../../features/document-tabs/model/documentTabUtils";
+import { referenceOriginalFile, referenceRevealTarget } from "../../../entities/editor/model/referenceNavigation";
+import { DocumentRevealError } from "../../../entities/editor/model/documentReveal";
 
 type UseWorkspaceDocumentActionsOptions = {
   documentTabs: ReturnType<typeof useDocumentTabs>;
   onLayoutPreferenceChange: (update: WorkspaceLayoutPreferenceUpdate) => void;
   projectId: string | null;
+  sessionId: string | null;
+  projectFileSource?: DocumentFileSourceRuntime | null;
+  onPrepareFileOpen?: (signal: AbortSignal) => boolean | void | Promise<boolean | void>;
 };
 
 export function useWorkspaceDocumentActions({
   documentTabs,
   onLayoutPreferenceChange,
   projectId,
+  sessionId,
+  projectFileSource,
+  onPrepareFileOpen,
 }: UseWorkspaceDocumentActionsOptions) {
   const documentTabsRef = useRef(documentTabs);
   const projectIdRef = useRef(projectId);
   const dataViewRequestsRef = useRef(new Map<string, AbortController>());
   documentTabsRef.current = documentTabs;
   projectIdRef.current = projectId;
+  const [referenceOpenError, setReferenceOpenError] = useState<string | null>(null);
+  const referenceRequestRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    setReferenceOpenError(null);
+    return () => referenceRequestRef.current?.abort();
+  }, [projectId, sessionId]);
+  useEffect(() => setReferenceOpenError(null), [documentTabs.activeTabId]);
 
   useEffect(() => () => {
     for (const controller of dataViewRequestsRef.current.values()) controller.abort();
@@ -46,7 +66,7 @@ export function useWorkspaceDocumentActions({
 
   const handleGenerateMarkdownDocx = useCallback(async (tab: DocumentTab) => {
     const startedProjectId = projectId;
-    const sourcePath = tab.projectFilePath ?? tab.filePath;
+    const sourcePath = tab.projectFilePath;
     if (!startedProjectId || tab.projectId !== startedProjectId || !sourcePath) {
       throw new Error("只能将当前项目中的 Markdown 文件生成 Word。");
     }
@@ -77,10 +97,49 @@ export function useWorkspaceDocumentActions({
   }, [documentTabs.openVirtualHtmlPreview, projectId]);
 
   const handleOpenReference = useCallback((payload: EditorReferenceViewerPayload) => {
-    documentTabs.openVirtualReferenceViewer(payload, {
-      projectId: payload.reference.projectId ?? projectId,
-    });
-  }, [documentTabs.openVirtualReferenceViewer, projectId]);
+    referenceRequestRef.current?.abort();
+    setReferenceOpenError(null);
+    if (!projectId) return;
+    const controller = new AbortController();
+    referenceRequestRef.current = controller;
+    void (async () => {
+      try {
+        const file = await resolveFileReference(referenceOriginalFile(payload), projectId, sessionId, controller.signal);
+        if (controller.signal.aborted || projectIdRef.current !== projectId) return;
+        if (await onPrepareFileOpen?.(controller.signal) === false) return;
+        if (controller.signal.aborted || projectIdRef.current !== projectId) return;
+        if (file.kind === "folder") {
+          documentTabsRef.current.openVirtualReferenceViewer(payload, { projectId, resolution: file });
+          return;
+        }
+        const runtime = file.kind === "local" ? createLocalDocumentSource(file.root, projectId) : projectFileSource;
+        const tabId = makeTabId(runtime?.source.key ?? getProjectDocumentSourceKey(projectId), file.path);
+        await documentTabsRef.current.openNode({
+          id: file.path, kind: "file", name: file.name, path: file.path, mtimeMs: file.mtime_ms,
+        }, file.kind === "project"
+          ? { projectId, projectFilePath: file.path, fileSource: projectFileSource }
+          : { fileSource: runtime, filePath: file.path });
+        if (controller.signal.aborted || projectIdRef.current !== projectId) return;
+        try {
+          await documentTabsRef.current.revealReference(tabId, payload, referenceRevealTarget(payload), controller.signal);
+        } catch (error) {
+          // A changed excerpt/page leaves the original file open. Loading, access and network
+          // failures must retain their real error, not masquerade as a deleted source.
+          if (!(error instanceof DocumentRevealError) || ![
+            "TEXT_NOT_FOUND", "AMBIGUOUS_TEXT", "PAGE_OUT_OF_RANGE", "UNSUPPORTED_TARGET",
+            "NAVIGATION_INTERRUPTED", "SUPERSEDED", "CANCELLED", "FILE_NOT_FOUND",
+          ].includes(error.code)) throw error;
+        }
+      } catch (error) {
+        if (!controller.signal.aborted && projectIdRef.current === projectId) {
+          if (error && typeof error === "object" && "status" in error && error.status === 404) {
+            if (await onPrepareFileOpen?.(controller.signal) === false || controller.signal.aborted) return;
+            documentTabsRef.current.openVirtualReferenceViewer(payload, { projectId, resolution: { kind: "missing" } });
+          } else setReferenceOpenError(error instanceof Error ? error.message : "打开引用文件失败。");
+        }
+      }
+    })();
+  }, [documentTabs.openVirtualReferenceViewer, projectId, sessionId, projectFileSource, onPrepareFileOpen]);
 
   const handleOpenProjectFile = useCallback(async (path: string) => {
     if (!projectId || !path.trim()) {
@@ -217,6 +276,7 @@ export function useWorkspaceDocumentActions({
   );
 
   return {
+    referenceOpenError,
     activeConversationDataFile,
     clientToolRegistrations,
     handleAiPanelWidthCommit,

@@ -355,6 +355,8 @@ class ProjectConversationRepository:
         role_project_id: str | None = None,
         parent_session_id: str | None = None,
         created_by: str = "user",
+        inherit_configuration: bool = True,
+        reasoning_mode_set: bool = False,
     ) -> ProjectConversationSession:
         if created_by == "ai":
             if not parent_session_id:
@@ -370,6 +372,8 @@ class ProjectConversationRepository:
                 set_active=set_active,
                 settings=settings,
                 role_project_id=role_project_id,
+                inherit_configuration=inherit_configuration,
+                reasoning_mode_set=reasoning_mode_set,
             )
         if parent_session_id:
             raise ConflictError("普通新建会话不能指定父会话。")
@@ -536,9 +540,10 @@ class ProjectConversationRepository:
     def delete_session(
         self,
         project_id: str,
-        session_id: str,
+        session_id: str | None,
         *,
         session_ids: tuple[str, ...],
+        protected_session_id: str | None = None,
     ) -> ProjectConversationSession | None:
         conversations_dir = self._session_store.conversations_dir(project_id, for_write=True)
         with conversation_write_lock(conversations_dir):
@@ -547,6 +552,7 @@ class ProjectConversationRepository:
                 conversations_dir,
                 session_id,
                 session_ids,
+                protected_session_id,
             )
             session_dirs = {
                 selected_session_id: self._session_store.require_session_dir(
@@ -556,7 +562,7 @@ class ProjectConversationRepository:
                 )
                 for selected_session_id in normalized_session_ids
             }
-            deleted_session = self.get_session(project_id, session_id)
+            deleted_session = self.get_session(project_id, session_id or normalized_session_ids[0])
             if deleted_session is None:
                 raise NotFoundError(
                     f"Conversation session '{session_id}' was not found."
@@ -624,9 +630,10 @@ class ProjectConversationRepository:
     def validate_session_deletion(
         self,
         project_id: str,
-        session_id: str,
+        session_id: str | None,
         *,
         session_ids: tuple[str, ...],
+        protected_session_id: str | None = None,
     ) -> tuple[str, ...]:
         conversations_dir = self._session_store.conversations_dir(project_id)
         return self._validate_session_deletion_unlocked(
@@ -634,21 +641,25 @@ class ProjectConversationRepository:
             conversations_dir,
             session_id,
             session_ids,
+            protected_session_id,
         )
 
     def _validate_session_deletion_unlocked(
         self,
         project_id: str,
         conversations_dir: Path,
-        session_id: str,
+        session_id: str | None,
         session_ids: tuple[str, ...],
+        protected_session_id: str | None = None,
     ) -> tuple[str, ...]:
         normalized_session_ids = tuple(dict.fromkeys(
             selected_session_id.strip()
             for selected_session_id in session_ids
             if selected_session_id.strip()
         ))
-        if session_id not in normalized_session_ids:
+        if not normalized_session_ids:
+            raise BadRequestError("删除列表不能为空。")
+        if session_id is not None and session_id not in normalized_session_ids:
             raise BadRequestError("删除列表必须包含当前会话。")
 
         existing_session_ids = {
@@ -665,6 +676,25 @@ class ProjectConversationRepository:
             )
 
         graph = self._branch_store.read_graph(conversations_dir)
+        if protected_session_id is not None:
+            if protected_session_id not in existing_session_ids:
+                raise BadRequestError("受保护的调用会话已不存在，无法继续删除。")
+            nodes = {node.session_id: node for node in self._branch_store.list_nodes(graph)}
+            current = protected_session_id
+            visited: set[str] = set()
+            while current is not None:
+                if current in visited:
+                    raise ConflictError("会话分支关系存在循环，无法安全删除会话。")
+                visited.add(current)
+                if current in normalized_session_ids:
+                    raise ConflictError("不能删除当前调用会话或它的祖先会话，以免中断本次工具调用。")
+                node = nodes.get(current)
+                current = node.parent_session_id if node is not None else None
+
+        # A project-level batch is an exact selection, not an implicit cascade.
+        # The single-session endpoint retains its original subtree restriction.
+        if session_id is None:
+            return normalized_session_ids
         allowed_session_ids = {
             session_id,
             *self._branch_store.live_descendant_session_ids(graph, session_id),
@@ -684,9 +714,11 @@ class ProjectConversationRepository:
         project_id: str,
         source_session_id: str,
         *,
-        source_message_id: str,
-        draft: str,
-        references: list[dict],
+        source_message_id: str | None,
+        draft: str | None,
+        references: list[dict] | None,
+        created_by: str = "user",
+        configuration: dict | None = None,
     ) -> ProjectConversationForkResult:
         return self._branch_repository.fork_session(
             project_id,
@@ -694,6 +726,8 @@ class ProjectConversationRepository:
             source_message_id=source_message_id,
             draft=draft,
             references=references,
+            created_by=created_by,
+            configuration=configuration,
         )
 
     def list_messages(
@@ -703,6 +737,10 @@ class ProjectConversationRepository:
     ) -> tuple[ProjectConversationMessage, ...]:
         session_dir = self._session_store.require_session_dir(project_id, session_id)
         return self._message_store.list_messages(session_dir)
+
+    def get_message(self, project_id: str, session_id: str, message_id: str) -> ProjectConversationMessage:
+        session_dir = self._session_store.require_session_dir(project_id, session_id)
+        return self._message_store.get_message(session_dir, message_id)
 
     def get_task_excerpt(self, project_id: str, session_id: str, message_id: str) -> str | None:
         session_dir = self._session_store.require_session_dir(project_id, session_id)
@@ -754,9 +792,13 @@ class ProjectConversationRepository:
     def message_sync_target(self, project_id: str, session_id: str) -> Path:
         return self._session_store.require_session_dir(project_id, session_id)
 
-    def message_navigation(self, project_id: str, session_id: str):
+    def message_navigation(self, project_id: str, session_id: str, *, query: str = ""):
         from app.repositories.project.conversation_navigation_repository import read_navigation
-        return read_navigation(self._session_store.require_session_dir(project_id, session_id))
+        return read_navigation(self._session_store.require_session_dir(project_id, session_id), query=query)
+
+    def recent_history(self, project_id: str, session_id: str, *, limit: int):
+        from .conversation_history_repository import read_recent_history
+        return read_recent_history(self._session_store.require_session_dir(project_id, session_id), limit)
 
     def get_message_turn(
         self,

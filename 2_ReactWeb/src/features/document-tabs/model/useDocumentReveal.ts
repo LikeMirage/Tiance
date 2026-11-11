@@ -5,6 +5,7 @@ import { getProjectDocumentSourceKey } from "./documentFileSources";
 import { makeTabId, normalizeWorkspacePath } from "./documentTabUtils";
 import { resolveDocumentPreview } from "./documentPreviewResolver";
 import type { ExplorerNode } from "../../../entities/explorer-node/model/explorerNode";
+import type { EditorReferenceViewerPayload } from "../../../entities/editor/model/editorReference";
 
 type Options = {
   getSnapshot: () => { tabs: DocumentTab[]; activeTabId: string | null };
@@ -35,7 +36,31 @@ export function useDocumentReveal({ getSnapshot, openNode, selectTab, tabs, acti
     }
   }, [activeTabId, tabs]);
 
-  return useCallback((projectId: string, rawPath: string, target: DocumentRevealTarget, signal: AbortSignal) => {
+  const revealTab = useCallback((tabId: string, target: DocumentRevealTarget, signal: AbortSignal) => {
+    if (signal.aborted) return Promise.reject(new DocumentRevealError("CANCELLED", "文件定位已取消。"));
+    pending.current?.request.fail(new DocumentRevealError("SUPERSEDED", "已被新的文件定位请求替代。"));
+    const { request, result } = createDocumentRevealRequest(target, signal);
+    pending.current = { tabId, request };
+    setTabs(current => current.map(tab => tab.id === tabId ? { ...tab, revealRequest: request } : tab));
+    return result.finally(() => {
+      if (pending.current?.request === request) pending.current = null;
+      setTabs(current => current.map(tab => tab.revealRequest === request ? { ...tab, revealRequest: undefined } : tab));
+    });
+  }, [setTabs]);
+
+  const revealReference = useCallback((tabId: string, origin: EditorReferenceViewerPayload,
+    target: DocumentRevealTarget | null, signal: AbortSignal) => {
+    setTabs(current => current.map(tab => tab.id === tabId ? { ...tab, referenceOrigin: origin } : tab));
+    const tab = getSnapshot().tabs.find(item => item.id === tabId);
+    const path = tab?.filePath ?? "";
+    const supported = target?.type === "pdf_page" ? tab?.kind === "pdf"
+      : target?.type === "reference_text" ? tab?.kind === "text" || /\.docx$/i.test(path)
+      : target?.type === "reference_image" ? target.reference.source === "ppt_slide" ? /\.pptx$/i.test(path)
+        : /\.(xlsx|xls|csv|tsv)$/i.test(path) : false;
+    return target && supported ? revealTab(tabId, target, signal) : Promise.resolve(null);
+  }, [getSnapshot, revealTab, setTabs]);
+
+  const revealProjectFile = useCallback((projectId: string, rawPath: string, target: DocumentRevealTarget, signal: AbortSignal) => {
     const path = normalizeWorkspacePath(rawPath);
     const node = { id: `project:${projectId}:${path}`, kind: "file" as const, name: path.split("/").at(-1) || path, path };
     const tabId = makeTabId(getProjectDocumentSourceKey(projectId), path);
@@ -52,20 +77,13 @@ export function useDocumentReveal({ getSnapshot, openNode, selectTab, tabs, acti
       }));
     }
     if (signal.aborted) return Promise.reject(new DocumentRevealError("CANCELLED", "文件定位已取消。"));
-    pending.current?.request.fail(new DocumentRevealError("SUPERSEDED", "已被新的文件定位请求替代。"));
-    const { request, result } = createDocumentRevealRequest(target, signal);
-    pending.current = { tabId, request };
-    try {
-      // Existing tabs keep their live editor buffer, including uncommitted typing.
-      if (existing) selectTab(tabId);
-      else void openNode(node, { projectId, projectFilePath: path }).catch(request.fail);
-      setTabs((current) => current.map((tab) => tab.id === tabId ? { ...tab, revealRequest: request } : tab));
-    } catch (error) { request.fail(error); }
-    return result.finally(() => {
-      if (pending.current?.request === request) pending.current = null;
-      setTabs((current) => current.some((tab) => tab.revealRequest === request)
-        ? current.map((tab) => tab.revealRequest === request ? { ...tab, revealRequest: undefined } : tab)
-        : current);
-    });
-  }, [getSnapshot, openNode, selectTab, setTabs]);
+    // Opening an existing tab must preserve its live, possibly unsaved buffer.
+    if (existing) selectTab(tabId);
+    const opened = existing ? Promise.resolve() : openNode(node, { projectId, projectFilePath: path });
+    const result = revealTab(tabId, target, signal);
+    const request = pending.current?.request;
+    void Promise.resolve(opened).catch(error => request?.fail(error));
+    return result;
+  }, [getSnapshot, openNode, selectTab, revealTab]);
+  return { revealProjectFile, revealReference };
 }

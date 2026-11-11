@@ -12,6 +12,7 @@ import logging
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.domain.project import Project, ProjectCategory, ProjectKind
 from app.infra.projects import ProjectStorage, get_project_storage
+from app.infra.projects.workspace_lifecycle import workspace_access
 from app.repositories.project import ProjectRepository, get_project_repository
 from app.services.project.project_ids import normalize_project_id
 
@@ -379,6 +380,15 @@ class ProjectService:
         """判断项目是否为天策内部托管目录。"""
         return self._storage.is_managed_project_root(project.root_path)
 
+    def remove_external_project_registration(self, project: Project) -> None:
+        """Deregister after data-only recycling, never expand to whole-folder deletion."""
+        current = self.get_project(project.project_id)
+        if current is None:
+            return
+        if current.root_path != project.root_path or self.is_managed_project(current):
+            raise ConflictError("项目目录登记已变更，请刷新后重试。")
+        self._repository.delete_project(project.project_id)
+
     def get_project_order(self) -> tuple[str, ...]:
         """获取项目排序"""
         project_catalog = self._repository.get_file_catalog(ProjectKind.PROJECT)
@@ -631,7 +641,8 @@ class ProjectService:
             updated_at=now,
         )
         try:
-            saved_project = self._repository.save_project(project)
+            with workspace_access(external_root / ".Tiance", registering=True):
+                saved_project = self._repository.save_project(project)
         except ConflictError:
             existing_project = self._repository.get_project_by_root_path(normalized_root_path)
             if existing_project is not None:

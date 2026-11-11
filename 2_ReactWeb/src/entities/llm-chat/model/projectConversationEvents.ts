@@ -11,6 +11,7 @@ export type ProjectConversationChangeKind =
   | "usage";
 
 export type ProjectConversationUpdatedDetail = {
+  source?: "server";
   kind: ProjectConversationChangeKind;
   projectId: string;
   runtimeStatus?: ConversationRuntimeStatus;

@@ -169,25 +169,31 @@ def _units(package, sections):
 def _scan(package, wanted=None):
     chunks, selected, sections = [], [], []
     nodes = chars = blocks = start = images = 0
+    paragraph_start = paragraph_end = None
     for unit in _units(package, sections):
         unit_images = sum(R + "embed" in e.attrib or R + "link" in e.attrib or e.tag.endswith("}imagedata") for e in unit["element"].iter())
         if blocks and not unit["keep"] and (nodes + unit["nodes"] > policy.WORD_CHUNK_NODES
                 or chars + unit["chars"] > policy.WORD_CHUNK_TEXT or blocks >= policy.WORD_CHUNK_BLOCKS
                 or images + unit_images > policy.WORD_CHUNK_IMAGES):
-            chunks.append({"start": start, "count": blocks})
+            chunks.append({"start": start, "count": blocks, "paragraph_start": paragraph_start, "paragraph_end": paragraph_end})
             start, nodes, chars, blocks, images = unit["index"], 0, 0, 0, 0
+            paragraph_start = paragraph_end = None
         if unit["nodes"] > policy.MAX_WORD_UNIT_NODES or unit["chars"] > policy.MAX_WORD_UNIT_TEXT:
             raise policy.PreviewLimit("Word 单个段落或表格行过于复杂，无法分块预览。")
         nodes += unit["nodes"]
         chars += unit["chars"]
         blocks += 1
+        indices = [location["paragraphIndex"] for location in unit["locations"].values()]
+        if indices:
+            paragraph_start = min(indices) if paragraph_start is None else min(paragraph_start, min(indices))
+            paragraph_end = max(indices) if paragraph_end is None else max(paragraph_end, max(indices))
         images += unit_images
         if nodes > policy.MAX_WORD_PART_NODES or chars > policy.MAX_WORD_UNIT_TEXT:
             raise policy.PreviewLimit("Word 连续合并的表格区域过于复杂，无法分块预览。")
         if wanted == len(chunks):
             selected.append({**unit, "element": deepcopy(unit["element"])})
     if blocks or not chunks:
-        chunks.append({"start": start, "count": blocks})
+        chunks.append({"start": start, "count": blocks, "paragraph_start": paragraph_start, "paragraph_end": paragraph_end})
     return chunks, selected, sections
 
 
@@ -195,7 +201,8 @@ def inspect_word(path: Path, package: Package):
     chunks, _, _ = _scan(package)
     with path.open("rb") as stream:
         fingerprint = "sha256:" + file_digest(stream, "sha256").hexdigest()
-    return {"mode": "paged", "word": {"chunks": len(chunks), "fingerprint": fingerprint}}
+    return {"mode": "paged", "word": {"chunks": len(chunks), "fingerprint": fingerprint,
+            "ranges": [[chunk["paragraph_start"], chunk["paragraph_end"]] for chunk in chunks]}}
 
 
 def _rels_path(part):

@@ -47,6 +47,7 @@ type WorkspaceCanvasPanelProps = {
   activeThemeId: string | null;
   isThemeLoading: boolean;
   activeToolWorkspaceKey: string | null;
+  waitForToolWorkspaceReady: (key: string, signal: AbortSignal) => Promise<boolean>;
   projectWorkspaceError?: string | null;
   projectFileReferenceRequest?: ProjectFileReferenceRequest | null;
   projectDocumentTabs: ReturnType<typeof useDocumentTabs>;
@@ -162,6 +163,7 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
   activeThemeId,
   isThemeLoading,
   activeToolWorkspaceKey,
+  waitForToolWorkspaceReady,
   projectWorkspaceError = null,
   projectFileReferenceRequest = null,
   projectDocumentTabs,
@@ -547,6 +549,7 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
           <WorkspaceToolCanvasPanel
             projectReferenceCatalog={projectReferenceCatalog}
             activeWorkspaceKey={activeToolWorkspaceKey}
+            waitForWorkspaceReady={waitForToolWorkspaceReady}
             folders={toolFolders}
             documentTabs={toolDocumentTabs}
             folderError={toolFoldersError}

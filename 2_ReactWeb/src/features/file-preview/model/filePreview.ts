@@ -10,7 +10,7 @@ export type FilePreviewInspection = {
   page_rows?: number;
   page_columns?: number;
   delimited?: { encoding: string; delimiter: string };
-  word?: { chunks: number; fingerprint: string };
+  word?: { chunks: number; fingerprint: string; ranges?: Array<[number | null, number | null]> };
 };
 
 export function isDelimitedFile(fileName: string) {

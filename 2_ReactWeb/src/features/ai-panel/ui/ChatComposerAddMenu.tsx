@@ -17,7 +17,7 @@ import {
 import { createPortal } from "react-dom";
 import type { EditorExternalPathReferenceRequest } from "../../../entities/editor/model/editorReference";
 import { OptionSelect } from "../../../shared/ui/option-select/OptionSelect";
-import { normalizeAbsolutePath } from "../model/composerPathReferences";
+import { buildComposerProjectReference, referenceComposerProject } from "../model/composerProjectReference";
 import type { ChatProjectReferenceCatalog } from "./ChatComposerTypes";
 
 type AddCategory = "file" | "conversation" | "project";
@@ -211,15 +211,9 @@ export function ChatComposerAddMenu({
                     className="chat-composer-add-menu__option chat-composer-add-menu__project"
                     type="button"
                     title={project.root_path}
-                    disabled={!onReferenceExternalPath || !normalizeAbsolutePath(project.root_path)}
+                    disabled={!onReferenceExternalPath || !buildComposerProjectReference(project)}
                     onClick={() => {
-                      const path = normalizeAbsolutePath(project.root_path);
-                      if (!path || !onReferenceExternalPath) return;
-                      onReferenceExternalPath({
-                        kind: "folder",
-                        name: `${project.name}（Tiance 项目）`,
-                        path,
-                      });
+                      if (!referenceComposerProject(project, onReferenceExternalPath)) return;
                       onOpenChange(false);
                       triggerRef.current?.focus();
                     }}

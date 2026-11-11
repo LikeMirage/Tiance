@@ -7,6 +7,7 @@ from app.core.atomic_replace import atomic_replace_path
 from app.core.errors import ConflictError, NotFoundError
 from app.domain.project.project_conversation import (
     ProjectConversationSession,
+    ProjectConversationSessionSettings,
     conversation_session_configuration_hash,
 )
 from app.repositories.project.conversation_branch_store import (
@@ -54,6 +55,8 @@ class ProjectConversationRelationRepository:
         set_active: bool,
         settings: dict | None,
         role_project_id: str | None = None,
+        inherit_configuration: bool = True,
+        reasoning_mode_set: bool = False,
     ) -> ProjectConversationSession:
         conversations_dir = self._session_store.conversations_dir(
             project_id,
@@ -95,26 +98,26 @@ class ProjectConversationRelationRepository:
                 title=title.strip() if title and title.strip() else "新对话",
                 provider_id=(
                     provider_id
-                    if provider_id is not None
+                    if provider_id is not None or not inherit_configuration
                     else parent_session.provider_id
                 ),
                 model_id=(
                     model_id
-                    if model_id is not None
+                    if model_id is not None or not inherit_configuration
                     else parent_session.model_id
                 ),
                 reasoning_mode=(
                     _optional_reasoning_mode(reasoning_mode)
-                    if reasoning_mode is not None
+                    if reasoning_mode is not None or reasoning_mode_set or not inherit_configuration
                     else parent_session.reasoning_mode
                 ),
                 created_at=now,
                 updated_at=now,
                 message_count=0,
                 manual_title=manual_title,
-                settings=_merge_session_settings(parent_session.settings, settings),
-                role_project_id=role_project_id or parent_session.role_project_id,
-                role_configuration_hash=parent_session.role_configuration_hash,
+                settings=_merge_session_settings(parent_session.settings if inherit_configuration else ProjectConversationSessionSettings(), settings),
+                role_project_id=role_project_id or (parent_session.role_project_id if inherit_configuration else None),
+                role_configuration_hash=parent_session.role_configuration_hash if inherit_configuration else None,
             )
             if role_project_id:
                 session = replace(
@@ -123,6 +126,11 @@ class ProjectConversationRelationRepository:
                         session
                     ),
                 )
+            elif inherit_configuration and (
+                conversation_session_configuration_hash(session)
+                != conversation_session_configuration_hash(parent_session)
+            ):
+                session = replace(session, role_project_id=None, role_configuration_hash=None)
 
             target_session_dir = self._session_store.session_dir(
                 project_id,

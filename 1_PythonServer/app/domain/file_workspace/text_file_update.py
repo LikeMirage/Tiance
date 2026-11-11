@@ -6,3 +6,4 @@ class TextFileUpdate:
     path: str
     content: str
     expected_mtime_ms: int | None = None
+    create_only: bool = False

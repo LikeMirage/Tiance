@@ -1,5 +1,5 @@
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -74,3 +74,39 @@ def test_navigation_route_is_scoped_to_requested_session(tmp_path, monkeypatch):
         response = client.get(f"/projects/{PROJECT_ID}/conversations/{sessions[1].session_id}/messages/navigation")
     assert response.status_code == 200
     assert [item["user_message_id"] for item in response.json()["items"]] == ["user-1"]
+    with TestClient(app) as client:
+        url = f"/projects/{PROJECT_ID}/conversations/{sessions[1].session_id}/messages/navigation"
+        assert client.get(url, params={"query": "Question 0"}).json()["items"] == []
+        assert client.get(url, params={"query": "question 1"}).json()["items"][0]["turn_number"] == 1
+
+
+def test_navigation_search_reads_full_user_text_without_renumbering_or_mixing_turns(tmp_path):
+    session_dir = _session_dir(tmp_path, "session")
+    conversation_stores.ConversationMessageStore().write_messages(session_dir, (
+        _message("old", role="user", content="前文" * 500 + "Keyword [a.*] 100%_"),
+        _message("old-answer", role="assistant", content="正确回复"),
+        _message("middle", role="user", content="不匹配"),
+        _message("middle-answer", role="assistant", content="Keyword 仅在回复中"),
+        _message("latest", role="user", content="KEYWORD 再次出现"),
+    ))
+    result = read_navigation(session_dir, query=" keyword ")
+    assert [(item.user_message_id, item.turn_number) for item in result.items] == [("old", 1), ("latest", 3)]
+    assert result.items[0].assistant_preview == "正确回复"
+    assert all(len(item.user_preview) <= 161 for item in result.items)
+    assert read_navigation(session_dir, query="[a.*]").items[0].user_message_id == "old"
+    assert read_navigation(session_dir, query="100%_").items[0].user_message_id == "old"
+    assert read_navigation(session_dir, query="missing").items == ()
+    assert len(read_navigation(session_dir, query="  ").items) == 3
+
+
+def test_navigation_search_includes_reference_names_paths_and_selected_text(tmp_path):
+    session_dir = _session_dir(tmp_path, "session")
+    reference = {"type": "text", "reference": {
+        "fileName": "测试报告.md", "filePath": "资料/report.md", "content": "摘录中的专用词",
+    }}
+    conversation_stores.ConversationMessageStore().write_messages(session_dir, (
+        replace(_message("ref", role="user", content=""), references=[reference]),
+    ))
+    for query in ("报告", "REPORT.md", "专用词"):
+        assert read_navigation(session_dir, query=query).items[0].user_message_id == "ref"
+    assert read_navigation(session_dir, query="fileName").items == (), "JSON keys are not searchable message text"

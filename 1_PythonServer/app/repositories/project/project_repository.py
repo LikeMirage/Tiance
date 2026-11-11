@@ -5,6 +5,7 @@ from app.core.config import get_settings
 from app.domain.project import Project, ProjectCategory, ProjectKind
 from app.infra.database import database_connection, database_transaction
 from app.repositories.project.file_project_catalog import FileProjectCatalog
+from app.infra.workspace_catalog_changes import workspace_catalog_changes
 
 COLLECTION_DIRECTORIES = {
     ProjectKind.PROJECT: "projects", ProjectKind.TOOL: "tools",
@@ -47,12 +48,18 @@ class ProjectRepository:
         return None
 
     def save_project(self, project: Project) -> Project:
-        return self._require_catalog(project.project_kind).save_project(project)
+        catalog = self._require_catalog(project.project_kind)
+        previous = catalog.get_project(project.project_id)
+        saved = catalog.save_project(project)
+        if previous != saved:
+            workspace_catalog_changes.publish()
+        return saved
 
     def delete_project(self, project_id: str) -> None:
         for catalog in self._file_catalogs.values():
             if catalog.get_project(project_id) is not None:
                 catalog.delete_project(project_id)
+                workspace_catalog_changes.publish()
                 return
 
     def list_project_categories(self) -> tuple[ProjectCategory, ...]:
@@ -69,18 +76,25 @@ class ProjectRepository:
         return self._require_catalog(category_kind).get_project_category_by_name(name)
 
     def save_project_category(self, category: ProjectCategory) -> ProjectCategory:
-        return self._require_catalog(category.category_kind).save_project_category(category)
+        catalog = self._require_catalog(category.category_kind)
+        previous = catalog.get_project_category(category.category_id)
+        saved = catalog.save_project_category(category)
+        if previous != saved:
+            workspace_catalog_changes.publish()
+        return saved
 
     def delete_project_category(self, category_id: str) -> None:
         for catalog in self._file_catalogs.values():
             if catalog.get_project_category(category_id) is not None:
                 catalog.delete_project_category(category_id)
+                workspace_catalog_changes.publish()
                 return
 
     def delete_project_category_with_projects(self, category_id: str) -> None:
         for catalog in self._file_catalogs.values():
             if catalog.get_project_category(category_id) is not None:
                 catalog.delete_project_category_with_projects(category_id)
+                workspace_catalog_changes.publish()
                 return
 
     def move_projects_to_category(self, *, source_category_id: str, target_category_id: str, updated_at: str) -> None:
@@ -88,6 +102,7 @@ class ProjectRepository:
             if catalog.get_project_category(source_category_id) is not None:
                 catalog.move_projects_to_category(source_category_id=source_category_id,
                     target_category_id=target_category_id, updated_at=updated_at)
+                workspace_catalog_changes.publish()
                 return
         raise ValueError("源项目分类不存在。")
 

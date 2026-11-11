@@ -1,8 +1,8 @@
 from app.schemas.file_workspace_batch import TextFilesSaveRequest
+from typing import Literal
 from contextlib import aclosing
 from pathlib import Path
 import json
-import mimetypes
 
 import asyncio
 from fastapi import APIRouter, Query, Request, Response, WebSocket, status
@@ -33,10 +33,21 @@ from app.schemas.project import (
     ProjectUserFileUploadResponse,
 )
 from app.services.project import get_project_file_service
+from app.services.file_preview.assets import asset_media_type as _asset_media_type
 from app.services.file_preview.runtime import preview_file, validate_asset_version
 from app.services.file_workspace_scan import read_content_snapshot
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+class ProjectScaffoldRequest(TextFilesSaveRequest):
+    project_kind: Literal["tool", "role", "theme"]
+
+
+@router.post("/{project_id}/files/scaffold")
+def initialize_project_files(project_id: str, payload: ProjectScaffoldRequest) -> dict:
+    from app.services.application.project_scaffold import install_project_scaffold
+    return install_project_scaffold(project_id, payload.project_kind, payload.updates())
 
 
 @router.get("/{project_id}/files/preview", summary="Inspect editor preview resources")
@@ -401,23 +412,6 @@ def _sse_event(payload: dict) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-def _asset_media_type(file_path) -> str:
-    media_type, _ = mimetypes.guess_type(str(file_path))
-    office_media_types = {
-        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ".xls": "application/vnd.ms-excel",
-        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    }
-    extension = file_path.suffix.lower()
-    if extension in office_media_types:
-        return media_type or office_media_types[extension]
-    if not media_type or (
-        media_type != "application/pdf"
-        and not media_type.startswith(("image/", "video/"))
-    ):
-        raise BadRequestError("仅支持读取图片、视频、PDF 或 Office 资源。")
-    return media_type
 
 
 @router.put("/{project_id}/files/content-batch", response_model=list[ProjectFileNodeResponse])

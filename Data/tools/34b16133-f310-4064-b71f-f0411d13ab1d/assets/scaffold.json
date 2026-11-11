@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "template_version": "1.4.1",
+  "template_version": "1.6.0",
   "documentation": "docs/tool-development/README.md",
   "files": [
     {

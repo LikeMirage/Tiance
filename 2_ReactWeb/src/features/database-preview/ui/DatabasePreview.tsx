@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowClockwise, CaretLeft, CaretRight, Database } from "@phosphor-icons/react";
 
 import type {
+  DatabaseSource,
   ProjectDatabaseCell,
   ProjectDatabaseObject,
   ProjectDatabaseOverview,
@@ -26,7 +27,7 @@ type DatabasePreviewProps = {
   displayPath: string;
   fileName: string;
   path: string | null;
-  projectId: string | null;
+  databaseSource: DatabaseSource | null;
   refreshKey: number | null;
 };
 
@@ -36,7 +37,7 @@ export function DatabasePreview({
   displayPath,
   fileName,
   path,
-  projectId,
+  databaseSource,
   refreshKey,
 }: DatabasePreviewProps) {
   const [manualRefreshKey, setManualRefreshKey] = useState(0);
@@ -74,7 +75,7 @@ export function DatabasePreview({
   const selectedObject = tableObjects.find((item) => item.name === selectedObjectName) ?? null;
 
   const loadOverview = useCallback((signal?: AbortSignal) => {
-    if (!projectId || !path) {
+    if (!databaseSource || !path) {
       setOverview(null);
       setOverviewState("idle");
       setOverviewError(null);
@@ -83,7 +84,7 @@ export function DatabasePreview({
 
     setOverviewState("loading");
     setOverviewError(null);
-    void getProjectDatabaseOverview(projectId, path, { signal })
+    void getProjectDatabaseOverview(databaseSource, path, { signal })
       .then((response) => {
         if (signal?.aborted) return;
         setOverview(response);
@@ -101,7 +102,7 @@ export function DatabasePreview({
         setOverviewState("error");
         setOverviewError(err instanceof Error ? err.message : "数据库读取失败。");
       });
-  }, [path, projectId]);
+  }, [path, databaseSource]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -114,7 +115,7 @@ export function DatabasePreview({
   }, [selectedObjectName]);
 
   useEffect(() => {
-    if (!projectId || !path || !selectedObjectName) {
+    if (!databaseSource || !path || !selectedObjectName) {
       setRows(null);
       setRowsState("idle");
       setRowsError(null);
@@ -123,7 +124,7 @@ export function DatabasePreview({
     const controller = new AbortController();
     setRowsState("loading");
     setRowsError(null);
-    void getProjectDatabaseTableData(projectId, {
+    void getProjectDatabaseTableData(databaseSource, {
       limit: pageSize,
       objectName: selectedObjectName,
       offset,
@@ -141,10 +142,10 @@ export function DatabasePreview({
         setRowsError(err instanceof Error ? err.message : "表数据读取失败。");
       });
     return () => controller.abort();
-  }, [offset, path, projectId, reloadKey, selectedObjectName]);
+  }, [offset, path, databaseSource, reloadKey, selectedObjectName]);
 
   useEffect(() => {
-    if (!projectId || !path || !selectedObjectName) {
+    if (!databaseSource || !path || !selectedObjectName) {
       setSchema(null);
       setSchemaState("idle");
       setSchemaError(null);
@@ -153,7 +154,7 @@ export function DatabasePreview({
     const controller = new AbortController();
     setSchemaState("loading");
     setSchemaError(null);
-    void getProjectDatabaseTableSchema(projectId, {
+    void getProjectDatabaseTableSchema(databaseSource, {
       objectName: selectedObjectName,
       path,
     }, { signal: controller.signal })
@@ -169,7 +170,7 @@ export function DatabasePreview({
         setSchemaError(err instanceof Error ? err.message : "表结构读取失败。");
       });
     return () => controller.abort();
-  }, [path, projectId, reloadKey, selectedObjectName]);
+  }, [path, databaseSource, reloadKey, selectedObjectName]);
 
   useEffect(() => {
     if (!selectedObjectName || querySql.trim()) return;
@@ -188,12 +189,12 @@ export function DatabasePreview({
       queryAbortControllerRef.current?.abort();
       queryAbortControllerRef.current = null;
     };
-  }, [path, projectId, reloadKey]);
+  }, [path, databaseSource, reloadKey]);
 
   const executeQuery = useCallback(() => {
-    if (!projectId || !path || !querySql.trim() || queryState === "loading") return;
+    if (!databaseSource || !path || !querySql.trim() || queryState === "loading") return;
     const requestSeq = ++queryRequestSeqRef.current;
-    const queryProjectId = projectId;
+    const querySource = databaseSource;
     const queryPath = path;
     const queryText = querySql;
     queryAbortControllerRef.current?.abort();
@@ -202,14 +203,14 @@ export function DatabasePreview({
     setQueryState("loading");
     setQueryError(null);
     setQueryResult(null);
-    void queryProjectDatabase(queryProjectId, {
+    void queryProjectDatabase(querySource, {
       limit: pageSize,
       path: queryPath,
       sql: queryText,
     }, { signal: controller.signal })
       .then((response) => {
         if (controller.signal.aborted || queryRequestSeqRef.current !== requestSeq) return;
-        if (response.project_id !== queryProjectId || response.path !== queryPath) return;
+        if (response.path !== queryPath) return;
         setQueryResult(response);
         setQueryState("ready");
       })
@@ -223,12 +224,12 @@ export function DatabasePreview({
           queryAbortControllerRef.current = null;
         }
       });
-  }, [path, projectId, querySql, queryState]);
+  }, [path, databaseSource, querySql, queryState]);
 
-  if (!projectId || !path) {
+  if (!databaseSource || !path) {
     return (
       <div className="database-preview database-preview--empty">
-        <p>当前数据库文件没有项目路径。</p>
+        <p>当前数据库文件没有有效来源。</p>
       </div>
     );
   }

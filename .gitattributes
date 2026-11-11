@@ -1,4 +1,5 @@
-runtime/** -text
+# Preserve installed distributions and their RECORD hashes byte for byte.
+runtime/** -text -whitespace
 # Preserve the vendored wheel and its recorded hashes exactly as distributed.
 Data/tools/092dcd37-8d51-467d-b607-5a6441dd989a/program/vendor/** -text -whitespace
 # Bundled JavaScript contains intentional whitespace inside string literals.
@@ -6,3 +7,5 @@ Data/tools/092dcd37-8d51-467d-b607-5a6441dd989a/program/vendor/** -text -whitesp
 # Empty-key tool config templates are published; backups remain local.
 Data/tools/**/program/config.json.* export-ignore
 .Tiance/** export-ignore
+# Private device-management tool (defense in depth for archives).
+Data/tools/9cb3e689-385b-46a5-9561-7d0382b1ac0e/** export-ignore

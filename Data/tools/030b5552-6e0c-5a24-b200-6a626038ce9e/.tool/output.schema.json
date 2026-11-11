@@ -1,0 +1,6 @@
+{
+  "description": "动作结果、实际项目路径、配置或模板文件与文档路径；失败返回已知项目供继续处理。",
+  "properties": {},
+  "required": [],
+  "type": "object"
+}

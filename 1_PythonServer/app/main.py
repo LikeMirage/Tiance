@@ -38,6 +38,7 @@ from app.services.application.theme_workspace_reconciliation import (
 from app.services.themes.theme_workspace_watcher import watch_theme_workspace_changes
 from app.static_frontend import mount_frontend_dist
 from app.services.project.conversation_functional_recovery import resume_pending_functional_tasks
+from app.services.mobile.service import get_mobile_service
 
 
 @asynccontextmanager
@@ -66,13 +67,17 @@ async def _lifespan(_application: FastAPI):
         )
     )
     functional_recovery_task = asyncio.create_task(resume_pending_functional_tasks())
+    mobile = get_mobile_service()
+    await mobile.start()
     try:
         yield
     finally:
+        await mobile.close()
         functional_recovery_task.cancel()
         with suppress(asyncio.CancelledError):
             await functional_recovery_task
         await get_desktop_exit_coordinator().close()
+        await mobile.drain_runs()
         project_workspace_watch_task.cancel()
         with suppress(asyncio.CancelledError):
             await project_workspace_watch_task

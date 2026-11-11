@@ -1,0 +1,37 @@
+.access-management__switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  cursor: pointer;
+}
+
+.access-management__switch span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  transition: left 160ms ease, background 160ms ease;
+}
+
+.access-management__switch--on {
+  border-color: rgba(var(--color-accent-rgb), .55);
+  background: var(--color-selection-accent-bg);
+}
+
+.access-management__switch--on span {
+  left: 19px;
+  background: var(--color-accent);
+}
+
+.access-management__switch:disabled {
+  cursor: default;
+  opacity: .55;
+}

@@ -13,7 +13,9 @@ import { getConversationBackgroundRunRegistry } from "../../client-tools/model/c
 import { createConversationInteractionClientToolRegistration } from "../../client-tools/model/conversationInteractionClientTool";
 import { createConversationManagementClientToolRegistration } from "../../client-tools/model/conversationManagementClientTool";
 import { createToolProjectClientToolRegistration } from "../../client-tools/model/toolProjectClientTool";
+import { createRoleProjectClientToolRegistration } from "../../client-tools/model/roleProjectClientTool";
 import type { ConversationSessionsReloadResult } from "./useConversationSessions";
+import { useMobileDesktopBridge } from "../../mobile-access/model/useMobileDesktopBridge";
 
 type UseChatPanelClientToolRegistryInput = {
   activateSession: (sessionId: string) => void;
@@ -59,6 +61,7 @@ export function useChatPanelClientToolRegistry({
   const clientToolRegistry: ClientToolRegistry = useMemo(() => createClientToolRegistry([
     ...clientToolRegistrations,
     createToolProjectClientToolRegistration(),
+    createRoleProjectClientToolRegistration(),
     createConversationManagementClientToolRegistration({
       showSession,
     }),
@@ -77,6 +80,7 @@ export function useChatPanelClientToolRegistry({
   ]);
   combinedClientToolExecutorRef.current = clientToolRegistry.execute;
   combinedClientToolCapabilitiesRef.current = clientToolRegistry.capabilities;
+  useMobileDesktopBridge(combinedClientToolExecutorRef, combinedClientToolCapabilitiesRef);
 
   return {
     backgroundConversationRuns,

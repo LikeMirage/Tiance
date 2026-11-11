@@ -1,14 +1,20 @@
 [
   {
-    "content": "先调用 {\"action\":\"list_categories\"}，使用结果中的 category_id。分类不存在时调用 {\"action\":\"create_category\",\"name\":\"业务工具\"}，再使用返回的分类 ID。",
+    "content": "已有目标工具项目时，在它的会话内调用 {\"action\":\"initialize_current\"}，校验工作区集类型及真实根目录后补齐缺失文件，已有文件和 .Tiance 都不改。不在对应集时拒绝；用户还没创建目标时先 list_categories，再 create_tool(name,category_id)。不创建临时参考项目。",
     "enabled": true,
     "inject_content": false,
-    "title": "查看并选择工具分类"
+    "title": "新建与原地初始化"
   },
   {
-    "content": "调用 {\"action\":\"create_tool\",\"category_id\":\"上一步取得的真实ID\",\"name\":\"订单处理\",\"call_name\":\"process_orders\"}。成功后先读取 documentation_path，按资料修改程序与配置并验证；新工具默认关闭，制作完成后遵从用户意愿决定是否把 manifest_path 中 state.enabled 改为 true。失败若返回 project，应在原项目修复，避免重复创建。",
+    "content": "list 列出项目，get 查看配置；rename/move 使用真实项目 ID。删除前先核对路径、名称和用户意图，再 delete(project_id,confirm=true)。当前调用项目及执行工具本身不可删。删除走平台项目流程，内部目录进系统回收站，失败不伪报成功。",
     "enabled": true,
     "inject_content": false,
-    "title": "创建后按资料制作，默认不启用"
+    "title": "检查、整理与删除"
+  },
+  {
+    "content": "创建成功先读 documentation_path，再按资料实现、验证。新模板默认关闭；已存在工具的 enabled/dynamic/parallel 保持不变。按用户意愿 set_state(project_id,enabled=true)，或编辑 .tool/tool.json；不要因为初始化完成就自动开启。",
+    "enabled": true,
+    "inject_content": false,
+    "title": "制作与开启"
   }
 ]

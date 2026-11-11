@@ -1,0 +1,56 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "action",
+    "platform"
+  ],
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "list_connections",
+        "send_file"
+      ],
+      "description": "list_connections 查看已配置机器人连接，不返回密钥；send_file 实际发送一个文件。",
+      "permission_type": "network_access",
+      "permission_scope": "unresolved"
+    },
+    "connection_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "发送时必填。消息来源标注或 list_connections 返回的连接 ID；不能填 Bot Token。",
+      "permission_type": "credential_use",
+      "permission_scope": "all"
+    },
+    "chat_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "发送时必填。目标平台的接收聊天 ID：Telegram 为数字字符串；飞书为 oc_ 开头的 chat_id；微信为消息来源中的接收聊天 ID。可以明确指定其他接收者，不推断上条消息来源。",
+      "permission_type": "external_data_modify",
+      "permission_scope": "all"
+    },
+    "file_path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "发送时必填。本机文件绝对路径，或相对于当前工作区的文件路径。可以是工作区外文件。",
+      "permission_type": "filesystem_read"
+    },
+    "caption": {
+      "type": "string",
+      "description": "可选附言。自动标注调用所在项目和会话；平台不支持文件附言时完整分成后续文字发送。",
+      "permission_type": "none"
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "telegram",
+        "feishu",
+        "wechat"
+      ],
+      "description": "目标消息平台。先按平台查询连接，再明确指定接收 ID。",
+      "permission_type": "none"
+    }
+  },
+  "description": "send_file 必须指定 platform、connection_id、chat_id、file_path。失败或结果未知时先核对聊天，禁止盲目重发；详细边界见使用说明。"
+}

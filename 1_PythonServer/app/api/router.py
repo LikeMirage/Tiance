@@ -3,6 +3,8 @@
 
 from fastapi import APIRouter
 
+from app.api.routes.editor_files import router as editor_files_router
+from app.api.routes.editor_database import router as editor_database_router
 from app.api.routes.desktop import router as desktop_router
 from app.api.routes.announcements import router as announcements_router
 from app.api.routes.health import router as health_router
@@ -12,6 +14,7 @@ from app.api.routes.github_platform import router as github_platform_router
 from app.api.routes.git_repository import router as git_repository_router
 from app.api.routes.global_memory import router as global_memory_router
 from app.api.routes.locales import router as locales_router
+from app.api.routes.mobile import router as mobile_router
 from app.api.routes.memory_management import router as memory_management_router
 from app.api.routes.llm.client_tools import router as llm_client_tools_router
 from app.api.routes.llm.tool_permissions import router as llm_tool_permissions_router
@@ -51,6 +54,8 @@ api_router.include_router(github_sync_router)
 api_router.include_router(github_platform_router)
 api_router.include_router(git_repository_router)
 api_router.include_router(desktop_router)
+api_router.include_router(editor_files_router)
+api_router.include_router(editor_database_router)
 api_router.include_router(project_router)
 api_router.include_router(roles_router)
 api_router.include_router(workspace_router)
@@ -74,3 +79,5 @@ api_router.include_router(llm_token_estimation_settings_router)
 api_router.include_router(llm_usage_router)
 api_router.include_router(network_settings_router)
 api_router.include_router(software_update_router)
+
+api_router.include_router(mobile_router)

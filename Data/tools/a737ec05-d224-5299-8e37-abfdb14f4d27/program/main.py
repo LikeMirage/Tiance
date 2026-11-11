@@ -22,6 +22,7 @@ from app.services.project import get_project_service
 from app.services.themes import get_active_theme_id, get_theme, set_active_theme
 
 from palette import PaletteError, derive_theme_palette
+from workspace_actions import initialize_current_theme, delete_theme_project
 
 
 THEME_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
@@ -147,6 +148,8 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
             result = get_current_theme_action()
         elif action == "create":
             result = create_theme(payload)
+        elif action == "initialize_current":
+            result = success("已初始化当前主题项目。", initialize_current_theme(tool_root()))
         elif action == "clone":
             result = clone_theme(payload)
         elif action == "derive_palette":
@@ -161,7 +164,7 @@ def run(payload: dict[str, Any]) -> dict[str, Any]:
             result = delete_theme(payload)
         else:
             raise ToolError("INVALID_ARGUMENT", "action 参数无效。")
-        if action in {"create", "clone", "derive_palette", "edit", "switch", "restore", "delete"}:
+        if action in {"create", "initialize_current", "clone", "derive_palette", "edit", "switch", "restore", "delete"}:
             result["resource_invalidations"] = [
                 {"resource": "themes", "scope": "global"}
             ]
@@ -314,7 +317,8 @@ def clone_theme(payload: dict[str, Any]) -> dict[str, Any]:
     theme_root = get_settings().themes_data_path
     temporary_package_path = theme_root / f".{theme_id}.{uuid4().hex}.tmp"
     try:
-        shutil.copytree(source_package_path, temporary_package_path)
+        shutil.copytree(source_package_path, temporary_package_path,
+                        ignore=shutil.ignore_patterns(".Tiance", ".git", "__pycache__"))
         background_result = apply_background_updates(
             next_payload,
             payload,
@@ -566,7 +570,7 @@ def delete_theme(payload: dict[str, Any]) -> dict[str, Any]:
         ) from exc
 
     try:
-        shutil.rmtree(package_path)
+        delete_theme_project(package_path)
     except OSError as exc:
         raise ToolError(
             "DELETE_THEME_FAILED",
@@ -594,6 +598,7 @@ def read_action(value: Any) -> str:
         "list",
         "get_current",
         "create",
+        "initialize_current",
         "clone",
         "derive_palette",
         "edit",
@@ -603,7 +608,7 @@ def read_action(value: Any) -> str:
     }:
         raise ToolError(
             "INVALID_ARGUMENT",
-            "action 必须是 list、get_current、create、clone、derive_palette、edit、switch、restore 或 delete。",
+            "action 必须是 list、get_current、create、initialize_current、clone、derive_palette、edit、switch、restore 或 delete。",
         )
     return action
 

@@ -2,7 +2,8 @@
     [Parameter(Mandatory = $true)] [string]$Version,
     [Parameter(Mandatory = $true)] [string]$Tag,
     [Parameter(Mandatory = $true)] [string]$PreviousTag,
-    [string]$OutputDirectory = "发布包"
+    [string]$OutputDirectory = "发布包",
+    [string]$ReleaseNotesFile
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,6 +11,10 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "package-theme.ps1")
 . (Join-Path $PSScriptRoot "gateway-build-integrity.ps1")
 $root = (Get-Location).Path
+$releaseNotes = ""
+if ($ReleaseNotesFile) {
+    $releaseNotes = [IO.File]::ReadAllText((Resolve-Path -LiteralPath $ReleaseNotesFile).Path, [Text.Encoding]::UTF8)
+}
 $output = Join-Path $root $OutputDirectory
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ("tiance-release-" + [guid]::NewGuid().ToString("N"))
 $currentTree = Join-Path $work "current"
@@ -173,14 +178,20 @@ try {
         # 顶层字段保留给旧客户端；旧客户端始终下载可跳版本的完整程序包。
         schemaVersion = 1
         version = $Version
+        releaseName = "Tiance v$Version"
+        releaseNotes = $releaseNotes
         assetName = $fullMetadata.assetName
         sha256 = $fullMetadata.sha256
         size = $fullMetadata.size
         full = $fullMetadata
         incremental = $incrementalMetadata
     }
+    $updateIndexJson = $updateIndex | ConvertTo-Json -Depth 5
+    if ([Text.Encoding]::UTF8.GetByteCount($updateIndexJson) -gt 65536) {
+        throw "更新清单超过 64 KiB，请精简发布说明。"
+    }
     [IO.File]::WriteAllText(
-        (Join-Path $output "update.json"), ($updateIndex | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false)
+        (Join-Path $output "update.json"), $updateIndexJson, [Text.UTF8Encoding]::new($false)
     )
 
     Write-Output "完整安装包：$fullInstall"

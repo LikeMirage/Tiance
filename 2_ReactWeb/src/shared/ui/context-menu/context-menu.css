@@ -11,12 +11,35 @@
   display: grid;
   gap: 2px;
   max-width: min(340px, calc(100vw - 16px));
-  padding: 8px;
-  border: 1px solid transparent;
+  padding: 9px;
   border-radius: 6px;
+  color: var(--color-text-primary);
+}
+
+/* One surface surrounds both columns; the category column has no floating shadow. */
+.ds-context-menu::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 1px solid var(--color-border-soft);
+  border-radius: inherit;
   background: var(--color-surface-menu);
   box-shadow: 0 18px 36px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  color: var(--color-text-primary);
+  pointer-events: none;
+}
+
+.ds-context-menu:has(> .ds-context-menu__submenu-host) {
+  max-width: min(340px, calc((100vw - 16px) / 2));
+}
+
+.ds-context-menu:has(> .ds-context-menu__submenu-host:is(:hover, :focus-within) > .ds-context-menu__submenu)::before {
+  right: calc(-1 * var(--context-submenu-width));
+}
+
+.ds-context-menu[data-submenu-side="left"]:has(> .ds-context-menu__submenu-host:is(:hover, :focus-within) > .ds-context-menu__submenu)::before {
+  right: 0;
+  left: calc(-1 * var(--context-submenu-width));
 }
 
 .ds-context-menu > .ds-context-menu__item,
@@ -83,7 +106,10 @@
 }
 
 .ds-context-menu__submenu-host {
-  display: contents;
+  grid-column: 1;
+  /* Keep the pointer inside the trigger's hover area while crossing the gutter. */
+  margin-inline: -9px;
+  padding-inline: 9px;
 }
 
 .ds-context-menu__submenu-trigger {
@@ -97,35 +123,49 @@
   opacity: 0.62;
 }
 
+.ds-context-menu[data-submenu-side="left"] .ds-context-menu__submenu-trigger::after {
+  content: "<";
+}
+
 .ds-context-menu__submenu {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(100% - 1px);
+  left: 100%;
   z-index: 1;
   display: grid;
   align-content: start;
   box-sizing: border-box;
   gap: 2px;
-  min-width: 180px;
-  max-width: min(340px, calc(100vw - 16px));
-  padding: 8px;
+  width: var(--context-submenu-width);
+  min-width: 0;
+  padding: 9px 8px;
+  overflow-x: hidden;
   overflow-y: auto;
-  border: 1px solid transparent;
-  border-left: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 0 6px 6px 0;
-  background: var(--color-surface-menu);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  opacity: 0;
+  overscroll-behavior: contain;
+  border-left: 1px solid var(--color-border-soft);
+  visibility: hidden;
   pointer-events: none;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   scrollbar-gutter: stable;
   scrollbar-width: thin;
 }
 
+.ds-context-menu[data-submenu-side="left"] .ds-context-menu__submenu {
+  right: 100%;
+  left: auto;
+  border-right: 1px solid var(--color-border-soft);
+  border-left: 0;
+}
+
+/* Categories have no icons; do not inherit empty icon slots from the main menu. */
+.ds-context-menu__submenu .ds-context-menu__icon:empty {
+  display: none;
+}
+
 .ds-context-menu__submenu-host:hover > .ds-context-menu__submenu,
 .ds-context-menu__submenu-host:focus-within > .ds-context-menu__submenu {
-  opacity: 1;
+  visibility: visible;
   pointer-events: auto;
 }
 

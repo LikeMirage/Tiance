@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { lazy, useMemo } from "react";
 import type { MouseEvent } from "react";
 
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
@@ -74,6 +74,10 @@ function PreparedDocumentAssetPreview({
   inspection,
   assetSrc,
 }: DocumentAssetPreviewProps & { inspection: FilePreviewInspection; assetSrc: string }) {
+  const databaseSource = useMemo(() => activeTab.fileSource?.kind === "local"
+    ? { kind: "local" as const }
+    : activeTab.projectId ? { kind: "project" as const, projectId: activeTab.projectId } : null,
+  [activeTab.fileSource?.kind, activeTab.projectId]);
   const boundaryKey = buildEditorContentResetKey(activeTab);
   const externalFileActions = createDocumentExternalFileActions(activeTab);
   const sourceFilePath = getEditorDocumentPath(activeTab);
@@ -137,7 +141,7 @@ function PreparedDocumentAssetPreview({
           displayPath={activeTab.displayPath}
           fileName={activeTab.title}
           path={sourceFilePath}
-          projectId={activeTab.projectId}
+          databaseSource={databaseSource}
           refreshKey={activeTab.assetVersion ?? activeTab.mtimeMs}
         />
       </EditorLazyBoundary>

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import logging
 from threading import RLock
 from typing import AsyncIterator
-from urllib.request import getproxies
+from urllib import request as urllib_request
 
 import httpx
 
@@ -26,6 +26,7 @@ _CLIENT_ENTRIES: dict[int, _ClientEntry] = {}
 _CLIENT_LOCK = RLock()
 _LOGGER = logging.getLogger(__name__)
 _HTTP_CLIENT_SETTINGS: NetworkSettings | None = None
+_HTTP_SYSTEM_PROXY: str | None = None
 _HTTP_LIMITS = httpx.Limits(
     max_connections=100,
     max_keepalive_connections=20,
@@ -34,12 +35,18 @@ _HTTP_LIMITS = httpx.Limits(
 
 
 def configure_shared_http_client(settings: NetworkSettings) -> None:
-    global _HTTP_CLIENT_SETTINGS
+    global _HTTP_CLIENT_SETTINGS, _HTTP_SYSTEM_PROXY
 
     with _CLIENT_LOCK:
-        if settings == _HTTP_CLIENT_SETTINGS:
+        system_proxy = (
+            _get_system_proxy()
+            if settings.connection_mode == NetworkConnectionMode.SYSTEM
+            else None
+        )
+        if settings == _HTTP_CLIENT_SETTINGS and system_proxy == _HTTP_SYSTEM_PROXY:
             return
         _HTTP_CLIENT_SETTINGS = settings
+        _HTTP_SYSTEM_PROXY = system_proxy
         for entry in _HTTP_CLIENTS.values():
             entry.retired = True
             _queue_idle_close(entry)
@@ -49,6 +56,9 @@ def configure_shared_http_client(settings: NetworkSettings) -> None:
 def get_shared_http_client() -> httpx.AsyncClient:
     loop = asyncio.get_running_loop()
     with _CLIENT_LOCK:
+        # Check once per request, not per stream chunk or on a background timer.
+        # The same retirement path protects requests still using the old proxy.
+        configure_shared_http_client(_require_settings())
         entry = _HTTP_CLIENTS.get(loop)
         if entry is not None and not entry.client.is_closed:
             return entry.client
@@ -163,11 +173,10 @@ def _build_http_client() -> httpx.AsyncClient:
         "follow_redirects": True,
     }
     if settings.connection_mode == NetworkConnectionMode.SYSTEM:
-        system_proxy = _get_system_proxy()
-        if system_proxy is not None:
-            kwargs["proxy"] = system_proxy
-        else:
-            kwargs["trust_env"] = True
+        # Build from the exact snapshot used to invalidate the shared pools.
+        # No environment fallback: a disabled Windows proxy means direct access.
+        if _HTTP_SYSTEM_PROXY is not None:
+            kwargs["proxy"] = _HTTP_SYSTEM_PROXY
     elif settings.connection_mode == NetworkConnectionMode.CUSTOM_PROXY:
         kwargs["proxy"] = (
             f"{settings.proxy_scheme.value}://"
@@ -176,8 +185,22 @@ def _build_http_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(**kwargs)
 
 
+def get_network_proxy_url() -> str | None:
+    """Use the same explicit proxy policy for non-HTTP transports (WebSocket)."""
+    settings = _require_settings()
+    if settings.connection_mode == NetworkConnectionMode.SYSTEM:
+        return _get_system_proxy()
+    if settings.connection_mode == NetworkConnectionMode.CUSTOM_PROXY:
+        return f"{settings.proxy_scheme.value}://{settings.proxy_host}:{settings.proxy_port}"
+    return None
+
+
 def _get_system_proxy() -> str | None:
-    proxies = getproxies()
+    # On Windows, "system proxy" follows the user's OS settings, including off.
+    # getproxies() prefers inherited environment variables, which may be stale.
+    # Other platforms retain the standard-library discovery behavior.
+    resolver = getattr(urllib_request, "getproxies_registry", urllib_request.getproxies)
+    proxies = resolver()
     for scheme in ("https", "http", "all"):
         proxy = proxies.get(scheme)
         if proxy:

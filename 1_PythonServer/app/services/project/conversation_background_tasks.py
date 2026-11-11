@@ -35,6 +35,10 @@ class ConversationBackgroundTaskRegistry:
     async def cancel_session(self, project_id: str, session_id: str) -> None:
         await self._cancel_tasks(tuple(self._tasks.get((project_id, session_id), ())))
 
+    def has_project_activity(self, project_id: str) -> bool:
+        return any(pid == project_id and any(not task.done() for task in tasks)
+                   for (pid, _), tasks in self._tasks.items())
+
     async def close(self) -> None:
         tasks = tuple(
             task

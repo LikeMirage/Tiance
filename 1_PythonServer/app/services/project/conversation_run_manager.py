@@ -4,6 +4,7 @@ import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextvars import copy_context
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Protocol, cast
@@ -64,6 +65,7 @@ class ConversationRunSubscription:
     run_key: str
     subscription_id: str
     mailbox: ConversationRunMailbox
+    run_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -91,6 +93,7 @@ class ConversationRunManager:
         if subscriber_max_events < 1 or subscriber_max_content_units < 1:
             raise ValueError("Conversation subscriber limits must be positive.")
         self._runs: dict[str, _ConversationRun] = {}
+        self._deleting: set[str] = set()
         self._lock = asyncio.Lock()
         self._client_tool_bridge_service = (
             client_tool_bridge_service or get_client_tool_bridge_service()
@@ -107,6 +110,24 @@ class ConversationRunManager:
             max_content_units=self._subscriber_max_content_units,
         )
 
+    def has_project_activity(self, project_id: str) -> bool:
+        """Called on the event loop; cancellation still counts until settled."""
+        prefix = f"{project_id}:"
+        return any(key.startswith(prefix) for key in self._deleting) or any(key.startswith(prefix) and run.task is not None and not run.task.done()
+                   for key, run in self._runs.items())
+
+    @contextmanager
+    def prevent_new_runs(self, project_id: str, session_ids: tuple[str, ...]):
+        """Event-loop-only reservation through stop, audit drain and deletion commit."""
+        keys = {_session_run_key(project_id, session_id) for session_id in session_ids}
+        if keys & self._deleting:
+            raise ConflictError("所选会话正在删除，请等待当前操作完成。")
+        self._deleting.update(keys)
+        try:
+            yield
+        finally:
+            self._deleting.difference_update(keys)
+
     async def start(
         self,
         request: ChatCompletionRequest,
@@ -118,6 +139,8 @@ class ConversationRunManager:
 
         async with self._lock:
             shutdown_tasks.require_accepting()
+            if run_key in self._deleting:
+                raise ConflictError("当前会话正在删除，不能启动新的生成任务。")
             existing = self._runs.get(run_key)
             if existing is not None and existing.task is not None and not existing.task.done():
                 raise ConflictError("当前会话已有生成任务正在运行。")
@@ -139,6 +162,7 @@ class ConversationRunManager:
             run_key=run_key,
             subscription_id=subscription_id,
             mailbox=mailbox,
+            run_id=run.run_id,
         )
 
     async def get_run_status(self, project_id: str, session_id: str) -> dict[str, object]:
@@ -153,6 +177,8 @@ class ConversationRunManager:
         project_id: str,
         session_id: str,
         checkpoint_message_id: str | None = None,
+        *,
+        expected_run_id: str | None = None,
     ) -> ConversationRunSubscription:
         run_key = _session_run_key(project_id, session_id)
         subscription_id = uuid4().hex
@@ -165,6 +191,8 @@ class ConversationRunManager:
                 run = self._runs.get(run_key)
                 if run is None or run.task is None or run.task.done() or run.finished:
                     raise NotFoundError("当前会话没有正在运行的生成任务。")
+                if expected_run_id is not None and run.run_id != expected_run_id:
+                    raise NotFoundError("原生成任务已结束，不能订阅后续任务。")
                 checkpoint_matches = run.replay.matches_checkpoint(checkpoint_message_id)
                 should_subscribe = (
                     not checkpoint_message_id
@@ -195,6 +223,7 @@ class ConversationRunManager:
                             run_key=run_key,
                             subscription_id=subscription_id,
                             mailbox=mailbox,
+                            run_id=run.run_id,
                         )
 
             await asyncio.sleep(_CHECKPOINT_POLL_SECONDS)
@@ -237,10 +266,12 @@ class ConversationRunManager:
             if run is not None:
                 run.subscribers.pop(subscription.subscription_id, None)
 
-    async def stop(self, project_id: str, session_id: str) -> bool:
+    async def stop(self, project_id: str, session_id: str, *, expected_run_id: str | None = None) -> bool:
         run_key = _session_run_key(project_id, session_id)
         async with self._lock:
             run = self._runs.get(run_key)
+            if expected_run_id is not None and (run is None or run.run_id != expected_run_id):
+                return False
             task = run.task if run is not None else None
             if task is None or task.done():
                 return False

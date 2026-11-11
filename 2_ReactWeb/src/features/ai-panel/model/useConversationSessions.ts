@@ -11,7 +11,7 @@ import type {
   ConversationSessionState,
   ConversationSessionListResponse,
 } from "../../../entities/llm-chat/model/conversation";
-import { dispatchProjectConversationUpdated } from "../../../entities/llm-chat/model/projectConversationEvents";
+import { dispatchProjectConversationUpdated, listenProjectConversationUpdated } from "../../../entities/llm-chat/model/projectConversationEvents";
 import { getProjectConversationDetail } from "../../../services/project/getProjectConversationDetail";
 import { loadSelectedConversationList } from "../../../services/project/getProjectConversationSummaries";
 import { isNotFoundRequestError } from "./chatPanelRequestErrors";
@@ -674,6 +674,12 @@ export function useConversationSessions({
   const reloadSessions = useCallback(async (pid: string) => {
     await reloadSessionsForSelection(pid);
   }, [reloadSessionsForSelection]);
+
+  useEffect(() => listenProjectConversationUpdated(detail => {
+    if (detail.source === "server" && detail.projectId === activeProjectIdRef.current) {
+      void reloadSessions(detail.projectId).catch(() => undefined);
+    }
+  }), [activeProjectIdRef, reloadSessions]);
 
   const hasProjectSnapshot = useCallback(
     (pid: string) => projectSessionSnapshotsRef.current.has(pid),

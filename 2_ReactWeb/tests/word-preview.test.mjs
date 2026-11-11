@@ -35,6 +35,9 @@ test("Word mounts only nearby chunks, cancels scrolling-away requests, and resto
     } },
     "../../../shared/ui/loading-strip": { LoadingStrip: () => null },
     "./wordChunkLayout": {},
+    "../../../entities/editor/model/documentRevealContext": { useDocumentRevealRequest: () => null },
+    "../../../entities/editor/model/documentReveal": load("src/entities/editor/model/documentReveal.ts"),
+    "./wordReferenceSelection": {},
   });
   const view = version => React.createElement(reading.DocumentReadingStateProvider, { activeKey: "a", openKeys: ["a"] },
     React.createElement(WordPreview, { key: version, inspection: { version, word: { chunks: 100, fingerprint: "sha256:source" } },

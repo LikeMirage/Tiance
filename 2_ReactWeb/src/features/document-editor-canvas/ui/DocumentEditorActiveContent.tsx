@@ -163,7 +163,9 @@ export function DocumentEditorActiveContent({
   }
 
   if (activeTab.isMissing && !activeTab.isDirty) {
-    return <div className="doc-editor__empty">找不到文件：{activeTab.displayPath}。请检查路径，或确认文件是否已移动、删除。</div>;
+    return activeTab.referenceOrigin
+      ? <DocumentOpenFallbackContent activeTab={activeTab} heading="所引用的原文件已发生变更，无法查看所引用内容。" actions={null} />
+      : <div className="doc-editor__empty">找不到文件：{activeTab.displayPath}。请检查路径，或确认文件是否已移动、删除。</div>;
   }
 
   if (activeTab.kind === "text" && activeTab.textContentUnavailable?.reason === "too_large") {
@@ -221,7 +223,7 @@ export function DocumentEditorActiveContent({
     return (
       <div className="doc-editor__reference-viewer">
         <EditorLazyBoundary resetKey={boundaryKey}>
-          <ReferenceViewer content={activeTab.content} />
+          <ReferenceViewer activeTab={activeTab} content={activeTab.content} />
         </EditorLazyBoundary>
       </div>
     );

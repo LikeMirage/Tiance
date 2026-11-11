@@ -255,7 +255,8 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
   ]);
 
   useEffect(() => {
-    if (!activeTab?.revealRequest || activeTab.revealRequest.target.type === "pdf_page") return;
+    if (!activeTab?.revealRequest || activeTab.kind !== "text"
+      || activeTab.revealRequest.target.type === "pdf_page" || activeTab.revealRequest.target.type === "reference_image") return;
     setMarkdownMode("source");
     setPreviewOpen(false);
   }, [activeTab?.revealRequest]);

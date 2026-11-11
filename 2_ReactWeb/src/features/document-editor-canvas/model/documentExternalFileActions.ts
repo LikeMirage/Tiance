@@ -1,4 +1,6 @@
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
+import { documentDisplayPath } from "../../../entities/editor/model/documentFilePath";
+import { openDesktopLocalPath, revealDesktopLocalPath } from "../../../services/desktop/localPathApi";
 import { parseToolFolderWorkspaceKey } from "../../../entities/tool/model/toolFolderFileMutation";
 import { openProjectFileExternal } from "../../../services/project/openProjectFileExternal";
 import { revealProjectFile } from "../../../services/project/revealProjectFile";
@@ -25,6 +27,14 @@ export function createDocumentExternalFileActions(tab: DocumentTab | null): Docu
         await openProjectFileExternal(source.id, { path: filePath });
       },
       revealFile: () => revealProjectFile(source.id, { path: filePath }),
+    };
+  }
+
+  if (source.kind === "local") {
+    const absolutePath = documentDisplayPath(source, filePath);
+    return {
+      openNativeFile: () => openDesktopLocalPath(absolutePath),
+      revealFile: () => revealDesktopLocalPath(absolutePath),
     };
   }
 

@@ -3,13 +3,13 @@
   "kind": "tiance-role-package",
   "id": "c63ccc86-290b-4883-98ac-025c1444af90",
   "name": "主题创建者",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "LikeMirage"
   },
   "summary": "帮助设计、修改和验证天策主题的配色、背景及界面细节。",
   "license": "MIT",
   "compatibility": {
-    "minTianceVersion": "0.3.42"
+    "minTianceVersion": "0.3.43"
   }
 }

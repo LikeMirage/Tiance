@@ -1,11 +1,17 @@
+import type { EditorImageReference, EditorTextReference } from "./editorReference";
+
 export type DocumentTextRevealTarget =
   | { type: "line_range"; start_line: number; end_line: number }
   | { type: "text"; text: string; occurrence?: number };
 
-export type DocumentRevealTarget =
+export type ToolDocumentRevealTarget =
   | { type: "pdf_page"; page: number }
   | DocumentTextRevealTarget
   | { type: "text_ranges"; ranges: DocumentTextRevealTarget[] };
+
+export type DocumentRevealTarget = ToolDocumentRevealTarget
+  | { type: "reference_text"; reference: EditorTextReference }
+  | { type: "reference_image"; reference: EditorImageReference };
 
 export type DocumentTextSelection = {
   type: "text_selection";
@@ -24,7 +30,8 @@ export type DocumentTextRevealResult = DocumentTextSelection
   | { type: "text_selections"; ranges: DocumentTextSelection[]; source: "editor_buffer" };
 
 export type DocumentRevealResult = DocumentTextRevealResult
-  | { type: "pdf_page"; page: number; total_pages: number };
+  | { type: "pdf_page"; page: number; total_pages: number }
+  | { type: "reference"; selected: boolean };
 
 export class DocumentRevealError extends Error {
   constructor(public readonly code: string, message: string, public readonly details: Record<string, unknown> = {}) {
@@ -69,7 +76,7 @@ export function createDocumentRevealRequest(target: DocumentRevealTarget, signal
   return { request, result };
 }
 
-export function parseDocumentRevealTarget(value: unknown): DocumentRevealTarget {
+export function parseDocumentRevealTarget(value: unknown): ToolDocumentRevealTarget {
   const invalid = () => new DocumentRevealError("INVALID_TARGET", "target 必须指定有效的 pdf_page、line_range、text 或 text_ranges 定位参数；页码、行号和 occurrence 从 1 开始。");
   if (!value || typeof value !== "object" || Array.isArray(value)) throw invalid();
   const target = value as Record<string, unknown>;
@@ -143,7 +150,7 @@ export function resolveTextReveal(doc: TextDocument, target: DocumentTextRevealT
 }
 
 /** Resolve the entire request before changing the editor selection; never select a partial batch. */
-export function resolveTextReveals(doc: TextDocument, target: Exclude<DocumentRevealTarget, { type: "pdf_page" }>): DocumentTextRevealResult {
+export function resolveTextReveals(doc: TextDocument, target: Exclude<ToolDocumentRevealTarget, { type: "pdf_page" }>): DocumentTextRevealResult {
   if (target.type !== "text_ranges") return resolveTextReveal(doc, target);
   let content: string | undefined;
   const ranges = target.ranges.map((range, index) => {
@@ -154,6 +161,27 @@ export function resolveTextReveals(doc: TextDocument, target: Exclude<DocumentRe
     catch (error) { throw withRangeIndex(error, index); }
   });
   return { type: "text_selections", ranges, source: "editor_buffer" };
+}
+
+export function resolveReferenceText(doc: TextDocument, reference: EditorTextReference): DocumentTextSelection {
+  const needle = reference.content.replace(/\r\n?/g, "\n");
+  if (!needle) throw new DocumentRevealError("TEXT_NOT_FOUND", "引用内容为空。");
+  const content = doc.toString();
+  // Stored line numbers are a hint, not permission to select unrelated, changed text.
+  if (Number.isSafeInteger(reference.startLine) && Number.isSafeInteger(reference.endLine)
+    && reference.startLine! > 0 && reference.endLine! >= reference.startLine! && reference.endLine! <= doc.lines) {
+    const from = doc.line(reference.startLine!).from;
+    const to = doc.line(reference.endLine!).to;
+    const slice = content.slice(from, to);
+    const offset = slice.indexOf(needle);
+    if (offset >= 0 && slice.indexOf(needle, offset + 1) < 0) {
+      const start = doc.lineAt(from + offset), end = doc.lineAt(from + offset + needle.length);
+      return { type: "text_selection", from: from + offset, to: from + offset + needle.length,
+        start_line: start.number, end_line: end.number, start_column: from + offset - start.from + 1,
+        end_column: from + offset + needle.length - end.from + 1, source: "editor_buffer" };
+    }
+  }
+  return resolveTextReveal(doc, { type: "text", text: needle }, content);
 }
 
 function withRangeIndex(error: unknown, index: number) {

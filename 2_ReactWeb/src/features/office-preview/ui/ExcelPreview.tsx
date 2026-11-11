@@ -3,6 +3,9 @@ import type { JsExcelPreview, Options as JsExcelPreviewOptions } from "@js-previ
 import "@js-preview/excel/lib/index.css";
 
 import { useDocumentReadingValue } from "../../../entities/editor/model/documentReadingState";
+import { useDocumentRevealRequest } from "../../../entities/editor/model/documentRevealContext";
+import { spreadsheetReferenceRange, spreadsheetReferenceMatches } from "./spreadsheetReferenceSelection";
+import type { ExcelRange, RuntimeSheetData } from "./excelSelectionImage";
 import { ContextMenu, ContextMenuItem } from "../../../shared/ui/context-menu";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import type { OfficeLoadingVisibilityChange } from "./officePreviewTypes";
@@ -42,7 +45,8 @@ type InternalExcelPreviewer = JsExcelPreview & {
   sheetIndex?: number;
   xs?: {
     sheet?: {
-      data?: { name?: string; scroll?: { x: number; y: number } };
+      data?: RuntimeSheetData & { name?: string; scroll?: { x: number; y: number }; getRect?: (range: ExcelRange) => { l: number; t: number }; freezeTotalHeight?: () => number; freezeTotalWidth?: () => number };
+      selector?: { set: (row: number, column: number) => void; setEnd: (row: number, column: number, skipUnchanged?: boolean) => void; hide?: () => void };
       verticalScrollbar?: { move: (position: { top: number }) => void };
       horizontalScrollbar?: { move: (position: { left: number }) => void };
     };
@@ -83,6 +87,7 @@ export function ExcelPreview({
   const selectionReferenceRunIdRef = useRef(0);
   const workbookDataRef = useRef<ExcelWorkbookData | null>(null);
   const zoomRef = useRef(zoom);
+  const renderedZoomRef = useRef<number | null>(null);
   const [reading, setReading] = useDocumentReadingValue("excel:formatted-position", { sheet: "", top: 0, left: 0 });
   const readingRef = useRef(reading);
   readingRef.current = reading;
@@ -92,6 +97,7 @@ export function ExcelPreview({
   const [selectionReferenceMenu, setSelectionReferenceMenu] = useState<SelectionReferenceMenuState>(null);
   const [state, setState] = useState<LoadState>(() => (src ? "loading" : "idle"));
   const isLoadingVisible = state === "loading";
+  const reveal = useDocumentRevealRequest();
   const excelShellClassName = [
     "office-preview__excel-shell",
     state === "ready" && !isLoadingVisible ? "" : "office-preview__excel-shell--loading",
@@ -102,6 +108,7 @@ export function ExcelPreview({
     minRowLength: 40,
     showContextmenu: false,
     transformData: (workbookData) => {
+      renderedZoomRef.current = zoomRef.current;
       workbookDataRef.current = normalizeExcelWorkbookData(cloneExcelWorkbookData(workbookData));
       return scaleExcelWorkbookData(workbookDataRef.current, zoomRef.current);
     },
@@ -176,7 +183,7 @@ export function ExcelPreview({
 
   useEffect(() => {
     zoomRef.current = zoom;
-    if (state !== "ready" || !workbookDataRef.current) return undefined;
+    if (state !== "ready" || !workbookDataRef.current || renderedZoomRef.current === zoom) return undefined;
 
     let frameId: number | null = null;
     const timeoutId = window.setTimeout(() => {
@@ -184,6 +191,7 @@ export function ExcelPreview({
         frameId = null;
         if (state !== "ready" || !workbookDataRef.current) return;
         refreshExcelPreview(previewerRef.current, scaleExcelWorkbookData(workbookDataRef.current, zoom));
+        renderedZoomRef.current = zoom;
       });
     }, excelZoomRefreshDelayMs);
 
@@ -333,6 +341,42 @@ export function ExcelPreview({
       shell.removeEventListener("keyup", capture, true);
     };
   }, [state, isLoadingVisible, zoom, setReading]);
+
+  useEffect(() => {
+    if (!reveal || reveal.signal.aborted || reveal.target.type !== "reference_image"
+      || reveal.target.reference.source !== "xlsx_range" || state !== "ready") return;
+    const reference = reveal.target.reference;
+    const range = spreadsheetReferenceRange(reference);
+    const runtime = previewerRef.current as InternalExcelPreviewer | null;
+    const index = workbookDataRef.current?.findIndex(sheet => sheet.name === reference.sheetName) ?? -1;
+    if (!runtime || !range || index < 0) {
+      runtime?.xs?.sheet?.selector?.hide?.();
+      reveal.complete({ type: "reference", selected: false }); return;
+    }
+    // Wait until the normal reading-position restoration above has finished.
+    const frame = requestAnimationFrame(() => {
+      if (reveal.signal.aborted) return;
+      activateExcelSheet(runtime, index);
+      const sheet = runtime.xs?.sheet;
+      if (!sheet?.selector || !sheet.data?.getCell || !sheet.data.getRect
+        || !spreadsheetReferenceMatches(reference, range, (r, c) => sheet.data!.getCell!(r, c)?.text)) {
+        sheet?.selector?.hide?.(); reveal.complete({ type: "reference", selected: false }); return;
+      }
+      const rect = sheet.data.getRect(range);
+      // The previewer rounds positive scrollbar offsets up to a cell boundary.
+      // An exact boundary would skip the first selected row/column.
+      const top = Math.max(0, rect.t - (sheet.data.freezeTotalHeight?.() ?? 0) - 1);
+      const left = Math.max(0, rect.l - (sheet.data.freezeTotalWidth?.() ?? 0) - 1);
+      sheet.verticalScrollbar?.move({ top });
+      sheet.horizontalScrollbar?.move({ left });
+      sheet.selector.set(range.sri, range.sci);
+      sheet.selector.setEnd(range.eri, range.eci, false);
+      const next = { sheet: reference.sheetName!, top, left };
+      readingRef.current = next; setReading(next);
+      reveal.complete({ type: "reference", selected: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [reveal, state, setReading]);
 
   const handleContextMenu = (event: MouseEvent<HTMLElement>) => {
     if (state !== "ready" || !onCreateSelectionImageReference) return;

@@ -1,3 +1,4 @@
+import { documentDisplayPath } from "./documentFilePath";
 import type { DocumentFileSource, DocumentTab } from "./editorDocument";
 
 export type EditorWorkspaceFileReference = {
@@ -7,8 +8,9 @@ export type EditorWorkspaceFileReference = {
   path: string;
 };
 
-export function getEditorDocumentPath(tab: Pick<DocumentTab, "displayPath" | "filePath" | "projectFilePath">) {
-  return tab.filePath ?? tab.projectFilePath ?? tab.displayPath;
+export function getEditorDocumentPath(tab: Pick<DocumentTab, "displayPath" | "filePath" | "projectFilePath"> & Partial<Pick<DocumentTab, "fileSource">>) {
+  const path = tab.filePath ?? tab.projectFilePath;
+  return path ? documentDisplayPath(tab.fileSource ?? null, path) : tab.displayPath;
 }
 
 export function createEditorWorkspaceFileReference(

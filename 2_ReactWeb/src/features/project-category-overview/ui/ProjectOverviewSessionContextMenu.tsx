@@ -11,6 +11,7 @@ type ProjectOverviewSessionContextMenuProps = {
   busy: boolean;
   contextMenu: ProjectOverviewSessionContextMenuState;
   onClose: () => void;
+  onError: (message: string | null) => void;
   onRequestDelete: (projectId: string, session: ProjectOverviewSession) => void;
   onRequestRename: (projectId: string, session: ProjectOverviewSession) => void;
   onTogglePinned: (projectId: string, session: ProjectOverviewSession) => void;
@@ -21,12 +22,28 @@ export function ProjectOverviewSessionContextMenu({
   busy,
   contextMenu,
   onClose,
+  onError,
   onRequestDelete,
   onRequestRename,
   onTogglePinned,
   session,
 }: ProjectOverviewSessionContextMenuProps) {
   const { t } = useI18n();
+
+  const copySessionValue = async (field: "id" | "name") => {
+    onError(null);
+    onClose();
+    try {
+      const text = field === "id"
+        ? t("projectOverview.sessionIdClipboard", { id: session.session_id })
+        : t("projectOverview.sessionNameClipboard", {
+            title: session.title.trim() || t("projectOverview.newConversation"),
+          });
+      await navigator.clipboard.writeText(text);
+    } catch {
+      onError(t("projectOverview.copySessionFailed"));
+    }
+  };
 
   return (
     <ContextMenu onClose={onClose} position={{ x: contextMenu.x, y: contextMenu.y }}>
@@ -47,6 +64,13 @@ export function ProjectOverviewSessionContextMenu({
         }}
       >
         {t("common.actions.rename")}
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem onSelect={() => void copySessionValue("id")}>
+        {t("projectOverview.copySessionId")}
+      </ContextMenuItem>
+      <ContextMenuItem onSelect={() => void copySessionValue("name")}>
+        {t("projectOverview.copySessionName")}
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem

@@ -159,7 +159,8 @@ class ToolFolderFileService:
                 content = self._config_storage.normalize_standard_file_content(update.path, content)
                 if _is_tool_manifest_file_path(update.path):
                     self._ensure_manifest_identity_available(project_id, content)
-            normalized.append(TextFileUpdate(update.path, content, update.expected_mtime_ms))
+            normalized.append(TextFileUpdate(update.path, content, update.expected_mtime_ms,
+                                             create_only=update.create_only))
         rebuild = self._rebuild_registry if any(_is_tool_registry_metadata_file_path(item.path) for item in updates) else None
         try:
             return self._file_storage.write_text_files(folder_root, normalized, after_write=rebuild)

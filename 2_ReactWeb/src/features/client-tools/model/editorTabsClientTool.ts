@@ -1,5 +1,6 @@
 import type { ChatClientToolRequestEvent } from "../../../entities/llm-chat/model/chatCompletion";
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
+import { getEditorDocumentPath } from "../../../entities/editor/model/editorWorkspaceFileReference";
 import { DocumentRevealError, parseDocumentRevealTarget, type DocumentRevealResult, type DocumentRevealTarget } from "../../../entities/editor/model/documentReveal";
 import {
   isPinnedDocumentTab,
@@ -303,6 +304,7 @@ function serializeTab(tab: DocumentTab, activeTabId: string | null) {
 }
 
 function tabPath(tab: DocumentTab) {
+  if (tab.fileSource?.kind === "local") return getEditorDocumentPath(tab);
   const path = tab.projectFilePath ?? tab.filePath ?? tab.displayPath;
   return path ? normalizeWorkspacePath(path) : null;
 }

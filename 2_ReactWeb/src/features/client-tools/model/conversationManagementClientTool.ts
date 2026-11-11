@@ -1,3 +1,4 @@
+import { fetchJson } from "../../../services/http/httpClient";
 import type {
   ConversationSession,
   ConversationSessionListResponse,
@@ -5,7 +6,6 @@ import type {
 import { dispatchProjectConversationUpdated } from "../../../entities/llm-chat/model/projectConversationEvents";
 import { stopChatCompletionStream } from "../../../services/llm/stopChatCompletionStream";
 import { createProjectConversation } from "../../../services/project/createProjectConversation";
-import { deleteProjectConversation } from "../../../services/project/deleteProjectConversation";
 import { getProjectConversations } from "../../../services/project/getProjectConversations";
 import { getProjectConversationUsageSummary } from "../../../services/project/getProjectConversationUsageSummary";
 import { updateProjectConversation } from "../../../services/project/updateProjectConversation";
@@ -17,6 +17,7 @@ import {
   buildConversationUpdateInput,
   buildChildConversationCreateInput,
   readConversationConfiguration,
+  resolveCallerModel,
 } from "./conversationConfiguration";
 import {
   clientToolFailure,
@@ -36,18 +37,14 @@ import {
   getConversationHistoryLocator,
   serializeConversationRelationship,
   serializeConversationSession,
-  serializeConversationSessionSummary,
   serializeStandaloneConversationSession,
 } from "./conversationSessionView";
-import {
-  selectConversationSessions,
-  type ConversationSessionListScope,
-} from "./conversationSessionScope";
+import { executeConversationSelection } from "./conversationSelectionClientTool";
 
 export const MANAGE_AI_CONVERSATIONS_TOOL_NAME = "manage_ai_conversations";
 export const CONVERSATION_MANAGEMENT_CAPABILITY = Object.freeze({
   name: "conversation.management",
-  version: 1,
+  version: 3,
 });
 
 type ConversationManagementClientToolOptions = {
@@ -59,13 +56,14 @@ export function createConversationManagementClientToolRegistration(
 ): ClientToolRegistration {
   return {
     capability: CONVERSATION_MANAGEMENT_CAPABILITY,
-    execute: (request) => executeConversationManagementClientTool(request, options),
+    execute: (request, context) => executeConversationManagementClientTool(request, options, context?.signal),
   };
 }
 
 async function executeConversationManagementClientTool(
   request: Parameters<ClientToolRegistration["execute"]>[0],
   options: ConversationManagementClientToolOptions,
+  signal?: AbortSignal,
 ): Promise<ClientToolExecutionResult> {
   let action = "";
   let failureContext: Record<string, unknown> = {};
@@ -87,34 +85,10 @@ async function executeConversationManagementClientTool(
     if (!projectId) throw new Error("工具请求没有指定项目。");
     failureContext = { project_id: projectId };
 
-    const response = await getProjectConversations(projectId);
-
-    if (action === "list_sessions") {
-      const scope = readSessionListScope(args.scope);
-      const relationDepth = readOptionalRelationDepth(args.relation_depth);
-      if (scope === "all" && relationDepth !== null) {
-        throw new Error("relation_depth 只用于 scope=related。");
-      }
-      const callerSessionId = readOptionalString(request.session_id);
-      const sessions = selectConversationSessions(
-        response,
-        callerSessionId,
-        scope,
-        relationDepth,
-      );
-      return clientToolSuccess({
-        action,
-        project_id: projectId,
-        active_session_id: response.active_session_id,
-        caller_session_id: callerSessionId,
-        scope,
-        relation_depth: relationDepth,
-        count: sessions.length,
-        sessions: sessions.map((session) =>
-          serializeConversationSessionSummary(response, session),
-        ),
-      });
+    if (["list_sessions", "preview_delete", "delete_session"].includes(action)) {
+      return await executeConversationSelection(projectId, readOptionalString(request.session_id), args, signal);
     }
+    const response = await getProjectConversations(projectId, signal);
     if (action === "get_session_info") {
       const session = requireSession(response, readRequiredString(args, "session_id"));
       failureContext = sessionFailureContext(projectId, session.session_id);
@@ -149,7 +123,7 @@ async function executeConversationManagementClientTool(
         history_locator: getConversationHistoryLocator(session.session_id),
       });
     }
-    if (action === "create_session") {
+    if (action === "create_session" || action === "clone_session") {
       const callerSessionId = readOptionalString(request.session_id);
       if (!callerSessionId) {
         throw new Error("创建子会话需要调用会话，用于建立父子关系。");
@@ -157,8 +131,18 @@ async function executeConversationManagementClientTool(
       const source = requireSession(response, callerSessionId);
       const input = await buildChildConversationCreateInput(
         source,
-        readConversationConfiguration(args.configuration),
+        resolveCallerModel(readConversationConfiguration(args.configuration), source),
       );
+      if (action === "clone_session") {
+        const result = await fetchJson<{ session: ConversationSession; source_message_id: string; state: unknown }>(
+          `/api/projects/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(callerSessionId)}/clone`,
+          { method: "POST", body: JSON.stringify({ source_message_id: args.source_message_id ?? null, configuration: input }) },
+        );
+        notifySessionsChanged(projectId, result.session.session_id, "structure");
+        return clientToolSuccess({ action, project_id: projectId, ...result,
+          history_boundary: "before_source_user_message", activated: false,
+          guidance: "已复制源用户消息之前的历史；该用户消息与引用保存在新会话草稿。新会话属于 AI 子会话，尚未运行。用会话交互工具发送任务即可继续。" });
+      }
       const created = await createProjectConversation(projectId, {
         ...input,
         activate: false,
@@ -179,7 +163,7 @@ async function executeConversationManagementClientTool(
     if (action === "configure_session") {
       const input = await buildConversationUpdateInput(
         session,
-        readConversationConfiguration(args.configuration),
+        resolveCallerModel(readConversationConfiguration(args.configuration), requireSession(response, readRequiredString(request, "session_id"))),
       );
       const updated = await updateProjectConversation(projectId, session.session_id, input);
       notifySessionsChanged(projectId, session.session_id, "structure");
@@ -204,23 +188,6 @@ async function executeConversationManagementClientTool(
         stopped_session_id: session.session_id,
         runtime_status: "idle",
         history_locator: getConversationHistoryLocator(session.session_id),
-      });
-    }
-    if (action === "delete_session") {
-      if (args.confirm !== true) {
-        throw new Error("删除会话必须明确传入 confirm=true。");
-      }
-      preventSelfTermination(request.session_id, session.session_id, "删除");
-      await deleteProjectConversation(
-        projectId,
-        session.session_id,
-        [session.session_id],
-      );
-      notifySessionsChanged(projectId, session.session_id, "structure");
-      return clientToolSuccess({
-        action,
-        project_id: projectId,
-        deleted_session_id: session.session_id,
       });
     }
     if (action === "show_session") {
@@ -261,20 +228,6 @@ function readMessageFormat(value: unknown): ConversationMessageFormat {
   if (value === undefined || value === null || value === "content_only") return "content_only";
   if (value === "full") return "full";
   throw new Error("message_format 只支持 content_only 或 full。");
-}
-
-function readSessionListScope(value: unknown): ConversationSessionListScope {
-  if (value === undefined || value === null || value === "related") return "related";
-  if (value === "all") return "all";
-  throw new Error("scope 只支持 related 或 all。");
-}
-
-function readOptionalRelationDepth(value: unknown): number | null {
-  if (value === undefined || value === null) return null;
-  if (!Number.isInteger(value) || Number(value) < 1) {
-    throw new Error("关系深度必须是大于等于 1 的整数。");
-  }
-  return Number(value);
 }
 
 function preventSelfTermination(

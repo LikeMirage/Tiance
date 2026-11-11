@@ -14,19 +14,22 @@ import {
 import { useI18n } from "../../../shared/i18n";
 import { SettingsViewStage } from "../../../shared/ui/settings-view-tabs/SettingsViewStage";
 import { SettingsViewTabs } from "../../../shared/ui/settings-view-tabs/SettingsViewTabs";
+import { AccessSwitchControl as SwitchControl } from "./AccessSwitchControl";
 
 import "./access-management.css";
+import { TelegramAccessPanel } from "../../mobile-access/ui/TelegramAccessPanel";
+import { PlatformAccessPanel } from "../../mobile-access/ui/PlatformAccessPanel";
 
 type AccessManagementPanelProps = {
   onReady?: () => void;
 };
 
-type AccessManagementView = "external" | "wechat" | "dingtalk" | "telegram";
+type AccessManagementView = "external" | "wechat" | "feishu" | "telegram";
 
 const ACCESS_MANAGEMENT_VIEWS: readonly AccessManagementView[] = [
   "external",
   "wechat",
-  "dingtalk",
+  "feishu",
   "telegram",
 ];
 
@@ -107,9 +110,7 @@ export function AccessManagementPanel({ onReady }: AccessManagementPanelProps) {
             securityStatus={securityStatus}
             status={status}
           />
-        ) : (
-          <div className="access-management__empty-view" aria-hidden="true" />
-        )}
+        ) : activeView === "telegram" ? <TelegramAccessPanel /> : <PlatformAccessPanel key={activeView} platform={activeView} />}
       </SettingsViewStage>
     </div>
   );
@@ -336,34 +337,6 @@ function ExternalAccessView({
         </>
       ) : null}
     </div>
-  );
-}
-
-function SwitchControl({
-  checked,
-  disabled,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  disabled?: boolean;
-  label: string;
-  onChange: () => void;
-}) {
-  return (
-    <button
-      className={checked
-        ? "access-management__switch access-management__switch--on"
-        : "access-management__switch"}
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      disabled={disabled}
-      onClick={onChange}
-    >
-      <span />
-    </button>
   );
 }
 

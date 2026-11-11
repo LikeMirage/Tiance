@@ -282,6 +282,7 @@ export const ProjectConversationOverviewDashboard = memo(
             busy={sessionActionBusy}
             contextMenu={sessionContextMenu}
             onClose={() => setSessionContextMenu(null)}
+            onError={setSessionActionError}
             onRequestDelete={(_targetProjectId, session) => {
               setSessionActionError(null);
               setDeletingSession({

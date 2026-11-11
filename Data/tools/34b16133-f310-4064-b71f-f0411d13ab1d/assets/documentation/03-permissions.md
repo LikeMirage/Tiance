@@ -30,7 +30,7 @@ input.schema.json 顶层 properties 中每个参数可写 `permission_type`，�
 
 当前权限计算读取根部 properties，不根据 oneOf 分支合并新的权限元数据。混合查询和写入动作时，要保证写入动作强制携带带写入权限的顶层字段；不能只在 oneOf 中写权限然后以为生效。
 
-新建空白工具的例子：action 声明天策全局读取；create_category/create_tool 必须带 name，该字段声明天策全局写入；Schema 和执行器同时拒绝缺少 name 的写入动作。这样查看分类不会被当作写入，真正创建又不会绕过策略。
+工具管理和角色管理包含无其他必填参数的原地初始化动作，目前 action 保守声明天策全局写入，delete 的 confirm 另声明全局删除。查询动作不写数据，但也经过 action 的权限策略。不能把 action 改成 none 而遗漏 initialize_current 的写入授权；不能在前端私自豁免这些工具。若未来需要按动作细分权限，应统一扩展权限合同，而不是只修改某一个执行器。
 
 不能合理表达权限时拆分工具或扩展通用权限合同，不能隐瞒副作用。
 

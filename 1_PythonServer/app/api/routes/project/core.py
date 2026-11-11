@@ -47,6 +47,12 @@ from app.services.project.project_workspace_watcher import (
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
+@router.websocket('/catalog-events')
+async def watch_workspace_catalog(websocket: WebSocket) -> None:
+    from app.infra.workspace_catalog_changes import workspace_catalog_events
+    await serve_event_socket(websocket, workspace_catalog_events())
+
+
 @router.get("/events", summary="Watch ordinary project workspace changes")
 async def watch_project_events() -> StreamingResponse:
     async def event_generator():
@@ -147,6 +153,12 @@ def list_conversation_roles() -> RoleCatalogResponse:
             for item in catalog.roles
         ],
     )
+
+
+@router.get("/roles/{role_project_id}/configuration")
+def get_role_effective_configuration(role_project_id: str) -> dict:
+    from dataclasses import asdict
+    return asdict(get_role_configuration_application_service().build_new_session_seed(role_project_id))
 
 
 @router.get(
@@ -255,15 +267,25 @@ def move_project_to_category(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a project",
 )
-def delete_project(
+async def delete_project(
     project_id: str,
     delete_files: bool = Query(False, description="Delete imported project files from disk"),
+    clear_tiance_data: bool = Query(False, description="Recycle .Tiance when removing an external project"),
 ) -> Response:
+    from app.core.errors import BadRequestError
+    from app.core.shutdown_tasks import finish_thread
+    from app.services.application.project_removal import get_project_removal_application_service
+
+    if clear_tiance_data:
+        if delete_files:
+            raise BadRequestError("清除天策数据不能与删除本地文件同时选择。")
+        await get_project_removal_application_service().remove_with_data(project_id)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     service = get_project_service()
-    current = service.get_project(project_id)
+    current = await finish_thread(service.get_project, project_id)
     if current is not None:
         ensure_theme_project_can_be_deleted(current)
-    service.delete_project(project_id, delete_files=delete_files)
+    await finish_thread(service.delete_project, project_id, delete_files=delete_files)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

@@ -14,17 +14,6 @@ export function getConversationHistoryLocator(sessionId: string) {
   };
 }
 
-export function serializeConversationSessionSummary(
-  response: ConversationSessionListResponse,
-  session: ConversationSession,
-) {
-  return {
-    session_id: session.session_id,
-    title: session.title,
-    runtime_status: response.session_states[session.session_id]?.runtime_status ?? "idle",
-  };
-}
-
 export function serializeConversationSession(
   response: ConversationSessionListResponse,
   session: ConversationSession,

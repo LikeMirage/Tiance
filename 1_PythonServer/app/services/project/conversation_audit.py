@@ -141,6 +141,14 @@ class ConversationAuditService:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
+    def has_project_activity(self, project_id: str) -> bool:
+        return (
+            any(pid == project_id and any(not task.done() for task in tasks)
+                for (pid, _), tasks in self._tasks.items())
+            or any(job.request.project_id == project_id for job in self._failed_http_exchanges.values())
+            or any(job[0] == project_id for job in self._failed_session_writes.values())
+        )
+
     async def close(self) -> None:
         session_retries = tuple(self._failed_session_writes.values())
         self._failed_session_writes.clear()

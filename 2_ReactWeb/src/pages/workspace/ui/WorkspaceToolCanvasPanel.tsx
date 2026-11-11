@@ -32,6 +32,7 @@ import type { ToolMarketInstallResponse } from "../../../services/tools/toolMark
 type WorkspaceToolCanvasPanelProps = {
   projectReferenceCatalog: ChatProjectReferenceCatalog;
   activeWorkspaceKey: string | null;
+  waitForWorkspaceReady: (key: string, signal: AbortSignal) => Promise<boolean>;
   folders: ToolFolder[];
   documentTabs: ReturnType<typeof useDocumentTabs>;
   folderError?: string | null;
@@ -58,6 +59,7 @@ type WorkspaceToolCanvasPanelProps = {
 export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
   projectReferenceCatalog,
   activeWorkspaceKey,
+  waitForWorkspaceReady,
   folders,
   documentTabs,
   folderError = null,
@@ -158,6 +160,15 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     [activeWorkspaceKey, documentTabs.activeTab],
   );
   const scopedActiveTabId = scopedActiveTab?.id ?? null;
+  const referenceFileSource = useMemo(() => selectedToolFolder ? createToolFolderDocumentSource(
+    selectedToolFolder.category_id, selectedToolFolder.project_id,
+    selectedToolFolder.name, selectedToolFolder.project_id,
+  ) : null, [selectedToolFolder?.category_id, selectedToolFolder?.project_id, selectedToolFolder?.name]);
+  const prepareReferenceFileOpen = useCallback((signal: AbortSignal) => {
+    if (!projectId || !referenceFileSource) return false;
+    if (expandedToolFolder?.project_id !== projectId && !handleExpandToolProject(projectId)) return false;
+    return waitForWorkspaceReady(referenceFileSource.source.key, signal);
+  }, [expandedToolFolder?.project_id, handleExpandToolProject, projectId, referenceFileSource, waitForWorkspaceReady]);
   const {
     handleClearReferences,
     handleCreatePdfPageImageReference,
@@ -188,12 +199,16 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     handleOpenConversationBranches,
     handleOpenConversationDataFile: openConversationDataFile,
     handleOpenReference,
+    referenceOpenError,
     handlePreviewHtmlCode,
     handleSaveProjectCodeBlock,
     visibleActiveTab,
     visibleActiveTabId,
     visibleProjectTabs,
   } = useWorkspaceDocumentActions({
+    projectFileSource: referenceFileSource,
+    onPrepareFileOpen: prepareReferenceFileOpen,
+    sessionId: activeSessionId,
     documentTabs,
     onLayoutPreferenceChange,
     projectId,
@@ -546,7 +561,7 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
       persistentEmptyContent={overviewContent}
       persistentEmptyContentVisible={!expandedToolFolder}
       projectConversationOverviewContent={projectConversationOverviewContent}
-      statusMessage={workspaceError}
+      statusMessage={referenceOpenError ?? workspaceError}
       tabs={expandedToolFolder ? visibleProjectTabs : []}
       toolEntryCandidates={toolEntryFilePaths}
       onCloseTab={documentTabs.closeTab}

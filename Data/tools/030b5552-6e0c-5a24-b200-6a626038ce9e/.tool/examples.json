@@ -1,0 +1,20 @@
+[
+  {
+    "content": "已有目标角色项目时，在它的会话内调用 {\"action\":\"initialize_current\"}，校验工作区集类型及真实根目录后补齐缺失文件，已有文件和 .Tiance 都不改。不在对应集时拒绝；用户还没创建目标时先 list_categories，再 create_role(name,category_id)。不创建临时参考项目。",
+    "enabled": true,
+    "inject_content": false,
+    "title": "新建与原地初始化"
+  },
+  {
+    "content": "list 列出项目，get 查看配置；rename/move 使用真实项目 ID。删除前先核对路径、名称和用户意图，再 delete(project_id,confirm=true)。当前调用项目及执行工具本身不可删。删除走平台项目流程，内部目录进系统回收站，失败不伪报成功。",
+    "enabled": true,
+    "inject_content": false,
+    "title": "检查、整理与删除"
+  },
+  {
+    "content": "get 返回八份角色文件及 effective_configuration。角色是可编辑配置模板，含模型、系统提示词、工具、记忆等。修改角色文件不追溯影响已有会话。AI 会话管理的 configuration.role_project_id 选择角色整套配置；model_source=caller 只继承调用会话的供应商/模型/思考模式；其他 configuration 字段最后覆盖，不修改角色模板。",
+    "enabled": true,
+    "inject_content": false,
+    "title": "角色与会话配置"
+  }
+]

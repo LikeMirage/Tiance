@@ -74,6 +74,7 @@ class ProjectConversationCreateRequest(BaseModel):
 
 
 class ProjectConversationSessionUpdateRequest(BaseModel):
+    role_project_id: str | None = None
     title: str | None = None
     provider_id: str | None = None
     model_id: str | None = None
@@ -83,6 +84,7 @@ class ProjectConversationSessionUpdateRequest(BaseModel):
 
 class ProjectConversationDeleteRequest(BaseModel):
     session_ids: list[str] = Field(min_length=1)
+    protected_session_id: str | None = None
 
 
 class ProjectConversationSessionPinRequest(BaseModel):
@@ -421,6 +423,11 @@ class ProjectConversationForkRequest(BaseModel):
     source_message_id: str = Field(min_length=1)
     draft: str = Field(default="", max_length=2_000_000)
     references: ConversationReferences = Field(default_factory=ConversationReferences)
+
+
+class ProjectConversationCloneRequest(BaseModel):
+    source_message_id: str | None = Field(default=None, min_length=1)
+    configuration: ProjectConversationSessionUpdateRequest = Field(default_factory=ProjectConversationSessionUpdateRequest)
 
 
 class ProjectConversationForkResponse(BaseModel):

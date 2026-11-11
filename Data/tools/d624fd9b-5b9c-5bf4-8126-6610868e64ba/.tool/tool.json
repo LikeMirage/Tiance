@@ -1,5 +1,5 @@
 {
-  "description": "查询、创建和管理当前项目的 AI 会话及模型配置；发送任务使用 interact_ai_conversation。",
+  "description": "查看和管理可递归的会话层级，创建空白或复刻的 AI 子会话，选择角色并覆盖配置，预览及删除指定会话。",
   "execution": {
     "parallel": true
   },
@@ -20,7 +20,7 @@
   "registration_name": "AI 会话管理",
   "runtime": {
     "client_capability": {
-      "min_version": 1,
+      "min_version": 3,
       "name": "conversation.management"
     },
     "timeout_seconds": 600,
