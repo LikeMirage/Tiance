@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from tests.test_mobile_access import repository, host
-from app.services.mobile import feishu_transport, wechat_media, navigation
+from app.services.mobile import feishu_transport, wechat_media, wechat_transport, navigation
 from app.services.mobile.feishu_events import normalize_event
 from app.services.mobile.feishu_frames import Frame
 from app.services.mobile.wechat_transport import normalize_message, trusted_url
@@ -24,7 +24,7 @@ def test_wechat_menu_digits_and_chat_digits_have_different_meanings(host, monkey
     async def run():
         nav = WeChatNavigation(host)
         await host.put('selection', PEER, TARGET)
-        await host.put('menus', PEER, {'mode': 'conversation', 'stack': [{'action': 'sessions', 'target': TARGET}], 'options': []})
+        await host.put('menus', PEER, {'mode': 'conversation', 'scope': ['project'], 'stack': [{'action': 'sessions', 'target': TARGET}], 'options': []})
         assert not await nav.consume(PEER, '2', {})
         assert not await nav.consume(PEER, '000', {})
         assert await nav.message_target(PEER, {}) == TARGET
@@ -35,7 +35,7 @@ def test_wechat_menu_digits_and_chat_digits_have_different_meanings(host, monkey
         with pytest.raises(Exception, match='进入会话'):
             await nav.message_target(PEER, {})
         button = await nav.button(PEER, '选择', 'select', target=TARGET)
-        await host.put('menus', PEER, {'mode': 'menu', 'stack': [], 'options': [button['callback_data']]})
+        await host.put('menus', PEER, {'mode': 'menu', 'scope': ['project'], 'stack': [], 'options': [button['callback_data']]})
         assert await nav.consume(PEER, '1', {})
         assert nav.action.call_args.args == (PEER,)
         assert nav.action.call_args.kwargs == {'action': 'select', 'target': TARGET}
@@ -83,10 +83,10 @@ def test_invalid_selection_does_not_enter_conversation(host, monkeypatch):
 def test_new_in_chat_is_rejected_and_menu_new_prompts_for_name(host):
     async def run():
         nav = WeChatNavigation(host)
-        await host.put('menus', PEER, {'mode': 'conversation', 'stack': [{'action': 'sessions', 'target': TARGET}], 'options': []})
+        await host.put('menus', PEER, {'mode': 'conversation', 'scope': ['project'], 'stack': [{'action': 'sessions', 'target': TARGET}], 'options': []})
         await nav.consume(PEER, '/new', {})
         assert not (await nav.state(PEER)).get('pending')
-        await host.put('menus', PEER, {'mode': 'menu', 'stack': [{'action': 'categories', 'kind': 'project'}], 'options': []})
+        await host.put('menus', PEER, {'mode': 'menu', 'scope': ['project'], 'stack': [{'action': 'categories', 'kind': 'project'}], 'options': []})
         await nav.consume(PEER, '/new', {})
         assert (await nav.state(PEER))['pending']['action'] == 'newcategory'
     asyncio.run(run())
@@ -116,6 +116,35 @@ def test_wechat_media_and_unknown_events_are_explicit():
         normalize_message({'message_type': 1, 'from_user_id': 'u'})
     for bad in ['https://weixin.qq.com.attacker.org/file', 'http://ilinkai.weixin.qq.com', 'https://a:b@ilinkai.weixin.qq.com']:
         with pytest.raises(Exception): trusted_url(bad)
+
+
+@pytest.mark.parametrize('read_timeout', [5, 60])
+@pytest.mark.parametrize('method,get', [('get_qrcode_status', True), ('getupdates', False)])
+def test_wechat_long_poll_reaches_http_with_preserved_timeouts(monkeypatch, read_timeout, method, get):
+    configured = httpx.Timeout(connect=7, read=read_timeout, write=11, pool=13)
+    monkeypatch.setattr(wechat_transport, 'get_http_timeout', lambda: configured)
+    requests = []
+    body = {'status': 'wait'} if get else {'msgs': []}
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(200, json=body)
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond), trust_env=False) as client:
+            monkeypatch.setattr(wechat_transport, 'get_shared_http_client', lambda: client)
+            transport = wechat_transport.WeChatTransport(token='test-token')
+            result = await transport.call(method, auth=not get, get=get, poll=True,
+                                          params={'qrcode': 'test-code'} if get else None)
+            assert result == body
+
+    asyncio.run(run())
+    assert len(requests) == 1
+    assert requests[0].method == ('GET' if get else 'POST')
+    assert requests[0].extensions['timeout'] == {
+        'connect': 7, 'read': max(read_timeout, 40), 'write': 11, 'pool': 13,
+    }
+    assert configured.read == read_timeout
 
 
 def test_encrypted_media_roundtrip_and_corruption_does_not_save(tmp_path, monkeypatch):

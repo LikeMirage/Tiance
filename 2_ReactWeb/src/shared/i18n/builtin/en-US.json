@@ -1967,6 +1967,20 @@
       }
     },
     "telegramAccess": {
+      "scope": {
+        "title": "Access scope",
+        "connectFirst": "Connect a bot to change its scope. Only Projects is enabled by default.",
+        "empty": "No collections are enabled. Mobile content access is unavailable.",
+        "collections": {
+          "project": "Projects",
+          "tool": "Tools",
+          "knowledge": "Knowledge",
+          "experience": "Experience",
+          "role": "Roles",
+          "provider": "Models",
+          "theme": "Themes"
+        }
+      },
       "connection": "Bot connection",
       "intro": "Create a Telegram bot and enter its token. Send /start in a private chat, then allow your account here.",
       "tokenSaved": "Saved; leave blank to keep the current token",
@@ -2009,6 +2023,7 @@
         "next": "Next"
       },
       "events": {
+        "scope_changed": "Access scope updated",
         "configuration_failed": "Connection validation failed",
         "enabled": "Access enabled",
         "disabled": "Access disabled",

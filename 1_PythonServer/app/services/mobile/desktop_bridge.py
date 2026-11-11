@@ -77,7 +77,7 @@ class MobileDesktopBridge:
             raise BadRequestError("桌面会话入口尚未连接，请打开天策对话区后重发。本条消息未提交。")
         manager = get_conversation_run_manager()
         async with self.lock:
-            if self.is_authorized and not await self.is_authorized(peer):
+            if self.is_authorized and not await self.is_authorized(peer, target):
                 raise BadRequestError("手机接入未启用或授权已撤销，本条消息未提交。")
             status = await manager.get_run_status(target["project_id"], target["session_id"])
             jobs = await asyncio.to_thread(self.repository.list, "jobs")
@@ -100,7 +100,7 @@ class MobileDesktopBridge:
             job = await asyncio.to_thread(self.repository.get, "jobs", key)
             if not job or job["status"] != "preparing":
                 return
-            if self.is_authorized and not await self.is_authorized(job["peer"]):
+            if self.is_authorized and not await self.is_authorized(job["peer"], job):
                 await self.finish(key, job, "error", "手机接入未启用或授权已撤销，消息未提交。")
                 return
             if error:

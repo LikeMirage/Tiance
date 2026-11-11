@@ -27,6 +27,9 @@ class MobileNavigation:
         await self.host.put("callbacks", key, dict(peer=peer, action=action, **args))
         return {"text": text, "callback_data": key}
 
+    async def entry_button(self, peer, text, action, **args):
+        return await self.button(peer, text[:60], action, **args)
+
     async def controls(self, peer, target, user_message_id=None):
         rows = [[await self.button(peer, "选择项目", "collections"),
                  await self.button(peer, "选择会话", "sessions", target=target or {})]]
@@ -44,7 +47,7 @@ class MobileNavigation:
         size = 8
         page = max(0, min(page, max(0, (len(entries)-1)//size)))
         rows = list(leading_rows or [])
-        rows.extend([[await self.button(peer, name[:60], item_action, **data)]
+        rows.extend([[await self.entry_button(peer, name, item_action, **data)]
                      for name, item_action, data in entries[page*size:(page+1)*size]])
         nav = []
         if page:

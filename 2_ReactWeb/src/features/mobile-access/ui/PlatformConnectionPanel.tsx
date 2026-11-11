@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchJson } from "../../../services/http/httpClient";
 import { AccessSwitchControl } from "../../access-management/ui/AccessSwitchControl";
+import type { ProjectKind } from "@/entities/project/model/project";
+import { MobileScopePanel } from "./MobileScopePanel";
 import { WeChatQr } from "./WeChatQr";
 
 export type Platform = "feishu" | "wechat";
 type Status = {
   connection_id: string | null; enabled: boolean; has_token: boolean; app_id: string;
+  allowed_collections: ProjectKind[];
   error: string | null; desktop_online: boolean; pending_deliveries: number;
   bot: { first_name: string } | null;
   connections: { connection_id: string; name: string }[];
@@ -51,13 +54,16 @@ export function PlatformConnectionPanel({ platform, active, onConnection }: {
     void refresh();
     return () => { abort.abort(); clearTimeout(timer); };
   }, [platform, active, connectionId, revision]);
-  const mutate = async (path: string, method: string, body: object) => {
+  const mutate = async (path: string, method: string, body: object, credentials = false) => {
     if (mutation.current) return;
     mutation.current = true; epoch.current++; setBusy(true); setError("");
+    const ticket = epoch.current;
     try {
       const result = await fetchJson<Status>(path, { method, body: JSON.stringify(body) });
-      setStatus(result); setConnectionId(result.connection_id); setSecret(""); setAppId(result.app_id ?? "");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+      if (ticket !== epoch.current) return;
+      setStatus(result); setConnectionId(result.connection_id); setRefreshError("");
+      if (credentials) { setSecret(""); setAppId(result.app_id ?? ""); }
+    } catch (cause) { if (ticket === epoch.current) setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { mutation.current = false; epoch.current++; setBusy(false); }
   };
   const disabled = busy || !status || (!!connectionId && status.connection_id !== connectionId);
@@ -77,16 +83,17 @@ export function PlatformConnectionPanel({ platform, active, onConnection }: {
       <label>启用{label}接入</label><div className="telegram-access__connection-control">
         <AccessSwitchControl checked={enabled} label={`启用${label}接入`} disabled={disabled || (platform === "wechat" && !status?.has_token)}
           onChange={() => void mutate(`/api/mobile/platform/${platform}`, "PUT", { connection_id: status?.connection_id,
-            enabled: !enabled, app_id: appId, secret })} />
+            enabled: !enabled, app_id: appId, secret }, true)} />
         <span>{status?.bot?.first_name}</span>
       </div>
     </div>
     {platform === "wechat" && <WeChatQr active={active} onConnected={id => {
-      epoch.current++; setConnectionId(id); setRevision(value => value + 1);
+      epoch.current++; loaded.current = undefined; setStatus(null); setConnectionId(id); setRevision(value => value + 1);
     }} />}
     {(error || refreshError || status?.error) && <p role="alert" className="telegram-access__error">{error || refreshError || status?.error}</p>}
     {enabled && !status?.error && <p className="telegram-access__hint">{status?.desktop_online ? "已启用。天策需保持运行，可最小化到托盘。" : "请保持天策桌面界面在线，以便提交消息。"}</p>}
     {!!status?.pending_deliveries && <p>待回传消息：{status.pending_deliveries}</p>}
+    <div className="telegram-access__permissions">
     <div className="telegram-access__users"><h3>允许访问的用户</h3>
       <p className="telegram-access__hint">{platform === "wechat" ? "扫码确认的本人账号会自动授权。其他账号需在此允许后才能操作天策。" : "先在飞书中找到并私聊此应用机器人，发送 /start，再在这里允许自己的账号。"}</p>
       {status?.peers.map(peer => <div className="telegram-access__user" key={peer.id}>
@@ -94,6 +101,13 @@ export function PlatformConnectionPanel({ platform, active, onConnection }: {
         <AccessSwitchControl checked={peer.allowed} disabled={disabled} label={`允许 ${peer.name}`}
           onChange={() => void mutate("/api/mobile/authorization", "POST", { peer: peer.id, allowed: !peer.allowed })} />
       </div>)}
+    </div>
+    <MobileScopePanel allowed={status?.allowed_collections ?? ["project"]} disabled={disabled}
+      connected={!!status?.connection_id} onChange={allowed => {
+        if (!disabled && status?.connection_id) void mutate(`/api/mobile/platform/${platform}/access-scope`, "PUT", {
+          connection_id: status.connection_id, allowed_collections: allowed,
+        });
+      }} />
     </div>
   </section>;
 }

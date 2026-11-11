@@ -1185,7 +1185,8 @@
         "task_cancelled": "任务已暂停，通知待回传",
         "task_finished": "任务已结束，结果待回传",
         "reply_sent": "回复已发送",
-        "reply_failed": "回复发送失败，等待重试"
+        "reply_failed": "回复发送失败，等待重试",
+        "scope_changed": "已更新访问范围"
       },
       "details": {
         "user_id": "用户 ID",
@@ -1196,6 +1197,20 @@
         "job_id": "任务 ID",
         "http_status": "HTTP 状态码",
         "error_type": "错误类型"
+      },
+      "scope": {
+        "title": "访问范围",
+        "connectFirst": "连接机器人后可调整访问范围，默认仅开放项目集。",
+        "empty": "未开放任何集，手机端暂时无法访问内容。",
+        "collections": {
+          "project": "项目集",
+          "tool": "工具集",
+          "knowledge": "知识集",
+          "experience": "经验集",
+          "role": "角色集",
+          "provider": "模型集",
+          "theme": "主题集"
+        }
       }
     }
   }

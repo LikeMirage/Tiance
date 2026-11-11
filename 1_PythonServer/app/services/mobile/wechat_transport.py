@@ -57,7 +57,12 @@ class WeChatTransport:
             payload = dict(payload or {}, base_info={'channel_version': PROTOCOL_VERSION, 'bot_agent': 'Tiance'})
         timeout = get_http_timeout()
         if poll:
-            timeout = httpx.Timeout(timeout, read=max(timeout.read or 0, 40))
+            timeout = httpx.Timeout(
+                connect=timeout.connect,
+                read=max(timeout.read or 0, 40),
+                write=timeout.write,
+                pool=timeout.pool,
+            )
         async with lease_http_client(get_shared_http_client()) as client:
             response = await client.request('GET' if get else 'POST', self.base + '/ilink/bot/' + method,
                                             params=params, headers=headers, json=None if get else (payload or {}), timeout=timeout,

@@ -1,4 +1,4 @@
-.telegram-access { padding: 22px 0; color: var(--color-text-primary); }
+.telegram-access { padding: 22px 0; color: var(--color-text-primary); container-type: inline-size; }
 .telegram-access__hint { color: var(--color-text-secondary); line-height: 1.6; margin: 0 0 18px; }
 .telegram-access__form { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(160px, 2fr); align-items: center; gap: 18px 24px; max-width: 780px; }
 .telegram-access input, .telegram-access select { box-sizing: border-box; width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid var(--color-border-soft); border-radius: 4px; background: var(--color-surface-muted); color: inherit; }
@@ -12,6 +12,17 @@
 .telegram-access__error { color: var(--color-danger, #d04444); white-space: pre-wrap; }
 .telegram-access__users { border-top: 1px solid var(--color-border-soft); margin-top: 24px; padding-top: 8px; }
 .telegram-access__users h3 { font-size: 1rem; }
+.telegram-access__permissions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; border-top: 1px solid var(--color-border-soft); margin-top: 24px; padding-top: 8px; }
+.telegram-access__permissions > .telegram-access__users { border-top: 0; margin-top: 0; padding-top: 0; min-width: 0; }
+.telegram-access__scope { min-width: 0; padding-left: 32px; border-left: 1px solid var(--color-border-soft); }
+.telegram-access__scope h3 { font-size: 1rem; }
+.telegram-access__scope-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--color-border-soft); }
+.telegram-access__scope-summary { color: var(--color-text-secondary); line-height: 1.6; margin: 14px 0 0; }
+.telegram-access__permissions .telegram-access__user > div { min-width: 0; overflow-wrap: anywhere; }
+@container (max-width: 680px) {
+  .telegram-access__permissions { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .telegram-access__scope { border-left: 0; border-top: 1px solid var(--color-border-soft); padding: 8px 0 0; }
+}
 .telegram-access__user { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--color-border-soft); }
 .telegram-access__user span, .telegram-access__user small { color: var(--color-text-secondary); }
 .telegram-access__user small { display: block; margin-top: 5px; }

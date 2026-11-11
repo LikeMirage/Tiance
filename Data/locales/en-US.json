@@ -1185,7 +1185,8 @@
         "task_cancelled": "Task paused; notice pending",
         "task_finished": "Task ended; reply pending",
         "reply_sent": "Reply sent",
-        "reply_failed": "Reply delivery failed; retry pending"
+        "reply_failed": "Reply delivery failed; retry pending",
+        "scope_changed": "Access scope updated"
       },
       "details": {
         "user_id": "User ID",
@@ -1196,6 +1197,20 @@
         "job_id": "Task ID",
         "http_status": "HTTP status",
         "error_type": "Error type"
+      },
+      "scope": {
+        "title": "Access scope",
+        "connectFirst": "Connect a bot to change its scope. Only Projects is enabled by default.",
+        "empty": "No collections are enabled. Mobile content access is unavailable.",
+        "collections": {
+          "project": "Projects",
+          "tool": "Tools",
+          "knowledge": "Knowledge",
+          "experience": "Experience",
+          "role": "Roles",
+          "provider": "Models",
+          "theme": "Themes"
+        }
       }
     }
   }

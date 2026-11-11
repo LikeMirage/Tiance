@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchJson } from "../../../services/http/httpClient";
 import { useI18n } from "../../../shared/i18n";
 import { AccessSwitchControl } from "../../access-management/ui/AccessSwitchControl";
+import type { ProjectKind } from "@/entities/project/model/project";
+import { MobileScopePanel } from "./MobileScopePanel";
 import "./telegram-access.css";
 
 type Status = {
@@ -9,6 +11,7 @@ type Status = {
   connections: { connection_id: string; name: string; username: string; enabled: boolean }[];
   enabled: boolean; has_token: boolean; api_base: string; error: string | null;
   desktop_online: boolean; pending_deliveries: number;
+  allowed_collections: ProjectKind[];
   bot: { username?: string; first_name: string } | null;
   peers: { id: string; user_id: number; name: string; username?: string; allowed: boolean; reviewed: boolean }[];
 };
@@ -92,6 +95,18 @@ export function TelegramConnectionPanel({ active = true, onConnection }: Props) 
     finally { revision.current++; mutating.current = false; setBusy(false); }
   };
   const unavailable = busy || !status || (!!connectionId && status.connection_id !== connectionId);
+  const setScope = async (allowed: ProjectKind[]) => {
+    if (mutating.current || unavailable || !status?.connection_id) return;
+    revision.current++; mutating.current = true;
+    setBusy(true); setError(null);
+    try {
+      const data = await fetchJson<Status>("/api/mobile/telegram/access-scope", {
+        method: "PUT", body: JSON.stringify({ connection_id: status.connection_id, allowed_collections: allowed }),
+      });
+      setStatus(data); setRefreshError(null);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { revision.current++; mutating.current = false; setBusy(false); }
+  };
   const enabled = status?.enabled ?? false;
   return <section className="telegram-access" aria-busy={busy}>
     <div className="telegram-access__form">
@@ -127,9 +142,11 @@ export function TelegramConnectionPanel({ active = true, onConnection }: Props) 
     {(refreshError || status?.error) && <p role="alert" className="telegram-access__error">{refreshError || status?.error}</p>}
     {status?.enabled && !refreshError && !status.error && <p className="telegram-access__hint">{t(status.desktop_online ? "telegramAccess.ready" : "telegramAccess.offline")}</p>}
     {!!status?.pending_deliveries && <p>{t("telegramAccess.pendingDelivery")} {status.pending_deliveries}</p>}
+    <div className="telegram-access__permissions">
     <div className="telegram-access__users">
       <h3>{t("telegramAccess.users")}</h3>
       <p className="telegram-access__hint">{t("telegramAccess.intro")}</p>
+      {status && !status.peers.length && <p className="telegram-access__hint">{t("telegramAccess.noUsers")}</p>}
       {status?.peers.map((peer) => <div className="telegram-access__user" key={peer.id}>
         <div><strong>{peer.name}</strong><span>{peer.username ? ` @${peer.username}` : ""} · ID {peer.user_id}</span>
           <small>{t(peer.allowed ? "telegramAccess.allowed" : peer.reviewed ? "telegramAccess.denied" : "telegramAccess.waiting")}</small></div>
@@ -137,6 +154,9 @@ export function TelegramConnectionPanel({ active = true, onConnection }: Props) 
           label={`${t("telegramAccess.allow")} · ${peer.name} · ID ${peer.user_id}`}
           onChange={() => void authorize(peer.id, !peer.allowed)} />
       </div>)}
+    </div>
+    <MobileScopePanel allowed={status?.allowed_collections ?? ["project"]} disabled={unavailable}
+      connected={!!status?.connection_id} onChange={allowed => void setScope(allowed)} />
     </div>
   </section>;
 }

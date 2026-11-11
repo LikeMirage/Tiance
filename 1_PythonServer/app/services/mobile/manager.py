@@ -6,6 +6,7 @@ from .desktop_bridge import MobileDesktopBridge
 from .service import MobileService, FeishuService, WeChatService
 from .telegram_config import validate_configuration
 from .activity import record_activity
+from .access_scope import DEFAULT_COLLECTIONS, validate_collections
 
 INBOUND_ADAPTERS = {'telegram': MobileService, 'feishu': FeishuService, 'wechat': WeChatService}
 
@@ -77,6 +78,8 @@ class MobileAccessService:
 
     async def save_platform(self, platform, remote_id, config):
         key = f'{platform}:{remote_id}'
+        saved = next((r['config'] for r in await self.connection_records(platform) if r['connection_id'] == key), {})
+        config = dict(config, allowed_collections=list(saved.get('allowed_collections', DEFAULT_COLLECTIONS)))
         await asyncio.to_thread(self.repository.save_connection, key, platform, str(remote_id), config, select=True)
         adapter = await self.install(dict(connection_id=key, platform=platform, config=config))
         await record_activity(adapter.repository, 'enabled' if config.get('enabled') else 'disabled')
@@ -111,12 +114,33 @@ class MobileAccessService:
             if not config.get('bot'):
                 return await self.status()
             key = f"telegram:{config['bot']['id']}"
+            destination = next((r['config'] for r in records if r['connection_id'] == key), {})
+            config['allowed_collections'] = list(destination.get('allowed_collections', DEFAULT_COLLECTIONS))
             # A token for a different bot creates/selects a different connection.
             # It never changes the identity of an in-flight upload or AI reply.
             await asyncio.to_thread(self.repository.save_connection, key, 'telegram', str(config['bot']['id']), config, select=True)
             adapter = await self.install(dict(connection_id=key, platform='telegram', config=config))
             await record_activity(adapter.repository, 'enabled' if enabled else 'disabled')
             return await self.status(key)
+
+    async def configure_scope(self, platform, connection_id, allowed_collections):
+        if platform not in INBOUND_ADAPTERS:
+            raise BadRequestError('不支持此接入平台。')
+        allowed = validate_collections(allowed_collections)
+        async with self.lock:
+            record = next((r for r in await self.connection_records(platform)
+                           if r['connection_id'] == connection_id), None)
+            if record is None:
+                raise BadRequestError('连接不存在或不属于此平台，请先连接机器人。')
+            adapter = self.adapters.get(connection_id) or await self.install(record)
+            # Serialize scope changes with the final submit/prepare checks.
+            async with adapter.access_scope.lock, self.desktop.lock:
+                config = dict(record['config'], allowed_collections=allowed)
+                await asyncio.to_thread(self.repository.save_connection, connection_id, platform, record['remote_id'], config)
+                adapter.config = config
+            adapter.outgoing.set()
+            await record_activity(adapter.repository, 'scope_changed')
+            return await self.status(connection_id, platform)
 
     async def for_peer(self, peer):
         identity = await asyncio.to_thread(self.repository.get, 'peers', peer, {})
@@ -125,9 +149,9 @@ class MobileAccessService:
             key = await asyncio.to_thread(self.repository.record_connection, 'peers', peer)
         return self.adapters.get(key)
 
-    async def is_authorized(self, peer):
+    async def is_authorized(self, peer, target=None):
         adapter = await self.for_peer(peer)
-        return bool(adapter and await adapter.is_authorized(peer))
+        return bool(adapter and await adapter.is_authorized(peer, target))
 
     async def authorize(self, peer, allowed):
         adapter = await self.for_peer(peer)

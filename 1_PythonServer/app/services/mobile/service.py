@@ -19,6 +19,7 @@ from .desktop_bridge import MobileDesktopBridge
 from .navigation import MobileNavigation
 from .telegram_transport import TelegramTransport, TelegramError, safe_filename, split_message
 from .activity import record_activity
+from .access_scope import MobileAccessScope, reply_collections, SCOPE_CHANGED
 
 
 class MobileService:
@@ -29,6 +30,10 @@ class MobileService:
         self.repository = repository
         self.desktop = desktop or MobileDesktopBridge(repository, self.result, self.is_authorized)
         self.navigation = MobileNavigation(self)
+        self.access_scope = MobileAccessScope(self)
+        if self.platform == 'telegram':
+            from .telegram_navigation import TelegramNavigation
+            self.navigation = TelegramNavigation(self)
         self.transport = None
         self.config = {}
         self.error = None
@@ -56,10 +61,11 @@ class MobileService:
     async def activity(self, event, **details):
         await record_activity(self.repository, event, **details)
 
-    async def is_authorized(self, peer):
+    async def is_authorized(self, peer, target=None):
         identity = await self.get("peers", peer, {})
         return bool(self.config.get("enabled") and identity.get("allowed")
-                    and identity.get("bot_id") == self.config.get("bot", {}).get("id"))
+                    and identity.get("bot_id") == self.config.get("bot", {}).get("id")
+                    and await self.access_scope.allows_target(target))
 
     async def status(self):
         config = self.config
@@ -67,7 +73,8 @@ class MobileService:
         return {"connection_id": self.repository.connection_id, "enabled": config.get("enabled",False), "has_token": bool(config.get("token")),
                 "api_base": config.get("api_base","https://api.telegram.org"), "bot":config.get("bot"),
                 "error":self.error,"desktop_online":self.desktop.online,"peers":peers,
-                "pending_deliveries":len(await self.records("outbox"))}
+                "pending_deliveries":len(await self.records("outbox")),
+                "allowed_collections": self.access_scope.collections()}
 
     async def apply_config(self, config):
         self.config = config
@@ -332,9 +339,11 @@ class MobileService:
 
     async def download(self, peer, target, media, transport, generation=0):
         try:
+            await self.access_scope.require_target(target)
             name = safe_filename(media.get("file_name") or f"recording_{uuid4().hex}.ogg")
             path, relative = await asyncio.to_thread(incoming_path, target, name, self.label)
             await transport.download(media["file_id"] if self.platform == 'telegram' else media, path)
+            await self.access_scope.require_target(target)
             ref = file_reference(target, relative, name)
             key = self.staging_key(peer, target)
             async with self.file_lock:
@@ -358,6 +367,7 @@ class MobileService:
             identity = await self.get("peers", peer, {})
             if not identity.get("allowed"):
                 return
+            await self.access_scope.require_target(target)
             await asyncio.to_thread(resolve_target, target)
             async with self.file_lock:
                 refs = await self.get("staged", key, [])
@@ -407,6 +417,8 @@ class MobileService:
     async def reply(self, peer, text, target=None, rows=None, public=False, user_message_id=None, delivery_key=None):
         if target is None and not public:
             target = await self.get("selection", peer)
+        if not public and not await self.access_scope.allows_target(target):
+            target, text, rows = None, SCOPE_CHANGED, []
         header = "天策" if public else await asyncio.to_thread(target_header, target)
         if rows is None:
             rows = await self.navigation.controls(peer, target, user_message_id)
@@ -414,6 +426,7 @@ class MobileService:
             text, rows = await self.navigation.prepare_reply(peer, text, rows)
         record = {"peer":peer,"target":target,"parts":list(split_message(str(text) or "（空回复）")),
                   "header":header,"rows":rows,"sent":0,"next_attempt":0,"attempts":0,"public":public}
+        record['access_collections'] = list(reply_collections.get())
         key = delivery_key or uuid4().hex
         if not await self.get("outbox", key) and not await self.get("delivered", key):
             await self.put("outbox", key, record)
@@ -435,14 +448,26 @@ class MobileService:
                     if not peer.get("allowed") and not item.get("public"):
                         continue
                     try:
+                        if not await self.access_scope.allows_delivery(item):
+                            if item.get('diagram'):
+                                from .relationship_diagram import remove_diagram
+                                with suppress(OSError):
+                                    await asyncio.to_thread(remove_diagram, item['diagram'])
+                            await self.put('delivered', key, True)
+                            await self.delete('outbox', key)
+                            continue
                         index = item["sent"]
                         if index < len(item["parts"]):
                             text = next(split_message(item["header"], 400))+"\n\n"+item["parts"][index]
                             if self.platform != 'telegram':
+                                card_options = {}
+                                if self.platform == 'feishu':
+                                    text = item['parts'][index]
+                                    card_options['header'] = next(split_message(item['header'], 400))
                                 result = await transport.deliver(peer, text, item['rows'],
                                     context=await self.get('reply_context', item['peer'], {}),
                                     document=Path(item['diagram']) if item.get('diagram') else None,
-                                    delivery_id=f'{key}:{index}')
+                                    delivery_id=f'{key}:{index}', **card_options)
                             elif item.get('diagram'):
                                 result = await transport.send_once('sendDocument', {
                                     'chat_id': str(peer['chat_id']), 'caption': text,
@@ -479,17 +504,24 @@ class MobileService:
 
     async def reply_diagram(self, peer, path, title, rows):
         # Send as an original PNG file so Telegram does not blur small labels.
-        await self.put('outbox', uuid4().hex, {
+        record = {
             'peer': peer, 'target': None, 'header': title,
             'parts': ['分类 → 项目 → 主会话。打开原图可放大查看。'],
             'rows': rows, 'diagram': str(path), 'sent': 0,
             'next_attempt': 0, 'attempts': 0, 'public': False,
-        })
+        }
+        record['access_collections'] = list(reply_collections.get())
+        await self.put('outbox', uuid4().hex, record)
         self.outgoing.set()
 
 
 class FeishuService(MobileService):
     platform, label = 'feishu', '飞书'
+
+    def __init__(self, repository, *, desktop=None):
+        super().__init__(repository, desktop=desktop)
+        from .feishu_navigation import FeishuNavigation
+        self.navigation = FeishuNavigation(self)
 
     def make_transport(self, config):
         from .feishu_transport import FeishuTransport

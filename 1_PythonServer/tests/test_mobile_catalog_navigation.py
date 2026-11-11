@@ -106,6 +106,7 @@ def test_wrong_collection_category_is_rejected_before_creating(monkeypatch):
 
 def test_creation_uses_browsed_collection_not_old_selected_session(host, monkeypatch):
     async def run():
+        host.config['allowed_collections'] = ['project', 'tool']
         peer = 'telegram:12:7:7'; selected = {'project_id':'p', 'session_id':'a'}
         await host.put('selection', peer, selected)
         await host.put('navigation', peer, {'kind':'tool', 'category':'tools'})

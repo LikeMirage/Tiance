@@ -18,6 +18,11 @@ class Authorization(BaseModel):
     allowed: bool
 
 
+class AccessScopeSettings(BaseModel):
+    connection_id: str = Field(min_length=1, max_length=256)
+    allowed_collections: list[Literal['project', 'tool', 'knowledge', 'experience', 'role', 'provider', 'theme']] = Field(max_length=7)
+
+
 class Preparation(BaseModel):
     owner: str = Field(min_length=1, max_length=100)
     payload: dict | None = None
@@ -67,6 +72,11 @@ async def platform_logs(platform: Literal['feishu', 'wechat'], connection_id: st
     return await get_mobile_service().activity(connection_id, offset, limit, platform)
 
 
+@router.put('/platform/{platform}/access-scope')
+async def platform_access_scope(platform: Literal['feishu', 'wechat'], payload: AccessScopeSettings):
+    return await get_mobile_service().configure_scope(platform, **payload.model_dump())
+
+
 @router.post('/authorization')
 async def platform_authorization(payload: Authorization):
     return await get_mobile_service().authorize(payload.peer, payload.allowed)
@@ -86,6 +96,11 @@ async def telegram_settings(payload: TelegramSettings):
 async def telegram_logs(connection_id: str | None = Query(default=None, max_length=256),
                         offset: int = Query(default=0, ge=0), limit: int = Query(default=50, ge=1, le=100)):
     return await get_mobile_service().activity(connection_id, offset, limit)
+
+
+@router.put('/telegram/access-scope')
+async def telegram_access_scope(payload: AccessScopeSettings):
+    return await get_mobile_service().configure_scope('telegram', **payload.model_dump())
 
 
 @router.post("/telegram/authorization")

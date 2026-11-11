@@ -1967,6 +1967,20 @@
       }
     },
     "telegramAccess": {
+      "scope": {
+        "title": "访问范围",
+        "connectFirst": "连接机器人后可调整访问范围，默认仅开放项目集。",
+        "empty": "未开放任何集，手机端暂时无法访问内容。",
+        "collections": {
+          "project": "项目集",
+          "tool": "工具集",
+          "knowledge": "知识集",
+          "experience": "经验集",
+          "role": "角色集",
+          "provider": "模型集",
+          "theme": "主题集"
+        }
+      },
       "connection": "机器人连接",
       "intro": "创建 Telegram 机器人后填写 Token。首次在手机发送 /start，再在这里允许自己的账号访问。",
       "tokenSaved": "已保存；留空保持原 Token",
@@ -2009,6 +2023,7 @@
         "next": "下一页"
       },
       "events": {
+        "scope_changed": "已更新访问范围",
         "configuration_failed": "连接配置验证失败",
         "enabled": "已启用接入",
         "disabled": "已关闭接入",

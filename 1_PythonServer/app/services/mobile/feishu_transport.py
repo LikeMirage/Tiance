@@ -10,6 +10,7 @@ from uuid import NAMESPACE_URL, uuid5
 from app.core.errors import BadRequestError
 from app.infra.http_client import get_shared_http_client, lease_http_client, get_http_timeout, get_network_proxy_url
 from .feishu_events import normalize_event
+from .feishu_cards import build_card
 
 BASE = 'https://open.feishu.cn'
 
@@ -114,15 +115,11 @@ class FeishuTransport:
                   'uuid': str(uuid5(NAMESPACE_URL, delivery_id))})
         return {'message_id': body['data']['message_id']}
 
-    async def deliver(self, peer, text, rows, *, context=None, document=None, delivery_id):
+    async def deliver(self, peer, text, rows, *, context=None, document=None, delivery_id, header=''):
         if document:
-            return await self.send_file(peer['chat_id'], document, text, delivery_id)
-        elements = [{'tag': 'div', 'text': {'tag': 'plain_text', 'content': text}}]
-        for row in rows:
-            elements.append({'tag': 'action', 'actions': [
-                {'tag': 'button', 'text': {'tag': 'plain_text', 'content': button['text']},
-                 'value': {'tiance': button['callback_data']}, 'type': 'default'} for button in row]})
-        return await self.send(peer['chat_id'], 'interactive', {'config': {'wide_screen_mode': True}, 'elements': elements}, delivery_id)
+            caption = '\n\n'.join(part for part in (header, text) if part)
+            return await self.send_file(peer['chat_id'], document, caption, delivery_id)
+        return await self.send(peer['chat_id'], 'interactive', build_card(text, rows, header=header), delivery_id)
 
     async def download(self, media, destination):
         path = '/open-apis/im/v1/messages/' + quote(media['message_id'], safe='') + '/resources/' + quote(media['file_key'], safe='')

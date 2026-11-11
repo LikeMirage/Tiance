@@ -4,20 +4,32 @@ from copy import deepcopy
 from contextvars import ContextVar
 
 from app.core.errors import BadRequestError
-from .navigation import MobileNavigation
+from .scoped_navigation import ScopedNavigation
 
 _rendering = ContextVar('wechat_menu_rendering', default=None)
 PAGES = {'collections', 'categories', 'projects', 'sessions', 'groups', 'model', 'models', 'actions'}
 CREATE = {'new', 'newcategory', 'newproject'}
 
 
-class WeChatNavigation(MobileNavigation):
+class WeChatNavigation(ScopedNavigation):
+    async def button(self, peer, text, action, **args):
+        button = await super().button(peer, text, action, **args)
+        button['presentation'] = {'role': 'operation'}
+        return button
+
+    async def entry_button(self, peer, text, action, **args):
+        return await super().button(peer, text[:60], action, **args)
+
     async def state(self, peer):
         return await self.host.get('menus', peer, {'mode': 'menu', 'stack': [], 'options': []})
 
     async def consume(self, peer, text, event):
         text = text.strip()
         state = await self.state(peer)
+        if (state['stack'] or state['mode'] == 'conversation') and state.get('scope') != self.host.access_scope.collections():
+            await self.host.put('menus', peer, {'mode': 'menu', 'stack': [], 'options': []})
+            await self.action(peer, 'collections')
+            return True
         if text == '0':
             if state.get('pending'):
                 state.pop('pending')
@@ -34,6 +46,8 @@ class WeChatNavigation(MobileNavigation):
             command = command[1:]
             if command in {'start', 'menu', 'projects'}:
                 await self.action(peer, 'collections')
+            elif command == '5':
+                await self.action(peer, 'history')
             elif command == 'action':
                 await self.choose(peer, title.strip())
             elif command == 'new':
@@ -47,7 +61,7 @@ class WeChatNavigation(MobileNavigation):
             elif command in {'sessions', 'model', 'history', 'files', 'clear', 'stop', 'status', 'map', 'groups'}:
                 await self.action(peer, command)
             else:
-                await self.host.reply(peer, '发送 0 返回上一级。/menu 选择项目集；/sessions 选择会话；/model 切换模型；/history 查看最近5轮；/stop 暂停。')
+                await self.host.reply(peer, '发送 0 返回上一级。/menu 选择项目集；/sessions 选择会话；/model 切换模型；/5 查看前5轮；/stop 暂停。')
             return True
         if state.get('pending'):
             if not text or event.get('media'):
@@ -73,9 +87,10 @@ class WeChatNavigation(MobileNavigation):
             raise BadRequestError('该选择已失效，请发送 /menu 重新选择。')
         await self.action(peer, **{k: v for k, v in data.items() if k != 'peer'})
 
-    async def action(self, peer, action, _back=False, **args):
+    async def perform_action(self, peer, action, _back=False, _root=False, **args):
         state = await self.state(peer)
         previous = deepcopy(state)
+        state['scope'] = self.host.access_scope.collections()
         if action in CREATE and not args.get('title'):
             if state['mode'] == 'conversation':
                 await self.host.reply(peer, '请先发送 0 返回列表，再新建。')
@@ -89,7 +104,7 @@ class WeChatNavigation(MobileNavigation):
             state.pop('pending', None)
             frame = dict(action=action, **args)
             stack = state['stack']
-            if action == 'collections':
+            if action == 'collections' or _root:
                 stack = [frame]
             elif stack and stack[-1].get('action') == action:
                 stack[-1] = frame
@@ -111,7 +126,7 @@ class WeChatNavigation(MobileNavigation):
                              await self.button(peer, '清除待发送引用', 'clear', target=target)])
                 await self.host.reply(peer, '会话操作', target, rows)
             else:
-                await super().action(peer, action, **args)
+                await super().perform_action(peer, action, **args)
                 if action == 'newproject':
                     target = await self.host.get('selection', peer)
                     await self.action(peer, 'sessions', target=target)
@@ -138,7 +153,7 @@ class WeChatNavigation(MobileNavigation):
             flat = [button for row in rows for button in row]
             state['options'] = [button['callback_data'] for button in flat]
             await self.host.put('menus', peer, state)
-            text += '\n\n' + '\n'.join(f"{i}. {button['text']}" for i, button in enumerate(flat, 1))
+            text += '\n\n' + '\n'.join(f"{i}. {'【操作】' if button.get('presentation', {}).get('role') == 'operation' else ''}{button['text']}" for i, button in enumerate(flat, 1))
         elif rows:
             # Permission requests are independent of navigation. Explicit action
             # codes remain peer-scoped and cannot overwrite the numeric menu.
@@ -147,9 +162,14 @@ class WeChatNavigation(MobileNavigation):
                     data = await self.host.get('callbacks', button['callback_data'], {})
                     if data.get('action') == 'permission':
                         text += f"\n{button['text']}：/action {button['callback_data']}"
-        return text + '\n\n0 返回上一级 · /menu 选择项目集', []
+        footer = '0 返回上一级 · /menu 选择集'
+        if state['mode'] == 'conversation':
+            footer = '/5 查看前5轮对话 · ' + footer
+        return text + '\n\n' + footer, []
 
     async def message_target(self, peer, message):
         if (await self.state(peer))['mode'] != 'conversation':
             raise BadRequestError('请先进入会话，再发送处理要求。')
-        return await self.host.get('selection', peer)
+        target = await self.host.get('selection', peer)
+        await self.host.access_scope.require_target(target)
+        return target

@@ -24,10 +24,12 @@ const vite = await createServer({
 after(() => vite.close());
 const { TelegramConnectionPanel: TelegramAccessPanel } = await vite.ssrLoadModule("/src/features/mobile-access/ui/TelegramConnectionPanel.tsx");
 const { TelegramAccessPanel: TabbedPanel } = await vite.ssrLoadModule("/src/features/mobile-access/ui/TelegramAccessPanel.tsx");
+const { PlatformConnectionPanel } = await vite.ssrLoadModule("/src/features/mobile-access/ui/PlatformConnectionPanel.tsx");
 const status = {
   connection_id: "telegram:1", connections: [], enabled: true, has_token: true,
   api_base: "https://api.telegram.org", error: null, desktop_online: true,
   pending_deliveries: 0, bot: { first_name: "Test" },
+  allowed_collections: ["project"],
   peers: [{ id: "peer", user_id: 1, name: "User", allowed: false, reviewed: false }],
 };
 
@@ -58,6 +60,7 @@ async function withPanel(request, verify, Component = TelegramAccessPanel) {
         assert.ok(scheduled, "status polling should remain scheduled");
         await act(async () => { await scheduled.callback(); });
       },
+      beginPoll: () => scheduled.callback(),
       click: async label => {
         const button = view.root.findAllByType("button").find(node => node.props["aria-label"] === label || node.children.includes(label));
         assert.ok(button);
@@ -227,4 +230,144 @@ test("帮助标签保留 Token 和地址草稿，停用轮询；日志按连接�
     assert.match(requests.at(-1), /offset=0/);
     assert.ok(requests.every(url => !url.includes('private-draft')));
   }, TabbedPanel);
+});
+
+test("访问范围与用户并排，默认只开项目集，按当前连接自动保存", async () => {
+  let current = structuredClone(status);
+  const writes = [];
+  await withPanel((url, method, body) => {
+    if (method === "PUT") {
+      assert.ok(url.endsWith("/api/mobile/telegram/access-scope"));
+      writes.push(body);
+      current = { ...current, allowed_collections: body.allowed_collections };
+    }
+    return Promise.resolve(Response.json(current));
+  }, async ({ root, click }) => {
+    const layout = root().findByProps({ className: "telegram-access__permissions" });
+    assert.equal(layout.findAllByProps({ className: "telegram-access__users" }).length, 1);
+    assert.equal(layout.findAllByProps({ className: "telegram-access__scope" }).length, 1);
+    const switches = () => root().findAllByType("button").filter(node => node.props["aria-label"]?.startsWith("telegramAccess.scope.title"));
+    assert.equal(switches().length, 7);
+    assert.deepEqual(switches().map(node => node.props["aria-checked"]), [true, false, false, false, false, false, false]);
+    await click("telegramAccess.scope.title · telegramAccess.scope.collections.tool");
+    assert.deepEqual(writes[0], { connection_id: "telegram:1", allowed_collections: ["project", "tool"] });
+    assert.equal(root().findAllByProps({ className: "telegram-access__scope-summary" }).length, 0);
+    await click("telegramAccess.scope.title · telegramAccess.scope.collections.project");
+    assert.deepEqual(writes[1].allowed_collections, ["tool"]);
+    assert.equal(root().findAllByProps({ className: "telegram-access__scope-summary" }).length, 0);
+  });
+});
+
+test("范围保存失败保留原开关，全部关闭显示空范围，轮询不掩盖保存失败", async () => {
+  let current = structuredClone(status), fail = true;
+  await withPanel((_url, method, body) => {
+    if (method === "PUT") {
+      if (fail) return Promise.resolve(Response.json({ error: { message: "scope failed" } }, { status: 400 }));
+      current = { ...current, allowed_collections: body.allowed_collections };
+    }
+    return Promise.resolve(Response.json(current));
+  }, async ({ root, click, poll, alerts }) => {
+    const label = "telegramAccess.scope.title · telegramAccess.scope.collections.project";
+    const toggle = () => root().findAllByType("button").find(node => node.props["aria-label"] === label);
+    await click(label);
+    assert.equal(toggle().props["aria-checked"], true);
+    await poll();
+    assert.deepEqual(alerts(), ["scope failed"]);
+    fail = false;
+    await click(label);
+    assert.equal(toggle().props["aria-checked"], false);
+    assert.equal(root().findByProps({ className: "telegram-access__scope-summary" }).children[0], "telegramAccess.scope.empty");
+  });
+});
+
+test("晚到的状态轮询不能覆盖刚保存的范围", async () => {
+  let current = structuredClone(status), resolvePoll, reads = 0;
+  await withPanel((_url, method, body) => {
+    if (method === "GET" && ++reads === 2) return new Promise(resolve => { resolvePoll = resolve; });
+    if (method === "PUT") current = { ...current, allowed_collections: body.allowed_collections };
+    return Promise.resolve(Response.json(current));
+  }, async ({ root, beginPoll, click }) => {
+    let pending;
+    await act(async () => { pending = beginPoll(); });
+    await click("telegramAccess.scope.title · telegramAccess.scope.collections.tool");
+    await act(async () => { resolvePoll(Response.json(status)); await pending; });
+    const tool = root().findAllByType("button").find(node => node.props["aria-label"] === "telegramAccess.scope.title · telegramAccess.scope.collections.tool");
+    assert.equal(tool.props["aria-checked"], true);
+  });
+});
+
+test("没有已连接机器人时范围开关禁用", async () => {
+  await withPanel(() => Promise.resolve(Response.json({ ...status, connection_id: null })), async ({ root }) => {
+    const switches = root().findAllByType("button").filter(node => node.props["aria-label"]?.startsWith("telegramAccess.scope.title"));
+    assert.ok(switches.every(node => node.props.disabled));
+    assert.equal(root().findByProps({ className: "telegram-access__scope-summary" }).children[0], "telegramAccess.scope.connectFirst");
+  });
+});
+
+for (const platform of ["wechat", "feishu"]) {
+  const Panel = () => React.createElement(PlatformConnectionPanel, { platform, active: true, onConnection: () => {} });
+  test(`${platform} 的范围独立自动保存，失败保留原值且不显示冗余说明`, async () => {
+    let current = { ...status, connection_id: `${platform}:a`, app_id: "app", enabled: false }, fail = true;
+    const writes = [];
+    await withPanel((url, method, body) => {
+      if (method === "PUT") {
+        assert.ok(url.endsWith(`/api/mobile/platform/${platform}/access-scope`));
+        assert.equal(body.connection_id, `${platform}:a`);
+        writes.push(body);
+        if (fail) return Promise.resolve(Response.json({ error: { message: "save failed" } }, { status: 400 }));
+        current = { ...current, allowed_collections: body.allowed_collections };
+      }
+      return Promise.resolve(Response.json(current));
+    }, async ({ root, click, alerts }) => {
+      assert.equal(root().findByProps({ className: "telegram-access__permissions" }).findAllByProps({ className: "telegram-access__scope" }).length, 1);
+      assert.equal(root().findAllByProps({ className: "telegram-access__scope-summary" }).length, 0);
+      assert.ok(!root().findAllByType("p").some(node => node.children.includes("telegramAccess.scope.hint")));
+      if (platform === "feishu") await act(async () => {
+        root().findByProps({ id: "feishu-secret" }).props.onChange({ target: { value: "unsaved-draft" } });
+      });
+      const label = "telegramAccess.scope.title · telegramAccess.scope.collections.project";
+      await click(label);
+      assert.deepEqual(alerts(), ["save failed"]);
+      assert.equal(root().findAllByType("button").find(node => node.props["aria-label"] === label).props["aria-checked"], true);
+      fail = false;
+      await click(label);
+      assert.deepEqual(writes.at(-1).allowed_collections, []);
+      assert.equal(root().findByProps({ className: "telegram-access__scope-summary" }).children[0], "telegramAccess.scope.empty");
+      if (platform === "feishu") assert.equal(root().findByProps({ id: "feishu-secret" }).props.value, "unsaved-draft");
+    }, Panel);
+  });
+  test(`${platform} 晚到轮询不会覆盖新范围`, async () => {
+    let current = { ...status, connection_id: `${platform}:a` }, reads = 0, resolvePoll;
+    await withPanel((_url, method, body) => {
+      if (method === "GET" && ++reads === 2) return new Promise(resolve => { resolvePoll = resolve; });
+      if (method === "PUT") current = { ...current, allowed_collections: body.allowed_collections };
+      return Promise.resolve(Response.json(current));
+    }, async ({ root, beginPoll, click }) => {
+      let pending;
+      await act(async () => { pending = beginPoll(); });
+      await click("telegramAccess.scope.title · telegramAccess.scope.collections.tool");
+      await act(async () => { resolvePoll(Response.json({ ...current, allowed_collections: ["project"] })); await pending; });
+      const tool = root().findAllByType("button").find(node => node.props["aria-label"] === "telegramAccess.scope.title · telegramAccess.scope.collections.tool");
+      assert.equal(tool.props["aria-checked"], true);
+    }, Panel);
+  });
+}
+
+test("微信重新扫码切换连接时，旧范围保存响应不能切回旧连接", async () => {
+  const Panel = () => React.createElement(PlatformConnectionPanel, { platform: "wechat", active: true, onConnection: () => {} });
+  let finishSave, connected = "wechat:a";
+  await withPanel((url, method) => {
+    if (method === "PUT") return new Promise(resolve => { finishSave = resolve; });
+    return Promise.resolve(Response.json({ ...status, connection_id: connected }));
+  }, async ({ root, poll }) => {
+    const tool = () => root().findAllByType("button").find(node => node.props["aria-label"] === "telegramAccess.scope.title · telegramAccess.scope.collections.tool");
+    await act(async () => { tool().props.onClick(); });
+    connected = "wechat:b";
+    await act(async () => {
+      root().find(node => typeof node.type === "function" && node.type.name === "WeChatQr").props.onConnected(connected);
+    });
+    await act(async () => { finishSave(Response.json({ ...status, connection_id: "wechat:a", allowed_collections: ["project", "tool"] })); });
+    await poll();
+    assert.equal(tool().props["aria-checked"], false);
+  }, Panel);
 });
