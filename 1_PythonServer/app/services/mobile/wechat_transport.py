@@ -78,7 +78,10 @@ class WeChatTransport:
         return body
 
     async def events(self, repository):
-        cursor = await asyncio.to_thread(repository.get, 'offsets', 'wechat', '')
+        cursor_key = repository.connection_id
+        if not cursor_key:
+            raise ValueError('微信接收需要明确的连接标识。')
+        cursor = await asyncio.to_thread(repository.get, 'offsets', cursor_key, '')
         while True:
             try:
                 body = await self.call('getupdates', {'get_updates_buf': cursor}, poll=True)
@@ -88,7 +91,7 @@ class WeChatTransport:
             for message in body.get('msgs', []):
                 yield normalize_message(message)
             cursor = body.get('get_updates_buf', cursor)
-            await asyncio.to_thread(repository.put, 'offsets', 'wechat', cursor)
+            await asyncio.to_thread(repository.put, 'offsets', cursor_key, cursor)
             yield None
 
     async def deliver(self, peer, text, rows, *, context=None, document=None, delivery_id):

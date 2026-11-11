@@ -147,13 +147,22 @@ class WeChatNavigation(ScopedNavigation):
     async def controls(self, peer, target, user_message_id=None):
         return []  # Async replies cannot replace the active menu or its numbering.
 
+    def page_text(self, title, count, page, pages, action):
+        # The reply header already names the project and current conversation.
+        heading = '' if action in {'sessions', 'groups'} else title
+        return '\n'.join(part for part in [heading, '暂无内容。' if not count else ''] if part)
+
     async def prepare_reply(self, peer, text, rows):
         state = await self.state(peer)
         if _rendering.get() is asyncio.current_task() and state['mode'] == 'menu' and rows:
             flat = [button for row in rows for button in row]
+            # Number the displayed order, so moving controls cannot change the
+            # meaning of an item between the text and its persisted callback.
+            flat.sort(key=lambda button: button.get('presentation', {}).get('role') == 'operation')
             state['options'] = [button['callback_data'] for button in flat]
             await self.host.put('menus', peer, state)
-            text += '\n\n' + '\n'.join(f"{i}. {'【操作】' if button.get('presentation', {}).get('role') == 'operation' else ''}{button['text']}" for i, button in enumerate(flat, 1))
+            items = '\n'.join(f"{i}. {'【操作】' if button.get('presentation', {}).get('role') == 'operation' else ''}{button['text']}" for i, button in enumerate(flat, 1))
+            text = '\n\n'.join(part for part in [text, items] if part)
         elif rows:
             # Permission requests are independent of navigation. Explicit action
             # codes remain peer-scoped and cannot overwrite the numeric menu.

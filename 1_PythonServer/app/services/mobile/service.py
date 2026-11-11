@@ -419,7 +419,8 @@ class MobileService:
             target = await self.get("selection", peer)
         if not public and not await self.access_scope.allows_target(target):
             target, text, rows = None, SCOPE_CHANGED, []
-        header = "天策" if public else await asyncio.to_thread(target_header, target)
+        header = "天策" if public else await asyncio.to_thread(
+            target_header, target, separator='：' if self.platform == 'wechat' else ' · ')
         if rows is None:
             rows = await self.navigation.controls(peer, target, user_message_id)
         if hasattr(self.navigation, 'prepare_reply') and not public:

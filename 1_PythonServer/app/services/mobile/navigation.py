@@ -59,8 +59,11 @@ class MobileNavigation:
         rows.extend(extra_rows or [])
         rows.append([await self.button(peer, "选择项目", "collections"), await self.button(peer, "当前会话", "status")])
         pages = max(1, (len(entries) + size - 1) // size)
+        await self.host.reply(peer, self.page_text(title, len(entries), page, pages, action), target, rows)
+
+    def page_text(self, title, count, page, pages, action):
         page_label = f" · 第 {page + 1}/{pages} 页" if pages > 1 else ""
-        await self.host.reply(peer, f"{title}（{len(entries)}）{page_label}" + ("\n暂无内容。" if not entries else ""), target, rows)
+        return f"{title}（{count}）{page_label}" + ("\n暂无内容。" if not count else "")
 
     async def action(self, peer, action, **args):
         selected = await self.host.get("selection", peer)

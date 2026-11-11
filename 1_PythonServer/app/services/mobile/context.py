@@ -32,12 +32,12 @@ def resolve_target(target, *, session_required=True):
     return project, session
 
 
-def target_header(target):
+def target_header(target, *, separator=' · '):
     if not target:
         return "天策 · 尚未选择项目／会话"
     try:
         project, session = resolve_target(target, session_required=False)
-        return f"{COLLECTIONS.get(project.project_kind, '项目')} · {project.name}\n会话：{session.title if session else '未选择'}"
+        return f"{COLLECTIONS.get(project.project_kind, '项目')}{separator}{project.name}\n会话：{session.title if session else '未选择'}"
     except (BadRequestError, NotFoundError):
         return "天策 · 原项目／会话已不可用"
 

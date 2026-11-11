@@ -6,7 +6,7 @@ from app.migrations.global_db import ensure_version
 from app.migrations.runner import schema_transaction
 from app.infra.database.mobile_schema import MOBILE_SCHEMA
 
-SCHEMA_VERSION = 54
+SCHEMA_VERSION = 55
 SCHEMA_STATEMENTS = (
     """CREATE TABLE collection_default_roles (
         project_kind TEXT PRIMARY KEY,
