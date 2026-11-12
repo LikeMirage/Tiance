@@ -32,7 +32,11 @@ class FeishuTransport:
             body = response.json()
         if body.get('code', 0):
             if body['code'] == 21001:
-                raise BadRequestError('飞书拒绝此应用访问（21001：平台策略限制），暂时无法接入。请联系飞书支持或换账号重新扫码。')
+                raise BadRequestError(
+                    '飞书拒绝此应用访问（21001）。如果使用豆包账号登录飞书，请退出后改用手机号验证码登录。'
+                    '在天策重新获取二维码，再从飞书「消息」页右上角「＋ → 扫一扫」扫码连接。'
+                    '连接成功后给机器人发一条消息，再回天策「用户授权」开启自己的账号。'
+                )
             raise BadRequestError(f"飞书接口错误 {body['code']}。请检查应用凭据、权限和发布状态。")
         return body
 

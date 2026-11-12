@@ -63,6 +63,15 @@ def session_children(project_id, parent=None, group=None):
                 else s.session_id not in parents)]
 
 
+def session_relations(target):
+    service = get_project_conversation_service()
+    _, sessions, nodes, _, _, _ = service.get_list_data(target['project_id'], summaries_only=True)
+    parents = visible_conversation_parents(sessions, nodes)
+    groups = {group for parent, group in parents.values() if parent == target['session_id']}
+    parent = parents.get(target['session_id'])
+    return [group for group in GROUPS if group in groups], parent[0] if parent else None
+
+
 def incoming_path(target, filename, channel="Telegram"):
     project, _ = resolve_target(target)
     root = Path(project.root_path).resolve(strict=True)

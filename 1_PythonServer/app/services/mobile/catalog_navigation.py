@@ -5,8 +5,9 @@ from app.core.errors import BadRequestError
 from app.core.shutdown_tasks import finish_commit
 from app.services.project import get_project_service
 from . import catalog, models
-from .context import COLLECTIONS, resolve_target, session_children
+from .context import COLLECTIONS, resolve_target
 from .relationship_diagram import render_diagram, remove_diagram
+from .access_scope import SCOPE_CHANGED
 
 CATALOG_ACTIONS = {'newcategory', 'newproject', 'map', 'model', 'models', 'setmodel'}
 
@@ -22,23 +23,22 @@ class CatalogNavigation:
         await self.host.put('navigation', peer, {'kind': project.project_kind, 'category': project.category_id})
 
     async def location(self, peer, args):
-        location = await self.host.get('navigation', peer, {})
         if 'kind' in args:
             location = {'kind': args['kind'], 'category': args.get('category')}
-        elif not location:
-            target = await self.host.get('selection', peer)
+        else:
+            state = await self.nav.menus.get(peer)
+            if state['stack'] and state.get('scope') != self.host.access_scope.collections():
+                raise BadRequestError(SCOPE_CHANGED)
+            frame = state['stack'][-1] if state['stack'] and state.get('scope') == self.host.access_scope.collections() else {}
+            location = {'kind': frame.get('kind'), 'category': frame.get('category')}
+            target = args.get('target') or await self.nav.menus.target(peer)
             if target:
-                await self.remember_project(peer, target)
-                location = await self.host.get('navigation', peer, {})
+                project, _ = await asyncio.to_thread(resolve_target, target, session_required=False)
+                location = {'kind': project.project_kind, 'category': project.category_id}
+            if not location.get('kind') and len(self.host.access_scope.collections()) == 1:
+                location['kind'] = self.host.access_scope.collections()[0]
         catalog.collection_kind(location.get('kind'))
         return location
-
-    async def actions(self, peer, kind, category=None):
-        rows = [[await self.nav.button(peer, '新建分类', 'newcategory', kind=kind),
-                 await self.nav.button(peer, '关系图', 'map', kind=kind)]]
-        if category:
-            rows[0].insert(1, await self.nav.button(peer, '新建项目', 'newproject', kind=kind, category=category))
-        return rows
 
     async def action(self, peer, action, target, args):
         if action in {'model', 'models', 'setmodel'}:
@@ -51,6 +51,10 @@ class CatalogNavigation:
             if key in self.diagrams:
                 await self.host.reply(peer, '这个集的关系图正在生成。')
                 return
+            await self.nav.menus.enter(peer, 'map', {'kind': kind})
+            rows = [[await self.nav.button(peer, '刷新关系图', 'map', kind=kind)]]
+            rows += await self.nav.menus.footer(peer)
+            await self.host.reply(peer, '正在生成关系图…', rows=rows, menu=True, header=COLLECTIONS[kind])
             self.diagrams.add(key)
             self.host.spawn(self.diagram(peer, kind, key))
             return
@@ -60,7 +64,10 @@ class CatalogNavigation:
         title = args.get('title')
         if action == 'newcategory':
             if not title:
-                await self.host.reply(peer, f"在{COLLECTIONS[kind]}新建分类，请发送：\n/newcategory 分类名称")
+                await self.nav.menus.enter(peer, 'categories', {'kind': kind})
+                rows = [[await self.nav.button(peer, '取消，返回分类列表', 'categories', kind=kind)]]
+                await self.host.reply(peer, f"在{COLLECTIONS[kind]}新建分类，请发送：\n/newcategory 分类名称",
+                                      rows=rows, menu=True, header=COLLECTIONS[kind])
                 return
             created = await asyncio.to_thread(catalog.create_category, kind, title)
             await self.nav.action(peer, 'projects', kind=kind, category=created.category_id)
@@ -69,18 +76,15 @@ class CatalogNavigation:
             if chosen is None or chosen.category_kind != kind:
                 raise BadRequestError('请先选择一个具体分类，再新建项目。')
             if not title:
-                await self.host.reply(peer, f"在{COLLECTIONS[kind]} / {chosen.name}新建项目，请发送：\n/newproject 项目名称")
+                await self.nav.menus.enter(peer, 'projects', {'kind': kind, 'category': category})
+                rows = [[await self.nav.button(peer, '取消，返回项目列表', 'projects', kind=kind, category=category)]]
+                await self.host.reply(peer, f"在{COLLECTIONS[kind]} / {chosen.name}新建项目，请发送：\n/newproject 项目名称",
+                                      rows=rows, menu=True, header=COLLECTIONS[kind])
                 return
             project = await asyncio.to_thread(catalog.create_project, kind, category, title)
             target = {'project_id': project.project_id}
-            roots = await asyncio.to_thread(session_children, project.project_id)
-            if roots:
-                target['session_id'] = roots[0][0].session_id
-            await self.host.put('selection', peer, target)
-            hint = '请在会话列表中选择会话。' if self.host.platform == 'wechat' else ('可直接发送消息。' if roots else '请先新建会话。')
-            await self.host.reply(peer, '已新建并选中项目。' + hint, target)
-            if not roots:
-                await self.nav.action(peer, 'sessions', target=target)
+            await self.host.reply(peer, '项目已新建，请选择会话。', target, rows=[], menu=True)
+            await self.nav.action(peer, 'project', target=target)
 
     async def diagram(self, peer, kind, key):
         paths = []
@@ -96,6 +100,10 @@ class CatalogNavigation:
                 return
             rows = [[await self.nav.button(peer, '返回该集', 'categories', kind=kind),
                      await self.nav.button(peer, '刷新关系图', 'map', kind=kind)]]
+            if self.host.platform == 'wechat':
+                # Its numbered controls were sent synchronously before rendering.
+                # A late image must not replace a newer menu's numeric choices.
+                rows = []
             total = len(paths)
             for number, path in enumerate(paths, 1):
                 async def enqueue():
@@ -105,7 +113,8 @@ class CatalogNavigation:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            await self.host.reply(peer, f"关系图生成失败：{getattr(exc, 'message', str(exc))}")
+            await self.host.reply(peer, f"关系图生成失败：{getattr(exc, 'message', str(exc))}",
+                                  rows=[], menu=True, header=COLLECTIONS[kind])
         finally:
             for path in paths:
                 if path not in transferred:
@@ -128,6 +137,5 @@ class CatalogNavigation:
             items = [(('✓ ' if session.provider_id == provider and session.model_id == m.model_id else '') + m.model_label,
                       'setmodel', {'target': target, 'provider': provider, 'model': m.model_id})
                      for m in entries if m.provider_id == provider]
-            rows = [[await self.nav.button(peer, '返回供应商', 'model', target=target)]]
             await self.nav.paged(peer, '选择模型', items, action, {'target': target, 'provider': provider},
-                                 args.get('page', 0), target, extra_rows=rows)
+                                 args.get('page', 0), target)

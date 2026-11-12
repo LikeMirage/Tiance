@@ -6,7 +6,7 @@ class FeishuNavigation(ScopedNavigation):
     async def button(self, peer, text, action, **args):
         button = await super().button(peer, text, action, **args)
         role = 'pagination' if 'page' in args else (
-            'navigation' if action in {'collections', 'status', 'sessions', 'groups'} else 'operation')
+            'navigation' if action in {'back', 'collections', 'categories', 'sessions', 'select'} else 'operation')
         tone = 'danger' if action in {'stop', 'clear'} or args.get('decision') == 'deny' else (
             'primary' if action in {'new', 'newcategory', 'newproject', 'select', 'permission'} else 'default')
         button['presentation'] = {'role': role, 'tone': tone}

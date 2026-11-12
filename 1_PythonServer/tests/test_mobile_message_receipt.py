@@ -1,3 +1,4 @@
+from app.services.mobile import menu_pages
 import asyncio
 from types import SimpleNamespace as NS
 from unittest.mock import AsyncMock
@@ -84,9 +85,10 @@ def test_missing_wechat_menu_refreshes_without_interpreting_old_number(host, mon
     host.platform, host.label = 'wechat', '微信'
     host.navigation = WeChatNavigation(host)
     peer = 'wechat:12:user:user'
-    monkeypatch.setattr(navigation, 'get_project_service', lambda: NS(
+    monkeypatch.setattr(menu_pages, 'get_project_service', lambda: NS(
         list_project_categories=lambda: [NS(name='日常项目', category_id='daily-project', category_kind='project')],
         list_projects=lambda: [],
+        get_project_category=lambda _: NS(name='日常项目', category_kind='project'),
     ))
 
     async def run():

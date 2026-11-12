@@ -1,3 +1,4 @@
+from app.services.mobile import menu_pages
 """Exercise shared intake and numeric creation, not just standalone transports."""
 import asyncio
 import base64
@@ -103,7 +104,7 @@ def test_failed_wechat_download_does_not_block_next_text(host, tmp_path, monkeyp
     async def run():
         await host.put('peers', PEER, {'allowed': True, 'user_id': 'user', 'chat_id': 'user', 'bot_id': 12})
         await host.put('selection', PEER, TARGET)
-        await host.put('menus', PEER, {'mode': 'conversation', 'scope': ['project'], 'stack': [], 'options': []})
+        await host.navigation.menus.enter(PEER, 'select', {'target': TARGET})
         event = {'id': 'file', 'user_id': 'user', 'chat_id': 'user', 'text': '', 'media': [{
             'file_name': 'failed.pptx', 'aeskey': bytes(range(16)).hex(),
             'media': {'encrypt_query_param': 'test-resource'}}]}
@@ -142,7 +143,7 @@ def test_new_conversation_enters_chat_and_next_hello_is_sent(host, monkeypatch, 
     new_target = {'project_id': 'p', 'session_id': 'new'}
     created = Mock(return_value=NS(session_id='new'))
     monkeypatch.setattr(context, 'create_conversation', created)
-    monkeypatch.setattr(navigation, 'session_children', lambda *args: [
+    monkeypatch.setattr(menu_pages, 'session_children', lambda *args: [
         (NS(session_id=str(i), title=f'会话{i}'), None) for i in range(6)])
     host.desktop.submit = AsyncMock(return_value='accepted')
 
@@ -174,7 +175,7 @@ def test_new_conversation_enters_chat_and_next_hello_is_sent(host, monkeypatch, 
 
 def test_failed_creation_keeps_menu_and_original_selection(host, monkeypatch):
     setup_wechat(host)
-    monkeypatch.setattr(navigation, 'session_children', lambda *args: [])
+    monkeypatch.setattr(menu_pages, 'session_children', lambda *args: [])
     monkeypatch.setattr(context, 'create_conversation', Mock(side_effect=ValueError('creation failed')))
 
     async def run():

@@ -330,6 +330,7 @@ def test_download_target_frozen_and_caption_waits_for_full_file(host, monkeypatc
         peer='telegram:12:7:7'; a={'project_id':'p','session_id':'a'}; b=dict(a,session_id='b')
         await host.put('peers',peer,{'allowed':True,'user_id':7,'chat_id':7,'bot_id':12})
         await host.put('selection',peer,a)
+        await host.navigation.menus.enter(peer, 'select', {'target': a})
         downloaded=asyncio.Event()
         class Transport:
             async def download(self,file_id,path):

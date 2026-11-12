@@ -9,7 +9,7 @@ from app.services.mobile.feishu_navigation import FeishuNavigation
 from app.services.mobile.feishu_transport import FeishuTransport
 from app.services.mobile.navigation import MobileNavigation
 from app.services.mobile.service import FeishuService
-from tests.test_mobile_access import repository
+from tests.test_mobile_access import repository, host
 
 
 def walk(value):
@@ -22,18 +22,18 @@ def walk(value):
             yield from walk(child)
 
 
-def test_list_entries_keep_full_titles_and_callbacks_separate_from_presentation():
+def test_list_entries_keep_full_titles_and_callbacks_separate_from_presentation(host):
     async def run():
         target = {'project_id': 'p', 'session_id': 's'}
-        host = NS(put=AsyncMock(), get=AsyncMock(return_value=target))
+        await host.put('selection', 'peer', target)
         nav = FeishuNavigation(host)
         title = '<b>会话原名</b>' + '长标题' * 30
         entry = await nav.entry_button('peer', title, 'select', target=target)
         assert entry['text'] == title
         assert entry['presentation']['current'] is True
         assert entry['presentation']['role'] == 'entry'
-        stored = host.put.call_args.args[2]
-        assert stored == {'peer': 'peer', 'action': 'select', 'target': target}
+        stored = await host.get('callbacks', entry['callback_data'])
+        assert stored == {'peer': 'peer', 'action': 'select', 'target': target, '_trail': []}
         card = build_card('主会话（1）', [[entry]], header='项目集 · 项目 A')
         assert any(node.get('content') == title + ' · 当前' for node in walk(card))
         button = next(node for node in walk(card) if node.get('tag') == 'button')
@@ -46,9 +46,10 @@ def test_list_entries_keep_full_titles_and_callbacks_separate_from_presentation(
     asyncio.run(run())
 
 
-def test_paged_card_separates_content_operations_pagination_and_navigation():
+def test_paged_card_separates_content_operations_pagination_and_navigation(host):
     async def run():
-        host = NS(put=AsyncMock(), get=AsyncMock(return_value=None), reply=AsyncMock())
+        host.put = AsyncMock(wraps=host.put)
+        host.reply = AsyncMock()
         nav = FeishuNavigation(host)
         create = await nav.button('peer', '＋ 新建主会话', 'new', target={'project_id': 'p'})
         entries = [(f'会话 {i}', 'select', {'target': {'project_id': 'p', 'session_id': str(i)}})
@@ -67,10 +68,10 @@ def test_paged_card_separates_content_operations_pagination_and_navigation():
         assert all(elements.index(row) < first_divider for row in content_rows)
         assert [item['elements'][0]['content'] for item in elements if item['tag'] == 'note'] == ['操作', '快捷导航']
         buttons = [item for item in walk(card) if item.get('tag') == 'button']
-        assert len(buttons) == 13  # 8 entries, 2 pages, 1 create, 2 navigation.
+        assert len(buttons) == 12  # 8 entries, 2 pages, 1 create, 1 parent.
         assert {button['value']['tiance'] for button in buttons} == {b['callback_data'] for row in rows for b in row}
         footer = elements[-1]
-        assert len(footer['columns']) == 2
+        assert len(footer['columns']) == 1
         assert all(column['elements'][0]['type'] == 'text' for column in footer['columns'])
         page_callbacks = [call.args[2] for call in host.put.call_args_list if 'page' in call.args[2]]
         assert {item['page'] for item in page_callbacks} == {0, 2}
@@ -78,9 +79,8 @@ def test_paged_card_separates_content_operations_pagination_and_navigation():
     asyncio.run(run())
 
 
-def test_operations_use_two_columns_and_danger_stays_distinct():
+def test_operations_use_two_columns_and_danger_stays_distinct(host):
     async def run():
-        host = NS(put=AsyncMock())
         nav = FeishuNavigation(host)
         buttons = [await nav.button('peer', text, action) for text, action in (
             ('新建分类', 'newcategory'), ('关系图', 'map'), ('暂停', 'stop'))]
@@ -98,9 +98,8 @@ def test_empty_card_has_no_empty_toolbar_and_existing_queued_buttons_still_work(
     assert next(item for item in walk(card) if item.get('tag') == 'button')['value'] == {'tiance': 'saved-key'}
 
 
-def test_other_platform_buttons_keep_their_wire_format_and_truncation():
+def test_other_platform_buttons_keep_their_wire_format_and_truncation(host):
     async def run():
-        host = NS(put=AsyncMock())
         button = await MobileNavigation(host).entry_button('peer', '字' * 80, 'select', target={'project_id': 'p'})
         assert set(button) == {'text', 'callback_data'}
         assert button['text'] == '字' * 60

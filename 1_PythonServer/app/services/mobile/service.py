@@ -125,7 +125,7 @@ class MobileService:
                     if job["peer"] == peer and job["status"] == "preparing":
                         await self.desktop.finish(key, job, "error", "授权已撤销，消息未提交。")
         if allowed:
-            await self.reply(peer, "已允许访问天策。请选择项目和会话。")
+            await self.reply(peer, "已允许访问天策。请打开菜单选择项目和会话。")
         await self.activity('authorized' if allowed else 'revoked', user_id=record.get('user_id'), chat_id=record.get('chat_id'))
         return await self.status()
 
@@ -306,15 +306,17 @@ class MobileService:
                 data = await self.get("callbacks", callback)
                 if not data or data["peer"] != peer:
                     raise BadRequestError("按钮已不可用，请发送 /start 重新打开。")
+                if data['action'] == 'map' and not data.get('kind'):
+                    raise BadRequestError('此关系图按钮已过期，请重新打开集菜单。')
                 await self.navigation.action(peer, **{k:v for k,v in data.items() if k != "peer"})
                 return
             text = event.get('text', '')
             if hasattr(self.navigation, 'consume') and await self.navigation.consume(peer, text, event):
                 return
-            if text.startswith("/"):
+            if text.startswith("/") and not event.get('media'):
                 cmd, _, argument = text.partition(" ")
                 cmd = cmd.split("@")[0][1:]
-                aliases = {"projects":"collections","start":"help"}
+                aliases = {"projects":"collections","start":"collections","menu":"collections"}
                 await self.navigation.action(peer, aliases.get(cmd,cmd), title=argument.strip() or None)
                 return
             target = await self.navigation.message_target(peer, {'reply_to_message': {'message_id': event['reply_id']}} if event.get('reply_id') else {})
@@ -347,7 +349,7 @@ class MobileService:
                 return True
         except Exception as exc:
             await self.activity('dispatch_failed', level='error', error=exc, user_id=event['user_id'], chat_id=event['chat_id'])
-            await self.reply(peer, getattr(exc,"message",str(exc)), target)
+            await self.navigation.report_error(peer, getattr(exc,"message",str(exc)))
 
     async def finish_intake(self, key, work):
         # Leave the processing receipt on cancellation/crash. Startup reports it,
@@ -438,19 +440,21 @@ class MobileService:
             event = {'completed': 'task_completed', 'error': 'task_failed', 'cancelled': 'task_cancelled'}.get(status, 'task_finished')
             await self.activity(event, level='error' if status == 'error' else 'info', **target)
 
-    async def reply(self, peer, text, target=None, rows=None, public=False, user_message_id=None, delivery_key=None):
-        if target is None and not public:
+    async def reply(self, peer, text, target=None, rows=None, public=False, user_message_id=None, delivery_key=None,
+                    menu=False, header=None):
+        if target is None and not public and not menu:
             target = await self.get("selection", peer)
         if not public and not await self.access_scope.allows_target(target):
             target, text, rows = None, SCOPE_CHANGED, []
-        header = "天策" if public else await asyncio.to_thread(
-            target_header, target, separator='：' if self.platform == 'wechat' else ' · ')
+        header = header or ("天策" if public else await asyncio.to_thread(
+            target_header, target, separator='：' if self.platform == 'wechat' else ' · '))
         if rows is None:
             rows = await self.navigation.controls(peer, target, user_message_id)
         if hasattr(self.navigation, 'prepare_reply') and not public:
             text, rows = await self.navigation.prepare_reply(peer, text, rows)
         record = {"peer":peer,"target":target,"parts":list(split_message(str(text) or "（空回复）")),
                   "header":header,"rows":rows,"sent":0,"next_attempt":0,"attempts":0,"public":public}
+        record['menu'] = menu
         record['access_collections'] = list(reply_collections.get())
         key = delivery_key or uuid4().hex
         if not await self.get("outbox", key) and not await self.get("delivered", key):

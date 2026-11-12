@@ -1,9 +1,9 @@
 """Shared collection access and entry routing for inbound mobile adapters."""
 import asyncio
-from app.core.errors import BadRequestError
 from .access_scope import reply_collections
-from .context import COLLECTIONS
+from app.core.errors import BadRequestError
 from .navigation import MobileNavigation
+from .menu_state import route_origin
 
 
 class ScopedNavigation(MobileNavigation):
@@ -19,22 +19,43 @@ class ScopedNavigation(MobileNavigation):
             return await self._action(peer, action, **args)
         async with self.host.access_scope.lock:
             self._action_task = task
+            previous = {key: await self.host.get(key, peer) for key in ('menus', 'navigation')}
             try:
                 return await self._action(peer, action, **args)
+            except BaseException:
+                for key, value in previous.items():
+                    if value is None:
+                        await self.host.delete(key, peer)
+                    else:
+                        await self.host.put(key, peer, value)
+                raise
             finally:
                 self._action_task = None
 
     async def _action(self, peer, action, **args):
+        origin = args.pop('_trail', route_origin.get())
+        token = route_origin.set(origin)
+        try:
+            if action == 'back':
+                return await self.menus.back(peer, origin)
+            return await self.checked_action(peer, action, **args)
+        finally:
+            route_origin.reset(token)
+
+    async def checked_action(self, peer, action, **args):
         selected = await self.host.get('selection', peer)
         if selected and not await self.host.access_scope.allows_target(selected):
             await self.host.delete('selection', peer)
             selected = None
-        target = args.get('target', selected)
+        target = args.get('target', await self.menus.target(peer))
+        if action in {'project', 'sessions', 'groups', 'select', 'new', 'stop', 'files', 'clear', 'history',
+                      'status', 'model', 'models', 'setmodel', 'actions'}:
+            args = dict(args, target=target)
         required = []
         if action == 'collections':
             allowed = self.host.access_scope.collections()
             if len(allowed) == 1:
-                await self.action(peer, 'categories', kind=allowed[0], _root=True)
+                await self.action(peer, 'categories', kind=allowed[0])
                 return
             required = allowed
         if action in {'categories', 'projects'}:
@@ -60,14 +81,7 @@ class ScopedNavigation(MobileNavigation):
             reply_collections.reset(marker)
 
     async def perform_action(self, peer, action, **args):
-        if action == 'collections':
-            allowed = self.host.access_scope.collections()
-            if not allowed:
-                await self.host.reply(peer, f'此连接尚未开放任何集，请在电脑端{self.host.label}连接配置中开启访问范围。', rows=[])
-            else:
-                await self.paged(peer, '选择集', [(COLLECTIONS[k], 'categories', {'kind': k}) for k in allowed], action, {})
-        else:
-            await super().action(peer, action, **args)
+        await super().action(peer, action, **args)
 
     async def message_target(self, peer, message):
         target = await self.host.get('selection', peer)

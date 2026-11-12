@@ -1,3 +1,4 @@
+from app.services.mobile import menu_pages
 import asyncio
 import json
 import sqlite3
@@ -37,14 +38,14 @@ def test_wechat_connections_advance_independent_cursors_and_resume(repository):
 def test_wechat_content_precedes_operations_without_count_heading(host, monkeypatch):
     host.platform = 'wechat'
     host.navigation = WeChatNavigation(host)
-    monkeypatch.setattr(navigation, 'session_children', lambda *args: [
+    monkeypatch.setattr(menu_pages, 'session_children', lambda *args: [
         (NS(session_id='a', title='讨论方案'), None), (NS(session_id='b', title='实现功能'), None)])
     async def run():
         await host.navigation.action('peer', 'sessions', target={'project_id': 'p'})
         item = (await host.records('outbox'))[0][1]
         text = item['parts'][0]
         assert item['header'] == '项目集：Project A\n会话：未选择'
-        assert text.startswith('1. 讨论方案\n2. 实现功能\n3. 【操作】＋ 新建主会话')
+        assert text.startswith('1. 讨论方案\n2. 实现功能\n3. 【操作】新建主会话')
         assert '主会话（' not in text and '（2）' not in text
         state = await host.navigation.state('peer')
         callbacks = [await host.get('callbacks', key) for key in state['options']]

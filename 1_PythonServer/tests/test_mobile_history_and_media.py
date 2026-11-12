@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.services.mobile import history
+from app.services.mobile import history, menu_pages
 from app.services.mobile.telegram_media import message_file
 from app.services.mobile.telegram_transport import TelegramError
 from app.repositories.project.conversation_history_repository import read_recent_history
@@ -22,6 +22,7 @@ async def ready(host):
     host.repository = host.repository.scoped('telegram:12')
     await host.put('peers', PEER, {'allowed': True, 'bot_id': 12, 'user_id': 7, 'chat_id': 7})
     await host.put('selection', PEER, TARGET)
+    await host.navigation.menus.enter(PEER, 'select', {'target': TARGET})
     host.desktop.submit = AsyncMock(return_value='job')
 
 
@@ -233,9 +234,10 @@ def test_history_reports_local_failure_and_pause_without_assistant_message(tmp_p
 
 
 def test_history_button_is_targeted_and_long_reply_is_not_truncated(host, monkeypatch):
+    monkeypatch.setattr(menu_pages, 'session_relations', lambda _: ([], None))
     async def run():
         await ready(host)
-        rows = await host.navigation.controls(PEER, TARGET)
+        rows = await host.navigation.pages.conversation_controls(PEER, TARGET)
         button = next(b for row in rows for b in row if b['text'] == '查看前5轮对话')
         action = await host.get('callbacks', button['callback_data'])
         await host.put('selection', PEER, dict(TARGET, session_id='other'))

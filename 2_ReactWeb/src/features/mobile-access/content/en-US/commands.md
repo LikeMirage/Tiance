@@ -6,7 +6,8 @@ Send these in a private chat with your bot, or choose them from its command menu
 | --- | --- |
 | `/projects` | Choose a collection, category and project |
 | `/sessions` | Choose a main conversation in the current project |
-| `/new Phone test` | Create and select a conversation; the title is optional |
+| `/new Phone test` | Create and enter a main conversation from the project's main-conversation list; title optional |
+| `/actions` | Open conversation controls |
 | `/newcategory Office` | Create a category in the collection being browsed |
 | `/newproject Meeting notes` | Create and select a project in the current specific category |
 | `/map` | Show the current collection → categories → projects → main conversations |
@@ -16,7 +17,8 @@ Send these in a private chat with your bot, or choose them from its command menu
 | `/stop` | Pause the selected conversation; wait for confirmation before resending |
 | `/files` | List file references waiting to be submitted |
 | `/clear` | Clear pending references, keeping downloaded files |
-| `/help`, `/start` | Show instructions and navigation buttons |
+| `/start`, `/menu` | Open the collection and project menu |
+| `/help` | Show instructions |
 
 ## Recent history and media
 
@@ -26,13 +28,15 @@ Voice notes, audio files, ordinary videos and round video messages use the norma
 
 ## Switching conversations
 
-Category and project lists include creation and diagram buttons. After clicking a creation button, send the command and name shown in its reply. Choose a specific category before creating a project; “All projects” is not a destination category. Creation follows the desktop rules, including provider creation in the model collection. Provider API settings and models still need configuration on the desktop.
+The category list offers category creation and the collection diagram. Inside a category, only project creation is offered. After clicking a creation button, send the command and name shown in its reply. Choose a specific category before creating a project; “All projects” is not a destination category. Creation follows the desktop rules, including provider creation in the model collection. Provider API settings and models still need configuration on the desktop.
 
 Diagrams cover only the collection being browsed, stop at main conversations, and include empty categories and projects. Larger diagrams are split into original PNG files that can be opened and zoomed. Mobile creation refreshes desktop lists without changing the desktop selection or draft.
 
 Use `/model` or **Switch model** after choosing a conversation. Only enabled providers' available chat models are listed. The change preserves prompts and other settings, and affects the next message, not a task already running. Buttons on an older reply still target the conversation identified in that reply.
 
-Use **Reply to this conversation** below a bot reply, or Telegram's native Reply action on that message. Both select its associated conversation. Child-conversation controls navigate AI children, user branches and the four functional groups recursively. All collections except Settings support conversations.
+Use **Enter this conversation** below a bot reply, or Telegram's native Reply action on a reply associated with a conversation. Menu messages cannot select a message target. While browsing menus, ordinary text and files are not sent to the previous conversation; enter a conversation or choose **Return to current conversation** to resume sending.
+
+Back returns to the original list and page. A single allowed collection skips the collection picker in both directions. Child-conversation lists show only nonempty groups and do not offer main-conversation creation. All collections except Settings support conversations.
 
 You can switch while another task runs. Its answer still identifies the original project and conversation. A running target rejects new instructions: pause or wait, then resend.
 

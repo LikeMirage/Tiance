@@ -85,7 +85,8 @@ def test_session_pages_count_only_sessions_and_reach_every_item(host, monkeypatc
             assert actual_target == target
             callbacks = [await host.get("callbacks", button["callback_data"])
                          for row in rows for button in row]
-            listed = [c["target"]["session_id"] for c in callbacks if c["action"] == "select"]
+            listed = [c["target"]["session_id"] for c in callbacks if c["action"] == "select"
+                      and c['target']['project_id'] == target['project_id']]
             seen.extend(listed)
             assert len(listed) == min(8, max(0, count - page * 8))
             assert len([c for c in callbacks if c["action"] == "new"]) == 1

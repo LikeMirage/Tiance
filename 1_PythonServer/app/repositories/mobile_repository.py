@@ -216,7 +216,7 @@ class MobileRepository:
 
     def delivery_progress(self, key, item, message_id):
         with self._transaction() as connection:
-            self._put(connection,'messages',f"{item['peer']}:{message_id}",{'target':item['target']})
+            self._put(connection,'messages',f"{item['peer']}:{message_id}",{'target':None if item.get('menu') else item['target']})
             self._put(connection,'outbox',key,item)
 
     def append_activity(self, event, level, details):

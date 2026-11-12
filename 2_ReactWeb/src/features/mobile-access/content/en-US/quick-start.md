@@ -23,7 +23,7 @@ For `ConnectTimeout`, open **Settings → Network settings**. Select system prox
 ## 4. Choose a conversation
 
 1. Send `/projects`. A single enabled collection opens directly; two or more show a collection picker. Then select a category and project. With no collections enabled, content access is unavailable.
-2. Select an existing conversation or send `/new Phone test` to create one.
+2. Select an existing conversation, or send `/new Phone test` from the project's main-conversation list to create one.
 3. Send `/status`. Verify the project, conversation and model. To change it, send `/model`, choose a provider and then a model. If the list is empty, add a model and enable its provider in the desktop model collection first.
 4. Send “Reply with received”. The final answer should arrive on your phone; the full process is visible in the desktop conversation.
 

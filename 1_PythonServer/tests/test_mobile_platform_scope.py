@@ -1,3 +1,4 @@
+from app.services.mobile import menu_pages
 import asyncio
 import json
 import sqlite3
@@ -29,7 +30,7 @@ def platform_host(host, platform):
 @pytest.mark.parametrize('kind', list(context.COLLECTIONS))
 def test_every_collection_can_be_the_only_entry(host, monkeypatch, platform, kind):
     platform_host(host, platform)
-    monkeypatch.setattr(navigation, 'get_project_service', lambda: NS(list_project_categories=lambda: []))
+    monkeypatch.setattr(menu_pages, 'get_project_service', lambda: NS(list_project_categories=lambda: []))
     async def run():
         host.config['allowed_collections'] = [kind]
         await host.navigation.action(PEER, 'collections')
@@ -38,7 +39,7 @@ def test_every_collection_can_be_the_only_entry(host, monkeypatch, platform, kin
         assert item['access_collections'] == [kind]
         if platform == 'wechat':
             state = await host.navigation.state(PEER)
-            assert state['stack'] == [{'action': 'categories', 'kind': kind}]
+            assert state['stack'] == [{'action': 'categories', 'kind': kind, 'page': 0}]
             await host.navigation.consume(PEER, '0', {})
             assert (await host.navigation.state(PEER))['stack'] == state['stack']
         else:
@@ -71,7 +72,7 @@ def test_scope_blocks_old_callbacks_messages_and_queued_results(host, platform):
 @pytest.mark.parametrize('shortcut', ['5', '/5'])
 def test_wechat_operations_are_labeled_and_history_shortcut_preserves_chat(host, monkeypatch, shortcut):
     platform_host(host, 'wechat')
-    monkeypatch.setattr(navigation, 'get_project_service', lambda: NS(list_project_categories=lambda: []))
+    monkeypatch.setattr(menu_pages, 'get_project_service', lambda: NS(list_project_categories=lambda: []))
     monkeypatch.setattr(history, 'recent_history_text', lambda target: 'recent five turns')
     async def run():
         await host.navigation.action(PEER, 'collections')
@@ -83,7 +84,7 @@ def test_wechat_operations_are_labeled_and_history_shortcut_preserves_chat(host,
         await host.navigation.action(PEER, 'select', target=TARGET)
         state = await host.navigation.state(PEER)
         assert state['mode'] == 'conversation'
-        assert any('5 查看前5轮对话 · 00 暂停 · 0 返回上一级 · menu 选择集' in item['parts'][0] for _, item in await host.records('outbox'))
+        assert any('5 查看前5轮对话 · 00 暂停 · /actions 会话操作 · 0 返回上一级 · menu 选择集' in item['parts'][0] for _, item in await host.records('outbox'))
         assert all('/5' not in item['parts'][0] and '/menu' not in item['parts'][0] for _, item in await host.records('outbox'))
         assert await host.navigation.consume(PEER, shortcut, {})
         await asyncio.gather(*host.work)
@@ -95,7 +96,7 @@ def test_wechat_operations_are_labeled_and_history_shortcut_preserves_chat(host,
 
 def test_wechat_scope_change_resets_pending_creation_and_numeric_menu(host, monkeypatch):
     platform_host(host, 'wechat')
-    monkeypatch.setattr(navigation, 'get_project_service', lambda: NS(list_project_categories=lambda: []))
+    monkeypatch.setattr(menu_pages, 'get_project_service', lambda: NS(list_project_categories=lambda: []))
     async def run():
         await host.navigation.action(PEER, 'collections')
         await host.navigation.action(PEER, 'newcategory', kind='project')
@@ -103,8 +104,8 @@ def test_wechat_scope_change_resets_pending_creation_and_numeric_menu(host, monk
         assert await host.navigation.consume(PEER, '1', {})
         state = await host.navigation.state(PEER)
         assert 'pending' not in state
-        assert state['stack'] == [{'action': 'collections'}]
-        assert len(state['options']) == 4  # Two collections plus two controls.
+        assert state['stack'] == [{'action': 'collections', 'page': 0}]
+        assert len(state['options']) == 2  # Only the two allowed collections.
         host.config['allowed_collections'] = []
         await host.navigation.consume(PEER, '1', {})
         assert not (await host.navigation.state(PEER))['options']

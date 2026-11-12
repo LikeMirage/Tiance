@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from tests.test_mobile_access import repository, host
-from app.services.mobile import feishu_transport, wechat_media, wechat_transport, navigation
+from app.services.mobile import feishu_transport, wechat_media, wechat_transport, navigation, menu_pages
 from app.services.mobile.feishu_events import normalize_event
 from app.services.mobile.feishu_frames import Frame
 from app.services.mobile.wechat_transport import normalize_message, trusted_url
@@ -21,24 +21,28 @@ TARGET = {'project_id': 'p', 'session_id': 's'}
 
 
 def test_wechat_menu_digits_and_chat_digits_have_different_meanings(host, monkeypatch):
+    monkeypatch.setattr(menu_pages, 'session_children', lambda *args: [])
     async def run():
         nav = WeChatNavigation(host)
+        host.platform, host.navigation = 'wechat', nav
         await host.put('selection', PEER, TARGET)
-        await host.put('menus', PEER, {'mode': 'conversation', 'scope': ['project'], 'stack': [{'action': 'sessions', 'target': TARGET}], 'options': []})
+        await nav.menus.enter(PEER, 'select', {'target': TARGET})
         assert not await nav.consume(PEER, '2', {})
         assert not await nav.consume(PEER, '000', {})
         assert await nav.message_target(PEER, {}) == TARGET
-        nav.action = AsyncMock()
+        nav.action = AsyncMock(wraps=nav.action)
         assert await nav.consume(PEER, '0', {})
         assert (await nav.state(PEER))['mode'] == 'menu'
-        nav.action.assert_awaited_once_with(PEER, action='sessions', target=TARGET, _back=True)
+        nav.action.assert_any_await(PEER, 'back')
         with pytest.raises(Exception, match='进入会话'):
             await nav.message_target(PEER, {})
         button = await nav.button(PEER, '选择', 'select', target=TARGET)
+        trail = (await nav.state(PEER))['stack']
+        nav.action = AsyncMock()
         await host.put('menus', PEER, {'mode': 'menu', 'scope': ['project'], 'stack': [], 'options': [button['callback_data']]})
         assert await nav.consume(PEER, '1', {})
         assert nav.action.call_args.args == (PEER,)
-        assert nav.action.call_args.kwargs == {'action': 'select', 'target': TARGET}
+        assert nav.action.call_args.kwargs == {'action': 'select', 'target': TARGET, '_trail': trail}
         with pytest.raises(Exception, match='失效'):
             await nav.choose('another-user', button['callback_data'])
     asyncio.run(run())
@@ -75,7 +79,7 @@ def test_wechat_five_selects_menu_item_and_can_name_a_project(host):
         await host.put('menus', PEER, {'mode': 'menu', 'scope': ['project'], 'stack': [],
                                      'options': ['a', 'b', 'c', 'd', button['callback_data']]})
         assert await nav.consume(PEER, '5', {})
-        nav.action.assert_awaited_once_with(PEER, action='select', target=TARGET)
+        nav.action.assert_awaited_once_with(PEER, action='select', target=TARGET, _trail=[])
         nav.action.reset_mock()
         state = await nav.state(PEER)
         state['pending'] = {'action': 'newproject', 'kind': 'project'}
@@ -97,7 +101,7 @@ def test_wechat_bare_menu_returns_to_collections(host, monkeypatch, mode):
         assert await nav.consume(PEER, 'menu', {})
         state = await nav.state(PEER)
         assert state['mode'] == 'menu'
-        assert state['stack'] == [{'action': 'collections'}]
+        assert state['stack'] == [{'action': 'collections', 'page': 0}]
         assert state['options']
         assert await host.get('selection', PEER) == TARGET
     asyncio.run(run())
@@ -149,7 +153,7 @@ def test_wechat_double_zero_in_menu_does_not_pause_and_can_be_a_name(host):
         state = {'mode': 'menu', 'scope': ['project'], 'stack': [{'action': 'sessions', 'target': TARGET}], 'options': []}
         await host.put('menus', PEER, state)
         assert await nav.consume(PEER, '00', {})
-        nav.action.assert_awaited_once_with(PEER, action='sessions', target=TARGET, _back=True)
+        nav.action.assert_awaited_once_with(PEER, action='sessions', target=TARGET)
         nav.action.reset_mock()
         state['pending'] = {'action': 'newcategory', 'kind': 'project'}
         await host.put('menus', PEER, state)

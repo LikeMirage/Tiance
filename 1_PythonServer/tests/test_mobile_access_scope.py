@@ -1,3 +1,4 @@
+from app.services.mobile import menu_pages
 import asyncio
 import json
 import sqlite3
@@ -24,7 +25,7 @@ def test_every_single_collection_skips_picker_equally(host, monkeypatch, kind):
     async def run():
         host.config['allowed_collections'] = [kind]
         host.reply = AsyncMock()
-        monkeypatch.setattr(navigation, 'get_project_service', lambda: NS(list_project_categories=lambda: []))
+        monkeypatch.setattr(menu_pages, 'get_project_service', lambda: NS(list_project_categories=lambda: []))
         await host.navigation.action(PEER, 'collections')
         assert host.reply.call_args.args[1].startswith(context.COLLECTIONS[kind])
         callbacks = [data for _, data in await host.records('callbacks')]
@@ -75,6 +76,8 @@ def test_closed_browsing_location_never_silently_creates_in_another_collection(h
     monkeypatch.setattr(catalog, 'create_category', create)
     async def run():
         await host.put('navigation', PEER, {'kind': 'tool', 'category': 'tools'})
+        await host.put('menus', PEER, {'mode': 'menu', 'scope': ['project', 'tool'],
+                                     'stack': [{'action': 'categories', 'kind': 'tool'}], 'options': []})
         with pytest.raises(BadRequestError, match='访问范围'):
             await host.navigation.action(PEER, 'newcategory', title='name')
         create.assert_not_called()

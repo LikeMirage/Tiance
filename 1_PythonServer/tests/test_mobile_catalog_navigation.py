@@ -1,3 +1,4 @@
+from app.services.mobile import menu_pages
 import asyncio
 from types import SimpleNamespace as NS
 from unittest.mock import Mock, AsyncMock
@@ -110,9 +111,11 @@ def test_creation_uses_browsed_collection_not_old_selected_session(host, monkeyp
         peer = 'telegram:12:7:7'; selected = {'project_id':'p', 'session_id':'a'}
         await host.put('selection', peer, selected)
         await host.put('navigation', peer, {'kind':'tool', 'category':'tools'})
+        await host.navigation.menus.enter(peer, 'categories', {'kind': 'tool'})
         categories = Mock(return_value=NS(category_id='newcat'))
         monkeypatch.setattr(catalog, 'create_category', categories)
-        monkeypatch.setattr(navigation, 'get_project_service', lambda:NS(list_projects=lambda:[]))
+        monkeypatch.setattr(menu_pages, 'get_project_service', lambda:NS(list_projects=lambda:[],
+            get_project_category=lambda _:NS(category_kind='tool', name='办公工具')))
         await host.navigation.action(peer, 'newcategory', title='办公工具')
         categories.assert_called_once_with('tool', '办公工具')
         assert await host.get('navigation', peer) == {'kind':'tool', 'category':'newcat'}

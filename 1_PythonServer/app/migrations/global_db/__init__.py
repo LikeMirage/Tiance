@@ -9,6 +9,7 @@ from app.migrations.global_db.v51_to_v52 import upgrade as upgrade_mobile_connec
 from app.migrations.global_db.v52_to_v53 import upgrade as upgrade_telegram_scope
 from app.migrations.global_db.v53_to_v54 import upgrade as upgrade_mobile_scope
 from app.migrations.global_db.v54_to_v55 import upgrade as upgrade_wechat_cursor
+from app.migrations.global_db.v55_to_v56 import upgrade as upgrade_menu_paths
 from app.migrations.global_db.history import historical_steps
 from app.migrations.runner import Migration, migrate
 
@@ -20,6 +21,7 @@ MIGRATIONS = (
     Migration(52, 53, "telegram_collection_access", upgrade_telegram_scope),
     Migration(53, 54, "mobile_collection_access", upgrade_mobile_scope),
     Migration(54, 55, "wechat_connection_cursor", upgrade_wechat_cursor),
+    Migration(55, 56, "mobile_menu_paths", upgrade_menu_paths),
 )
 
 
