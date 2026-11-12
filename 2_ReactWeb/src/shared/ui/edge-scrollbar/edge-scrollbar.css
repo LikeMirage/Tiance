@@ -1,0 +1,65 @@
+.edge-scrollbar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 7;
+  width: var(--edge-scrollbar-hit-size, 10px);
+  pointer-events: none;
+  touch-action: none;
+  user-select: none;
+}
+
+.edge-scrollbar--left { left: 0; }
+.edge-scrollbar--right { right: 0; }
+
+.edge-scrollbar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-border-soft);
+  pointer-events: none;
+}
+
+.edge-scrollbar--scrollable {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.edge-scrollbar:focus-visible { outline: none; }
+
+.edge-scrollbar__thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.edge-scrollbar__thumb::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--scrollbar-thumb);
+  transition: width 120ms ease, background-color 120ms ease;
+}
+
+.edge-scrollbar--left::before,
+.edge-scrollbar--left .edge-scrollbar__thumb::before { left: 0; }
+
+.edge-scrollbar--right::before,
+.edge-scrollbar--right .edge-scrollbar__thumb::before { right: 0; }
+
+.edge-scrollbar:hover .edge-scrollbar__thumb::before,
+.edge-scrollbar:focus-visible .edge-scrollbar__thumb::before,
+.edge-scrollbar__thumb:active::before {
+  width: 4px;
+  background: var(--scrollbar-thumb-hover);
+}
+
+.edge-scrollbar__thumb:active { cursor: grabbing; }

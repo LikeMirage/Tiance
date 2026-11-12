@@ -189,7 +189,7 @@ SDK 从环境读取 `TIANCE_API_BASE_URL` 和 `TIANCE_HOST_CAPABILITY_TOKEN`，�
 | `memory_management` | `/memory/management/tool` | 调用方项目记忆与全局记忆管理 |
 | `conversation_naming` | `/tools/capabilities/conversation-naming` | 自动命名功能会话向其来源会话提交标题；目标取自授权与分支关系 |
 | `tool_catalog` | `/tools/capabilities/catalog` | 读取本次调用范围内工具的参数和案例 |
-| `external_messaging` | `/tools/capabilities/external-messaging` | 列出脱敏机器人连接，向显式目标聊天发送文件；当前实现 Telegram |
+| `external_messaging` | `/tools/capabilities/external-messaging` | 列出脱敏机器人连接，向显式目标聊天单向发送纯文本或文件；支持 Telegram、飞书、微信 |
 | `run_status` | `/tools/capabilities/run-status` | 只读查询所属生成任务，也可申请短期观察租约 |
 
 注册表位于 `1_PythonServer/app/domain/tools/host_capabilities.py`。SDK 提供 `list_host_capabilities()`，本地返回 name/path/description 清单，不发请求、不泄露凭据，也不代表本次调用获准使用清单里的全部能力。注册表同时供清单校验、SDK 和网关读取，避免各自维护不同列表。
@@ -285,11 +285,16 @@ watch 返回绑定该任务的只读 token 和 lease_seconds（当前 90 秒）�
 桌面壳 API 是另一个边界，见 `3_PyWebView/app/api.py` 及前端 desktop 服务的实际定义；不是写个 client 能力名就能调用任意本机动作。桌面、浏览器和远程访问的能力可能不同，需要明确判断，不假定远程前端的电脑就是后端所在电脑。
 
 
-### 第三方机器人文件发送
+### 第三方机器人文字与文件发送
 
-`external_messaging` 使用已配置的连接，不向工具暴露 Token。`platform` 支持 `telegram`、`feishu`、`wechat`；`action` 为 `list_connections` / `send_file`，发送时再传 `connection_id`、`chat_id`、绝对 `file_path`，可选 `caption`。微信还要求指定接收者曾发消息取得有效回复凭据。消息 ID 可能为数字或字符串，不能按 Telegram 的数字格式限制其他平台。独立工具自行解析相对路径。例：
+`external_messaging` 使用已配置的连接，不向工具暴露 Token。`platform` 支持 `telegram`、`feishu`、`wechat`；`action` 为 `list_connections` / `send_text` / `send_file`。发送时再传 `connection_id`、`chat_id`；`send_text` 必填非空 `text`，不传文件路径；`send_file` 必填绝对 `file_path`，可选 `caption`。微信两种发送都要求指定接收者曾发消息取得有效回复凭据，不能使用其他连接的凭据。消息 ID 可能为数字或字符串，不能按 Telegram 的数字格式限制其他平台。独立工具自行解析相对路径。例：
 
 ```python
+call_host_capability("external_messaging", {
+    "platform": "telegram", "action": "send_text",
+    "connection_id": "telegram:123456", "chat_id": "987654321",
+    "text": "转写已经完成，正在校对人名。"
+}, timeout_seconds=600)
 call_host_capability("external_messaging", {
     "platform": "telegram", "action": "send_file",
     "connection_id": "telegram:123456", "chat_id": "987654321",
@@ -299,4 +304,6 @@ call_host_capability("external_messaging", {
 
 示例 ID 必须换成实际目标；工具可先用 `list_connections` 查询，手机用户消息正文也会标注来源。后端不要求目标等于上个发送者，不要求由手机任务发起；普通工具参数应准确标注 `filesystem_read`、`credential_use`、`external_data_modify` 和 `network_access`，不能省略发送目标授权。连接本身须已启用，Telegram 也须允许向该聊天投递。
 
-`sent` 才是全部确认，`not_sent` 是明确失败，`unknown` 需核对是否已送达，`partial` 需查看已确认消息 ID 并避免重传文件。没有自动重试或无限等待；超时遵守工具与网络配置。不要用宽泛 except 把 unknown 改成“未发送”。凭据只由后端适配器读取。未来增加平台在 `app/services/mobile/manager.py` 与 `messaging.py` 注册适配器，通用连接表、作用域查询、授权与会话运行保持共用；独立工具是否扩展平台由工具作者决定。
+外部用户只自动收到最终回复或错误，看不到思考、工具调用和中途文字；发送工具可用于进度汇报、询问或通知。单向发送不接收回复、不暂停任务、不改变手机会话选择；必须等用户答复才能继续时应结束当前轮，等用户下一条消息。来源提示是普通用户消息正文，不是隐藏系统提示词。
+
+`sent` 才是全部获得平台确认，不代表用户已读或已答复。`not_sent` 是明确失败，`unknown` 需核对是否已送达，`partial` 需查看已确认消息 ID 并避免重传整个文件或整段文字。长文本完整拆分，返回 `sent_characters` / `total_characters`（包含项目与会话标注）。没有自动重试或无限等待；超时遵守工具与网络配置。不要用宽泛 except 把 unknown 改成“未发送”。凭据只由后端适配器读取。未来增加平台在 `app/services/mobile/manager.py` 与 `messaging.py` 注册适配器，通用连接表、作用域查询、授权与会话运行保持共用；独立工具是否扩展平台由工具作者决定。

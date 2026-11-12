@@ -228,7 +228,7 @@
         "announcements": "Announcements",
         "github": "GitHub Sign-in",
         "network": "Network",
-        "accessManagement": "Access Management",
+        "accessManagement": "Remote Access",
         "accessSecurity": "Security",
         "tokenEstimation": "Token Estimation",
         "globalMemory": "Global Memory",
@@ -951,16 +951,20 @@
       }
     },
     "accessManagement": {
-      "title": "Access Management",
-      "tabsLabel": "Access management categories",
+      "title": "Remote Access",
+      "tabsLabel": "Remote access categories",
       "loading": "Loading access settings...",
       "loadFailed": "Unable to load access settings.",
       "saveFailed": "Unable to save external access settings.",
       "tabs": {
         "external": "External Access",
+        "app": "TianceAPP",
         "wechat": "WeChat",
         "feishu": "Feishu",
         "telegram": "Telegram"
+      },
+      "app": {
+        "description": "Access through the dedicated mobile app is not available yet. Stay tuned."
       },
       "external": {
         "enable": "Allow external access",
@@ -1967,6 +1971,7 @@
       }
     },
     "telegramAccess": {
+      "messageReceipt": "Message receipt notifications",
       "scope": {
         "title": "Access scope",
         "connectFirst": "Connect a bot to change its scope. Only Projects is enabled by default.",
@@ -2029,6 +2034,7 @@
         "disabled": "Access disabled",
         "authorized": "User authorized",
         "revoked": "User access revoked",
+        "user_removed": "Access user removed",
         "receive_failed": "Receiving failed; reconnecting",
         "receive_recovered": "Receiving connection recovered",
         "message_received": "Message received",

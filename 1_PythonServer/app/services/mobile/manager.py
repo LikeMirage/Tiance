@@ -20,6 +20,8 @@ class MobileAccessService:
         self.started = False
         from .wechat_login import WeChatLogin
         self.wechat_login = WeChatLogin(self)
+        from .feishu_login import FeishuLogin
+        self.feishu_login = FeishuLogin(self)
 
     async def connection_records(self, platform=None):
         return await asyncio.to_thread(self.repository.connections, platform)
@@ -32,6 +34,10 @@ class MobileAccessService:
         return await asyncio.to_thread(self.repository.scoped(key or '').activity_page, offset, limit)
 
     async def status(self, connection_id=None, platform='telegram'):
+        async with self.lock:
+            return await self._status(connection_id, platform)
+
+    async def _status(self, connection_id=None, platform='telegram'):
         from .messaging import public_connection
         if platform not in INBOUND_ADAPTERS:
             raise BadRequestError('不支持此接入平台。')
@@ -45,8 +51,16 @@ class MobileAccessService:
             if record:
                 adapter = await self.install(record)
         status = await (adapter or INBOUND_ADAPTERS[platform](self.repository.scoped(''), desktop=self.desktop)).status()
+        # The credential/scope form is connection-specific. The account list is
+        # platform-wide so a second QR login cannot hide an older live account.
+        identities = await asyncio.to_thread(self.repository.list_peers, platform)
+        connections = {r['connection_id']: public_connection(r) for r in records}
+        peers = [dict(p, id=peer, connection_name=connections[p['connection_id']]['name'],
+                      connection_enabled=connections[p['connection_id']]['enabled'])
+                 for peer, p in sorted(identities, key=lambda item: item[0])
+                 if p.get('connection_id') in connections]
         return dict(status, platform=platform, app_id=(record or {}).get('config', {}).get('app_id', ''),
-                    connections=[public_connection(r) for r in records])
+                    connections=list(connections.values()), platform_peers=peers)
 
     async def configure_platform(self, platform, *, enabled, connection_id=None, app_id='', secret=''):
         from app.infra.secrets import encrypt_secret, decrypt_secret
@@ -57,7 +71,7 @@ class MobileAccessService:
             if not enabled:
                 if old:
                     await self.save_platform(platform, old['remote_id'], dict(old['config'], enabled=False))
-                return await self.status(key, platform)
+                return await self._status(key, platform)
             if platform == 'feishu':
                 app_id = app_id.strip() or (old or {}).get('config', {}).get('app_id', '')
                 value = secret.strip()
@@ -74,12 +88,13 @@ class MobileAccessService:
                 key = await self.save_platform(platform, old['remote_id'], dict(old['config'], enabled=True))
             else:
                 raise BadRequestError('不支持此接入平台。')
-            return await self.status(key, platform)
+            return await self._status(key, platform)
 
     async def save_platform(self, platform, remote_id, config):
         key = f'{platform}:{remote_id}'
         saved = next((r['config'] for r in await self.connection_records(platform) if r['connection_id'] == key), {})
         config = dict(config, allowed_collections=list(saved.get('allowed_collections', DEFAULT_COLLECTIONS)))
+        config['message_receipt_enabled'] = saved.get('message_receipt_enabled', True)
         await asyncio.to_thread(self.repository.save_connection, key, platform, str(remote_id), config, select=True)
         adapter = await self.install(dict(connection_id=key, platform=platform, config=config))
         await record_activity(adapter.repository, 'enabled' if config.get('enabled') else 'disabled')
@@ -112,16 +127,32 @@ class MobileAccessService:
                 await record_activity(self.repository.scoped(selected or ''), 'configuration_failed', level='error', error=exc)
                 raise
             if not config.get('bot'):
-                return await self.status()
+                return await self._status()
             key = f"telegram:{config['bot']['id']}"
             destination = next((r['config'] for r in records if r['connection_id'] == key), {})
             config['allowed_collections'] = list(destination.get('allowed_collections', DEFAULT_COLLECTIONS))
+            config['message_receipt_enabled'] = destination.get('message_receipt_enabled', True)
             # A token for a different bot creates/selects a different connection.
             # It never changes the identity of an in-flight upload or AI reply.
             await asyncio.to_thread(self.repository.save_connection, key, 'telegram', str(config['bot']['id']), config, select=True)
             adapter = await self.install(dict(connection_id=key, platform='telegram', config=config))
             await record_activity(adapter.repository, 'enabled' if enabled else 'disabled')
-            return await self.status(key)
+            return await self._status(key)
+
+    async def configure_message_receipt(self, platform, connection_id, message_receipt_enabled):
+        if platform not in INBOUND_ADAPTERS:
+            raise BadRequestError('不支持此接入平台。')
+        async with self.lock:
+            record = next((r for r in await self.connection_records(platform)
+                           if r['connection_id'] == connection_id), None)
+            if record is None:
+                raise BadRequestError('连接不存在或不属于此平台，请先连接机器人。')
+            adapter = self.adapters.get(connection_id) or await self.install(record)
+            config = dict(record['config'], message_receipt_enabled=message_receipt_enabled)
+            await asyncio.to_thread(self.repository.save_connection, connection_id, platform, record['remote_id'], config)
+            # This preference does not change credentials or restart reception.
+            adapter.config = config
+            return await self._status(connection_id, platform)
 
     async def configure_scope(self, platform, connection_id, allowed_collections):
         if platform not in INBOUND_ADAPTERS:
@@ -140,25 +171,48 @@ class MobileAccessService:
                 adapter.config = config
             adapter.outgoing.set()
             await record_activity(adapter.repository, 'scope_changed')
-            return await self.status(connection_id, platform)
+            return await self._status(connection_id, platform)
 
     async def for_peer(self, peer):
-        identity = await asyncio.to_thread(self.repository.get, 'peers', peer, {})
-        key = identity.get('connection_id')
-        if not key:
-            key = await asyncio.to_thread(self.repository.record_connection, 'peers', peer)
+        key = await asyncio.to_thread(self.repository.record_connection, 'peers', peer)
         return self.adapters.get(key)
 
     async def is_authorized(self, peer, target=None):
         adapter = await self.for_peer(peer)
         return bool(adapter and await adapter.is_authorized(peer, target))
 
-    async def authorize(self, peer, allowed):
-        adapter = await self.for_peer(peer)
-        if not adapter:
-            raise BadRequestError('该用户所属连接不存在。')
-        await adapter.authorize(peer, allowed)
-        return await self.status(adapter.repository.connection_id, adapter.platform)
+    async def authorize(self, peer, allowed, selected_connection_id=None):
+        async with self.lock:
+            adapter = await self.for_peer(peer)
+            if not adapter:
+                raise BadRequestError('该用户所属连接不存在。')
+            selected = selected_connection_id or adapter.repository.connection_id
+            await self._status(selected, adapter.platform)
+            await adapter.authorize(peer, allowed)
+            return await self._status(selected, adapter.platform)
+
+    async def remove_peer(self, peer, selected_connection_id=None):
+        from .management import remove_peer
+        async with self.lock:
+            adapter = await self.for_peer(peer)
+            if not adapter:
+                raise BadRequestError('该用户所属连接不存在。')
+            selected = selected_connection_id or adapter.repository.connection_id
+            await self._status(selected, adapter.platform)
+            await remove_peer(adapter, peer)
+            return await self._status(selected, adapter.platform)
+
+    async def remove_connection(self, platform, connection_id):
+        from .management import remove_connection
+        async with self.lock:
+            record = next((r for r in await self.connection_records(platform)
+                           if r['connection_id'] == connection_id), None)
+            if record is None:
+                raise BadRequestError('连接不存在或不属于此平台。')
+            adapter = self.adapters.get(connection_id) or await self.install(record)
+            await remove_connection(adapter, platform, self.started)
+            self.adapters.pop(connection_id, None)
+            return await self._status(platform=platform)
 
     async def result(self, job, status, content):
         adapter = await self.for_peer(job['peer'])
@@ -179,6 +233,7 @@ class MobileAccessService:
     async def close(self):
         self.started = False
         await self.wechat_login.close()
+        await self.feishu_login.close()
         await asyncio.gather(*(adapter.close() for adapter in self.adapters.values()))
 
     async def drain_runs(self):

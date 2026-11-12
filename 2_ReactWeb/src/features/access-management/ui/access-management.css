@@ -12,6 +12,8 @@
   color: var(--color-text-primary);
 }
 
+.access-management__head { flex: 0 0 auto; }
+
 .access-management__head h2 {
   margin: 0;
   color: var(--color-text-heading);
@@ -24,14 +26,8 @@
 
 .access-management__stage {
   flex: 1 1 auto;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.access-management__stage > .sliding-view-stage__view {
   box-sizing: border-box;
-  height: 100%;
+  min-width: 0;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -40,21 +36,21 @@
   scrollbar-width: thin;
 }
 
-.access-management__stage > .sliding-view-stage__view::-webkit-scrollbar {
+.access-management__stage::-webkit-scrollbar {
   width: var(--scrollbar-size);
   height: var(--scrollbar-size);
 }
 
-.access-management__stage > .sliding-view-stage__view::-webkit-scrollbar-track {
+.access-management__stage::-webkit-scrollbar-track {
   background: var(--scrollbar-track);
 }
 
-.access-management__stage > .sliding-view-stage__view::-webkit-scrollbar-thumb {
+.access-management__stage::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: var(--scrollbar-thumb);
 }
 
-.access-management__stage > .sliding-view-stage__view::-webkit-scrollbar-thumb:hover {
+.access-management__stage::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
 }
 

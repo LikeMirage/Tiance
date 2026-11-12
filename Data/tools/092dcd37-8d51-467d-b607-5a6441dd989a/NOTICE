@@ -28,3 +28,8 @@ License texts are in program/vendor/cp313-win_amd64/
 av-16.0.1+audio.1.dist-info/licenses/. These shared libraries can be replaced or
 rebuilt independently; the tool does not enforce signatures on replacements.
 No imageio-ffmpeg distribution or separate ffmpeg executable is bundled.
+
+Modified 2026-11-12: renamed the public tool to audio_transcribe; added
+header-based SILK v3 preparation with the bundled kn007 decoder. Raw inputs
+are preserved. Decoder provenance, pinned source revision, binary SHA-256,
+MIT wrapper license and Skype SDK license are in program/vendor/silk/.

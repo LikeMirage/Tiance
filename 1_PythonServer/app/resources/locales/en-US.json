@@ -1125,6 +1125,7 @@
       }
     },
     "telegramAccess": {
+      "messageReceipt": "Message receipt notifications",
       "scope": {
         "title": "Access scope",
         "connectFirst": "Connect a bot to change its scope. Only Projects is enabled by default.",
@@ -1186,6 +1187,7 @@
         "disabled": "Access disabled",
         "authorized": "User authorized",
         "revoked": "User access revoked",
+        "user_removed": "Access user removed",
         "receive_failed": "Receiving failed; reconnecting",
         "receive_recovered": "Receiving connection recovered",
         "message_received": "Message received",

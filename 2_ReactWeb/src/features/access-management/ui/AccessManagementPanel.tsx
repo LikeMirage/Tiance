@@ -12,7 +12,6 @@ import {
   type GatewaySecurityStatus,
 } from "../../../services/security/gatewaySecurity";
 import { useI18n } from "../../../shared/i18n";
-import { SettingsViewStage } from "../../../shared/ui/settings-view-tabs/SettingsViewStage";
 import { SettingsViewTabs } from "../../../shared/ui/settings-view-tabs/SettingsViewTabs";
 import { AccessSwitchControl as SwitchControl } from "./AccessSwitchControl";
 
@@ -24,10 +23,11 @@ type AccessManagementPanelProps = {
   onReady?: () => void;
 };
 
-type AccessManagementView = "external" | "wechat" | "feishu" | "telegram";
+type AccessManagementView = "external" | "app" | "wechat" | "feishu" | "telegram";
 
 const ACCESS_MANAGEMENT_VIEWS: readonly AccessManagementView[] = [
   "external",
+  "app",
   "wechat",
   "feishu",
   "telegram",
@@ -94,12 +94,7 @@ export function AccessManagementPanel({ onReady }: AccessManagementPanelProps) {
         onChange={setActiveView}
         tabs={tabs}
       />
-      <SettingsViewStage
-        activeView={activeView}
-        className="access-management__stage"
-        layout="fill"
-        orderedViews={ACCESS_MANAGEMENT_VIEWS}
-      >
+      <div className="access-management__stage" key={activeView}>
         {activeView === "external" ? (
           <ExternalAccessView
             error={error}
@@ -110,8 +105,15 @@ export function AccessManagementPanel({ onReady }: AccessManagementPanelProps) {
             securityStatus={securityStatus}
             status={status}
           />
+        ) : activeView === "app" ? (
+          <div className="access-management__external">
+            <section className="access-management__section">
+              <h3>{t("accessManagement.tabs.app")}</h3>
+              <p>{t("accessManagement.app.description")}</p>
+            </section>
+          </div>
         ) : activeView === "telegram" ? <TelegramAccessPanel /> : <PlatformAccessPanel key={activeView} platform={activeView} />}
-      </SettingsViewStage>
+      </div>
     </div>
   );
 }

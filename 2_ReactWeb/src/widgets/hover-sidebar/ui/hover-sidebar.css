@@ -276,40 +276,47 @@ body.workspace-side-panel-resizing .hover-sidebar__inner {
 }
 
 .hover-sidebar__subitems {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
   width: calc(100% - 18px);
   max-height: 0;
   margin-left: 18px;
-  padding-left: 0;
-  border-left: 1px solid transparent;
   opacity: 0;
   transform: translateX(-6px);
   overflow: hidden;
   pointer-events: none;
   transition:
     max-height 300ms ease,
-    padding-left 300ms ease,
     opacity 160ms ease,
-    transform 220ms ease,
-    border-color 160ms ease;
+    transform 220ms ease;
 }
 
 .hover-sidebar--expanded .hover-sidebar__subitems--open {
-  max-height: 280px;
-  padding-left: 8px;
-  border-left-color: rgba(var(--color-accent-rgb), 0.22);
+  max-height: min(200px, 40dvh);
   opacity: 1;
   transform: translateX(0);
-  overflow-y: auto;
   pointer-events: auto;
+}
+
+.hover-sidebar__subitems-viewport {
+  min-height: 0;
+  min-width: 0;
+  padding-left: 9px;
+  overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-width: none;
 }
 
-.hover-sidebar--expanded .hover-sidebar__subitems--open::-webkit-scrollbar {
+.hover-sidebar__subitems-viewport::-webkit-scrollbar {
   width: 0;
   height: 0;
+}
+
+.hover-sidebar__subitems-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .hover-sidebar__subitem {

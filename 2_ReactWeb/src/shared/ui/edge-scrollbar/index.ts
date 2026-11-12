@@ -1,0 +1,1 @@
+export { EdgeScrollbar } from "./EdgeScrollbar";

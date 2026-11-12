@@ -41,6 +41,9 @@ class WeChatNavigation(ScopedNavigation):
             frame = state['stack'][-1] if state['stack'] else {'action': 'collections'}
             await self.action(peer, **frame, _back=True)
             return True
+        if text == 'menu' and not event.get('media'):
+            await self.action(peer, 'collections')
+            return True
         if text.startswith('/'):
             command, _, title = text.partition(' ')
             command = command[1:]
@@ -61,7 +64,7 @@ class WeChatNavigation(ScopedNavigation):
             elif command in {'sessions', 'model', 'history', 'files', 'clear', 'stop', 'status', 'map', 'groups'}:
                 await self.action(peer, command)
             else:
-                await self.host.reply(peer, '发送 0 返回上一级。/menu 选择项目集；/sessions 选择会话；/model 切换模型；/5 查看前5轮；/stop 暂停。')
+                await self.host.reply(peer, '发送 0 返回上一级。menu 选择集；会话内发送 5 查看前5轮、00 暂停；/sessions 选择会话；/model 切换模型。')
             return True
         if state.get('pending'):
             if not text or event.get('media'):
@@ -72,11 +75,18 @@ class WeChatNavigation(ScopedNavigation):
             await self.action(peer, **request, title=text)
             return True
         if state['mode'] == 'conversation':
+            action = {'5': 'history', '00': 'stop'}.get(text)
+            if action and not event.get('media'):
+                await self.action(peer, action)
+                return True
             return False  # "2" and "000" are ordinary user messages here.
         if text.isascii() and text.isdecimal() and 1 <= int(text) <= len(state.get('options', [])):
             await self.choose(peer, state['options'][int(text) - 1])
         else:
-            await self.host.reply(peer, '当前在选择菜单，尚未发送给 AI。请发送菜单编号，或发送 0 返回。')
+            if text.isascii() and text.isdecimal() and not state.get('options'):
+                await self.host.reply(peer, '原菜单尚未建立或已失效，请按下方重新加载的菜单选择。本条数字未发送给 AI。')
+            else:
+                await self.host.reply(peer, '当前在选择菜单，尚未发送给 AI。请发送菜单编号，或发送 0 返回。')
             frame = state['stack'][-1] if state['stack'] else {'action': 'collections'}
             await self.action(peer, **frame, _back=True)
         return True
@@ -84,21 +94,24 @@ class WeChatNavigation(ScopedNavigation):
     async def choose(self, peer, key):
         data = await self.host.get('callbacks', key)
         if not data or data.get('peer') != peer:
-            raise BadRequestError('该选择已失效，请发送 /menu 重新选择。')
+            raise BadRequestError('该选择已失效，请发送 menu 重新选择。')
         await self.action(peer, **{k: v for k, v in data.items() if k != 'peer'})
 
     async def perform_action(self, peer, action, _back=False, _root=False, **args):
         state = await self.state(peer)
         previous = deepcopy(state)
         state['scope'] = self.host.access_scope.collections()
-        if action in CREATE and not args.get('title'):
+        if action in CREATE:
             if state['mode'] == 'conversation':
                 await self.host.reply(peer, '请先发送 0 返回列表，再新建。')
                 return
-            state['pending'] = dict(action=action, **args)
-            await self.host.put('menus', peer, state)
-            await self.host.reply(peer, '请发送新名称。发送 0 取消。', rows=[])
-            return
+            # Conversations already have a default title in the shared creation
+            # flow. Only projects and categories require a separate name input.
+            if action != 'new' and not args.get('title'):
+                state['pending'] = dict(action=action, **args)
+                await self.host.put('menus', peer, state)
+                await self.host.reply(peer, '请发送新名称。发送 0 取消。', rows=[])
+                return
         if action in PAGES:
             state['mode'] = 'menu'
             state.pop('pending', None)
@@ -171,9 +184,9 @@ class WeChatNavigation(ScopedNavigation):
                     data = await self.host.get('callbacks', button['callback_data'], {})
                     if data.get('action') == 'permission':
                         text += f"\n{button['text']}：/action {button['callback_data']}"
-        footer = '0 返回上一级 · /menu 选择集'
+        footer = '0 返回上一级 · menu 选择集'
         if state['mode'] == 'conversation':
-            footer = '/5 查看前5轮对话 · ' + footer
+            footer = '5 查看前5轮对话 · 00 暂停 · ' + footer
         return text + '\n\n' + footer, []
 
     async def message_target(self, peer, message):

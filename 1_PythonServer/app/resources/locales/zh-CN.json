@@ -1125,6 +1125,7 @@
       }
     },
     "telegramAccess": {
+      "messageReceipt": "消息接收提醒",
       "scope": {
         "title": "访问范围",
         "connectFirst": "连接机器人后可调整访问范围，默认仅开放项目集。",
@@ -1186,6 +1187,7 @@
         "disabled": "已关闭接入",
         "authorized": "已允许用户访问",
         "revoked": "已撤销用户访问",
+        "user_removed": "已删除接入用户",
         "receive_failed": "接收连接异常，正在重连",
         "receive_recovered": "接收连接已恢复",
         "message_received": "收到消息",

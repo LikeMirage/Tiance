@@ -14,13 +14,17 @@ export function MobileScopePanel({ allowed, disabled, connected, onChange }: {
   const { t } = useI18n();
   const titleId = useId();
   return <section className="telegram-access__scope" aria-labelledby={titleId}>
-    <h3 id={titleId}>{t("telegramAccess.scope.title")}</h3>
-    {collections.map(kind => <div className="telegram-access__scope-row" key={kind}>
-      <span>{t(`telegramAccess.scope.collections.${kind}`)}</span>
-      <AccessSwitchControl checked={allowed.includes(kind)} disabled={disabled || !connected}
-        label={`${t("telegramAccess.scope.title")} · ${t(`telegramAccess.scope.collections.${kind}`)}`}
-        onChange={() => onChange(collections.filter(item => item === kind ? !allowed.includes(item) : allowed.includes(item)))} />
-    </div>)}
+    <div className="telegram-access__section-head">
+      <h3 id={titleId}>{t("telegramAccess.scope.title")}</h3><span>当前连接</span>
+    </div>
+    <div className="telegram-access__scope-list">
+      {collections.map(kind => <div className="telegram-access__scope-row" key={kind}>
+        <span>{t(`telegramAccess.scope.collections.${kind}`)}</span>
+        <AccessSwitchControl checked={allowed.includes(kind)} disabled={disabled || !connected}
+          label={`${t("telegramAccess.scope.title")} · ${t(`telegramAccess.scope.collections.${kind}`)}`}
+          onChange={() => onChange(collections.filter(item => item === kind ? !allowed.includes(item) : allowed.includes(item)))} />
+      </div>)}
+    </div>
     {(!connected || allowed.length === 0) && <p className="telegram-access__scope-summary" aria-live="polite">
       {t(!connected ? "telegramAccess.scope.connectFirst" : "telegramAccess.scope.empty")}
     </p>}

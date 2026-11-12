@@ -1125,6 +1125,7 @@
       }
     },
     "telegramAccess": {
+      "messageReceipt": "Message receipt notifications",
       "intro": "Create a Telegram bot and enter its token. Send /start in a private chat, then allow your account here.",
       "tokenSaved": "Saved; leave blank to keep the current token",
       "tokenPlaceholder": "Obtain from @BotFather",
@@ -1186,7 +1187,8 @@
         "task_finished": "Task ended; reply pending",
         "reply_sent": "Reply sent",
         "reply_failed": "Reply delivery failed; retry pending",
-        "scope_changed": "Access scope updated"
+        "scope_changed": "Access scope updated",
+        "user_removed": "Access user removed"
       },
       "details": {
         "user_id": "User ID",

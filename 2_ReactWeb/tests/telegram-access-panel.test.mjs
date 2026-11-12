@@ -18,6 +18,11 @@ const vite = await createServer({
       if (id.replaceAll("\\", "/").endsWith("/ui/TelegramGuide.tsx")) {
         return "export const TelegramGuide = () => 'guide';";
       }
+      if (id.replaceAll("\\", "/").endsWith("/confirm-modal/ConfirmModal.tsx")) {
+        return `import React from 'react'; export const ConfirmModal = props => React.createElement('div', { role: 'dialog' },
+          props.message, React.createElement('button', { onClick: props.onCancel, disabled: false }, '取消'),
+          React.createElement('button', { onClick: props.onConfirm, disabled: props.confirmDisabled }, '确认删除'));`;
+      }
     },
   }],
 });
@@ -25,6 +30,8 @@ after(() => vite.close());
 const { TelegramConnectionPanel: TelegramAccessPanel } = await vite.ssrLoadModule("/src/features/mobile-access/ui/TelegramConnectionPanel.tsx");
 const { TelegramAccessPanel: TabbedPanel } = await vite.ssrLoadModule("/src/features/mobile-access/ui/TelegramAccessPanel.tsx");
 const { PlatformConnectionPanel } = await vite.ssrLoadModule("/src/features/mobile-access/ui/PlatformConnectionPanel.tsx");
+const { MobileConnectionSelect } = await vite.ssrLoadModule("/src/features/mobile-access/ui/MobileAccountControls.tsx");
+const { FeishuQr } = await vite.ssrLoadModule("/src/features/mobile-access/ui/FeishuQr.tsx");
 const status = {
   connection_id: "telegram:1", connections: [], enabled: true, has_token: true,
   api_base: "https://api.telegram.org", error: null, desktop_online: true,
@@ -32,6 +39,93 @@ const status = {
   allowed_collections: ["project"],
   peers: [{ id: "peer", user_id: 1, name: "User", allowed: false, reviewed: false }],
 };
+
+for (const outcome of ["confirmed", "error", "expired"]) {
+  test(`飞书扫码 ${outcome}：仅验证成功通知连接，失败保留明确提示`, async () => {
+    const previous = { fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout, act: globalThis.IS_REACT_ACT_ENVIRONMENT };
+    let view, scheduled, failNetwork = true;
+    const connected = [], requests = [];
+    const waiting = { id: "qr-1", status: "wait", image: "data:image/png;base64,test", error: null };
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    globalThis.setTimeout = (callback, delay, ...args) => {
+      if (delay !== 1500) return previous.setTimeout(callback, delay, ...args);
+      scheduled = { callback }; return scheduled;
+    };
+    globalThis.clearTimeout = handle => {
+      if (handle === scheduled) scheduled = null; else previous.clearTimeout(handle);
+    };
+    globalThis.fetch = async (url, options) => {
+      requests.push({ url: String(url), method: options?.method ?? "GET", body: options?.body });
+      if (options?.method === "POST") return Response.json(waiting);
+      if (failNetwork) { failNetwork = false; throw new Error("暂时断网"); }
+      return Response.json({ ...waiting, status: outcome, connection_id: outcome === "confirmed" ? "feishu:new" : undefined,
+        error: outcome === "error" ? "飞书拒绝此应用访问（21001：平台策略限制）" : null });
+    };
+    try {
+      await act(async () => { view = create(React.createElement(FeishuQr, { active: true, onConnected: id => connected.push(id) })); });
+      await act(async () => { view.root.findByType("button").props.onClick(); });
+      assert.equal(view.root.findByType("img").props.alt, "飞书连接二维码");
+      await act(async () => { await scheduled.callback(); });
+      assert.match(view.root.findByProps({ role: "alert" }).children.join(""), /暂时断网/);
+      assert.ok(scheduled, "网络恢复后继续查询本次扫码");
+      await act(async () => { await scheduled.callback(); });
+      assert.deepEqual(connected, outcome === "confirmed" ? ["feishu:new"] : []);
+      assert.equal(view.root.findAllByType("img").length, 0);
+      assert.equal(view.root.findByType("button").props.disabled, false);
+      if (outcome === "error") assert.match(view.root.findByProps({ role: "alert" }).children.join(""), /21001/);
+      assert.ok(requests.every(item => !item.body), "凭据不经浏览器提交");
+      assert.equal(requests.filter(item => item.method === "POST").length, 1);
+      assert.equal(scheduled, null, "终态停止轮询");
+    } finally {
+      if (view) await act(async () => view.unmount());
+      globalThis.fetch = previous.fetch; globalThis.setTimeout = previous.setTimeout;
+      globalThis.clearTimeout = previous.clearTimeout; globalThis.IS_REACT_ACT_ENVIRONMENT = previous.act;
+    }
+  });
+}
+
+for (const platform of ["wechat", "feishu", "telegram"]) {
+  test(`${platform} 消息接收提醒默认开启，切换仅保存当前连接的提醒设置`, async () => {
+    const Panel = platform === "telegram" ? TelegramAccessPanel : () => React.createElement(PlatformConnectionPanel, {
+      platform, active: true, onConnection: () => {},
+    });
+    let current = { ...status, connection_id: `${platform}:1`, app_id: "app" };
+    const writes = [];
+    await withPanel((url, method, body) => {
+      if (method !== "GET") {
+        writes.push({ url: new URL(url, "http://localhost").pathname, method, body });
+        current = { ...current, message_receipt_enabled: body.message_receipt_enabled };
+      }
+      return Promise.resolve(Response.json(current));
+    }, async ({ root, click, poll }) => {
+      const toggle = () => root().findAllByType("button").find(node => node.props.id === `${platform}-message-receipt`);
+      assert.equal(toggle().props["aria-checked"], true);
+      await click("telegramAccess.messageReceipt");
+      assert.equal(toggle().props["aria-checked"], false);
+      await poll();
+      assert.equal(toggle().props["aria-checked"], false);
+      assert.deepEqual(writes, [{ url: "/api/mobile/connections/message-receipt", method: "POST", body: {
+        platform, connection_id: `${platform}:1`, message_receipt_enabled: false,
+      } }]);
+      assert.equal(current.enabled, true);
+      await click("telegramAccess.messageReceipt");
+      assert.equal(toggle().props["aria-checked"], true);
+    }, Panel);
+  });
+  test(`${platform} 提醒设置保存失败时保留原开关状态`, async () => {
+    const Panel = platform === "telegram" ? TelegramAccessPanel : () => React.createElement(PlatformConnectionPanel, {
+      platform, active: true, onConnection: () => {},
+    });
+    await withPanel((_url, method) => method === "GET"
+      ? Promise.resolve(Response.json({ ...status, connection_id: `${platform}:1`, message_receipt_enabled: false }))
+      : Promise.reject(new Error("保存失败")), async ({ root, click, alerts }) => {
+        await click("telegramAccess.messageReceipt");
+        assert.equal(root().findAllByType("button").find(node => node.props.id === `${platform}-message-receipt`).props["aria-checked"], false);
+        assert.ok(alerts().includes("保存失败"));
+      }, Panel);
+  });
+}
 
 async function withPanel(request, verify, Component = TelegramAccessPanel) {
   const previous = { fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
@@ -151,7 +245,7 @@ test("启用开关检查 Token，连接失败保留输入，关闭保留配置�
     current = { ...current, enabled: false };
     await poll();
     assert.equal(toggle().props["aria-checked"], false, "switch follows the actual backend state");
-    assert.ok(root().findAllByType("button").every(node => node.props.role === "switch"));
+    assert.ok(!root().findAllByType("button").some(node => node.children.includes("保存并连接")));
     const users = root().findByProps({ className: "telegram-access__users" });
     assert.equal(users.findAllByType("p")[0].children[0], "telegramAccess.intro");
   });
@@ -322,9 +416,7 @@ for (const platform of ["wechat", "feishu"]) {
       assert.equal(root().findByProps({ className: "telegram-access__permissions" }).findAllByProps({ className: "telegram-access__scope" }).length, 1);
       assert.equal(root().findAllByProps({ className: "telegram-access__scope-summary" }).length, 0);
       assert.ok(!root().findAllByType("p").some(node => node.children.includes("telegramAccess.scope.hint")));
-      if (platform === "feishu") await act(async () => {
-        root().findByProps({ id: "feishu-secret" }).props.onChange({ target: { value: "unsaved-draft" } });
-      });
+      if (platform === "feishu") assert.equal(root().findAllByType("input").length, 0);
       const label = "telegramAccess.scope.title · telegramAccess.scope.collections.project";
       await click(label);
       assert.deepEqual(alerts(), ["save failed"]);
@@ -333,7 +425,6 @@ for (const platform of ["wechat", "feishu"]) {
       await click(label);
       assert.deepEqual(writes.at(-1).allowed_collections, []);
       assert.equal(root().findByProps({ className: "telegram-access__scope-summary" }).children[0], "telegramAccess.scope.empty");
-      if (platform === "feishu") assert.equal(root().findByProps({ id: "feishu-secret" }).props.value, "unsaved-draft");
     }, Panel);
   });
   test(`${platform} 晚到轮询不会覆盖新范围`, async () => {
@@ -371,3 +462,99 @@ test("微信重新扫码切换连接时，旧范围保存响应不能切回旧�
     assert.equal(tool().props["aria-checked"], false);
   }, Panel);
 });
+
+for (const platform of ["wechat", "feishu", "telegram"]) {
+  test(`${platform} 列出所有连接的用户，修改旧账号不会切走当前连接；删除需确认`, async () => {
+    const Panel = platform === "telegram" ? TelegramAccessPanel : () => React.createElement(PlatformConnectionPanel, {
+      platform, active: true, onConnection: () => {},
+    });
+    const selected = `${platform}:new`;
+    const old = { id: "old-peer", user_id: "old-user", name: "Old", allowed: true,
+      connection_id: `${platform}:old`, connection_name: "旧连接", connection_enabled: true };
+    const recent = { ...old, id: "new-peer", name: "New", connection_id: selected };
+    let current = { ...status, app_id: "app", connection_id: selected,
+      peers: [recent], platform_peers: [old, recent],
+      connections: [{ connection_id: old.connection_id, name: "旧连接", enabled: true },
+        { connection_id: selected, name: "新连接", enabled: true }] };
+    const writes = [];
+    await withPanel((url, method, body) => {
+      if (method === "POST") {
+        writes.push({ url, body });
+        if (url.includes("/authorization")) {
+          assert.equal(body.peer, "old-peer");
+          assert.equal(body.selected_connection_id, selected);
+          current = { ...current, platform_peers: [{ ...old, allowed: false }, recent] };
+        } else if (url.includes("/peers/remove")) {
+          assert.equal(body.peer, "old-peer");
+          assert.equal(body.selected_connection_id, selected);
+          current = { ...current, platform_peers: [recent] };
+        } else if (url.includes("/connections/remove")) {
+          assert.equal(body.platform, platform);
+          assert.equal(body.connection_id, selected);
+          current = { ...current, connection_id: old.connection_id, peers: [], platform_peers: [], connections: current.connections.slice(0, 1) };
+        }
+      }
+      return Promise.resolve(Response.json(current));
+    }, async ({ root, click }) => {
+      assert.equal(root().findAllByProps({ className: "telegram-access__user" }).length, 2);
+      const label = platform === "telegram" ? `telegramAccess.allow · Old · ID old-user · ${old.connection_id}` : `允许 Old · ${old.connection_id}`;
+      await click(label);
+      assert.equal(root().findByType(MobileConnectionSelect).props.value, selected);
+      assert.equal(root().findAllByType("button").find(node => node.props["aria-label"] === label).props["aria-checked"], false);
+      await click("删除用户 Old");
+      assert.equal(writes.length, 1, "opening confirmation must not delete anything");
+      await click("取消");
+      assert.equal(writes.length, 1);
+      await click("删除用户 Old");
+      await click("确认删除");
+      assert.equal(root().findAllByProps({ className: "telegram-access__user" }).length, 1);
+      await click("删除当前连接");
+      await click("确认删除");
+      assert.equal(root().findByType(MobileConnectionSelect).props.value, old.connection_id);
+      assert.equal(root().findAllByProps({ className: "telegram-access__user" }).length, 0);
+    }, Panel);
+  });
+}
+
+test("删除失败保留账号与当前连接，轮询不能掩盖错误", async () => {
+  const Panel = () => React.createElement(PlatformConnectionPanel, { platform: "wechat", active: true, onConnection: () => {} });
+  const current = { ...status, connection_id: "wechat:1", connections: [{ connection_id: "wechat:1", name: "bot", enabled: true }] };
+  await withPanel((_url, method) => Promise.resolve(method === "POST"
+    ? Response.json({ error: { message: "仍有运行中的手机任务" } }, { status: 400 }) : Response.json(current)),
+  async ({ root, click, alerts, poll }) => {
+    await click("删除当前连接");
+    await click("确认删除");
+    await poll();
+    assert.deepEqual(alerts(), ["仍有运行中的手机任务"]);
+    assert.equal(root().findByType(MobileConnectionSelect).props.value, "wechat:1");
+    assert.equal(root().findAllByProps({ className: "telegram-access__user" }).length, 1);
+  }, Panel);
+});
+
+for (const platform of ["wechat", "feishu", "telegram"]) {
+  test(`${platform} 两个连接开启但用户全部未授权时显示零授权，切换连接不改用户授权`, async () => {
+    const Panel = platform === "telegram" ? TelegramAccessPanel : () => React.createElement(PlatformConnectionPanel, {
+      platform, active: true, onConnection: () => {},
+    });
+    const peers = ["a", "b"].map(id => ({ id, name: id, user_id: id, allowed: false, reviewed: true,
+      connection_id: `${platform}:${id}`, connection_enabled: true }));
+    let writes = 0;
+    await withPanel((url, method) => {
+      if (method !== "GET") writes++;
+      const selected = new URL(url, "http://localhost").searchParams.get("connection_id") ?? `${platform}:a`;
+      return Promise.resolve(Response.json({ ...status, connection_id: selected, platform_peers: peers,
+        connections: peers.map(p => ({ connection_id: p.connection_id, name: p.name, enabled: true })) }));
+    }, async ({ root, poll }) => {
+      const summary = () => root().findByProps({ className: "telegram-access__authorization-summary" }).children.join("");
+      assert.equal(summary(), "已授权 0 / 2");
+      assert.equal(root().findAllByType("select").length, 0, "use the themed selector rather than a native OS popup");
+      const usersBefore = root().findAllByProps({ className: "telegram-access__user" }).map(row => row.findByType("strong").children.join(""));
+      await act(async () => root().findByType(MobileConnectionSelect).props.onChange(`${platform}:b`));
+      await poll();
+      assert.equal(root().findByType(MobileConnectionSelect).props.value, `${platform}:b`);
+      assert.equal(summary(), "已授权 0 / 2");
+      assert.deepEqual(root().findAllByProps({ className: "telegram-access__user" }).map(row => row.findByType("strong").children.join("")), usersBefore);
+      assert.equal(writes, 0);
+    }, Panel);
+  });
+}

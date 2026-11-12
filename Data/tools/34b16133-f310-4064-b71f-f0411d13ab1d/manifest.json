@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "tiance-tool-package",
   "id": "create_blank_tool",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "author": {
     "name": "LikeMirage"
   },

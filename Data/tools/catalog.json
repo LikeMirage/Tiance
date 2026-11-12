@@ -547,7 +547,7 @@
     },
     {
       "project_id": "092dcd37-8d51-467d-b607-5a6441dd989a",
-      "name": "剪映音视频转写",
+      "name": "音视频转写",
       "category_id": "toolset_eff52b03022144539c1f7253131b3199",
       "is_default": false,
       "sort_order": 1,
@@ -574,7 +574,7 @@
     },
     {
       "project_id": "0efca349-3362-5aa1-8f15-203dab248ea2",
-      "name": "对外文件发送",
+      "name": "对外消息发送",
       "category_id": "toolset_c14f6e2593194fe88f2b218a0d7c6a9e",
       "is_default": false,
       "sort_order": 1,

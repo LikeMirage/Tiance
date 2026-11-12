@@ -228,7 +228,7 @@
         "announcements": "通知公告",
         "github": "GitHub 登录",
         "network": "网络设置",
-        "accessManagement": "访问管理",
+        "accessManagement": "远程访问",
         "accessSecurity": "安全设置",
         "tokenEstimation": "Token 估算",
         "globalMemory": "全局记忆",
@@ -951,16 +951,20 @@
       }
     },
     "accessManagement": {
-      "title": "访问管理",
-      "tabsLabel": "访问管理分类",
+      "title": "远程访问",
+      "tabsLabel": "远程访问分类",
       "loading": "正在载入访问设置...",
       "loadFailed": "无法载入访问设置。",
       "saveFailed": "无法保存外部访问设置。",
       "tabs": {
         "external": "外部访问",
+        "app": "TianceAPP",
         "wechat": "微信接入",
         "feishu": "飞书接入",
         "telegram": "Telegram 接入"
+      },
+      "app": {
+        "description": "专属手机客户端接入功能尚未开放，敬请期待。"
       },
       "external": {
         "enable": "允许外部访问",
@@ -1967,6 +1971,7 @@
       }
     },
     "telegramAccess": {
+      "messageReceipt": "消息接收提醒",
       "scope": {
         "title": "访问范围",
         "connectFirst": "连接机器人后可调整访问范围，默认仅开放项目集。",
@@ -2029,6 +2034,7 @@
         "disabled": "已关闭接入",
         "authorized": "已允许用户访问",
         "revoked": "已撤销用户访问",
+        "user_removed": "已删除接入用户",
         "receive_failed": "接收连接异常，正在重连",
         "receive_recovered": "接收连接已恢复",
         "message_received": "收到消息",

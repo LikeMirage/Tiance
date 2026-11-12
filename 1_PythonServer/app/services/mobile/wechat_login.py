@@ -88,7 +88,7 @@ class WeChatLogin:
                         owner = body.get('ilink_user_id')
                         if owner:
                             peer = f'{key}:{owner}:{owner}'
-                            await self.manager.adapters[key].put('peers', peer, {'connection_id': key, 'platform': 'wechat',
+                            await self.manager.adapters[key].confirm_peer(peer, {'connection_id': key, 'platform': 'wechat',
                                 'bot_id': bot_id, 'user_id': owner, 'chat_id': owner, 'name': owner,
                                 'allowed': True, 'reviewed': True})
                     self.state.update(status='confirmed', connection_id=key)

@@ -25,7 +25,15 @@
     },
     "error": {
       "type": "string"
+    },
+    "sent_characters": {
+      "type": "integer",
+      "description": "send_text 已获得平台确认的字符数，包含自动附加的项目和会话标注。"
+    },
+    "total_characters": {
+      "type": "integer",
+      "description": "send_text 本次待发送总字符数，包含项目和会话标注。"
     }
   },
-  "description": "list_connections 返回脱敏连接列表；send_file 返回状态、已确认的消息 ID、目标 ID、文件路径和大小。unknown 不能证明未发送，partial 表示文件已发送但后续附言未全部确认。"
+  "description": "list_connections 返回脱敏连接列表；发送返回状态、已确认的消息 ID 和目标 ID。send_file 另含文件路径与大小；send_text 另含总字符数与已确认字符数。unknown 不能证明未发送，partial 表示仅部分内容已确认。sent 不代表用户已读或已回复。"
 }

@@ -1,5 +1,5 @@
 {
-  "description": "通过剪映云端识别音视频，生成带时间戳的转录和字幕文件；无需 API Key，适合会议录音与长音频。",
+  "description": "识别会议录音、视频及微信 SILK 语音（含 .speex），自动解码并生成带时间戳的转录或字幕；无需 API Key，音轨上传云端。",
   "execution": {
     "parallel": false
   },
@@ -16,8 +16,8 @@
   "loading": {
     "dynamic": true
   },
-  "name": "jianying_transcribe",
-  "registration_name": "剪映音视频转写",
+  "name": "audio_transcribe",
+  "registration_name": "音视频转写",
   "runtime": {
     "entry": "program/main.py",
     "host_capabilities": [],

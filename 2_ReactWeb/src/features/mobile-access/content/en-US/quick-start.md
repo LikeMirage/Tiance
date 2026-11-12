@@ -6,7 +6,7 @@ Open [@BotFather](https://t.me/BotFather) in Telegram and send `/newbot`. Enter 
 
 ## 2. Connect in Tiance
 
-1. Open **Settings → Access management → Telegram → Connection**.
+1. Open **Settings → Remote Access → Telegram → Connection**.
 2. Paste the token into **Bot Token**. Leave the advanced Bot API address as `https://api.telegram.org`.
 3. Turn on Telegram access. Wait for the bot's name and ready status. If validation fails, correct the issue and try again.
 4. Use **Access scope** beside allowed users to enable collections for this bot. Switches save automatically. Only Projects is enabled by default; each connection has its own scope.

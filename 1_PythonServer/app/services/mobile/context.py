@@ -70,6 +70,9 @@ def incoming_path(target, filename, channel="Telegram"):
     destination = (root / relative).resolve()
     if not destination.is_relative_to(root):
         raise BadRequestError("收件目录指向工作区外，无法保存文件。")
+    # All channel downloads write a temporary file beside the destination.
+    # Prepare its directory here, after validating the workspace boundary.
+    destination.parent.mkdir(parents=True, exist_ok=True)
     return destination, relative.as_posix()
 
 

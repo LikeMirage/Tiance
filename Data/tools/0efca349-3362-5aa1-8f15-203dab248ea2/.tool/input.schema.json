@@ -10,9 +10,10 @@
       "type": "string",
       "enum": [
         "list_connections",
-        "send_file"
+        "send_file",
+        "send_text"
       ],
-      "description": "list_connections 查看已配置机器人连接，不返回密钥；send_file 实际发送一个文件。",
+      "description": "list_connections 查询连接（不返回密钥）；send_text 单向发送纯文本；send_file 发送一个文件及可选附言。",
       "permission_type": "network_access",
       "permission_scope": "unresolved"
     },
@@ -26,19 +27,25 @@
     "chat_id": {
       "type": "string",
       "minLength": 1,
-      "description": "发送时必填。目标平台的接收聊天 ID：Telegram 为数字字符串；飞书为 oc_ 开头的 chat_id；微信为消息来源中的接收聊天 ID。可以明确指定其他接收者，不推断上条消息来源。",
+      "description": "发送时必填。目标平台的聊天 ID：Telegram 为数字字符串；飞书为 oc_ 开头的 chat_id；微信为消息来源中的聊天 ID。可以明确指定其他接收者，不推断上条消息来源。",
       "permission_type": "external_data_modify",
       "permission_scope": "all"
     },
     "file_path": {
       "type": "string",
       "minLength": 1,
-      "description": "发送时必填。本机文件绝对路径，或相对于当前工作区的文件路径。可以是工作区外文件。",
+      "description": "send_file 必填。本机文件绝对路径，或相对于当前工作区的文件路径。可以是工作区外文件。send_text 不传此项。",
       "permission_type": "filesystem_read"
     },
     "caption": {
       "type": "string",
-      "description": "可选附言。自动标注调用所在项目和会话；平台不支持文件附言时完整分成后续文字发送。",
+      "description": "send_file 的可选附言。自动标注调用所在项目和会话；平台不支持文件附言时完整分成后续文字发送。",
+      "permission_type": "none"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "description": "send_text 必填的纯文本正文，可用于进度、询问或通知。自动带上调用所在项目和会话；长文本完整分段发送，不截断。发送成功仅代表平台确认，不代表用户已读或已答复。",
       "permission_type": "none"
     },
     "platform": {
@@ -52,5 +59,5 @@
       "permission_type": "none"
     }
   },
-  "description": "send_file 必须指定 platform、connection_id、chat_id、file_path。失败或结果未知时先核对聊天，禁止盲目重发；详细边界见使用说明。"
+  "description": "发送必须明确指定 platform、connection_id、chat_id；send_text 使用 text，send_file 使用 file_path 和可选 caption。工具不等待用户回复、不暂停任务、不改会话选择。必须得到答复才能继续时，发出问题后结束本轮，等待用户下一条消息；详见使用说明。"
 }

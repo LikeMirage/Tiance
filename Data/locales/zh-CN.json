@@ -1125,6 +1125,7 @@
       }
     },
     "telegramAccess": {
+      "messageReceipt": "消息接收提醒",
       "intro": "创建 Telegram 机器人后填写 Token。首次在手机发送 /start，再在这里允许自己的账号访问。",
       "tokenSaved": "已保存；留空保持原 Token",
       "tokenPlaceholder": "从 @BotFather 获取",
@@ -1186,7 +1187,8 @@
         "task_finished": "任务已结束，结果待回传",
         "reply_sent": "回复已发送",
         "reply_failed": "回复发送失败，等待重试",
-        "scope_changed": "已更新访问范围"
+        "scope_changed": "已更新访问范围",
+        "user_removed": "已删除接入用户"
       },
       "details": {
         "user_id": "用户 ID",

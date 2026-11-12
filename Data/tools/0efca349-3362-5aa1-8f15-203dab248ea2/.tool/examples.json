@@ -1,7 +1,11 @@
 [
   {
+    "title": "任务途中汇报或询问（单向发送）",
+    "content": "来自 Telegram、飞书、微信的用户看不到天策的思考、工具调用和中途文字，只自动收到最终回复或错误。长任务的重要进展、阻碍或需要用户确认时，可以主动发纯文本，例如 {\"action\":\"send_text\",\"platform\":\"telegram\",\"connection_id\":\"telegram:123456\",\"chat_id\":\"987654321\",\"text\":\"录音转写已完成，正在核对人名和整理待办。\"}。ID 必须使用消息来源标注或用户指定的真实目标，不能照抄示例，也不要把用户 ID 当成聊天 ID。普通进度汇报后继续原任务即可，不必逐个工具调用都汇报。需要用户答复才能继续时，发送问题后结束本轮，等待用户下一条消息；本工具不接收回复、不暂停当前任务、不改变用户当前选择的会话，也不会绕过忙碌会话的发送限制。不要把 sent 解释为用户已读、同意或已回复。"
+  },
+  {
     "title": "查询连接与发送文件",
-    "content": "先调用 {\"action\":\"list_connections\",\"platform\":\"feishu\"} 获取 connection_id。手机消息来源标注包含连接 ID、用户 ID、接收聊天 ID。再调用 {\"action\":\"send_file\",\"platform\":\"feishu\",\"connection_id\":\"feishu:cli_example\",\"chat_id\":\"oc_example\",\"file_path\":\"outputs/报告.docx\",\"caption\":\"整理好的报告\"}。示例 ID 必须替换为真实值。文件路径可为工作区相对路径或任意可读绝对路径。"
+    "content": "先调用 {\"action\":\"list_connections\",\"platform\":\"feishu\"} 获取 connection_id。手机消息来源标注包含连接 ID、用户 ID、聊天 ID。再调用 {\"action\":\"send_file\",\"platform\":\"feishu\",\"connection_id\":\"feishu:cli_example\",\"chat_id\":\"oc_example\",\"file_path\":\"outputs/报告.docx\",\"caption\":\"整理好的报告\"}。示例 ID 必须替换为真实值。文件路径可为工作区相对路径或任意可读绝对路径。"
   },
   {
     "title": "平台边界与授权",
@@ -9,6 +13,6 @@
   },
   {
     "title": "失败、部分成功与未知结果",
-    "content": "sent 表示平台确认发送。not_sent 为明确拒绝；unknown 表示无法确认，文件或部分附言可能已送达，必须先核对聊天；partial 表示部分内容已确认。工具不自动重试。外层执行时限使用 .tool/tool.json 的 runtime.timeout_seconds，网络空闲超时遵循天策网络设置。工具超时不能证明目标没有收到文件。正文附言保留完整，必要时拆分为后续文字。"
+    "content": "sent 表示平台确认发送，不表示用户已读或答复。not_sent 为明确未发送；unknown 表示无法确认，文字或文件可能已送达，必须先核对聊天；partial 表示部分内容已确认，查看 message_ids，纯文本还返回 sent_characters / total_characters（包含项目与会话标注）。工具不自动重试。外层执行时限使用 .tool/tool.json 的 runtime.timeout_seconds，网络空闲超时遵循天策网络设置。工具超时不能证明目标没有收到内容。正文与附言保留完整，必要时拆分为多条文字；不要盲目重发整段内容。"
   }
 ]

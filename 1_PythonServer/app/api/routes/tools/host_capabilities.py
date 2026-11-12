@@ -19,17 +19,25 @@ router = APIRouter(prefix='/tools/capabilities', tags=['tools'])
 
 class ExternalMessagingRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    action: Literal['list_connections', 'send_file']
+    action: Literal['list_connections', 'send_file', 'send_text']
     platform: str = Field(min_length=1, max_length=64)
     connection_id: str | None = Field(default=None, max_length=256)
     chat_id: str | None = Field(default=None, max_length=256)
     file_path: str | None = None
     caption: str = ''
+    text: str = ''
 
     @model_validator(mode='after')
     def require_destination(self):
         if self.action == 'send_file' and not all(value and value.strip() for value in (self.connection_id, self.chat_id, self.file_path)):
             raise ValueError('send_file 必须明确提供 connection_id、chat_id 和 file_path。')
+        if self.action == 'send_text':
+            if not all(value and value.strip() for value in (self.connection_id, self.chat_id, self.text)):
+                raise ValueError('send_text 必须明确提供 connection_id、chat_id 和 text。')
+            if self.file_path is not None or self.caption:
+                raise ValueError('send_text 请使用 text，不要提供 file_path 或 caption。')
+        if self.action == 'send_file' and self.text:
+            raise ValueError('send_file 的附言请使用 caption。')
         return self
 
 

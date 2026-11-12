@@ -157,7 +157,7 @@ def test_media_saved_as_original_file_and_referenced(host, kind, suffix):
         await ready(host)
         paths = []
         async def download(file_id, path):
-            path.parent.mkdir(parents=True)
+            assert path.parent.is_dir()
             path.write_bytes(b'original bytes')
             paths.append(path)
         host.transport.download = download

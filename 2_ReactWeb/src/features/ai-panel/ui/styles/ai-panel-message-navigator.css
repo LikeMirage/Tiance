@@ -1,7 +1,7 @@
 .ai-panel__message-navigator {
   position: absolute;
   top: 20%;
-  right: calc(var(--scrollbar-size) + 1px);
+  right: calc(var(--edge-scrollbar-hit-size, 10px) + 1px);
   bottom: 20%;
   z-index: 6;
   width: 6px;

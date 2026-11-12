@@ -61,7 +61,7 @@ def test_v51_upgrade_preserves_scopes_credentials_selection_and_pending_work(tmp
     ensure_database_schema(path)
     repo = MobileRepository(path)
     configurations={r['connection_id']:r['config'] for r in repo.connections()}
-    assert configurations['telegram:12'] == config
+    assert configurations['telegram:12'] == dict(config, allowed_collections=['project'])
     assert not configurations['telegram:11']['enabled'] and 'token' not in configurations['telegram:11']
     assert repo.get('settings','telegram_selected') == 'telegram:12'
     assert repo.get('settings','telegram') is None
@@ -124,7 +124,7 @@ def test_source_is_visible_once_in_text_and_image_parts(repo, monkeypatch, tmp_p
         adapter.config={'bot':{'id':12},'enabled':True}
         peer='telegram:12:7:7'; target={'project_id':'p','session_id':'s'}
         await adapter.put('peers',peer,{'allowed':True,'user_id':7,'chat_id':7,'bot_id':12})
-        monkeypatch.setattr(context,'get_project_service',lambda:NS(get_project=lambda _:NS(root_path=str(tmp_path),project_id='p')))
+        monkeypatch.setattr(context,'get_project_service',lambda:NS(get_project=lambda _:NS(root_path=str(tmp_path),project_id='p',project_kind='project')))
         monkeypatch.setattr(context,'get_project_conversation_service',lambda:NS(get_session=lambda *_:NS()))
         key=adapter.staging_key(peer,target)
         await adapter.put('staged',key,[{'reference':{'id':'a','fileName':'photo.png','filePath':'photo.png'}}])
@@ -133,7 +133,9 @@ def test_source_is_visible_once_in_text_and_image_parts(repo, monkeypatch, tmp_p
         args=adapter.desktop.submit.call_args.args
         assert args[2].count('[消息来源]')==1
         assert '连接 ID：telegram:12' in args[2]
-        assert '用户 ID：7' in args[2] and '接收聊天 ID：7' in args[2]
+        assert '用户 ID：7' in args[2] and '\n聊天 ID：7' in args[2]
+        assert '不展示思考、工具调用及中途文字' in args[2]
+        assert '单向发送不等待用户回复' in args[2]
         assert args[4][0]['text']==args[2] and args[4][1]['type']=='image_ref'
     asyncio.run(run())
 

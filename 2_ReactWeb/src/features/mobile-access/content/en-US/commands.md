@@ -40,4 +40,6 @@ You can switch while another task runs. Its answer still identifies the original
 
 Documents, recordings, images and video are saved as original files. Models and tools handle their content. Normal replies return only the final answer, error or pause status; long replies are split, and file paths in text do not automatically upload files.
 
-To get a file back, ask the AI to use the enabled **Telegram file sending tool** with an explicit connection ID, chat ID and local file path. Incoming mobile messages include source IDs at the end. The tool sends to the specified recipient rather than guessing; enable it in the tool collection if necessary.
+To get a file back, ask the AI to use the enabled **External messaging** tool with an explicit connection ID, chat ID and local file path. Incoming mobile messages include source IDs at the end. The tool sends to the specified recipient rather than guessing; enable it in the tool collection if necessary.
+
+The same tool can send plain text during a task to report progress or ask a question. Sending does not wait for a reply. If an answer is required to continue, the AI should ask, finish its turn, and continue when the user sends a new message.

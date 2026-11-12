@@ -46,6 +46,54 @@ class MobileRepository:
             if select:
                 self._put(connection, 'settings', platform + '_selected', connection_id)
 
+    def remove_peer(self, peer):
+        if not self.connection_id:
+            raise ValueError('删除用户需要明确的连接标识。')
+        with self._transaction() as connection:
+            identity = connection.execute("SELECT 1 FROM mobile_records WHERE namespace='peers' AND record_key=? AND connection_id=?",
+                                          (peer, self.connection_id)).fetchone()
+            if not identity:
+                raise ValueError('该接入用户不存在。')
+            # Keep only the deletion decision, not the profile or routing data.
+            # Otherwise the next inbound event would register this peer anew.
+            self._put(connection, 'deleted_peers', peer, True)
+            # Exact ownership checks, not LIKE: platform identities may contain
+            # wildcard characters. Receipts remain so old input cannot replay.
+            connection.execute("""DELETE FROM mobile_records WHERE connection_id=? AND (
+                (namespace IN ('peers','selection','navigation','menus','reply_context') AND record_key=?)
+                OR (namespace IN ('staged','messages') AND substr(record_key,1,length(?)+1)=?||':')
+                OR (namespace IN ('callbacks','outbox','inbox') AND json_extract(payload,'$.peer')=?)
+            )""", (self.connection_id, peer, peer, peer, peer))
+
+    def confirm_peer(self, peer, identity):
+        """Restore access only after an explicit, trusted identity confirmation."""
+        if not self.connection_id:
+            raise ValueError('确认用户需要明确的连接标识。')
+        with self._transaction() as connection:
+            self._put(connection, 'peers', peer, identity)
+            connection.execute("DELETE FROM mobile_records WHERE namespace='deleted_peers' AND record_key=? AND connection_id=?",
+                               (peer, self.connection_id))
+
+    def remove_connection(self, platform):
+        if not self.connection_id:
+            raise ValueError('删除连接需要明确的连接标识。')
+        with self._transaction() as connection:
+            deleted = connection.execute('DELETE FROM mobile_connections WHERE connection_id=? AND platform=?',
+                                         (self.connection_id, platform)).rowcount
+            if not deleted:
+                raise ValueError('连接不存在或不属于此平台。')
+            connection.execute('DELETE FROM mobile_records WHERE connection_id=?', (self.connection_id,))
+            # Keep dedup receipts: rebinding the same bot must not replay input.
+            selected = connection.execute("SELECT payload FROM mobile_records WHERE namespace='settings' AND record_key=?",
+                                          (platform + '_selected',)).fetchone()
+            if selected and json.loads(selected[0]) == self.connection_id:
+                remaining = connection.execute('SELECT connection_id FROM mobile_connections WHERE platform=? ORDER BY connection_id LIMIT 1',
+                                               (platform,)).fetchone()
+                if remaining:
+                    self._put(connection, 'settings', platform + '_selected', remaining[0], scope='')
+                else:
+                    connection.execute("DELETE FROM mobile_records WHERE namespace='settings' AND record_key=?", (platform + '_selected',))
+
     @contextmanager
     def _transaction(self):
         # Serialize short read-modify-write operations before reading staged data.
@@ -83,6 +131,20 @@ class MobileRepository:
                 "SELECT record_key,payload FROM mobile_records WHERE namespace=?" + clause + " ORDER BY updated_at", (namespace, *args),
             ).fetchall()
         return [(row[0], json.loads(row[1])) for row in rows]
+
+    def list_peers(self, platform: str) -> list[tuple[str, dict]]:
+        """Read account ownership from the same column used for scoped access."""
+        clause = ' AND p.connection_id=?' if self.connection_id is not None else ''
+        args = (platform, self.connection_id) if self.connection_id is not None else (platform,)
+        with database_connection(self.path) as connection:
+            rows = connection.execute(
+                "SELECT p.record_key,p.payload,p.connection_id,c.platform FROM mobile_records p "
+                "JOIN mobile_connections c ON c.connection_id=p.connection_id "
+                "WHERE p.namespace='peers' AND c.platform=?" + clause + " ORDER BY p.record_key", args,
+            ).fetchall()
+        # Older payloads need not duplicate these fields. Never let a payload
+        # override the persisted ownership or move an account across channels.
+        return [(r[0], dict(json.loads(r[1]), connection_id=r[2], platform=r[3])) for r in rows]
 
     def receive(self, channel: str, update_id: str, payload: dict) -> bool:
         """Persist before advancing a platform cursor. Duplicate deliveries never resubmit."""

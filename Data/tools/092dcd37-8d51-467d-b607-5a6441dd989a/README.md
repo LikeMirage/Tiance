@@ -1,6 +1,6 @@
-# 剪映音视频转写
+# 音视频转写
 
-独立 Python 工具。上传本地音轨至字节云端，生成完整转录文件；无需 Node、剪映桌面程序、模型集 Key 或天策能力桥。
+独立 Python 工具。上传本地音轨至字节云端，生成完整转录文件；支持常见音视频及微信 SILK 语音；无需 Node、桌面转码软件、模型集 Key 或天策能力桥。调用名为 `audio_transcribe`。
 
 只接受三个参数：
 
@@ -26,6 +26,16 @@ python -m pip install -r program/requirements.txt
 标准输入一个 JSON 对象，标准输出一个 JSON 对象；日志在 stderr。失败返回非零退出码。程序不导入天策后端。天策按既有机制安装并加载普通 Python 依赖，自带模块由工具自己的代码加载。
 
 其他 Python 环境（Python 3.10 及以上、不同系统或架构）需要另行安装 `av==16.0.1`，工具会使用该环境的 PyAV。自带的精简模块是 Windows x64 CPython 3.13 原生库，不能直接跨平台复用。构建来源、版本、校验值及重建步骤见 `native-build/README.md`。
+
+## 微信语音与 SILK
+
+直接把原始 `.speex` 或 `.silk` 路径传给 `input_path`，不需要另行转换。按文件头识别标准 `#!SILK_V3` 和微信的 `0x02 + #!SILK_V3`；其他文件继续走原媒体读取流程，不按后缀误判编码。
+
+工具自带 `program/vendor/silk/windows/silk_v3_decoder.exe`（179,037 字节）。预处理校验包边界，在独立临时目录使用短 ASCII 文件名运行解码器，再封装成 24 kHz、单声道、16 位 WAV，接续原有分段、上传和导出流程。24 kHz 为 SDK 默认输出采样率，不代表提高原录音的信息量。单包录音在临时输入补一个相同包以满足 CLI 的预读要求，输出剔除补齐部分。
+
+原输入不修改，结果与 `job.json` 的输入路径仍指向原文件；`source_decoding=silk_v3_to_wav` 记录预处理，直接上传该 WAV 的分段标为 `audio_processing=silk_decoded_wav`。临时文件在正常返回或异常退出处理时清理。解码、封装也使用工具同一个总执行预算。损坏、缺包、截断、解码异常明确返回失败，不上传部分音频。
+
+自带 SILK 解码器仅支持 Windows，不要求 Python 原生扩展或系统安装。缺失解码器会报依赖缺失，不临时联网下载安装。来源、固定版本和 SHA-256 在 `program/vendor/silk/source.json`，相关许可在同目录。
 
 ## 文件与时间轴
 
@@ -69,15 +79,17 @@ FLAC 路径保持采样率和声道，按解码后的采样位置裁切。16/24 
 
 ## 天策接入
 
+工具项目 UUID 与 `manifest.id` 保持不变，市场包从 1.0.0 升至 1.1.0；展示名改为“音视频转写”，当前调用名为 `audio_transcribe`。包 ID 保持稳定以便原工具就地更新，不新增重复工具。
+
 新工具默认关闭、动态加载；在工具集启用即可。配置位于 `.tool/tool.json`。平台是否允许并发调用多次工具，由其中的 execution.parallel 决定；单次工具内部的分段并发独立于这个开关。不修改用户已有的启用状态、会话选择或权限策略。
 
-当前权限合同每个参数只能声明一个主要类型：必填 input_path 标为公网访问以覆盖不可省略的云端上传，显式 output_dir 标为文件写入；默认输出在工作区。实际副作用还包括读取输入文件、写结果和临时音频。音轨在当前 Python 进程中处理，不再启动 FFmpeg 子进程。天策参数权限不是操作系统沙箱。
+当前权限合同每个参数只能声明一个主要类型：必填 input_path 标为公网访问以覆盖不可省略的云端上传，显式 output_dir 标为文件写入；默认输出在工作区。实际副作用还包括读取输入文件、写结果和临时音频。常规音轨在当前 Python 进程中处理，不启动 FFmpeg 子进程；SILK 预处理会启动工具自带的解码器，等待时间受同一总预算约束。天策参数权限不是操作系统沙箱。
 
 ## 来源与许可
 
-接口实现移植自 https://github.com/xifan2333/jianying-subtitle ，参照提交 b14e42cfd29a9e829a4b5a2edb75166ced89de12。保留 GPL-3.0-only 许可与来源说明，见 LICENSE、NOTICE。自带 PyAV、FFmpeg、zlib 的许可位于 vendor 内的 dist-info/licenses 目录；没有去除第三方署名。
+接口实现移植自 https://github.com/xifan2333/jianying-subtitle ，参照提交 b14e42cfd29a9e829a4b5a2edb75166ced89de12。保留 GPL-3.0-only 许可与来源说明，见 LICENSE、NOTICE。自带 PyAV、FFmpeg、zlib 的许可位于 vendor 内的 dist-info/licenses 目录；SILK 解码器来自 kn007/silk-v3-decoder，其 MIT 与 Skype SDK 许可位于 `program/vendor/silk/`。没有去除第三方署名。
 
-这是剪映客户端接口的第三方实现，没有官方稳定性或长期免费承诺。音轨会发往字节服务器；没有本地语音模型。语言选择、热词、说话人区分等尚未验证，不提供无效开关。
+这是上述开源项目所用云端接口的第三方实现，没有官方稳定性或长期免费承诺。音轨会发往字节服务器；没有本地语音模型。语言选择、热词、说话人区分等尚未验证，不提供无效开关。
 
 ## 验证
 

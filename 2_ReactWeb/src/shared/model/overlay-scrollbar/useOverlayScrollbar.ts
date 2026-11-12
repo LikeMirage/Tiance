@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { PointerEvent } from "react";
+import type { PointerEvent, RefObject } from "react";
 
 const MIN_THUMB_HEIGHT = 24;
 
@@ -17,9 +17,10 @@ const HIDDEN_SCROLLBAR_STATE: OverlayScrollbarState = {
   thumbTop: 0,
 };
 
-export function useOverlayScrollbar(refreshKey: string) {
+export function useOverlayScrollbar(refreshKey: string, viewportRef?: RefObject<HTMLDivElement | null>) {
   const hideTimerRef = useRef<number | null>(null);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const localScrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = viewportRef ?? localScrollRef;
   const dragStateRef = useRef<{
     pointerId: number;
     startScrollTop: number;
@@ -55,16 +56,16 @@ export function useOverlayScrollbar(refreshKey: string) {
     }
 
     const { clientHeight, scrollHeight, scrollTop } = scrollElement;
-    if (scrollHeight <= clientHeight + 1) {
+    if (clientHeight <= 0 || scrollHeight <= clientHeight + 1) {
       clearHideTimer();
       setState(HIDDEN_SCROLLBAR_STATE);
       return;
     }
 
-    const thumbHeight = Math.max(
+    const thumbHeight = Math.min(clientHeight, Math.max(
       MIN_THUMB_HEIGHT,
       Math.round((clientHeight / scrollHeight) * clientHeight),
-    );
+    ));
     const maxThumbTop = Math.max(0, clientHeight - thumbHeight);
     const maxScrollTop = Math.max(1, scrollHeight - clientHeight);
     const thumbTop = Math.round((scrollTop / maxScrollTop) * maxThumbTop);
@@ -84,7 +85,7 @@ export function useOverlayScrollbar(refreshKey: string) {
         ? current
         : nextState;
     });
-  }, [clearHideTimer]);
+  }, [clearHideTimer, scrollRef]);
 
   useLayoutEffect(() => {
     refresh();
@@ -96,14 +97,25 @@ export function useOverlayScrollbar(refreshKey: string) {
 
     const resizeObserver = new ResizeObserver(() => refresh());
     resizeObserver.observe(scrollElement);
-    if (scrollElement.firstElementChild) {
-      resizeObserver.observe(scrollElement.firstElementChild);
-    }
+    let content = scrollElement.firstElementChild;
+    if (content) resizeObserver.observe(content);
+    // The content root can change from an empty/loading view to the real list.
+    // Watch only that replacement; streamed descendants are covered by resize.
+    const contentObserver = new MutationObserver(() => {
+      if (content !== scrollElement.firstElementChild) {
+        if (content) resizeObserver.unobserve(content);
+        content = scrollElement.firstElementChild;
+        if (content) resizeObserver.observe(content);
+      }
+      refresh();
+    });
+    contentObserver.observe(scrollElement, { childList: true });
 
     return () => {
       resizeObserver.disconnect();
+      contentObserver.disconnect();
     };
-  }, [refresh, refreshKey]);
+  }, [refresh, refreshKey, scrollRef]);
 
   useEffect(() => {
     const handleWindowResize = () => refresh();
@@ -129,7 +141,7 @@ export function useOverlayScrollbar(refreshKey: string) {
       refresh({ activate: true });
       scheduleHide();
     },
-    [refresh, scheduleHide, state.thumbHeight],
+    [refresh, scheduleHide, scrollRef, state.thumbHeight],
   );
 
   const handleScroll = useCallback(() => {
@@ -165,7 +177,7 @@ export function useOverlayScrollbar(refreshKey: string) {
       startY: event.clientY,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
-  }, [clearHideTimer, refresh]);
+  }, [clearHideTimer, refresh, scrollRef]);
 
   const handleThumbPointerMove = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
@@ -185,7 +197,7 @@ export function useOverlayScrollbar(refreshKey: string) {
       );
       refresh({ activate: true });
     },
-    [refresh, state.thumbHeight],
+    [refresh, scrollRef, state.thumbHeight],
   );
 
   const handleThumbPointerEnd = useCallback((event: PointerEvent<HTMLDivElement>) => {

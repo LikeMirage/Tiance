@@ -25,12 +25,7 @@ async def execute(repository, payload, grant):
         raise BadRequestError('机器人连接不存在或未启用，请在访问管理中配置。')
     adapter = SENDERS.get(record['platform'])
     if adapter is None:
-        raise BadRequestError('当前平台尚未实现文件发送适配器。')
-    path = Path(payload.file_path)
-    if not path.is_absolute():
-        raise BadRequestError('能力桥的 file_path 必须是绝对路径；工具可先按工作区解析相对路径。')
-    if not await asyncio.to_thread(path.is_file):
-        raise BadRequestError('待发送文件不存在或不是普通文件。')
+        raise BadRequestError('当前平台尚未实现发送适配器。')
     # Snapshot this connection before any network await; edits never reroute an upload.
     header = ''
     if grant.project_id and grant.session_id:
@@ -38,18 +33,30 @@ async def execute(repository, payload, grant):
             header = await asyncio.to_thread(target_header, {'project_id': grant.project_id, 'session_id': grant.session_id})
         except Exception:
             header = f'天策 · 项目 ID：{grant.project_id} · 会话 ID：{grant.session_id}'
+    if payload.action == 'send_text':
+        text = '\n\n'.join(part for part in (header, payload.text) if part)
+        return await send_text(repository, record, str(payload.chat_id), text)
+    path = Path(payload.file_path)
+    if not path.is_absolute():
+        raise BadRequestError('能力桥的 file_path 必须是绝对路径；工具可先按工作区解析相对路径。')
+    if not await asyncio.to_thread(path.is_file):
+        raise BadRequestError('待发送文件不存在或不是普通文件。')
     caption = '\n\n'.join(part for part in (header, payload.caption) if part)
     if record['platform'] == 'telegram':
         return await adapter(record, str(payload.chat_id), path, caption)
     return await platform_send_file(repository, record, str(payload.chat_id), path, caption)
 
 
-async def telegram_send_file(record, chat_id, path, caption):
+def telegram_sender(record):
     config = record['config']
     try:
-        transport = TelegramTransport(decrypt_secret(config['token']), config['api_base'])
+        return TelegramTransport(decrypt_secret(config['token']), config['api_base'])
     except Exception:
         raise BadRequestError('无法读取此连接的凭据，请在访问管理中重新保存。') from None
+
+
+async def telegram_send_file(record, chat_id, path, caption):
+    transport = telegram_sender(record)
     size = await asyncio.to_thread(lambda: path.stat().st_size)
     # Preserve the entire caption. The first part belongs to the document; any
     # continuation is explicitly sent as ordinary text and tracked separately.
@@ -71,8 +78,7 @@ async def telegram_send_file(record, chat_id, path, caption):
     return dict(result, ok=True, status='sent', file_sent=True)
 
 
-async def platform_send_file(repository, record, chat_id, path, caption):
-    from uuid import uuid4
+async def platform_sender(repository, record, chat_id):
     from .service import FeishuService, WeChatService
     config, context = record['config'], None
     factory = {'feishu': FeishuService, 'wechat': WeChatService}[record['platform']]
@@ -85,6 +91,47 @@ async def platform_send_file(repository, record, chat_id, path, caption):
             context = await asyncio.to_thread(repository.scoped(record['connection_id']).get, 'reply_context', peer, {})
         if not context or not context.get('context_token'):
             raise BadRequestError('微信接收 ID 没有有效回复凭据；请先让该用户给此机器人发送一条消息。')
+    return transport, context
+
+
+async def send_text(repository, record, chat_id, text):
+    """One-way delivery; never consume inbound messages or create an AI job."""
+    from uuid import uuid4
+    platform = record['platform']
+    if platform == 'telegram':
+        transport, context = telegram_sender(record), None
+    else:
+        transport, context = await platform_sender(repository, record, chat_id)
+    ids, sent_characters = [], 0
+    result = dict(connection_id=record['connection_id'], platform=platform, chat_id=chat_id,
+                  message_ids=ids, total_characters=len(text))
+    delivery_id = uuid4().hex
+    for index, part in enumerate(split_message(text)):
+        try:
+            if platform == 'telegram':
+                sent = await transport.send_once('sendMessage', {'chat_id': chat_id, 'text': part})
+            elif platform == 'feishu':
+                sent = await transport.send(chat_id, 'text', {'text': part}, f'{delivery_id}:{index}')
+            else:
+                sent = await transport.send_items(chat_id, [{'type': 1, 'text_item': {'text': part}}],
+                                                  f'{delivery_id}:{index}', context)
+            ids.append(sent['message_id'])
+            sent_characters += len(part)
+        except Exception as exc:
+            # Lost responses cannot prove non-delivery. Confirmed earlier parts
+            # remain visible in the result; do not resend the complete message.
+            failure = exc.status if isinstance(exc, TelegramSendError) else 'unknown'
+            error = str(exc) if isinstance(exc, TelegramSendError) else getattr(exc, 'message', f'发送未确认（{type(exc).__name__}）。')
+            return dict(result, ok=False, status='partial' if ids else failure,
+                        failed_part_status=failure, sent_characters=sent_characters, error=error,
+                        retry_after_seconds=getattr(exc, 'retry_after', 0),
+                        instruction='先核对目标聊天及已确认的消息 ID；不要自动重发整段文字。')
+    return dict(result, ok=True, status='sent', sent_characters=sent_characters)
+
+
+async def platform_send_file(repository, record, chat_id, path, caption):
+    from uuid import uuid4
+    transport, context = await platform_sender(repository, record, chat_id)
     result = dict(connection_id=record['connection_id'], platform=record['platform'], chat_id=chat_id,
                   file_path=str(path), file_size=path.stat().st_size)
     try:

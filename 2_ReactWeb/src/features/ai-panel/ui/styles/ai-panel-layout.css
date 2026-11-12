@@ -201,26 +201,12 @@
   overflow-anchor: none;
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
 
 .ai-panel__body::-webkit-scrollbar {
-  width: var(--scrollbar-size);
-}
-
-.ai-panel__body::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
-}
-
-.ai-panel__body::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: var(--scrollbar-thumb);
-}
-
-.ai-panel__body::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
+  width: 0;
+  height: 0;
 }
 
 .ai-panel__tabs {

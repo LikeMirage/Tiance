@@ -43,6 +43,7 @@ class MobileService:
         self.submissions: set[str] = set()
         self.staging_generations: dict[str, int] = {}
         self.file_lock = asyncio.Lock()
+        self.dispatch_lock = asyncio.Lock()
         self.wakeup = asyncio.Event()
         self.outgoing = asyncio.Event()
 
@@ -69,11 +70,15 @@ class MobileService:
 
     async def status(self):
         config = self.config
-        peers = [dict(p, id=k) for k,p in await self.records("peers") if p["bot_id"] == config.get("bot",{}).get("id")]
+        # User controls must not move when authorization updates updated_at.
+        # Other record lists (inbox/outbox) still require chronological order.
+        peers = [dict(p, id=k) for k,p in sorted(await self.records("peers"), key=lambda item: item[0])
+                 if p["bot_id"] == config.get("bot",{}).get("id")]
         return {"connection_id": self.repository.connection_id, "enabled": config.get("enabled",False), "has_token": bool(config.get("token")),
                 "api_base": config.get("api_base","https://api.telegram.org"), "bot":config.get("bot"),
                 "error":self.error,"desktop_online":self.desktop.online,"peers":peers,
                 "pending_deliveries":len(await self.records("outbox")),
+                "message_receipt_enabled": config.get("message_receipt_enabled", True),
                 "allowed_collections": self.access_scope.collections()}
 
     async def apply_config(self, config):
@@ -100,6 +105,16 @@ class MobileService:
         return self.repository.connection_id or f"{self.platform}:{self.config['bot']['id']}"
 
     async def authorize(self, peer, allowed):
+        async with self.dispatch_lock:
+            return await self._authorize(peer, allowed)
+
+    async def confirm_peer(self, peer, identity):
+        # QR confirmation is explicit authorization, unlike a normal message or
+        # /start. Serialize it with deletion and incoming-message registration.
+        async with self.dispatch_lock:
+            await asyncio.to_thread(self.repository.confirm_peer, peer, identity)
+
+    async def _authorize(self, peer, allowed):
         record = await self.get("peers", peer)
         if not record:
             raise BadRequestError("该接入用户不存在。")
@@ -252,12 +267,20 @@ class MobileService:
                 pass
 
     async def dispatch(self, key, record):
+        async with self.dispatch_lock:
+            return await self._dispatch(key, record)
+
+    async def _dispatch(self, key, record):
         from .inbound import telegram_event
         event = record.get('event') or telegram_event(record['update'])
         if event is None:
             return
         callback = event.get('callback')
         peer = f"{record['channel']}:{event['chat_id']}:{event['user_id']}"
+        if await self.get('deleted_peers', peer, False):
+            # Consume the event without recreating a user, menu, reply context,
+            # file intake or authorization notice. dispatch_loop removes inbox.
+            return
         await self.put("inbox", key, dict(record, peer=peer, processing=True))
         await self.activity('callback_received' if callback else 'message_received',
                             user_id=event['user_id'], chat_id=event['chat_id'], update_id=event['id'])
@@ -275,7 +298,7 @@ class MobileService:
             await self.put('reply_context', peer, event['context'])
         if event.get('callback_id') and self.platform == 'telegram':
             self.spawn(self.answer_callback(event['callback_id']))
-        if not identity.get("allowed"):
+        if not await self.is_authorized(peer):
             return
         target = await self.get("selection", peer)
         try:
@@ -385,7 +408,8 @@ class MobileService:
                             "path":str(Path(project.root_path)/ref["filePath"]),"name":ref["fileName"],"mime_type":mime}})
                 job_id = await self.desktop.submit(peer, target, text, refs, parts if len(parts)>1 else [], key)
             await self.activity('task_submitted', job_id=job_id, user_id=identity['user_id'], chat_id=identity['chat_id'], **target)
-            await self.reply(peer, "已接收，正在提交到会话。", target, user_message_id=f"mobile_{job_id}")
+            if self.config.get("message_receipt_enabled", True):
+                await self.reply(peer, "已接收，正在提交到会话。", target, user_message_id=f"mobile_{job_id}")
         except Exception as exc:
             await self.activity('submit_failed', level='error', error=exc, **target)
             await self.reply(peer, getattr(exc,"message",str(exc)), target)

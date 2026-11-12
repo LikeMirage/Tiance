@@ -6,6 +6,7 @@ import { ChatProcessFoldProvider } from "../model/chatProcessFoldState";
 import { useChatContentReadiness } from "../model/useChatContentReadiness";
 import { ContentReadinessContext } from "../../../shared/lib/contentReadiness";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
+import { EdgeScrollbar } from "../../../shared/ui/edge-scrollbar";
 import { useMessageNavigatorActiveTurn } from "../model/useMessageNavigatorActiveTurn";
 import type { ChatPanelView } from "./ChatHeader";
 import {
@@ -28,6 +29,7 @@ type ChatPanelBodyFrameProps = {
   chat: Parameters<typeof ChatMessageList>[0];
   isMessageNavigationTrackingEnabled: boolean;
   onBodyScroll: UIEventHandler<HTMLDivElement>;
+  onUserScroll: () => void;
   onActiveUserMessageChange?: (messageId: string | null) => void;
   onExternalNavigationHandled?: (requestId: number) => void;
   onViewRestoreHandled?: (requestId: number) => void;
@@ -48,6 +50,7 @@ export function ChatPanelBodyFrame({
   isMessageNavigationTrackingEnabled,
   onActiveUserMessageChange,
   onBodyScroll,
+  onUserScroll,
   onExternalNavigationHandled,
   onViewRestoreHandled,
   onContentReady,
@@ -125,6 +128,14 @@ export function ChatPanelBodyFrame({
           )}
         </ChatProcessFoldProvider>
       </div>
+      <EdgeScrollbar
+        scrollRef={bodyRef}
+        scrollId="ai-panel-message-scroll-region"
+        label={activeView === "chat" ? "对话滚动条" : "会话设置滚动条"}
+        refreshKey={`${activeSessionKey}:${activeView}`}
+        enabled={!isPreparing}
+        onUserScroll={onUserScroll}
+      />
       {isPreparing ? <div className="ai-panel__session-loading">
         <LoadingStrip ariaLabel="正在加载会话" label="正在加载会话" mode="fill" visual="bar" />
       </div> : null}

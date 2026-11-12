@@ -68,7 +68,8 @@ def test_scope_blocks_old_callbacks_messages_and_queued_results(host, platform):
     asyncio.run(run())
 
 
-def test_wechat_operations_are_labeled_and_history_shortcut_preserves_chat(host, monkeypatch):
+@pytest.mark.parametrize('shortcut', ['5', '/5'])
+def test_wechat_operations_are_labeled_and_history_shortcut_preserves_chat(host, monkeypatch, shortcut):
     platform_host(host, 'wechat')
     monkeypatch.setattr(navigation, 'get_project_service', lambda: NS(list_project_categories=lambda: []))
     monkeypatch.setattr(history, 'recent_history_text', lambda target: 'recent five turns')
@@ -82,12 +83,13 @@ def test_wechat_operations_are_labeled_and_history_shortcut_preserves_chat(host,
         await host.navigation.action(PEER, 'select', target=TARGET)
         state = await host.navigation.state(PEER)
         assert state['mode'] == 'conversation'
-        assert any('/5 查看前5轮对话' in item['parts'][0] for _, item in await host.records('outbox'))
-        assert await host.navigation.consume(PEER, '/5', {})
+        assert any('5 查看前5轮对话 · 00 暂停 · 0 返回上一级 · menu 选择集' in item['parts'][0] for _, item in await host.records('outbox'))
+        assert all('/5' not in item['parts'][0] and '/menu' not in item['parts'][0] for _, item in await host.records('outbox'))
+        assert await host.navigation.consume(PEER, shortcut, {})
         await asyncio.gather(*host.work)
         assert any('recent five turns' in item['parts'][0] for _, item in await host.records('outbox'))
         assert await host.navigation.state(PEER) == state
-        assert not await host.navigation.consume(PEER, '5', {})
+        assert not await host.navigation.consume(PEER, '05', {})
     asyncio.run(run())
 
 

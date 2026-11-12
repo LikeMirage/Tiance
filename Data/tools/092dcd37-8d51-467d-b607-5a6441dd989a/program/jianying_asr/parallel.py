@@ -47,7 +47,7 @@ def recognize_parts(source, info, state, job_root, budget, client_factory):
                         print(f"处理音频 {index}/{len(state['parts'])} 段，起点 {part['start_seconds']:.3f} 秒。", file=sys.stderr)
                         audio = prepare_part(source, info, part["start_seconds"],
                                              part["duration_seconds"], Path(temporary), budget)
-                    processing = ("original" if audio == source else
+                    processing = (("silk_decoded_wav" if state.get("source_decoding") else "original") if audio == source else
                                   "aac_packet_copy" if audio.suffix == ".m4a" else "decoded_flac")
                     stage = "uploading"
                     update(part, status="uploading", audio_processing=processing, upload_bytes=audio.stat().st_size)

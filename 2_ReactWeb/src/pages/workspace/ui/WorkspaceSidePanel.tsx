@@ -149,7 +149,7 @@ export const WorkspaceSidePanel = memo(function WorkspaceSidePanel({
   const shouldShowAccessManagementSearchResult =
     !isSearchingSettings
     || normalizeSettingsSearchText(
-      `${t("workspace.settings.accessManagement")} remote external wechat dingtalk telegram 外部访问 微信 钉钉`,
+      `${t("workspace.settings.accessManagement")} remote external tianceapp mobile wechat feishu telegram 访问管理 外部访问 手机 微信 飞书`,
     ).includes(normalizedSettingsSearchKeyword);
   const shouldShowAccessSecuritySearchResult =
     !isSearchingSettings

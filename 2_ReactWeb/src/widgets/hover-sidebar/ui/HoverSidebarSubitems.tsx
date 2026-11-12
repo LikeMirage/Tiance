@@ -3,6 +3,7 @@ import { Check } from "@phosphor-icons/react";
 
 import { useI18n } from "../../../shared/i18n";
 import type { HoverSidebarSubItem } from "../model/sidebarItems";
+import { HoverSidebarSubitemScroll } from "./HoverSidebarSubitemScroll";
 
 export type HoverSidebarContextMenuState = {
   canDelete: boolean;
@@ -60,11 +61,10 @@ export function HoverSidebarSubitems({
   const isTheme = kind === "theme";
   const isCategory = isProject || isKnowledge || isExperience || isRole || isProvider || isTheme;
   return (
-    <div
-      className={isOpen
-        ? "hover-sidebar__subitems hover-sidebar__subitems--open"
-        : "hover-sidebar__subitems"}
-      aria-label={
+    <HoverSidebarSubitemScroll
+      isOpen={isOpen}
+      refreshKey={`${kind}:${items.length}:${renamingId}:${state}:${error}`}
+      label={
         isProject
           ? t("sidebar.subitems.projectCategories")
           : isRole
@@ -155,7 +155,7 @@ export function HoverSidebarSubitems({
               : t("sidebar.subitems.emptyProjectCategories")}
         </div>
       ) : null}
-    </div>
+    </HoverSidebarSubitemScroll>
   );
 }
 

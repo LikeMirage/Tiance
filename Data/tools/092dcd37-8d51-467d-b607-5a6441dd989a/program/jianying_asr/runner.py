@@ -11,6 +11,7 @@ from .common import ASRError, Budget, error_details, write_json
 from .export import FORMATS, write_outputs
 from .media import MAX_PARTS, SEGMENT_SECONDS, plan_parts, probe
 from .parallel import recognize_parts
+from .silk import prepare_source
 
 
 def validate(payload: dict) -> tuple[Path, Path, list[str]]:
@@ -61,33 +62,36 @@ def run(payload: dict, *, client_factory=JianyingClient, budget: Budget | None =
         source, output, formats = validate(payload)
         budget = budget or configured_budget()
         fingerprint = (source.stat().st_size, source.stat().st_mtime_ns)
-        info = probe(source)
-        budget.remaining()
-        output.mkdir(parents=True, exist_ok=True)
-        # An exclusive job directory prevents overwrites and interleaved concurrent outputs.
-        job_root = Path(tempfile.mkdtemp(prefix=source.stem + "_asr_", dir=output))
-        (job_root / "parts").mkdir()
-        state = {"schema_version": 3, "input_path": str(source), "source_bytes": fingerprint[0],
-                 "source_mtime_ns": fingerprint[1], "duration_seconds": info.duration,
-                 "target_segment_seconds": SEGMENT_SECONDS, "max_parts": MAX_PARTS,
-                 "split_mode": "balanced", "formats": formats, "status": "running",
-                 "parts": [], "files": [], "warnings": []}
-        for start, length in plan_parts(info.duration, frame_seconds=info.copy_frame_seconds):
-            state["parts"].append({"part_number": len(state["parts"]) + 1,
-                                   "start_seconds": start, "offset_ms": round(start * 1000),
-                                   "duration_seconds": length, "status": "pending"})
-        write_json(job_root / "job.json", state, budget=budget)
-        recognize_parts(source, info, state, job_root, budget, client_factory)
-        if fingerprint != (source.stat().st_size, source.stat().st_mtime_ns):
-            raise ASRError("INPUT_CHANGED", "处理期间原文件被修改，已保留分段结果，但不能认定为同一份完整音频。")
-        files, stats = write_outputs(job_root, source.stem, formats, state["parts"], budget)
-        state.update(status="completed", files=files, statistics=stats, elapsed_seconds=round(time.monotonic() - started, 3))
-        write_json(job_root / "job.json", state, budget=budget)
-        return {"ok": True, "summary": "识别完成，完整结果已保存。" if stats["segments"] else "云端返回空转写结果，已保存。",
-                "data": {"input_path": str(source), "output_dir": str(job_root),
-                         "duration_seconds": info.duration, "part_count": len(state["parts"]),
-                         "files": files, "statistics": stats, "elapsed_seconds": state["elapsed_seconds"],
-                         "job_file": str(job_root / "job.json"), "warnings": state["warnings"]}}
+        with prepare_source(source, budget) as prepared:
+            info = probe(prepared)
+            budget.remaining()
+            output.mkdir(parents=True, exist_ok=True)
+            # An exclusive job directory prevents overwrites and interleaved concurrent outputs.
+            job_root = Path(tempfile.mkdtemp(prefix=source.stem + "_asr_", dir=output))
+            (job_root / "parts").mkdir()
+            state = {"schema_version": 3, "input_path": str(source), "source_bytes": fingerprint[0],
+                     "source_mtime_ns": fingerprint[1], "duration_seconds": info.duration,
+                     "target_segment_seconds": SEGMENT_SECONDS, "max_parts": MAX_PARTS,
+                     "split_mode": "balanced", "formats": formats, "status": "running",
+                     "parts": [], "files": [], "warnings": []}
+            if prepared != source:
+                state["source_decoding"] = "silk_v3_to_wav"
+            for start, length in plan_parts(info.duration, frame_seconds=info.copy_frame_seconds):
+                state["parts"].append({"part_number": len(state["parts"]) + 1,
+                                       "start_seconds": start, "offset_ms": round(start * 1000),
+                                       "duration_seconds": length, "status": "pending"})
+            write_json(job_root / "job.json", state, budget=budget)
+            recognize_parts(prepared, info, state, job_root, budget, client_factory)
+            if fingerprint != (source.stat().st_size, source.stat().st_mtime_ns):
+                raise ASRError("INPUT_CHANGED", "处理期间原文件被修改，已保留分段结果，但不能认定为同一份完整音频。")
+            files, stats = write_outputs(job_root, source.stem, formats, state["parts"], budget)
+            state.update(status="completed", files=files, statistics=stats, elapsed_seconds=round(time.monotonic() - started, 3))
+            write_json(job_root / "job.json", state, budget=budget)
+            return {"ok": True, "summary": "识别完成，完整结果已保存。" if stats["segments"] else "云端返回空转写结果，已保存。",
+                    "data": {"input_path": str(source), "output_dir": str(job_root),
+                             "duration_seconds": info.duration, "part_count": len(state["parts"]),
+                             "files": files, "statistics": stats, "elapsed_seconds": state["elapsed_seconds"],
+                             "job_file": str(job_root / "job.json"), "warnings": state["warnings"]}}
     except Exception as exc:
         # Network exceptions have already been sanitized by the client; never emit a traceback or auth URL.
         code, message = error_details(exc)

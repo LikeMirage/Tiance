@@ -31,6 +31,8 @@ class FeishuTransport:
                 raise BadRequestError(f'飞书接口 HTTP {response.status_code}。请检查应用权限和网络。')
             body = response.json()
         if body.get('code', 0):
+            if body['code'] == 21001:
+                raise BadRequestError('飞书拒绝此应用访问（21001：平台策略限制），暂时无法接入。请联系飞书支持或换账号重新扫码。')
             raise BadRequestError(f"飞书接口错误 {body['code']}。请检查应用凭据、权限和发布状态。")
         return body
 

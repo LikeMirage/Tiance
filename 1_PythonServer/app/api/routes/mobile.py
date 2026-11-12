@@ -16,6 +16,23 @@ class TelegramSettings(BaseModel):
 class Authorization(BaseModel):
     peer: str = Field(max_length=256)
     allowed: bool
+    selected_connection_id: str | None = Field(default=None, max_length=256)
+
+
+class PeerRemoval(BaseModel):
+    peer: str = Field(min_length=1, max_length=256)
+    selected_connection_id: str | None = Field(default=None, max_length=256)
+
+
+class ConnectionRemoval(BaseModel):
+    platform: Literal['telegram', 'feishu', 'wechat']
+    connection_id: str = Field(min_length=1, max_length=256)
+
+
+class MessageReceiptSettings(BaseModel):
+    platform: Literal['telegram', 'feishu', 'wechat']
+    connection_id: str = Field(min_length=1, max_length=256)
+    message_receipt_enabled: bool
 
 
 class AccessScopeSettings(BaseModel):
@@ -43,6 +60,16 @@ class WeChatPin(BaseModel):
 @router.post('/wechat/login')
 async def wechat_login_start():
     return await get_mobile_service().wechat_login.start()
+
+
+@router.post('/feishu/login')
+async def feishu_login_start():
+    return await get_mobile_service().feishu_login.start()
+
+
+@router.get('/feishu/login/{login_id}')
+async def feishu_login_status(login_id: str):
+    return get_mobile_service().feishu_login.status(login_id)
 
 
 @router.get('/wechat/login/{login_id}')
@@ -79,7 +106,22 @@ async def platform_access_scope(platform: Literal['feishu', 'wechat'], payload: 
 
 @router.post('/authorization')
 async def platform_authorization(payload: Authorization):
-    return await get_mobile_service().authorize(payload.peer, payload.allowed)
+    return await get_mobile_service().authorize(**payload.model_dump())
+
+
+@router.post('/peers/remove')
+async def remove_peer(payload: PeerRemoval):
+    return await get_mobile_service().remove_peer(**payload.model_dump())
+
+
+@router.post('/connections/remove')
+async def remove_connection(payload: ConnectionRemoval):
+    return await get_mobile_service().remove_connection(**payload.model_dump())
+
+
+@router.post('/connections/message-receipt')
+async def message_receipt_settings(payload: MessageReceiptSettings):
+    return await get_mobile_service().configure_message_receipt(**payload.model_dump())
 
 
 @router.get("/telegram")
@@ -105,7 +147,7 @@ async def telegram_access_scope(payload: AccessScopeSettings):
 
 @router.post("/telegram/authorization")
 async def telegram_authorization(payload: Authorization):
-    return await get_mobile_service().authorize(payload.peer, payload.allowed)
+    return await get_mobile_service().authorize(**payload.model_dump())
 
 
 @router.get("/desktop/poll")

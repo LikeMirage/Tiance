@@ -31,7 +31,7 @@ class HostCapabilityDefinition:
 
 
 HOST_CAPABILITIES = {
-    HostCapability.EXTERNAL_MESSAGING: HostCapabilityDefinition("/tools/capabilities/external-messaging", "列出接入连接，并通过已配置机器人向明确指定的聊天发送文件"),
+    HostCapability.EXTERNAL_MESSAGING: HostCapabilityDefinition("/tools/capabilities/external-messaging", "列出接入连接，并通过已配置机器人向明确指定的聊天单向发送文字或文件"),
     HostCapability.CONVERSATION_NAMING: HostCapabilityDefinition("/tools/capabilities/conversation-naming", "自动命名功能会话向自己的来源会话提交标题"),
     HostCapability.WEB_SEARCH: HostCapabilityDefinition("/llm/provider-capabilities/web-search", "使用当前供应商和模型执行内置搜索"),
     HostCapability.DEEPSEEK_WEB: HostCapabilityDefinition("/llm/provider-capabilities/deepseek-web", "复用模型集 DeepSeek 凭据执行 Search/Fetch"),

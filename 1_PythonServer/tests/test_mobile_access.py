@@ -328,13 +328,13 @@ def test_first_configuration_encrypts_token_and_status_never_returns_it(host,mon
 def test_download_target_frozen_and_caption_waits_for_full_file(host, monkeypatch):
     async def run():
         peer='telegram:12:7:7'; a={'project_id':'p','session_id':'a'}; b=dict(a,session_id='b')
-        await host.put('peers',peer,{'allowed':True,'user_id':7,'chat_id':7})
+        await host.put('peers',peer,{'allowed':True,'user_id':7,'chat_id':7,'bot_id':12})
         await host.put('selection',peer,a)
         downloaded=asyncio.Event()
         class Transport:
             async def download(self,file_id,path):
                 await downloaded.wait()
-                path.parent.mkdir(parents=True)
+                assert path.parent.is_dir()
                 path.write_bytes(b'original document')
         host.transport=Transport()
         host.desktop.submit=AsyncMock(return_value='accepted')
@@ -348,7 +348,7 @@ def test_download_target_frozen_and_caption_waits_for_full_file(host, monkeypatc
             await asyncio.gather(*list(host.work))
         args=host.desktop.submit.call_args.args
         assert args[1]==a and args[2].startswith('please summarize\n\n[消息来源]')
-        assert '用户 ID：7' in args[2] and '接收聊天 ID：7' in args[2]
+        assert '用户 ID：7' in args[2] and '\n聊天 ID：7' in args[2]
         assert args[3][0]['reference']['fileName']=='minutes.docx'
         assert await host.get('selection',peer)==b
     asyncio.run(run())

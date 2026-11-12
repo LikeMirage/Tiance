@@ -67,6 +67,97 @@ def test_async_reply_cannot_overwrite_numeric_menu(host, monkeypatch):
     asyncio.run(run())
 
 
+def test_wechat_five_selects_menu_item_and_can_name_a_project(host):
+    async def run():
+        nav = WeChatNavigation(host)
+        nav.action = AsyncMock()
+        button = await nav.button(PEER, '第五个会话', 'select', target=TARGET)
+        await host.put('menus', PEER, {'mode': 'menu', 'scope': ['project'], 'stack': [],
+                                     'options': ['a', 'b', 'c', 'd', button['callback_data']]})
+        assert await nav.consume(PEER, '5', {})
+        nav.action.assert_awaited_once_with(PEER, action='select', target=TARGET)
+        nav.action.reset_mock()
+        state = await nav.state(PEER)
+        state['pending'] = {'action': 'newproject', 'kind': 'project'}
+        await host.put('menus', PEER, state)
+        assert await nav.consume(PEER, '5', {})
+        nav.action.assert_awaited_once_with(PEER, action='newproject', kind='project', title='5')
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('mode', ['menu', 'conversation'])
+def test_wechat_bare_menu_returns_to_collections(host, monkeypatch, mode):
+    async def run():
+        nav = WeChatNavigation(host)
+        host.navigation = nav
+        host.config['allowed_collections'] = ['project', 'tool']
+        await host.put('selection', PEER, TARGET)
+        await host.put('menus', PEER, {'mode': mode, 'scope': ['project', 'tool'],
+                                     'stack': [{'action': 'sessions', 'target': TARGET}], 'options': []})
+        assert await nav.consume(PEER, 'menu', {})
+        state = await nav.state(PEER)
+        assert state['mode'] == 'menu'
+        assert state['stack'] == [{'action': 'collections'}]
+        assert state['options']
+        assert await host.get('selection', PEER) == TARGET
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('text,event', [('5个文件', {}), ('menu说明', {}), ('05', {}),
+                                      ('000', {}), ('00秒', {}),
+                                      ('00', {'media': [{'file_id': 'file'}]}),
+                                      ('5', {'media': [{'file_id': 'file'}]}),
+                                      ('menu', {'media': [{'file_id': 'file'}]})])
+def test_wechat_shortcuts_do_not_consume_normal_text_or_file_captions(host, text, event):
+    async def run():
+        nav = WeChatNavigation(host)
+        await host.put('menus', PEER, {'mode': 'conversation', 'scope': ['project'], 'stack': [], 'options': []})
+        nav.action = AsyncMock()
+        assert not await nav.consume(PEER, text, event)
+        nav.action.assert_not_awaited()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('stopped', [True, False])
+def test_wechat_double_zero_pauses_selected_conversation_without_leaving_chat(host, stopped):
+    async def run():
+        nav = WeChatNavigation(host)
+        host.navigation = nav
+        await host.put('selection', PEER, TARGET)
+        state = {'mode': 'conversation', 'scope': ['project'], 'stack': [], 'options': []}
+        await host.put('menus', PEER, state)
+        host.desktop.stop = AsyncMock(return_value=stopped)
+        assert await nav.consume(PEER, '00', {})
+        assert await nav.state(PEER) == state
+        # A later selection must not redirect the asynchronous stop request.
+        await host.put('selection', PEER, dict(TARGET, session_id='other'))
+        await asyncio.gather(*host.work)
+        host.desktop.stop.assert_awaited_once_with(TARGET, None)
+        replies = [item for _, item in await host.records('outbox')]
+        assert all(item['target'] == TARGET for item in replies)
+        assert any('00 暂停' in item['parts'][0] for item in replies)
+        expected = '已暂停。' if stopped else '这次任务已经结束，没有暂停其他任务。'
+        assert any(expected in item['parts'][0] for item in replies)
+    asyncio.run(run())
+
+
+def test_wechat_double_zero_in_menu_does_not_pause_and_can_be_a_name(host):
+    async def run():
+        nav = WeChatNavigation(host)
+        host.navigation = nav
+        nav.action = AsyncMock()
+        state = {'mode': 'menu', 'scope': ['project'], 'stack': [{'action': 'sessions', 'target': TARGET}], 'options': []}
+        await host.put('menus', PEER, state)
+        assert await nav.consume(PEER, '00', {})
+        nav.action.assert_awaited_once_with(PEER, action='sessions', target=TARGET, _back=True)
+        nav.action.reset_mock()
+        state['pending'] = {'action': 'newcategory', 'kind': 'project'}
+        await host.put('menus', PEER, state)
+        assert await nav.consume(PEER, '00', {})
+        nav.action.assert_awaited_once_with(PEER, action='newcategory', kind='project', title='00')
+    asyncio.run(run())
+
+
 def test_invalid_selection_does_not_enter_conversation(host, monkeypatch):
     async def fail(*args, **kwargs):
         raise ValueError('target deleted')
@@ -80,15 +171,16 @@ def test_invalid_selection_does_not_enter_conversation(host, monkeypatch):
     asyncio.run(run())
 
 
-def test_new_in_chat_is_rejected_and_menu_new_prompts_for_name(host):
+@pytest.mark.parametrize('page,action', [('categories', 'newcategory'), ('projects', 'newproject')])
+def test_new_in_chat_is_rejected_and_project_or_category_prompts_for_name(host, page, action):
     async def run():
         nav = WeChatNavigation(host)
         await host.put('menus', PEER, {'mode': 'conversation', 'scope': ['project'], 'stack': [{'action': 'sessions', 'target': TARGET}], 'options': []})
         await nav.consume(PEER, '/new', {})
         assert not (await nav.state(PEER)).get('pending')
-        await host.put('menus', PEER, {'mode': 'menu', 'scope': ['project'], 'stack': [{'action': 'categories', 'kind': 'project'}], 'options': []})
+        await host.put('menus', PEER, {'mode': 'menu', 'scope': ['project'], 'stack': [{'action': page, 'kind': 'project'}], 'options': []})
         await nav.consume(PEER, '/new', {})
-        assert (await nav.state(PEER))['pending']['action'] == 'newcategory'
+        assert (await nav.state(PEER))['pending']['action'] == action
     asyncio.run(run())
 
 
@@ -177,7 +269,7 @@ def test_qr_confirmed_is_not_visible_until_saved(monkeypatch):
             saving.set()
             await release.wait()
             return 'wechat:bot'
-        manager = NS(lock=asyncio.Lock(), save_platform=save, adapters={'wechat:bot': NS(put=AsyncMock())})
+        manager = NS(lock=asyncio.Lock(), save_platform=save, adapters={'wechat:bot': NS(confirm_peer=AsyncMock())})
         login = WeChatLogin(manager)
         import time
         login.state = {'id': 'id', 'status': 'wait', 'expires_at': time.time()+30}
@@ -193,7 +285,7 @@ def test_qr_confirmed_is_not_visible_until_saved(monkeypatch):
         assert login.status('id')['connection_id'] == 'wechat:bot'
         assert login.status('id')['status'] == 'confirmed'
         assert 'never-return' not in json.dumps(login.status('id'))
-        manager.adapters['wechat:bot'].put.assert_awaited_once()
+        manager.adapters['wechat:bot'].confirm_peer.assert_awaited_once()
     asyncio.run(run())
 
 

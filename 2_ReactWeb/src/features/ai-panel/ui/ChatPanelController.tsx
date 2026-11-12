@@ -865,6 +865,7 @@ export function ChatPanelController({
         onViewRestoreHandled={onViewRestoreHandled}
         onContentReady={syncAfterContentReady}
         onBodyScroll={handleBodyScroll}
+        onUserScroll={pauseForUserScroll}
         chat={{
           autoCollapseAssistantProcess: activeSessionSettings.auto_collapse_assistant_process,
           clockTick,
