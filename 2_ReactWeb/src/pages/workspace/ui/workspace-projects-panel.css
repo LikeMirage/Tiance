@@ -5,7 +5,7 @@
   width: 100%;
   min-width: 0;
   min-height: 0;
-  padding: 12px 10px 10px;
+  padding: 12px 4px 10px 10px;
   overflow: hidden;
   background: var(--color-surface-sidebar);
 }
@@ -16,6 +16,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  padding-right: 6px;
 }
 
 .workspace-projects-panel__titleblock {
@@ -172,13 +173,14 @@
   min-height: 0;
   height: 100%;
   margin-top: 10px;
-  margin-right: -10px;
-  padding-right: 10px;
+  margin-right: -4px;
+  padding-right: 4px;
 }
 
 .workspace-projects-panel__body {
   height: 100%;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: none;
   scrollbar-color: transparent transparent;
@@ -193,10 +195,6 @@
 .workspace-projects-panel__body::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: transparent;
-}
-
-.workspace-projects-panel__body--detail {
-  width: calc(100% + 10px);
 }
 
 .workspace-projects-panel__view-stage {
@@ -265,48 +263,6 @@
   flex: 1 1 auto;
   height: 100%;
   min-height: 100%;
-}
-
-/* ---- 滚动条 ---- */
-
-.workspace-projects-panel__scrollbar {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 3;
-  width: 7px;
-  background: transparent;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 260ms ease;
-}
-
-.workspace-projects-panel__scrollbar-thumb {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 4px;
-  min-height: 24px;
-  border-radius: 999px;
-  background: var(--scrollbar-thumb);
-  cursor: default;
-  transition:
-    background-color 160ms ease,
-    width 160ms ease;
-}
-
-.workspace-projects-panel__body-shell:hover .workspace-projects-panel__scrollbar,
-.workspace-projects-panel__scrollbar--active,
-.workspace-projects-panel__scrollbar:hover {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.workspace-projects-panel__scrollbar:hover .workspace-projects-panel__scrollbar-thumb,
-.workspace-projects-panel__scrollbar-thumb:hover {
-  width: 5px;
-  background: var(--scrollbar-thumb-hover);
 }
 
 /* ---- 状态 ---- */

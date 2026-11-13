@@ -107,7 +107,6 @@
 }
 
 .network-settings__field input,
-.network-settings__field select,
 .network-settings__number-shell {
   min-width: 0;
   height: 33px;
@@ -118,13 +117,11 @@
   color: var(--color-text-primary);
 }
 
-.network-settings__field input,
-.network-settings__field select {
+.network-settings__field input {
   padding: 0 9px;
 }
 
 .network-settings__field input:focus,
-.network-settings__field select:focus,
 .network-settings__number-shell:focus-within {
   border-color: var(--color-border-focus);
   box-shadow: 0 0 0 1px rgba(var(--color-accent-rgb), 0.18);

@@ -9,7 +9,6 @@ from app.domain.workspace_state import (
     WorkspaceCollectionOverviewView,
     WorkspaceLayoutPreferences,
     WorkspaceLastOpenedState,
-    WorkspaceProjectOverviewLayout,
     WorkspaceProjectOverviewMaximized,
     WorkspaceProjectOverviewView,
     WorkspaceToolOverviewView,
@@ -29,7 +28,6 @@ MAX_AI_PANEL_WIDTH = 900
 DEFAULT_COMPOSER_HEIGHT = 144
 MIN_COMPOSER_HEIGHT = 112
 MAX_COMPOSER_HEIGHT = 280
-PROJECT_OVERVIEW_LAYOUT_MODES = frozenset({"grid", "wide", "roller", "stack"})
 PROJECT_OVERVIEW_VIEWS = frozenset({"projects", "conversation", "branches"})
 TOOL_OVERVIEW_VIEWS = frozenset({"tools", "online", "projects", "conversation", "branches"})
 COLLECTION_OVERVIEW_VIEWS = frozenset({"specialized", "online", "projects", "conversation"})
@@ -70,8 +68,6 @@ class WorkspaceStateService:
         side_panel_width: int | None = None,
         ai_panel_width: int | None = None,
         composer_height: int | None = None,
-        project_overview_category_id: str | None = None,
-        project_overview_layout_mode: str | None = None,
         project_overview_maximized_category_id: str | None = None,
         project_overview_maximized_project_id: str | None = None,
         update_project_overview_maximized: bool = False,
@@ -83,20 +79,6 @@ class WorkspaceStateService:
         collection_overview_view: str | None = None,
     ) -> WorkspaceLayoutPreferences:
         current = self.get_layout_preferences()
-        project_overview_layouts = {
-            item.category_id: item.layout_mode
-            for item in current.project_overview_layouts
-        }
-        if project_overview_category_id is not None or project_overview_layout_mode is not None:
-            category_id = _request_category_id(project_overview_category_id)
-            if category_id is None:
-                raise BadRequestError("必须提供项目分类。")
-            if self._project_repository.get_project_category(category_id) is None:
-                raise NotFoundError(f"项目分类 '{category_id}' 不存在。")
-            if project_overview_layout_mode not in PROJECT_OVERVIEW_LAYOUT_MODES:
-                raise BadRequestError("不支持的项目看板布局。")
-            project_overview_layouts[category_id] = project_overview_layout_mode
-
         project_overview_maximized = {
             item.category_id: item.project_id
             for item in current.project_overview_maximized
@@ -191,13 +173,6 @@ class WorkspaceStateService:
                 current.composer_height,
                 MIN_COMPOSER_HEIGHT,
                 MAX_COMPOSER_HEIGHT,
-            ),
-            project_overview_layouts=tuple(
-                WorkspaceProjectOverviewLayout(
-                    category_id=category_id,
-                    layout_mode=layout_mode,
-                )
-                for category_id, layout_mode in sorted(project_overview_layouts.items())
             ),
             project_overview_maximized=tuple(
                 WorkspaceProjectOverviewMaximized(
@@ -378,7 +353,6 @@ def _default_layout_preferences() -> WorkspaceLayoutPreferences:
         side_panel_width=DEFAULT_SIDE_PANEL_WIDTH,
         ai_panel_width=DEFAULT_AI_PANEL_WIDTH,
         composer_height=DEFAULT_COMPOSER_HEIGHT,
-        project_overview_layouts=(),
         project_overview_maximized=(),
         project_overview_views=(),
         tool_overview_views=(),
@@ -420,9 +394,6 @@ def _layout_preferences_from_payload(payload: dict[str, Any]) -> WorkspaceLayout
             MIN_COMPOSER_HEIGHT,
             MAX_COMPOSER_HEIGHT,
         ),
-        project_overview_layouts=_project_overview_layouts_from_payload(
-            payload.get("project_overview_layout_modes"),
-        ),
         project_overview_maximized=project_overview_maximized,
         project_overview_views=project_overview_views,
         tool_overview_views=_tool_overview_views_from_payload(
@@ -436,14 +407,10 @@ def _layout_preferences_from_payload(payload: dict[str, Any]) -> WorkspaceLayout
 
 def _layout_preferences_payload(preferences: WorkspaceLayoutPreferences) -> dict[str, Any]:
     return {
-        "version": 6,
+        "version": 7,
         "side_panel_width": preferences.side_panel_width,
         "ai_panel_width": preferences.ai_panel_width,
         "composer_height": preferences.composer_height,
-        "project_overview_layout_modes": {
-            item.category_id: item.layout_mode
-            for item in preferences.project_overview_layouts
-        },
         "project_overview_maximized_project_ids": {
             item.category_id: item.project_id
             for item in preferences.project_overview_maximized
@@ -461,29 +428,6 @@ def _layout_preferences_payload(preferences: WorkspaceLayoutPreferences) -> dict
             for item in preferences.collection_overview_views
         },
     }
-
-
-def _project_overview_layouts_from_payload(
-    value: Any,
-) -> tuple[WorkspaceProjectOverviewLayout, ...]:
-    if not isinstance(value, dict):
-        return ()
-    layouts: list[WorkspaceProjectOverviewLayout] = []
-    for raw_category_id, layout_mode in sorted(value.items()):
-        category_id = _stored_category_id(raw_category_id)
-        if (
-            category_id is None
-            or not isinstance(layout_mode, str)
-            or layout_mode not in PROJECT_OVERVIEW_LAYOUT_MODES
-        ):
-            continue
-        layouts.append(
-            WorkspaceProjectOverviewLayout(
-                category_id=category_id,
-                layout_mode=layout_mode,
-            ),
-        )
-    return tuple(layouts)
 
 
 def _project_overview_maximized_from_payload(

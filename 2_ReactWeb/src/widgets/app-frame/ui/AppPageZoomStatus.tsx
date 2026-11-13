@@ -1,5 +1,5 @@
-import { MagnifyingGlass } from "@phosphor-icons/react";
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { MagnifyingGlass, X } from "@phosphor-icons/react";
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { useDesktopShell } from "../../../features/desktop-shell/model/useDesktopShell";
 import { useI18n } from "../../../shared/i18n";
@@ -18,6 +18,22 @@ import {
 export function AppPageZoomStatus() {
   const { t } = useI18n();
   const { state } = useDesktopShell();
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
+  const close = () => {
+    setOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
+  };
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !containerRef.current?.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", outside, true);
+    return () => document.removeEventListener("pointerdown", outside, true);
+  }, [open]);
   const zoomSnapshot = useSyncExternalStore(
     subscribeAppPageZoom,
     getAppPageZoomSnapshot,
@@ -66,19 +82,36 @@ export function AppPageZoomStatus() {
   }, []);
 
   return (
-    <div className="app-page-zoom-status">
+    <div className="app-page-zoom-status" ref={containerRef}
+      onKeyDown={event => {
+        if (open && event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          close();
+        }
+      }}>
       <button
+        ref={triggerRef}
         type="button"
         className="app-page-zoom-status__trigger"
         aria-label={t("appFrame.zoom.status", { percent: zoomPercent })}
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-haspopup="dialog"
+        onClick={() => setOpen(current => !current)}
       >
         <MagnifyingGlass size={13} weight="bold" aria-hidden="true" />
         <span>{t("appFrame.zoom.status", { percent: zoomPercent })}</span>
       </button>
-      <div className="app-page-zoom-popover" role="tooltip">
+      <div className="app-page-zoom-popover" id={panelId} role="dialog"
+        aria-label={t("appFrame.zoom.panelTitle")} data-open={open} aria-hidden={!open} inert={!open}>
         <div className="app-page-zoom-popover__header">
           <span>{t("appFrame.zoom.panelTitle")}</span>
           <span>{zoomPercent}</span>
+          <button type="button" className="app-status-popover__close"
+            aria-label={t("common.actions.close")} title={t("common.actions.close")} onClick={close}>
+            <X size={14} weight="regular" aria-hidden="true" />
+          </button>
         </div>
         <div className="app-page-zoom-popover__controls">
           <button

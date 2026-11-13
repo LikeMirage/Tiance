@@ -45,7 +45,7 @@
     "text": {
       "type": "string",
       "minLength": 1,
-      "description": "send_text 必填的纯文本正文，可用于进度、询问或通知。自动带上调用所在项目和会话；长文本完整分段发送，不截断。发送成功仅代表平台确认，不代表用户已读或已答复。",
+      "description": "send_text 必填的纯文本正文。远程请求必须先回复确认和下一步，再执行任务；关键步骤前后主动汇报，阻碍及时告知。按关键阶段汇报，不机械逐个工具刷屏。自动带上调用所在项目和会话；长文本完整分段发送，不截断。发送成功仅代表平台确认，不代表用户已读或已答复。",
       "permission_type": "none"
     },
     "platform": {
@@ -55,9 +55,9 @@
         "feishu",
         "wechat"
       ],
-      "description": "目标消息平台。先按平台查询连接，再明确指定接收 ID。",
+      "description": "目标消息平台。回复远程请求时使用当前消息来源标注中的平台、连接 ID 和聊天 ID；需要查询可用连接时使用 list_connections。",
       "permission_type": "none"
     }
   },
-  "description": "发送必须明确指定 platform、connection_id、chat_id；send_text 使用 text，send_file 使用 file_path 和可选 caption。工具不等待用户回复、不暂停任务、不改会话选择。必须得到答复才能继续时，发出问题后结束本轮，等待用户下一条消息；详见使用说明。"
+  "description": "远程用户只能自动收到最终回复或错误，无法查看天策的执行过程。因此，收到远程请求后，无论任务长短或后续工具调用循环多少次，必须先通过 send_text 确认收到并说明下一步，再处理任务；关键步骤前说明行动，完成后报告结果及下一步，遇到阻碍或失败及时通知。不能用天策里的中途文字代替外发消息，也不能只等最终完成。发送时按当前远程消息来源明确填写 platform、connection_id、chat_id；send_text 使用 text，send_file 使用 file_path 和可选 caption。普通进度发送后继续任务；工具不等待答复、不暂停任务、不改会话选择。必须得到答复才能继续时，发出问题后结束本轮，等待用户下一条消息。"
 }

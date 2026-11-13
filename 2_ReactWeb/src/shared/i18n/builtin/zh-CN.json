@@ -1722,19 +1722,6 @@
         "themeTabsAria": "主题集看板",
         "providerTabsAria": "模型集看板"
       },
-      "layout": {
-        "grid": "网格划分",
-        "centerProject": "将“{project}”移到中央",
-        "expandProject": "展开“{project}”",
-        "menuAria": "选择项目看板布局",
-        "openAria": "切换项目看板布局",
-        "roller": "卡片堆叠",
-        "rollerAria": "卡片堆叠项目看板",
-        "stack": "宽行显示",
-        "stackAria": "宽行显示项目看板",
-        "title": "布局",
-        "wide": "折叠列表"
-      },
       "card": {
         "branchGroup": "对话分支",
         "childSessionGroup": "AI 子会话",

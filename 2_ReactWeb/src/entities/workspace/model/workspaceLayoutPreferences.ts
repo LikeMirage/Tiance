@@ -1,4 +1,3 @@
-export type ProjectOverviewLayoutMode = "grid" | "wide" | "roller" | "stack";
 export type ProjectOverviewView = "projects" | "online" | "conversation" | "branches";
 export type ToolOverviewView = "tools" | ProjectOverviewView;
 export type CollectionOverviewView = "specialized" | "online" | "projects" | "conversation";
@@ -6,7 +5,6 @@ export type CollectionOverviewView = "specialized" | "online" | "projects" | "co
 export type WorkspaceLayoutPreferences = {
   aiPanelWidth: number;
   composerHeight: number;
-  projectOverviewLayoutModes: Readonly<Record<string, ProjectOverviewLayoutMode>>;
   projectOverviewMaximizedProjectIds: Readonly<Record<string, string>>;
   projectOverviewViews: Readonly<Record<string, ProjectOverviewView>>;
   sidePanelWidth: number;
@@ -19,10 +17,6 @@ type WorkspaceLayoutPreferencesInput = Partial<WorkspaceLayoutPreferences>;
 export type WorkspaceLayoutPreferenceUpdate = {
   aiPanelWidth?: number;
   composerHeight?: number;
-  projectOverviewLayout?: {
-    categoryId: string;
-    layoutMode: ProjectOverviewLayoutMode;
-  };
   projectOverviewMaximized?: {
     categoryId: string;
     projectId: string | null;
@@ -45,7 +39,6 @@ export type WorkspaceLayoutPreferenceUpdate = {
 export const WORKSPACE_LAYOUT_DEFAULTS: WorkspaceLayoutPreferences = {
   aiPanelWidth: 364,
   composerHeight: 144,
-  projectOverviewLayoutModes: {},
   projectOverviewMaximizedProjectIds: {},
   projectOverviewViews: {},
   sidePanelWidth: 250,
@@ -83,9 +76,6 @@ export function normalizeWorkspaceLayoutPreferences(
       WORKSPACE_LAYOUT_DEFAULTS.composerHeight,
       WORKSPACE_LAYOUT_LIMITS.composerHeight.min,
       WORKSPACE_LAYOUT_LIMITS.composerHeight.max,
-    ),
-    projectOverviewLayoutModes: normalizeProjectOverviewLayoutModes(
-      preferences?.projectOverviewLayoutModes,
     ),
     projectOverviewMaximizedProjectIds: normalizeProjectOverviewMaximizedProjectIds(
       preferences?.projectOverviewMaximizedProjectIds,
@@ -136,16 +126,6 @@ export function normalizeWorkspaceLayoutPreferenceUpdate(
       WORKSPACE_LAYOUT_LIMITS.sidePanelWidth.max,
     );
   }
-  const categoryId = update.projectOverviewLayout?.categoryId.trim();
-  if (
-    categoryId
-    && isProjectOverviewLayoutMode(update.projectOverviewLayout?.layoutMode)
-  ) {
-    normalized.projectOverviewLayout = {
-      categoryId,
-      layoutMode: update.projectOverviewLayout.layoutMode,
-    };
-  }
   const maximizedCategoryId = update.projectOverviewMaximized?.categoryId.trim();
   const maximizedProjectId = update.projectOverviewMaximized?.projectId?.trim() || null;
   if (maximizedCategoryId) {
@@ -181,15 +161,6 @@ export function normalizeWorkspaceLayoutPreferenceUpdate(
   return normalized;
 }
 
-export function isProjectOverviewLayoutMode(
-  value: unknown,
-): value is ProjectOverviewLayoutMode {
-  return value === "grid"
-    || value === "wide"
-    || value === "roller"
-    || value === "stack";
-}
-
 export function isProjectOverviewView(value: unknown): value is ProjectOverviewView {
   return value === "projects"
     || value === "online"
@@ -206,18 +177,6 @@ export function isCollectionOverviewView(value: unknown): value is CollectionOve
     || value === "online"
     || value === "projects"
     || value === "conversation";
-}
-
-function normalizeProjectOverviewLayoutModes(
-  value: Readonly<Record<string, ProjectOverviewLayoutMode>> | null | undefined,
-): Readonly<Record<string, ProjectOverviewLayoutMode>> {
-  if (!value || typeof value !== "object") return {};
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      ([categoryId, layoutMode]) =>
-        categoryId.trim().length > 0 && isProjectOverviewLayoutMode(layoutMode),
-    ),
-  );
 }
 
 function normalizeProjectOverviewMaximizedProjectIds(

@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { CheckCircle, FloppyDisk, GithubLogo, WarningCircle } from "@phosphor-icons/react";
 
 import { useI18n } from "../../../shared/i18n";
 import type { NetworkSettings } from "../../../services/network/networkSettings";
 import { useNetworkSettings } from "../model/useNetworkSettings";
+import { OptionSelect } from "@/shared/ui/option-select/OptionSelect";
 
 import "./network-settings.css";
 
@@ -14,6 +15,8 @@ type NetworkSettingsPanelProps = {
 export function NetworkSettingsPanel({ onReady }: NetworkSettingsPanelProps) {
   const { t } = useI18n();
   const settings = useNetworkSettings();
+  const connectionModeLabelId = useId();
+  const proxySchemeLabelId = useId();
 
   useEffect(() => {
     onReady?.();
@@ -71,36 +74,40 @@ export function NetworkSettingsPanel({ onReady }: NetworkSettingsPanelProps) {
           <h3>{t("networkSettings.connection.title")}</h3>
           <p>{t("networkSettings.connection.description")}</p>
         </div>
-        <label className="network-settings__field network-settings__field--wide">
-          <span>{t("networkSettings.connection.mode")}</span>
-          <select
+        <div className="network-settings__field network-settings__field--wide">
+          <span id={connectionModeLabelId}>{t("networkSettings.connection.mode")}</span>
+          <OptionSelect<NetworkSettings["connection_mode"]>
             value={draft.connection_mode}
-            onChange={(event) => settings.updateSetting(
-              "connection_mode",
-              event.currentTarget.value as NetworkSettings["connection_mode"],
-            )}
-          >
-            <option value="system">{t("networkSettings.connection.system")}</option>
-            <option value="direct">{t("networkSettings.connection.direct")}</option>
-            <option value="custom_proxy">{t("networkSettings.connection.custom")}</option>
-          </select>
-        </label>
+            ariaLabelledBy={connectionModeLabelId}
+            disabled={settings.isSaving}
+            variant="integrated-overlay"
+            showSelectedOption
+            onChange={(value) => settings.updateSetting("connection_mode", value)}
+            options={[
+              { value: "system", label: t("networkSettings.connection.system") },
+              { value: "direct", label: t("networkSettings.connection.direct") },
+              { value: "custom_proxy", label: t("networkSettings.connection.custom") },
+            ]}
+          />
+        </div>
         {isCustomProxy ? (
           <div className="network-settings__grid network-settings__grid--proxy">
-            <label className="network-settings__field">
-              <span>{t("networkSettings.connection.scheme")}</span>
-              <select
+            <div className="network-settings__field">
+              <span id={proxySchemeLabelId}>{t("networkSettings.connection.scheme")}</span>
+              <OptionSelect<NetworkSettings["proxy_scheme"]>
                 value={draft.proxy_scheme}
-                onChange={(event) => settings.updateSetting(
-                  "proxy_scheme",
-                  event.currentTarget.value as NetworkSettings["proxy_scheme"],
-                )}
-              >
-                <option value="http">HTTP</option>
-                <option value="https">HTTPS</option>
-                <option value="socks5">SOCKS5</option>
-              </select>
-            </label>
+                ariaLabelledBy={proxySchemeLabelId}
+                disabled={settings.isSaving}
+                variant="integrated-overlay"
+                showSelectedOption
+                onChange={(value) => settings.updateSetting("proxy_scheme", value)}
+                options={[
+                  { value: "http", label: "HTTP" },
+                  { value: "https", label: "HTTPS" },
+                  { value: "socks5", label: "SOCKS5" },
+                ]}
+              />
+            </div>
             <TextField
               label={t("networkSettings.connection.host")}
               value={draft.proxy_host}

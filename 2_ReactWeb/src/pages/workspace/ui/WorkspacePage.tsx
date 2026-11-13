@@ -242,13 +242,6 @@ export function WorkspacePage({
       return normalizeWorkspaceLayoutPreferences({
         ...current,
         ...normalizedUpdate,
-        projectOverviewLayoutModes: normalizedUpdate.projectOverviewLayout
-          ? {
-              ...current.projectOverviewLayoutModes,
-              [normalizedUpdate.projectOverviewLayout.categoryId]:
-                normalizedUpdate.projectOverviewLayout.layoutMode,
-            }
-          : current.projectOverviewLayoutModes,
         projectOverviewMaximizedProjectIds,
         projectOverviewViews,
         toolOverviewViews,

@@ -2,7 +2,6 @@ from pydantic import BaseModel, Field
 
 from app.domain.workspace_state import (
     CollectionOverviewView,
-    ProjectOverviewLayoutMode,
     ProjectOverviewView,
     ToolOverviewView,
     WorkspaceCategorySelection,
@@ -53,13 +52,10 @@ class WorkspaceLastOpenedSaveRequest(BaseModel):
 
 
 class WorkspaceLayoutPreferencesResponse(BaseModel):
-    version: int = 6
+    version: int = 7
     side_panel_width: int
     ai_panel_width: int
     composer_height: int
-    project_overview_layout_modes: dict[str, ProjectOverviewLayoutMode] = Field(
-        default_factory=dict,
-    )
     project_overview_maximized_project_ids: dict[str, str] = Field(
         default_factory=dict,
     )
@@ -76,10 +72,6 @@ class WorkspaceLayoutPreferencesResponse(BaseModel):
             side_panel_width=preferences.side_panel_width,
             ai_panel_width=preferences.ai_panel_width,
             composer_height=preferences.composer_height,
-            project_overview_layout_modes={
-                item.category_id: item.layout_mode
-                for item in preferences.project_overview_layouts
-            },
             project_overview_maximized_project_ids={
                 item.category_id: item.project_id
                 for item in preferences.project_overview_maximized
@@ -97,11 +89,6 @@ class WorkspaceLayoutPreferencesResponse(BaseModel):
                 for item in preferences.collection_overview_views
             },
         )
-
-
-class WorkspaceProjectOverviewLayoutSaveRequest(BaseModel):
-    category_id: str
-    layout_mode: ProjectOverviewLayoutMode
 
 
 class WorkspaceProjectOverviewMaximizedSaveRequest(BaseModel):
@@ -128,7 +115,6 @@ class WorkspaceLayoutPreferencesSaveRequest(BaseModel):
     side_panel_width: int | None = None
     ai_panel_width: int | None = None
     composer_height: int | None = None
-    project_overview_layout: WorkspaceProjectOverviewLayoutSaveRequest | None = None
     project_overview_maximized: WorkspaceProjectOverviewMaximizedSaveRequest | None = None
     project_overview_view: WorkspaceProjectOverviewViewSaveRequest | None = None
     tool_overview_view: WorkspaceToolOverviewViewSaveRequest | None = None

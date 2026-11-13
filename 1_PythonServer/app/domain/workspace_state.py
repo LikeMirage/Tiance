@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import Literal
 
 
-ProjectOverviewLayoutMode = Literal["grid", "wide", "roller", "stack"]
 ProjectOverviewView = Literal["projects", "conversation", "branches"]
 ToolOverviewView = Literal["tools", "online", "projects", "conversation", "branches"]
 CollectionOverviewView = Literal["specialized", "online", "projects", "conversation"]
@@ -21,12 +20,6 @@ class WorkspaceLastOpenedState:
     category_id: str | None
     updated_at: str | None
     category_selections: tuple[WorkspaceCategorySelection, ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class WorkspaceProjectOverviewLayout:
-    category_id: str
-    layout_mode: ProjectOverviewLayoutMode
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,7 +51,6 @@ class WorkspaceLayoutPreferences:
     side_panel_width: int
     ai_panel_width: int
     composer_height: int
-    project_overview_layouts: tuple[WorkspaceProjectOverviewLayout, ...] = ()
     project_overview_maximized: tuple[WorkspaceProjectOverviewMaximized, ...] = ()
     project_overview_views: tuple[WorkspaceProjectOverviewView, ...] = ()
     tool_overview_views: tuple[WorkspaceToolOverviewView, ...] = ()

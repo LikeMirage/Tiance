@@ -8,6 +8,7 @@ from app.infra.database import ensure_database_schema
 from app.infra.projects import ProjectStorage
 from app.repositories.project import ProjectRepository
 from app.repositories.project.conversation_repository import ProjectConversationRepository
+from app.schemas.workspace import WorkspaceLayoutPreferencesResponse
 from app.services.project.project_conversations import ProjectConversationService
 from app.services.project.projects import ProjectService
 from app.services.workspace_state import (
@@ -119,55 +120,50 @@ def test_restore_preferences_never_opens_remembered_project_databases(tmp_path, 
     assert service.save_last_opened(project_id=first.project_id).project_id == first.project_id
 
 
-def test_workspace_layout_preferences_persist_project_overview_mode_per_category(tmp_path):
+@pytest.mark.parametrize("old_mode", ["grid", "wide", "roller", "stack"])
+def test_workspace_layout_preferences_drop_old_modes_without_losing_other_settings(tmp_path, old_mode):
     project_service, workspace_service, repository, _conversation_service = _create_services(
         tmp_path,
     )
-    category_a = project_service.create_project_category(name="分类 A")
-    category_b = project_service.create_project_category(name="分类 B")
-
-    workspace_service.save_layout_preferences(
-        project_overview_category_id=category_a.category_id,
-        project_overview_layout_mode="stack",
-    )
-    saved = workspace_service.save_layout_preferences(
-        project_overview_category_id=category_b.category_id,
-        project_overview_layout_mode="roller",
+    project = project_service.create_project(name="项目 A")
+    payload = {
+        "version": 6,
+        "side_panel_width": 310,
+        "ai_panel_width": 480,
+        "composer_height": 200,
+        "project_overview_layout_modes": {project.category_id: old_mode},
+        "project_overview_maximized_project_ids": {project.category_id: project.project_id},
+        "project_overview_views": {project.category_id: "conversation"},
+        "tool_overview_views": {"tools": "online"},
+        "collection_overview_views": {"roles": "specialized"},
+    }
+    repository.set_metadata_value(
+        key=WORKSPACE_LAYOUT_PREFERENCES_KEY, value=dumps(payload), updated_at="old",
     )
     loaded = workspace_service.get_layout_preferences()
-
-    expected = {
-        category_a.category_id: "stack",
-        category_b.category_id: "roller",
-    }
-    assert {
-        item.category_id: item.layout_mode
-        for item in saved.project_overview_layouts
-    } == expected
-    assert loaded == saved
-
-    raw = repository.get_metadata_value(WORKSPACE_LAYOUT_PREFERENCES_KEY)
-    assert raw is not None
-    assert loads(raw)["project_overview_layout_modes"] == expected
+    expected = {key: value for key, value in payload.items() if key != "project_overview_layout_modes"}
+    expected["version"] = 7
+    assert WorkspaceLayoutPreferencesResponse.from_domain(loaded).model_dump() == expected
+    saved = workspace_service.save_layout_preferences(side_panel_width=320)
+    expected["side_panel_width"] = 320
+    assert WorkspaceLayoutPreferencesResponse.from_domain(saved).model_dump() == expected
+    assert workspace_service.get_layout_preferences() == saved
+    assert loads(repository.get_metadata_value(WORKSPACE_LAYOUT_PREFERENCES_KEY)) == expected
 
 
-def test_workspace_layout_size_update_keeps_project_overview_modes(tmp_path):
-    project_service, workspace_service, _repository, _conversation_service = _create_services(
+def test_workspace_layout_preferences_start_without_layout_mode_settings(tmp_path):
+    _project_service, workspace_service, repository, _conversation_service = _create_services(
         tmp_path,
     )
-    category = project_service.create_project_category(name="分类 A")
-    workspace_service.save_layout_preferences(
-        project_overview_category_id=category.category_id,
-        project_overview_layout_mode="wide",
-    )
-
+    assert "project_overview_layout_modes" not in WorkspaceLayoutPreferencesResponse.from_domain(
+        workspace_service.get_layout_preferences(),
+    ).model_dump()
     saved = workspace_service.save_layout_preferences(side_panel_width=320)
-
     assert saved.side_panel_width == 320
-    assert {
-        item.category_id: item.layout_mode
-        for item in saved.project_overview_layouts
-    } == {category.category_id: "wide"}
+    assert workspace_service.get_layout_preferences() == saved
+    assert "project_overview_layout_modes" not in loads(
+        repository.get_metadata_value(WORKSPACE_LAYOUT_PREFERENCES_KEY),
+    )
 
 
 def test_workspace_layout_preferences_do_not_persist_project_branch_view(tmp_path):

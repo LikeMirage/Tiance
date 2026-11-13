@@ -63,7 +63,7 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [isReferenceDragOver, setIsReferenceDragOver] = useState(false);
-  const [activePanel, setActivePanel] = useState<"references" | "history" | "models" | "usage" | null>(null);
+  const [activePanel, setActivePanel] = useState<"references" | "history" | "models" | "reasoning" | "usage" | null>(null);
   const [panelContainer, setPanelContainer] = useState<HTMLDivElement | null>(null);
   const previousPanel = useRef(activePanel);
   const scopeKey = JSON.stringify([input.projectId, modelPicker.activeSession?.session_id, input.externalFileDropScopeKey]);
@@ -72,13 +72,13 @@ export function ChatComposer({
   useLayoutEffect(() => {
     const scopeChanged = previousScope.current !== scopeKey;
     previousScope.current = scopeKey;
-    if (scopeChanged || speech?.view) {
+    if (scopeChanged || speech?.view || (activePanel === "reasoning" && !reasoning.isVisible)) {
       setActivePanel(null);
     } else if (previousPanel.current && !activePanel) {
       inputRef.current?.focus({ preventScroll: true });
     }
     previousPanel.current = scopeChanged || speech?.view ? null : activePanel;
-  }, [activePanel, scopeKey, speech?.view]);
+  }, [activePanel, scopeKey, speech?.view, reasoning.isVisible]);
   const changePanel = (panel: NonNullable<typeof activePanel>, open: boolean) => {
     if (open && speech?.view) return;
     setActivePanel(open ? panel : null);
@@ -164,7 +164,8 @@ export function ChatComposer({
         <div className="ai-panel__composer-actions">
           <ChatModelPicker modelPicker={modelPicker} isOpen={activePanel === "models"}
             panelContainer={panelContainer} onOpenChange={open => changePanel("models", open)} />
-          <ChatComposerReasoningControl reasoning={reasoning} />
+          <ChatComposerReasoningControl reasoning={reasoning} isOpen={activePanel === "reasoning"}
+            panelContainer={panelContainer} onOpenChange={open => changePanel("reasoning", open)} />
           <ChatUsagePopover usage={usage} isOpen={activePanel === "usage"}
             panelContainer={panelContainer} onOpenChange={open => changePanel("usage", open)} />
           {speech && <button type="button" className="ai-panel__speech-start"

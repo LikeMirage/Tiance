@@ -148,7 +148,6 @@ def save_workspace_layout_preferences(
     payload: WorkspaceLayoutPreferencesSaveRequest,
 ) -> WorkspaceLayoutPreferencesResponse:
     service = get_workspace_state_service()
-    project_overview_layout = payload.project_overview_layout
     project_overview_maximized = payload.project_overview_maximized
     project_overview_view = payload.project_overview_view
     tool_overview_view = payload.tool_overview_view
@@ -158,16 +157,6 @@ def save_workspace_layout_preferences(
             side_panel_width=payload.side_panel_width,
             ai_panel_width=payload.ai_panel_width,
             composer_height=payload.composer_height,
-            project_overview_category_id=(
-                project_overview_layout.category_id
-                if project_overview_layout is not None
-                else None
-            ),
-            project_overview_layout_mode=(
-                project_overview_layout.layout_mode
-                if project_overview_layout is not None
-                else None
-            ),
             project_overview_maximized_category_id=(
                 project_overview_maximized.category_id
                 if project_overview_maximized is not None

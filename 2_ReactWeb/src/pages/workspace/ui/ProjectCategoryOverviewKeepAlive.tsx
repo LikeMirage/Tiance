@@ -6,10 +6,6 @@ import type {
   WorkspaceLayoutPreferences,
   WorkspaceLayoutPreferenceUpdate,
 } from "../../../entities/workspace/model/workspaceLayoutPreferences";
-import {
-  DEFAULT_PROJECT_OVERVIEW_LAYOUT,
-  type ProjectOverviewLayoutMode,
-} from "../../../features/project-category-overview/model/projectOverviewLayout";
 import { resolveProjectOverviewTarget } from "../../../features/project-category-overview/model/projectOverviewTarget";
 import { ProjectCategoryOverview } from "../../../features/project-category-overview/ui/ProjectCategoryOverview";
 import { ProjectOverviewViewTabs } from "../../../features/project-category-overview/ui/ProjectOverviewViewTabs";
@@ -85,22 +81,6 @@ export function ProjectCategoryOverviewKeepAlive({
   const [visitedCategoryIds, setVisitedCategoryIds] = useState<ReadonlySet<string>>(
     () => selectedCategoryId ? new Set([selectedCategoryId]) : new Set<string>(),
   );
-  const handleLayoutModeChange = useCallback(
-    (nextLayoutMode: ProjectOverviewLayoutMode) => {
-      if (!selectedCategoryId) return;
-      onLayoutPreferenceChange({
-        projectOverviewLayout: {
-          categoryId: selectedCategoryId,
-          layoutMode: nextLayoutMode,
-        },
-      });
-    },
-    [onLayoutPreferenceChange, selectedCategoryId],
-  );
-  const selectedLayoutMode = selectedCategoryId
-    ? layoutPreferences.projectOverviewLayoutModes[selectedCategoryId]
-      ?? DEFAULT_PROJECT_OVERVIEW_LAYOUT
-    : DEFAULT_PROJECT_OVERVIEW_LAYOUT;
   const handleMaximizedProjectChange = useCallback(
     (projectId: string | null) => {
       if (!selectedCategoryId) return;
@@ -227,7 +207,6 @@ export function ProjectCategoryOverviewKeepAlive({
         categories={categories}
         categoryId={selectedCategoryId}
         isActive={isActive}
-        layoutMode={selectedLayoutMode}
         marketScope={marketScope}
         maximizedProjectId={
           !usesExternalOverviewViews || selectedOverviewView === "conversation"
@@ -238,7 +217,6 @@ export function ProjectCategoryOverviewKeepAlive({
         onCreateSession={onCreateSession}
         onEnterSession={onEnterSession}
         onImportProjectFolder={onImportProjectFolder}
-        onLayoutModeChange={handleLayoutModeChange}
         onMaximizedProjectChange={usesExternalOverviewViews
           ? (projectId) => {
               if (!selectedCategoryId) return;
@@ -285,8 +263,6 @@ export function ProjectCategoryOverviewKeepAlive({
         const isCurrentCategory = categoryId === selectedCategoryId;
         const category = categories.find((item) => item.category_id === categoryId) ?? null;
         const categoryProjects = projects.filter((project) => project.category_id === categoryId);
-        const categoryLayoutMode = layoutPreferences.projectOverviewLayoutModes[categoryId]
-          ?? DEFAULT_PROJECT_OVERVIEW_LAYOUT;
         const categoryMaximizedProjectId =
           layoutPreferences.projectOverviewMaximizedProjectIds[categoryId] ?? null;
         const storedCategoryOverviewView =
@@ -362,7 +338,6 @@ export function ProjectCategoryOverviewKeepAlive({
               categories={categories}
               categoryId={categoryId}
               isActive={isActive && isCurrentCategory}
-              layoutMode={categoryLayoutMode}
               marketScope={marketScope}
               maximizedProjectId={
                 !usesExternalOverviewViews || categoryOverviewView === "conversation"
@@ -373,7 +348,6 @@ export function ProjectCategoryOverviewKeepAlive({
               onCreateSession={onCreateSession}
               onEnterSession={onEnterSession}
               onImportProjectFolder={onImportProjectFolder}
-              onLayoutModeChange={handleLayoutModeChange}
               onMaximizedProjectChange={(projectId) => {
                 if (usesExternalOverviewViews) {
                   if (projectId) {

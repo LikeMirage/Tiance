@@ -11,7 +11,6 @@ import { useProjectBrowser } from "../../../features/project-browser/model/usePr
 import type { UseProjectCatalogResult } from "../../../features/project-catalog/model/useProjectCatalog";
 import { getProjectWorkspaceState } from "../../../services/project/getProjectWorkspaceState";
 import { patchProjectWorkspaceState } from "../../../services/project/saveProjectWorkspaceState";
-import { useOverlayScrollbar } from "../../../shared/model/overlay-scrollbar/useOverlayScrollbar";
 
 export type WorkspaceProjectPanelView = "list" | "detail";
 export type WorkspaceProjectEntryKind = "file" | "folder";
@@ -24,8 +23,6 @@ export type WorkspaceProjectsPanelControllerProjectCatalog = Pick<
   | "createProjectFromFolder"
   | "expandedProjectId"
   | "selectedCategoryId"
-  | "selectedCategoryProjects"
-  | "state"
 >;
 
 type UseWorkspaceProjectsPanelControllerInput = {
@@ -105,17 +102,6 @@ export function useWorkspaceProjectsPanelController({
   const [isServerDirectoryPickerOpen, setIsServerDirectoryPickerOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState("");
   const [workspaceStateError, setWorkspaceStateError] = useState<string | null>(null);
-  const projectScrollbar = useOverlayScrollbar(
-    [
-      projectCatalog.state,
-      projectCatalog.selectedCategoryId ?? "",
-      projectCatalog.selectedCategoryProjects.length,
-      activeView,
-      browser.treeData.length,
-      browser.expandedNodeIds.size,
-      browser.isLoadingNodeIds.size,
-    ].join(":"),
-  );
 
   useEffect(() => {
     const projectId = projectCatalog.expandedProjectId;
@@ -396,7 +382,6 @@ export function useWorkspaceProjectsPanelController({
     isImporting,
     isServerDirectoryPickerOpen,
     closeServerDirectoryPicker,
-    projectScrollbar,
     searchInputValue,
     searchKeyword,
     searchPlaceholder,

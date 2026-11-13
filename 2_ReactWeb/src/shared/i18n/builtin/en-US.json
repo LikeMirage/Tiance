@@ -1722,19 +1722,6 @@
         "themeTabsAria": "Theme collection views",
         "providerTabsAria": "Model provider views"
       },
-      "layout": {
-        "grid": "Grid sections",
-        "centerProject": "Move {project} to the center",
-        "expandProject": "Expand {project}",
-        "menuAria": "Choose project board layout",
-        "openAria": "Switch project board layout",
-        "roller": "Card stack",
-        "rollerAria": "Card stack project board",
-        "stack": "Wide rows",
-        "stackAria": "Wide-row project board",
-        "title": "Layout",
-        "wide": "Collapsible list"
-      },
       "card": {
         "branchGroup": "Conversation branches",
         "childSessionGroup": "AI child conversations",

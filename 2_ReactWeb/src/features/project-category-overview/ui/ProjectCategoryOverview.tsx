@@ -13,15 +13,9 @@ import { useDesktopShell } from "../../desktop-shell/model/useDesktopShell";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import { OptionSelect, type OptionSelectItem } from "../../../shared/ui/option-select/OptionSelect";
 import { useI18n } from "../../../shared/i18n";
-import {
-  buildProjectOverviewRollerItems,
-  type ProjectOverviewLayoutMode,
-} from "../model/projectOverviewLayout";
 import { useProjectCategoryOverview } from "../model/useProjectCategoryOverview";
 import { useProjectOverviewSessionActions } from "../model/useProjectOverviewSessionActions";
 import { ProjectOverviewCard } from "./ProjectOverviewCard";
-import { ProjectOverviewLayoutSwitcher } from "./ProjectOverviewLayoutSwitcher";
-import { ProjectOverviewStack } from "./ProjectOverviewStack";
 import { ProjectOverviewViewTabs } from "./ProjectOverviewViewTabs";
 import type { ProjectMarketScope } from "../../project-market/model/projectMarket";
 import { ProjectOverviewSessionContextMenu } from "./ProjectOverviewSessionContextMenu";
@@ -33,14 +27,12 @@ type ProjectCategoryOverviewProps = {
   categories: ProjectCategory[];
   categoryId: string | null;
   isActive?: boolean;
-  layoutMode: ProjectOverviewLayoutMode;
   maximizedProjectId: string | null;
   marketScope?: ProjectMarketScope | null;
   onCreateProject?: () => Promise<void>;
   onCreateSession: (projectId: string) => Promise<void>;
   onEnterSession: (projectId: string, sessionId: string) => Promise<boolean>;
   onImportProjectFolder?: (rootPath: string) => Promise<void>;
-  onLayoutModeChange: (mode: ProjectOverviewLayoutMode) => void;
   onMaximizedProjectChange: (projectId: string | null) => void;
   onMaximizedProjectFollow: (projectId: string) => void;
   onOverviewViewChange?: (view: ProjectOverviewView) => void;
@@ -62,14 +54,12 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
   categories,
   categoryId,
   isActive = true,
-  layoutMode,
   maximizedProjectId,
   marketScope = "project",
   onCreateProject,
   onCreateSession,
   onEnterSession,
   onImportProjectFolder,
-  onLayoutModeChange,
   onMaximizedProjectChange,
   onMaximizedProjectFollow,
   onOverviewViewChange,
@@ -89,7 +79,6 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isImportingProject, setIsImportingProject] = useState(false);
   const [openUsageProjectId, setOpenUsageProjectId] = useState<string | null>(null);
-  const [focusedProjectId, setFocusedProjectId] = useState<string | null>(null);
   const desktopShell = useDesktopShell();
   const {
     error,
@@ -132,21 +121,6 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
   });
   const isOverviewLoadingVisible = state === "loading";
   const projectIdsKey = projects.map((item) => item.project.project_id).join("|");
-  useEffect(() => {
-    if (layoutMode !== "roller" && layoutMode !== "stack") return;
-    const selectedProjectId = visibleSession?.projectId ?? null;
-    setFocusedProjectId((current) => {
-      if (selectedProjectId && projects.some(
-        (item) => item.project.project_id === selectedProjectId,
-      )) {
-        return selectedProjectId;
-      }
-      if (current && projects.some((item) => item.project.project_id === current)) {
-        return current;
-      }
-      return projects[0]?.project.project_id ?? null;
-    });
-  }, [layoutMode, projectIdsKey, visibleSession?.projectId]);
 
   useEffect(() => {
     if (!isActive || !maximizedProjectId) return undefined;
@@ -171,7 +145,6 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
       return;
     }
     setOpenUsageProjectId(null);
-    setFocusedProjectId(selectedProjectId);
     // Following selection only updates the layout; it must not navigate again.
     onMaximizedProjectFollow(selectedProjectId);
   }, [
@@ -315,12 +288,6 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
     );
   }
 
-  const effectiveFocusedProjectId = projects.some(
-    (item) => item.project.project_id === focusedProjectId,
-  )
-    ? focusedProjectId
-    : visibleSession?.projectId ?? projects[0]?.project.project_id ?? null;
-  const rollerItems = buildProjectOverviewRollerItems(projects, effectiveFocusedProjectId);
   const maximizedProject = maximizedProjectId
     ? projects.find((item) => item.project.project_id === maximizedProjectId) ?? null
     : null;
@@ -347,7 +314,6 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
       }}
       onToggleMaximized={() => {
         setOpenUsageProjectId(null);
-        setFocusedProjectId(project.project.project_id);
         onMaximizedProjectChange(
           maximizedProjectId === project.project.project_id
             ? null
@@ -502,64 +468,11 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
             "project-category-overview__grid",
             maximizedProject
               ? "project-category-overview__grid--project-maximized"
-              : `project-category-overview__grid--${layoutMode}`,
+              : "project-category-overview__grid--grid",
           ].join(" ")}
-          aria-label={
-            layoutMode === "roller"
-              ? t("projectOverview.layout.rollerAria")
-              : layoutMode === "stack"
-                ? t("projectOverview.layout.stackAria")
-                : undefined
-          }
         >
           {maximizedProject
             ? renderProjectCard(maximizedProject)
-            : layoutMode === "roller"
-            ? rollerItems.map(({ item, position }) => (
-                <div
-                  key={item.project.project_id}
-                  className={[
-                    "project-category-overview__roller-item",
-                    `project-category-overview__roller-item--${position}`,
-                  ].join(" ")}
-                >
-                  <div
-                    className="project-category-overview__roller-card"
-                    aria-hidden={position === "center" ? undefined : "true"}
-                    inert={position === "center" ? undefined : true}
-                  >
-                    {renderProjectCard(item)}
-                  </div>
-                  {position !== "center" ? (
-                    <button
-                      className="project-category-overview__roller-select"
-                      type="button"
-                      aria-label={t("projectOverview.layout.centerProject", {
-                        project: item.project.name,
-                      })}
-                      onClick={() => {
-                        setOpenUsageProjectId(null);
-                        setFocusedProjectId(item.project.project_id);
-                      }}
-                    />
-                  ) : null}
-                </div>
-              ))
-            : layoutMode === "stack"
-              ? (
-                  <ProjectOverviewStack
-                    expandedProjectId={effectiveFocusedProjectId}
-                    getExpandLabel={(item) => t("projectOverview.layout.expandProject", {
-                      project: item.project.name,
-                    })}
-                    items={projects}
-                    onExpand={(projectId) => {
-                      setOpenUsageProjectId(null);
-                      setFocusedProjectId(projectId);
-                    }}
-                    renderProjectCard={renderProjectCard}
-                  />
-                )
             : projects.map(renderProjectCard)}
         </div>
       ) : (
@@ -571,25 +484,6 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
           )}
         </div>
       )}
-      {!maximizedProject ? (
-        <ProjectOverviewLayoutSwitcher
-          onChange={(mode) => {
-            setOpenUsageProjectId(null);
-            if (mode === "roller" || mode === "stack") {
-              const selectedProjectId = visibleSession?.projectId;
-              setFocusedProjectId(
-                selectedProjectId && projects.some(
-                  (item) => item.project.project_id === selectedProjectId,
-                )
-                  ? selectedProjectId
-                  : projects[0]?.project.project_id ?? null,
-              );
-            }
-            onLayoutModeChange(mode);
-          }}
-          value={layoutMode}
-        />
-      ) : null}
       {isActive && sessionContextMenu && contextMenuSession ? (
         <ProjectOverviewSessionContextMenu
           busy={sessionActionBusy}

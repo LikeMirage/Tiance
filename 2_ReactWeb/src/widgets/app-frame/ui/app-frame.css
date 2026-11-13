@@ -131,13 +131,15 @@ html.tiance-window-dragging .app-frame *::after {
   color: var(--color-text-muted);
   font: inherit;
   line-height: 1;
-  cursor: default;
+  cursor: pointer;
 }
 
 .app-page-zoom-status__trigger:hover,
 .app-page-zoom-status__trigger:focus-visible,
+.app-page-zoom-status__trigger[aria-expanded="true"],
 .system-metrics-status__trigger:hover,
-.system-metrics-status__trigger:focus-visible {
+.system-metrics-status__trigger:focus-visible,
+.system-metrics-status__trigger[aria-expanded="true"] {
   border-color: var(--color-border-soft);
   background: var(--color-surface-item-hover);
   color: var(--color-text-primary);
@@ -161,6 +163,7 @@ html.tiance-window-dragging .app-frame *::after {
   color: var(--color-text-primary);
   text-align: left;
   white-space: normal;
+  visibility: hidden;
   opacity: 0;
   pointer-events: none;
   transform: translateY(4px);
@@ -181,13 +184,21 @@ html.tiance-window-dragging .app-frame *::after {
   gap: 8px;
   padding: 10px;
   grid-template-rows: auto minmax(0, 1fr);
-  visibility: hidden;
   border-color: transparent;
   background: var(--color-surface-menu);
   box-shadow: 0 18px 36px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
+.system-metrics-popover__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .system-metrics-popover__tabs {
+  flex: 1;
+  min-width: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 3px;
@@ -225,13 +236,7 @@ html.tiance-window-dragging .app-frame *::after {
   scrollbar-gutter: stable;
 }
 
-.app-page-zoom-status:hover .app-page-zoom-popover,
-.app-page-zoom-status:focus-within .app-page-zoom-popover {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
-}
-
+.app-page-zoom-popover[data-open="true"],
 .system-metrics-popover[data-open="true"] {
   visibility: visible;
   opacity: 1;
@@ -246,6 +251,34 @@ html.tiance-window-dragging .app-frame *::after {
   gap: 12px;
   color: var(--color-text-secondary);
   font-size: 12px;
+}
+
+.app-page-zoom-popover__header > span:first-child {
+  flex: 1;
+}
+
+.app-status-popover__close {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.app-status-popover__close:hover {
+  background: var(--color-surface-item-hover);
+  color: var(--color-text-primary);
+}
+
+.app-status-popover__close:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 1px;
 }
 
 .app-page-zoom-popover__controls {

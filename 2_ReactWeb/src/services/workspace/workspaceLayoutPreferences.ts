@@ -1,6 +1,5 @@
 import type {
   CollectionOverviewView,
-  ProjectOverviewLayoutMode,
   ProjectOverviewView,
   ToolOverviewView,
   WorkspaceLayoutPreferences,
@@ -17,7 +16,6 @@ const WORKSPACE_LAYOUT_REQUEST_TIMEOUT_MS = 2500;
 type WorkspaceLayoutPreferencesResponse = {
   ai_panel_width: number;
   composer_height: number;
-  project_overview_layout_modes: Record<string, ProjectOverviewLayoutMode>;
   project_overview_maximized_project_ids: Record<string, string>;
   project_overview_views: Record<string, ProjectOverviewView>;
   side_panel_width: number;
@@ -29,10 +27,6 @@ type WorkspaceLayoutPreferencesResponse = {
 type WorkspaceLayoutPreferencesSaveRequest = {
   ai_panel_width?: number;
   composer_height?: number;
-  project_overview_layout?: {
-    category_id: string;
-    layout_mode: ProjectOverviewLayoutMode;
-  };
   project_overview_maximized?: {
     category_id: string;
     project_id: string | null;
@@ -93,7 +87,6 @@ function mapWorkspaceLayoutPreferences(
   return normalizeWorkspaceLayoutPreferences({
     aiPanelWidth: response.ai_panel_width,
     composerHeight: response.composer_height,
-    projectOverviewLayoutModes: response.project_overview_layout_modes,
     projectOverviewMaximizedProjectIds:
       response.project_overview_maximized_project_ids,
     projectOverviewViews: response.project_overview_views,
@@ -115,12 +108,6 @@ function mapWorkspaceLayoutPreferencesUpdate(
   }
   if (update.sidePanelWidth !== undefined) {
     payload.side_panel_width = update.sidePanelWidth;
-  }
-  if (update.projectOverviewLayout !== undefined) {
-    payload.project_overview_layout = {
-      category_id: update.projectOverviewLayout.categoryId,
-      layout_mode: update.projectOverviewLayout.layoutMode,
-    };
   }
   if (update.projectOverviewMaximized !== undefined) {
     payload.project_overview_maximized = {

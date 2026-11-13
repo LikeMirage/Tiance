@@ -5,7 +5,7 @@ import {
   FolderPlus,
   Plus,
 } from "@phosphor-icons/react";
-import { useMemo, type ReactNode } from "react";
+import { useId, useMemo, useRef, type ReactNode } from "react";
 
 import {
   PROJECT_FILE_DRAG_MIME_TYPE,
@@ -25,6 +25,7 @@ import {
 import { ServerDirectoryPicker } from "../../../features/server-directory-picker/ui/ServerDirectoryPicker";
 import { useI18n } from "../../../shared/i18n";
 import { ConfirmModal } from "../../../shared/ui/confirm-modal/ConfirmModal";
+import { EdgeScrollbar } from "@/shared/ui/edge-scrollbar";
 import { SlidingViewStage } from "../../../shared/ui/sliding-view-stage/SlidingViewStage";
 import {
   useWorkspaceProjectsPanelController,
@@ -110,6 +111,7 @@ export function WorkspaceProjectsPanel({
       <WorkspaceProjectsBody
         controller={controller}
         currentViewContent={currentViewContent}
+        scrollRefreshKey={`${projectCatalog.selectedCategoryId}:${projectCatalog.state}:${projectCatalog.selectedCategoryProjects.length}:${controller.searchKeyword}`}
       />
 
       {projectCatalog.error && projectCatalog.state === "ready" ? (
@@ -330,20 +332,21 @@ function WorkspaceProjectsSearch({
 function WorkspaceProjectsBody({
   controller,
   currentViewContent,
+  scrollRefreshKey,
 }: {
   controller: WorkspaceProjectsPanelController;
   currentViewContent: ReactNode;
+  scrollRefreshKey: string;
 }) {
+  const { t } = useI18n();
+  const scrollId = useId();
+  const scrollRef = useRef<HTMLDivElement>(null);
   return (
     <div className="workspace-projects-panel__body-shell">
       <div
-        ref={controller.projectScrollbar.scrollRef}
-        className={
-          controller.activeView === "detail"
-            ? "workspace-projects-panel__body workspace-projects-panel__body--detail"
-            : "workspace-projects-panel__body"
-        }
-        onScroll={controller.projectScrollbar.handleScroll}
+        id={scrollId}
+        ref={scrollRef}
+        className="workspace-projects-panel__body"
       >
         <SlidingViewStage
           className="workspace-projects-panel__view-stage"
@@ -355,42 +358,12 @@ function WorkspaceProjectsBody({
         </SlidingViewStage>
       </div>
 
-      <WorkspaceProjectsScrollbar controller={controller} />
-    </div>
-  );
-}
-
-function WorkspaceProjectsScrollbar({
-  controller,
-}: {
-  controller: WorkspaceProjectsPanelController;
-}) {
-  const scrollbar = controller.projectScrollbar;
-
-  if (!scrollbar.isVisible) {
-    return null;
-  }
-
-  return (
-    <div
-      className={
-        scrollbar.isActive
-          ? "workspace-projects-panel__scrollbar workspace-projects-panel__scrollbar--active"
-          : "workspace-projects-panel__scrollbar"
-      }
-      aria-hidden="true"
-      onPointerDown={scrollbar.handleTrackPointerDown}
-    >
-      <div
-        className="workspace-projects-panel__scrollbar-thumb"
-        style={{
-          height: `${scrollbar.thumbHeight}px`,
-          transform: `translateY(${scrollbar.thumbTop}px)`,
-        }}
-        onPointerCancel={scrollbar.handleThumbPointerCancel}
-        onPointerDown={scrollbar.handleThumbPointerDown}
-        onPointerMove={scrollbar.handleThumbPointerMove}
-        onPointerUp={scrollbar.handleThumbPointerUp}
+      <EdgeScrollbar
+        scrollRef={scrollRef}
+        scrollId={scrollId}
+        label={t("workspace.projectsPanel.fallbackTitle")}
+        refreshKey={`${controller.activeView}:${scrollRefreshKey}`}
+        enabled={controller.activeView === "list"}
       />
     </div>
   );

@@ -3,14 +3,21 @@
 .project-list-panel__list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 0;
   min-height: 0;
   overflow: visible;
 }
 
+.project-list-panel__item {
+  border-radius: 0;
+}
+
+.project-list-panel__enter {
+  border-radius: 0;
+}
+
 .project-list-panel__item:not(.project-list-panel__item--active):not(.project-list-panel__item--selected):hover,
 .project-list-panel__item:not(.project-list-panel__item--active):not(.project-list-panel__item--selected):focus-within {
-  border-radius: 3px;
   background: var(--color-selection-accent-bg-subtle);
 }
 
@@ -24,14 +31,12 @@
 }
 
 .project-list-panel__item--selected {
-  border-radius: 4px;
   background: var(--color-selection-accent-bg-subtle);
   box-shadow: inset 0 0 0 1px var(--color-selection-accent-border);
 }
 
 .project-list-panel__item--active,
 .project-list-panel__item--active:hover {
-  border-radius: 4px;
   background: var(--color-selection-accent-bg);
 }
 
