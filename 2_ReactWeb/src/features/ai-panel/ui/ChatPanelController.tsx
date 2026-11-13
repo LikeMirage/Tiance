@@ -46,7 +46,6 @@ import { useChatLocalFileLinks } from "../model/useChatLocalFileLinks";
 import {
   useActiveSessionLiveReload,
   useActiveSessionMessagesLoader,
-  useChatPanelPopoverDismiss,
   useStreamingClockTick,
 } from "../model/useChatPanelLifecycleEffects";
 import type {
@@ -63,6 +62,7 @@ import {
   isNotFoundRequestError,
 } from "../model/chatPanelRequestErrors";
 import { ChatComposer } from "./ChatComposer";
+import { useSpeechInput } from "../model/useSpeechInput";
 import { ChatConversationActions } from "./ChatConversationActions";
 import type { ChatProjectReferenceCatalog } from "./ChatComposerTypes";
 import { ChatHeader, type ChatPanelView } from "./ChatHeader";
@@ -182,7 +182,6 @@ export function ChatPanelController({
     selectedModel,
     setSelectedModel,
   } = useChatModelOptions();
-  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const {
     composerHeight,
     handleResizeStart,
@@ -191,8 +190,6 @@ export function ChatPanelController({
     initialHeight: composerInitialHeight,
     onHeightCommit: onComposerHeightCommit,
   });
-  const modelMenuRef = useRef<HTMLDivElement>(null);
-  const usageAreaRef = useRef<HTMLDivElement>(null);
   const activeProjectIdRef = useRef(projectId);
   activeProjectIdRef.current = projectId;
   const activeSessionIdRef = useRef<string | null>(null);
@@ -250,6 +247,7 @@ export function ChatPanelController({
     saveConversationState,
     saveSessionState,
     restoreUnsentInput,
+    insertSpeechDraft,
     settledDraft,
     sessionStates,
     sessionLoadError,
@@ -283,6 +281,7 @@ export function ChatPanelController({
     setSessionRuntimeStatus,
   });
   const activeSession = sessions.find((session) => session.session_id === activeSessionId && session.settings) ?? null;
+  const speech = useSpeechInput(projectId, activeSessionId, draft, insertSpeechDraft, isActive);
   const displaySequenceBySession = useMemo(
     () => buildConversationSessionTree(sessions, branchNodes).displaySequenceBySession,
     [sessions, branchNodes],
@@ -583,11 +582,9 @@ export function ChatPanelController({
     },
   });
   const {
-    isUsagePopoverOpen,
     reloadSessionUsageSummary,
     selectedUsage,
     sessionUsage,
-    setIsUsagePopoverOpen,
     setUsageScopeKey,
     usageScopeKey,
     usageScopeOptions,
@@ -662,12 +659,6 @@ export function ChatPanelController({
     updateSessionMessages,
   });
 
-  useChatPanelPopoverDismiss({
-    modelMenuRef,
-    setIsModelMenuOpen,
-    setIsUsagePopoverOpen,
-    usageAreaRef,
-  });
 
   const restoreRejectedInput = useCallback((pid: string, sessionId: string, text: string, refs: ConversationMessageReferences) => {
     const isCurrent = activeProjectIdRef.current === pid && activeSessionIdRef.current === sessionId;
@@ -789,7 +780,6 @@ export function ChatPanelController({
     activeSessionId,
     projectId,
     reloadSessions,
-    setIsModelMenuOpen,
     setSelectedModel,
     setSessions,
   });
@@ -915,6 +905,7 @@ export function ChatPanelController({
 
       {activeView === "chat" ? (
         <ChatComposer
+          speech={speech}
           userMessageHistory={projectId && activeSessionId ? {
             projectId, sessionId: activeSessionId, messages,
             resetRevision: activeSessionKey ? historyPages[activeSessionKey]?.reset ?? null : null,
@@ -974,13 +965,10 @@ export function ChatPanelController({
             activeSession,
             isDisabled: isModelPickerDisabled,
             isLoading: isModelLoading,
-            isOpen: isModelMenuOpen,
             loadError: modelLoadError,
-            menuRef: modelMenuRef,
             models,
             onReload: reloadModels,
             onSelect: selectModel,
-            onToggleOpen: setIsModelMenuOpen,
           }}
           reasoning={{
             activeMode: activeReasoningMode,
@@ -989,12 +977,9 @@ export function ChatPanelController({
             options: reasoningOptions,
           }}
           usage={{
-            areaRef: usageAreaRef,
             contextTokens: contextMeasurement.tokens,
             contextTokensEstimated: contextMeasurement.estimated,
-            isOpen: isUsagePopoverOpen,
             onSelectScope: setUsageScopeKey,
-            onToggleOpen: setIsUsagePopoverOpen,
             scopeKey: usageScopeKey,
             scopeOptions: usageScopeOptions,
             selected: selectedUsage,

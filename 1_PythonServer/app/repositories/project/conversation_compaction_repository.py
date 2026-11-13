@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from app.core.atomic_replace import atomic_replace_path
 from app.core.errors import ConflictError, NotFoundError
+from app.infra.conversation_runtime import conversation_runtime
 from app.domain.project.conversation_branch import (
     ProjectConversationBranchNode,
     build_derived_session_title,
@@ -136,8 +137,8 @@ class ProjectConversationCompactionRepository:
 
             has_active_task = _recover_stale_tasks(
                 source_session_dir,
+                project_id=project_id,
                 conversations_dir=conversations_dir,
-                session_store=self._session_store,
                 now=_utc_now(),
             )
             if has_active_task:
@@ -244,8 +245,8 @@ class ProjectConversationCompactionRepository:
 
             has_active_task = _recover_stale_tasks(
                 source_session_dir,
+                project_id=project_id,
                 conversations_dir=conversations_dir,
-                session_store=self._session_store,
                 now=_utc_now(),
             )
             if has_active_task:
@@ -645,21 +646,16 @@ def _recover_stale_tasks(
     source_session_dir: Path,
     *,
     conversations_dir: Path,
-    session_store: ConversationSessionStore,
+    project_id: str,
     now: str,
 ) -> bool:
     active_remains = False
     for record in active_compression_records(source_session_dir):
         function_session_id = record.get("function_session_id")
-        runtime_status = (
-            session_store.read_session_state(
-                conversations_dir,
-                function_session_id,
-            ).runtime_status
-            if isinstance(function_session_id, str)
-            else None
+        is_running = isinstance(function_session_id, str) and conversation_runtime.is_running(
+            project_id, function_session_id,
         )
-        if runtime_status == "running" or not _task_is_older_than_grace(
+        if is_running or not _task_is_older_than_grace(
             record.get("created_at"),
             now,
         ):

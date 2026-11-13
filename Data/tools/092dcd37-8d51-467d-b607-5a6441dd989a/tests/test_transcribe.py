@@ -242,7 +242,7 @@ class JobTests(unittest.TestCase):
             def poll(self, task_id):
                 if task_id == "task-2": raise ASRError("NETWORK_ERROR", "断线")
                 return response()
-        with patch("jianying_asr.runner.plan_parts", return_value=[(0, 2), (2, 1)]), patch("jianying_asr.media.SEGMENT_SECONDS", 2):
+        with patch("jianying_asr.engine.plan_parts", return_value=[(0, 2), (2, 1)]), patch("jianying_asr.media.SEGMENT_SECONDS", 2):
             result = run({"input_path": str(self.audio)}, client_factory=FailsSecond)
         self.assertFalse(result["ok"])
         self.assertEqual(result["data"]["completed_parts"], 1)
@@ -252,7 +252,7 @@ class JobTests(unittest.TestCase):
         self.assertEqual(job["files"], [])
 
     def test_two_real_audio_cuts_merged_to_source_timeline(self):
-        with patch("jianying_asr.runner.plan_parts", return_value=[(0, 2), (2, 1)]), patch("jianying_asr.media.SEGMENT_SECONDS", 2):
+        with patch("jianying_asr.engine.plan_parts", return_value=[(0, 2), (2, 1)]), patch("jianying_asr.media.SEGMENT_SECONDS", 2):
             result = run({"input_path": str(self.audio)}, client_factory=FakeClient)
         self.assertTrue(result["ok"], result)
         data = json.loads(Path(result["data"]["files"][0]["path"]).read_text(encoding="utf-8"))

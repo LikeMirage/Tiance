@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/kn007/silk-v3-decoder",
+  "commit": "507be6bca8ce1fb977a061481f1d79e8c610e309",
+  "path": "windows/silk_v3_decoder.exe",
+  "sha256": "afe908fdf8bb5ddc3566caef224a365159a6216e517d8a915db50ce5ecf86d1b",
+  "bytes": 179037,
+  "sdk": "SILK Fixed Point v1.0.9.6",
+  "wrapper_license": "MIT",
+  "sdk_license": "See LICENSE-Skype.txt",
+  "modified": false
+}

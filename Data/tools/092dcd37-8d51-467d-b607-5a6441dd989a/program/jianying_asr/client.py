@@ -53,10 +53,11 @@ def required_string(data: dict, key: str) -> str:
 
 
 class JianyingClient:
-    def __init__(self, budget: Budget, *, transport=None, tdid: str | None = None):
+    def __init__(self, budget: Budget, *, transport=None, tdid: str | None = None, http_options: dict | None = None, request_timeout=None):
         self.budget = budget
         self.tdid = tdid or device_id()
-        self.http = httpx.AsyncClient(transport=transport, follow_redirects=False)
+        self.http = httpx.AsyncClient(transport=transport, follow_redirects=False, **(http_options or {}))
+        self.request_timeout = request_timeout
         # Each part owns its loop and connections. Keep the synchronous tool
         # interface, but make an entire network exchange cancellable at the
         # shared deadline (HTTPX read timeouts alone restart for each chunk).
@@ -82,12 +83,12 @@ class JianyingClient:
             return self._loop.run_until_complete(asyncio.wait_for(
                 self._request(method, url, stage, parse=parse, **kwargs), timeout=remaining))
         except (asyncio.TimeoutError, httpx.TimeoutException) as exc:
-            raise ASRError("TIMEOUT", f"{stage}等待超时；受 tool.json 中配置的工具总执行时限约束。") from exc
+            raise ASRError("TIMEOUT", f"{stage}等待超时；已停止本次网络请求。") from exc
         except httpx.TransportError as exc:
             raise ASRError("NETWORK_ERROR", f"{stage}网络连接失败（{type(exc).__name__}）。") from exc
 
     async def _request(self, method: str, url: str, stage: str, *, parse=True, **kwargs):
-        async with self.http.stream(method, url, timeout=self.budget.remaining(), **kwargs) as response:
+        async with self.http.stream(method, url, timeout=self.request_timeout or self.budget.remaining(), **kwargs) as response:
             if not response.is_success:
                 raise HTTPFailure(stage, response.status_code)
             if not parse:

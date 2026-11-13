@@ -31,6 +31,7 @@ from app.windows_file_drag import start_file_drag
 from app.windows_tray import WindowsTrayIcon
 from app.windows_foreground import allow_backend_foreground
 from app.window_close import WindowCloseCoordinator, show_native_exit_prompt
+from app.microphone_permission import MicrophonePermission
 
 if TYPE_CHECKING:
     from app.backend_process import BackendProcessManager
@@ -101,6 +102,7 @@ class ShellApi:
         self._process_security = security
         self._backend_manager = backend_manager
         self._window: Any | None = None
+        self._microphone_permission: MicrophonePermission | None = None
         self._maximized = False
         self._custom_maximized = False
         self._restore_bounds: WindowBounds | None = None
@@ -123,6 +125,12 @@ class ShellApi:
 
     def bind_window(self, window: Any) -> None:
         self._window = window
+        self._microphone_permission = MicrophonePermission(
+            window, self._settings, lambda action: _run_on_native_window_thread(window, action),
+        )
+        window.events.shown += self._microphone_permission.install
+        window.events.loaded += self._microphone_permission.install
+        self._microphone_permission.install()
         window.events.maximized += self._handle_maximized
         window.events.restored += self._handle_restored
         window.events.shown += self._install_windows_native_window_enhancements
@@ -138,6 +146,12 @@ class ShellApi:
         self._require_allowed_window()
         record_browser_mark(label, browser_elapsed_ms)
         return True
+
+    def respond_microphone_permission(self, request_id: str, allow: bool) -> bool:
+        self._require_allowed_window()
+        if not isinstance(request_id, str) or not isinstance(allow, bool) or self._microphone_permission is None:
+            return False
+        return bool(self._microphone_permission.respond(request_id, allow))
 
     def prepare_gateway_access(self) -> bool:
         window = self._require_window()

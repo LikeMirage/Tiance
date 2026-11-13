@@ -190,7 +190,7 @@ class FailedPartsTests(unittest.TestCase):
             def submit(self, uri):
                 raise ASRError("UPSTREAM_ERROR", "audio duration not supported")
 
-        with patch("jianying_asr.runner.probe", return_value=MediaInfo(60 * 3600, True)), \
+        with patch("jianying_asr.engine.probe", return_value=MediaInfo(60 * 3600, True)), \
                 patch("jianying_asr.parallel.prepare_part", side_effect=prepare):
             result = run({"input_path": str(self.source)}, client_factory=Reject)
         self.assertFalse(result["ok"])

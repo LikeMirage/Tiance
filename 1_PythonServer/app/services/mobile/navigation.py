@@ -173,7 +173,7 @@ class MobileNavigation:
             state = await self.menus.get(peer)
             frame = state['stack'][-1] if state['stack'] else {}
             if state.get('scope') != self.host.access_scope.collections() or state['mode'] != 'conversation' or frame.get('action') != 'select' or frame.get('target') != target:
-                raise BadRequestError('当前正在浏览菜单，请先进入会话或选择“返回当前会话”。本条消息未发送。')
+                raise BadRequestError('当前正在浏览菜单，请先进入会话或选择“返回之前会话”。本条消息未发送。')
         return target
 
     async def report_error(self, peer, text):

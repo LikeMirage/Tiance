@@ -6,6 +6,7 @@ from uuid import uuid4
 from app.domain.project.project_conversation import conversation_session_configuration_hash
 from app.core.atomic_replace import atomic_replace_path
 from app.core.errors import ConflictError, NotFoundError
+from app.infra.conversation_runtime import conversation_runtime
 from app.domain.project.conversation_branch import (
     ProjectConversationForkResult,
     build_derived_session_title,
@@ -66,11 +67,7 @@ class ProjectConversationBranchRepository:
             if source_session is None:
                 raise NotFoundError(f"Conversation session '{source_session_id}' was not found.")
             index = self._session_store.read_index(conversations_dir)
-            source_state = self._session_store.read_session_state(
-                conversations_dir,
-                source_session_id,
-            )
-            if source_state.runtime_status == "running" and created_by != "ai":
+            if conversation_runtime.is_running(project_id, source_session_id) and created_by != "ai":
                 raise ConflictError("当前会话正在生成，完成或停止后才能创建分支。")
 
             source_messages = self._message_store.list_messages(source_session_dir)

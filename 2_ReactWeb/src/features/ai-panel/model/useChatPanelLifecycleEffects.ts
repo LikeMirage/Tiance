@@ -1,9 +1,6 @@
 import {
   useEffect,
   useState,
-  type Dispatch,
-  type RefObject,
-  type SetStateAction,
 } from "react";
 import { buildSessionKey } from "./sessionKey";
 import { getConversationMessageState, watchConversationChanges, type ConversationMessageState } from "../../../services/project/watchConversationChanges";
@@ -29,13 +26,6 @@ type UseActiveSessionMessagesLoaderOptions = {
 };
 
 type UseActiveSessionLiveReloadOptions = UseActiveSessionMessagesLoaderOptions;
-
-type UseChatPanelPopoverDismissOptions = {
-  modelMenuRef: RefObject<HTMLDivElement | null>;
-  setIsModelMenuOpen: Dispatch<SetStateAction<boolean>>;
-  setIsUsagePopoverOpen: Dispatch<SetStateAction<boolean>>;
-  usageAreaRef: RefObject<HTMLDivElement | null>;
-};
 
 export function useStreamingClockTick(isActiveSessionStreaming: boolean) {
   const [clockTick, setClockTick] = useState(() => Date.now());
@@ -146,31 +136,4 @@ export function useActiveSessionLiveReload({
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [activeSessionId, isActive, isSessionStreaming, projectId, reloadSessionMessages, reloadSessions]);
-}
-
-export function useChatPanelPopoverDismiss({
-  modelMenuRef,
-  setIsModelMenuOpen,
-  setIsUsagePopoverOpen,
-  usageAreaRef,
-}: UseChatPanelPopoverDismissOptions) {
-  useEffect(() => {
-    const handler = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const isModelPickerPortalTarget =
-        target instanceof Element && target.closest(".llm-model-picker__panel");
-      if (
-        modelMenuRef.current &&
-        !modelMenuRef.current.contains(target) &&
-        !isModelPickerPortalTarget
-      ) {
-        setIsModelMenuOpen(false);
-      }
-      if (usageAreaRef.current && !usageAreaRef.current.contains(target)) {
-        setIsUsagePopoverOpen(false);
-      }
-    };
-    window.addEventListener("mousedown", handler);
-    return () => window.removeEventListener("mousedown", handler);
-  }, [modelMenuRef, setIsModelMenuOpen, setIsUsagePopoverOpen, usageAreaRef]);
 }

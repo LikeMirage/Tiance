@@ -12,6 +12,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { EmbeddedPanel } from "../../../shared/ui/embedded-panel/EmbeddedPanel";
+
 import { useI18n } from "../../../shared/i18n";
 import { getModelCapabilityLabel } from "../../../shared/i18n/modelCapabilityLabels";
 import {
@@ -44,6 +46,8 @@ type LlmModelPickerProps = {
   onOpenChange?: (open: boolean) => void;
   open?: boolean;
   options: readonly LlmModelPickerOption[];
+  /** Omit for a floating picker; pass a host slot to embed its content. */
+  panelContainer?: HTMLElement | null;
   placeholder?: string;
   placement?: LlmModelPickerPlacement;
   rootRef?: RefObject<HTMLDivElement | null>;
@@ -66,6 +70,7 @@ export function LlmModelPicker({
   options,
   placeholder = "选择模型",
   placement = "below",
+  panelContainer,
   rootRef,
   value,
   variant = "field",
@@ -77,6 +82,7 @@ export function LlmModelPicker({
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const internalRootRef = useRef<HTMLDivElement | null>(null);
   const containerRef = rootRef ?? internalRootRef;
+  const embedded = panelContainer !== undefined;
   const isControlledOpen = open !== undefined;
   const [internalOpen, setInternalOpen] = useState(false);
   const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
@@ -120,7 +126,7 @@ export function LlmModelPicker({
   }, [initialProviderId, isOpen]);
 
   useLayoutEffect(() => {
-    if (!isOpen) {
+    if (embedded || !isOpen) {
       return undefined;
     }
 
@@ -174,6 +180,7 @@ export function LlmModelPicker({
   }, [
     activeGroup?.models.length,
     filteredGroups.length,
+    embedded,
     isOpen,
     placement,
     shouldShowClear,
@@ -253,21 +260,10 @@ export function LlmModelPicker({
 
   const panelId = `${generatedId}-panel`;
   const searchId = `${generatedId}-search`;
-  const panel = isOpen && typeof document !== "undefined"
-    ? createPortal(
-        <div
-          id={panelId}
-          ref={panelRef}
-          className="llm-model-picker__panel"
-          role="dialog"
-          aria-label={`${ariaLabel}列表`}
-          style={panelStyle ?? { left: 0, top: 0, visibility: "hidden" }}
-          onKeyDown={handlePanelKeyDown}
-          onMouseDown={(event) => event.stopPropagation()}
-        >
-          <div className="llm-model-picker__search-row">
+  const search = (
             <input
               id={searchId}
+              aria-label="搜索模型或供应商"
               ref={searchInputRef}
               className="llm-model-picker__search"
               type="search"
@@ -275,9 +271,8 @@ export function LlmModelPicker({
               placeholder="搜索模型或供应商"
               onChange={(event) => setSearchQuery(event.target.value)}
             />
-          </div>
-
-          {renderPanelContent({
+  );
+  const content = renderPanelContent({
             activeGroup,
             clearLabel,
             disabled,
@@ -292,11 +287,22 @@ export function LlmModelPicker({
             setActiveProviderId,
             shouldShowClear: Boolean(shouldShowClear),
             t,
-          })}
-        </div>,
-        document.body,
-      )
-    : null;
+          });
+  const panel = !isOpen ? null : embedded ? (
+    <EmbeddedPanel container={panelContainer ?? null} id={panelId} title="选择模型"
+      ariaLabel={`${ariaLabel}列表`} className="llm-model-picker__embedded" panelRef={panelRef}
+      headerContent={search} onClose={close} onKeyDown={handlePanelKeyDown}>
+      {content}
+    </EmbeddedPanel>
+  ) : typeof document !== "undefined" ? createPortal(
+    <div id={panelId} ref={panelRef} className="llm-model-picker__panel" role="dialog"
+      aria-label={`${ariaLabel}列表`}
+      style={panelStyle ?? { left: 0, top: 0, visibility: "hidden" }}
+      onKeyDown={handlePanelKeyDown} onMouseDown={event => event.stopPropagation()}>
+      <div className="llm-model-picker__search-row">{search}</div>
+      {content}
+    </div>, document.body,
+  ) : null;
 
   return (
     <div

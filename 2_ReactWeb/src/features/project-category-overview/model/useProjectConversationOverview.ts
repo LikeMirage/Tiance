@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { projectOverviewRuntime } from "./projectOverviewRuntime";
+import { useConversationRuntimeVersion } from "../../../entities/llm-chat/model/useConversationRuntime";
 
 import type { ProjectOverviewItem } from "../../../entities/project/model/project";
 import { listenProjectConversationUpdated } from "../../../entities/llm-chat/model/projectConversationEvents";
@@ -26,6 +28,9 @@ export function useProjectConversationOverview(
   const abortControllerRef = useRef<AbortController | null>(null);
   const loadRunIdRef = useRef(0);
   const overviewRef = useRef<ProjectOverviewItem | null>(null);
+  const runtimeVersion = useConversationRuntimeVersion();
+  const presentedOverview = useMemo(() => overview?.project.project_id === projectId
+    ? projectOverviewRuntime(overview) : null, [overview, projectId, runtimeVersion]);
 
   const loadOverview = useCallback(async () => {
     abortControllerRef.current?.abort();
@@ -149,12 +154,12 @@ export function useProjectConversationOverview(
   }, [isActive, loadOverview, projectId]);
 
   useEffect(() => {
-    if (!isActive || !overview || overview.active_count === 0) return undefined;
+    if (!isActive || !presentedOverview || presentedOverview.active_count === 0) return undefined;
     const timer = window.setInterval(() => {
       void loadOverview();
     }, RUNNING_SESSION_POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [isActive, loadOverview, overview]);
+  }, [isActive, loadOverview, presentedOverview]);
 
   useEffect(() => () => {
     abortControllerRef.current?.abort();
@@ -173,7 +178,7 @@ export function useProjectConversationOverview(
     error,
     liveUsageBySessionKey,
     loadOverview,
-    overview: overview?.project.project_id === projectId ? overview : null,
+    overview: presentedOverview,
     state,
     updateActiveSession,
   };

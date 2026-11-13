@@ -14,7 +14,6 @@ from app.domain.project.project_conversation import (
 )
 from app.repositories.project.conversation_serialization import (
     _empty_index,
-    _expire_running_state_if_stale,
     _index_pinned_session_ids,
     _message_from_payload,
     _message_to_payload,
@@ -76,9 +75,7 @@ class ConversationStateStore:
             else stored_states
         )
         states = {
-            session_id: _expire_running_state_if_stale(
-                _session_state_from_payload(session_id, raw_states.get(session_id))
-            )
+            session_id: _session_state_from_payload(session_id, raw_states.get(session_id))
             for session_id in session_ids
         }
         return active_session_id, states
@@ -89,9 +86,7 @@ class ConversationStateStore:
         session_id: str,
     ) -> ProjectConversationSessionState:
         payload = read_session_state_payloads(conversations_dir, {session_id}).get(session_id)
-        return _expire_running_state_if_stale(
-            _session_state_from_payload(session_id, payload)
-        )
+        return _session_state_from_payload(session_id, payload)
 
     def write_runtime_status(
         self,

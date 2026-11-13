@@ -13,7 +13,7 @@ const vite = await createServer({
     if (path.endsWith("/src/shared/i18n/index.ts")) {
       return 'export const useI18n = () => ({ language: "zh-CN", t: (key) => key });';
     }
-    if (path.endsWith("/ChatComposerAddMenu.tsx")) {
+    if (path.endsWith("/EmbeddedPanel.tsx")) {
       return code.replace('import { createPortal } from "react-dom";',
         "const createPortal = (children: any, _target: any) => children;");
     }
@@ -142,7 +142,7 @@ test("加号与拖入得到相同引用，并由已有引用状态统一去重",
   const calls = [];
   function Harness() {
     editor = useWorkspaceEditorReferences({ projectId: "b", sessionId: "session", documentTabs: {} });
-    return React.createElement(ChatComposerAddMenu, { isOpen: true, onOpenChange() {}, onSelectFiles: async () => {},
+    return React.createElement(ChatComposerAddMenu, { isOpen: true, panelContainer: document.body, onOpenChange() {}, onSelectFiles: async () => {},
       projectId: "b", projectCatalog: { categories, projects, isLoading: false, error: null },
       onReferenceExternalPath: value => { calls.push(value); editor.handleReferenceExternalPath(value); } });
   }

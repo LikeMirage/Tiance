@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from app.api.routes.project.speech import router as speech_router
 
 from app.api.routes.project.conversation_exports import router as conversation_exports_router
 from app.api.routes.project.conversations import router as project_conversations_router
@@ -12,6 +13,7 @@ from app.api.routes.project.experience_market import router as experience_market
 from app.api.routes.project.workspace import router as project_workspace_router
 
 router = APIRouter()
+router.include_router(speech_router)
 router.include_router(project_core_router)
 router.include_router(project_market_router)
 router.include_router(knowledge_market_router)

@@ -251,6 +251,7 @@ export function ProjectOverviewCard({
       <div className="project-category-overview__sessions" aria-label={t("projectOverview.card.sessionsAria")}>
         {displaySessions.length > 0 ? (
           <ProjectOverviewSessionTreeList
+            projectId={projectId}
             activeSessionId={visibleSessionId}
             onCancelSessionRename={onCancelSessionRename}
             onCommitSessionRename={onCommitSessionRename}

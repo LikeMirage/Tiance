@@ -3,7 +3,7 @@ import asyncio
 from contextvars import ContextVar
 from copy import deepcopy
 
-from app.core.errors import BadRequestError
+from app.core.errors import BadRequestError, NotFoundError
 from .context import resolve_target
 
 route_origin = ContextVar('mobile_menu_origin', default=None)
@@ -117,17 +117,26 @@ class MenuState:
 
     async def footer(self, peer):
         state = await self.get(peer)
+        selected = await self.host.get('selection', peer)
+        can_resume = bool(selected and selected.get('session_id'))
+        if can_resume:
+            can_resume = await self.host.access_scope.allows_target(selected)
+        if can_resume:
+            try:
+                await asyncio.to_thread(resolve_target, selected)
+            except (BadRequestError, NotFoundError):
+                can_resume = False
+        parent = state['stack'][-2] if len(state['stack']) > 1 else {}
+        # Keep a clearly named return entry at every menu level. When the
+        # immediate parent is that conversation, it also serves as Back.
+        parent_is_selected = can_resume and parent.get('action') == 'select' and parent.get('target') == selected
         rows = []
-        if len(state['stack']) > 1 and self.host.platform != 'wechat':
+        if len(state['stack']) > 1 and self.host.platform != 'wechat' and not parent_is_selected:
             labels = {'collections': '返回集列表', 'categories': '返回分类列表', 'projects': '返回项目列表',
                       'sessions': '返回会话列表', 'select': '返回会话', 'groups': '返回下级会话分类',
                       'model': '返回供应商', 'actions': '返回会话操作'}
-            parent = state['stack'][-2]['action']
-            rows.append([await self.nav.button(peer, labels.get(parent, '返回上一级'), 'back')])
-        selected = await self.host.get('selection', peer)
-        if selected and selected.get('session_id') and await self.host.access_scope.allows_target(selected):
-            parent = state['stack'][-2] if len(state['stack']) > 1 else {}
-            if parent.get('action') != 'select' or parent.get('target') != selected or self.host.platform == 'wechat':
-                rows.append([await self.nav.button(peer, '返回当前会话', 'select', target=selected,
-                                                  _trail=state.get('resume', []))])
+            rows.append([await self.nav.button(peer, labels.get(parent['action'], '返回上一级'), 'back')])
+        if can_resume:
+            rows.append([await self.nav.button(peer, '返回之前会话', 'select', target=selected,
+                                              _trail=state.get('resume', []))])
         return rows

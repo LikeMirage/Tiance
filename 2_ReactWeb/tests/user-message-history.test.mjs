@@ -10,7 +10,7 @@ const vite = await createServer({ appType: "custom", logLevel: "silent",
   plugins: [{ name: "message-history-test", enforce: "pre", transform(code, id) {
     if (id.endsWith("/getProjectConversationMessage.ts")) return "export const getProjectConversationMessage = (...args) => globalThis.readTestMessage(...args);";
     if (id.endsWith("/getConversationNavigation.ts")) return "export const getConversationNavigation = (...args) => globalThis.searchTestMessages(...args);";
-    if (id.endsWith("/UserMessageHistoryMenu.tsx")) return code.replace('import { createPortal } from "react-dom";',
+    if (id.endsWith("/EmbeddedPanel.tsx")) return code.replace('import { createPortal } from "react-dom";',
       "const createPortal = (children: any, _target: any) => children;");
   } }],
 });
@@ -47,7 +47,7 @@ test("面板列出完整目录，选中旧提问只取该条正文，定位和�
   let view;
   function Harness() {
     const [isOpen, setOpen] = React.useState(true);
-    return React.createElement(UserMessageHistoryMenu, { history, isOpen, onOpenChange: setOpen, onOpenReference: payload => opened.push(payload) });
+    return React.createElement(UserMessageHistoryMenu, { history, isOpen, panelContainer: document.body, onOpenChange: setOpen, onOpenReference: payload => opened.push(payload) });
   }
   await act(async () => { view = create(React.createElement(Harness), { createNodeMock: nodes }); });
   try {
@@ -123,10 +123,10 @@ test("全文搜索查询未加载的旧消息，右侧高亮正文和引用，�
     navigation: { items, error: null, isLoading: false, retry() {} }, onLocate: item => located.push(item) };
   let view;
   await act(async () => { view = create(React.createElement(UserMessageHistoryMenu, {
-    history, isOpen: true, onOpenChange() {},
+    history, isOpen: true, panelContainer: document.body, onOpenChange() {},
   }), { createNodeMock: nodes }); });
   try {
-    assert.equal(view.root.findByProps({ role: "dialog" }).props.style.width, 440);
+    assert.match(view.root.findByProps({ role: "dialog" }).props.className, /embedded-panel/);
     const input = view.root.findByProps({ "aria-label": "搜索用户消息" });
     await act(async () => input.props.onChange({ target: { value: "项目" } }));
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 210)); });

@@ -16,23 +16,23 @@ class ASRError(Exception):
 def error_details(exc: Exception) -> tuple[str, str]:
     """Keep local and per-part failures on the same sanitized output contract."""
     if isinstance(exc, ModuleNotFoundError):
-        return "DEPENDENCY_MISSING", f"缺少依赖 {exc.name}，请安装 program/requirements.txt。"
+        return "DEPENDENCY_MISSING", f"缺少语音识别依赖 {exc.name}，请补全当前运行端的语音依赖。"
     code = exc.code if isinstance(exc, ASRError) else "LOCAL_ERROR"
     message = str(exc) if isinstance(exc, (ASRError, OSError)) else f"本地处理失败（{type(exc).__name__}）。"
     return code, message
 
 
 class Budget:
-    """One total budget, read from the tool's standard runtime configuration."""
+    """One total deadline supplied by the owning application or tool adapter."""
     def __init__(self, seconds: int):
         if type(seconds) is not int or seconds <= 0:
-            raise ASRError("CONFIG_ERROR", "runtime.timeout_seconds 必须是正整数。")
+            raise ASRError("CONFIG_ERROR", "语音识别执行时限必须是正整数秒。")
         self.deadline = time.monotonic() + seconds
 
     def remaining(self) -> float:
         value = self.deadline - time.monotonic()
         if value <= 0:
-            raise ASRError("TIMEOUT", "已达到 tool.json 中配置的工具总执行时限。")
+            raise ASRError("TIMEOUT", "已达到本次识别任务配置的总执行时限。")
         return value
 
     def sleep(self, seconds: float) -> None:

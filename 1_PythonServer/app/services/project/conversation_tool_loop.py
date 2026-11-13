@@ -1255,7 +1255,6 @@ class ConversationToolLoop:
             status="done",
             sync_session_model=False,
         )
-        self._save_runtime_status(request, "running")
         return message
 
     def _record_tool_call(
@@ -1270,18 +1269,6 @@ class ConversationToolLoop:
             project_id=request.project_id,
             session_id=request.session_id,
         )
-
-    def _save_runtime_status(self, request: ChatCompletionRequest, status: str) -> None:
-        if not request.project_id or not request.session_id:
-            return
-        try:
-            self._conversation_service.save_session_runtime_status(
-                request.project_id,
-                request.session_id,
-                status,
-            )
-        except AppError:
-            return
 
     def _append_conversation_message(
         self,

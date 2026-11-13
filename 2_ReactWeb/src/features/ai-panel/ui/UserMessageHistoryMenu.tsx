@@ -1,6 +1,6 @@
-import { Crosshair, ListBullets, MagnifyingGlass, X } from "@phosphor-icons/react";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { createPortal } from "react-dom";
+import { Crosshair, ListBullets, MagnifyingGlass } from "@phosphor-icons/react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { EmbeddedPanel } from "../../../shared/ui/embedded-panel/EmbeddedPanel";
 import type { EditorReferenceViewerPayload } from "../../../entities/editor/model/editorReference";
 import type { ChatMessage } from "../model/chatMessage";
 import { formatChatMessageTimestamp } from "../model/chatMessageTimestamp";
@@ -21,49 +21,17 @@ export type UserMessageHistoryState = {
   onLocate: (item: UserMessageNavigationItem) => void;
 };
 
-export function UserMessageHistoryMenu({ history, isOpen, onOpenChange, onOpenReference }: {
+export function UserMessageHistoryMenu({ history, isOpen, onOpenChange, onOpenReference, panelContainer }: {
   history?: UserMessageHistoryState;
   isOpen: boolean;
+  panelContainer: HTMLElement | null;
   onOpenChange: (open: boolean) => void;
   onOpenReference?: (payload: EditorReferenceViewerPayload) => void;
 }) {
   const panelId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<CSSProperties | null>(null);
   const open = isOpen && Boolean(history);
-  useLayoutEffect(() => {
-    if (!open) { setPosition(null); return; }
-    const update = () => {
-      const rect = triggerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const width = Math.min(440, window.innerWidth - 16);
-      const height = Math.min(260, Math.max(120, rect.top - 14), window.innerHeight - 16);
-      setPosition({ width, height, left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)),
-        top: Math.max(8, rect.top - height - 6) });
-    };
-    update();
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
-    return () => { window.removeEventListener("resize", update); window.removeEventListener("scroll", update, true); };
-  }, [open]);
-  useEffect(() => {
-    if (!open) return;
-    const dismiss = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (!triggerRef.current?.contains(target) && !panelRef.current?.contains(target)) onOpenChange(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      onOpenChange(false);
-      triggerRef.current?.focus();
-    };
-    window.addEventListener("mousedown", dismiss);
-    window.addEventListener("keydown", escape);
-    return () => { window.removeEventListener("mousedown", dismiss); window.removeEventListener("keydown", escape); };
-  }, [open, onOpenChange]);
-  const close = () => { onOpenChange(false); triggerRef.current?.focus(); };
+  const close = () => onOpenChange(false);
   return <>
     <button ref={triggerRef} type="button"
       className={`ai-panel__composer-add ai-panel__composer-history${open ? " ai-panel__composer-add--open" : ""}`}
@@ -72,18 +40,18 @@ export function UserMessageHistoryMenu({ history, isOpen, onOpenChange, onOpenRe
       onClick={() => onOpenChange(!open)}>
       <ListBullets size={18} aria-hidden="true" />
     </button>
-    {open && position && history && typeof document !== "undefined" ? createPortal(
-      <div ref={panelRef} id={panelId} role="dialog" aria-label="用户消息列表"
-        className="user-message-history" style={position}>
+    {open && history ?
         <UserMessageHistoryContents key={JSON.stringify([history.projectId, history.sessionId])}
+          panelContainer={panelContainer} panelId={panelId}
           history={history} onClose={close} onLocate={(item) => { close(); history.onLocate(item); }}
           onOpenReference={onOpenReference ? (payload) => { close(); onOpenReference(payload); } : undefined} />
-      </div>, document.body,
-    ) : null}
+      : null}
   </>;
 }
 
-function UserMessageHistoryContents({ history, onClose, onLocate, onOpenReference }: {
+function UserMessageHistoryContents({ history, onClose, onLocate, onOpenReference, panelContainer, panelId }: {
+  panelContainer: HTMLElement | null;
+  panelId: string;
   history: UserMessageHistoryState;
   onClose: () => void;
   onLocate: (item: UserMessageNavigationItem) => void;
@@ -101,19 +69,16 @@ function UserMessageHistoryContents({ history, onClose, onLocate, onOpenReferenc
   useLayoutEffect(() => {
     selectedRef.current?.scrollIntoView({ block: "nearest" });
   }, [selected?.userMessageId]);
-  return <>
-    <header className="user-message-history__head">
-      <strong>用户消息</strong>
+  return <EmbeddedPanel container={panelContainer} id={panelId} title="用户消息"
+    ariaLabel="用户消息列表" className="user-message-history" onClose={onClose}
+    headerContent={<>
       <span className="user-message-history__count">{query.trim() ? `${items.length}/${history.navigation.items.length}` : items.length}</span>
       <label className="user-message-history__search">
         <MagnifyingGlass size={14} aria-hidden="true" />
         <input type="search" aria-label="搜索用户消息" placeholder="搜索关键词" value={query}
           onChange={event => setQuery(event.target.value)} />
       </label>
-      <button className="ai-panel__composer-add" type="button" aria-label="关闭用户消息列表" onClick={onClose}>
-        <X size={15} aria-hidden="true" />
-      </button>
-    </header>
+    </>}>
     {error ? <div className="user-message-history__error" role="alert">
       <span>{error}</span><button type="button" onClick={retry}>重试</button>
     </div> : null}
@@ -139,7 +104,7 @@ function UserMessageHistoryContents({ history, onClose, onLocate, onOpenReferenc
       <UserMessageHistoryDetail key={selected?.userMessageId ?? "empty"} history={history}
         selected={selected} keyword={query} onOpenReference={onOpenReference} />
     </div>
-  </>;
+  </EmbeddedPanel>;
 }
 
 function UserMessageHistoryDetail({ history, selected, keyword, onOpenReference }: {

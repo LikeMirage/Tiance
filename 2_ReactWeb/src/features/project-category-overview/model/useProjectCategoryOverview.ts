@@ -8,6 +8,8 @@ import { listenProjectConversationUpdated } from "../../../entities/llm-chat/mod
 import { useI18n } from "../../../shared/i18n";
 import { getProjectCategoryOverview } from "../../../services/project/getProjectCategoryOverview";
 import { orderOverviewProjects } from "./projectOverviewOrdering";
+import { projectOverviewRuntime } from "./projectOverviewRuntime";
+import { useConversationRuntimeVersion } from "../../../entities/llm-chat/model/useConversationRuntime";
 import {
   buildOverviewSessionKey,
   chatUsageToProjectOverviewUsage,
@@ -113,10 +115,17 @@ export function useProjectCategoryOverview({
     void loadOverview(mode);
   }, [categoryId, isActive, loadOverview, refreshKey]);
 
+  const runtimeVersion = useConversationRuntimeVersion();
   const projects = useMemo(
-    () => orderOverviewProjects(overview?.projects ?? [], orderedProjects),
-    [orderedProjects, overview?.projects],
+    () => orderOverviewProjects(overview?.projects ?? [], orderedProjects).map(projectOverviewRuntime),
+    [orderedProjects, overview?.projects, runtimeVersion],
   );
+  const presentedOverview = useMemo(() => overview && ({
+    ...overview, projects,
+    active_session_count: projects.reduce((sum, project) => sum + project.active_count, 0),
+    idle_session_count: projects.reduce((sum, project) => sum + project.idle_count, 0),
+    error_session_count: projects.reduce((sum, project) => sum + project.error_count, 0),
+  }), [overview, projects]);
   const projectIds = useMemo(
     () => new Set((overview?.projects ?? []).map((project) => project.project.project_id)),
     [overview?.projects],
@@ -238,7 +247,7 @@ export function useProjectCategoryOverview({
     error,
     liveUsageBySessionKey,
     loadOverview,
-    overview,
+    overview: presentedOverview,
     projects,
     state,
     updateActiveSession,

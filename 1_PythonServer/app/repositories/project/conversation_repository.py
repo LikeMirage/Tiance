@@ -45,7 +45,6 @@ from app.repositories.project.conversation_serialization import (
     _new_session_id,
     _normalize_session_title,
     _optional_reasoning_mode,
-    _runtime_status_for_appended_message,
     _session_settings_from_payload,
     _utc_now,
 )
@@ -1112,14 +1111,6 @@ class ProjectConversationRepository:
                 index = self._session_store.index_after_session_write(
                     conversations_dir, updated, set_active=False
                 )
-                runtime_status = _runtime_status_for_appended_message(role)
-                if runtime_status is not None:
-                    self._state_store.write_runtime_status(
-                        conversations_dir,
-                        session_id,
-                        runtime_status,
-                        now,
-                    )
                 self._session_store.write_index(conversations_dir, index)
             if pending_variant is not None:
                 self._branch_store.complete_pending_variant(

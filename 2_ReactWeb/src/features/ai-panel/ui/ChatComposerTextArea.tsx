@@ -1,6 +1,6 @@
 import { CircleNotch } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
-import type { ClipboardEvent } from "react";
+import type { ClipboardEvent, RefObject } from "react";
 
 import { useI18n } from "../../../shared/i18n";
 import type {
@@ -8,11 +8,13 @@ import type {
   ChatComposerUploadStatus,
 } from "./ChatComposerTypes";
 
-export function ChatComposerTextArea({ input }: { input: ChatComposerInputState }) {
+export function ChatComposerTextArea({ input, inputRef, hidden = false }: { hidden?: boolean; input: ChatComposerInputState; inputRef?: RefObject<HTMLTextAreaElement | null> }) {
   const { t } = useI18n();
   return (
     <>
       <textarea
+        ref={inputRef}
+        hidden={hidden}
         className="ai-panel__input"
         placeholder={t("aiPanel.composer.placeholder")}
         rows={4}

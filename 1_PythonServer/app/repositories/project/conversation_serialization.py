@@ -1,5 +1,5 @@
-from dataclasses import asdict, replace
-from datetime import UTC, datetime, timedelta
+from dataclasses import asdict
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.domain.llm.chat import (
@@ -30,7 +30,6 @@ from app.repositories.project.conversation_serialization_settings import (
 _RUNTIME_STATUSES = {"idle", "running", "error"}
 _MESSAGE_ROLES = {"system", "user", "assistant", "tool", "error"}
 _MESSAGE_STATUSES = {"running", "done", "error", "cancelled"}
-_RUNNING_STATUS_STALE_AFTER = timedelta(seconds=150)
 _REASONING_MODES = {mode.value for mode in LlmReasoningMode}
 
 def _session_from_payload(payload: dict) -> ProjectConversationSession:
@@ -317,39 +316,6 @@ def _has_message_references(value: object) -> bool:
     references = _message_references_from_payload(value)
     return bool(references)
 
-def _runtime_status_for_appended_message(role: str) -> str | None:
-    if role == "user":
-        return "running"
-    if role == "assistant":
-        return "idle"
-    if role == "error":
-        return "error"
-    return None
-
-def _expire_running_state_if_stale(
-    state: ProjectConversationSessionState,
-) -> ProjectConversationSessionState:
-    if state.runtime_status != "running":
-        return state
-    updated_at = _parse_utc_datetime(state.runtime_updated_at or state.updated_at)
-    if updated_at is None:
-        now = _utc_now()
-        return replace(
-            state,
-            runtime_status="idle",
-            updated_at=now,
-            runtime_updated_at=now,
-        )
-    if datetime.now(UTC) - updated_at <= _RUNNING_STATUS_STALE_AFTER:
-        return state
-    now = _utc_now()
-    return replace(
-        state,
-        runtime_status="idle",
-        updated_at=now,
-        runtime_updated_at=now,
-    )
-
 def _optional_str(value: object) -> str | None:
     return value if isinstance(value, str) else None
 
@@ -550,12 +516,3 @@ def _new_session_id() -> str:
 
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat()
-
-def _parse_utc_datetime(value: str) -> datetime | None:
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC)

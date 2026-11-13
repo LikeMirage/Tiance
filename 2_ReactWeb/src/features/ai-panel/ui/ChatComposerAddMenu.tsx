@@ -7,14 +7,11 @@ import {
 import {
   useEffect,
   useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
-  type KeyboardEvent,
 } from "react";
-import { createPortal } from "react-dom";
+import { EmbeddedPanel } from "../../../shared/ui/embedded-panel/EmbeddedPanel";
 import type { EditorExternalPathReferenceRequest } from "../../../entities/editor/model/editorReference";
 import { OptionSelect } from "../../../shared/ui/option-select/OptionSelect";
 import { buildComposerProjectReference, referenceComposerProject } from "../model/composerProjectReference";
@@ -24,14 +21,13 @@ type AddCategory = "file" | "conversation" | "project";
 
 type ChatComposerAddMenuProps = {
   isOpen: boolean;
+  panelContainer: HTMLElement | null;
   onOpenChange: (isOpen: boolean) => void;
   onSelectFiles: () => Promise<void>;
   projectId: string | null;
   projectCatalog?: ChatProjectReferenceCatalog;
   onReferenceExternalPath?: (reference: EditorExternalPathReferenceRequest) => void;
 };
-
-const PANEL_HEIGHT = 216;
 
 const CATEGORIES: Array<{
   icon: typeof FilePlus;
@@ -45,6 +41,7 @@ const CATEGORIES: Array<{
 
 export function ChatComposerAddMenu({
   isOpen,
+  panelContainer,
   onOpenChange,
   onSelectFiles,
   projectId,
@@ -53,9 +50,7 @@ export function ChatComposerAddMenu({
 }: ChatComposerAddMenuProps) {
   const generatedId = useId();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
   const [activeCategory, setActiveCategory] = useState<AddCategory>("file");
-  const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
   const [selectedProjectCategoryId, setSelectedProjectCategoryId] = useState<string | null>(null);
   const categoryOptions = useMemo(() => projectCatalog?.categories.map((category) => ({
     label: category.name,
@@ -71,86 +66,16 @@ export function ChatComposerAddMenu({
   ) ?? [], [categoryId, projectCatalog?.projects]);
 
   useEffect(() => {
-    if (!isOpen) {
-      setPanelStyle(null);
-      return;
-    }
-    setActiveCategory("file");
+    if (isOpen) setActiveCategory("file");
   }, [isOpen]);
-
-  useLayoutEffect(() => {
-    if (!isOpen) return undefined;
-
-    const updatePanelPosition = () => {
-      const trigger = triggerRef.current;
-      if (!trigger) return;
-
-      const triggerRect = trigger.getBoundingClientRect();
-      const edgePadding = 8;
-      const gap = 6;
-      const width = Math.min(440, window.innerWidth - edgePadding * 2);
-      const height = Math.min(PANEL_HEIGHT, window.innerHeight - edgePadding * 2);
-      const left = Math.min(
-        Math.max(edgePadding, triggerRect.left),
-        Math.max(edgePadding, window.innerWidth - width - edgePadding),
-      );
-      const top = Math.max(edgePadding, triggerRect.top - height - gap);
-
-      setPanelStyle({
-        height,
-        left,
-        maxHeight: height,
-        minHeight: height,
-        top,
-        visibility: "visible",
-        width,
-      });
-    };
-
-    updatePanelPosition();
-    window.addEventListener("resize", updatePanelPosition);
-    window.addEventListener("scroll", updatePanelPosition, true);
-    return () => {
-      window.removeEventListener("resize", updatePanelPosition);
-      window.removeEventListener("scroll", updatePanelPosition, true);
-    };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return undefined;
-
-    const handleMouseDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return;
-      onOpenChange(false);
-    };
-    window.addEventListener("mousedown", handleMouseDown);
-    return () => window.removeEventListener("mousedown", handleMouseDown);
-  }, [isOpen, onOpenChange]);
-
-  const handlePanelKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    onOpenChange(false);
-    triggerRef.current?.focus();
-  };
 
   const panelId = `${generatedId}-panel`;
-  const panel = isOpen && typeof document !== "undefined"
-    ? createPortal(
-        <div
-          id={panelId}
-          ref={panelRef}
-          className="chat-composer-add-menu__panel"
-          role="dialog"
-          aria-label="添加到对话"
-          style={panelStyle ?? { left: 0, top: 0, visibility: "hidden" }}
-          onKeyDown={handlePanelKeyDown}
-          onMouseDown={(event) => event.stopPropagation()}
-        >
-          <div className="chat-composer-add-menu__head">
-            <strong>{activeCategory === "project" ? "添加项目" : "添加到对话"}</strong>
-            {activeCategory === "project" ? (
+  const panel = isOpen ? (
+        <EmbeddedPanel container={panelContainer} id={panelId}
+          className="chat-composer-add-menu" ariaLabel="添加到对话"
+          title={activeCategory === "project" ? "添加项目" : "添加到对话"}
+          onClose={() => onOpenChange(false)} headerContent={
+            activeCategory === "project" ? (
               <OptionSelect
                 className="chat-composer-add-menu__project-category"
                 ariaLabel="项目分类"
@@ -161,8 +86,8 @@ export function ChatComposerAddMenu({
                 disabled={categoryOptions.length === 0}
                 variant="integrated-overlay"
               />
-            ) : <span>选择要加入当前输入的内容</span>}
-          </div>
+            ) : null
+          }>
           <div className="chat-composer-add-menu__body">
             <div className="chat-composer-add-menu__categories" role="tablist" aria-label="内容类型">
               {CATEGORIES.map((category) => {
@@ -215,7 +140,6 @@ export function ChatComposerAddMenu({
                     onClick={() => {
                       if (!referenceComposerProject(project, onReferenceExternalPath)) return;
                       onOpenChange(false);
-                      triggerRef.current?.focus();
                     }}
                   >
                     <FolderOpen size={17} weight="regular" aria-hidden="true" />
@@ -244,8 +168,7 @@ export function ChatComposerAddMenu({
               ) : null}
             </div>
           </div>
-        </div>,
-        document.body,
+        </EmbeddedPanel>
       )
     : null;
 

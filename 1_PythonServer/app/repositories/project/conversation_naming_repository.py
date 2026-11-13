@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from app.core.atomic_replace import atomic_replace_path
 from app.core.errors import ConflictError, NotFoundError
+from app.infra.conversation_runtime import conversation_runtime
 from app.migrations.functional_settings import upgrade_naming_tool_prompt
 from app.domain.project.conversation_branch import (
     ProjectConversationBranchNode,
@@ -324,7 +325,7 @@ class ProjectConversationNamingRepository:
             if not source.settings.automatic_naming_enabled:
                 return None
             state = self._session_store.read_session_state(directory, function_session_id)
-            if state.runtime_status == "running":
+            if conversation_runtime.is_running(project_id, function_session_id):
                 return None
             with read_connection_for_path(database_path_from_conversations(directory)) as connection:
                 started = connection.execute(
@@ -552,7 +553,7 @@ class ProjectConversationNamingRepository:
                 conversations_dir,
                 node.session_id,
             )
-            if state.runtime_status == "running" or state.draft.strip():
+            if conversation_runtime.is_running(project_id, node.session_id) or state.draft.strip():
                 return True
 
             task_path = self._session_store.session_dir(

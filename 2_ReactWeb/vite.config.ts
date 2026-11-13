@@ -12,6 +12,9 @@ export default defineConfig(({ command }) => ({
   // Use `vite build --emptyOutDir` only when deliberately making a clean build.
   build: { emptyOutDir: false },
   plugins: [react()],
+  // Node tests load source through Vite SSR; browser dependency prebundling is
+  // unnecessary and creates competing caches when test files run in parallel.
+  ...(process.env.NODE_TEST_CONTEXT ? { optimizeDeps: { noDiscovery: true, include: [] } } : {}),
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),

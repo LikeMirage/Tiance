@@ -73,6 +73,21 @@ async function setup(preferredSessionId = null, loaded = response(), cached = nu
 }
 afterEach(async () => { if (renderer) await act(async () => renderer.unmount()); renderer = null; });
 
+test('语音回填原会话草稿，切换后的当前输入不被覆盖', async () => {
+  await setup();
+  const origin = { projectId: 'p', sessionId: 'a', draft: 'draft-a', caret: 5 };
+  await act(async () => { void value.activateSession('b'); });
+  await act(async () => { requests.at(-1).resolve(detail('b')); });
+  await act(async () => value.setDraft('正在输入 b'));
+  await act(async () => { void value.activateSession('a'); });
+  await act(async () => value.insertSpeechDraft(origin, '语音'));
+  assert.equal(value.draft, '正在输入 b');
+  assert.equal(value.sessionStates.a.draft, 'draft语音-a');
+  await act(async () => { requests.at(-1).resolve(detail('a')); });
+  // A detail request that started before transcription cannot erase the result.
+  assert.equal(value.draft, 'draft语音-a');
+});
+
 test("手机新会话通知刷新列表，保留桌面会话和未发送草稿，不回写手机选择", async () => {
   await setup();
   await act(async () => value.setDraft("desktop typing"));

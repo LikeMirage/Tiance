@@ -10,6 +10,7 @@ const { watchProjectFileEvents } = await vite.ssrLoadModule("/src/services/proje
 const { watchProjectWorkspaceEvents } = await vite.ssrLoadModule("/src/services/project/watchProjectWorkspaceEvents.ts");
 const { watchThemeWorkspaceEvents } = await vite.ssrLoadModule("/src/services/theme/watchThemeWorkspaceEvents.ts");
 const { watchWorkspaceCatalogChanges } = await vite.ssrLoadModule("/src/services/project/watchWorkspaceCatalogChanges.ts");
+const { conversationRuntime } = await vite.ssrLoadModule("/src/entities/llm-chat/model/conversationRuntime.ts");
 after(() => vite.close());
 
 class Socket {
@@ -34,7 +35,7 @@ test("全局列表通知覆盖远端新会话，合并重复项目，重连后�
   t.after(() => { globalThis.window = oldWindow; });
   let projects = ["project-a", "tool-b"];
   const stop = watchWorkspaceCatalogChanges(() => projects); t.after(stop);
-  const socket = Socket.instances[0];
+  const socket = Socket.instances.find(item => item.url.endsWith("/catalog-events"));
   socket.message({kind:"changed", projects:["phone-project", "phone-project"], catalog:false});
   assert.deepEqual(events.map(e => e.detail?.projectId), ["phone-project"]);
   assert.equal(events[0].detail.source, "server");
@@ -47,8 +48,32 @@ test("全局列表通知覆盖远端新会话，合并重复项目，重连后�
   socket.disconnect(); t.mock.timers.tick(EVENT_SOCKET_RECONNECT_DELAY_MS);
   projects = ["role-c"];
   events.length = 0;
-  Socket.instances[1].message({kind:"ready"});
+  Socket.instances.at(-1).message({kind:"ready"});
   assert.deepEqual(events.slice(1).map(e => e.detail.projectId), projects);
+});
+
+test("运行输出通知更新共享状态但不刷新会话列表，退出时关闭两条订阅", (t) => {
+  setup(t);
+  const events = [];
+  const oldWindow = globalThis.window;
+  globalThis.window = { dispatchEvent: event => events.push(event) };
+  t.after(() => { globalThis.window = oldWindow; });
+  const stop = watchWorkspaceCatalogChanges(() => ["project-a"]); t.after(stop);
+  const socket = Socket.instances.find(item => item.url.endsWith("/runtime-events"));
+  let pulses = 0;
+  t.after(conversationRuntime.subscribeOutput("project-a", "s", () => pulses++));
+  socket.message({kind: "snapshot", runs: []});
+  socket.message({kind: "changed", runs: [{project_id: "project-a", session_id: "s",
+    run_id: "run", phase: "running", output_seq: 10}]});
+  assert.equal(conversationRuntime.status("project-a", "s", "idle"), "running");
+  assert.equal(pulses, 1);
+  assert.equal(events.length, 0);
+  socket.disconnect(); t.mock.timers.tick(EVENT_SOCKET_RECONNECT_DELAY_MS);
+  Socket.instances.at(-1).message({kind: "snapshot", runs: []});
+  assert.equal(conversationRuntime.status("project-a", "s", "running"), "idle");
+  assert.equal(pulses, 1);
+  stop();
+  assert.ok(Socket.instances.slice(1).every(item => item.closed));
 });
 
 test("通知使用独立 WebSocket；HTTPS 保持 WSS，关闭后拒收晚到消息", (t) => {

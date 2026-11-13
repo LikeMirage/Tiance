@@ -36,11 +36,16 @@ def test_ai_clone_running_session_copies_stable_prefix_without_activating(tmp_pa
     assert len(repo.list_messages(PROJECT_ID, result.session.session_id)) == 2
 
 
-def test_human_branch_keeps_existing_running_guard_and_ai_invalid_boundary_has_no_child(tmp_path):
+def test_human_branch_keeps_existing_running_guard_and_ai_invalid_boundary_has_no_child(tmp_path, monkeypatch):
+    from app.infra.conversation_runtime import ConversationRuntimeRegistry
+    from app.repositories.project import conversation_branch_repository
+    runtime = ConversationRuntimeRegistry()
+    monkeypatch.setattr(conversation_branch_repository, "conversation_runtime", runtime)
     repo = _repository(tmp_path)
     source = _create_session(repo)
     user = _append(repo, source.session_id, "user", "question")
     assistant = _append(repo, source.session_id, "assistant", "reply")
+    runtime.start(PROJECT_ID, source.session_id, "active-run")
     repo.save_state(PROJECT_ID, active_session_id=None, should_update_active_session=False, session_drafts={}, session_references={}, session_runtime_statuses={source.session_id: "running"})
     with pytest.raises(ConflictError):
         repo.fork_session(PROJECT_ID, source.session_id, source_message_id=user.message_id, draft="edit", references=[])

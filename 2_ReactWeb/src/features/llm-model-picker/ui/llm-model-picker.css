@@ -381,3 +381,13 @@
     max-width: none;
   }
 }
+
+.llm-model-picker__embedded .llm-model-picker__body { flex: 1; }
+.llm-model-picker__embedded .llm-model-picker__search { height: 26px; font-size: .75rem; }
+.llm-model-picker__embedded .llm-model-picker__body {
+  grid-template-columns: minmax(0, 28%) minmax(0, 1fr);
+}
+@container composer-panel (max-width: 520px) {
+  .llm-model-picker__embedded .llm-model-picker__model { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .llm-model-picker__embedded .llm-model-picker__model-meta { justify-content: flex-start; max-width: none; }
+}

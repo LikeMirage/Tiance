@@ -57,7 +57,10 @@ async def back(host):
     if host.platform == 'wechat':
         await host.navigation.consume(PEER, '0', {})
     else:
-        await click(host, next(b for b in await buttons(host) if b['action'] == 'back'))
+        choices = await buttons(host)
+        parent = (await host.navigation.menus.get(PEER))['stack'][-2]
+        await click(host, next(b for b in choices if b['action'] == 'back' or
+                              parent['action'] == 'select' and b['action'] == 'select' and b['target'] == parent['target']))
 
 
 def test_level_specific_actions_and_paged_return(menus):
@@ -165,4 +168,63 @@ def test_bad_target_restores_navigation_and_does_not_select(menus):
             await nav.action(PEER, 'select', target={'project_id': 'gone', 'session_id': 's'})
         assert await nav.menus.get(PEER) == before
         assert await menus.get('selection', PEER) is None
+    asyncio.run(run())
+
+
+def test_explicit_resume_remains_available_across_menus_and_restart(menus):
+    async def run():
+        nav = menus.navigation
+        await nav.action(PEER, 'select', target=TARGET)
+        original_path = deepcopy((await nav.menus.get(PEER))['stack'])
+        staged = [{'reference': {'id': 'file', 'fileName': 'recording.m4a'}}]
+        await menus.put('staged', menus.staging_key(PEER, TARGET), staged)
+        locations = [('collections', {}), ('categories', {'kind': 'tool'}),
+                     ('projects', {'kind': 'tool', 'category': 'tools'}),
+                     ('project', {'target': {'project_id': 'tool'}}),
+                     ('actions', {'target': TARGET}), ('model', {'target': TARGET})]
+        for action, args in locations:
+            await nav.action(PEER, action, **args)
+            assert await menus.get('selection', PEER) == TARGET
+            page = (await menus.records('outbox'))[-1][1]
+            if menus.platform == 'wechat':
+                assert '【操作】返回之前会话' in ''.join(page['parts'])
+                options = (await nav.menus.get(PEER))['options']
+                callbacks = [await menus.get('callbacks', key) for key in options]
+                index = next(i for i, item in enumerate(callbacks, 1)
+                             if item['action'] == 'select' and item['target'] == TARGET)
+                resume = str(index)
+            else:
+                entries = [button for row in page['rows'] for button in row]
+                entry = next(button for button in entries if button['text'] == '返回之前会话')
+                resume = await menus.get('callbacks', entry['callback_data'])
+            with pytest.raises(BadRequestError, match='未发送'):
+                await nav.message_target(PEER, {})
+            # A new navigation instance reads the saved menu and last selection.
+            menus.navigation = nav = type(nav)(menus)
+            if menus.platform == 'wechat':
+                assert await nav.consume(PEER, resume, {})
+                assert not await nav.consume(PEER, '2', {})
+            else:
+                await click(menus, resume)
+            assert await nav.message_target(PEER, {}) == TARGET
+            assert (await nav.menus.get(PEER))['stack'] == original_path
+            assert await menus.get('staged', menus.staging_key(PEER, TARGET)) == staged
+        # A deliberately chosen new conversation becomes the remembered one.
+        replacement = dict(TARGET, session_id='child')
+        await nav.action(PEER, 'select', target=replacement)
+        await nav.action(PEER, 'collections')
+        choices = [b for b in await buttons(menus) if b['action'] == 'select']
+        assert len(choices) == 1 and choices[0]['target'] == replacement
+        # A second sender has no access to the first sender's return entry.
+        await nav.action('another-peer', 'collections')
+        assert not any(b['action'] == 'select' for _, b in await menus.records('callbacks')
+                       if b.get('peer') == 'another-peer')
+    asyncio.run(run())
+
+
+def test_deleted_remembered_conversation_is_not_offered(menus):
+    async def run():
+        await menus.put('selection', PEER, dict(TARGET, session_id='deleted'))
+        await menus.navigation.action(PEER, 'collections')
+        assert not any(b['action'] == 'select' for b in await buttons(menus))
     asyncio.run(run())

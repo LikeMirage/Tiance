@@ -117,7 +117,7 @@ async def read_run_status(payload: RunStatusRequest, authorization: Annotated[st
         raise BadRequestError('此能力要求当前项目、会话和生成任务身份。')
     access = get_host_capability_access_service()
     status = await get_conversation_run_manager().get_run_status(grant.project_id, grant.session_id)
-    if not status.get('running') or status.get('run_id') != grant.run_id:
+    if not status.get('running') or status.get('stopping') or status.get('run_id') != grant.run_id:
         access.revoke(grant.token)
         return {'running': False, 'run_id': None}
     if payload.action == 'watch':

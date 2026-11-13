@@ -66,6 +66,7 @@ class CatalogNavigation:
             if not title:
                 await self.nav.menus.enter(peer, 'categories', {'kind': kind})
                 rows = [[await self.nav.button(peer, '取消，返回分类列表', 'categories', kind=kind)]]
+                rows += await self.nav.menus.footer(peer)
                 await self.host.reply(peer, f"在{COLLECTIONS[kind]}新建分类，请发送：\n/newcategory 分类名称",
                                       rows=rows, menu=True, header=COLLECTIONS[kind])
                 return
@@ -78,6 +79,7 @@ class CatalogNavigation:
             if not title:
                 await self.nav.menus.enter(peer, 'projects', {'kind': kind, 'category': category})
                 rows = [[await self.nav.button(peer, '取消，返回项目列表', 'projects', kind=kind, category=category)]]
+                rows += await self.nav.menus.footer(peer)
                 await self.host.reply(peer, f"在{COLLECTIONS[kind]} / {chosen.name}新建项目，请发送：\n/newproject 项目名称",
                                       rows=rows, menu=True, header=COLLECTIONS[kind])
                 return

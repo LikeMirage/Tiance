@@ -1,10 +1,16 @@
 import { env } from "../../shared/config/env";
+import { conversationRuntime } from "../../entities/llm-chat/model/conversationRuntime";
 import { watchEventSocket } from "../http/watchEventSocket";
 import { dispatchProjectCatalogChanged } from "../../entities/project/model/projectCatalogEvents";
 import { dispatchProjectConversationUpdated } from "../../entities/llm-chat/model/projectConversationEvents";
 
 export function watchWorkspaceCatalogChanges(projectIds: () => string[]) {
-  return watchEventSocket(`${env.apiBaseUrl}/api/projects/catalog-events`, {
+  const stopRuntime = watchEventSocket(`${env.apiBaseUrl}/api/projects/runtime-events`, {
+    onMessage(data) {
+      try { conversationRuntime.receive(JSON.parse(data)); } catch { /* Ignore malformed events. */ }
+    },
+  });
+  const stopCatalog = watchEventSocket(`${env.apiBaseUrl}/api/projects/catalog-events`, {
     onMessage(data) {
       let event;
       try { event = JSON.parse(data); } catch { return; }
@@ -19,4 +25,5 @@ export function watchWorkspaceCatalogChanges(projectIds: () => string[]) {
       }
     },
   });
+  return () => { stopRuntime(); stopCatalog(); };
 }

@@ -59,7 +59,7 @@
   flex: 0 0 var(--chat-composer-height, 144px);
   min-width: 0;
   min-height: var(--chat-composer-height, 144px);
-  padding: 0 12px 10px;
+  padding: 0 12px 2px;
 }
 
 .ai-panel__input {
@@ -375,55 +375,10 @@
   margin-inline-start: auto;
 }
 
-.chat-composer-add-menu__panel {
-  position: fixed;
-  z-index: 2500;
-  display: grid;
-  grid-template-rows: 38px minmax(0, 1fr);
-  width: min(440px, calc(100vw - 16px));
-  min-width: min(300px, calc(100vw - 16px));
-  height: 216px;
-  max-height: calc(100vh - 16px);
-  overflow: hidden;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 6px;
-  background: var(--color-surface-menu);
-  box-shadow:
-    0 18px 42px rgba(0, 0, 0, 0.38),
-    0 0 0 1px rgba(255, 255, 255, 0.035);
-}
-
-.chat-composer-add-menu__head {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  min-height: 0;
-  padding: 4px 10px;
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.chat-composer-add-menu__head strong {
-  flex: 0 0 auto;
-  color: var(--color-text-primary);
-  font-size: 0.8rem;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
-.chat-composer-add-menu__head > span {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: 0.68rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .chat-composer-add-menu__body {
+  flex: 1;
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-columns: min(28%, 112px) minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
 }
@@ -608,4 +563,21 @@
 
 .ai-panel__send--stop:not(:disabled):hover {
   color: var(--color-text-primary);
+}
+
+.ai-panel__input { grid-column: 1; }
+.ai-panel__input[hidden], .ai-panel__composer-panel-slot[hidden] { display: none; }
+.ai-panel__composer-panel-slot {
+  grid-row: 1;
+  grid-column: 1;
+  min-height: 0;
+  min-width: 0;
+  width: calc(100% + 24px);
+  margin-inline: -12px;
+  container-type: inline-size;
+  container-name: composer-panel;
+}
+@container composer-panel (max-width: 420px) {
+  .chat-composer-add-menu__badge { display: none; }
+  .chat-composer-add-menu__option { grid-template-columns: auto minmax(0, 1fr); }
 }

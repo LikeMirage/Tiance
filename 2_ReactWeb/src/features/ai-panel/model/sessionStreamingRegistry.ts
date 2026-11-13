@@ -1,3 +1,5 @@
+import { conversationRuntime } from "../../../entities/llm-chat/model/conversationRuntime";
+
 export type SessionStreamingLease = symbol;
 
 /**
@@ -9,6 +11,9 @@ export class SessionStreamingRegistry {
 
   acquire(sessionKey: string): SessionStreamingLease {
     const lease = Symbol(sessionKey);
+    const previous = this.leases.get(sessionKey);
+    conversationRuntime.acquire(sessionKey, lease);
+    if (previous) conversationRuntime.release(sessionKey, previous);
     this.leases.set(sessionKey, lease);
     return lease;
   }
@@ -16,6 +21,7 @@ export class SessionStreamingRegistry {
   release(sessionKey: string, lease: SessionStreamingLease): boolean {
     if (this.leases.get(sessionKey) !== lease) return false;
     this.leases.delete(sessionKey);
+    conversationRuntime.release(sessionKey, lease);
     return true;
   }
 
@@ -28,6 +34,7 @@ export class SessionStreamingRegistry {
     let changed = false;
     for (const sessionKey of this.leases.keys()) {
       if (!sessionKey.startsWith(prefix)) continue;
+      conversationRuntime.release(sessionKey, this.leases.get(sessionKey)!);
       this.leases.delete(sessionKey);
       changed = true;
     }

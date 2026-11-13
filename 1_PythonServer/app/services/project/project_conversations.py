@@ -1,8 +1,9 @@
 from functools import lru_cache
-from app.infra.workspace_catalog_changes import workspace_catalog_changes
 from typing import Protocol
 
 from app.core.errors import NotFoundError
+from app.infra.conversation_runtime import conversation_runtime
+from app.infra.workspace_catalog_changes import workspace_catalog_changes
 from app.domain.project.project_conversation import (
     ProjectConversationMessage,
     ProjectConversationMessageRole,
@@ -112,10 +113,12 @@ class ProjectConversationService:
         str | None,
         dict[str, ProjectConversationSessionState],
     ]:
-        return self._repository.get_overview_data(project_id)
+        sessions, branches, active_id, states = self._repository.get_overview_data(project_id)
+        return sessions, branches, active_id, conversation_runtime.project_states(project_id, states)
 
     def get_list_data(self, project_id: str, *, summaries_only: bool = False, session_id: str | None = None):
-        return self._repository.get_list_data(project_id, summaries_only=summaries_only, session_id=session_id)
+        *data, states = self._repository.get_list_data(project_id, summaries_only=summaries_only, session_id=session_id)
+        return (*data, conversation_runtime.project_states(project_id, states))
 
     def get_cache_affinity_id(self, project_id: str, session_id: str) -> str:
         return self._repository.get_cache_affinity_id(project_id, session_id)
@@ -155,7 +158,8 @@ class ProjectConversationService:
         self,
         project_id: str,
     ) -> tuple[str | None, dict[str, ProjectConversationSessionState]]:
-        return self._repository.get_state(project_id)
+        active_id, states = self._repository.get_state(project_id)
+        return active_id, conversation_runtime.project_states(project_id, states)
 
     def save_state(
         self,
@@ -168,7 +172,7 @@ class ProjectConversationService:
         session_references: dict[str, list[dict]],
         include_full_state: bool = True,
     ) -> tuple[str | None, dict[str, ProjectConversationSessionState]]:
-        return self._repository.save_state(
+        active_id, states = self._repository.save_state(
             project_id,
             active_session_id=active_session_id,
             should_update_active_session=should_update_active_session,
@@ -177,6 +181,7 @@ class ProjectConversationService:
             session_references=session_references,
             include_full_state=include_full_state,
         )
+        return active_id, conversation_runtime.project_states(project_id, states)
 
     def create_session(
         self,
@@ -349,7 +354,9 @@ class ProjectConversationService:
         project_id: str,
         session_id: str,
     ) -> None:
-        _active_session_id, session_states = self.get_state(project_id)
+        if conversation_runtime.is_running(project_id, session_id):
+            return
+        _active_session_id, session_states = self._repository.get_state(project_id)
         state = session_states.get(session_id)
         if state is None:
             return

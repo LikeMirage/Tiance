@@ -112,7 +112,6 @@ from app.services.tools.tool_cancellation import ToolCancellationScope
 
 
 logger = logging.getLogger(__name__)
-_STREAM_HEARTBEAT_SECONDS = 10.0
 
 
 class ProjectConversationStreamService:
@@ -317,7 +316,6 @@ class ProjectConversationStreamService:
         background_tasks: list[asyncio.Task] = []
         blocking_before_next_model_request: list[asyncio.Task] = []
         run_started_at = monotonic()
-        last_heartbeat = monotonic()
         memory_session_snapshot = None
         memory_compression_blocking = False
         last_model_request: ChatCompletionRequest | None = None
@@ -621,10 +619,6 @@ class ProjectConversationStreamService:
                         if include_persistence_checkpoints:
                             yield persistence_checkpoint_payload(event)
                         continue
-                    now = monotonic()
-                    if now - last_heartbeat >= _STREAM_HEARTBEAT_SECONDS:
-                        await asyncio.to_thread(self._persistence.save_runtime_status, request, "running")
-                        last_heartbeat = now
 
                     if event.kind == ChatStreamEventKind.MODEL_RESPONSE_STARTED:
                         await conversation_notifications.start_response(request.project_id, request.session_id)

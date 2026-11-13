@@ -88,6 +88,7 @@ export interface SystemMetricsSnapshot {
 }
 
 export interface DesktopShellApi {
+  respond_microphone_permission?: (requestId: string, allow: boolean) => Promise<boolean>;
   prepare_file_explorer?: () => Promise<boolean> | boolean;
   reveal_window?: () => Promise<boolean> | boolean;
   minimize_window: () => Promise<void>;

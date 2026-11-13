@@ -12,6 +12,8 @@ from uuid import uuid4
 
 from app.core.errors import AppError, ConflictError, NotFoundError
 from app.core.shutdown_tasks import shutdown_tasks
+from app.infra.conversation_runtime import ConversationRuntimeRegistry, conversation_runtime
+from app.infra.workspace_catalog_changes import workspace_catalog_changes
 from app.domain.llm.chat import ChatCompletionRequest
 from app.services.project.conversation_run_context import active_conversation_run
 from app.services.project.conversation_stream_checkpoints import (
@@ -77,6 +79,7 @@ class _ConversationRun:
     replay: ConversationRunReplayBuffer = field(default_factory=ConversationRunReplayBuffer)
     finished: bool = False
     failure: Exception | None = None
+    outcome: str = "idle"
 
 
 class ConversationRunManager:
@@ -87,11 +90,13 @@ class ConversationRunManager:
         client_tool_bridge_service: ClientToolBridgeService | None = None,
         *,
         tool_permission_bridge_service: ToolPermissionBridgeService | None = None,
+        runtime_registry: ConversationRuntimeRegistry | None = None,
         subscriber_max_events: int = DEFAULT_SUBSCRIBER_MAX_EVENTS,
         subscriber_max_content_units: int = DEFAULT_SUBSCRIBER_MAX_CONTENT_UNITS,
     ) -> None:
         if subscriber_max_events < 1 or subscriber_max_content_units < 1:
             raise ValueError("Conversation subscriber limits must be positive.")
+        self._runtime = runtime_registry if runtime_registry is not None else ConversationRuntimeRegistry()
         self._runs: dict[str, _ConversationRun] = {}
         self._deleting: set[str] = set()
         self._lock = asyncio.Lock()
@@ -150,6 +155,8 @@ class ConversationRunManager:
                 subscribers={subscription_id: mailbox},
             )
             self._runs[run_key] = run
+            self._runtime.start(request.project_id, request.session_id, run.run_id)
+            workspace_catalog_changes.publish(request.project_id)
             context = copy_context()
             context.run(active_conversation_run.set, (request.project_id, request.session_id, run.run_id))
             run.task = asyncio.create_task(
@@ -169,8 +176,11 @@ class ConversationRunManager:
         """Read the current generation identity without subscribing or replaying messages."""
         async with self._lock:
             run = self._runs.get(_session_run_key(project_id, session_id))
-            running = bool(run and run.task and not run.task.done() and not run.task.cancelling() and not run.finished)
-            return {"running": running, "run_id": run.run_id if running and run else None}
+            running = bool(run and run.task and not run.task.done() and not run.finished)
+            status = {"running": running, "run_id": run.run_id if running and run else None}
+            if running and run and run.task and run.task.cancelling():
+                status["stopping"] = True
+            return status
 
     async def subscribe(
         self,
@@ -305,6 +315,7 @@ class ConversationRunManager:
                     "request_id": request_id,
                 },
             )
+        self._runtime.update(project_id, session_id, run.run_id, stopping=True)
         if not task.cancelling():
             task.cancel()
 
@@ -336,6 +347,7 @@ class ConversationRunManager:
                 if run.task is not None and not run.task.done()
             ]
             for run in runs:
+                self._runtime.update(*run.key.split(":", 1), run.run_id, stopping=True)
                 if not run.task.cancelling():
                     run.task.cancel()
         if runs:
@@ -365,6 +377,7 @@ class ConversationRunManager:
             raise
         except Exception as error:
             run.failure = error
+            run.outcome = "error"
             logger.exception("Conversation background generation failed", extra={"run_key": run.key})
             if not run.replay.has_settled_event:
                 await self._publish(
@@ -388,6 +401,16 @@ class ConversationRunManager:
         item: dict[str, object | None],
     ) -> None:
         async with self._lock:
+            if item.get("kind") == "conversation_run_settled":
+                run.outcome = "error" if item.get("status") == "error" else "idle"
+            elif item.get("kind") == "error" and not run.replay.has_settled_event:
+                run.outcome = "error"
+            elif item.get("kind") == "retry_reset":
+                run.outcome = "idle"
+            if (item.get("kind") in {"delta", "thinking_delta"} and item.get("content")) or (
+                item.get("kind") == "tool_call_delta" and item.get("tool_call")
+            ):
+                self._runtime.update(*run.key.split(":", 1), run.run_id, output=True)
             sequenced_item = run.replay.append(item)
             subscribers = (
                 ()
@@ -409,6 +432,8 @@ class ConversationRunManager:
             run.subscribers.clear()
             if self._runs.get(run.key) is run:
                 self._runs.pop(run.key, None)
+            self._runtime.update(*run.key.split(":", 1), run.run_id, outcome=run.outcome)
+            workspace_catalog_changes.publish(run.key.split(":", 1)[0])
         for mailbox in mailboxes:
             mailbox.append_signal(ConversationRunMailboxSignal.END)
 
@@ -429,4 +454,4 @@ def _is_persistence_checkpoint(event: dict[str, object | None]) -> bool:
 
 @lru_cache
 def get_conversation_run_manager() -> ConversationRunManager:
-    return ConversationRunManager()
+    return ConversationRunManager(runtime_registry=conversation_runtime)

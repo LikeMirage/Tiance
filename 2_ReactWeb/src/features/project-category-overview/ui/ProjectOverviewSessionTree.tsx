@@ -6,6 +6,8 @@ import {
 } from "@phosphor-icons/react";
 import {
   Fragment,
+  createContext,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -25,8 +27,12 @@ import {
 } from "../model/projectOverviewSessionTree";
 import type { ProjectOverviewSessionWithDisplayUsage } from "../model/projectOverviewUsage";
 import { normalizeRuntimeStatus } from "../model/projectOverviewDisplay";
+import { conversationRuntime } from "../../../entities/llm-chat/model/conversationRuntime";
+
+const RuntimeProjectContext = createContext("");
 
 type ProjectOverviewSessionTreeProps = {
+  projectId: string;
   activeSessionId: string | null;
   onCancelSessionRename: () => void;
   onCommitSessionRename: (nextTitle: string) => Promise<void>;
@@ -67,6 +73,7 @@ function sessionGroupKey(
 }
 
 export function ProjectOverviewSessionTreeList({
+  projectId,
   activeSessionId,
   onCancelSessionRename,
   onCommitSessionRename,
@@ -194,7 +201,7 @@ export function ProjectOverviewSessionTreeList({
     });
   };
 
-  return tree.roots.map((node) => (
+  return <RuntimeProjectContext.Provider value={projectId}>{tree.roots.map((node) => (
     <ProjectOverviewSessionTreeItem
       key={node.session.session_id}
       activeSessionId={activeSessionId}
@@ -213,7 +220,7 @@ export function ProjectOverviewSessionTreeList({
       renamingSessionBusy={renamingSessionBusy}
       renamingSessionId={renamingSessionId}
     />
-  ));
+  ))}</RuntimeProjectContext.Provider>;
 }
 
 function ProjectOverviewSessionTreeItem({
@@ -298,7 +305,7 @@ function ProjectOverviewSessionTreeItem({
         {isRenaming ? (
           <div className="project-category-overview__session-main">
             <SessionSequence sequenceNumber={node.displaySequence} />
-            <StatusDot status={normalizedStatus} />
+            <StatusDot status={normalizedStatus} sessionId={session.session_id} />
             <SessionInlineRename
               busy={renamingSessionBusy}
               defaultValue={title}
@@ -316,7 +323,7 @@ function ProjectOverviewSessionTreeItem({
             onClick={handleSessionClick}
           >
             <SessionSequence sequenceNumber={node.displaySequence} />
-            <StatusDot status={normalizedStatus} />
+            <StatusDot status={normalizedStatus} sessionId={session.session_id} />
             <span className="project-category-overview__session-title">
               {session.pinned ? (
                 <PushPin
@@ -697,10 +704,26 @@ function SessionInlineRename({
   );
 }
 
-function StatusDot({ status }: { status: string }) {
+function StatusDot({ status, sessionId }: { status: string; sessionId: string }) {
+  const projectId = useContext(RuntimeProjectContext);
+  const dotRef = useRef<HTMLSpanElement>(null);
   const normalized = normalizeRuntimeStatus(status);
+  useEffect(() => {
+    if (normalized !== "running") return;
+    let animation: Animation | undefined;
+    const stop = conversationRuntime.subscribeOutput(projectId, sessionId, () => {
+      if (!dotRef.current || animation?.playState === "running"
+        || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      // One finite visual pulse per burst of real output. No silence-based status timer.
+      animation = dotRef.current.animate([{ opacity: 1 }, { opacity: 0.3 }, { opacity: 1 }], {
+        duration: 700, easing: "ease-in-out",
+      });
+    });
+    return () => { stop(); animation?.cancel(); };
+  }, [normalized, projectId, sessionId]);
   return (
     <span
+      ref={dotRef}
       className={`project-category-overview__status-dot project-category-overview__status-dot--${normalized}`}
       aria-hidden="true"
     />

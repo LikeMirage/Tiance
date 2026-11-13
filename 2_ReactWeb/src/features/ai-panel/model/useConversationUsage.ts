@@ -31,7 +31,6 @@ export function useConversationUsage({
   isActive = true,
   projectId,
 }: UseConversationUsageOptions) {
-  const [isUsagePopoverOpen, setIsUsagePopoverOpen] = useState(false);
   const [usageScopeKey, setUsageScopeKey] = useState("");
   const [sessionUsageSummaries, setSessionUsageSummaries] =
     useState<Record<string, ConversationUsageSummary>>({});
@@ -79,11 +78,9 @@ export function useConversationUsage({
   }, [usageScopeKey, usageScopeOptions]);
 
   return {
-    isUsagePopoverOpen,
     reloadSessionUsageSummary,
     selectedUsage,
     sessionUsage,
-    setIsUsagePopoverOpen,
     setUsageScopeKey,
     usageScopeKey,
     usageScopeOptions,

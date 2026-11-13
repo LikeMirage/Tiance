@@ -1,4 +1,4 @@
-import type { PointerEvent, RefObject } from "react";
+import type { PointerEvent } from "react";
 
 import type { ConversationSession } from "../../../entities/llm-chat/model/conversation";
 import type { DsLlmReasoningMode } from "../../../entities/llm-runtime/model/generationParams";
@@ -62,13 +62,10 @@ export type ChatComposerModelPickerState = {
   activeSession: ConversationSession | null;
   isDisabled: boolean;
   isLoading: boolean;
-  isOpen: boolean;
   loadError: string | null;
-  menuRef: RefObject<HTMLDivElement | null>;
   models: ChatModelOption[];
   onReload: () => Promise<void>;
   onSelect: (model: ChatModelOption) => void;
-  onToggleOpen: (updater: (current: boolean) => boolean) => void;
 };
 
 export type ChatComposerReasoningState = {
@@ -79,12 +76,9 @@ export type ChatComposerReasoningState = {
 };
 
 export type ChatComposerUsageState = {
-  areaRef: RefObject<HTMLDivElement | null>;
   contextTokens: number | null;
   contextTokensEstimated: boolean;
-  isOpen: boolean;
   onSelectScope: (value: string) => void;
-  onToggleOpen: (updater: (current: boolean) => boolean) => void;
   scopeKey: string;
   scopeOptions: UsageScopeOption[];
   selected: UsageDisplaySummary | undefined;

@@ -29,7 +29,7 @@ class ParallelJobTests(unittest.TestCase):
             path = _temporary / str(int(start))
             path.write_bytes(b"fixture")
             return path
-        with patch("jianying_asr.runner.plan_parts", return_value=plan), \
+        with patch("jianying_asr.engine.plan_parts", return_value=plan), \
                 patch("jianying_asr.parallel.prepare_part", side_effect=prepare):
             result = run({"input_path": str(self.source), "formats": ["json", "txt", "srt", "ass"]},
                          client_factory=factory, budget=budget or Budget(30))

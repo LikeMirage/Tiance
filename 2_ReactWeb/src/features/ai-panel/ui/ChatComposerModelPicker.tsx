@@ -4,9 +4,12 @@ import { getModelKey } from "../model/useChatModelOptions";
 import type { ChatComposerModelPickerState } from "./ChatComposerTypes";
 
 export function ChatModelPicker({
-  modelPicker,
+  modelPicker, isOpen, onOpenChange, panelContainer,
 }: {
   modelPicker: ChatComposerModelPickerState;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  panelContainer: HTMLElement | null;
 }) {
   const activeModel = modelPicker.activeModel;
   const pickerOptions = modelPicker.models.map(toLlmModelPickerOption);
@@ -21,11 +24,11 @@ export function ChatModelPicker({
       disabled={modelPicker.isDisabled}
       error={modelPicker.loadError}
       loading={modelPicker.isLoading}
-      open={modelPicker.isOpen}
+      open={isOpen}
+      panelContainer={panelContainer}
       options={pickerOptions}
       placement="above"
       placeholder={placeholder}
-      rootRef={modelPicker.menuRef}
       value={value}
       variant="inline"
       onChange={(_, option) => {
@@ -45,9 +48,7 @@ export function ChatModelPicker({
       onOpen={() => {
         void modelPicker.onReload();
       }}
-      onOpenChange={(nextOpen) => {
-        modelPicker.onToggleOpen(() => nextOpen);
-      }}
+      onOpenChange={onOpenChange}
     />
   );
 }

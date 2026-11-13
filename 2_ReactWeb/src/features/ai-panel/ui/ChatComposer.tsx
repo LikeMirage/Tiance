@@ -1,5 +1,7 @@
-import { CaretDown } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { CaretDown, Microphone } from "@phosphor-icons/react";
+import { useLayoutEffect, useState, useRef } from "react";
+import type { SpeechInputState } from "../model/useSpeechInput";
+import { ChatSpeechRecording } from "./ChatSpeechRecording";
 import type { CSSProperties, ReactNode } from "react";
 
 import { useDesktopFileDropTarget } from "../../desktop-shell/model/useDesktopFileDropTarget";
@@ -35,6 +37,7 @@ export type {
 } from "./ChatComposerTypes";
 
 type ChatComposerProps = {
+  speech?: SpeechInputState;
   userMessageHistory?: UserMessageHistoryState;
   conversationActions?: ReactNode;
   generation: ChatComposerGenerationState;
@@ -47,6 +50,7 @@ type ChatComposerProps = {
 };
 
 export function ChatComposer({
+  speech,
   userMessageHistory,
   conversationActions,
   generation,
@@ -57,13 +61,28 @@ export function ChatComposer({
   reasoning,
   usage,
 }: ChatComposerProps) {
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [isReferenceDragOver, setIsReferenceDragOver] = useState(false);
-  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  useEffect(() => {
-    setIsAddMenuOpen(false);
-    setIsHistoryOpen(false);
-  }, [input.externalFileDropScopeKey]);
+  const [activePanel, setActivePanel] = useState<"references" | "history" | "models" | "usage" | null>(null);
+  const [panelContainer, setPanelContainer] = useState<HTMLDivElement | null>(null);
+  const previousPanel = useRef(activePanel);
+  const scopeKey = JSON.stringify([input.projectId, modelPicker.activeSession?.session_id, input.externalFileDropScopeKey]);
+  const previousScope = useRef(scopeKey);
+  // The textarea stays mounted while browsing panels, preserving draft, selection and scroll.
+  useLayoutEffect(() => {
+    const scopeChanged = previousScope.current !== scopeKey;
+    previousScope.current = scopeKey;
+    if (scopeChanged || speech?.view) {
+      setActivePanel(null);
+    } else if (previousPanel.current && !activePanel) {
+      inputRef.current?.focus({ preventScroll: true });
+    }
+    previousPanel.current = scopeChanged || speech?.view ? null : activePanel;
+  }, [activePanel, scopeKey, speech?.view]);
+  const changePanel = (panel: NonNullable<typeof activePanel>, open: boolean) => {
+    if (open && speech?.view) return;
+    setActivePanel(open ? panel : null);
+  };
   const { isFileDragOver, targetRef } = useDesktopFileDropTarget({
     onFileDrop: input.onExternalFileDrop,
     scopeKey: input.externalFileDropScopeKey,
@@ -119,23 +138,15 @@ export function ChatComposer({
           projectId={input.projectId}
           projectCatalog={input.projectReferenceCatalog}
           onReferenceExternalPath={input.onReferenceExternalPath}
-          isOpen={isAddMenuOpen}
-          onOpenChange={(nextOpen) => {
-            if (nextOpen) {
-              modelPicker.onToggleOpen(() => false);
-              setIsHistoryOpen(false);
-            }
-            setIsAddMenuOpen(nextOpen);
-          }}
+          isOpen={activePanel === "references"}
+          panelContainer={panelContainer}
+          onOpenChange={open => changePanel("references", open)}
           onSelectFiles={input.onSelectExternalFiles}
         />
         {conversationActions}
-        <UserMessageHistoryMenu history={userMessageHistory} isOpen={isHistoryOpen}
-          onOpenReference={input.onOpenReference}
-          onOpenChange={(open) => {
-            if (open) { setIsAddMenuOpen(false); modelPicker.onToggleOpen(() => false); }
-            setIsHistoryOpen(open);
-          }} />
+        <UserMessageHistoryMenu history={userMessageHistory} isOpen={activePanel === "history"}
+          panelContainer={panelContainer} onOpenReference={input.onOpenReference}
+          onOpenChange={open => changePanel("history", open)} />
         <button
           className="ai-panel__composer-scroll-bottom"
           type="button"
@@ -147,22 +158,26 @@ export function ChatComposer({
         </button>
       </div>
       <div className="ai-panel__composer-box">
-        <ChatComposerTextArea input={input} />
+        {speech?.view ? <ChatSpeechRecording speech={speech} /> : <>
+        <ChatComposerTextArea input={input} inputRef={inputRef} hidden={activePanel !== null} />
+        <div ref={setPanelContainer} className="ai-panel__composer-panel-slot" hidden={activePanel === null} />
         <div className="ai-panel__composer-actions">
-          <ChatModelPicker
-            modelPicker={{
-              ...modelPicker,
-              onToggleOpen: (updater) => {
-                setIsAddMenuOpen(false);
-                setIsHistoryOpen(false);
-                modelPicker.onToggleOpen(updater);
-              },
-            }}
-          />
+          <ChatModelPicker modelPicker={modelPicker} isOpen={activePanel === "models"}
+            panelContainer={panelContainer} onOpenChange={open => changePanel("models", open)} />
           <ChatComposerReasoningControl reasoning={reasoning} />
-          <ChatUsagePopover usage={usage} />
+          <ChatUsagePopover usage={usage} isOpen={activePanel === "usage"}
+            panelContainer={panelContainer} onOpenChange={open => changePanel("usage", open)} />
+          {speech && <button type="button" className="ai-panel__speech-start"
+            disabled={!speech.available}
+            title={speech.available ? "语音输入（录音将上传云端识别）" : "语音输入需要麦克风权限及 HTTPS 或本机访问"}
+            aria-label="语音输入"
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={() => speech.start(document.activeElement === inputRef.current ? inputRef.current?.selectionEnd ?? null : null)}>
+            <Microphone size={18} aria-hidden="true" />
+          </button>}
           <ComposerSubmitButton generation={generation} input={input} />
         </div>
+        </>}
       </div>
     </footer>
   );

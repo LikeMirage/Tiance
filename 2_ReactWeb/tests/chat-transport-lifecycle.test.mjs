@@ -45,14 +45,17 @@ const mocks = {
     prepareConversationStreamResume: (messages, id) => ({ assistantMessage: { id }, messages, checkpointMessageId: null }),
   },
 };
-function load(name) {
-  const path = fileURLToPath(new URL(`../src/features/ai-panel/model/${name}.ts`, import.meta.url));
+function loadSource(relativePath) {
+  const path = fileURLToPath(new URL(`../src/${relativePath}.ts`, import.meta.url));
   const source = ts.transpileModule(fs.readFileSync(path, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const module = { exports: {} };
   vm.runInThisContext(`(function(require,module,exports){${source}\n})`, { filename: path })(
     (name) => { assert.ok(name in mocks, name); return mocks[name]; }, module, module.exports);
   return module.exports;
 }
+const load = name => loadSource(`features/ai-panel/model/${name}`);
+const runtimeModule = loadSource("entities/llm-chat/model/conversationRuntime");
+mocks["../../../entities/llm-chat/model/conversationRuntime"] = runtimeModule;
 const { useChatGeneration } = load("useChatGeneration");
 const { useDetachedConversationStream } = load("useDetachedConversationStream");
 const { useChatStreamControllers } = load("useChatStreamControllers");
@@ -66,6 +69,7 @@ function Harness({ detached }) {
 }
 async function setup(detached = false) {
   streams = []; history = []; lists = []; messages = []; status = "idle";
+  runtimeModule.conversationRuntime = new runtimeModule.ConversationRuntimeStore();
   leases = new SessionStreamingRegistry();
   globalThis.window = { setTimeout: noop };
   const model = { providerId: "provider", modelId: "model" };
@@ -95,14 +99,17 @@ test("aborted send releases stream ownership before a slow list refresh and late
   let first, second;
   await act(async () => { first = result.send(); });
   assert.equal(leases.has("p:s"), true);
+  assert.equal(runtimeModule.conversationRuntime.status("p", "s", "idle"), "running");
   await act(async () => controllers.abortSessionStream("p:s"));
   assert.equal(lists.length, 1);
   assert.equal(leases.has("p:s"), false);
+  assert.equal(runtimeModule.conversationRuntime.status("p", "s", "idle"), "idle");
   assert.equal(status, "running", "transport abort alone is not a server stop acknowledgement");
   await act(async () => { second = result.send(); });
   assert.equal(streams.length, 2, "the old send lock cannot remain held by history refresh");
   await act(async () => { lists[0].resolve(); await first; });
   assert.equal(leases.has("p:s"), true);
+  assert.equal(runtimeModule.conversationRuntime.status("p", "s", "idle"), "running");
   assert.equal(streams[1].signal.aborted, false);
   await act(async () => controllers.abortSessionStream("p:s"));
   await act(async () => { lists[1].resolve(); await second; });

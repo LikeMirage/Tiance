@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { insertSpeechText, type SpeechDraftOrigin } from "./speechDraft";
+import { conversationRuntime } from "../../../entities/llm-chat/model/conversationRuntime";
+import { useConversationRuntimeVersion } from "../../../entities/llm-chat/model/useConversationRuntime";
 import type { MutableRefObject } from "react";
 
 import type {
@@ -129,14 +132,20 @@ export function useConversationSessions({
   const isCurrentProjectLoaded = loadedProjectId === projectId;
   const presentedActiveSessionId = isCurrentProjectLoaded ? activeSessionId : null;
   const presentedDraft = isCurrentProjectLoaded ? draft : "";
-  const presentedSessionStates = isCurrentProjectLoaded ? sessionStates : {};
+  const runtimeVersion = useConversationRuntimeVersion();
+  const presentedSessionStates = useMemo(() => {
+    if (!isCurrentProjectLoaded || !projectId) return {};
+    return Object.fromEntries(Object.entries(sessionStates).map(([sessionId, state]) => [
+      sessionId, { ...state, runtime_status: conversationRuntime.status(projectId, sessionId, state.runtime_status) },
+    ]));
+  }, [isCurrentProjectLoaded, projectId, sessionStates, runtimeVersion]);
   const presentedSessions = isCurrentProjectLoaded ? sessions : [];
   const presentedBranchNodes = isCurrentProjectLoaded ? branchNodes : [];
   const presentedMessageVariants = isCurrentProjectLoaded ? messageVariants : [];
   const presentedSettledDraft = isCurrentProjectLoaded && settledDraft?.projectId === projectId
     ? settledDraft
     : null;
-  const hasRunningSession = isCurrentProjectLoaded && Object.values(sessionStates).some(
+  const hasRunningSession = isCurrentProjectLoaded && Object.values(presentedSessionStates).some(
     (state) => state.runtime_status === "running",
   );
   activeSessionIdRef.current = presentedActiveSessionId;
@@ -324,6 +333,22 @@ export function useConversationSessions({
     setSelectionLoadError(null);
     return () => selectionRequestRef.current?.abort();
   }, [projectId]);
+
+  const insertSpeechDraft = useCallback((origin: SpeechDraftOrigin, text: string) => {
+    const { projectId: pid, sessionId } = origin;
+    const snapshot = projectSessionSnapshotsRef.current.get(pid);
+    const current = latestDraftRef.current;
+    const isCurrent = activeProjectIdRef.current === pid && activeSessionIdRef.current === sessionId
+      && current.projectId === pid && current.activeSessionId === sessionId;
+    const existing = isCurrent ? current.draft
+      : snapshot?.activeSessionId === sessionId ? snapshot.draft : snapshot?.sessionStates[sessionId]?.draft ?? origin.draft;
+    const next = insertSpeechText(existing, origin, text);
+    if (isCurrent) {
+      latestDraftRef.current = { ...current, draft: next };
+      setDraft(next);
+    }
+    saveSessionState(pid, sessionId, { draft: next });
+  }, [activeProjectIdRef, activeSessionIdRef, saveSessionState]);
 
   const activateSession = useCallback(async (sessionId: string) => {
     if (!projectId) return false;
@@ -794,6 +819,7 @@ export function useConversationSessions({
     saveConversationState,
     saveSessionState,
     restoreUnsentInput,
+    insertSpeechDraft,
     settledDraft: presentedSettledDraft,
     sessionStates: presentedSessionStates,
     sessionLoadError: selectionLoadError ?? sessionLoadError,

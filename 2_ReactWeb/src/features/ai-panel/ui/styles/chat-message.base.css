@@ -10,6 +10,9 @@
   padding: 8px 14px;
   border-top: 1px solid rgba(var(--color-accent-rgb), 0.36);
   border-bottom: 1px solid rgba(var(--color-accent-rgb), 0.36);
+  /* Paint on the shared panel edges without reducing the message content width. */
+  box-shadow: inset 1px 0 rgba(var(--color-accent-rgb), 0.36),
+    inset -1px 0 rgba(var(--color-accent-rgb), 0.36);
   background: var(--color-selection-accent-bg-subtle);
 }
 

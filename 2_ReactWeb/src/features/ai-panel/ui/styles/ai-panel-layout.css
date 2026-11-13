@@ -183,6 +183,16 @@
   pointer-events: none;
 }
 
+/* Draw the rail below messages so their border can replace the same pixel.
+   The scrollbar thumb remains above messages and keeps its drag hit area. */
+.ai-panel__body-frame:has(.ai-panel__messages) {
+  box-shadow: inset -1px 0 var(--color-border-soft);
+}
+
+.ai-panel__body-frame:has(.ai-panel__messages) > .edge-scrollbar::before {
+  background: transparent;
+}
+
 .ai-panel__session-loading {
   position: absolute;
   inset: 0;

@@ -1,0 +1,17 @@
+Speech protocol implementation derived from xifan2333/jianying-subtitle,
+commit b14e42cfd29a9e829a4b5a2edb75166ced89de12 (version 0.2.3).
+Upstream: https://github.com/xifan2333/jianying-subtitle
+Copyright (C) 2026 xifan2333. License: GPL-3.0-only (see LICENSE).
+
+Python implementation developed 2026-11-05 through 2026-11-13: streaming
+upload, balanced segmentation, timeline restoration, full raw responses,
+PyAV processing, SILK decoding and host-independent budget/client injection.
+The protocol core is mirrored from Tiance's independent audio_transcribe
+tool. Each host ships its own copy and does not load the other at runtime.
+
+The backend installs upstream PyAV 16.0.1 as a Python dependency. It does
+not ship or load the tool's custom audio-only PyAV build. PyAV and bundled
+FFmpeg libraries retain the notices in their installed distributions.
+
+The SILK decoder from kn007/silk-v3-decoder retains the MIT wrapper and
+Skype SDK licenses, source revision and binary hash in vendor/silk/.

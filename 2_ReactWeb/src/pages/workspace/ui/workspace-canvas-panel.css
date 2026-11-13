@@ -117,8 +117,8 @@
 }
 
 .workspace-page__canvas-chat-resizer {
-  flex: 0 0 1px;
-  min-width: 1px;
+  flex: 0 0 0;
+  min-width: 0;
   position: relative;
   z-index: 1;
   cursor: col-resize;
@@ -143,11 +143,10 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 50%;
+  left: 0;
   width: var(--structure-assistant-panel-left-width);
-  background: var(--structure-line-color);
+  background: transparent;
   pointer-events: none;
-  transform: translateX(-50%);
   transition: background-color 160ms ease;
 }
 
@@ -175,6 +174,8 @@
   min-height: 0;
   border-left: 0;
   background: color-mix(in srgb, var(--color-surface-sidebar) var(--app-background-surface-weight), transparent);
+  /* The divider and message edge share the first pixel of this panel. */
+  box-shadow: inset var(--structure-assistant-panel-left-width) 0 var(--structure-line-color);
   overflow: hidden;
 }
 

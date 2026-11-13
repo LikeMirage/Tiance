@@ -8,6 +8,7 @@ version = "0.3.47"
 description = "Local API server for the Tiance workspace."
 requires-python = ">=3.11"
 dependencies = [
+  "av==16.0.1",
   "anyio>=4,<5",
   "cryptography>=42,<47",
   "dulwich>=1.2,<2.0",

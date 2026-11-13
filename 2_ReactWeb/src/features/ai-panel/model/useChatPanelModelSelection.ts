@@ -9,7 +9,6 @@ type UseChatPanelModelSelectionOptions = {
   activeSessionId: string | null;
   projectId: string | null;
   reloadSessions: (projectId: string) => Promise<void>;
-  setIsModelMenuOpen: Dispatch<SetStateAction<boolean>>;
   setSelectedModel: (model: ChatModelOption) => void;
   setSessions: Dispatch<SetStateAction<ConversationSession[]>>;
 };
@@ -19,7 +18,6 @@ export function useChatPanelModelSelection({
   activeSessionId,
   projectId,
   reloadSessions,
-  setIsModelMenuOpen,
   setSelectedModel,
   setSessions,
 }: UseChatPanelModelSelectionOptions) {
@@ -28,7 +26,6 @@ export function useChatPanelModelSelection({
   return useCallback((model: ChatModelOption) => {
     const requestSeq = ++modelSelectionRequestSeqRef.current;
     setSelectedModel(model);
-    setIsModelMenuOpen(false);
     if (!projectId || !activeSessionId) return;
 
     const patchSession = (session: ConversationSession): ConversationSession => ({
@@ -63,8 +60,7 @@ export function useChatPanelModelSelection({
     activeSessionId,
     projectId,
     reloadSessions,
-    setIsModelMenuOpen,
-    setSelectedModel,
+      setSelectedModel,
     setSessions,
   ]);
 }

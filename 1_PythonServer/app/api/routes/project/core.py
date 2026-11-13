@@ -53,6 +53,12 @@ async def watch_workspace_catalog(websocket: WebSocket) -> None:
     await serve_event_socket(websocket, workspace_catalog_events())
 
 
+@router.websocket('/runtime-events')
+async def watch_conversation_runtime(websocket: WebSocket) -> None:
+    from app.infra.conversation_runtime import conversation_runtime
+    await serve_event_socket(websocket, conversation_runtime.events())
+
+
 @router.get("/events", summary="Watch ordinary project workspace changes")
 async def watch_project_events() -> StreamingResponse:
     async def event_generator():

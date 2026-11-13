@@ -93,4 +93,8 @@ FLAC 路径保持采样率和声道，按解码后的采样位置裁切。16/24 
 
 ## 验证
 
+本工具仍是独立 Python 工具，不依赖天策后端。`program/jianying_asr/engine.py` 是与后端逐字节同步的识别核心；`runner.py` 保留工具配置适配，读取本工具的 `runtime.timeout_seconds`。后端拥有自己的完整副本，不在运行时加载本工具。
+
+在天策源码根目录修改核心后，运行 `python scripts/sync-speech-core.py --from-tool`（先改后端则用 `--from-backend`），再执行 `--check` 及两边测试。同步范围、录音与取消语义见源码文档 `docs/输入框语音与独立转写核心.md`。工具单独分发和升级时不需要此同步脚本。
+
 安装依赖后运行 `python -m unittest discover -s tests -v`。离线测试不上传音频；联网验收记录见 VALIDATION.md。
