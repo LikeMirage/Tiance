@@ -116,6 +116,7 @@ export interface DesktopShellApi {
   open_external_url?: (url: string) => Promise<boolean>;
   get_page_zoom_factor?: () => Promise<PageZoomSnapshot>;
   get_system_metrics?: () => Promise<SystemMetricsSnapshot>;
+  record_renderer_diagnostics?: (metrics: Record<string, number>) => Promise<boolean>;
   set_page_zoom_factor?: (zoomFactor: number) => Promise<PageZoomSnapshot>;
   set_window_bounds: (x: number, y: number, width: number, height: number) => Promise<boolean>;
   move_window: (x: number, y: number) => Promise<boolean>;

@@ -8,7 +8,7 @@ const source = readFileSync(
   "utf8",
 );
 
-async function createStartup({ health = [true], app = [true], dev = false, backendOk = true, desktopAuth = true } = {}) {
+async function createStartup({ health = [true], app = [true], dev = false, devUrl = "", distExists = true, backendOk = true, desktopAuth = true } = {}) {
   const statuses = [];
   const probes = [];
   const navigations = [];
@@ -20,9 +20,9 @@ async function createStartup({ health = [true], app = [true], dev = false, backe
   const state = {
     apiUrl: "http://127.0.0.1:18000",
     gatewayHealthUrl: "http://127.0.0.1:18000/gateway/health",
-    devUrl: "http://127.0.0.1:18100",
+    devUrl,
     appUrl: "http://127.0.0.1:18000/app/",
-    distExists: true,
+    distExists,
     bootTheme: {},
   };
   const next = (results) => results.length > 1 ? results.shift() : results[0];
@@ -97,7 +97,7 @@ test("local page waits do not replay completed startup stages or announce entry 
   assert.equal(startup.backendCalls, 1);
   assert.equal(startup.desktopAuthCalls, 1);
   assert.equal(startup.probes.filter((url) => url.endsWith("/gateway/health")).length, 1);
-  assert.equal(startup.probes.filter((url) => url.endsWith("/@vite/client")).length, 1);
+  assert.equal(startup.probes.filter((url) => url.endsWith("/@vite/client")).length, 0);
   assert.equal(startup.statuses.filter((text) => text === "正在进入本地页面").length, 1);
   assert.equal(startup.navigations.length, 1);
   await startup.checkAgain();
@@ -137,11 +137,33 @@ test("desktop identity readiness retries without restarting the backend or bypas
   assert.equal(startup.navigations.length, 1);
 });
 
-test("development frontend remains preferred when available", async () => {
-  const startup = await createStartup({ dev: true });
+test("an explicitly configured development frontend remains preferred when available", async () => {
+  const startup = await createStartup({ dev: true, devUrl: "http://127.0.0.1:18100" });
   await startup.tick();
   assert.ok(startup.navigations[0].startsWith("http://127.0.0.1:18100/"));
   assert.ok(!startup.probes.some((url) => url.endsWith("/app/")));
+});
+
+test("normal desktop startup ignores an available developer server", async () => {
+  const startup = await createStartup({ dev: true });
+  await startup.tick();
+  assert.ok(startup.navigations[0].startsWith("http://127.0.0.1:18000/app/"));
+  assert.ok(!startup.probes.some(url => url.includes("18100")));
+});
+
+test("missing local build does not silently switch normal users to a development server", async () => {
+  const startup = await createStartup({ dev: true, distExists: false });
+  await startup.tick();
+  assert.equal(startup.navigations.length, 0);
+  assert.equal(startup.statuses.at(-1), "启动未完成");
+  assert.ok(!startup.probes.some(url => url.includes("18100")));
+});
+
+test("an unavailable explicit developer server falls back to the built page", async () => {
+  const startup = await createStartup({ dev: false, devUrl: "http://127.0.0.1:18100" });
+  await startup.tick();
+  assert.ok(startup.navigations[0].startsWith("http://127.0.0.1:18000/app/"));
+  assert.equal(startup.probes.filter(url => url.endsWith("/@vite/client")).length, 1);
 });
 
 test("page failure settles at the configured attempt limit and manual retry can recover", async () => {

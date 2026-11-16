@@ -18,8 +18,13 @@ const fakeWindow = () => ({
   clearInterval(id) { intervals.delete(id); },
 });
 let stopped = 0;
+const diagnosticSources = new Set();
 const mocks = {
   react: React,
+  "@/shared/diagnostics/rendererDiagnostics": { registerRendererDiagnosticSource: source => {
+    diagnosticSources.add(source);
+    return () => { diagnosticSources.delete(source); };
+  } },
   "./sessionKey": { buildSessionKey: key },
   "../../../services/project/getProjectConversationMessages": {
     CONVERSATION_MESSAGE_PAGE_SIZE: 80,
@@ -79,7 +84,29 @@ async function respond(index, response) {
   state = { revision: response.revision, reset_revision: response.reset_revision, project_revision: response.revision };
   await act(async () => { requests[index].resolve(response); });
 }
-afterEach(async () => { if (renderer) await act(async () => renderer.unmount()); renderer = null; });
+afterEach(async () => {
+  if (renderer) await act(async () => renderer.unmount());
+  renderer = null;
+  assert.equal(diagnosticSources.size, 0);
+});
+
+test("diagnostics reads current cache sizes without copying or exposing conversation text", async () => {
+  await setup();
+  const saved = { ...msg("m1", "user"), content: "private prompt" };
+  await respond(0, page([saved]));
+  await act(async () => result.updateSessionMessages("p", "s", items => [...items,
+    { ...msg("m2"), status: "running", content: "private reply", processItems: [{ type: "content", content: "step" }] }]));
+  assert.equal(diagnosticSources.size, 1);
+  const metrics = [...diagnosticSources][0]();
+  assert.equal(metrics.cached_sessions, 1);
+  assert.equal(metrics.cached_messages, 2);
+  assert.equal(metrics.cached_chars, "private promptprivate replystep".length);
+  assert.equal(metrics.durable_messages, 1);
+  assert.equal(metrics.running_messages, 1);
+  assert.equal(metrics.process_items, 1);
+  assert.ok(Object.values(metrics).every(value => typeof value === "number"));
+  assert.equal(result.sessionMessages["p/s"][0], saved);
+});
 
 test("slow initial history is not cancelled by repeated refreshes or a child becoming idle", async () => {
   await setup();

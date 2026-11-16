@@ -5,6 +5,7 @@ import { buildConversationRunRequest } from "../../conversation-runtime/model/co
 import { processChatStreamEventSideEffects } from "../../conversation-runtime/model/chatStreamEventSideEffects";
 import { getProjectConversationDetail } from "../../../services/project/getProjectConversationDetail";
 import { fetchJson } from "../../../services/http/httpClient";
+import { registerRendererDiagnosticSource } from "@/shared/diagnostics/rendererDiagnostics";
 
 type Preparation = {
   id: string; project_id: string; session_id: string; user_message_id: string;
@@ -22,6 +23,12 @@ export function useMobileDesktopBridge(
     const abort = new AbortController();
     let cursor = 0;
     const pending = new Set<string>();
+    let lastPoll = performance.now();
+    let pollErrors = 0;
+    const unregisterDiagnostics = registerRendererDiagnosticSource(() => ({
+      mobile_bridge_instances: 1, mobile_poll_age_ms: performance.now() - lastPoll,
+      mobile_poll_errors: pollErrors, mobile_pending: pending.size,
+    }));
     const prepare = async (job: Preparation) => {
       if (pending.has(job.id)) return;
       pending.add(job.id);
@@ -57,10 +64,12 @@ export function useMobileDesktopBridge(
           const data = await fetchJson<{ preparations: Preparation[]; events: ChatStreamEvent[]; cursor?: number }>(
             `/api/mobile/desktop/poll?owner=${encodeURIComponent(owner.current)}&after=${cursor}`, { signal: abort.signal },
           );
+          lastPoll = performance.now();
           for (const job of data.preparations) void prepare(job).catch(() => undefined);
           for (const event of data.events) void processChatStreamEventSideEffects(event, executor.current);
           cursor = data.cursor ?? 0;
         } catch {
+          if (!abort.signal.aborted) pollErrors++;
           // No task is restarted here. The backend owns execution and outcome delivery.
         }
         await new Promise<void>((resolve) => {
@@ -73,6 +82,7 @@ export function useMobileDesktopBridge(
     };
     void run();
     return () => {
+      unregisterDiagnostics();
       abort.abort();
       void fetchJson("/api/mobile/desktop/release", { method: "POST", keepalive: true,
         body: JSON.stringify({ owner: owner.current }),

@@ -25,6 +25,7 @@ import {
   toggleMaximizeDesktopShell,
 } from "./desktopShellStore";
 import { requestDesktopWindowClose } from "./desktopCloseRequest";
+import { useRendererDiagnostics } from "./useRendererDiagnostics";
 import type {
   DesktopShellContextValue,
   NativeWindowResizeEdge,
@@ -40,6 +41,7 @@ export function DesktopShellProvider({ children }: PropsWithChildren) {
     getDesktopShellSnapshot,
   );
   const { capabilities, state } = shellSnapshot;
+  useRendererDiagnostics(state.available);
 
   useEffect(() => {
     return acquireDesktopShellBridge();

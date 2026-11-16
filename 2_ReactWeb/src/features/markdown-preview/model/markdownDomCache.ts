@@ -6,6 +6,10 @@ const templates = new Map<MarkdownRenderDocument, { blocks: Map<number, Document
 let totalNodes = 0;
 let totalChars = 0;
 
+export function getMarkdownDomCacheMetrics() {
+  return { markdown_documents: templates.size, markdown_nodes: totalNodes, markdown_chars: totalChars };
+}
+
 export function getMarkdownDomBlock(document: MarkdownRenderDocument, id: number) {
   const template = templates.get(document);
   if (!template) return undefined;

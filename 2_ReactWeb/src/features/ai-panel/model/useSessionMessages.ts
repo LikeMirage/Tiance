@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
+import { registerRendererDiagnosticSource } from "@/shared/diagnostics/rendererDiagnostics";
 
 import { CONVERSATION_MESSAGE_PAGE_SIZE, getProjectConversationMessages } from "../../../services/project/getProjectConversationMessages";
 import { getCachedProjectEntryWarmup } from "../../project-entry/model/projectEntryWarmup";
@@ -59,6 +60,31 @@ export function useSessionMessages({
   const [messageLoadErrors, setMessageLoadErrors] = useState<Record<string, string>>({});
   const jobsRef = useRef(new Map<string, { promise: Promise<boolean>; queued: ReloadSessionMessagesOptions | null; older: boolean }>());
   const reloadControllersRef = useRef(new Map<string, AbortController>());
+
+  useEffect(() => registerRendererDiagnosticSource(() => {
+    // Logical sizes can overlap shared objects; actual memory comes from heap/process samples.
+    const metrics = { cached_sessions: 0, cached_messages: 0, cached_chars: 0,
+      durable_messages: 0, durable_chars: 0, process_items: 0, tool_items: 0,
+      running_messages: 0, largest_session_chars: 0, history_requests: jobsRef.current.size };
+    for (const messages of Object.values(sessionMessageSnapshotsRef.current)) {
+      metrics.cached_sessions++;
+      metrics.cached_messages += messages.length;
+      const chars = countMessagesChars(messages);
+      metrics.cached_chars += chars;
+      metrics.largest_session_chars = Math.max(metrics.largest_session_chars, chars);
+      for (const message of messages) {
+        metrics.process_items += message.processItems?.length ?? 0;
+        metrics.tool_items += message.toolCalls?.length ?? 0;
+        for (const item of message.processItems ?? []) if (item.type === "tool") metrics.tool_items++;
+        if (message.status === "running") metrics.running_messages++;
+      }
+    }
+    for (const messages of Object.values(durableMessagesRef.current)) {
+      metrics.durable_messages += messages.length;
+      metrics.durable_chars += countMessagesChars(messages);
+    }
+    return metrics;
+  }), []);
 
   useEffect(() => () => {
     for (const controller of reloadControllersRef.current.values()) {

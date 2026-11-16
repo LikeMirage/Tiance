@@ -10,6 +10,7 @@ const vite = await createServer({ appType: "custom", logLevel: "silent",
   root: fileURLToPath(new URL("../", import.meta.url)), server: { middlewareMode: true } });
 after(() => vite.close());
 const { useMobileDesktopBridge } = await vite.ssrLoadModule("/src/features/mobile-access/model/useMobileDesktopBridge.ts");
+const { collectRendererSourceMetrics } = await vite.ssrLoadModule("/src/shared/diagnostics/rendererDiagnostics.ts");
 
 test("手机请求读取指定会话配置，重试传输不改变目标或桌面草稿", async () => {
   const previous = globalThis.fetch;
@@ -41,9 +42,14 @@ test("手机请求读取指定会话配置，重试传输不改变目标或桌�
     await act(async()=>{view=create(createElement(Probe));});
     await new Promise(resolve=>setTimeout(resolve,1300));
     assert.equal(prepared,2);
+    const metrics = collectRendererSourceMetrics();
+    assert.equal(metrics.mobile_bridge_instances, 1);
+    assert.equal(metrics.mobile_pending, 0);
+    assert.ok(metrics.mobile_poll_age_ms < 2000);
     assert.ok(calls.filter(p=>p.endsWith("/detail")).every(p=>p.includes("remote-project/conversations/remote-session")));
     assert.equal(calls.some(p=>p.endsWith("/state") || p.includes("/active")),false);
   } finally {
     await act(async()=>view?.unmount());globalThis.fetch=previous;
+    assert.equal(collectRendererSourceMetrics().mobile_bridge_instances, undefined);
   }
 });

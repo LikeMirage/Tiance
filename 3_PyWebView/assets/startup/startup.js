@@ -104,7 +104,7 @@ function haveSameOrigin(firstUrl, secondUrl) {
 }
 
 async function canReachDevFrontend() {
-  if (haveSameOrigin(startup.devUrl, startup.apiUrl)) {
+  if (!startup.devUrl || haveSameOrigin(startup.devUrl, startup.apiUrl)) {
     return false;
   }
 
@@ -199,7 +199,7 @@ async function advanceStartup() {
   }
 
   if (startupStage === "frontend") {
-    setText("summary", "正在检测前端开发服务");
+    setText("summary", startup.devUrl ? "正在检测前端开发服务" : "正在加载本地页面");
     if (await canReachDevFrontend()) {
       startupStage = "entered";
       setText("summary", "正在进入开发服务");
@@ -210,7 +210,9 @@ async function advanceStartup() {
     if (!startup.distExists) {
       setPageState("error");
       setText("summary", "启动未完成");
-      setText("hint", "请先启动前端开发服务，或构建本地页面后重试。");
+      setText("hint", startup.devUrl
+        ? "请先启动已配置的开发服务，或构建本地页面后重试。"
+        : "未找到本地页面，请先构建页面或重新安装天策。");
       return;
     }
     startupStage = "page";

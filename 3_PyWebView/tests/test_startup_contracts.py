@@ -62,6 +62,14 @@ class EmbeddedRuntimeContractTests(unittest.TestCase):
 
 
 class ShellConfigPortSelectionTests(unittest.TestCase):
+    def test_development_frontend_requires_explicit_configuration(self) -> None:
+        for configured, expected in [(None, ""), ("", ""), (" http://127.0.0.1:18100 ", "http://127.0.0.1:18100")]:
+            environment = {} if configured is None else {"TIANCE_FRONTEND_DEV_URL": configured}
+            with self.subTest(configured=configured), patch.dict(os.environ, environment, clear=True), patch.object(shell_config, "is_port_open", return_value=False):
+                settings = shell_config.load_settings()
+                self.assertEqual(settings.dev_url, expected)
+                self.assertTrue(settings.app_url.split("?", 1)[0].endswith("/app/"))
+
     def test_saved_fixed_port_is_used_when_environment_does_not_override(self) -> None:
         preferences = shell_config.NetworkStartupPreferences(
             backend_port_mode="fixed",

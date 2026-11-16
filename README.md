@@ -231,7 +231,7 @@ pnpm install
 pnpm dev
 ```
 
-桌面壳优先连接本机前端开发服务；没有开发服务时，加载 `2_ReactWeb/dist`。后端和桌面壳继续使用仓库内置环境。
+桌面壳默认加载 `2_ReactWeb/dist`。需要前端热更新调试时，在启动桌面壳的进程环境中显式设置 `TIANCE_FRONTEND_DEV_URL=http://127.0.0.1:18100`；日常使用和长任务保持默认本地构建。后端和桌面壳继续使用仓库内置环境。
 
 ```powershell
 pnpm check

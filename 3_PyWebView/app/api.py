@@ -32,6 +32,7 @@ from app.windows_tray import WindowsTrayIcon
 from app.windows_foreground import allow_backend_foreground
 from app.window_close import WindowCloseCoordinator, show_native_exit_prompt
 from app.microphone_permission import MicrophonePermission
+from app.runtime_diagnostics import RuntimeDiagnostics
 
 if TYPE_CHECKING:
     from app.backend_process import BackendProcessManager
@@ -122,9 +123,11 @@ class ShellApi:
             on_show_window=self._show_window_from_windows_tray,
         )
         self._system_metrics = SystemMetricsSampler()
+        self._diagnostics = RuntimeDiagnostics(_project_root(), settings)
 
     def bind_window(self, window: Any) -> None:
         self._window = window
+        self._diagnostics.start(window, lambda action: _run_on_native_window_thread(window, action))
         self._microphone_permission = MicrophonePermission(
             window, self._settings, lambda action: _run_on_native_window_thread(window, action),
         )
@@ -380,6 +383,7 @@ class ShellApi:
             mark("backend unavailable: shell close failed", error=type(exc).__name__)
 
     def dispose(self) -> None:
+        self._diagnostics.dispose()
         self._close_coordinator.dispose()
         self._dispose_tray()
 
@@ -449,6 +453,10 @@ class ShellApi:
     def get_system_metrics(self) -> dict[str, Any]:
         self._require_allowed_window()
         return self._system_metrics.snapshot()
+
+    def record_renderer_diagnostics(self, payload: dict) -> bool:
+        self._require_allowed_window()
+        return self._diagnostics.record_renderer(payload)
 
     def set_window_bounds(self, x: int, y: int, width: int, height: int) -> bool:
         window = self._require_allowed_window()
