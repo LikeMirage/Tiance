@@ -16,6 +16,8 @@ const vite = await createServer({ appType: "custom", logLevel: "silent",
     if (id.endsWith("/watchProjectFileEvents.ts")) return "export const watchProjectFileEvents = () => () => {};";
   } }],
 });
+const { isWebHomeTab } = await vite.ssrLoadModule("/src/features/document-tabs/model/workspaceTabEntries.ts");
+const userOpenedTabs = tabs => tabs.filter(tab => !isWebHomeTab(tab));
 const { useDocumentTabs } = await vite.ssrLoadModule("/src/features/document-tabs/model/useDocumentTabs.ts");
 const { useWorkspaceDocumentActions } = await vite.ssrLoadModule("/src/pages/workspace/model/useWorkspaceDocumentActions.ts");
 const { useToolWorkspacePersistence } = await vite.ssrLoadModule("/src/pages/workspace/model/useToolWorkspacePersistence.ts");
@@ -116,7 +118,7 @@ test("切换项目保留原网页、当前标签和导航地址，批量关闭�
     await act(async () => tabs.openWebTab("https://example.test/", projectId));
     return tabs.activeTabId;
   };
-  const webIds = () => tabs.tabs.filter(tab => tab.kind === "web").map(tab => tab.id);
+  const webIds = () => userOpenedTabs(tabs.tabs).filter(tab => tab.kind === "web").map(tab => tab.id);
   try {
     await change("a");
     const first = await open("a"), second = await open("a");
@@ -195,18 +197,18 @@ for (const group of ["projects", "tools"]) {
       await stop();
       await start();
       assert.equal(tabs.activeTabId, second);
-      assert.deepEqual(tabs.tabs.filter(t => t.kind === "web").map(t => [t.id, t.displayPath]), [
+      assert.deepEqual(userOpenedTabs(tabs.tabs).filter(t => t.kind === "web").map(t => [t.id, t.displayPath]), [
         [first, "https://example.test/"], [second, "https://example.test/"],
       ]);
       assert.equal(tabs.activeTab.title, "第二个窗口");
-      const ordered = tabs.tabs.filter(t => t.kind === "web" || t.filePath).map(t => t.filePath || t.id);
+      const ordered = userOpenedTabs(tabs.tabs).filter(t => t.kind === "web" || t.filePath).map(t => t.filePath || t.id);
       assert.deepEqual(ordered, ["a.pdf", first, "b.pdf", second]);
       await act(async () => tabs.closeTab(second));
       await stop();
       folderExpanded = true;
       await start();
       assert.equal(tabs.activeTab.filePath, "b.pdf");
-      assert.deepEqual(tabs.tabs.filter(t => t.kind === "web").map(t => t.id), [first]);
+      assert.deepEqual(userOpenedTabs(tabs.tabs).filter(t => t.kind === "web").map(t => t.id), [first]);
       await act(async () => tabs.closeAllTabs({ preservePinned: true, webOnly: true }));
       assert.deepEqual(disk.open_tabs.map(t => t.path), ["a.pdf", "b.pdf"]);
     } finally { await stop(); }
@@ -228,10 +230,12 @@ test("未选择项目时的空白及已导航标签分别保存在对应总览",
     await act(async () => tabs.selectTab(blank));
     await close();
     await mountOverview("tools");
-    assert.deepEqual(tabs.tabs, []);
+    assert.equal(tabs.tabs.length, 1);
+    assert.ok(isWebHomeTab(tabs.tabs[0]));
     await close();
     await mountOverview("projects");
-    assert.deepEqual(tabs.tabs.map(tab => tab.displayPath), ["", "https://example.test/"]);
+    assert.ok(isWebHomeTab(tabs.tabs[0]));
+    assert.deepEqual(userOpenedTabs(tabs.tabs).map(tab => tab.displayPath), ["", "https://example.test/"]);
     assert.equal(tabs.activeTabId, blank);
   } finally { await close(); delete window.localStorage; }
 });
@@ -264,7 +268,7 @@ test("下载记录通过普通文件标签打开未知格式，项目外也能�
     const projectTab = view.state.tabs.activeTab;
     assert.equal(projectTab.kind, "unsupported");
     await open();
-    assert.equal(view.state.tabs.tabs.length, 1);
+    assert.equal(userOpenedTabs(view.state.tabs.tabs).length, 1);
     assert.equal(view.state.tabs.activeTab.id, projectTab.id);
     await view.change({ projectId: null });
     await open();
@@ -289,7 +293,7 @@ test("当前项目整文件引用打开普通标签，重复打开保留未保�
     assert.equal(view.state.tabs.activeTab.projectFilePath, "doc.md");
     await act(async () => view.state.tabs.updateTabContent(id, "unsaved"));
     await view.click(ref("C:/project/doc.md"));
-    assert.equal(view.state.tabs.tabs.length, 1);
+    assert.equal(userOpenedTabs(view.state.tabs.tabs).length, 1);
     assert.equal(view.state.tabs.activeTab.content, "unsaved");
     assert.equal(view.state.tabs.activeTab.isDirty, true);
   } finally { await view.close(); }
@@ -305,12 +309,12 @@ test("进入工作区后再打开引用，工具文件复用已有标签；切�
     onPrepareFileOpen: signal => { preparedSignal = signal; return new Promise(resolve => { finish = resolve; }); } });
   try {
     await view.click(ref("doc.md", { source: "project_file", projectId: "p" }));
-    assert.equal(view.state.tabs.tabs.length, 0);
+    assert.equal(userOpenedTabs(view.state.tabs.tabs).length, 0);
     // Simulate restoration finishing with this file already open and edited.
     await act(async () => view.state.tabs.openNode(node("doc.md"), { fileSource: source }));
     await act(async () => view.state.tabs.updateTabContent(view.state.tabs.activeTab.id, "unsaved"));
     await act(async () => { finish(true); await flush(); });
-    assert.equal(view.state.tabs.tabs.length, 1);
+    assert.equal(userOpenedTabs(view.state.tabs.tabs).length, 1);
     assert.equal(view.state.tabs.activeTab.content, "unsaved");
     assert.equal(view.state.tabs.activeTab.fileSource.key, source.source.key);
     await view.click(ref("doc.md", { source: "project_file", projectId: "p" }));
@@ -384,7 +388,7 @@ test("外部文本读写真实路径，重复点击不清除草稿，磁盘变�
     const id = view.state.tabs.activeTab.id;
     await act(async () => view.state.tabs.updateTabContent(id, "mine"));
     await view.click(ref("C:/外部/a.md"));
-    assert.equal(view.state.tabs.tabs.length, 1);
+    assert.equal(userOpenedTabs(view.state.tabs.tabs).length, 1);
     assert.equal(view.state.tabs.activeTab.content, "mine");
     await act(async () => { assert.equal(await view.state.tabs.saveTab(id), true); });
     assert.equal(disk, "mine");
