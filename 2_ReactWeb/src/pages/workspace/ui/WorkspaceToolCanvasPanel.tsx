@@ -11,6 +11,7 @@ import { DocumentEditorCanvas } from "../../../features/document-editor-canvas/u
 import { isProjectConversationOverviewTab } from "../../../features/document-editor-canvas/model/documentTabClassification";
 import { useDesktopShell } from "../../../features/desktop-shell/model/useDesktopShell";
 import type { useDocumentTabs } from "../../../features/document-tabs/model/useDocumentTabs";
+import { isOverviewEditorTab } from "../../../features/document-tabs/model/workspaceTabEntries";
 import { ToolsetOverview } from "../../../features/toolset-overview/ui/ToolsetOverview";
 import { ToolOverviewViewTabs } from "../../../features/toolset-overview/ui/ToolOverviewViewTabs";
 import { ToolMarketBoard } from "../../../features/tool-market/ui/ToolMarketBoard";
@@ -198,6 +199,7 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     handleGenerateMarkdownDocx,
     handleOpenConversationBranches,
     handleOpenConversationDataFile: openConversationDataFile,
+    handleOpenDownloadedFile,
     handleOpenReference,
     referenceOpenError,
     handlePreviewHtmlCode,
@@ -501,11 +503,6 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
   );
   const overviewContent = (
     <div className="tool-dashboard-host">
-      <ToolOverviewViewTabs
-        activeView={overviewView}
-        disabled={!selectedToolFolder}
-        onChange={handleToolOverviewViewChange}
-      />
       <div className="tool-dashboard-host__body">
         <div
           className={
@@ -541,10 +538,23 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
     </div>
   );
 
+  const overviewTabSelected = visibleActiveTab !== null && isOverviewEditorTab(visibleActiveTab);
+  const viewingOverview = !expandedToolFolder && !overviewTabSelected;
   return (
     <DocumentEditorCanvas
-      activeTab={expandedToolFolder ? visibleActiveTab ?? scopedActiveTab : null}
-      activeTabId={expandedToolFolder ? visibleActiveTabId ?? scopedActiveTabId : null}
+      overviewTabs={!expandedToolFolder && (
+        <ToolOverviewViewTabs activeView={overviewTabSelected ? null : overviewView}
+          disabled={!selectedToolFolder} onChange={view => {
+            if (overviewTabSelected) documentTabs.selectTab(null);
+            if (view !== overviewView) handleToolOverviewViewChange(view);
+          }} />
+      )}
+      onOpenWebTab={(url) => documentTabs.openWebTab(url, projectId)}
+      onOpenDownloadedFile={handleOpenDownloadedFile}
+      onWebTabChanged={documentTabs.updateWebTab}
+      webPaneVisible={isActive}
+      activeTab={viewingOverview ? null : visibleActiveTab ?? scopedActiveTab}
+      activeTabId={viewingOverview ? null : visibleActiveTabId ?? scopedActiveTabId}
       aiPanelInitialWidth={layoutPreferences.aiPanelWidth}
       assistantPanel={assistantPanel}
       emptyMessage={null}
@@ -559,14 +569,15 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
       onSaveCodeBlock={handleSaveProjectCodeBlock}
       onSelectExportDirectory={desktopShell.selectProjectFolder}
       persistentEmptyContent={overviewContent}
-      persistentEmptyContentVisible={!expandedToolFolder}
+      persistentEmptyContentVisible={viewingOverview}
       projectConversationOverviewContent={projectConversationOverviewContent}
+      projectRootPath={selectedToolFolder?.root_path ?? ""}
       statusMessage={referenceOpenError ?? workspaceError}
-      tabs={expandedToolFolder ? visibleProjectTabs : []}
+      tabs={expandedToolFolder ? visibleProjectTabs : visibleProjectTabs.filter(isOverviewEditorTab)}
       toolEntryCandidates={toolEntryFilePaths}
       onCloseTab={documentTabs.closeTab}
-      onCloseOtherTabs={documentTabs.closeOtherTabs}
-      onCloseAllTabs={() => documentTabs.closeAllTabs({ preservePinned: true })}
+      onCloseOtherTabs={id => documentTabs.closeOtherTabs(id, !expandedToolFolder && projectId !== null)}
+      onCloseAllTabs={() => documentTabs.closeAllTabs({ preservePinned: true, webOnly: !expandedToolFolder && projectId !== null })}
       onMarkDirty={documentTabs.markTabDirty}
       onMarkMissing={documentTabs.markTabMissing}
       onOverwriteExternalChange={documentTabs.overwriteExternalChange}

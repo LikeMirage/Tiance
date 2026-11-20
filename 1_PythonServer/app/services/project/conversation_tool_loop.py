@@ -2,7 +2,7 @@ import asyncio
 import logging
 from contextlib import aclosing
 from collections.abc import AsyncGenerator, Awaitable, Callable
-from dataclasses import replace
+from dataclasses import asdict, replace
 from time import monotonic
 from typing import Protocol
 
@@ -22,7 +22,8 @@ from app.domain.llm.chat import (
     ChatUsage,
 )
 from app.domain.project.project_conversation import ProjectConversationMessage
-from app.domain.llm.runtime_capabilities import LlmRuntimeCapabilities
+from app.domain.llm.runtime_capabilities import DEFAULT_IMAGE_MAX_LONG_EDGE_PX, LlmRuntimeCapabilities, MultiImageLimit
+from app.services.llm.chat.prompt_images import request_image_count
 from app.services.llm.chat.service import ChatCompletionService
 from app.services.project.conversation_run_context import active_run_id_for
 from app.services.project.conversation_stream_checkpoints import (
@@ -62,6 +63,7 @@ from app.services.tools.tool_metadata import normalize_tool_name
 from app.services.tools.tool_execution_runtime import ToolExecutionCancellation
 from app.services.tools.tool_result_guidance import ToolResultGuidanceService
 from app.services.tools.tool_result_content import (
+    deduplicate_image_parts,
     image_parts_from_tool_content,
     tool_resource_message,
 )
@@ -73,17 +75,6 @@ from app.services.tools.tool_permissions import combine_tool_permission_evaluati
 
 _DEFAULT_MAX_TOOL_CALLS = 99999
 logger = logging.getLogger(__name__)
-
-
-def _deduplicate_image_parts(parts):
-    unique = []
-    seen = set()
-    for part in parts:
-        if part.image_ref is None or part.image_ref.path in seen:
-            continue
-        seen.add(part.image_ref.path)
-        unique.append(part)
-    return tuple(unique)
 
 
 class _RuntimeCapabilitiesProvider(Protocol):
@@ -340,7 +331,7 @@ class ConversationToolLoop:
                         tool_call=tool_call,
                     )
                 tool_events = self._execute_streamed_tool_call_batch_events(
-                    original_request,
+                    current_request,
                     tool_call_batch,
                     on_tool_call_cancelled=on_tool_call_cancelled,
                 )
@@ -375,7 +366,7 @@ class ConversationToolLoop:
                         if checkpoint is not None:
                             yield checkpoint
             resource_message = tool_resource_message(
-                _deduplicate_image_parts(round_resource_parts)
+                deduplicate_image_parts(round_resource_parts)
             )
             if resource_message is not None:
                 next_messages.append(resource_message)
@@ -915,8 +906,8 @@ class ConversationToolLoop:
                     if isinstance(prepared, ChatToolResult):
                         result = prepared
                     elif isinstance(prepared, PreparedClientToolExecution):
-                        input_modalities = await asyncio.to_thread(
-                            self._model_input_modalities,
+                        input_modalities, image_limit, batch_limit = await asyncio.to_thread(
+                            self._model_image_settings,
                             request,
                         )
                         client_request = await self._client_tool_bridge_service.create_request(
@@ -928,6 +919,8 @@ class ConversationToolLoop:
                                 "provider_id": request.provider_id,
                                 "model_id": request.model_id,
                                 "input_modalities": list(input_modalities),
+                                "image_max_long_edge_px": image_limit,
+                                **({"multi_image_limit": asdict(batch_limit)} if batch_limit else {}),
                             },
                             capability=prepared.capability,
                             tool_project_id=prepared.tool_project_id,
@@ -1054,8 +1047,8 @@ class ConversationToolLoop:
             self._project_root_path,
             request.project_id,
         )
-        input_modalities = await asyncio.to_thread(
-            self._model_input_modalities,
+        input_modalities, image_limit, batch_limit = await asyncio.to_thread(
+            self._model_image_settings,
             request,
         )
         return ToolExecutionContext(
@@ -1066,26 +1059,33 @@ class ConversationToolLoop:
             provider_id=request.provider_id,
             model_id=request.model_id,
             input_modalities=input_modalities,
+            image_max_long_edge_px=image_limit,
+            multi_image_limit=batch_limit,
             enabled_tool_names=await asyncio.to_thread(
                 self._session_enabled_tool_names,
                 request,
             ),
         )
 
-    def _model_input_modalities(
+    def _model_image_settings(
         self,
         request: ChatCompletionRequest,
-    ) -> tuple[str, ...]:
+    ) -> tuple[tuple[str, ...], int, MultiImageLimit | None]:
         if self._runtime_capabilities_service is None:
-            return ()
+            return (), DEFAULT_IMAGE_MAX_LONG_EDGE_PX, None
         try:
             capabilities = self._runtime_capabilities_service.get_capabilities(
                 provider_id=request.provider_id,
                 model_id=request.model_id,
             )
         except AppError:
-            return ()
-        return capabilities.input_modalities
+            return (), DEFAULT_IMAGE_MAX_LONG_EDGE_PX, None
+        previous_images = request_image_count(request)
+        limit = capabilities.image_limit_for_count(previous_images + 1)
+        batch = capabilities.multi_image_limit
+        if batch and batch.max_long_edge_px < limit:
+            return capabilities.input_modalities, limit, replace(batch, min_images=batch.min_images - previous_images)
+        return capabilities.input_modalities, limit, None
 
     async def _persist_tool_result(
         self,
@@ -1198,21 +1198,14 @@ class ConversationToolLoop:
             return None
         status = "done" if tool_result.ok else "error"
         content = tool_result_message_content(tool_result)
-        content_parts = image_parts_from_tool_content(tool_result.content)
+        snapshot = None
         if self._attachment_service is not None:
-            content_parts = tuple(
-                replace(
-                    part,
-                    image_ref=self._attachment_service.snapshot_image_ref(
-                        request.project_id,
-                        request.session_id,
-                        part.image_ref,
-                        source_kind="tool_artifact",
-                    ),
+            def snapshot(ref, digest):
+                return self._attachment_service.snapshot_image_ref(
+                    request.project_id, request.session_id, ref, source_kind="tool_artifact",
+                    expected_sha256=digest,
                 )
-                for part in content_parts
-                if part.image_ref is not None
-            )
+        content_parts = image_parts_from_tool_content(tool_result.content, snapshot=snapshot)
         return self._append_conversation_message(
             request.project_id,
             request.session_id,

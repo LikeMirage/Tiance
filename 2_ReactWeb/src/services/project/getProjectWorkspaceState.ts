@@ -1,9 +1,11 @@
 import { fetchJson } from "../http/httpClient";
+import type { WorkspaceTabEntry } from "../../entities/editor/model/editorDocument";
 
 export type WorkspaceStateResponse = {
   project_id: string;
   expanded_paths: string[];
   open_file_paths: string[];
+  open_tabs?: WorkspaceTabEntry[] | null;
   active_file_path: string | null;
   active_dashboard:
     | "conversation_overview"

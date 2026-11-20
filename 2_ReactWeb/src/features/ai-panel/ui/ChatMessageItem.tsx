@@ -1,3 +1,4 @@
+import { UserMessageText } from "./UserMessageText";
 import {
   CaretDown,
   CaretLeft,
@@ -492,7 +493,7 @@ function UserMessageBody({
               userContent={referencedMessage.userContent}
             />
           ) : (
-            <p className="chat-msg__text">{resolveUserMessageContent(message)}</p>
+            <p className="chat-msg__text"><UserMessageText text={resolveUserMessageContent(message)} /></p>
           )}
         </div>
       </SlidingContent>

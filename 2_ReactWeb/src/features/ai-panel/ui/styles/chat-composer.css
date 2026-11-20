@@ -494,11 +494,23 @@
   white-space: nowrap;
 }
 
+.chat-composer-add-menu__project-collection,
 .chat-composer-add-menu__project-category {
   --ds-option-select-options-max-height: 142px;
-  flex: 0 1 180px;
-  margin-inline-start: auto;
   z-index: 1;
+}
+
+.chat-composer-add-menu .embedded-panel__header-content {
+  align-self: stretch;
+  align-items: stretch;
+}
+
+.chat-composer-add-menu__project-collection {
+  flex: 0 0 min(6rem, 42%);
+}
+
+.chat-composer-add-menu__project-category {
+  flex: 0 1 180px;
 }
 
 .chat-composer-add-menu__project {

@@ -2,9 +2,6 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { FolderPlus, Plus } from "@phosphor-icons/react";
 
 import type {
-  ProjectOverviewView,
-} from "../../../entities/workspace/model/workspaceLayoutPreferences";
-import type {
   Project,
   ProjectCategory,
   ProjectOverviewItem,
@@ -16,8 +13,6 @@ import { useI18n } from "../../../shared/i18n";
 import { useProjectCategoryOverview } from "../model/useProjectCategoryOverview";
 import { useProjectOverviewSessionActions } from "../model/useProjectOverviewSessionActions";
 import { ProjectOverviewCard } from "./ProjectOverviewCard";
-import { ProjectOverviewViewTabs } from "./ProjectOverviewViewTabs";
-import type { ProjectMarketScope } from "../../project-market/model/projectMarket";
 import { ProjectOverviewSessionContextMenu } from "./ProjectOverviewSessionContextMenu";
 import { ProjectConversationDeleteModal } from "./ProjectConversationDeleteModal";
 
@@ -28,23 +23,19 @@ type ProjectCategoryOverviewProps = {
   categoryId: string | null;
   isActive?: boolean;
   maximizedProjectId: string | null;
-  marketScope?: ProjectMarketScope | null;
   onCreateProject?: () => Promise<void>;
   onCreateSession: (projectId: string) => Promise<void>;
   onEnterSession: (projectId: string, sessionId: string) => Promise<boolean>;
   onImportProjectFolder?: (rootPath: string) => Promise<void>;
   onMaximizedProjectChange: (projectId: string | null) => void;
   onMaximizedProjectFollow: (projectId: string) => void;
-  onOverviewViewChange?: (view: ProjectOverviewView) => void;
   onOpenConversationBranches: (projectId: string, sessionId: string | null) => Promise<void>;
   onPrepareProject?: (projectId: string) => void;
   onRevealProject: (projectId: string) => Promise<void>;
   onSelectCategory: (categoryId: string) => void;
   onSelectSession: (projectId: string, sessionId: string) => Promise<boolean>;
   orderedProjects: Project[];
-  overviewView?: ProjectOverviewView;
   refreshKey: string;
-  showOverviewTabs?: boolean;
   visibleSession: { projectId: string; sessionId: string | null } | null;
 };
 
@@ -55,23 +46,19 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
   categoryId,
   isActive = true,
   maximizedProjectId,
-  marketScope = "project",
   onCreateProject,
   onCreateSession,
   onEnterSession,
   onImportProjectFolder,
   onMaximizedProjectChange,
   onMaximizedProjectFollow,
-  onOverviewViewChange,
   onOpenConversationBranches,
   onPrepareProject,
   onRevealProject,
   onSelectCategory,
   onSelectSession,
   orderedProjects,
-  overviewView = "projects",
   refreshKey,
-  showOverviewTabs = false,
   visibleSession,
 }: ProjectCategoryOverviewProps) {
   const { t } = useI18n();
@@ -346,9 +333,6 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
     <section
       className={[
         "project-category-overview",
-        showOverviewTabs
-          ? "project-category-overview--with-view-tabs"
-          : "",
         maximizedProject
           ? "project-category-overview--project-maximized"
           : "",
@@ -361,14 +345,6 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
         },
       )}
     >
-      {showOverviewTabs ? (
-        <ProjectOverviewViewTabs
-          activeView={overviewView}
-          disabled={projects.length === 0}
-          marketScope={marketScope}
-          onChange={(view) => onOverviewViewChange?.(view)}
-        />
-      ) : null}
       <header className="project-category-overview__header">
         <div className="project-category-overview__header-main">
           <OptionSelect

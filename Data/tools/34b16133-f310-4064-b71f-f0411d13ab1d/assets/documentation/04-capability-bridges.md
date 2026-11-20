@@ -31,7 +31,7 @@
 
 | 能力 | 版本 | 作用与源码 |
 | --- | --- | --- |
-| `editor.tabs` | 3 | 编辑器标签及文件内容定位，查看 editorTabsClientTool.ts、useDocumentReveal.ts；旧标签动作的后台项目处理见 backgroundEditorTabsClientTool.ts |
+| `editor.tabs` | 4 | 编辑器标签及文件内容定位，查看 editorTabsClientTool.ts、useDocumentReveal.ts；旧标签动作的后台项目处理见 backgroundEditorTabsClientTool.ts |
 | `conversation.management` | 3 | 会话层级/分类查询、读取、创建、配置、删除预览、精确批量及递归删除，conversationManagementClientTool.ts |
 | `conversation.interaction` | 1 | 向会话发送任务、等待等，conversationInteractionClientTool.ts |
 | `tool.projects` | 2 | 工具分类、查询、新建、原地初始化、重命名、移动、开关与删除，toolProjectClientTool.ts |
@@ -49,9 +49,9 @@
 
 新增批量 API 是通用项目会话接口 `DELETE /api/projects/{project_id}/conversations`，接收明确 session_ids 和可选 protected_session_id，复用原删除流程；不是按工具名添加的后端专用入口。工具运行时使用请求中的 project_id/session_id，不跟随当前界面选择。使用 v2 参数需在工具清单中设置 min_version=2；旧客户端不会降级忽略参数。
 
-### editor.tabs v3：标签与内容定位
+### editor.tabs v4：标签与内容定位
 
-标准工具调用名为 `editor_tabs_manager`。`list_tabs`、`open_file`、`focus_file`、`close_clean_tabs`、`close_others_clean` 保持原有语义；v2 引入 `reveal_file`，v3 保留单目标参数并增加文本多范围。工具清单引用 `{"name":"editor.tabs","min_version":3}`，使用 `client_json` 输入输出，不需要 Python 程序或新增后端业务路由。仅声明能力不会给旧前端增加实现，必须部署带 v3 执行器的前端。
+标准工具调用名为 `editor_tabs_manager`。`list_tabs`、`open_file`、`focus_file`、`close_clean_tabs`、`close_others_clean` 保持原有语义；v2 引入 `reveal_file`，v3 保留单目标参数并增加文本多范围。v4 增加 `open_url`（参数 `url`）和 `focus_web`（参数 `tab_id`）。`list_tabs` 按顺序返回项目文件和网页，网页使用独立的 `url` 字段，`path` 为 null，激活页对应 `active_tab_id`。后台项目保存选中状态，切回项目时恢复。工具清单引用 `{"name":"editor.tabs","min_version":4}`，使用 `client_json` 输入输出，不需要 Python 程序或新增后端业务路由。仅声明能力不会给旧前端增加实现，必须部署带 v4 执行器的前端。
 
 `reveal_file` 必填 `path` 和 `target`，不接受批量 `paths`。path 是调用方项目中的相对路径，示例使用 `/`；项目身份取自请求的 `project_id`，不能通过参数指定或回退为其他项目。target 只接受下面一种结构，不混用字段：
 

@@ -55,6 +55,7 @@ class BackendProcessManager:
         self._health_monitor: BackendHealthMonitor | None = None
         self._backend_log: BinaryIO | None = None
         self._on_backend_unavailable: Callable[[str], None] | None = None
+        self._on_backend_health_changed: Callable[[bool], None] | None = None
         self._stopping = False
         self._lock = threading.Lock()
 
@@ -70,6 +71,9 @@ class BackendProcessManager:
 
     def set_backend_unavailable_callback(self, callback: Callable[[str], None]) -> None:
         self._on_backend_unavailable = callback
+
+    def set_backend_health_callback(self, callback: Callable[[bool], None]) -> None:
+        self._on_backend_health_changed = callback
 
     def ensure_running(self) -> None:
         with self._lock:
@@ -163,6 +167,7 @@ class BackendProcessManager:
                     process,
                     reason,
                 ),
+                on_health_changed=self._on_backend_health_changed,
             )
             self._health_monitor = monitor
             monitor.start()

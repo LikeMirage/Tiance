@@ -95,6 +95,31 @@ def test_rules_merge_provider_family_and_exact_model_in_order(tmp_path):
     assert rules.behavior.prompt_cache_retention_seconds == 600
 
 
+def test_vision_image_size_inherits_and_can_raise_the_limit(tmp_path):
+    store = ProviderFileStore(tmp_path)
+    _write_manifest(store)
+    repository = ProviderAdaptationRulesRepository(store)
+    def rule(limit):
+        return {"capabilities": {"vision": {"maxImageLongEdgePx": limit}}}
+    store.write_provider_file("provider-a", PROVIDER_RULES_FILE, {"schemaVersion": 1, **rule(2048)})
+    store.write_provider_file("provider-a", PROVIDER_MODEL_RULES_FILE, {
+        "schemaVersion": 1, "families": {"family": rule(4096)}, "models": {"exact": rule(16384)},
+    })
+    for model, family, expected in (("base", "", 2048), ("member", "family", 4096), ("exact", "family", 16384)):
+        rules = repository.resolve(provider_id="provider-a", model_id=model, family_group=family)
+        assert rules.capabilities.image_max_long_edge_px == expected
+
+
+@pytest.mark.parametrize("vision", [
+    {"maxImageLongEdgePx": value} for value in (0, -1, 1.5, True, None, "8192")
+] + [{"multiImageLimit": {"minImages": 15}}, {"unknownLimit": 1}])
+def test_vision_rules_reject_invalid_values(tmp_path, vision):
+    store = ProviderFileStore(tmp_path)
+    store.write_provider_file("provider-a", PROVIDER_RULES_FILE, {"schemaVersion": 1, "capabilities": {"vision": vision}})
+    with pytest.raises(ProviderFileStoreError):
+        ProviderAdaptationRulesRepository(store).resolve(provider_id="provider-a", model_id=None)
+
+
 def test_rules_reject_unknown_fields(tmp_path):
     store = ProviderFileStore(tmp_path)
     _write_manifest(store)

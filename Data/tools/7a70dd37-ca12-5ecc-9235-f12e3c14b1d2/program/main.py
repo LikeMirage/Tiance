@@ -3,11 +3,10 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
-import tempfile
 from typing import Any
 from urllib.parse import quote
 
-from tiance_runtime import model_supports_input, run_tool
+from tiance_runtime import image_source_metadata, model_supports_input, prepare_tool_image, run_tool
 
 
 IMAGE_MIME_TYPES = {
@@ -140,82 +139,6 @@ def image_scale_percent(value: Any) -> int:
     return parsed
 
 
-def resized_image(
-    file_path: Path,
-    source_sha256: str,
-    scale_percent: int,
-) -> tuple[Path, str, int, int, int, int]:
-    try:
-        from PIL import Image, ImageOps, ImageSequence
-    except ImportError as exc:
-        raise ToolError(
-            "DEPENDENCY_MISSING",
-            "图片缩放依赖 Pillow，请先在工具依赖看板安装 program/requirements.txt 中的依赖。",
-        ) from exc
-
-    try:
-        with Image.open(file_path) as source:
-            source_width, source_height = ImageOps.exif_transpose(source.copy()).size
-            if scale_percent == 100:
-                return (
-                    file_path,
-                    IMAGE_MIME_TYPES[file_path.suffix.lower()],
-                    source_width,
-                    source_height,
-                    source_width,
-                    source_height,
-                )
-
-            target_width = max(1, round(source_width * scale_percent / 100))
-            target_height = max(1, round(source_height * scale_percent / 100))
-            source_format = (source.format or file_path.suffix.removeprefix(".")).upper()
-            output_format = "PNG" if source_format == "BMP" else source_format
-            output_suffix = ".png" if output_format == "PNG" else file_path.suffix.lower()
-            output_mime_type = IMAGE_MIME_TYPES[output_suffix]
-            cache_root = Path(tempfile.gettempdir()) / "Tiance" / "read_file" / "image-cache"
-            cache_root.mkdir(parents=True, exist_ok=True)
-            output_path = cache_root / f"v1-{source_sha256}-{scale_percent}{output_suffix}"
-
-            if not output_path.exists():
-                resampling = Image.Resampling.LANCZOS
-                frames = []
-                durations = []
-                disposals = []
-                for frame in ImageSequence.Iterator(source):
-                    normalized = ImageOps.exif_transpose(frame.copy())
-                    frames.append(normalized.resize((target_width, target_height), resampling))
-                    durations.append(frame.info.get("duration", source.info.get("duration", 0)))
-                    disposals.append(getattr(frame, "disposal_method", source.info.get("disposal", 0)))
-
-                save_options: dict[str, Any] = {}
-                if output_format in {"JPEG", "JPG"}:
-                    output_format = "JPEG"
-                    frames = [frame.convert("RGB") for frame in frames]
-                    save_options.update({"quality": 90, "optimize": True})
-                elif output_format == "WEBP":
-                    save_options.update({"quality": 90, "method": 4})
-                elif output_format == "PNG":
-                    save_options.update({"optimize": True})
-                elif output_format == "GIF":
-                    frames = [frame.convert("P", palette=Image.Palette.ADAPTIVE) for frame in frames]
-
-                if len(frames) > 1:
-                    save_options.update(
-                        {
-                            "save_all": True,
-                            "append_images": frames[1:],
-                            "duration": durations,
-                            "loop": source.info.get("loop", 0),
-                        }
-                    )
-                    if output_format == "GIF":
-                        save_options["disposal"] = disposals
-                frames[0].save(output_path, format=output_format, **save_options)
-            return output_path, output_mime_type, source_width, source_height, target_width, target_height
-    except ToolError:
-        raise
-    except Exception as exc:
-        raise ToolError("IMAGE_RESIZE_FAILED", "图片缩放失败。", {"reason": str(exc)}) from exc
 
 
 def read_image(
@@ -237,11 +160,16 @@ def read_image(
     validate_image_signature(signature, mime_type)
     path_scope, display_path, relative_path = describe_path(file_path, root)
     source_sha256 = file_sha256(file_path)
-    returned_path, returned_mime_type, source_width, source_height, returned_width, returned_height = resized_image(
-        file_path,
-        source_sha256,
-        scale_percent,
-    )
+    try:
+        image = prepare_tool_image(file_path, source_sha256, scale_percent)
+    except ImportError as exc:
+        raise ToolError("DEPENDENCY_MISSING", "图片缩放需要 Pillow。") from exc
+    except Exception as exc:
+        raise ToolError("IMAGE_RESIZE_FAILED", "图片缩放失败。", {"reason": str(exc)}) from exc
+    returned_path = image.variant_path or file_path
+    returned_mime_type = image.mime_type
+    source_width, source_height = image.source_size
+    returned_width, returned_height = image.size
     returned_size_bytes = returned_path.stat().st_size
     returned_sha256 = file_sha256(returned_path)
     if returned_path == file_path and relative_path is not None:
@@ -270,7 +198,7 @@ def read_image(
         metadata["relative_path"] = relative_path
     return {
         "ok": True,
-        "summary": f"已按 {scale_percent}% 尺寸读取图片 {display_path}。",
+        "summary": f"已读取图片 {display_path}，请求比例 {scale_percent}%，实际返回 {returned_width}×{returned_height}。",
         "content": [
             {
                 "type": "resource_link",
@@ -278,6 +206,8 @@ def read_image(
                 "name": returned_path.name,
                 "mimeType": returned_mime_type,
                 "size": returned_size_bytes,
+                **({"_meta": image_source_metadata(file_path, mime_type, source_sha256, scale_percent)}
+                   if image.variant_path else {}),
                 "annotations": {
                     "audience": ["assistant"],
                     "priority": 1.0,

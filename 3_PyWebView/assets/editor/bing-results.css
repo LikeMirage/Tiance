@@ -1,0 +1,9 @@
+/* Keep Bing's layout and the surfaces of its individual controls and answer cards. */
+@scope (html:has(#b_results)) {
+  #b_content, #b_results, #b_header, #b_footer, #b_tween {
+    background-color: transparent !important;
+  }
+  #b_results > .b_algo {
+    background-color: transparent !important;
+  }
+}

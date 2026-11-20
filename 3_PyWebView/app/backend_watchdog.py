@@ -123,11 +123,14 @@ class BackendHealthMonitor:
         timeout_seconds: float = DEFAULT_HEALTH_TIMEOUT_SECONDS,
         failure_threshold: int = DEFAULT_HEALTH_FAILURE_THRESHOLD,
         probe: Callable[[], bool] | None = None,
+        on_health_changed: Callable[[bool], None] | None = None,
     ) -> None:
         if failure_threshold < 1:
             raise ValueError("failure_threshold must be at least 1")
         self._process = process
         self._on_unavailable = on_unavailable
+        self._on_health_changed = on_health_changed
+        self._degraded = False
         self._interval_seconds = max(float(interval_seconds), 0.01)
         self._probe = probe or (
             lambda: _probe_backend_health(
@@ -172,9 +175,13 @@ class BackendHealthMonitor:
             except Exception:
                 available = False
 
-            if self._state.observe(available):
-                self._on_unavailable("backend_health_check_failed")
-                return
+            degraded = self._state.observe(available)
+            if degraded != self._degraded:
+                self._degraded = degraded
+                if self._on_health_changed is not None:
+                    self._on_health_changed(not degraded)
+            # HTTP responsiveness is not process liveness. Keep probing so a
+            # temporary stall cannot close the shell or stop monitoring exit.
 
             self._stop_event.wait(self._interval_seconds)
 

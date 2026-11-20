@@ -9,6 +9,7 @@ from typing import Any
 from app.core.errors import BadRequestError
 from app.core.config import get_settings
 from app.domain.llm.chat import ChatClientCapability, ChatToolCall, ChatToolResult
+from app.domain.llm.runtime_capabilities import DEFAULT_IMAGE_MAX_LONG_EDGE_PX, MultiImageLimit
 from app.domain.tools import ToolMetadataSnapshot, ToolRegistryEntry
 from app.domain.tools.host_capabilities import declared_host_capabilities
 from app.services.tools.tool_execution_arguments import (
@@ -58,6 +59,8 @@ class ToolExecutionContext:
     model_id: str | None = None
     input_modalities: tuple[str, ...] = ()
     run_id: str | None = None
+    image_max_long_edge_px: int = DEFAULT_IMAGE_MAX_LONG_EDGE_PX
+    multi_image_limit: MultiImageLimit | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -400,6 +403,8 @@ class ToolExecutionService:
                 provider_id=context.provider_id,
                 model_id=context.model_id,
                 input_modalities=context.input_modalities,
+                image_max_long_edge_px=context.image_max_long_edge_px,
+                multi_image_limit=context.multi_image_limit,
                 host_capability_token=(
                     capability_grant.token if capability_grant is not None else None
                 ),

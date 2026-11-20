@@ -10,7 +10,7 @@ export type CollectionViewTab<ViewId extends string> = {
 };
 
 type CollectionViewTabsProps<ViewId extends string> = {
-  activeView: ViewId;
+  activeView: ViewId | null;
   ariaLabel: string;
   onChange: (view: ViewId) => void;
   tabs: readonly CollectionViewTab<ViewId>[];
@@ -33,6 +33,7 @@ export function CollectionViewTabs<ViewId extends string>({
               isActive ? "collection-view-tabs__tab--active" : "",
             ].filter(Boolean).join(" ")}
             type="button"
+            title={tab.label}
             role="tab"
             aria-selected={isActive}
             disabled={tab.disabled}
@@ -46,7 +47,7 @@ export function CollectionViewTabs<ViewId extends string>({
                 {tab.icon}
               </span>
             ) : null}
-            <span>{tab.label}</span>
+            <span className="collection-view-tabs__label">{tab.label}</span>
           </button>
         );
       })}

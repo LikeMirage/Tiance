@@ -19,6 +19,7 @@ const vite = await createServer({ appType: "custom", logLevel: "silent",
 const { useDocumentTabs } = await vite.ssrLoadModule("/src/features/document-tabs/model/useDocumentTabs.ts");
 const { useWorkspaceDocumentActions } = await vite.ssrLoadModule("/src/pages/workspace/model/useWorkspaceDocumentActions.ts");
 const { useToolWorkspacePersistence } = await vite.ssrLoadModule("/src/pages/workspace/model/useToolWorkspacePersistence.ts");
+const { useProjectWorkspaceTabsPersistence } = await vite.ssrLoadModule("/src/pages/workspace/model/useProjectWorkspaceTabsPersistence.ts");
 const { createToolFolderDocumentSource } = await vite.ssrLoadModule("/src/features/document-tabs/model/documentFileSources.ts");
 const { createLocalDocumentSource } = await vite.ssrLoadModule("/src/features/document-tabs/model/localDocumentFileSource.ts");
 const { resolveDocumentPreview } = await vite.ssrLoadModule("/src/features/document-tabs/model/documentPreviewResolver.ts");
@@ -48,7 +49,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 async function mount(options = {}) {
   let state, root;
   function Harness({ projectId = "p", sessionId = "s" }) {
-    const tabs = useDocumentTabs();
+    const tabs = useDocumentTabs(projectId);
     const actions = useWorkspaceDocumentActions({ documentTabs: tabs, projectId, sessionId, onLayoutPreferenceChange() {}, ...options });
     state = { tabs, actions };
     return null;
@@ -60,6 +61,180 @@ async function mount(options = {}) {
     close: () => act(async () => root.unmount()),
   };
 }
+
+test("网页切换到文件时保留实例，关闭、批量关闭和卸载时分别释放对应实例", async () => {
+  const closed = [];
+  const original = window.pywebview;
+  window.pywebview = { api: { editor_web_close: async id => closed.push(id) } };
+  const view = await mount();
+  const run = callback => act(async () => callback(view.state.tabs));
+  try {
+    await run(tabs => tabs.openWebTab("https://example.test/", "p"));
+    const first = view.state.tabs.activeTabId;
+    await run(tabs => tabs.openVirtualHtmlPreview("<p>file</p>", { projectId: "p" }));
+    await run(tabs => tabs.selectTab(first));
+    assert.deepEqual(closed, []);
+    assert.equal(view.state.actions.visibleActiveTab.id, first);
+    await run(tabs => tabs.closeTab(first));
+    assert.deepEqual(closed, [first]);
+    await run(tabs => tabs.openWebTab("", "p"));
+    const second = view.state.tabs.activeTabId;
+    await run(tabs => tabs.openWebTab("", "p"));
+    const third = view.state.tabs.activeTabId;
+    await run(tabs => tabs.closeOtherTabs(third));
+    assert.deepEqual(closed, [first, second]);
+    await view.close();
+    assert.deepEqual(closed, [first, second, third]);
+  } finally {
+    window.pywebview = original;
+  }
+});
+
+test("切换项目保留原网页、当前标签和导航地址，批量关闭只影响本项目", async () => {
+  const closed = [];
+  const original = window.pywebview;
+  window.pywebview = { api: { editor_web_close: async id => closed.push(id) } };
+  let tabs, root, finishSlowRead;
+  globalThis.fileReferenceFetch = async path => {
+    if (path.startsWith("/api/projects/slow/") && !path.endsWith("workspace-state")) {
+      return new Promise(resolve => { finishSlowRead = () => resolve({ content: "", path: "slow.txt" }); });
+    }
+    const files = path.includes("/slow/") ? ["slow.txt"] : [];
+    return { open_file_paths: files, active_file_path: files[0] ?? null, active_dashboard: null };
+  };
+  function Harness({ projectId }) {
+    tabs = useDocumentTabs(projectId);
+    useProjectWorkspaceTabsPersistence({ projectId, documentTabs: tabs,
+      isKnowledgeProject: false, isRoleProject: false, isThemeProject: false });
+    return null;
+  }
+  const change = projectId => act(async () => {
+    const element = React.createElement(Harness, { projectId });
+    if (root) root.update(element); else root = create(element);
+  });
+  const open = async projectId => {
+    await act(async () => tabs.openWebTab("https://example.test/", projectId));
+    return tabs.activeTabId;
+  };
+  const webIds = () => tabs.tabs.filter(tab => tab.kind === "web").map(tab => tab.id);
+  try {
+    await change("a");
+    const first = await open("a"), second = await open("a");
+    await act(async () => tabs.updateWebTab(second, "https://example.test/page", "第二页"));
+    await change("slow");
+    assert.equal(typeof finishSlowRead, "function");
+    await change("b");
+    assert.deepEqual(webIds(), []);
+    const other = await open("b");
+    await change(null);
+    const outer = await open(null);
+    await change("a");
+    await act(async () => { finishSlowRead(); await flush(); });
+    assert.deepEqual(webIds(), [first, second]);
+    assert.equal(tabs.activeTab.id, second);
+    assert.equal(tabs.activeTab.title, "第二页");
+    assert.equal(tabs.activeTab.displayPath, "https://example.test/page");
+    assert.deepEqual(closed, []);
+    const overview = tabs.tabs.find(tab => tab.kind !== "web").id;
+    await act(async () => tabs.selectTab(overview));
+    await change("b");
+    assert.equal(tabs.activeTabId, other);
+    await act(async () => tabs.closeAllTabs({ preservePinned: true }));
+    assert.deepEqual(closed, [other]);
+    await change("a");
+    assert.equal(tabs.activeTabId, overview);
+    assert.deepEqual(webIds(), [first, second]);
+    await change("b");
+    assert.deepEqual(webIds(), []);
+    await change(null);
+    assert.equal(tabs.activeTabId, outer);
+  } finally {
+    if (root) await act(async () => root.unmount());
+    window.pywebview = original;
+  }
+  assert.equal(new Set(closed).size, 4);
+  assert.equal(closed.length, 4);
+});
+
+for (const group of ["projects", "tools"]) {
+  test(`${group} 重启后按原顺序恢复文件、同址网页和当前标签，关闭后不再恢复`, async () => {
+    const projectId = "mixed";
+    let disk = { project_id: projectId, open_file_paths: ["a.pdf"], active_file_path: null,
+      active_dashboard: "conversation_overview", expanded_paths: ["folder"] };
+    globalThis.fileReferenceFetch = async (path, init) => {
+      assert.ok(path.endsWith("/workspace-state"));
+      if (init?.method === "PATCH") disk = { ...disk, ...JSON.parse(init.body) };
+      return structuredClone(disk);
+    };
+    let tabs, root, folderExpanded = false;
+    const browser = { restoreExpandedPaths() {}, userExpandedNodeIds: new Set(["folder"]) };
+    const source = createToolFolderDocumentSource("set", projectId, "tool", projectId);
+    function Project() {
+      tabs = useDocumentTabs(projectId);
+      useProjectWorkspaceTabsPersistence({ documentTabs: tabs, projectId,
+        isKnowledgeProject: false, isRoleProject: false, isThemeProject: false });
+      return null;
+    }
+    function Tool() {
+      tabs = useDocumentTabs(projectId, group);
+      useToolWorkspacePersistence({ documentTabs: tabs, browser, activeToolsetId: "set",
+        activeToolFolder: { project_id: projectId, name: "tool" }, folderExpanded });
+      return null;
+    }
+    const start = () => act(async () => { root = create(React.createElement(group === "tools" ? Tool : Project)); });
+    const stop = () => act(async () => root.unmount());
+    await start();
+    try {
+      await act(async () => tabs.openWebTab("https://example.test/", projectId));
+      const first = tabs.activeTabId;
+      await act(async () => tabs.openNode(node("b.pdf"), group === "tools" ? { fileSource: source } : { projectId }));
+      await act(async () => tabs.openWebTab("", projectId));
+      const second = tabs.activeTabId;
+      await act(async () => tabs.updateWebTab(second, "https://example.test/", "第二个窗口"));
+      assert.deepEqual(disk.open_tabs.map(t => t.kind), ["file", "web", "file", "web"]);
+      await stop();
+      await start();
+      assert.equal(tabs.activeTabId, second);
+      assert.deepEqual(tabs.tabs.filter(t => t.kind === "web").map(t => [t.id, t.displayPath]), [
+        [first, "https://example.test/"], [second, "https://example.test/"],
+      ]);
+      assert.equal(tabs.activeTab.title, "第二个窗口");
+      const ordered = tabs.tabs.filter(t => t.kind === "web" || t.filePath).map(t => t.filePath || t.id);
+      assert.deepEqual(ordered, ["a.pdf", first, "b.pdf", second]);
+      await act(async () => tabs.closeTab(second));
+      await stop();
+      folderExpanded = true;
+      await start();
+      assert.equal(tabs.activeTab.filePath, "b.pdf");
+      assert.deepEqual(tabs.tabs.filter(t => t.kind === "web").map(t => t.id), [first]);
+      await act(async () => tabs.closeAllTabs({ preservePinned: true, webOnly: true }));
+      assert.deepEqual(disk.open_tabs.map(t => t.path), ["a.pdf", "b.pdf"]);
+    } finally { await stop(); }
+  });
+}
+
+test("未选择项目时的空白及已导航标签分别保存在对应总览", async () => {
+  const stored = new Map();
+  window.localStorage = { getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value) };
+  let root, tabs;
+  function Overview({ group }) { tabs = useDocumentTabs(null, group); return null; }
+  const mountOverview = group => act(async () => { root = create(React.createElement(Overview, { group })); });
+  const close = () => act(async () => root.unmount());
+  try {
+    await mountOverview("projects");
+    await act(async () => tabs.openWebTab("", null));
+    const blank = tabs.activeTabId;
+    await act(async () => tabs.openWebTab("https://example.test/", null));
+    await act(async () => tabs.selectTab(blank));
+    await close();
+    await mountOverview("tools");
+    assert.deepEqual(tabs.tabs, []);
+    await close();
+    await mountOverview("projects");
+    assert.deepEqual(tabs.tabs.map(tab => tab.displayPath), ["", "https://example.test/"]);
+    assert.equal(tabs.activeTabId, blank);
+  } finally { await close(); delete window.localStorage; }
+});
 
 test("所有外部格式复用正常预览分类、资源入口，标签不伪装成项目文件", () => {
   const source = createLocalDocumentSource("C:/", "p").source;
@@ -74,6 +249,33 @@ test("所有外部格式复用正常预览分类、资源入口，标签不伪�
     assert.equal(getEditorDocumentPath(tab), `C:/外部/${name}`);
     assert.equal(new URL(resolveDocumentAssetUrl(tab)).searchParams.get("path"), `C:/外部/${name}`);
   }
+});
+
+test("下载记录通过普通文件标签打开未知格式，项目外也能打开并切回", async () => {
+  const view = await mount();
+  globalThis.fileReferenceFetch = async (path, init) => {
+    assert.ok(path.endsWith("/resolve"));
+    const owner = JSON.parse(init.body).owner_project_id;
+    return { kind: owner ? "project" : "local", name: "report.xyz", path: "下载/report.xyz", root: "C:/", mtime_ms: 1 };
+  };
+  try {
+    const open = () => act(async () => view.state.actions.handleOpenDownloadedFile("C:/下载/report.xyz"));
+    await open();
+    const projectTab = view.state.tabs.activeTab;
+    assert.equal(projectTab.kind, "unsupported");
+    await open();
+    assert.equal(view.state.tabs.tabs.length, 1);
+    assert.equal(view.state.tabs.activeTab.id, projectTab.id);
+    await view.change({ projectId: null });
+    await open();
+    const outside = view.state.actions.visibleActiveTab;
+    assert.equal(outside.fileSource.kind, "local");
+    assert.equal(outside.kind, "unsupported");
+    await view.change({ projectId: "p" });
+    await view.change({ projectId: null });
+    await act(async () => view.state.tabs.resetWorkspaceFiles());
+    assert.equal(view.state.actions.visibleActiveTab.id, outside.id);
+  } finally { await view.close(); }
 });
 
 test("当前项目整文件引用打开普通标签，重复打开保留未保存内容", async () => {
@@ -122,7 +324,7 @@ test("进入工作区后再打开引用，工具文件复用已有标签；切�
 test("工具工作区等待完整标签恢复，切换或取消会释放等待", async () => {
   let state, root, restore, restored = false;
   const browser = { restoreExpandedPaths() {}, userExpandedNodeIds: new Set() };
-  const tabs = { tabs: [], activeTab: null, closeAllTabs() {}, ensureProjectConversationOverview() {},
+  const tabs = { tabs: [], activeTab: null, resetWorkspaceFiles() {}, ensureProjectConversationOverview() {},
     restoreWorkspaceTabs: () => new Promise(resolve => { restore = () => { restored = true; resolve(); }; }),
     async openToolDashboard() { assert.equal(restored, true); } };
   globalThis.fileReferenceFetch = async () => ({ project_id: "p", open_file_paths: [], expanded_paths: [], active_file_path: null });

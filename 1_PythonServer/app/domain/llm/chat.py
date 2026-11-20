@@ -55,6 +55,19 @@ class ChatImageRef:
     attachment_id: str | None = None
     source_path: str | None = None
     source_kind: str | None = None
+    scale_percent: int = 100
+
+
+@dataclass(frozen=True, slots=True)
+class ChatImageDelivery:
+    message_index: int
+    part_index: int
+    attachment_id: str | None
+    source_width: int
+    source_height: int
+    sent_width: int
+    sent_height: int
+    max_long_edge_px: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -181,6 +194,8 @@ class ChatCompletionRequest:
     # An unsaved request still needs a stable transport session across retries.
     # dataclasses.replace preserves this value through tool and recovery rounds.
     transport_session_id: str = field(default_factory=lambda: uuid4().hex, repr=False)
+    # Only populated on the outbound copy. Never persisted as the source of a later turn.
+    image_deliveries: tuple[ChatImageDelivery, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,9 +1,12 @@
 import { fetchJson } from "../http/httpClient";
 import type { WorkspaceStateResponse } from "./getProjectWorkspaceState";
+import { queueWorkspaceStateRequest } from "./saveProjectWorkspaceState";
 
 export type ProjectWorkspaceTabsAction =
   | "list_tabs"
   | "open_file"
+  | "open_url"
+  | "focus_web"
   | "focus_file"
   | "close_clean_tabs"
   | "close_others_clean";
@@ -20,10 +23,12 @@ export function applyProjectWorkspaceTabsAction(
     action: ProjectWorkspaceTabsAction;
     path?: string;
     paths?: string[];
+    url?: string;
+    tab_id?: string;
   },
 ) {
-  return fetchJson<ProjectWorkspaceTabsActionResponse>(
+  return queueWorkspaceStateRequest(projectId, () => fetchJson<ProjectWorkspaceTabsActionResponse>(
     `/api/projects/${encodeURIComponent(projectId)}/workspace-state/editor-tabs`,
     { method: "POST", body: JSON.stringify(payload) },
-  );
+  ));
 }

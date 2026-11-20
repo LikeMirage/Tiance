@@ -13,6 +13,7 @@ from unittest.mock import patch
 from test_media import av, encode
 from jianying_asr.common import ASRError, Budget
 from jianying_asr.media import plan_parts, prepare_part, probe
+from jianying_asr.media_copy import copy_aac_part
 
 
 def decoded_channels(path):
@@ -123,6 +124,75 @@ class PacketCopyTests(unittest.TestCase):
         info = probe(source)
         self.assertIsNone(info.copy_frame_seconds)
         self.assertEqual(prepare_part(source,info,1,1,self.root,Budget(30)).suffix,'.flac')
+
+    def test_irregular_mp4_timestamps_decode_automatically_through_tool(self):
+        import json
+        from test_transcribe import FakeClient, run
+        source = self.root / 'phone-recording.mp4'
+        with av.open(str(self.source)) as reader, av.open(str(source), 'w', format='mp4') as writer:
+            original = reader.streams.audio[0]
+            target = writer.add_stream_from_template(original)
+            target.time_base = original.time_base
+            for packet in reader.demux(original):
+                if not packet.size:
+                    continue
+                # A playable track, but one timestamp is not on the AAC frame grid.
+                if packet.pts == 4096:
+                    packet.pts += 1
+                    packet.dts += 1
+                packet.stream = target
+                writer.mux(packet)
+        before = source.read_bytes()
+        info = probe(source)
+        self.assertIsNotNone(info.copy_frame_seconds)
+        with self.assertRaises(ASRError) as caught:
+            copy_aac_part(source, self.root / 'bad-copy.m4a', 0, info.duration, Budget(30))
+        self.assertEqual(caught.exception.code, 'INVALID_AUDIO_TIMELINE')
+        uploads = []
+        class AudioOnly(FakeClient):
+            def upload(self, path):
+                uploads.append((path.suffix, probe(path)))
+                return super().upload(path)
+        result = run({'input_path': str(source), 'output_dir': str(self.root)},
+                     client_factory=AudioOnly, budget=Budget(30))
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(len(uploads), 1)
+        self.assertEqual(uploads[0][0], '.flac')
+        self.assertTrue(uploads[0][1].audio_only)
+        self.assertAlmostEqual(uploads[0][1].duration, info.duration, delta=.001)
+        job = json.loads(Path(result['data']['job_file']).read_text(encoding='utf-8'))
+        self.assertEqual(job['input_path'], str(source))
+        self.assertEqual(job['parts'][0]['audio_processing'], 'decoded_flac')
+        self.assertEqual(source.read_bytes(), before)
+
+    def test_remux_error_falls_back_but_timeout_and_cancel_do_not(self):
+        info = probe(self.source)
+        start, length = plan_parts(info.duration, segment_seconds=2, frame_seconds=info.copy_frame_seconds)[0]
+        with patch('jianying_asr.media.copy_aac_part', side_effect=av.error.FFmpegError(1, 'remux failed')):
+            output = prepare_part(self.source, info, start, length, self.root, Budget(30))
+        self.assertEqual(output.suffix, '.flac')
+        self.assertAlmostEqual(probe(output).duration, length, delta=.001)
+        for code in ('TIMEOUT', 'CANCELLED', 'INPUT_CHANGED'):
+            with patch('jianying_asr.media.copy_aac_part', side_effect=ASRError(code, code)), \
+                    patch('jianying_asr.media._encode_part') as decode:
+                with self.assertRaisesRegex(ASRError, code):
+                    prepare_part(self.source, info, start, length, self.root, Budget(30))
+                decode.assert_not_called()
+
+    def test_decoded_fallback_still_rejects_missing_audio(self):
+        info = probe(self.source)
+        start, length = plan_parts(info.duration, segment_seconds=2, frame_seconds=info.copy_frame_seconds)[0]
+        def truncated(_source, output, _start, _length, _budget):
+            with wave.open(str(output), 'wb') as writer:
+                writer.setnchannels(2)
+                writer.setsampwidth(2)
+                writer.setframerate(self.rate)
+                writer.writeframes(bytes(self.rate * 4))  # Only one second, not the requested part.
+        with patch('jianying_asr.media.copy_aac_part', side_effect=ASRError('INVALID_AUDIO_TIMELINE', 'bad pts')), \
+                patch('jianying_asr.media._encode_part', side_effect=truncated):
+            with self.assertRaises(ASRError) as caught:
+                prepare_part(self.source, info, start, length, self.root, Budget(30))
+        self.assertEqual(caught.exception.code, 'INCOMPLETE_SEGMENT')
 
 
 if __name__ == '__main__': unittest.main()

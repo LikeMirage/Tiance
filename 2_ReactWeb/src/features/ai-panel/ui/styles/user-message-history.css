@@ -80,16 +80,6 @@
 }
 .user-message-history__detail { padding: 10px; }
 .user-message-history__detail .chat-msg__text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.user-message-history__detail .chat-msg__user-reference-panel { margin-inline: -10px; }
-.user-message-history__detail .chat-msg__user-reference-body { flex-direction: column; align-items: stretch; gap: 3px; }
-.user-message-history__detail .chat-msg__user-reference-main { flex-wrap: wrap; }
-.user-message-history__detail .chat-msg__user-reference-main strong { max-width: none; }
-.user-message-history__detail .chat-msg__user-reference-main strong,
-.user-message-history__detail .chat-msg__user-reference-detail {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.user-message-history__detail .chat-msg__user-reference-message { margin-top: 10px; }
 .user-message-history__meta { display: flex; gap: 10px; margin-bottom: 10px; color: var(--color-text-muted); font-size: 0.7rem; }
 .user-message-history__empty { margin: 0; padding: 12px; color: var(--color-text-muted); }
 .user-message-history__error { display: flex; align-items: center; gap: 8px; padding: 8px 10px; color: var(--color-danger); }

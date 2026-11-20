@@ -1,0 +1,56 @@
+[
+  {
+    "content": "这是系统外部打开工具，不是天策编辑器预览。所有窗口出现在运行天策的电脑上，手机调用也一样。submitted 仅表示系统接受打开请求，不证明文档已经显示、读取或完成加载。不会更改默认应用；查询不启动应用。",
+    "enabled": true,
+    "inject_content": true,
+    "title": "操作位置与结果含义"
+  },
+  {
+    "content": "{\"action\": \"reveal\", \"path\": \"成果/客户之声.pptx\"}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "在文件夹中显示文件"
+  },
+  {
+    "content": "{\"action\": \"reveal\", \"path\": \".\"}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "直接打开工作区文件夹"
+  },
+  {
+    "content": "{\"action\": \"get_default_app\", \"path\": \"配置.json\"}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "查询某文件的默认应用"
+  },
+  {
+    "content": "{\"action\": \"list_apps\", \"path\": \"配置.json\"}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "列出文件的打开方式"
+  },
+  {
+    "content": "{\"action\": \"open_default\", \"path\": \"成果/客户之声.pptx\"}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "使用系统默认应用打开"
+  },
+  {
+    "content": "先用 list_apps 查询同种扩展名文件，把返回的 application_id 原样传给 open_with。is_default=null 表示无法可靠匹配默认应用，不能按显示名称猜测；recommended=false 是系统其他候选，不保证支持该格式。列表会实时刷新，失效时重新查。",
+    "enabled": true,
+    "inject_content": false,
+    "title": "从列表选择应用"
+  },
+  {
+    "content": "{\"action\": \"open_with\", \"path\": \"配置.json\", \"application_path\": \"C:/Windows/System32/notepad.exe\"}",
+    "enabled": true,
+    "inject_content": false,
+    "title": "使用指定程序打开一次"
+  },
+  {
+    "content": "相对路径以调用方 TIANCE_WORKSPACE_ROOT 为准，无工作区必须提供绝对路径。支持中文和空格，外部路径沿用平台权限。平台目前按顶层参数计算权限，因此必填 action 保守声明 program_execute/system_program，两个查询动作也经过这项策略。未配置默认应用返回 NO_ASSOCIATION，应用标识失效返回 APPLICATION_NOT_AVAILABLE，不自动改用其他应用。取消/超时不能撤回已经提交的系统打开请求，状态未知时先核实，不自动重试。",
+    "enabled": true,
+    "inject_content": false,
+    "title": "路径、权限与异常"
+  }
+]

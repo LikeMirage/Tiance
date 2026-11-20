@@ -83,6 +83,7 @@ class ChatImageRefRequest(BaseModel):
     attachment_id: str | None = None
     source_path: str | None = None
     source_kind: str | None = None
+    scale_percent: int = Field(default=100, ge=1, le=100)
 
     def to_domain(self) -> ChatImageRef:
         return ChatImageRef(
@@ -94,6 +95,7 @@ class ChatImageRefRequest(BaseModel):
             attachment_id=self.attachment_id,
             source_path=self.source_path,
             source_kind=self.source_kind,
+            scale_percent=self.scale_percent,
         )
 
 
@@ -318,6 +320,7 @@ class ChatImageRefResponse(BaseModel):
     attachment_id: str | None = None
     source_path: str | None = None
     source_kind: str | None = None
+    scale_percent: int = 100
 
 
 class ChatMessageContentPartResponse(BaseModel):
@@ -344,6 +347,7 @@ class ChatMessageContentPartResponse(BaseModel):
                 attachment_id=part.image_ref.attachment_id,
                 source_path=part.image_ref.source_path,
                 source_kind=part.image_ref.source_kind,
+                scale_percent=part.image_ref.scale_percent,
             ) if part.image_ref else None,
         )
 

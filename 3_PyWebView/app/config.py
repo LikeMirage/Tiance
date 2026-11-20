@@ -74,9 +74,7 @@ def load_settings() -> ShellSettings:
     backend_url = f"http://{backend_host}:{backend_port}"
     gateway_security = _load_gateway_security_projection()
     frontend_dist_path = _resolve_frontend_dist_path()
-    # A running Vite server must not silently put long-lived desktop tasks on
-    # React's development build (whose performance tracks retain render data).
-    default_frontend_url = os.getenv("TIANCE_FRONTEND_DEV_URL", "").strip()
+    default_frontend_url = os.getenv("TIANCE_FRONTEND_DEV_URL", "http://127.0.0.1:18100").strip()
     default_app_url = _build_default_app_url(api_url, frontend_dist_path)
     debug = _read_bool(
         os.getenv("TIANCE_SHELL_DEBUG"),

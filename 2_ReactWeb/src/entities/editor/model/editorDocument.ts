@@ -4,6 +4,10 @@ import type { ReferenceOpenResolution } from "./editorReference";
 
 export type EditorTabId = string;
 
+export type WorkspaceTabEntry =
+  | { kind: "file"; path: string }
+  | { kind: "web"; id: string; url: string; title: string; favicon?: string | null; active: boolean };
+
 export type DocumentLanguage = "javascript" | "typescript" | "python" | "html" | "css" | "json" | "markdown" | "plaintext";
 
 export type DocumentFileSource = {
@@ -22,7 +26,10 @@ export type DocumentTab = {
   id: EditorTabId;
   title: string;
   displayPath: string;
-  kind: "text" | "image" | "video" | "pdf" | "office" | "database" | "unsupported";
+  kind: "text" | "image" | "video" | "pdf" | "office" | "database" | "unsupported" | "web";
+  /** Live page behind the local homepage, available until the tab is closed. */
+  webHomeReturnPage?: { url: string; title: string; favicon?: string };
+  favicon?: string;
   languageId: DocumentLanguage;
   content: string;
   savedContent: string;

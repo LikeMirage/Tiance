@@ -1,0 +1,156 @@
+{
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "else": {
+        "required": [
+          "error",
+          "error_info"
+        ]
+      },
+      "if": {
+        "properties": {
+          "ok": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "summary",
+          "data"
+        ]
+      }
+    }
+  ],
+  "properties": {
+    "data": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "application": {
+          "type": "object"
+        },
+        "application_count": {
+          "type": "integer"
+        },
+        "applications": {
+          "items": {
+            "properties": {
+              "application_id": {
+                "type": "string"
+              },
+              "executable_path": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "handler_name": {
+                "type": "string"
+              },
+              "is_default": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "progid": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "recommended": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "application_id",
+              "name",
+              "recommended",
+              "is_default"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "default_app": {
+          "description": "registered 表示有系统关联；app_name/executable_path/progid/app_user_model_id 可为 null，不假定每个关联都有 EXE。",
+          "type": "object"
+        },
+        "enumeration_complete": {
+          "type": "boolean"
+        },
+        "execution_location": {
+          "const": "tiance_computer"
+        },
+        "extension": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "file",
+            "directory"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "selection_requested": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "queried",
+            "submitted"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "error": {
+      "type": "string"
+    },
+    "error_info": {
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "details"
+      ],
+      "type": "object"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "ok",
+    "warnings"
+  ],
+  "type": "object"
+}

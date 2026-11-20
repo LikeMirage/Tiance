@@ -2,13 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { Project, ProjectCategory } from "../../../entities/project/model/project";
 import type {
-  ProjectOverviewView,
   WorkspaceLayoutPreferences,
   WorkspaceLayoutPreferenceUpdate,
 } from "../../../entities/workspace/model/workspaceLayoutPreferences";
-import { resolveProjectOverviewTarget } from "../../../features/project-category-overview/model/projectOverviewTarget";
+import { useOpenProjectOverviewView } from "../model/useOpenProjectOverviewView";
 import { ProjectCategoryOverview } from "../../../features/project-category-overview/ui/ProjectCategoryOverview";
-import { ProjectOverviewViewTabs } from "../../../features/project-category-overview/ui/ProjectOverviewViewTabs";
 import { ProjectMarketBoard } from "../../../features/project-market/ui/ProjectMarketBoard";
 import type { ProjectMarketScope } from "../../../features/project-market/model/projectMarket";
 import type { ProjectEntryWarmupOptions } from "../../../features/project-entry/model/projectEntryWarmup";
@@ -42,7 +40,7 @@ type ProjectCategoryOverviewKeepAliveProps = {
   onSelectSession: (projectId: string, sessionId: string) => Promise<boolean>;
   projects: Project[];
   selectedCategoryId: string | null;
-  showOverviewTabs?: boolean;
+  useCategoryViews?: boolean;
   visibleSession: { projectId: string; sessionId: string | null } | null;
   enableExternalOverviewViews?: boolean;
   enableExternalBranchView?: boolean;
@@ -69,13 +67,13 @@ export function ProjectCategoryOverviewKeepAlive({
   onSelectSession,
   projects,
   selectedCategoryId,
-  showOverviewTabs = false,
+  useCategoryViews = false,
   visibleSession,
   enableExternalOverviewViews,
   enableExternalBranchView,
 }: ProjectCategoryOverviewKeepAliveProps) {
   const usesExternalOverviewViews =
-    showOverviewTabs || enableExternalOverviewViews === true;
+    useCategoryViews || enableExternalOverviewViews === true;
   const usesExternalBranchView =
     enableExternalBranchView ?? usesExternalOverviewViews;
   const [visitedCategoryIds, setVisitedCategoryIds] = useState<ReadonlySet<string>>(
@@ -102,25 +100,7 @@ export function ProjectCategoryOverviewKeepAlive({
   const selectedOverviewView = storedOverviewView === "online" && !marketScope
     ? "projects"
     : storedOverviewView;
-  const openProjectView = useCallback(async (
-    categoryId: string,
-    targetProjectId: string,
-    view: Exclude<ProjectOverviewView, "projects">,
-    sessionId?: string | null,
-  ) => {
-    const didActivate = await onActivateProject?.(targetProjectId, { sessionId });
-    if (didActivate === false) return;
-    onLayoutPreferenceChange({
-      projectOverviewMaximized: {
-        categoryId,
-        projectId: targetProjectId,
-      },
-      projectOverviewView: {
-        categoryId,
-        view,
-      },
-    });
-  }, [onActivateProject, onLayoutPreferenceChange]);
+  const openProjectView = useOpenProjectOverviewView(onActivateProject, onLayoutPreferenceChange);
   const openConversationBranches = useCallback(async (
     categoryId: string,
     targetProjectId: string,
@@ -132,43 +112,6 @@ export function ProjectCategoryOverviewKeepAlive({
     }
     await openProjectView(categoryId, targetProjectId, "branches", sessionId);
   }, [onOpenConversationBranches, openProjectView, usesExternalBranchView]);
-  const handleOverviewViewChange = useCallback((view: ProjectOverviewView) => {
-    if (!selectedCategoryId) return;
-    if (view === "online" && !marketScope) return;
-    if (view === "projects" || view === "online") {
-      onLayoutPreferenceChange({
-        projectOverviewView: {
-          categoryId: selectedCategoryId,
-          view,
-        },
-      });
-      return;
-    }
-    const selectedCategoryProjects = projects.filter(
-      (project) => project.category_id === selectedCategoryId,
-    );
-    const target = resolveProjectOverviewTarget(
-      selectedCategoryProjects,
-      visibleSession,
-      selectedMaximizedProjectId,
-    );
-    if (!target) return;
-    void openProjectView(
-      selectedCategoryId,
-      target.projectId,
-      view,
-      target.sessionId,
-    );
-  }, [
-    onLayoutPreferenceChange,
-    marketScope,
-    openProjectView,
-    projects,
-    selectedCategoryId,
-    selectedMaximizedProjectId,
-    visibleSession?.projectId,
-    visibleSession?.sessionId,
-  ]);
 
   useEffect(() => {
     if (!selectedCategoryId) return;
@@ -207,7 +150,6 @@ export function ProjectCategoryOverviewKeepAlive({
         categories={categories}
         categoryId={selectedCategoryId}
         isActive={isActive}
-        marketScope={marketScope}
         maximizedProjectId={
           !usesExternalOverviewViews || selectedOverviewView === "conversation"
             ? selectedMaximizedProjectId
@@ -237,7 +179,6 @@ export function ProjectCategoryOverviewKeepAlive({
             }
           : handleMaximizedProjectChange}
         onMaximizedProjectFollow={handleMaximizedProjectChange}
-        onOverviewViewChange={handleOverviewViewChange}
         onOpenConversationBranches={(targetProjectId, sessionId) =>
           openConversationBranches(
             selectedCategoryId ?? "",
@@ -249,16 +190,14 @@ export function ProjectCategoryOverviewKeepAlive({
         onSelectCategory={onSelectCategory}
         onSelectSession={onSelectSession}
         orderedProjects={[]}
-        overviewView={selectedOverviewView}
         refreshKey={buildCategoryOverviewRefreshKey(null, [])}
-        showOverviewTabs={showOverviewTabs}
         visibleSession={visibleSession}
       />
     );
   }
 
   return (
-    <div className="project-category-overview-keepalive">
+    <div className={useCategoryViews ? "project-category-overview-keepalive project-category-overview-keepalive--category-views" : "project-category-overview-keepalive"}>
       {categoryIds.map((categoryId) => {
         const isCurrentCategory = categoryId === selectedCategoryId;
         const category = categories.find((item) => item.category_id === categoryId) ?? null;
@@ -290,14 +229,8 @@ export function ProjectCategoryOverviewKeepAlive({
             }
             aria-hidden={isCurrentCategory ? undefined : "true"}
           >
-            {categoryOverviewView === "online" && showOverviewTabs ? (
+            {categoryOverviewView === "online" && useCategoryViews ? (
               <div className="project-category-overview-market-host">
-                <ProjectOverviewViewTabs
-                  activeView={categoryOverviewView}
-                  disabled={categoryProjects.length === 0}
-                  marketScope={marketScope}
-                  onChange={handleOverviewViewChange}
-                />
                 <ProjectMarketBoard
                   categories={categories}
                   isActive={isActive && isCurrentCategory}
@@ -318,7 +251,6 @@ export function ProjectCategoryOverviewKeepAlive({
                     : null
                 }
                 isActive={isActive && isCurrentCategory}
-                onOverviewViewChange={handleOverviewViewChange}
                 onSelectExportDirectory={onSelectExportDirectory}
                 onSelectMessage={(sessionId, messageId) => {
                   if (!branchProject) return;
@@ -330,15 +262,12 @@ export function ProjectCategoryOverviewKeepAlive({
                 }}
                 projectId={branchProject?.project_id ?? null}
                 projectRootPath={branchProject?.root_path ?? ""}
-                marketScope={marketScope}
-                showOverviewTabs={showOverviewTabs}
               />
             ) : (
             <ProjectCategoryOverview
               categories={categories}
               categoryId={categoryId}
               isActive={isActive && isCurrentCategory}
-              marketScope={marketScope}
               maximizedProjectId={
                 !usesExternalOverviewViews || categoryOverviewView === "conversation"
                   ? categoryMaximizedProjectId
@@ -378,7 +307,6 @@ export function ProjectCategoryOverviewKeepAlive({
                   projectOverviewMaximized: { categoryId, projectId },
                 });
               }}
-              onOverviewViewChange={handleOverviewViewChange}
               onOpenConversationBranches={(targetProjectId, sessionId) =>
                 openConversationBranches(
                   categoryId,
@@ -390,9 +318,7 @@ export function ProjectCategoryOverviewKeepAlive({
               onSelectCategory={onSelectCategory}
               onSelectSession={onSelectSession}
               orderedProjects={categoryProjects}
-              overviewView={categoryOverviewView}
               refreshKey={buildCategoryOverviewRefreshKey(category, categoryProjects)}
-              showOverviewTabs={showOverviewTabs}
               visibleSession={visibleSession}
             />
             )}

@@ -1,5 +1,5 @@
 {
-  "description": "管理编辑器标签并展示项目文件。open_file 可打开 Office 等文件；reveal_file 仅定位 PDF 页码或纯文本源码选区，不支持 Word、Excel、PPT 内容定位。",
+  "description": "管理当前项目的文件和网页标签。list_tabs 查看标题、类型和选中状态，网页另含网址与标签 ID。open_url 打开或复用网页，focus_web 按 ID 切换网页。open_file 可打开 Office 等文件；reveal_file 仅定位 PDF 页码或纯文本源码选区。",
   "registration_name": "编辑器标签页管理",
   "execution": {
     "parallel": true
@@ -21,7 +21,7 @@
   "runtime": {
     "client_capability": {
       "name": "editor.tabs",
-      "min_version": 3
+      "min_version": 4
     },
     "timeout_seconds": 30,
     "type": "client"

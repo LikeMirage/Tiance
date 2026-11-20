@@ -1,31 +1,39 @@
 import { File, Folder, ImageSquare, Quotes } from "@phosphor-icons/react";
+import { useState } from "react";
 import type { UserMessageReferenceDisplay } from "../model/userMessageReferences";
 import { KeywordHighlight } from "./KeywordHighlight";
+import { UserMessageText } from "./UserMessageText";
 
 export function ReferencedUserMessageView({
   onOpenReference,
   references,
   userContent,
   highlight,
+  compact = false,
 }: {
   onOpenReference?: (reference: UserMessageReferenceDisplay) => void;
   references: UserMessageReferenceDisplay[];
   userContent: string;
   highlight?: string;
+  compact?: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const visibleReferences = compact && !expanded ? references.slice(0, 2) : references;
   return (
     <>
-      <section className="chat-msg__user-reference-panel" aria-label="用户引用内容">
+      <section className={`chat-msg__user-reference-panel${compact ? " chat-msg__user-reference-panel--compact" : ""}`} aria-label="用户引用内容">
         <div className="chat-msg__user-reference-head">引用 {references.length}</div>
         <div className="chat-msg__user-reference-list">
-          {references.map((reference) => (
+          {visibleReferences.map((reference) => (
             <div className="chat-msg__user-reference" key={`${reference.index}-${reference.title}-${reference.meta}`}>
               <button
                 className={onOpenReference
                   ? "chat-msg__user-reference-open"
                   : "chat-msg__user-reference-open chat-msg__user-reference-open--static"}
                 disabled={!onOpenReference}
-                title={onOpenReference ? "查看引用内容" : undefined}
+                title={compact ? [reference.title, reference.meta, reference.detail].filter(Boolean).join("\n")
+                  : onOpenReference ? "查看引用内容" : undefined}
+                aria-label={compact ? `查看引用：${reference.title}` : undefined}
                 type="button"
                 onClick={() => onOpenReference?.(reference)}
               >
@@ -35,10 +43,10 @@ export function ReferencedUserMessageView({
                 </span>
                 <div className="chat-msg__user-reference-body">
                   <div className="chat-msg__user-reference-main">
-                    <strong title={reference.title}><KeywordHighlight text={reference.title} keyword={highlight} /></strong>
-                    <span><KeywordHighlight text={reference.meta} keyword={highlight} /></span>
+                    <strong title={compact ? undefined : reference.title}><KeywordHighlight text={reference.title} keyword={highlight} /></strong>
+                    {!compact ? <span><KeywordHighlight text={reference.meta} keyword={highlight} /></span> : null}
                   </div>
-                  {reference.detail ? (
+                  {!compact && reference.detail ? (
                     <div className="chat-msg__user-reference-detail" title={reference.detail}>
                       <KeywordHighlight text={reference.detail} keyword={highlight} />
                     </div>
@@ -48,9 +56,14 @@ export function ReferencedUserMessageView({
             </div>
           ))}
         </div>
+        {compact && references.length > 2 ? <button type="button"
+          className="chat-msg__user-reference-expand" aria-expanded={expanded}
+          onClick={() => setExpanded(value => !value)}>
+          {expanded ? "收起引用" : `展开其余 ${references.length - 2} 条`}
+        </button> : null}
       </section>
       {userContent.trim() ? (
-        <p className="chat-msg__text chat-msg__user-reference-message"><KeywordHighlight text={userContent} keyword={highlight} /></p>
+        <p className="chat-msg__text chat-msg__user-reference-message"><UserMessageText text={userContent} keyword={highlight} /></p>
       ) : null}
     </>
   );

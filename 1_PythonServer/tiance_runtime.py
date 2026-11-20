@@ -8,6 +8,8 @@ from collections.abc import Callable
 from typing import Any, TextIO
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from pathlib import Path
+from app.domain.llm.runtime_capabilities import DEFAULT_IMAGE_MAX_LONG_EDGE_PX, MultiImageLimit
 from app.domain.tools.host_capabilities import HOST_CAPABILITIES
 
 Payload = dict[str, Any]
@@ -52,11 +54,38 @@ def get_model_context() -> dict[str, Any]:
         if isinstance(modalities, list)
         else []
     )
-    return {
+    context = {
         "provider_id": _optional_string(payload.get("provider_id")),
         "model_id": _optional_string(payload.get("model_id")),
         "input_modalities": normalized_modalities,
     }
+    limit = payload.get("image_max_long_edge_px")
+    if type(limit) is int and limit > 0:
+        context["image_max_long_edge_px"] = limit
+    batch = payload.get("multi_image_limit")
+    if isinstance(batch, dict):
+        fields = {key: batch.get(key) for key in ("min_images", "max_long_edge_px")}
+        if all(type(value) is int and value > 0 for value in fields.values()):
+            context["multi_image_limit"] = fields
+    return context
+
+
+def prepare_tool_image(path: Path, sha256: str, scale_percent: int, *, image_count: int = 1):
+    from app.infra.prompt_image import prepare_prompt_image
+
+    context = get_model_context()
+    limit = context.get("image_max_long_edge_px", DEFAULT_IMAGE_MAX_LONG_EDGE_PX)
+    if batch := context.get("multi_image_limit"):
+        limit = MultiImageLimit(**batch).apply(limit, image_count)
+    return prepare_prompt_image(path, sha256, max_long_edge=limit, scale_percent=scale_percent)
+
+
+def image_source_metadata(path: Path, mime_type: str, digest: str, scale_percent: int) -> dict:
+    """Let the session keep the original behind a tool thumbnail for model switches."""
+    return {"tiance/imageSource": {
+        "uri": "tiance-local:" + path.as_uri().removeprefix("file:"),
+        "mimeType": mime_type, "name": path.name, "sha256": digest, "scalePercent": scale_percent,
+    }}
 
 
 def model_supports_input(modality: str) -> bool:

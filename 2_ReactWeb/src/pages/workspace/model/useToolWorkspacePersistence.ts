@@ -10,26 +10,21 @@ import {
 } from "../../../features/document-tabs/model/documentToolDashboardTabs";
 import type { useDocumentTabs } from "../../../features/document-tabs/model/useDocumentTabs";
 import { isProjectConversationOverviewTab } from "../../../features/document-tabs/model/documentTabUtils";
-import {
-  getProjectWorkspaceState,
-  type WorkspaceStateResponse,
-} from "../../../services/project/getProjectWorkspaceState";
-import { saveProjectWorkspaceState } from "../../../services/project/saveProjectWorkspaceState";
+import type { WorkspaceStateResponse } from "../../../services/project/getProjectWorkspaceState";
+import { patchProjectWorkspaceState, readWorkspaceAfterWrites } from "../../../services/project/saveProjectWorkspaceState";
+import { snapshotWorkspaceTabs } from "../../../features/document-tabs/model/workspaceTabEntries";
 
 type ToolWorkspacePersistenceOptions = {
   activeToolFolder: ToolFolder | null;
+  folderExpanded?: boolean;
   activeToolsetId: string | null;
   browser: UseToolFolderBrowserResult;
   documentTabs: ReturnType<typeof useDocumentTabs>;
 };
 
-type PendingSave = {
-  projectId: string;
-  payload: Omit<WorkspaceStateResponse, "project_id">;
-};
-
 export function useToolWorkspacePersistence({
   activeToolFolder,
+  folderExpanded = true,
   activeToolsetId,
   browser,
   documentTabs,
@@ -38,10 +33,10 @@ export function useToolWorkspacePersistence({
   const hydratedWorkspaceKeyRef = useRef<string | null>(null);
   const restoreFailureRef = useRef<{ key: string; error: Error } | null>(null);
   const restoreWaitersRef = useRef(new Map<string, Set<(error?: Error, ready?: boolean) => void>>());
-  const pendingSaveRef = useRef<PendingSave | null>(null);
   const restoreRequestIdRef = useRef(0);
-  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const saveTimerRef = useRef<number | null>(null);
+  const [readyKey, setReadyKey] = useState<string | null>(null);
+  const lastSaved = useRef("");
+  const lastWorkspaceState = useRef<WorkspaceStateResponse | null>(null);
   const activeToolFolderId = activeToolFolder?.project_id ?? null;
   const activeProjectId = activeToolFolder?.project_id ?? null;
   const activeToolFolderName = activeToolFolder?.name ?? "";
@@ -51,6 +46,7 @@ export function useToolWorkspacePersistence({
       : null,
     [activeToolFolderId, activeToolsetId],
   );
+  const hydrationKey = folderExpanded ? activeWorkspaceKey : `overview:${activeWorkspaceKey}`;
 
   // File opens from the outer dashboard must follow restoration, never race it.
   const waitForWorkspaceReady = useCallback((key: string, signal: AbortSignal): Promise<boolean> => {
@@ -75,32 +71,16 @@ export function useToolWorkspacePersistence({
     for (const finish of restoreWaitersRef.current.get(key) ?? []) finish(error, ready);
   }, []);
 
-  const flushPendingSave = useCallback(() => {
-    if (saveTimerRef.current !== null) {
-      window.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-    const pendingSave = pendingSaveRef.current;
-    pendingSaveRef.current = null;
-    if (!pendingSave) return;
-    saveQueueRef.current = saveQueueRef.current
-      .catch(() => undefined)
-      .then(async () => {
-        await saveProjectWorkspaceState(pendingSave.projectId, pendingSave.payload);
-      })
-      .catch((saveError: unknown) => {
-        setError(formatToolWorkspaceError("工具工作区状态保存失败", saveError));
-      });
-  }, []);
-
   useEffect(() => {
     const restoreRequestId = ++restoreRequestIdRef.current;
     hydratedWorkspaceKeyRef.current = null;
     restoreFailureRef.current = null;
+    setReadyKey(null);
+    lastSaved.current = "";
     setError(null);
 
     if (!activeWorkspaceKey || !activeToolsetId || !activeToolFolderId || !activeProjectId) {
-      documentTabs.closeAllTabs();
+      documentTabs.resetWorkspaceFiles();
       return;
     }
 
@@ -113,11 +93,13 @@ export function useToolWorkspacePersistence({
 
     void (async () => {
       let state: WorkspaceStateResponse;
+      let loaded = true;
       try {
-        state = await getProjectWorkspaceState(activeProjectId);
+        state = await readWorkspaceAfterWrites(activeProjectId);
       } catch (restoreError) {
         if (restoreRequestId !== restoreRequestIdRef.current) return;
         setError(formatToolWorkspaceError("工具工作区状态恢复失败", restoreError));
+        loaded = false;
         state = {
           active_dashboard: "basics",
           active_file_path: null,
@@ -129,31 +111,37 @@ export function useToolWorkspacePersistence({
 
       try {
         if (restoreRequestId !== restoreRequestIdRef.current) return;
-        browser.restoreExpandedPaths(state.expanded_paths);
-        await documentTabs.restoreWorkspaceTabs(
+        if (folderExpanded) browser.restoreExpandedPaths(state.expanded_paths);
+        const activeWebId = await documentTabs.restoreWorkspaceTabs(
           sourceRuntime,
           state.open_file_paths,
           state.active_file_path,
+          { entries: state.open_tabs, overviewOnly: !folderExpanded },
         );
         if (restoreRequestId !== restoreRequestIdRef.current) return;
         const isConversationOverviewActive = state.active_dashboard === "conversation_overview";
-        const activeView: ToolDashboardView | null = state.active_file_path
+        const activeView: ToolDashboardView | null = activeWebId || state.active_file_path
           ? null
           : isConversationOverviewActive
             ? null
           : isToolDashboardView(state.active_dashboard)
             ? state.active_dashboard
             : "basics";
-        await documentTabs.openToolDashboard(sourceRuntime, {
-          activeView,
-          title: activeToolFolderName,
-        });
-        documentTabs.ensureProjectConversationOverview(activeProjectId, {
-          activate: isConversationOverviewActive,
-        });
+        if (folderExpanded) {
+          await documentTabs.openToolDashboard(sourceRuntime, {
+            activeView,
+            title: activeToolFolderName,
+          });
+          if (restoreRequestId !== restoreRequestIdRef.current) return;
+          documentTabs.ensureProjectConversationOverview(activeProjectId, {
+            activate: !activeWebId && isConversationOverviewActive,
+          });
+        }
         if (restoreRequestId !== restoreRequestIdRef.current) return;
-        hydratedWorkspaceKeyRef.current = activeWorkspaceKey;
-        finishWorkspaceWaiters(activeWorkspaceKey, undefined, true);
+        hydratedWorkspaceKeyRef.current = hydrationKey;
+        lastWorkspaceState.current = state;
+        if (loaded) setReadyKey(hydrationKey);
+        if (folderExpanded) finishWorkspaceWaiters(activeWorkspaceKey, undefined, true);
       } catch (restoreError) {
         if (restoreRequestId !== restoreRequestIdRef.current) return;
         const message = formatToolWorkspaceError("工具标签恢复失败", restoreError);
@@ -166,8 +154,7 @@ export function useToolWorkspacePersistence({
     return () => {
       ++restoreRequestIdRef.current;
       hydratedWorkspaceKeyRef.current = null;
-      finishWorkspaceWaiters(activeWorkspaceKey);
-      flushPendingSave();
+      if (folderExpanded) finishWorkspaceWaiters(activeWorkspaceKey);
     };
   }, [
     activeToolFolderId,
@@ -175,12 +162,13 @@ export function useToolWorkspacePersistence({
     activeProjectId,
     activeToolsetId,
     activeWorkspaceKey,
+    folderExpanded,
+    hydrationKey,
     browser.restoreExpandedPaths,
-    documentTabs.closeAllTabs,
+    documentTabs.resetWorkspaceFiles,
     documentTabs.ensureProjectConversationOverview,
     documentTabs.openToolDashboard,
     documentTabs.restoreWorkspaceTabs,
-    flushPendingSave,
     finishWorkspaceWaiters,
   ]);
 
@@ -190,7 +178,7 @@ export function useToolWorkspacePersistence({
       !activeToolsetId ||
       !activeToolFolderId ||
       !activeProjectId ||
-      hydratedWorkspaceKeyRef.current !== activeWorkspaceKey
+      readyKey !== hydrationKey || hydratedWorkspaceKeyRef.current !== hydrationKey
     ) {
       return;
     }
@@ -203,44 +191,50 @@ export function useToolWorkspacePersistence({
     const activeFilePath = activeTabBelongsToWorkspace
       ? documentTabs.activeTab?.filePath ?? null
       : null;
-    const activeDashboard = isProjectConversationOverviewTab(documentTabs.activeTab)
+    const activeDashboard: WorkspaceStateResponse["active_dashboard"] = isProjectConversationOverviewTab(documentTabs.activeTab)
       && documentTabs.activeTab?.projectId === activeProjectId
       ? "conversation_overview"
       : activeTabBelongsToWorkspace && documentTabs.activeTab?.fileSource?.kind === "tool-dashboard"
         ? getToolDashboardViewFromTab(documentTabs.activeTab)
         : null;
 
-    pendingSaveRef.current = {
-      projectId: activeProjectId,
-      payload: {
-        active_dashboard: activeDashboard,
-        active_file_path: activeFilePath,
-        expanded_paths: Array.from(browser.userExpandedNodeIds),
-        open_file_paths: openFilePaths,
-      },
+    const hiddenSelection = !folderExpanded && !documentTabs.activeTab ? lastWorkspaceState.current : null;
+    const payload = {
+      active_dashboard: hiddenSelection?.active_dashboard ?? activeDashboard,
+      active_file_path: hiddenSelection?.active_file_path ?? activeFilePath,
+      ...(folderExpanded ? { expanded_paths: Array.from(browser.userExpandedNodeIds) } : {}),
+      open_file_paths: openFilePaths,
+      open_tabs: snapshotWorkspaceTabs(documentTabs.tabs, documentTabs.activeTab?.id ?? null, activeProjectId,
+        tab => tab.fileSource?.key === activeWorkspaceKey ? tab.filePath : null),
     };
-    if (saveTimerRef.current !== null) {
-      window.clearTimeout(saveTimerRef.current);
-    }
-    saveTimerRef.current = window.setTimeout(flushPendingSave, 250);
+    const key = JSON.stringify(payload);
+    if (lastSaved.current === key) return;
+    lastSaved.current = key;
+    void patchProjectWorkspaceState(activeProjectId, payload).catch(error => {
+      if (hydratedWorkspaceKeyRef.current === hydrationKey && lastSaved.current === key) {
+        lastSaved.current = "";
+        setError(formatToolWorkspaceError("工具工作区状态保存失败", error));
+      }
+    });
   }, [
     activeToolFolderId,
     activeProjectId,
     activeToolsetId,
     activeWorkspaceKey,
+    folderExpanded,
+    hydrationKey,
+    readyKey,
     browser.userExpandedNodeIds,
     documentTabs.activeTab,
     documentTabs.tabs,
-    flushPendingSave,
   ]);
 
   useEffect(() => () => {
     for (const key of restoreWaitersRef.current.keys()) finishWorkspaceWaiters(key);
-    flushPendingSave();
-  }, [finishWorkspaceWaiters, flushPendingSave]);
+  }, [finishWorkspaceWaiters]);
 
   return {
-    activeWorkspaceKey,
+    activeWorkspaceKey: folderExpanded ? activeWorkspaceKey : null,
     error,
     waitForWorkspaceReady,
   };

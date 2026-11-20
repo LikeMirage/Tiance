@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import hmac
+import logging
 import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -20,6 +21,7 @@ LEASE_REVOKED_STATUS = 410
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 2.0
 DEFAULT_HEARTBEAT_TIMEOUT_SECONDS = 1.0
 DEFAULT_HEARTBEAT_FAILURE_THRESHOLD = 3
+logger = logging.getLogger(__name__)
 
 
 class ShellLeaseRevokedError(RuntimeError):
@@ -65,6 +67,7 @@ class ShellLeaseMonitor:
         heartbeat_sender: Callable[[ShellLeaseConfiguration], bool] | None = None,
         interval_seconds: float = DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
         failure_threshold: int = DEFAULT_HEARTBEAT_FAILURE_THRESHOLD,
+        parent_monitored: bool = False,
     ) -> None:
         if failure_threshold < 1:
             raise ValueError("failure_threshold must be at least 1")
@@ -73,6 +76,8 @@ class ShellLeaseMonitor:
         self._heartbeat_sender = heartbeat_sender or _send_heartbeat
         self._interval_seconds = max(float(interval_seconds), 0.01)
         self._failure_threshold = failure_threshold
+        self._parent_monitored = parent_monitored
+        self.shutdown_reason: str | None = None
         self._consecutive_failures = 0
         self._shutdown_requested = False
         self._stop_event = threading.Event()
@@ -102,28 +107,35 @@ class ShellLeaseMonitor:
         try:
             succeeded = bool(self._heartbeat_sender(self._configuration))
         except ShellLeaseRevokedError:
-            self._request_shutdown_once()
+            self._request_shutdown_once("lease_revoked")
             return False
         except Exception:
             succeeded = False
 
         if succeeded:
+            if self._consecutive_failures >= self._failure_threshold:
+                logger.info("Desktop shell heartbeat recovered; backend retained.")
             self._consecutive_failures = 0
             return True
 
         self._consecutive_failures += 1
-        if (
-            self._consecutive_failures >= self._failure_threshold
-            and not self._shutdown_requested
-        ):
-            self._request_shutdown_once()
+        if self._consecutive_failures == self._failure_threshold:
+            logger.warning(
+                "Desktop shell heartbeat failed %s consecutive times; parent_monitored=%s.",
+                self._consecutive_failures, self._parent_monitored,
+            )
+        # A busy but living shell must not lose its tasks because HTTP is slow.
+        # run.py holds the parent's OS process handle and detects actual exit.
+        if self._consecutive_failures >= self._failure_threshold and not self._parent_monitored:
+            self._request_shutdown_once("heartbeat_failures")
             return False
         return True
 
-    def _request_shutdown_once(self) -> None:
+    def _request_shutdown_once(self, reason: str) -> None:
         if self._shutdown_requested:
             return
         self._shutdown_requested = True
+        self.shutdown_reason = reason
         self._request_shutdown()
 
     def _run(self) -> None:
@@ -146,14 +158,14 @@ def is_managed_shell_request(instance_id: str, token: str) -> bool:
     )
 
 
-def start_shell_lease_monitor(server) -> ShellLeaseMonitor | None:
+def start_shell_lease_monitor(server, *, parent_monitored: bool = False) -> ShellLeaseMonitor | None:
     configuration = ShellLeaseConfiguration.from_environment()
     if configuration is None:
         return None
 
     def request_shutdown() -> None:
         print(
-            "Tiance API: desktop shell lease expired; shutting down backend.",
+            f"Tiance API: desktop shell shutdown reason={monitor.shutdown_reason}; shutting down backend.",
             flush=True,
         )
         server.should_exit = True
@@ -161,6 +173,7 @@ def start_shell_lease_monitor(server) -> ShellLeaseMonitor | None:
     monitor = ShellLeaseMonitor(
         configuration,
         request_shutdown=request_shutdown,
+        parent_monitored=parent_monitored,
     )
     monitor.start()
     return monitor

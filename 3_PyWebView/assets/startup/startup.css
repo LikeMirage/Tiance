@@ -1,12 +1,3 @@
-/* Oxanium SemiBold, limited to the Tiance wordmark; see fonts/oxanium-OFL.txt. */
-@font-face {
-  font-family: "Oxanium";
-  src: url("__TIANCE_WORDMARK_FONT__") format("truetype");
-  font-style: normal;
-  font-weight: 600;
-  font-display: block;
-}
-
 :root {
   color-scheme: __TIANCE_THEME_MODE__;
   --startup-surface-base: __TIANCE_SURFACE_BASE__;
@@ -81,17 +72,20 @@ body[data-titlebar-visible="true"] .titlebar { display: flex; }
 .wordmark {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  color: var(--startup-text-primary);
-  font-family: "Oxanium", "Bahnschrift", sans-serif;
-  font-size: clamp(80px, 12.5vw, 180px);
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: 0.04em;
+  width: min(84vw, clamp(254px, 39.5vw, 568px));
+  height: max-content;
+  margin: auto;
+  --tiance-wordmark-accent: rgb(var(--startup-accent-rgb));
+  --tiance-wordmark-ink: var(--startup-text-primary);
   user-select: none;
   pointer-events: none;
   animation: tiance-wordmark-breathe 2.8s ease-in-out infinite;
+}
+
+.wordmark svg {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 @keyframes tiance-wordmark-breathe {

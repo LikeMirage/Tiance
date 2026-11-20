@@ -308,7 +308,7 @@ if __name__ == "__main__":
         server = DesktopServer(config)
         if shell_parent_pid is not None:
             _start_shell_parent_monitor(server, shell_parent_pid)
-        lease_monitor = start_shell_lease_monitor(server)
+        lease_monitor = start_shell_lease_monitor(server, parent_monitored=shell_parent_pid is not None)
         try:
             server.run()
         finally:

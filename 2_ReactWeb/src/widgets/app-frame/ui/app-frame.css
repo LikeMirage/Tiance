@@ -5,7 +5,9 @@
   margin: 0;
   height: 100%;
   min-height: 0;
-  overflow: hidden;
+  /* The expanded backdrop must not make the window a scroll container:
+     descendant scrollIntoView calls should only move inner content panes. */
+  overflow: clip;
   background: var(--app-background-base);
   isolation: isolate;
 }

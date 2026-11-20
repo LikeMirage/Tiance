@@ -3312,7 +3312,7 @@ class _FakeRuntimeCapabilitiesService:
     def get_capabilities(self, *, provider_id, model_id=None):
         assert provider_id == "provider-1"
         assert model_id == "model-1"
-        return SimpleNamespace(input_modalities=("text", "image"))
+        return SimpleNamespace(input_modalities=("text", "image"), image_limit_for_count=lambda count: 4096, multi_image_limit=None)
 
 
 class _PassthroughAttachmentService:

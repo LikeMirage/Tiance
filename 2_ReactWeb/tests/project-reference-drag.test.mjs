@@ -137,6 +137,46 @@ test("列表排序保存失败恢复原顺序并显示错误", async () => {
   } finally { await list.close(); }
 });
 
+test("添加项目默认定位当前集和分类，切换集后同名分类和项目独立筛选", async () => {
+  const knowledge = { ...projects[0], project_id: "note", project_kind: "knowledge",
+    category_id: "notes", name: "资料", root_path: "C:\\工作区\\资料" };
+  const catalog = {
+    categories: [...categories,
+      { category_id: "empty", name: "档案", category_kind: "knowledge" },
+      { category_id: "notes", name: categories[0].name, category_kind: "knowledge" }],
+    projects: [...projects, knowledge], isLoading: false, error: null,
+  };
+  let view;
+  try {
+    await act(async () => {
+      view = create(React.createElement(ChatComposerAddMenu, { isOpen: true, panelContainer: document.body,
+        onOpenChange() {}, onSelectFiles: async () => {}, projectId: "note", projectCatalog: catalog }), { createNodeMock });
+    });
+    await act(async () => { view.root.findAllByProps({ role: "tab" })[2].props.onClick(); });
+    const selector = label => view.root.findByProps({ ariaLabel: label }).props;
+    const change = (label, value) => act(async () => { selector(label).onChange(value); });
+    const categoryIds = () => selector("项目分类").options.map(option => option.value);
+    const listed = () => view.root.findByProps({ role: "tabpanel" }).findAllByType("button").map(node => node.props.title);
+
+    assert.equal(selector("选择集").value, "knowledge");
+    assert.deepEqual(categoryIds(), ["empty", "notes"]);
+    assert.equal(selector("项目分类").value, "notes");
+    assert.deepEqual(listed(), [knowledge.root_path]);
+    await change("项目分类", "empty");
+    assert.equal(view.root.findByProps({ role: "status" }).children.join(""), "此分类暂无项目");
+    await change("选择集", "project");
+    assert.deepEqual(categoryIds(), ["category"]);
+    assert.deepEqual(listed(), projects.map(project => project.root_path));
+    await change("选择集", "theme");
+    assert.equal(selector("项目分类").disabled, true);
+    assert.deepEqual(listed(), []);
+    assert.equal(view.root.findByProps({ role: "status" }).children.join(""), "此集暂无分类");
+    await change("选择集", "knowledge");
+    assert.equal(selector("项目分类").value, "notes");
+    assert.deepEqual(listed(), [knowledge.root_path]);
+  } finally { if (view) await act(async () => { view.unmount(); }); }
+});
+
 test("加号与拖入得到相同引用，并由已有引用状态统一去重", async () => {
   let view, editor;
   const calls = [];

@@ -16,7 +16,7 @@ import {
 } from "../../../shared/ui/collection-view-tabs/CollectionViewTabs";
 
 type ToolOverviewViewTabsProps = {
-  activeView: ToolOverviewView;
+  activeView: ToolOverviewView | null;
   disabled?: boolean;
   onChange: (view: ToolOverviewView) => void;
 };

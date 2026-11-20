@@ -14,7 +14,7 @@ TOOL = ROOT / 'Data/tools/092dcd37-8d51-467d-b607-5a6441dd989a/program'
 BACKEND = ROOT / '1_PythonServer/app/services/speech'
 FILES = [f'jianying_asr/{name}.py' for name in (
     '__init__', 'client', 'common', 'export', 'media_copy', 'media_runtime',
-    'media', 'parallel', 'engine', 'signing', 'silk',
+    'media', 'segmentation', 'parallel', 'engine', 'signing', 'silk',
 )] + ['vendor/silk/' + name for name in (
     'windows/silk_v3_decoder.exe', 'LICENSE-MIT.txt', 'LICENSE-Skype.txt', 'source.json',
 )]

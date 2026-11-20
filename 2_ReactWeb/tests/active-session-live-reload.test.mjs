@@ -27,7 +27,7 @@ const mocks = {
   } },
   "./sessionKey": { buildSessionKey: key },
   "../../../services/project/getProjectConversationMessages": {
-    CONVERSATION_MESSAGE_PAGE_SIZE: 80,
+    CONVERSATION_TURN_PAGE_SIZE: 80,
     getProjectConversationMessages(p, s, options) {
       return new Promise((resolve, reject) => {
         const request = { p, s, options, resolve, reject, aborted: false };
@@ -116,7 +116,8 @@ test("slow initial history is not cancelled by repeated refreshes or a child bec
   });
   assert.equal(requests.length, 1);
   assert.equal(requests[0].aborted, false);
-  assert.equal(requests[0].options.limit, 80);
+  assert.equal(requests[0].options.turnLimit, 80);
+  assert.equal(requests[0].options.limit, undefined);
   await respond(0, page([msg("m1")]));
   assert.equal(result.sessionMessages["p/s"].length, 1);
   assert.equal(result.loadingSessionKeys.has("p/s"), false);
@@ -393,7 +394,8 @@ test("history replacement during a cursor read recovers with a bounded latest pa
   state = { revision: 2, reset_revision: 0, project_revision: 2 };
   await act(async () => { void result.reloadSessionMessages("p", "s", { forceRefresh: true }); });
   await act(async () => { requests[1].reject(Object.assign(new Error("cursor removed"), { status: 400 })); });
-  assert.equal(requests[2].options.limit, 80);
+  assert.equal(requests[2].options.turnLimit, 80);
+  assert.equal(requests[2].options.limit, undefined);
   assert.equal(requests[2].options.afterMessageId, undefined);
   await respond(2, page([msg("m3")], 3, { reset_revision: 3 }));
   assert.deepEqual(result.sessionMessages["p/s"].map((m) => m.id), ["m3"]);

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import sys
 from contextlib import ExitStack
 from dataclasses import dataclass
 from fractions import Fraction
@@ -147,12 +148,21 @@ def prepare_part(source: Path, info: MediaInfo, start: float, length: float,
             raise ASRError("INVALID_OUTPUT", "临时切片路径不能覆盖原文件。")
         try:
             copy_aac_part(source, output, start, length, budget)
+            actual = probe(output)
+            if abs(actual.duration - length) > float(info.copy_frame_seconds) / 1024 + 1e-9:
+                raise ASRError("INCOMPLETE_SEGMENT", "压缩音频切片时长不符。")
+            return output
         except av.error.FFmpegError as exc:
-            raise ASRError("PACKET_COPY_FAILED", f"压缩音频切片失败（{type(exc).__name__}），未上传该片段。") from exc
-        actual = probe(output)
-        if abs(actual.duration - length) > float(info.copy_frame_seconds) / 1024 + 1e-9:
-            raise ASRError("INCOMPLETE_SEGMENT", "压缩音频切片时长不符，未上传该片段。")
-        return output
+            reason = type(exc).__name__
+        except ASRError as exc:
+            if exc.code not in {"INVALID_AUDIO_TIMELINE", "INCOMPLETE_SEGMENT", "INVALID_MEDIA",
+                                "NO_AUDIO", "UNKNOWN_DURATION"}:
+                raise  # Do not hide cancellation, timeout, changed input or a bad cut plan.
+            reason = exc.code
+        # Packet copying is an optimisation. Some playable phone videos have
+        # timestamps unsuitable for remuxing; decode the ORIGINAL track instead.
+        # Never upload the failed copy, and retain the same budget/length checks.
+        print(f"压缩音轨直拷不可用（{reason}），自动解码提取音轨。", file=sys.stderr)
     output = temporary / "audio.flac"
     if output.resolve() == source.resolve():
         raise ASRError("INVALID_OUTPUT", "临时切片路径不能覆盖原文件。")

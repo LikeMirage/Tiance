@@ -95,7 +95,8 @@ test("online project view does not require activating a project target", async (
     new URL("../src/pages/workspace/ui/ProjectCategoryOverviewKeepAlive.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(keepAliveSource, /view === "projects" \|\| view === "online"/);
+  const workspaceSource = await readFile(new URL("../src/pages/workspace/ui/WorkspaceEditorCanvasPanel.tsx", import.meta.url), "utf8");
+  assert.match(workspaceSource, /view === "projects" \|\| view === "online"/);
   assert.match(keepAliveSource, /categoryOverviewView === "online"/);
   assert.match(keepAliveSource, /marketScope=\{marketScope/);
 });

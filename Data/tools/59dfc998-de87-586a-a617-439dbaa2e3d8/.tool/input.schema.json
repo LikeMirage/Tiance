@@ -47,7 +47,7 @@
     "image_scale_percent": {
       "permission_type": "none",
       "default": 60,
-      "description": "所有图片默认返回给 AI 的宽高百分比，10 到 100。默认 60；单个 files 对象可以覆盖。100 表示直接返回原图。该参数不影响文本读取，也不会修改原图。",
+      "description": "请求的图片宽高百分比，10 到 100，默认 60。单个 files 对象可以覆盖。超过模型最长边上限时会自动等比缩小，每个文件的 returned_width 和 returned_height 是实际返回尺寸。原图保留。",
       "maximum": 100,
       "minimum": 10,
       "title": "默认图片尺寸百分比",

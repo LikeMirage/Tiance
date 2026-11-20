@@ -11,10 +11,15 @@ export default defineConfig(({ command }) => ({
   // chunks from the previous build, so retain their content-hashed assets.
   // Use `vite build --emptyOutDir` only when deliberately making a clean build.
   build: { emptyOutDir: false },
-  plugins: [react()],
-  // Node tests load source through Vite SSR; browser dependency prebundling is
-  // unnecessary and creates competing caches when test files run in parallel.
-  ...(process.env.NODE_TEST_CONTEXT ? { optimizeDeps: { noDiscovery: true, include: [] } } : {}),
+  // The React refresh plugin adds browser prebundles even with noDiscovery.
+  // Node tests only load SSR modules and must not replace the live server's deps.
+  ...(process.env.NODE_TEST_CONTEXT
+    ? {
+        cacheDir: "node_modules/.vite-tests",
+        esbuild: { jsx: "automatic" },
+        optimizeDeps: { noDiscovery: true },
+      }
+    : { cacheDir: "node_modules/.vite-client", plugins: [react()] }),
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),

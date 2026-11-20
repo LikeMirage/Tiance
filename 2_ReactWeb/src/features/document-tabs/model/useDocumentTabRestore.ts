@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import { useCallback, useEffect, useRef, type MutableRefObject } from "react";
 
-import type { DocumentTab, EditorTabId } from "../../../entities/editor/model/editorDocument";
+import type { DocumentTab, EditorTabId, WorkspaceTabEntry } from "../../../entities/editor/model/editorDocument";
 import type { ExplorerNode } from "../../../entities/explorer-node/model/explorerNode";
 import type { FileWorkspaceContentResponse } from "../../../entities/file-workspace/model/fileWorkspace";
 import { HttpRequestError } from "../../../services/http/httpClient";
@@ -17,19 +17,19 @@ import { getTextContentUnavailable } from "./documentTextLoadError";
 type UseDocumentTabRestoreOptions = {
   registerFileSource: (runtime: DocumentFileSourceRuntime) => DocumentFileSourceRuntime;
   restoreRequestIdRef: MutableRefObject<number>;
-  setActiveTabId: Dispatch<SetStateAction<EditorTabId | null>>;
-  setTabs: Dispatch<SetStateAction<DocumentTab[]>>;
+  replaceWorkspaceFiles: (files: DocumentTab[], activeFileId: EditorTabId | null, entries?: WorkspaceTabEntry[]) => EditorTabId | null;
 };
 
 type RestoreWorkspaceTabsOptions = {
   fileContents?: Map<string, FileWorkspaceContentResponse>;
+  entries?: WorkspaceTabEntry[] | null;
+  overviewOnly?: boolean;
 };
 
 export function useDocumentTabRestore({
   registerFileSource,
   restoreRequestIdRef,
-  setActiveTabId,
-  setTabs,
+  replaceWorkspaceFiles,
 }: UseDocumentTabRestoreOptions) {
   const restoreControllerRef = useRef<AbortController | null>(null);
   useEffect(() => () => restoreControllerRef.current?.abort(), []);
@@ -61,7 +61,7 @@ export function useDocumentTabRestore({
         filePath,
         preview,
       );
-      if (preview.kind !== "text" || filePath !== normalizedActiveFilePath) {
+      if (options.overviewOnly || preview.kind !== "text" || filePath !== normalizedActiveFilePath) {
         loadedTabs.push(tab);
         continue;
       }
@@ -88,15 +88,14 @@ export function useDocumentTabRestore({
       }
     }
     if (restoreRequestIdRef.current !== restoreRequestId) return;
-    setTabs(loadedTabs);
     const requestedActiveId = activeFilePath
       ? makeTabId(runtime.source.key, activeFilePath)
       : null;
     const activeId = requestedActiveId && loadedTabs.some((tab) => tab.id === requestedActiveId)
       ? requestedActiveId
       : loadedTabs[0]?.id ?? null;
-    setActiveTabId(activeId);
-  }, [registerFileSource, restoreRequestIdRef, setActiveTabId, setTabs]);
+    return replaceWorkspaceFiles(loadedTabs, options.overviewOnly ? null : activeId, options.entries ?? undefined);
+  }, [registerFileSource, restoreRequestIdRef, replaceWorkspaceFiles]);
 
   const restoreTabs = useCallback(async (
     projectId: string,
@@ -104,7 +103,7 @@ export function useDocumentTabRestore({
     activeFilePath: string | null,
     options: RestoreWorkspaceTabsOptions = {},
   ) => {
-    await restoreWorkspaceTabs(
+    return restoreWorkspaceTabs(
       createProjectDocumentSource(projectId),
       filePaths,
       activeFilePath,

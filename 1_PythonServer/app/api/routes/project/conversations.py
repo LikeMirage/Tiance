@@ -540,6 +540,10 @@ def list_project_conversation_messages(
     project_id: str,
     session_id: str,
     limit: int | None = Query(default=None, ge=1),
+    turn_limit: int | None = Query(
+        default=None, ge=1,
+        description="Page by user turns, including all replies and tool results; mutually exclusive with limit.",
+    ),
     before_message_id: str | None = Query(default=None),
     after_message_id: str | None = Query(default=None),
 ) -> ProjectConversationMessageListResponse:
@@ -548,6 +552,7 @@ def list_project_conversation_messages(
         project_id,
         session_id,
         limit=limit,
+        turn_limit=turn_limit,
         before_message_id=before_message_id,
         after_message_id=after_message_id,
     )

@@ -67,6 +67,7 @@ from app.repositories.project.conversation_database import (
     read_received_parts_digest,
     read_task_excerpt,
     settle_conversation_run,
+    user_message_id_for_message,
     transaction_for_conversations,
     write_document,
 )
@@ -757,23 +758,35 @@ class ProjectConversationRepository:
         session_id: str,
         *,
         limit: int | None = None,
+        turn_limit: int | None = None,
         before_message_id: str | None = None,
         after_message_id: str | None = None,
     ) -> ProjectConversationMessagePage:
         session_dir = self._session_store.require_session_dir(project_id, session_id)
         from app.repositories.project.conversation_database import read_conversation_snapshot
         with read_conversation_snapshot(session_dir.parent.parent):
-            return self._read_message_page_snapshot(session_dir, limit, before_message_id, after_message_id)
+            return self._read_message_page_snapshot(session_dir, limit, before_message_id, after_message_id, turn_limit)
 
-    def _read_message_page_snapshot(self, session_dir, limit, before_message_id, after_message_id):
+    def _read_message_page_snapshot(self, session_dir, limit, before_message_id, after_message_id, turn_limit):
         from app.repositories.project.conversation_database import read_message_sync_state
         state = read_message_sync_state(session_dir)
         page = self._message_store.list_messages_page(
             session_dir,
             limit=limit,
+            turn_limit=turn_limit,
             before_message_id=before_message_id,
             after_message_id=after_message_id,
         )
+        # Incremental sync (and legacy record pages) may omit the request row;
+        # its continuation must still carry the turn's durable errors.
+        run_messages = page.items
+        leading_user_id = None
+        if run_messages and run_messages[0].role != "user":
+            leading_user_id = user_message_id_for_message(
+                session_dir.parent.parent.parent,
+                session_id=session_dir.name,
+                message_id=run_messages[0].message_id,
+            )
         return replace(
             page,
             revision=state["revision"],
@@ -781,10 +794,12 @@ class ProjectConversationRepository:
             run_outcomes=self._run_outcomes_for_messages(
                 session_dir,
                 page.items,
+                leading_user_id=leading_user_id,
             ),
             run_attempt_failures=self._run_attempt_failures_for_messages(
                 session_dir,
                 page.items,
+                leading_user_id=leading_user_id,
             ),
         )
 
@@ -924,8 +939,10 @@ class ProjectConversationRepository:
     def _run_outcomes_for_messages(
         session_dir: Path,
         messages: tuple[ProjectConversationMessage, ...],
+        *,
+        leading_user_id: str | None = None,
     ) -> tuple[ProjectConversationRunOutcome, ...]:
-        user_message_ids = tuple(
+        user_message_ids = ((leading_user_id,) if leading_user_id else ()) + tuple(
             message.message_id for message in messages if message.role == "user"
         )
         return tuple(
@@ -941,8 +958,10 @@ class ProjectConversationRepository:
     def _run_attempt_failures_for_messages(
         session_dir: Path,
         messages: tuple[ProjectConversationMessage, ...],
+        *,
+        leading_user_id: str | None = None,
     ) -> tuple[ProjectConversationRunAttemptFailure, ...]:
-        user_message_ids = tuple(
+        user_message_ids = ((leading_user_id,) if leading_user_id else ()) + tuple(
             message.message_id for message in messages if message.role == "user"
         )
         return tuple(

@@ -1,4 +1,3 @@
-from base64 import b64encode
 from html import escape
 import json
 from pathlib import Path
@@ -21,7 +20,7 @@ STARTUP_ASSETS_DIR = SHELL_ROOT / "assets" / "startup"
 STARTUP_HTML_FILE = STARTUP_ASSETS_DIR / "index.html"
 STARTUP_CSS_FILE = STARTUP_ASSETS_DIR / "startup.css"
 STARTUP_SCRIPT_FILE = STARTUP_ASSETS_DIR / "startup.js"
-STARTUP_FONT_FILE = STARTUP_ASSETS_DIR / "fonts" / "oxanium-tiance.ttf"
+STARTUP_WORDMARK_FILE = STARTUP_ASSETS_DIR / "tiance-startup-wordmark.svg"
 
 
 def render_startup_page(settings: ShellSettings) -> str:
@@ -58,8 +57,6 @@ def render_startup_page(settings: ShellSettings) -> str:
     styles = _replace_tokens(
         _read_asset(STARTUP_CSS_FILE),
         {
-            "__TIANCE_WORDMARK_FONT__": "data:font/ttf;base64,"
-            + b64encode(STARTUP_FONT_FILE.read_bytes()).decode("ascii"),
             "__TIANCE_THEME_MODE__": startup_theme.mode,
             "__TIANCE_SURFACE_BASE__": startup_theme.surface_base,
             "__TIANCE_SURFACE_TITLEBAR__": startup_theme.surface_titlebar,
@@ -82,6 +79,7 @@ def render_startup_page(settings: ShellSettings) -> str:
         _read_asset(STARTUP_HTML_FILE),
         {
             "__TIANCE_TITLE__": title,
+            "__TIANCE_WORDMARK__": _read_asset(STARTUP_WORDMARK_FILE).strip(),
             "__TIANCE_STARTUP_STYLES__": styles,
             "__TIANCE_STARTUP_SCRIPT__": script,
         },

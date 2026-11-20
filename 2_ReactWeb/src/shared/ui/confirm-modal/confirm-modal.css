@@ -153,3 +153,39 @@
 .confirm-modal--square :is(.confirm-modal__btn, .confirm-modal__close, .confirm-modal__input) {
   border-radius: 2px;
 }
+
+.confirm-modal--window-close .confirm-modal__btn {
+  --dialog-surface: rgb(from var(--color-surface-elevated-solid) r g b / 1);
+  --button-fill: color-mix(in srgb, var(--dialog-surface) 85%, var(--color-text-primary));
+  min-width: 60px;
+  border: 0;
+  background: var(--button-fill);
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.confirm-modal--window-close .confirm-modal__btn--danger {
+  --button-fill: color-mix(in srgb, var(--color-danger) 62%, #381919);
+  color: white;
+}
+
+.confirm-modal--window-close .confirm-modal__btn--primary {
+  --button-fill: var(--color-accent);
+  color: var(--color-text-selection-text);
+  color: contrast-color(var(--button-fill));
+}
+
+.confirm-modal--window-close .confirm-modal__btn:enabled:hover {
+  background: color-mix(in srgb, var(--button-fill) 92%, contrast-color(currentColor));
+}
+
+.confirm-modal--window-close .confirm-modal__btn:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.confirm-modal--window-close .confirm-modal__btn:disabled {
+  background: color-mix(in srgb, var(--button-fill) 40%, var(--dialog-surface));
+  color: var(--color-text-primary);
+  opacity: 1;
+}

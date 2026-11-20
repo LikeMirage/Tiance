@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
 from gzip import compress as gzip_compress
@@ -231,6 +231,8 @@ class ConversationAuditService:
         try:
             encoding, text = response_text(exchange.response_body)
             payload = exchange_payload(exchange, {"encoding": encoding, "content": text})
+            if request.image_deliveries:
+                payload["image_deliveries"] = [asdict(item) for item in request.image_deliveries]
             completed_metadata = {
                 **metadata,
                 "storage": "incremental_audit_manifest_v2",

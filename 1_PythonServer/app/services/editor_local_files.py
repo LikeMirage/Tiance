@@ -41,7 +41,7 @@ def read_local_text(path: str) -> dict:
 
 
 def resolve_file_reference(*, path: str, source: str, project_id: str | None,
-                           session_id: str | None, owner_project_id: str, kind: str = "file") -> dict:
+                           session_id: str | None, owner_project_id: str | None, kind: str = "file") -> dict:
     service = get_project_file_service()
     if kind == "folder":
         from app.repositories.project import get_project_repository
@@ -82,8 +82,8 @@ def resolve_file_reference(*, path: str, source: str, project_id: str | None,
         name = target.name
 
     # Explicit host paths inside the current project reuse the project tab, too.
-    root = Path(service.get_project_root(owner_project_id)).resolve()
-    if target.is_relative_to(root):
+    root = Path(service.get_project_root(owner_project_id)).resolve() if owner_project_id else None
+    if root is not None and target.is_relative_to(root):
         kind, file_path = "project", target.relative_to(root).as_posix()
     else:
         kind, root = "local", Path(target.anchor)

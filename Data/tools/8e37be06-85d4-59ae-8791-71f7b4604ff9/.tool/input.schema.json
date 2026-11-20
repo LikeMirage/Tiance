@@ -4,14 +4,16 @@
   "properties": {
     "action": {
       "permission_type": "ui_control",
-      "description": "按展示目的选择动作：open_file 打开整个文件（可预览 Word/Excel/PPT 等）；focus_file 切换到已打开标签；reveal_file 打开或复用标签并定位内容，只支持 PDF 页码和纯文本源码选区。DOCX、XLS/XLSX、PPTX、CSV/TSV、图片等预览不支持 reveal_file；需要展示它们时用 open_file，不带 target，且不能声称已选中指定内容。reveal_file 要求目标项目已在编辑器前台。",
+      "description": "按展示目的选择动作：open_file 打开整个文件（可预览 Word/Excel/PPT 等）；focus_file 切换到已打开标签；reveal_file 打开或复用标签并定位内容，只支持 PDF 页码和纯文本源码选区。DOCX、XLS/XLSX、PPTX、CSV/TSV、图片等预览不支持 reveal_file；需要展示它们时用 open_file，不带 target，且不能声称已选中指定内容。reveal_file 要求目标项目已在编辑器前台。 list_tabs 同时列出文件与网页。open_url 打开或选中相同网址的网页标签；focus_web 按列表返回的网页 ID 切换。后台项目只更新目标项目的标签状态，切回后显示。",
       "enum": [
         "list_tabs",
         "open_file",
         "focus_file",
         "close_clean_tabs",
         "close_others_clean",
-        "reveal_file"
+        "reveal_file",
+        "open_url",
+        "focus_web"
       ],
       "type": "string"
     },
@@ -170,6 +172,18 @@
           "description": "仅纯文本源码编辑器；不支持 Word/DOCX、Excel、PPT、CSV/TSV 或其他预览内容。"
         }
       ]
+    },
+    "url": {
+      "type": "string",
+      "minLength": 1,
+      "permission_type": "network_access",
+      "description": "open_url 使用的完整 HTTP 或 HTTPS 网址，保留查询参数和片段。"
+    },
+    "tab_id": {
+      "type": "string",
+      "minLength": 1,
+      "permission_type": "ui_control",
+      "description": "focus_web 使用 list_tabs 或 open_url 返回的网页标签 id。"
     }
   },
   "allOf": [
@@ -272,6 +286,82 @@
         "not": {
           "required": [
             "target"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "open_url"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "url"
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "path"
+              ]
+            },
+            {
+              "required": [
+                "paths"
+              ]
+            }
+          ]
+        }
+      },
+      "else": {
+        "not": {
+          "required": [
+            "url"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "focus_web"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "tab_id"
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "path"
+              ]
+            },
+            {
+              "required": [
+                "paths"
+              ]
+            }
+          ]
+        }
+      },
+      "else": {
+        "not": {
+          "required": [
+            "tab_id"
           ]
         }
       }

@@ -1,0 +1,119 @@
+{
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "else": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "application_id"
+              ]
+            },
+            {
+              "required": [
+                "application_path"
+              ]
+            }
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "action": {
+            "const": "open_with"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "oneOf": [
+          {
+            "not": {
+              "required": [
+                "application_path"
+              ]
+            },
+            "required": [
+              "application_id"
+            ]
+          },
+          {
+            "not": {
+              "required": [
+                "application_id"
+              ]
+            },
+            "required": [
+              "application_path"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "description": "操作运行天策的 Windows 电脑。仅 open_with 指定 application_id/application_path，且二选一。打开动作只提交请求，不等待应用关闭、不改变默认关联。",
+  "properties": {
+    "action": {
+      "description": "reveal 在文件夹中选中文件或直接打开目录；get_default_app 查询默认应用；list_apps 列出系统登记的打开方式（含推荐标记，不保证每个候选能正确解析内容）；open_default 按系统默认关联打开文件；open_with 用指定应用打开文件一次。",
+      "enum": [
+        "reveal",
+        "get_default_app",
+        "list_apps",
+        "open_default",
+        "open_with"
+      ],
+      "options": [
+        {
+          "description": "",
+          "value": "reveal"
+        },
+        {
+          "description": "",
+          "value": "get_default_app"
+        },
+        {
+          "description": "",
+          "value": "list_apps"
+        },
+        {
+          "description": "",
+          "value": "open_default"
+        },
+        {
+          "description": "",
+          "value": "open_with"
+        }
+      ],
+      "permission_scope": "system_program",
+      "permission_type": "program_execute",
+      "type": "string"
+    },
+    "application_id": {
+      "description": "list_apps 返回的 application_id，原样传入，仅适用于同种扩展名。支持系统应用关联处理器，包括没有普通 EXE 路径的应用。失效时重新查询，不猜标识。",
+      "pattern": "^windows:[0-9a-f]{64}$",
+      "permission_scope": "system_program",
+      "permission_type": "program_execute",
+      "type": "string"
+    },
+    "application_path": {
+      "description": "指定实际存在的 EXE/COM 程序绝对路径，例如 C:/Windows/System32/notepad.exe。工具把目标文件作为一个参数传入；不接受脚本、附加参数或命令行。用于列表中没有的应用。",
+      "minLength": 1,
+      "permission_type": "program_execute",
+      "type": "string"
+    },
+    "path": {
+      "description": "实际存在的文件路径，可用调用工作区相对路径或本机绝对路径。只有 reveal 接受目录。不是 URL、命令行或文件扩展名。",
+      "minLength": 1,
+      "permission_type": "filesystem_read",
+      "type": "string"
+    }
+  },
+  "required": [
+    "action",
+    "path"
+  ],
+  "type": "object"
+}

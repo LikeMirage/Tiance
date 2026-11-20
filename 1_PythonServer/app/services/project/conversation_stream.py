@@ -1138,8 +1138,7 @@ class ProjectConversationStreamService:
     async def _resolve_model_request(self, request: ChatCompletionRequest) -> ChatCompletionRequest:
         if self._image_reference_resolver is None:
             return request
-        prepared_request = await self._prepare_image_references(request)
-        return await asyncio.to_thread(self._image_reference_resolver.resolve, prepared_request)
+        return await asyncio.to_thread(self._image_reference_resolver.resolve, request)
 
     async def _prepare_image_references(self, request: ChatCompletionRequest) -> ChatCompletionRequest:
         if self._image_reference_resolver is None:

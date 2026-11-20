@@ -13,6 +13,8 @@ import {
 } from "react";
 import { EmbeddedPanel } from "../../../shared/ui/embedded-panel/EmbeddedPanel";
 import type { EditorExternalPathReferenceRequest } from "../../../entities/editor/model/editorReference";
+import type { ProjectKind } from "../../../entities/project/model/project";
+import { useI18n } from "../../../shared/i18n";
 import { OptionSelect } from "../../../shared/ui/option-select/OptionSelect";
 import { buildComposerProjectReference, referenceComposerProject } from "../model/composerProjectReference";
 import type { ChatProjectReferenceCatalog } from "./ChatComposerTypes";
@@ -39,6 +41,16 @@ const CATEGORIES: Array<{
   { id: "project", label: "项目", icon: FolderOpen },
 ];
 
+const PROJECT_COLLECTIONS = [
+  { value: "project", labelKey: "sidebar.sections.overview" },
+  { value: "tool", labelKey: "sidebar.sections.tools" },
+  { value: "knowledge", labelKey: "sidebar.sections.knowledge" },
+  { value: "experience", labelKey: "sidebar.sections.experience" },
+  { value: "role", labelKey: "sidebar.sections.roles" },
+  { value: "provider", labelKey: "sidebar.sections.models" },
+  { value: "theme", labelKey: "sidebar.sections.themes" },
+] as const;
+
 export function ChatComposerAddMenu({
   isOpen,
   panelContainer,
@@ -48,22 +60,30 @@ export function ChatComposerAddMenu({
   projectCatalog,
   onReferenceExternalPath,
 }: ChatComposerAddMenuProps) {
+  const { t } = useI18n();
   const generatedId = useId();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [activeCategory, setActiveCategory] = useState<AddCategory>("file");
+  const [selectedCollection, setSelectedCollection] = useState<ProjectKind | null>(null);
   const [selectedProjectCategoryId, setSelectedProjectCategoryId] = useState<string | null>(null);
-  const categoryOptions = useMemo(() => projectCatalog?.categories.map((category) => ({
-    label: category.name,
-    value: category.category_id,
-  })) ?? [], [projectCatalog?.categories]);
-  const defaultCategoryId = projectCatalog?.projects.find((project) => project.project_id === projectId)?.category_id;
+  const currentProject = projectCatalog?.projects.find((project) => project.project_id === projectId);
+  const collection = selectedCollection ?? currentProject?.project_kind ?? "project";
+  const collectionOptions = useMemo(() => PROJECT_COLLECTIONS.map(({ value, labelKey }) => ({
+    value, label: t(labelKey),
+  })), [t]);
+  const categoryOptions = useMemo(
+    () => projectCatalog?.categories
+      .filter((category) => category.category_kind === collection)
+      .map((category) => ({ label: category.name, value: category.category_id })) ?? [],
+    [collection, projectCatalog?.categories],
+  );
   const categoryId = categoryOptions.find((option) => option.value === selectedProjectCategoryId)?.value
-    ?? categoryOptions.find((option) => option.value === defaultCategoryId)?.value
+    ?? categoryOptions.find((option) => option.value === currentProject?.category_id)?.value
     ?? categoryOptions[0]?.value
     ?? "";
   const categoryProjects = useMemo(() => projectCatalog?.projects.filter(
-    (project) => project.category_id === categoryId,
-  ) ?? [], [categoryId, projectCatalog?.projects]);
+    (project) => project.project_kind === collection && project.category_id === categoryId,
+  ) ?? [], [collection, categoryId, projectCatalog?.projects]);
 
   useEffect(() => {
     if (isOpen) setActiveCategory("file");
@@ -76,16 +96,31 @@ export function ChatComposerAddMenu({
           title={activeCategory === "project" ? "添加项目" : "添加到对话"}
           onClose={() => onOpenChange(false)} headerContent={
             activeCategory === "project" ? (
-              <OptionSelect
-                className="chat-composer-add-menu__project-category"
-                ariaLabel="项目分类"
-                placeholder="项目分类"
-                options={categoryOptions}
-                value={categoryId}
-                onChange={setSelectedProjectCategoryId}
-                disabled={categoryOptions.length === 0}
-                variant="integrated-overlay"
-              />
+              <>
+                <OptionSelect
+                  className="chat-composer-add-menu__project-collection"
+                  ariaLabel="选择集"
+                  options={collectionOptions}
+                  value={collection}
+                  onChange={(kind) => {
+                    setSelectedCollection(kind);
+                    setSelectedProjectCategoryId(null);
+                  }}
+                  showSelectedOption
+                  variant="underline-overlay"
+                />
+                <OptionSelect
+                  className="chat-composer-add-menu__project-category"
+                  ariaLabel="项目分类"
+                  placeholder="项目分类"
+                  options={categoryOptions}
+                  value={categoryId}
+                  onChange={setSelectedProjectCategoryId}
+                  disabled={categoryOptions.length === 0}
+                  showSelectedOption
+                  variant="underline-overlay"
+                />
+              </>
             ) : null
           }>
           <div className="chat-composer-add-menu__body">
@@ -152,7 +187,7 @@ export function ChatComposerAddMenu({
                   <div className="chat-composer-add-menu__empty" role="status">
                     {projectCatalog?.isLoading ? "正在加载项目…"
                       : projectCatalog?.error ? "项目列表加载失败"
-                        : categoryId ? "此分类暂无项目" : "暂无项目分类"}
+                        : categoryId ? "此分类暂无项目" : "此集暂无分类"}
                   </div>
                 )
               ) : null}

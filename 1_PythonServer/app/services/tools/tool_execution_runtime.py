@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from json import dumps
 from pathlib import Path
 import os
@@ -12,6 +12,7 @@ import threading
 from time import monotonic, sleep
 from typing import Callable, TextIO
 
+from app.domain.llm.runtime_capabilities import DEFAULT_IMAGE_MAX_LONG_EDGE_PX, MultiImageLimit
 from app.services.tools.tool_dependency_runtime import resolve_tool_site_packages
 
 _PYTHON_TOOL_LAUNCHER = """
@@ -131,6 +132,8 @@ def build_tool_env(
     provider_id: str | None = None,
     model_id: str | None = None,
     input_modalities: tuple[str, ...] = (),
+    image_max_long_edge_px: int = DEFAULT_IMAGE_MAX_LONG_EDGE_PX,
+    multi_image_limit: MultiImageLimit | None = None,
     host_capability_token: str | None = None,
 ) -> dict[str, str]:
     env = _base_tool_env()
@@ -152,6 +155,8 @@ def build_tool_env(
         {
             "provider_id": provider_id,
             "model_id": model_id,
+            "image_max_long_edge_px": image_max_long_edge_px,
+            **({"multi_image_limit": asdict(multi_image_limit)} if multi_image_limit else {}),
             "input_modalities": sorted(
                 {
                     modality.strip().lower()

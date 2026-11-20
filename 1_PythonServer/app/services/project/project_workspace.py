@@ -4,6 +4,8 @@
 from functools import lru_cache
 from pathlib import PurePosixPath
 from threading import RLock
+from urllib.parse import urlsplit
+from uuid import uuid4
 
 from app.core.errors import BadRequestError, NotFoundError
 from app.repositories.project.workspace_state_store import ProjectWorkspaceStateStore
@@ -36,15 +38,28 @@ class ProjectWorkspaceService:
         open_file_paths: list[str],
         active_file_path: str | None,
         active_dashboard: str | None = None,
+        open_tabs: list[dict] | None = None,
     ) -> dict:
         with self._state_lock:
             project = self._require_project(project_id)
+            if open_tabs is None:
+                previous = self._state_store.read_state(project.root_path) or {}
+                if previous.get("open_tabs") is not None:
+                    open_tabs = _update_file_tabs(previous["open_tabs"], open_file_paths)
+            else:
+                open_file_paths = [tab["path"] for tab in open_tabs if tab["kind"] == "file"]
+                if active_file_path not in open_file_paths:
+                    active_file_path = None
             payload = {
                 "expanded_paths": expanded_paths,
                 "open_file_paths": open_file_paths,
                 "active_file_path": active_file_path,
                 "active_dashboard": active_dashboard,
             }
+            if open_tabs is not None:
+                if active_file_path or active_dashboard:
+                    open_tabs = [{**tab, "active": False} if tab["kind"] == "web" else tab for tab in open_tabs]
+                payload["open_tabs"] = open_tabs
             return self._state_store.write_state(project.root_path, payload)
 
     def patch_state(
@@ -59,6 +74,7 @@ class ProjectWorkspaceService:
         should_update_active_file_path: bool = False,
         active_dashboard: str | None = None,
         should_update_active_dashboard: bool = False,
+        open_tabs: list[dict] | None = None,
     ) -> dict:
         with self._state_lock:
             current = self.get_state(project_id) or {}
@@ -84,6 +100,7 @@ class ProjectWorkspaceService:
                 open_file_paths=next_state["open_file_paths"],
                 active_file_path=next_state["active_file_path"],
                 active_dashboard=next_state["active_dashboard"],
+                open_tabs=open_tabs,
             )
 
     def apply_editor_tabs_action(
@@ -93,6 +110,8 @@ class ProjectWorkspaceService:
         action: str,
         path: str | None = None,
         paths: list[str] | None = None,
+        url: str | None = None,
+        tab_id: str | None = None,
     ) -> dict:
         with self._state_lock:
             current = self.get_state(project_id) or {}
@@ -100,7 +119,8 @@ class ProjectWorkspaceService:
             active_file_path = _normalize_optional_workspace_path(
                 current.get("active_file_path"),
             )
-            if active_file_path not in open_file_paths:
+            active_web = any(tab.get("active") for tab in current.get("open_tabs") or [])
+            if active_file_path not in open_file_paths and not active_web and not current.get("active_dashboard"):
                 active_file_path = open_file_paths[0] if open_file_paths else None
 
             target_path = _normalize_optional_workspace_path(path)
@@ -114,6 +134,20 @@ class ProjectWorkspaceService:
                     open_file_paths=open_file_paths,
                     active_file_path=active_file_path,
                     closed_file_paths=closed_file_paths,
+                )
+
+            if action in {"open_url", "focus_web"}:
+                entries = current.get("open_tabs")
+                if entries is None:
+                    entries = [{"kind": "file", "path": item} for item in open_file_paths]
+                entries = _select_web_tab(entries, action, url, tab_id)
+                state = self.save_state(
+                    project_id, expanded_paths=current.get("expanded_paths", []),
+                    open_file_paths=open_file_paths, active_file_path=None, open_tabs=entries,
+                )
+                return _editor_tabs_action_result(
+                    state, action=action, open_file_paths=open_file_paths,
+                    active_file_path=None, closed_file_paths=[],
                 )
 
             if action == "open_file":
@@ -183,6 +217,51 @@ class ProjectWorkspaceService:
         return project
 
 
+def _select_web_tab(entries: list[dict], action: str, url: str | None, tab_id: str | None) -> list[dict]:
+    web_tabs = [tab for tab in entries if tab["kind"] == "web"]
+    if action == "focus_web":
+        if not any(tab["id"] == tab_id for tab in web_tabs):
+            raise BadRequestError("当前项目没有这个网页标签。")
+    else:
+        hostname = _web_tab_hostname(url or "")
+        matches = [tab for tab in web_tabs if tab["url"] == url]
+        if matches:
+            tab_id = next((tab["id"] for tab in matches if tab["active"]), matches[0]["id"])
+        else:
+            tab_id = str(uuid4())
+            entries = [*entries, {"kind": "web", "id": tab_id, "url": url, "title": hostname}]
+    return [{**tab, "active": tab["id"] == tab_id} if tab["kind"] == "web" else tab for tab in entries]
+
+
+def _web_tab_hostname(url: str) -> str:
+    try:
+        address = urlsplit(url)
+        # urllib checks the port only when this property is accessed.
+        _ = address.port
+        if (address.scheme in {"http", "https"} and address.hostname
+                and address.username is None and address.password is None
+                and not any(char.isspace() or char == "\\" for char in url)):
+            return address.hostname
+    except ValueError:
+        pass
+    raise BadRequestError("open_url 需要完整的 HTTP 或 HTTPS 网址。")
+
+
+def _update_file_tabs(tabs: list[dict], paths: list[str]) -> list[dict]:
+    """File-only clients can open or close files while web entries retain their positions."""
+    requested = set(paths)
+    ordered = iter(paths)
+    result = []
+    for tab in tabs:
+        if tab["kind"] == "web":
+            result.append(tab)
+        elif tab["path"] in requested:
+            requested.remove(tab["path"])
+            result.append({"kind": "file", "path": next(ordered)})
+    result.extend({"kind": "file", "path": path} for path in ordered)
+    return result
+
+
 def _normalize_workspace_paths(values: list[object]) -> list[str]:
     normalized: list[str] = []
     seen: set[str] = set()
@@ -222,6 +301,7 @@ def _editor_tabs_action_result(
         "open_file_paths": open_file_paths,
         "active_file_path": active_file_path,
         "active_dashboard": state.get("active_dashboard"),
+        "open_tabs": state.get("open_tabs"),
         "closed_file_paths": closed_file_paths,
     }
 

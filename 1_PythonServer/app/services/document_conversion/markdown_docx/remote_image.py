@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-import ipaddress
-import socket
 import warnings
 from dataclasses import dataclass
 from io import BytesIO
-from urllib.parse import urldefrag, urljoin, urlsplit
+from urllib.parse import urldefrag, urlsplit
 
 import httpx
 from PIL import Image, UnidentifiedImageError
 
+from app.infra.public_image_download import RemoteImageError, download_public_image
+
 
 MAX_REMOTE_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_REMOTE_IMAGE_PIXELS = 40_000_000
-MAX_REMOTE_IMAGE_REDIRECTS = 4
 MAX_REMOTE_IMAGES_PER_DOCUMENT = 100
 MAX_REMOTE_IMAGE_TOTAL_BYTES = 50 * 1024 * 1024
 _MAX_NORMALIZED_IMAGE_BYTES = 20 * 1024 * 1024
@@ -24,10 +23,6 @@ _WORD_NATIVE_IMAGE_FORMATS = {
     "PNG": ".png",
     "TIFF": ".tiff",
 }
-
-
-class RemoteImageError(ValueError):
-    pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,7 +38,7 @@ class RemoteImageDownloader:
         self._transport = transport
 
     def download(self, url: str) -> DownloadedImage:
-        normalized_url = _validate_public_http_url(url)
+        normalized_url = urldefrag(url.strip()).url
         cached = self._cache.get(normalized_url)
         if cached is not None:
             return cached
@@ -55,8 +50,10 @@ class RemoteImageDownloader:
                 follow_redirects=False,
                 timeout=httpx.Timeout(10.0, connect=5.0),
                 transport=self._transport,
+                trust_env=False,
+                headers={"User-Agent": "Tiance-Document-Exporter/1.0"},
             ) as client:
-                content = _download_with_redirects(client, normalized_url)
+                content = download_public_image(client, normalized_url, max_bytes=MAX_REMOTE_IMAGE_BYTES)
         except RemoteImageError:
             raise
         except httpx.HTTPError as exc:
@@ -86,74 +83,6 @@ def remote_image_display_url(value: str) -> str:
     display_host = f"[{host}]" if ":" in host else host
     authority = f"{display_host}:{port}" if port is not None else display_host
     return f"{parsed.scheme.lower()}://{authority}{parsed.path or '/'}"
-
-
-def _download_with_redirects(client: httpx.Client, url: str) -> bytes:
-    current_url = url
-    for redirect_index in range(MAX_REMOTE_IMAGE_REDIRECTS + 1):
-        current_url = _validate_public_http_url(current_url)
-        with client.stream(
-            "GET",
-            current_url,
-            headers={"Accept": "image/*", "User-Agent": "Tiance-Document-Exporter/1.0"},
-        ) as response:
-            if response.is_redirect:
-                location = response.headers.get("location")
-                if not location:
-                    raise RemoteImageError("图片地址返回了无目标的重定向。")
-                if redirect_index >= MAX_REMOTE_IMAGE_REDIRECTS:
-                    raise RemoteImageError("图片地址重定向次数过多。")
-                current_url = urljoin(current_url, location)
-                continue
-            if response.status_code < 200 or response.status_code >= 300:
-                raise RemoteImageError(f"图片服务器返回 HTTP {response.status_code}。")
-
-            declared_size = _parse_content_length(response.headers.get("content-length"))
-            if declared_size is not None and declared_size > MAX_REMOTE_IMAGE_BYTES:
-                raise RemoteImageError("网络图片超过 10 MB 限制。")
-
-            content = bytearray()
-            for chunk in response.iter_bytes(chunk_size=64 * 1024):
-                content.extend(chunk)
-                if len(content) > MAX_REMOTE_IMAGE_BYTES:
-                    raise RemoteImageError("网络图片超过 10 MB 限制。")
-            if not content:
-                raise RemoteImageError("网络图片内容为空。")
-            return bytes(content)
-    raise RemoteImageError("图片地址重定向次数过多。")
-
-
-def _validate_public_http_url(url: str) -> str:
-    normalized_url, _fragment = urldefrag(url.strip())
-    try:
-        parsed = urlsplit(normalized_url)
-        port = parsed.port
-    except ValueError as exc:
-        raise RemoteImageError("网络图片地址无效。") from exc
-    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
-        raise RemoteImageError("网络图片只支持 HTTP 或 HTTPS 地址。")
-    if parsed.username is not None or parsed.password is not None:
-        raise RemoteImageError("网络图片地址不能包含账号信息。")
-
-    effective_port = port or (443 if parsed.scheme.lower() == "https" else 80)
-    try:
-        addresses = socket.getaddrinfo(
-            parsed.hostname,
-            effective_port,
-            type=socket.SOCK_STREAM,
-        )
-    except OSError as exc:
-        raise RemoteImageError("无法解析网络图片地址。") from exc
-    if not addresses:
-        raise RemoteImageError("无法解析网络图片地址。")
-    for address in addresses:
-        try:
-            ip = ipaddress.ip_address(address[4][0])
-        except ValueError as exc:
-            raise RemoteImageError("无法验证网络图片地址。") from exc
-        if not ip.is_global:
-            raise RemoteImageError("禁止访问本机、局域网或保留网络地址。")
-    return normalized_url
 
 
 def _validate_and_normalize_image(content: bytes) -> DownloadedImage:
@@ -189,13 +118,3 @@ def _validate_and_normalize_image(content: bytes) -> DownloadedImage:
     if len(normalized_content) > _MAX_NORMALIZED_IMAGE_BYTES:
         raise RemoteImageError("网络图片转换后超过 20 MB 限制。")
     return DownloadedImage(content=normalized_content, suffix=".png")
-
-
-def _parse_content_length(value: str | None) -> int | None:
-    if value is None:
-        return None
-    try:
-        parsed = int(value)
-    except ValueError:
-        return None
-    return parsed if parsed >= 0 else None

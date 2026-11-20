@@ -18,7 +18,7 @@ import {
 } from "../../../shared/ui/collection-view-tabs/CollectionViewTabs";
 
 type CollectionOverviewViewTabsProps = {
-  activeView: CollectionOverviewView;
+  activeView: CollectionOverviewView | null;
   disabled?: boolean;
   kind: "provider" | "role" | "theme";
   onChange: (view: CollectionOverviewView) => void;

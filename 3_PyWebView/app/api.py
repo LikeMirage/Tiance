@@ -17,6 +17,8 @@ from urllib.request import ProxyHandler, build_opener
 from urllib.parse import urlparse
 
 from app.config import ShellSettings
+from app.editor_browser import EditorBrowser
+from app.editor_browser_history import read_editor_downloads, read_editor_history, read_editor_records_page
 from app.external_file_import import ExternalFileImportResult, copy_external_entries_to_directory
 from app.runtime import is_shell_api_allowed_url
 from app.process_security import ProcessSecurity, install_desktop_cookie, is_desktop_auth_document
@@ -127,6 +129,7 @@ class ShellApi:
 
     def bind_window(self, window: Any) -> None:
         self._window = window
+        self._editor_browser = EditorBrowser(window, self._settings.webview_storage_path)
         self._diagnostics.start(window, lambda action: _run_on_native_window_thread(window, action))
         self._microphone_permission = MicrophonePermission(
             window, self._settings, lambda action: _run_on_native_window_thread(window, action),
@@ -140,6 +143,45 @@ class ShellApi:
         window.events.loaded += self._install_windows_native_window_enhancements
         window.events.closing += self._handle_window_closing
         self._install_windows_native_window_enhancements()
+
+    def editor_web_layout(self, tab_id: str, url: str, edges: list[float] | None, workspace_root: str | None = None) -> None:
+        window = self._require_allowed_window()
+        _run_on_native_window_thread(window, lambda: self._editor_browser.layout(tab_id, url, edges, workspace_root))
+
+    def editor_web_appearance(self, mode: str, colors: dict) -> None:
+        window = self._require_allowed_window()
+        _run_on_native_window_thread(window, lambda: self._editor_browser.set_appearance(mode, colors))
+
+    def editor_web_history(self) -> list[dict]:
+        self._require_allowed_window()
+        return read_editor_history(self._editor_browser.profile)
+
+    def editor_web_downloads(self) -> list[dict]:
+        self._require_allowed_window()
+        return read_editor_downloads(self._editor_browser.profile)
+
+    def editor_web_records_page(self, kind: str, query: str, cursor: str | None) -> dict:
+        self._require_allowed_window()
+        return read_editor_records_page(self._editor_browser.profile, kind, query, cursor)
+
+    def editor_web_search_downloads(self, query: str, cursor: str | None) -> dict:
+        return self.editor_web_records_page("downloads", query, cursor)
+
+    def editor_web_command(self, tab_id: str, action: str, url: str = "") -> dict | None:
+        window = self._require_allowed_window()
+        return _run_on_native_window_thread(window, lambda: self._editor_browser.command(tab_id, action, url))
+
+    def editor_web_close(self, tab_id: str) -> None:
+        window = self._require_allowed_window()
+        _run_on_native_window_thread(window, lambda: self._editor_browser.close(tab_id))
+
+    def editor_web_cover(self, tab_id: str, request_id: str, wait_for_paint: bool = False) -> None:
+        window = self._require_allowed_window()
+        _run_on_native_window_thread(window, lambda: self._editor_browser.cover(tab_id, request_id, wait_for_paint))
+
+    def editor_web_present_cover(self, tab_id: str, request_id: str) -> None:
+        window = self._require_allowed_window()
+        _run_on_native_window_thread(window, lambda: self._editor_browser.present_cover(tab_id, request_id))
 
     def record_startup_mark(
         self,
@@ -376,11 +418,15 @@ class ShellApi:
         return {"ok": True, "errorCode": "", "error": ""}
 
     def close_after_backend_loss(self, reason: str) -> None:
+        self._diagnostics.log.write("backend_lost", reason=reason)
         mark("backend unavailable: closing shell", reason=reason)
         try:
             self._destroy_window()
         except Exception as exc:  # pragma: no cover - native runtime defensive path
             mark("backend unavailable: shell close failed", error=type(exc).__name__)
+
+    def record_backend_health(self, available: bool) -> None:
+        self._diagnostics.log.write("backend_health_recovered" if available else "backend_health_degraded")
 
     def dispose(self) -> None:
         self._diagnostics.dispose()

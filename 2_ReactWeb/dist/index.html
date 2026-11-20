@@ -4,18 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="./favicon.ico" />
-    <link rel="preload" href="./fonts/oxanium-tiance.ttf" as="font" type="font/ttf" crossorigin />
     <title>Tiance</title>
     <style>
-      /* Oxanium SemiBold, limited to the Tiance wordmark; see fonts/oxanium-OFL.txt. */
-      @font-face {
-        font-family: "Oxanium";
-        src: url("fonts/oxanium-tiance.ttf") format("truetype");
-        font-style: normal;
-        font-weight: 600;
-        font-display: block;
-      }
-
       :root {
         color-scheme: light dark;
         --tiance-boot-surface-base: rgb(30, 30, 30);
@@ -52,14 +42,11 @@
       .tiance-boot-placeholder__wordmark {
         position: absolute;
         inset: 0;
-        display: grid;
-        place-items: center;
-        color: var(--tiance-boot-text-primary);
-        font-family: "Oxanium", "Bahnschrift", sans-serif;
-        font-size: clamp(80px, 12.5vw, 180px);
-        font-weight: 600;
-        line-height: 1;
-        letter-spacing: 0.04em;
+        width: min(84vw, clamp(254px, 39.5vw, 568px));
+        height: auto;
+        margin: auto;
+        --tiance-wordmark-ink: var(--tiance-boot-text-primary);
+        --tiance-wordmark-accent: var(--tiance-boot-accent);
         user-select: none;
         animation: tiance-wordmark-breathe 2.8s ease-in-out infinite;
       }
@@ -138,13 +125,15 @@
         }
       })();
     </script>
-    <script type="module" crossorigin src="./assets/index-u3yVKVvC.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-BqiKpVdF.css">
+    <script type="module" crossorigin src="./assets/index-DK8wBCpv.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-W3qLjbtu.css">
   </head>
   <body>
     <div id="root"></div>
     <div id="tiance-boot-placeholder" class="tiance-boot-placeholder" aria-label="Tiance 正在启动">
-      <div class="tiance-boot-placeholder__wordmark">Tiance</div>
+      <svg class="tiance-boot-placeholder__wordmark" viewBox="206 304 1269 299" role="img" aria-label="Tiance">
+        <use href="./tiance-startup-wordmark.svg#wordmark-art"></use>
+      </svg>
       <p class="tiance-boot-placeholder__status" role="status">正在加载界面</p>
     </div>
     <script>
@@ -154,6 +143,6 @@
         const element = document.querySelector(".tiance-boot-placeholder__status");
         if (element) element.textContent = status;
       })();
-    </script>
+    </script>
   </body>
 </html>

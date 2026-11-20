@@ -804,6 +804,13 @@ def test_editor_tabs_contract_rejects_parameters_for_another_action() -> None:
     )
 
     assert validate_tool_arguments({"action": "list_tabs"}, input_schema) == []
+    for invalid in (
+        {"action": "open_url"}, {"action": "focus_web"},
+        {"action": "list_tabs", "url": "https://example.test"},
+        {"action": "open_url", "url": "https://example.test", "tab_id": "x"},
+        {"action": "focus_web", "tab_id": "x", "path": "a.txt"},
+    ):
+        assert validate_tool_arguments(invalid, input_schema), invalid
     assert validate_tool_arguments(
         {"action": "open_file", "path": "report.docx"},
         input_schema,
@@ -847,7 +854,7 @@ def test_editor_tabs_reveal_contract_and_examples() -> None:
     assert scope_guide.content in injected
     assert "DOCX" in injected and "UNSUPPORTED_TARGET" in injected
     assert _read_json(tool_dir / "tool.json")["runtime"]["client_capability"] == {
-        "name": "editor.tabs", "min_version": 3,
+        "name": "editor.tabs", "min_version": 4,
     }
     target = {"type": "text", "text": "  preserve spaces  "}
     for invalid in [

@@ -1,6 +1,7 @@
 import type { DocumentTab, EditorTabId } from "../../../entities/editor/model/editorDocument";
 
 import { getProjectDocumentSourceKey } from "./documentFileSources";
+import { isWebHomeTab } from "./workspaceTabEntries";
 import {
   PROJECT_CONVERSATION_OVERVIEW_TAB_PREFIX,
   PROJECT_KNOWLEDGE_CONTENT_TAB_PREFIX,
@@ -39,7 +40,7 @@ export function getTabFilePath(tab: DocumentTab | null | undefined): string | nu
 }
 
 export function isPinnedDocumentTab(tab: DocumentTab | null | undefined): boolean {
-  return tab?.fileSource?.kind === "tool-dashboard"
+  return isWebHomeTab(tab) || tab?.fileSource?.kind === "tool-dashboard"
     || isProjectConversationOverviewTab(tab)
     || isProjectKnowledgeContentTab(tab)
     || isProjectRoleConfigurationTab(tab)

@@ -87,7 +87,56 @@ export interface SystemMetricsSnapshot {
   };
 }
 
+export interface EditorWebState {
+  url: string;
+  title: string;
+  favicon?: string;
+  back: boolean;
+  forward: boolean;
+  loading: boolean;
+  error: string;
+}
+
+export interface EditorWebVisit {
+  url: string;
+  title: string;
+  visitedAt: number;
+}
+
+export interface EditorWebDownload {
+  name: string;
+  path: string;
+  completedAt: number;
+}
+
+export type EditorWebRecordKind = "history" | "downloads";
+export type EditorWebPalette = {
+  background: string;
+  text: string;
+  accent: string;
+  scrollbarSize: string;
+  scrollbarTrack: string;
+  scrollbarThumb: string;
+  scrollbarThumbHover: string;
+};
+export type EditorWebAppearanceMode = "original" | "light" | "dark";
+export interface EditorWebRecordsPage {
+  items: { title: string; target: string; time: number }[];
+  nextCursor: string | null;
+  recentOnly?: boolean;
+}
+
 export interface DesktopShellApi {
+  editor_web_appearance?: (mode: EditorWebAppearanceMode, colors: EditorWebPalette) => Promise<void>;
+  editor_web_layout?: (id: string, url: string, edges: number[] | null, workspaceRoot?: string) => Promise<void>;
+  editor_web_history?: () => Promise<EditorWebVisit[]>;
+  editor_web_downloads?: () => Promise<EditorWebDownload[]>;
+  editor_web_records_page?: (kind: EditorWebRecordKind, query: string, cursor: string | null) => Promise<EditorWebRecordsPage>;
+  editor_web_search_downloads?: (query: string, cursor: string | null) => Promise<EditorWebRecordsPage>;
+  editor_web_command?: (id: string, action: string, url: string) => Promise<EditorWebState | null>;
+  editor_web_close?: (id: string) => Promise<void>;
+  editor_web_cover?: (id: string, requestId: string, waitForPaint?: boolean) => Promise<void>;
+  editor_web_present_cover?: (id: string, requestId: string) => Promise<void>;
   respond_microphone_permission?: (requestId: string, allow: boolean) => Promise<boolean>;
   prepare_file_explorer?: () => Promise<boolean> | boolean;
   reveal_window?: () => Promise<boolean> | boolean;

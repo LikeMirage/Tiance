@@ -1,11 +1,13 @@
 from datetime import UTC, datetime
 
 import pytest
+from PIL import Image
 
 from app.core.errors import BadRequestError
 from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatImageRef,
+    ChatImageUrl,
     ChatMessage,
     ChatMessageContentPart,
     ChatMessageContentPartType,
@@ -34,7 +36,7 @@ def test_image_is_copied_to_session_and_remains_readable_after_source_delete(tmp
         reasoning_mode="balanced",
     )
     source = tmp_path / "source.png"
-    source.write_bytes(b"\x89PNG\r\n\x1a\nsource")
+    Image.new("RGB", (10240, 100)).save(source)
 
     attachment_service = ConversationAttachmentService(
         ConversationAttachmentRepository(_ProjectRepository(str(tmp_path))),
@@ -75,8 +77,44 @@ def test_image_is_copied_to_session_and_remains_readable_after_source_delete(tmp
     resolved = resolver.resolve(prepared)
 
     assert attachment_uri.startswith("tiance-attachment://att_")
-    assert resolved.messages[0].content_parts[0].type == ChatMessageContentPartType.IMAGE_URL
+    assert resolved.messages[0].content_parts[-1].type == ChatMessageContentPartType.IMAGE_URL
+    delivery, = resolved.image_deliveries
+    assert (delivery.source_width, delivery.source_height) == (10240, 100)
+    assert (delivery.sent_width, delivery.sent_height, delivery.max_long_edge_px) == (8192, 80, 8192)
     assert (tmp_path / ".Tiance" / "conversations" / "sessions" / session.session_id / ATTACHMENTS_DIR).is_dir()
+
+
+def test_url_is_downloaded_once_and_saved_for_replay(tmp_path, monkeypatch):
+    from io import BytesIO
+    from app.services.project import conversation_attachments
+    projects = _ProjectRepository(str(tmp_path))
+    service = _ProjectService(str(tmp_path))
+    storage = FileWorkspaceStorage()
+    session = ProjectConversationRepository(projects).create_session(
+        PROJECT_ID, title="URL", provider_id="provider", model_id="vision", reasoning_mode=None,
+    )
+    resolver = ConversationImageReferenceResolver(service, storage, attachment_service=ConversationAttachmentService(
+        ConversationAttachmentRepository(projects), service, storage))
+    buffer = BytesIO()
+    Image.new("RGB", (24, 16)).save(buffer, "PNG")
+    calls = []
+    def download(url):
+        calls.append(url)
+        assert len(calls) == 1
+        return buffer.getvalue()
+    monkeypatch.setattr(conversation_attachments, "read_image_url", download)
+    source = ChatImageUrl("https://example.test/temporary-link", "high")
+    part = ChatMessageContentPart(type=ChatMessageContentPartType.IMAGE_URL, image_url=source)
+    message = ChatMessage(role=ChatMessageRole.USER, content="图片", content_parts=(part,))
+    request = ChatCompletionRequest("provider", "vision", (message,), project_id=PROJECT_ID, session_id=session.session_id)
+    prepared = resolver.prepare(request)
+    stored_ref = prepared.messages[0].content_parts[0].image_ref
+    assert stored_ref.source_kind == "remote_image"
+    for _ in range(2):
+        sent = resolver.resolve(prepared)
+        assert sent.image_deliveries[0].attachment_id == stored_ref.attachment_id
+        assert sent.messages[0].content_parts[0].image_url.detail == "high"
+    assert calls == [source.url]
 
 
 def test_explicit_external_image_reference_is_copied_to_session(tmp_path):

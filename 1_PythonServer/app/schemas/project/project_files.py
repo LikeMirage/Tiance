@@ -2,8 +2,10 @@
 # 文件节点、文件树、创建请求的序列化
 
 from typing import Literal
+from urllib.parse import urlsplit
+from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_serializer
 
 from app.domain.file_workspace import ContentFileEntry
 from app.domain.project.project_file import ProjectFileKind, ProjectFileNode
@@ -214,7 +216,42 @@ WorkspaceDashboardName = Literal[
 ]
 
 
-class ProjectWorkspaceStateResponse(BaseModel):
+class WorkspaceFileTab(BaseModel):
+    kind: Literal["file"]
+    path: str
+
+
+class WorkspaceWebTab(BaseModel):
+    kind: Literal["web"]
+    id: UUID
+    url: str
+    title: str = ""
+    favicon: str | None = Field(default=None, max_length=8192,
+                                pattern=r"^data:image/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$")
+    active: bool = False
+
+    @model_serializer(mode="wrap")
+    def serialize_tab(self, handler):
+        entry = handler(self)
+        if self.favicon is None:
+            entry.pop("favicon", None)
+        return entry
+
+    @field_validator("url")
+    @classmethod
+    def validate_web_address(cls, value: str) -> str:
+        if value:
+            url = urlsplit(value)
+            if url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password:
+                raise ValueError("网页标签只支持 HTTP 或 HTTPS 地址")
+        return value
+
+
+class WorkspaceTabList(BaseModel):
+    open_tabs: list[WorkspaceFileTab | WorkspaceWebTab] | None = None
+
+
+class ProjectWorkspaceStateResponse(WorkspaceTabList):
     """工作区状态响应"""
 
     project_id: str
@@ -224,7 +261,7 @@ class ProjectWorkspaceStateResponse(BaseModel):
     active_dashboard: WorkspaceDashboardName | None = None
 
 
-class ProjectWorkspaceStateSaveRequest(BaseModel):
+class ProjectWorkspaceStateSaveRequest(WorkspaceTabList):
     """工作区状态保存请求"""
 
     expanded_paths: list[str] = Field(default_factory=list)
@@ -233,7 +270,7 @@ class ProjectWorkspaceStateSaveRequest(BaseModel):
     active_dashboard: WorkspaceDashboardName | None = None
 
 
-class ProjectWorkspaceStatePatchRequest(BaseModel):
+class ProjectWorkspaceStatePatchRequest(WorkspaceTabList):
     """工作区状态局部保存请求"""
 
     expanded_paths: list[str] | None = None
@@ -248,12 +285,16 @@ class ProjectWorkspaceTabsActionRequest(BaseModel):
     action: Literal[
         "list_tabs",
         "open_file",
+        "open_url",
+        "focus_web",
         "focus_file",
         "close_clean_tabs",
         "close_others_clean",
     ]
     path: str | None = None
     paths: list[str] | None = None
+    url: str | None = None
+    tab_id: UUID | None = None
 
 
 class ProjectWorkspaceTabsActionResponse(ProjectWorkspaceStateResponse):

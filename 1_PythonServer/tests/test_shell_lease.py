@@ -113,10 +113,58 @@ def test_revoked_lease_requests_shutdown_without_failure_threshold() -> None:
         request_shutdown=lambda: shutdown_requests.append(True),
         heartbeat_sender=revoked_heartbeat,
         failure_threshold=99,
+        parent_monitored=True,
     )
 
     assert monitor.heartbeat_once() is False
     assert shutdown_requests == [True]
+    assert monitor.shutdown_reason == "lease_revoked"
+
+
+def test_parent_monitored_shell_keeps_tasks_through_heartbeat_stall_and_recovery(caplog) -> None:
+    outcomes = iter([False] * 20 + [True] + [False] * 3)
+    shutdown_requests = []
+    monitor = ShellLeaseMonitor(
+        ShellLeaseConfiguration("instance", "token", "http://127.0.0.1:19000/heartbeat"),
+        request_shutdown=lambda: shutdown_requests.append(True),
+        heartbeat_sender=lambda _configuration: next(outcomes),
+        parent_monitored=True,
+    )
+    with caplog.at_level("INFO"):
+        for _ in range(20):
+            assert monitor.heartbeat_once() is True
+        assert monitor.consecutive_failures == 20
+        assert monitor.heartbeat_once() is True
+        assert monitor.consecutive_failures == 0
+        for _ in range(3):
+            assert monitor.heartbeat_once() is True
+    assert shutdown_requests == []
+    assert monitor.shutdown_reason is None
+    assert caplog.text.count("consecutive times") == 2
+    assert caplog.text.count("heartbeat recovered") == 1
+
+
+def test_start_monitor_uses_parent_process_monitor_for_liveness(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from app.core import shell_lease
+
+    monkeypatch.setenv("TIANCE_SHELL_INSTANCE_ID", "instance")
+    monkeypatch.setenv("TIANCE_SHELL_LEASE_TOKEN", "token")
+    monkeypatch.setenv("TIANCE_SHELL_HEARTBEAT_URL", "http://127.0.0.1:19000/heartbeat")
+    monkeypatch.setattr(ShellLeaseMonitor, "start", lambda self: None)
+    monkeypatch.setattr(shell_lease, "_send_heartbeat", lambda configuration: False)
+    server = SimpleNamespace(should_exit=False)
+    monitor = shell_lease.start_shell_lease_monitor(server, parent_monitored=True)
+    for _ in range(6):
+        assert monitor.heartbeat_once() is True
+    assert server.should_exit is False
+
+    def revoked(configuration):
+        raise ShellLeaseRevokedError
+
+    monitor._heartbeat_sender = revoked
+    assert monitor.heartbeat_once() is False
+    assert server.should_exit is True
 
 
 def test_default_heartbeat_sender_uses_the_lease_contract() -> None:

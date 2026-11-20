@@ -8,8 +8,8 @@ import {
   isProjectThemeConfigurationTab,
 } from "../../../features/document-tabs/model/documentTabUtils";
 import { getCachedProjectEntryWarmup } from "../../../features/project-entry/model/projectEntryWarmup";
-import { getProjectWorkspaceState } from "../../../services/project/getProjectWorkspaceState";
-import { patchProjectWorkspaceState } from "../../../services/project/saveProjectWorkspaceState";
+import { snapshotWorkspaceTabs } from "../../../features/document-tabs/model/workspaceTabEntries";
+import { patchProjectWorkspaceState, readWorkspaceAfterWrites } from "../../../services/project/saveProjectWorkspaceState";
 
 type ProjectWorkspaceTabsPersistenceOptions = {
   documentTabs: ReturnType<typeof useDocumentTabs>;
@@ -27,11 +27,8 @@ export function useProjectWorkspaceTabsPersistence({
   projectId,
 }: ProjectWorkspaceTabsPersistenceOptions) {
   const [error, setError] = useState<string | null>(null);
-  const retryTimerRef = useRef<number | null>(null);
-  const saveRequestIdRef = useRef(0);
-  const saveTimerRef = useRef<number | null>(null);
-  const isRestoringTabsRef = useRef(false);
-  const canPersistTabsRef = useRef(false);
+  const [readyProject, setReadyProject] = useState<string | null>(null);
+  const restoring = useRef(false);
   const workspaceStateSnapshot = useMemo(() => {
     const openFilePaths = documentTabs.tabs
       .filter((tab) => tab.projectId === projectId && tab.projectFilePath)
@@ -55,93 +52,80 @@ export function useProjectWorkspaceTabsPersistence({
         : null;
 
     return {
-      activeDashboard,
-      activeFilePath,
-      key: JSON.stringify({ activeDashboard, activeFilePath, openFilePaths }),
-      openFilePaths,
+      active_dashboard: activeDashboard,
+      active_file_path: activeFilePath,
+      open_file_paths: openFilePaths,
+      open_tabs: snapshotWorkspaceTabs(documentTabs.tabs, documentTabs.activeTab?.id ?? null, projectId),
     };
   }, [documentTabs.activeTab, documentTabs.tabs, projectId]);
 
   useEffect(() => {
     let disposed = false;
-    canPersistTabsRef.current = false;
+    setReadyProject(null);
+    restoring.current = true;
     setError(null);
 
-    if (saveTimerRef.current !== null) {
-      window.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-    if (retryTimerRef.current !== null) {
-      window.clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = null;
-    }
-
     if (!projectId) {
-      documentTabs.closeAllTabs();
+      documentTabs.resetWorkspaceFiles();
       return;
     }
 
     const warmedProject = getCachedProjectEntryWarmup(projectId);
-    isRestoringTabsRef.current = true;
-    Promise.resolve(warmedProject?.workspaceState ?? getProjectWorkspaceState(projectId))
+    readWorkspaceAfterWrites(projectId, warmedProject?.workspaceState)
       .then(async (state) => {
         if (disposed) return undefined;
-        await documentTabs.restoreTabs(
+        const activeWebId = await documentTabs.restoreTabs(
           projectId,
           state.open_file_paths,
           state.active_file_path,
-          { fileContents: warmedProject?.fileContents },
+          { fileContents: warmedProject?.fileContents, entries: state.open_tabs },
         );
         if (disposed) return undefined;
         documentTabs.ensureProjectConversationOverview(projectId, {
-          activate:
+          activate: !activeWebId && (
             state.active_dashboard === "conversation_overview"
-            || (!isKnowledgeProject && !isRoleProject && !isThemeProject && state.active_file_path === null),
+            || (!isKnowledgeProject && !isRoleProject && !isThemeProject && state.active_file_path === null)),
         });
         if (isKnowledgeProject) {
           documentTabs.ensureProjectKnowledgeContent(projectId, {
-            activate:
+            activate: !activeWebId && (
               state.active_dashboard === "knowledge_content"
-              || state.active_file_path === null,
+              || state.active_file_path === null),
           });
         }
         if (isRoleProject) {
           documentTabs.ensureProjectRoleConfiguration(projectId, {
-            activate:
+            activate: !activeWebId && (
               state.active_dashboard === "role_configuration"
-              || state.active_file_path === null,
+              || state.active_file_path === null),
           });
         }
         if (isThemeProject) {
           documentTabs.ensureProjectThemeConfiguration(projectId, {
-            activate:
+            activate: !activeWebId && (
               state.active_dashboard === "theme_configuration"
-              || state.active_file_path === null,
+              || state.active_file_path === null),
           });
         }
         return undefined;
       })
       .then(() => {
         if (!disposed) {
-          canPersistTabsRef.current = true;
+          restoring.current = false;
+          setReadyProject(projectId);
         }
       })
       .catch((restoreError: unknown) => {
         if (disposed) return;
-        documentTabs.closeAllTabs();
+        documentTabs.resetWorkspaceFiles();
         setError(formatWorkspaceTabsError("工作区标签恢复失败", restoreError));
-      })
-      .finally(() => {
-        if (!disposed) {
-          isRestoringTabsRef.current = false;
-        }
       });
 
     return () => {
       disposed = true;
     };
   }, [
-    documentTabs.closeAllTabs,
+    documentTabs.resetWorkspaceFiles,
     documentTabs.ensureProjectConversationOverview,
     documentTabs.ensureProjectKnowledgeContent,
     documentTabs.ensureProjectRoleConfiguration,
@@ -153,42 +137,26 @@ export function useProjectWorkspaceTabsPersistence({
     projectId,
   ]);
 
+  const snapshotKey = JSON.stringify(workspaceStateSnapshot);
   useEffect(() => {
-    if (!projectId || isRestoringTabsRef.current || !canPersistTabsRef.current) {
-      return;
-    }
+    if (!projectId || readyProject !== projectId || restoring.current) return;
     let disposed = false;
-    saveRequestIdRef.current += 1;
-    const requestId = saveRequestIdRef.current;
-
-    if (saveTimerRef.current !== null) {
-      window.clearTimeout(saveTimerRef.current);
-    }
-    if (retryTimerRef.current !== null) {
-      window.clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = null;
-    }
-
-    const { activeDashboard, activeFilePath, openFilePaths } = workspaceStateSnapshot;
+    let retryTimer: number | undefined;
 
     const saveSnapshot = (attempt: number) => {
-      patchProjectWorkspaceState(projectId, {
-        open_file_paths: openFilePaths,
-        active_file_path: activeFilePath,
-        active_dashboard: activeDashboard,
-      })
+      patchProjectWorkspaceState(projectId, workspaceStateSnapshot)
         .then(() => {
-          if (!disposed && saveRequestIdRef.current === requestId) {
+          if (!disposed) {
             setError(null);
           }
         })
         .catch((saveError: unknown) => {
-          if (disposed || saveRequestIdRef.current !== requestId) {
+          if (disposed) {
             return;
           }
 
           if (attempt === 0) {
-            retryTimerRef.current = window.setTimeout(() => {
+            retryTimer = window.setTimeout(() => {
               saveSnapshot(1);
             }, 600);
             return;
@@ -198,22 +166,13 @@ export function useProjectWorkspaceTabsPersistence({
         });
     };
 
-    saveTimerRef.current = window.setTimeout(() => {
-      saveSnapshot(0);
-    }, 500);
+    saveSnapshot(0);
 
     return () => {
       disposed = true;
-      if (saveTimerRef.current !== null) {
-        window.clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
-      if (retryTimerRef.current !== null) {
-        window.clearTimeout(retryTimerRef.current);
-        retryTimerRef.current = null;
-      }
+      window.clearTimeout(retryTimer);
     };
-  }, [projectId, workspaceStateSnapshot.key]);
+  }, [projectId, readyProject, snapshotKey]);
 
   return { error };
 }

@@ -1,0 +1,29 @@
+{
+  "description": "在运行天策的 Windows 电脑中定位文件/文件夹、查询默认应用和打开方式、用默认或指定应用打开文件。系统外部打开，不是天策编辑器预览；不更改默认关联。",
+  "execution": {
+    "parallel": false
+  },
+  "files": {
+    "examples": ".tool/examples.json",
+    "input_schema": ".tool/input.schema.json",
+    "output_schema": ".tool/output.schema.json",
+    "permissions": ".tool/permissions.json"
+  },
+  "io": {
+    "input": "stdin_json",
+    "output": "stdout_json"
+  },
+  "loading": {
+    "dynamic": false
+  },
+  "name": "open_system_file",
+  "registration_name": "系统文件打开",
+  "runtime": {
+    "entry": "program/main.py",
+    "timeout_seconds": 30,
+    "type": "python"
+  },
+  "state": {
+    "enabled": true
+  }
+}

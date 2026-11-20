@@ -37,6 +37,7 @@ from app.repositories.project.conversation_database import (
     find_message_ordinal,
     list_message_payloads,
     list_message_payloads_range,
+    message_turn_page_range,
     read_latest_message_payload,
     read_message_payload,
     read_message_turn_payloads,
@@ -333,9 +334,20 @@ class ConversationMessageStore:
         session_dir: Path,
         *,
         limit: int | None = None,
+        turn_limit: int | None = None,
         before_message_id: str | None = None,
         after_message_id: str | None = None,
     ) -> ProjectConversationMessagePage:
+        if turn_limit is not None:
+            if turn_limit < 1 or limit is not None:
+                raise BadRequestError("Use a positive turn_limit without limit.",
+                                      details={"parameter": "turn_limit"})
+            if before_message_id is not None and after_message_id is not None:
+                raise BadRequestError("Use only one message cursor.")
+            return self._list_message_turns_page(
+                session_dir, turn_limit=turn_limit,
+                before_message_id=before_message_id, after_message_id=after_message_id,
+            )
         total_count = count_message_payloads(session_dir)
         if after_message_id is not None:
             cursor_index = find_message_ordinal(session_dir, after_message_id)
@@ -417,6 +429,42 @@ class ConversationMessageStore:
             total_count=total_count,
             has_more=has_more,
             next_before_message_id=items[0].message_id if has_more and items else None,
+        )
+
+    def _list_message_turns_page(
+        self,
+        session_dir: Path,
+        *,
+        turn_limit: int,
+        before_message_id: str | None,
+        after_message_id: str | None,
+    ) -> ProjectConversationMessagePage:
+        cursor_ordinal = None
+        cursor_id = after_message_id if after_message_id is not None else before_message_id
+        if cursor_id is not None:
+            cursor_ordinal = find_message_ordinal(session_dir, cursor_id)
+            if cursor_ordinal is None:
+                parameter = "after_message_id" if after_message_id is not None else "before_message_id"
+                raise BadRequestError(
+                    f"{parameter} does not reference a message in this conversation.",
+                    details={"parameter": parameter},
+                )
+        total_count = count_message_payloads(session_dir)
+        forward = after_message_id is not None
+        start, end = message_turn_page_range(
+            session_dir, turn_limit=turn_limit, total_count=total_count,
+            before_ordinal=cursor_ordinal if not forward else None,
+            after_ordinal=cursor_ordinal if forward else None,
+        )
+        items = tuple(_message_from_payload(payload) for payload in list_message_payloads_range(
+            session_dir, start_ordinal=start, end_ordinal=end,
+        ))
+        return ProjectConversationMessagePage(
+            items=items,
+            total_count=total_count,
+            has_more=end < total_count if forward else start > 0,
+            next_before_message_id=items[0].message_id if not forward and start > 0 and items else None,
+            next_after_message_id=(items[-1].message_id if items else after_message_id) if forward else None,
         )
 
     def get_message_turn(

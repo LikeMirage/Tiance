@@ -206,6 +206,57 @@ def test_workspace_get_state_ignores_old_workspace_directory(tmp_path):
     assert not (tmp_path / ".Tiance" / "tiance.db").exists()
 
 
+@pytest.mark.parametrize("favicon", [None, "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jmrkAAAAASUVORK5CYII="])
+def test_web_tabs_round_trip_with_files_and_legacy_clients(tmp_path, favicon):
+    from app.schemas.project import ProjectWorkspaceStatePatchRequest, ProjectWorkspaceStateResponse
+
+    repository = FakeProjectRepository(str(tmp_path))
+    service = ProjectWorkspaceService(repository)
+    web = {"kind": "web", "id": "cedf7b0a-b615-4b37-8409-e300dadaf23c",
+           "url": "https://example.test/report?p=2", "title": "报告", "active": True}
+    if favicon:
+        web["favicon"] = favicon
+    entries = [{"kind": "file", "path": "a.md"}, web, {"kind": "file", "path": "b.md"}]
+    request = ProjectWorkspaceStatePatchRequest(open_tabs=entries)
+    service.patch_state(PROJECT_ID, open_tabs=request.model_dump(mode="json")["open_tabs"])
+
+    restarted = ProjectWorkspaceService(repository)
+    state = ProjectWorkspaceStateResponse(project_id=PROJECT_ID, **restarted.get_state(PROJECT_ID))
+    assert state.model_dump(mode="json")["open_tabs"] == entries
+    assert state.open_file_paths == ["a.md", "b.md"]
+    assert restarted.apply_editor_tabs_action(PROJECT_ID, action="list_tabs")["active_file_path"] is None
+    assert restarted.patch_state(PROJECT_ID, expanded_paths=["docs"], should_update_expanded_paths=True)["open_tabs"] == entries
+    focused = restarted.apply_editor_tabs_action(PROJECT_ID, action="focus_file", path="b.md")
+    assert focused["open_tabs"][1] == {**web, "active": False}
+    closed = restarted.apply_editor_tabs_action(PROJECT_ID, action="close_clean_tabs", paths=["a.md"])
+    assert closed["open_tabs"] == [{**web, "active": False}, entries[2]]
+    cleared = restarted.patch_state(PROJECT_ID, open_tabs=[])
+    assert cleared["open_tabs"] == cleared["open_file_paths"] == []
+
+
+def test_background_web_actions_preserve_order_identity_and_selection(tmp_path):
+    service = ProjectWorkspaceService(FakeProjectRepository(str(tmp_path)))
+    service.apply_editor_tabs_action(PROJECT_ID, action="open_file", path="report.md")
+    def open_url(url):
+        return service.apply_editor_tabs_action(PROJECT_ID, action="open_url", url=url)
+
+    first_url = "https://example.test/report?year=2026#summary"
+    first = open_url(first_url)["open_tabs"][1]
+    second = open_url("https://example.test/other")["open_tabs"][2]
+    assert first["id"] != second["id"]
+    service.apply_editor_tabs_action(PROJECT_ID, action="focus_web", tab_id=first["id"])
+    state = service.apply_editor_tabs_action(PROJECT_ID, action="list_tabs")
+    assert state["open_tabs"] == [{"kind": "file", "path": "report.md"}, first, {**second, "active": False}]
+    assert state["active_file_path"] is None and state["active_dashboard"] is None
+    assert open_url(first_url)["open_tabs"] == state["open_tabs"]
+    with pytest.raises(BadRequestError):
+        service.apply_editor_tabs_action(PROJECT_ID, action="focus_web", tab_id="not-in-project")
+    for url in [None, "file:///test", "https://name:password@example.test", "https://a.test:invalid"]:
+        with pytest.raises(BadRequestError):
+            open_url(url)
+    assert service.get_state(PROJECT_ID)["open_tabs"] == state["open_tabs"]
+
+
 def test_workspace_save_state_writes_tiance_without_migrating_old_workspace(tmp_path):
     old_workspace = tmp_path / ".workspace"
     old_workspace.mkdir()

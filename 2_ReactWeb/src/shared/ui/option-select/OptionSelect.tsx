@@ -7,7 +7,7 @@ export type OptionSelectItem<Value extends string> = {
   value: Value;
 };
 
-export type OptionSelectVariant = "field" | "integrated-overlay";
+export type OptionSelectVariant = "field" | "integrated-overlay" | "underline-overlay";
 
 type OptionSelectProps<Value extends string> = {
   ariaLabel?: string;
@@ -42,7 +42,7 @@ export function OptionSelect<Value extends string>({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const selectedOption = options.find((option) => option.value === value);
   const isIntegratedOverlay = variant === "integrated-overlay";
-  const isFloating = floating || isIntegratedOverlay;
+  const isFloating = floating || variant !== "field";
   const selectableOptions = showSelectedOption
     ? options
     : options.filter((option) => option.value !== value);
@@ -94,6 +94,7 @@ export function OptionSelect<Value extends string>({
         "ds-option-select",
         isFloating ? "ds-option-select--floating" : "",
         isIntegratedOverlay ? "ds-option-select--integrated" : "",
+        variant === "underline-overlay" ? "ds-option-select--underline" : "",
         isOpen ? "ds-option-select--open" : "",
         className ?? "",
       ]

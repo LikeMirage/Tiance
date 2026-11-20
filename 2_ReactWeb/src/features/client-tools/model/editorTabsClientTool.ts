@@ -1,6 +1,8 @@
 import type { ChatClientToolRequestEvent } from "../../../entities/llm-chat/model/chatCompletion";
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import { getEditorDocumentPath } from "../../../entities/editor/model/editorWorkspaceFileReference";
+import { normalizeWebAddress } from "../../../shared/desktop/editorBrowser";
+import { webKey } from "../../document-tabs/model/workspaceTabEntries";
 import { DocumentRevealError, parseDocumentRevealTarget, type DocumentRevealResult, type DocumentRevealTarget } from "../../../entities/editor/model/documentReveal";
 import {
   isPinnedDocumentTab,
@@ -11,12 +13,12 @@ import type {
   ClientToolExecutionResult,
   ClientToolRegistration,
 } from "./clientToolBridge";
-import { executeBackgroundEditorTabsClientTool } from "./backgroundEditorTabsClientTool";
+import { executeBackgroundEditorTabsClientTool, serializeWebTab } from "./backgroundEditorTabsClientTool";
 
 export const EDITOR_TABS_TOOL_NAME = "editor_tabs_manager";
 export const EDITOR_TABS_CAPABILITY = Object.freeze({
   name: "editor.tabs",
-  version: 3,
+  version: 4,
 });
 
 type EditorTabsClientToolOptions = {
@@ -27,6 +29,8 @@ type EditorTabsClientToolOptions = {
 export type EditorTabsCapability = {
   closeTab: (tabId: string) => void;
   getSnapshot: () => EditorTabsSnapshot;
+  canOpenWebTab: () => boolean;
+  openWebTab: (url: string, projectId: string) => string;
   openProjectFile: (projectId: string, path: string) => Promise<void>;
   revealProjectFile: (projectId: string, path: string, target: DocumentRevealTarget, signal: AbortSignal) => Promise<DocumentRevealResult>;
   selectTab: (tabId: string) => void;
@@ -64,6 +68,18 @@ async function executeEditorTabsClientTool(
   if (!action) return fail("缺少 action 参数。");
   const requestedPath = readPath(args.value.path);
   const requestedPaths = readPathList(args.value.paths);
+  let url = "";
+  const tabId = readString(args.value.tab_id);
+  if (action === "open_url") {
+    const address = readString(args.value.url);
+    try {
+      if (!/^https?:\/\//i.test(address)) throw new Error();
+      url = normalizeWebAddress(address);
+    } catch {
+      return fail("open_url 需要完整的 HTTP 或 HTTPS 网址。", { action, error_code: "INVALID_URL" });
+    }
+  }
+  if (action === "focus_web" && !tabId) return fail("focus_web 需要网页标签的 tab_id。", { action });
 
   if (action === "reveal_file") {
     if (!requestedPath) return fail("reveal_file 需要 path 参数。", { error_code: "INVALID_PATH" });
@@ -95,6 +111,8 @@ async function executeEditorTabsClientTool(
       path: requestedPath,
       paths: requestedPaths,
       projectId,
+      url,
+      tabId,
     });
   }
 
@@ -102,11 +120,29 @@ async function executeEditorTabsClientTool(
   const initialSnapshot = documentTabs.getSnapshot();
   const projectTabs = getProjectTabs(initialSnapshot, projectId);
   if (action === "list_tabs") {
+    const tabs = projectTabs.map(tab => serializeTab(tab, initialSnapshot.activeTabId));
     return ok({
       action,
-      tabs: projectTabs.map((tab) => serializeTab(tab, initialSnapshot.activeTabId)),
-      active_tab_id: initialSnapshot.activeTabId,
+      tabs,
+      active_tab_id: tabs.find(tab => tab.is_active)?.id ?? null,
     });
+  }
+
+  if (action === "open_url" || action === "focus_web") {
+    if (!documentTabs.canOpenWebTab()) return fail("当前客户端无法在编辑器中显示网页。", { action, error_code: "WEB_VIEW_UNAVAILABLE" });
+    const webTabs = projectTabs.filter(tab => tab.kind === "web");
+    const matches = action === "focus_web"
+      ? webTabs.filter(tab => webKey(tab) === tabId)
+      : webTabs.filter(tab => tab.displayPath === url);
+    const existing = matches.find(tab => tab.id === initialSnapshot.activeTabId) ?? matches[0];
+    if (!existing && action === "focus_web") return fail("当前项目没有这个网页标签。", { action, tab_id: tabId });
+    const id = existing?.id ?? documentTabs.openWebTab(url, projectId);
+    if (existing) documentTabs.selectTab(id);
+    const latest = documentTabs.getSnapshot();
+    const tab = getProjectTabs(latest, projectId).find(item => item.id === id);
+    if (!tab || latest.activeTabId !== id) return fail("网页标签未能选中。", { action });
+    const result = serializeTab(tab, id);
+    return action === "open_url" ? ok({ action, opened_tab: result }) : ok({ action, focused_tab: result });
   }
 
   if (action === "open_file") {
@@ -282,7 +318,8 @@ function findStillOpenTabs(
   tabs: ReturnType<typeof serializeTab>[],
 ) {
   const latestProjectTabs = getProjectTabs(snapshot, projectId);
-  return tabs.filter((tab) => tab.path && findProjectTabByPath(latestProjectTabs, tab.path));
+  const openIds = new Set(latestProjectTabs.map(tab => tab.kind === "web" ? webKey(tab) : tab.id));
+  return tabs.filter(tab => openIds.has(tab.id));
 }
 
 function findProjectTabByPath(tabs: DocumentTab[], path: string) {
@@ -291,6 +328,9 @@ function findProjectTabByPath(tabs: DocumentTab[], path: string) {
 }
 
 function serializeTab(tab: DocumentTab, activeTabId: string | null) {
+  if (tab.kind === "web") {
+    return serializeWebTab({ kind: "web", id: webKey(tab), title: tab.title, url: tab.displayPath, active: tab.id === activeTabId });
+  }
   return {
     id: tab.id,
     title: tab.title,
@@ -304,6 +344,7 @@ function serializeTab(tab: DocumentTab, activeTabId: string | null) {
 }
 
 function tabPath(tab: DocumentTab) {
+  if (tab.kind === "web") return null;
   if (tab.fileSource?.kind === "local") return getEditorDocumentPath(tab);
   const path = tab.projectFilePath ?? tab.filePath ?? tab.displayPath;
   return path ? normalizeWorkspacePath(path) : null;

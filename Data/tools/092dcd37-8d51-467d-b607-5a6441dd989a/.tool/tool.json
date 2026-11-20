@@ -1,5 +1,5 @@
 {
-  "description": "识别会议录音、视频及微信 SILK 语音（含 .speex），自动解码并生成带时间戳的转录或字幕；无需 API Key，音轨上传云端。",
+  "description": "直接传入录音、视频或微信 SILK 语音（含 .speex）路径，工具自动提取音轨、解码并转写；AI 无需预先转码。生成带时间戳的转录或字幕，无需 API Key，音轨上传云端。",
   "execution": {
     "parallel": false
   },
@@ -25,6 +25,6 @@
     "type": "python"
   },
   "state": {
-    "enabled": false
+    "enabled": true
   }
 }

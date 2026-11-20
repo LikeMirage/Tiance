@@ -3,6 +3,7 @@ import { memo, useCallback, useMemo, useState, type ReactNode } from "react";
 import type { Project, ProjectCategory } from "../../../entities/project/model/project";
 import type { ProjectFileReferenceRequest } from "../../../entities/project/model/projectFileDragData";
 import type {
+  ProjectOverviewView,
   WorkspaceLayoutPreferences,
   WorkspaceLayoutPreferenceUpdate,
 } from "../../../entities/workspace/model/workspaceLayoutPreferences";
@@ -12,6 +13,7 @@ import { DocumentEditorCanvas } from "../../../features/document-editor-canvas/u
 import { isProjectConversationOverviewTab } from "../../../features/document-editor-canvas/model/documentTabClassification";
 import { useDesktopShell } from "../../../features/desktop-shell/model/useDesktopShell";
 import type { useDocumentTabs } from "../../../features/document-tabs/model/useDocumentTabs";
+import { isOverviewEditorTab } from "../../../features/document-tabs/model/workspaceTabEntries";
 import type { ProjectEntryWarmupOptions } from "../../../features/project-entry/model/projectEntryWarmup";
 import type { ProjectMarketScope } from "../../../features/project-market/model/projectMarket";
 import { revealProjectFile } from "../../../services/project/revealProjectFile";
@@ -20,6 +22,9 @@ import { useWorkspaceDocumentActions } from "../model/useWorkspaceDocumentAction
 import { useWorkspaceEditorReferences } from "../model/useWorkspaceEditorReferences";
 import { ProjectCategoryOverviewKeepAlive } from "./ProjectCategoryOverviewKeepAlive";
 import { ProjectConversationOverviewDashboard } from "../../../features/project-category-overview/ui/ProjectConversationOverviewDashboard";
+import { useOpenProjectOverviewView } from "../model/useOpenProjectOverviewView";
+import { resolveProjectOverviewTarget } from "../../../features/project-category-overview/model/projectOverviewTarget";
+import { ProjectOverviewViewTabs } from "../../../features/project-category-overview/ui/ProjectOverviewViewTabs";
 import { CollectionOverviewViewTabs } from "../../../features/project-category-overview/ui/CollectionOverviewViewTabs";
 import { useRoleConfigurationEditor } from "../../../features/role-configuration/model/useRoleConfigurationEditor";
 import { RoleCollectionOverview } from "../../../features/role-configuration/ui/RoleCollectionOverview";
@@ -168,6 +173,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
     handleGenerateMarkdownDocx,
     handleOpenConversationBranches,
     handleOpenConversationDataFile: openConversationDataFile,
+    handleOpenDownloadedFile,
     handleOpenProjectFile: openProjectFile,
     handleOpenReference,
     referenceOpenError,
@@ -284,6 +290,22 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       ? handleCommonLayoutPreferenceChange
       : onLayoutPreferenceChange,
   });
+  const openProjectView = useOpenProjectOverviewView(onSelectProject, onLayoutPreferenceChange);
+  const rememberedProjectId = selectedCategoryId ? layoutPreferences.projectOverviewMaximizedProjectIds[selectedCategoryId] : null;
+  const storedView = selectedCategoryId ? layoutPreferences.projectOverviewViews[selectedCategoryId] ?? "projects" : "projects";
+  const projectOverviewView = storedView === "online" && !projectMarketScope ? "projects" : storedView;
+  const overviewTabSelected = visibleActiveTab !== null && isOverviewEditorTab(visibleActiveTab);
+  const viewingOverview = shouldShowCategoryOverview && !overviewTabSelected;
+  function selectProjectOverview(view: ProjectOverviewView) {
+    if (overviewTabSelected) documentTabs.selectTab(null);
+    if (!selectedCategoryId || projectOverviewView === view) return;
+    if (view === "projects" || view === "online") {
+      onLayoutPreferenceChange({ projectOverviewView: { categoryId: selectedCategoryId, view } });
+      return;
+    }
+    const target = resolveProjectOverviewTarget(selectedCategoryProjects, visibleChatSession, rememberedProjectId ?? null);
+    if (target) void openProjectView(selectedCategoryId, target.projectId, view, target.sessionId);
+  }
   const categoryOverviewContent = (
     <ProjectCategoryOverviewKeepAlive
       activeConversationMessageId={
@@ -327,7 +349,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       onSelectSession={handleSelectOverviewSession}
       projects={projects}
       selectedCategoryId={selectedCategoryId}
-      showOverviewTabs={!collectionKind}
+      useCategoryViews={!collectionKind}
       visibleSession={visibleChatSession}
     />
   );
@@ -436,12 +458,6 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
   ) : null;
   const overviewContent = collectionKind ? (
     <div className="collection-dashboard-host">
-      <CollectionOverviewViewTabs
-        activeView={collectionOverviewView}
-        disabled={!selectedProject}
-        kind={collectionKind}
-        onChange={handleCollectionOverviewViewChange}
-      />
       <div className="collection-dashboard-host__body">
         <div
           className={
@@ -552,6 +568,20 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
 
   return (
     <DocumentEditorCanvas
+      overviewTabs={shouldShowCategoryOverview && (collectionKind ? (
+        <CollectionOverviewViewTabs activeView={overviewTabSelected ? null : collectionOverviewView}
+          disabled={!selectedProject} kind={collectionKind} onChange={view => {
+            if (overviewTabSelected) documentTabs.selectTab(null);
+            if (view !== collectionOverviewView) handleCollectionOverviewViewChange(view);
+          }} />
+      ) : (
+        <ProjectOverviewViewTabs activeView={overviewTabSelected ? null : projectOverviewView}
+          disabled={!selectedCategoryProjects.length} marketScope={projectMarketScope} onChange={selectProjectOverview} />
+      ))}
+      onOpenWebTab={(url) => documentTabs.openWebTab(url, projectId)}
+      onOpenDownloadedFile={handleOpenDownloadedFile}
+      onWebTabChanged={documentTabs.updateWebTab}
+      webPaneVisible={isActive}
       activeConversationMessageId={
         activeConversationMessage?.projectId === projectId &&
         activeConversationMessage.sessionId === visibleChatSession?.sessionId
@@ -559,15 +589,15 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
           : null
       }
       activeConversationSessionId={visibleChatSession?.sessionId ?? null}
-      activeTab={shouldShowCategoryOverview ? null : visibleActiveTab}
-      activeTabId={shouldShowCategoryOverview ? null : visibleActiveTabId}
+      activeTab={viewingOverview ? null : visibleActiveTab}
+      activeTabId={viewingOverview ? null : visibleActiveTabId}
       aiPanelInitialWidth={layoutPreferences.aiPanelWidth}
       assistantPanel={assistantPanel}
       emptyMessage={null}
       onAiPanelWidthCommit={handleAiPanelWidthCommit}
       onConversationDataPageChange={handleConversationDataPageChange}
-      onCloseAllTabs={() => documentTabs.closeAllTabs({ preservePinned: true })}
-      onCloseOtherTabs={documentTabs.closeOtherTabs}
+      onCloseAllTabs={() => documentTabs.closeAllTabs({ preservePinned: true, webOnly: shouldShowCategoryOverview && projectId !== null })}
+      onCloseOtherTabs={id => documentTabs.closeOtherTabs(id, shouldShowCategoryOverview && projectId !== null)}
       onCloseTab={documentTabs.closeTab}
       onCreatePdfPageImageReference={handleCreatePdfPageImageReference}
       onCreatePresentationSlideImageReference={handleCreatePresentationSlideImageReference}
@@ -586,14 +616,14 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       onSelectTab={documentTabs.selectTab}
       onUpdateContent={documentTabs.updateTabContent}
       persistentEmptyContent={overviewContent}
-      persistentEmptyContentVisible={shouldShowCategoryOverview}
+      persistentEmptyContentVisible={viewingOverview}
       projectConversationOverviewContent={projectConversationOverviewContent}
       projectKnowledgeContent={projectKnowledgeContent}
       roleConfigurationContent={roleConfigurationContent}
       themeConfigurationContent={themeConfigurationContent}
       projectRootPath={selectedProject?.root_path ?? ""}
       statusMessage={referenceOpenError ?? workspaceError}
-      tabs={shouldShowCategoryOverview ? [] : visibleProjectTabs}
+      tabs={shouldShowCategoryOverview ? visibleProjectTabs.filter(isOverviewEditorTab) : visibleProjectTabs}
     />
   );
 });

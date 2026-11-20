@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isEditorBrowserAvailable } from "../../../shared/desktop/editorBrowser";
 
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import type { EditorReferenceViewerPayload } from "../../../entities/editor/model/editorReference";
@@ -14,11 +15,12 @@ import type { useDocumentTabs } from "../../../features/document-tabs/model/useD
 import type { CodeBlockSavePayload } from "../../../features/markdown-preview/model/codeBlockFile";
 import { generateProjectMarkdownDocx } from "../../../services/project/generateProjectMarkdownDocx";
 import { getConversationDataView } from "../../../services/project/getConversationDataView";
-import { resolveFileReference } from "../../../services/editor/localEditorFiles";
+import { resolveFileReference, type ResolvedFileReference } from "../../../services/editor/localEditorFiles";
 import { createLocalDocumentSource } from "../../../features/document-tabs/model/localDocumentFileSource";
 import type { DocumentFileSourceRuntime } from "../../../features/document-tabs/model/documentFileSources";
-import { getProjectDocumentSourceKey } from "../../../features/document-tabs/model/documentFileSources";
+import { createProjectDocumentSource } from "../../../features/document-tabs/model/documentFileSources";
 import { makeTabId } from "../../../features/document-tabs/model/documentTabUtils";
+import { isOverviewEditorTab } from "../../../features/document-tabs/model/workspaceTabEntries";
 import { referenceOriginalFile, referenceRevealTarget } from "../../../entities/editor/model/referenceNavigation";
 import { DocumentRevealError } from "../../../entities/editor/model/documentReveal";
 
@@ -96,6 +98,28 @@ export function useWorkspaceDocumentActions({
     documentTabs.openVirtualHtmlPreview(html, { projectId });
   }, [documentTabs.openVirtualHtmlPreview, projectId]);
 
+  const openResolvedFile = useCallback(async (file: ResolvedFileReference) => {
+    const source = file.kind === "local" ? createLocalDocumentSource(file.root, projectId)
+      : projectFileSource ?? (projectId ? createProjectDocumentSource(projectId) : null);
+    if (!source) throw new Error("找不到文件所属的工作区。");
+    await documentTabsRef.current.openWorkspaceFile({
+      id: file.path, kind: "file", name: file.name, path: file.path, mtimeMs: file.mtime_ms,
+    }, source);
+    return makeTabId(source.source.key, file.path);
+  }, [projectFileSource, projectId]);
+
+  const handleOpenDownloadedFile = useCallback(async (path: string) => {
+    referenceRequestRef.current?.abort();
+    const controller = new AbortController();
+    referenceRequestRef.current = controller;
+    const file = await resolveFileReference({ kind: "file", source: "external_path", filePath: path, projectId: null },
+      projectId, null, controller.signal);
+    if (controller.signal.aborted || projectIdRef.current !== projectId) return;
+    if (file.kind === "folder") throw new Error("下载路径指向文件夹。");
+    if (projectId && await onPrepareFileOpen?.(controller.signal) === false) return;
+    if (!controller.signal.aborted && projectIdRef.current === projectId) await openResolvedFile(file);
+  }, [projectId, onPrepareFileOpen, openResolvedFile]);
+
   const handleOpenReference = useCallback((payload: EditorReferenceViewerPayload) => {
     referenceRequestRef.current?.abort();
     setReferenceOpenError(null);
@@ -112,13 +136,7 @@ export function useWorkspaceDocumentActions({
           documentTabsRef.current.openVirtualReferenceViewer(payload, { projectId, resolution: file });
           return;
         }
-        const runtime = file.kind === "local" ? createLocalDocumentSource(file.root, projectId) : projectFileSource;
-        const tabId = makeTabId(runtime?.source.key ?? getProjectDocumentSourceKey(projectId), file.path);
-        await documentTabsRef.current.openNode({
-          id: file.path, kind: "file", name: file.name, path: file.path, mtimeMs: file.mtime_ms,
-        }, file.kind === "project"
-          ? { projectId, projectFilePath: file.path, fileSource: projectFileSource }
-          : { fileSource: runtime, filePath: file.path });
+        const tabId = await openResolvedFile(file);
         if (controller.signal.aborted || projectIdRef.current !== projectId) return;
         try {
           await documentTabsRef.current.revealReference(tabId, payload, referenceRevealTarget(payload), controller.signal);
@@ -139,7 +157,7 @@ export function useWorkspaceDocumentActions({
         }
       }
     })();
-  }, [documentTabs.openVirtualReferenceViewer, projectId, sessionId, projectFileSource, onPrepareFileOpen]);
+  }, [documentTabs.openVirtualReferenceViewer, projectId, sessionId, openResolvedFile, onPrepareFileOpen]);
 
   const handleOpenProjectFile = useCallback(async (path: string) => {
     if (!projectId || !path.trim()) {
@@ -253,9 +271,9 @@ export function useWorkspaceDocumentActions({
   const visibleProjectTabs = useMemo(() => (
     projectId
       ? documentTabs.tabs.filter((tab) => tab.projectId === projectId)
-      : []
+      : documentTabs.tabs.filter((tab) => tab.projectId === null && isOverviewEditorTab(tab))
   ), [documentTabs.tabs, projectId]);
-  const visibleActiveTab = projectId && documentTabs.activeTab?.projectId === projectId
+  const visibleActiveTab = documentTabs.activeTab?.projectId === projectId && (projectId || isOverviewEditorTab(documentTabs.activeTab))
     ? documentTabs.activeTab
     : null;
   const visibleActiveTabId = visibleActiveTab ? documentTabs.activeTabId : null;
@@ -285,6 +303,7 @@ export function useWorkspaceDocumentActions({
     handleGenerateMarkdownDocx,
     handleOpenConversationBranches,
     handleOpenConversationDataFile,
+    handleOpenDownloadedFile,
     handleOpenProjectFile,
     handleOpenReference,
     handlePreviewHtmlCode,
@@ -301,6 +320,8 @@ function createEditorTabsCapability(
   return {
     closeTab: documentTabs.closeTab,
     getSnapshot: documentTabs.getSnapshot,
+    canOpenWebTab: isEditorBrowserAvailable,
+    openWebTab: documentTabs.openWebTab,
     revealProjectFile: documentTabs.revealProjectFile,
     openProjectFile: async (projectId, path) => {
       await documentTabs.openNode({

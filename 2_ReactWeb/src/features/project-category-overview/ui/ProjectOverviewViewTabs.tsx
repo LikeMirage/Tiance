@@ -12,7 +12,7 @@ import {
 } from "../../../shared/ui/collection-view-tabs/CollectionViewTabs";
 
 type ProjectOverviewViewTabsProps = {
-  activeView: ProjectOverviewView;
+  activeView: ProjectOverviewView | null;
   disabled?: boolean;
   marketScope: ProjectMarketScope | null;
   onChange: (view: ProjectOverviewView) => void;

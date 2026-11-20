@@ -11,7 +11,7 @@ export type ResolvedFileReference = {
   mtime_ms: number;
 };
 
-export function resolveFileReference(reference: EditorFileReference, ownerProjectId: string,
+export function resolveFileReference(reference: Pick<EditorFileReference, "filePath" | "source" | "kind" | "projectId">, ownerProjectId: string | null,
   sessionId: string | null, signal?: AbortSignal) {
   return fetchJson<ResolvedFileReference | Extract<ReferenceOpenResolution, { kind: "folder" }>>("/api/editor/file-references/resolve", {
     method: "POST", signal,

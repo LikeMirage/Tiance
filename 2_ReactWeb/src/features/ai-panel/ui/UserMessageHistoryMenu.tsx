@@ -123,7 +123,7 @@ function UserMessageHistoryDetail({ history, selected, keyword, onOpenReference 
       <div className="user-message-history__meta"><span>{selected.turnNumber}</span>
         {timestamp ? <time dateTime={timestamp.dateTime}>{timestamp.label}</time> : null}
       </div>
-      {referenced ? <ReferencedUserMessageView {...referenced} highlight={keyword}
+      {referenced ? <ReferencedUserMessageView {...referenced} highlight={keyword} compact
         onOpenReference={onOpenReference ? (reference) => onOpenReference(reference.viewerPayload) : undefined} />
         : <p className="chat-msg__text"><KeywordHighlight text={message.content} keyword={keyword} /></p>}
     </>}

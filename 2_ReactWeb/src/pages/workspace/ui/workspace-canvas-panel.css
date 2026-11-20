@@ -5,17 +5,7 @@
   display: flex;
   padding: 0;
   overflow: hidden;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(
-        in srgb,
-        var(--color-surface-overlay) var(--app-background-surface-weight),
-        transparent
-      ),
-      transparent
-    ),
-    color-mix(in srgb, var(--color-surface-canvas) var(--app-background-surface-weight), transparent);
+  background: color-mix(in srgb, var(--color-surface-canvas) var(--app-background-surface-weight), transparent);
 }
 
 .workspace-page__canvas-shell {

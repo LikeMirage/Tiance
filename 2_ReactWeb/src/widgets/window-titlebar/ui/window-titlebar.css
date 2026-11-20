@@ -23,8 +23,7 @@
   flex: 0 0 14px;
   width: 14px;
   height: 14px;
-  background-color: var(--color-text-primary);
-  /* Use the SVG silhouette so every theme supplies its own foreground color. */
+  background-color: var(--color-accent);
   -webkit-mask: url("/tiance-mark.svg") center / contain no-repeat;
   mask: url("/tiance-mark.svg") center / contain no-repeat;
   pointer-events: none;

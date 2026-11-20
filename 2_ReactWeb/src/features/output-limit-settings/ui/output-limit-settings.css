@@ -4,6 +4,7 @@
   gap: 12px;
   grid-column: 1 / -1;
   min-width: 0;
+  color: var(--color-text-secondary);
   font-size: 12px;
 }
 .output-limit-settings__row {
@@ -15,6 +16,12 @@
 .output-limit-settings__row input[type="number"] {
   width: 72px;
 }
+.output-limit-settings__row input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent);
+}
 .output-limit-settings__message {
   display: flex;
   flex-direction: column;
@@ -22,26 +29,45 @@
 }
 .output-limit-settings textarea,
 .output-limit-settings input[type="number"] {
-  border: 1px solid var(--color-border-subtle);
+  border: 1px solid var(--color-border-soft);
   border-radius: 4px;
-  background: transparent;
-  color: inherit;
+  background: var(--color-surface-input);
+  color: var(--color-text-primary);
   padding: 6px 8px;
   font: inherit;
+  outline: none;
+  user-select: text;
+}
+.output-limit-settings textarea::placeholder,
+.output-limit-settings input[type="number"]::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+.output-limit-settings textarea:focus,
+.output-limit-settings input[type="number"]:focus {
+  border-color: rgba(var(--color-accent-rgb), 0.54);
+  background: var(--color-surface-input-hover);
 }
 .output-limit-settings textarea {
   width: 100%;
   box-sizing: border-box;
   resize: vertical;
+  line-height: 1.55;
 }
-.output-limit-settings button {
+.output-limit-settings__reset {
   align-self: flex-end;
-  color: inherit;
+  color: var(--color-text-secondary);
   background: transparent;
   border: 1px solid var(--color-border-subtle);
   border-radius: 4px;
   padding: 4px 8px;
   cursor: pointer;
+}
+.output-limit-settings__reset:hover,
+.output-limit-settings__reset:focus-visible {
+  color: var(--color-text-primary);
+  background: var(--color-surface-item-hover);
+  border-color: var(--color-border-strong);
 }
 .output-limit-settings small {
   color: var(--color-text-secondary);

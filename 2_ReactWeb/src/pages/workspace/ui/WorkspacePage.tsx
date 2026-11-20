@@ -48,6 +48,7 @@ import { useProviderConfigState } from "../../../features/provider-config/model/
 import { useSidePanelLayout } from "../model/useSidePanelLayout";
 import { collectToolEntryFilePaths } from "../model/toolEntryFiles";
 import { useProjectWorkspaceTabsPersistence } from "../model/useProjectWorkspaceTabsPersistence";
+import { finishWorkspaceWrites } from "../../../services/project/saveProjectWorkspaceState";
 import { useToolWorkspacePersistence } from "../model/useToolWorkspacePersistence";
 import { useWorkspaceUnsavedChangesGuard } from "../model/useWorkspaceUnsavedChangesGuard";
 import {
@@ -263,8 +264,7 @@ export function WorkspacePage({
       handleLayoutPreferenceChange({ sidePanelWidth });
     },
   });
-  const projectDocumentTabs = useDocumentTabs();
-  const toolDocumentTabs = useDocumentTabs();
+  const projectDocumentTabs = useDocumentTabs(projectCatalog.selectedProjectId);
   const {
     modal: unsavedChangesModal,
     requestTransition: requestUnsavedTransition,
@@ -275,6 +275,7 @@ export function WorkspacePage({
       readonly: !canModifyToolFolders(toolCatalog.selectedToolset),
     },
   );
+  const toolDocumentTabs = useDocumentTabs(toolFolders.selectedFolder?.project_id ?? null, "tools");
   const displayedToolset = useMemo(
     () => toolFolders.displayedToolsetId
       ? toolCatalog.items.find((item) => item.category_id === toolFolders.displayedToolsetId) ?? null
@@ -426,6 +427,7 @@ export function WorkspacePage({
         setWindowCloseError(null);
         try {
           if (!closeRequest) throw new Error("关闭请求已失效，请重新点击关闭按钮。");
+          await finishWorkspaceWrites();
           if (await closeDesktopShell(closeRequest.requestId) === false) {
             throw new Error("关闭请求已失效，请重新点击关闭按钮。");
           }
@@ -872,7 +874,7 @@ export function WorkspacePage({
 
   // ---- 工作区状态持久化 ----
   const activeSectionPid = projectCatalog.selectedProjectId;
-  const activeToolFolder = toolFolders.expandedFolder;
+  const activeToolFolder = toolFolders.selectedFolder;
   const activeToolsetId = toolFolders.displayedToolsetId;
   const projectWorkspaceTabs = useProjectWorkspaceTabsPersistence({
     documentTabs: projectDocumentTabs,
@@ -883,6 +885,7 @@ export function WorkspacePage({
   });
   const toolWorkspaceTabs = useToolWorkspacePersistence({
     activeToolFolder,
+    folderExpanded: !!activeToolFolder && toolFolders.expandedFolderId === activeToolFolder.project_id,
     activeToolsetId,
     browser: toolBrowser,
     documentTabs: toolDocumentTabs,

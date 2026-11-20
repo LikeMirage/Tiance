@@ -63,7 +63,7 @@ test("面板列出完整目录，选中旧提问只取该条正文，定位和�
     assert.deepEqual(located, [items[0]]);
     assert.equal(view.root.findAllByProps({ role: "dialog" }).length, 0);
     await act(async () => view.root.findByProps({ "aria-label": "用户消息列表", type: "button" }).props.onClick());
-    await act(async () => view.root.findByProps({ title: "查看引用内容" }).props.onClick());
+    await act(async () => view.root.findByProps({ "aria-label": "查看引用：项目（Tiance 项目）" }).props.onClick());
     assert.deepEqual(opened, [{ kind: "file", reference: reference.reference }]);
   } finally { await act(async () => view.unmount()); }
 });

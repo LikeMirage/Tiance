@@ -256,6 +256,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Grow with a zoomed canvas so centering never puts its left edge outside
+     the scrollable area; smaller slides still center in the viewport. */
+  width: max-content;
   min-width: 100%;
   min-height: 100%;
   padding: 18px;

@@ -11,7 +11,7 @@
     "image_scale_percent": {
       "permission_type": "none",
       "default": 60,
-      "description": "读取图片时返回给 AI 的宽高百分比，10 到 100。默认 60；看不清细节时可改为 80 或 100。100 表示直接返回原图。PNG 使用无损编码，JPEG/WebP 派生图使用明确的 90 质量编码，GIF 保留动画，BMP 派生为 PNG。该参数不影响文本读取，也不会修改原图。",
+      "description": "请求的图片宽高百分比，10 到 100，默认 60。辨认细节可用 100。超过模型最长边上限时会自动等比缩小，returned_width 和 returned_height 是实际返回尺寸。PNG 使用无损编码，JPEG/WebP 派生图使用质量 90，GIF 保留动画，BMP 派生为 PNG。原图保留。",
       "maximum": 100,
       "minimum": 10,
       "title": "图片尺寸百分比",

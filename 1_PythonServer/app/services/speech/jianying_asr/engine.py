@@ -11,6 +11,7 @@ from .common import ASRError, Budget, error_details, write_json
 from .export import FORMATS, write_outputs
 from .media import MAX_PARTS, SEGMENT_SECONDS, plan_parts, probe
 from .parallel import recognize_parts
+from .segmentation import refine_parts
 from .silk import prepare_source
 
 
@@ -59,14 +60,17 @@ def run(payload: dict, *, client_factory=JianyingClient, budget: Budget) -> dict
             # An exclusive job directory prevents overwrites and interleaved concurrent outputs.
             job_root = Path(tempfile.mkdtemp(prefix=source.stem + "_asr_", dir=output))
             (job_root / "parts").mkdir()
-            state = {"schema_version": 3, "input_path": str(source), "source_bytes": fingerprint[0],
+            state = {"schema_version": 4, "input_path": str(source), "source_bytes": fingerprint[0],
                      "source_mtime_ns": fingerprint[1], "duration_seconds": info.duration,
                      "target_segment_seconds": SEGMENT_SECONDS, "max_parts": MAX_PARTS,
-                     "split_mode": "balanced", "formats": formats, "status": "running",
+                     "split_mode": "silence_aware_balanced", "formats": formats, "status": "running",
                      "parts": [], "files": [], "warnings": []}
             if prepared != source:
                 state["source_decoding"] = "silk_v3_to_wav"
-            for start, length in plan_parts(info.duration, frame_seconds=info.copy_frame_seconds):
+            planned = plan_parts(info.duration, frame_seconds=info.copy_frame_seconds)
+            write_json(job_root / "job.json", state, budget=budget)
+            planned, state["segmentation"] = refine_parts(prepared, info, planned, budget)
+            for start, length in planned:
                 state["parts"].append({"part_number": len(state["parts"]) + 1,
                                        "start_seconds": start, "offset_ms": round(start * 1000),
                                        "duration_seconds": length, "status": "pending"})

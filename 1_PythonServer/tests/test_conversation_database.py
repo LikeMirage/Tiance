@@ -21,7 +21,7 @@ from app.repositories.project.conversation_database import (
     write_artifact_record,
 )
 from app.domain.project import Project
-from app.domain.llm.chat import ChatCompletionRequest, ChatMessage, ChatMessageRole, ChatUsage
+from app.domain.llm.chat import ChatCompletionRequest, ChatImageDelivery, ChatMessage, ChatMessageRole, ChatUsage
 from app.domain.llm.chat_http_exchange import ChatHttpExchange
 from app.domain.project.project_conversation import ProjectConversationMessage
 from app.repositories.project.conversation_data_view_repository import ConversationDataViewRepository
@@ -507,6 +507,7 @@ def test_http_exchange_is_stored_in_database_and_linked_from_journal(tmp_path: P
         project_id="project-1",
         session_id=session.session_id,
         run_id="run-1",
+        image_deliveries=(ChatImageDelivery(1, 1, "att_image", 10000, 5000, 8192, 4096, 8192),),
         messages=(
             ChatMessage(
                 role=ChatMessageRole.USER,
@@ -580,6 +581,8 @@ def test_http_exchange_is_stored_in_database_and_linked_from_journal(tmp_path: P
     assert artifacts[0]["compression"] == "gzip+audit-manifest-v2"
     assert 0 < artifacts[0]["stored_size_bytes"] < 4096
     assert artifacts[0]["content"]["request"]["body"]["input"] == large_input
+    delivery, = artifacts[0]["content"]["image_deliveries"]
+    assert (delivery["sent_width"], delivery["sent_height"]) == (8192, 4096)
     assert artifacts[0]["content"]["response"]["body"]["content"] == '{"output":"answer"}'
     assert not (
         tmp_path

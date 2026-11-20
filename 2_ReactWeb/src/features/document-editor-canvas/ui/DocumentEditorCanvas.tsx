@@ -2,6 +2,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "rea
 import type { ReactNode } from "react";
 
 import { useAiPanelLayout } from "../../ai-panel/model/useAiPanelLayout";
+import { isWebHomeTab } from "../../document-tabs/model/workspaceTabEntries";
 import { useHorizontalScrollAnimation } from "../../../shared/model/horizontal-scroll-animation/useHorizontalScrollAnimation";
 import { ConfirmModal } from "../../../shared/ui/confirm-modal/ConfirmModal";
 import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "../../../shared/ui/context-menu";
@@ -35,9 +36,17 @@ import {
 import { createMarkdownAssetUrlResolver } from "../model/markdownPreviewAssets";
 import { DocumentEditorActiveContent } from "./DocumentEditorActiveContent";
 import { DocumentEditorTabBar } from "./DocumentEditorTabBar";
+import { EditorWebPage } from "./EditorWebPage";
+import { EditorWebHome } from "./EditorWebHome";
+import { normalizeWebAddress, useEditorBrowserAvailable } from "../../../shared/desktop/editorBrowser";
 import "./document-editor-canvas.css";
 
 type Props = {
+  overviewTabs?: ReactNode;
+  onOpenWebTab: (url: string) => void;
+  onOpenDownloadedFile: (path: string) => Promise<void>;
+  onWebTabChanged: (id: string, url: string, title: string, favicon?: string) => void;
+  webPaneVisible: boolean;
   activeConversationMessageId?: string | null;
   activeConversationSessionId?: string | null;
   activeTab: DocumentTab | null;
@@ -92,6 +101,8 @@ type MarkdownDocxGenerationResult = {
 };
 
 export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
+  overviewTabs,
+  onOpenWebTab, onOpenDownloadedFile, onWebTabChanged, webPaneVisible,
   activeConversationMessageId = null, activeConversationSessionId = null, activeTab, activeTabId, aiPanelInitialWidth, assistantPanel = null, emptyContent = null, emptyMessage = "点击左侧文件树中的文件以打开", persistentEmptyContent = null, persistentEmptyContentVisible = false, projectConversationOverviewContent = null, projectKnowledgeContent = null, roleConfigurationContent = null, themeConfigurationContent = null, projectRootPath = "", onSaveCodeBlock, statusMessage = null, tabs, toolEntryCandidates = [],
   onCloseTab, onCloseOtherTabs, onCloseAllTabs,
   onAiPanelWidthCommit,
@@ -113,6 +124,9 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
     onWidthCommit: onAiPanelWidthCommit,
   });
   const hasAssistantPanel = Boolean(assistantPanel);
+  const webAvailable = useEditorBrowserAvailable();
+  const hasOverviewTabs = Boolean(overviewTabs);
+  const hasTabBar = webAvailable || hasOverviewTabs || tabs.length > 0;
   const hasPersistentEmptyContent = Boolean(persistentEmptyContent);
   const [pendingCloseAction, setPendingCloseAction] = useState<PendingCloseAction | null>(null);
   const [isCloseSaving, setIsCloseSaving] = useState(false);
@@ -310,8 +324,10 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
       }
     });
     observer.observe(tabBar);
+    const overviewGroup = tabBar.querySelector(".collection-view-tabs");
+    if (overviewGroup) observer.observe(overviewGroup);
     return () => observer.disconnect();
-  }, [scrollDocumentTabsTo]);
+  }, [hasTabBar, hasOverviewTabs, scrollDocumentTabsTo]);
 
   const resolveCloseTabs = (action: PendingCloseAction) => {
     if (action.mode === "single") {
@@ -434,6 +450,8 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
       <div className="workspace-page__canvas-chat-main">
         <div className="doc-editor">
           <DocumentEditorTabBar
+            overviewTabs={overviewTabs}
+            onNewWebTab={webAvailable ? () => onOpenWebTab("") : undefined}
             activeTabId={activeTabId}
             onCancelAutoScroll={cancelDocumentTabScroll}
             tabBarRef={tabBarRef}
@@ -474,7 +492,19 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
             >
               <DocumentReadingStateProvider activeKey={activeTabId ?? ""} openKeys={tabs.map((tab) => tab.id)}>
               <DocumentRevealContext.Provider value={activeTab?.revealRequest ?? null}>
-              <DocumentEditorActiveContent
+              {activeTab?.kind === "web" ? (
+                webAvailable
+                  ? <EditorWebPage key={activeTab.id} tab={activeTab} workspaceRoot={activeTab.projectId ? projectRootPath : ""}
+                      visible={webPaneVisible && !persistentEmptyContentVisible} onChange={onWebTabChanged} onOpenWebTab={onOpenWebTab}
+                      onSelectHome={() => {
+                        const home = tabs.find(isWebHomeTab);
+                        if (home) onSelectTab(home.id);
+                      }} onOpenFile={onOpenDownloadedFile} />
+                  : activeTab.displayPath
+                    ? <div className="doc-editor__empty"><a href={activeTab.displayPath} target="_blank" rel="noreferrer">在浏览器中打开 {activeTab.title}</a></div>
+                    : <EditorWebHome visible={webPaneVisible && !persistentEmptyContentVisible}
+                        onNavigate={url => window.open(url, "_blank", "noopener,noreferrer")} />
+              ) : <DocumentEditorActiveContent
                 activeConversationMessageId={activeConversationMessageId}
                 activeConversationSessionId={activeConversationSessionId}
                 activeTab={activeTab}
@@ -527,7 +557,7 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
                 toolDashboardView={toolDashboardView}
                 toolDependencyTarget={toolDependencyTarget}
                 toolEntryCandidates={toolEntryCandidates}
-              />
+              />}
               </DocumentRevealContext.Provider>
               </DocumentReadingStateProvider>
             </div>
@@ -543,7 +573,15 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
             onPointerDown={aiPanel.handleResizeStart} onDoubleClick={aiPanel.resetWidth} />
 
           {/* AI 面板 */}
-          <aside className="workspace-page__ai-panel" style={{ width: aiPanel.width }}>
+          <aside className="workspace-page__ai-panel" style={{ width: aiPanel.width }} onClick={event => {
+            if (!webAvailable || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+            const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+            if (!link || !/^https?:\/\//i.test(link.getAttribute("href") || "")) return;
+            let url: string;
+            try { url = normalizeWebAddress(link.href); } catch { return; }
+            event.preventDefault();
+            onOpenWebTab(url);
+          }}>
             {assistantPanel}
           </aside>
         </>
@@ -566,7 +604,7 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => { copyTabPath(contextMenu.tabId); setContextMenu(null); }}>
-            复制路径
+              {tabs.find(tab => tab.id === contextMenu.tabId)?.kind === "web" ? "复制网址" : "复制路径"}
           </ContextMenuItem>
         </ContextMenu>
       )}

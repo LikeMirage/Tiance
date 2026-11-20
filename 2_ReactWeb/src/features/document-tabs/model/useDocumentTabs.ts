@@ -1,10 +1,12 @@
 import { documentDisplayPath } from "../../../entities/editor/model/documentFilePath";
+import { editorBrowser } from "../../../shared/desktop/editorBrowser";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type {
   DocumentFileSource,
   DocumentTab,
   EditorTabId,
+  WorkspaceTabEntry,
 } from "../../../entities/editor/model/editorDocument";
 import type { EditorReferenceViewerPayload } from "../../../entities/editor/model/editorReference";
 import type { ExplorerNode } from "../../../entities/explorer-node/model/explorerNode";
@@ -44,6 +46,7 @@ import {
 } from "./documentToolDashboardTabs";
 import { useDocumentTabFileSync } from "./useDocumentTabFileSync";
 import { useDocumentTabRestore } from "./useDocumentTabRestore";
+import { createHomeTab, createWebTab, isOverviewEditorTab, isWebHomeTab, readOverviewTabs, restoreWorkspaceTabEntries, snapshotWorkspaceTabs, webKey, webTabTitle } from "./workspaceTabEntries";
 import { useDocumentReveal } from "./useDocumentReveal";
 import {
   markDocumentTextContentAccessed,
@@ -61,22 +64,112 @@ import {
   buildVirtualReferenceViewerTab,
 } from "./documentVirtualTabs";
 
-export function useDocumentTabs() {
-  const [tabs, setTabs] = useState<DocumentTab[]>([]);
-  const [activeTabId, setActiveTabId] = useState<EditorTabId | null>(null);
+export function useDocumentTabs(projectId: string | null, group = "projects") {
+  const [initial] = useState(() => restoreWorkspaceTabEntries(
+    projectId === null ? readOverviewTabs(group) : [], [], [], projectId, group, true,
+  ));
+  const [tabs, setTabs] = useState<DocumentTab[]>(initial.tabs);
+  const [activeTabId, setActiveTabId] = useState<EditorTabId | null>(initial.savedActiveId);
+  const webTabsOnEntry = useRef<{ keys: Set<string>; activeId: string | null } | null>({
+    keys: new Set(initial.tabs.map(webKey)), activeId: initial.savedActiveId,
+  });
   const tabsRef = useRef(tabs);
+  const webTabIds = useRef(new Set<string>());
+  const currentProject = useRef(projectId);
+  const parkedTabs = useRef(new Map<string | null, { tabs: DocumentTab[]; activeId: EditorTabId | null }>());
   const activeTabIdRef = useRef(activeTabId);
   const restoreRequestIdRef = useRef(0);
   const fileLoadRequestIdsRef = useRef(new Map<EditorTabId, number>());
   const loadedToolDashboardTabIdsRef = useRef(new Set<EditorTabId>());
 
   useLayoutEffect(() => {
+    const retained = new Set(tabs.filter(tab => tab.kind === "web" && !isWebHomeTab(tab)).map(tab => tab.id));
+    for (const workspace of parkedTabs.current.values()) {
+      for (const tab of workspace.tabs) if (tab.kind === "web" && !isWebHomeTab(tab)) retained.add(tab.id);
+    }
+    for (const id of webTabIds.current) {
+      if (!retained.has(id)) void editorBrowser.close(id);
+    }
+    webTabIds.current = retained;
     tabsRef.current = tabs;
   }, [tabs]);
+
+  useEffect(() => () => {
+    for (const id of webTabIds.current) void editorBrowser.close(id);
+  }, []);
 
   useLayoutEffect(() => {
     activeTabIdRef.current = activeTabId;
   }, [activeTabId]);
+
+  useLayoutEffect(() => {
+    if (currentProject.current === projectId) return;
+    const parked = parkedTabs.current;
+    const retained = tabsRef.current.filter(isOverviewEditorTab);
+    if (retained.length) {
+      parked.set(currentProject.current, {
+        tabs: retained,
+        activeId: retained.find(tab => tab.id === activeTabIdRef.current)?.id ?? null,
+      });
+    }
+    let returning = parked.get(projectId);
+    if (!returning && projectId === null) {
+      const overview = restoreWorkspaceTabEntries(readOverviewTabs(group), [], [], null, group, true);
+      returning = { tabs: overview.tabs, activeId: overview.savedActiveId };
+    }
+    parked.delete(projectId);
+    currentProject.current = projectId;
+    restoreRequestIdRef.current += 1;
+    fileLoadRequestIdsRef.current.clear();
+    tabsRef.current = [...tabsRef.current.filter(tab => !isOverviewEditorTab(tab)), ...(returning?.tabs ?? [createHomeTab(projectId, group)])];
+    activeTabIdRef.current = returning?.activeId ?? null;
+    webTabsOnEntry.current = {
+      keys: new Set(returning?.tabs.filter(tab => tab.kind === "web").map(webKey)), activeId: activeTabIdRef.current,
+    };
+    setTabs(tabsRef.current);
+    setActiveTabId(activeTabIdRef.current);
+  }, [group, projectId]);
+
+  useLayoutEffect(() => {
+    if (projectId !== null || tabs !== tabsRef.current) return;
+    try {
+      const entries = snapshotWorkspaceTabs(tabs, activeTabId, null, () => null);
+      window.localStorage.setItem(`tiance.overview-tabs.${group}`, JSON.stringify(entries));
+    } catch { /* Storage may be unavailable in a private browser. */ }
+  }, [projectId, tabs, activeTabId, group]);
+
+  const replaceWorkspaceFiles = useCallback((files: DocumentTab[], activeFileId: EditorTabId | null, entries?: WorkspaceTabEntry[]) => {
+    const webTabs = tabsRef.current.filter(tab => tab.kind === "web");
+    const scope = currentProject.current;
+    const entry = entries === undefined ? null : webTabsOnEntry.current;
+    const liveKeys = new Set(webTabs.map(webKey));
+    // Respect tabs closed locally while disk state was loading.
+    const saved = (entries ?? []).filter(tab => tab.kind !== "web" || !entry?.keys.has(tab.id) || liveKeys.has(tab.id));
+    const { tabs: nextTabs, savedActiveId } = restoreWorkspaceTabEntries(saved, files, webTabs, scope, group, Boolean(entry));
+    if (entries !== undefined) webTabsOnEntry.current = null;
+    const activeWebId = entry && activeTabIdRef.current === entry.activeId
+      ? savedActiveId : webTabs.find(tab => tab.id === activeTabIdRef.current)?.id ?? null;
+    tabsRef.current = nextTabs;
+    activeTabIdRef.current = activeWebId ?? activeFileId;
+    setTabs(nextTabs);
+    setActiveTabId(activeTabIdRef.current);
+    return activeWebId;
+  }, [group]);
+
+  const resetWorkspaceFiles = useCallback(() => {
+    restoreRequestIdRef.current += 1;
+    fileLoadRequestIdsRef.current.clear();
+    if (currentProject.current === null) {
+      const overviewTabs = tabsRef.current.filter(tab => tab.projectId === null && isOverviewEditorTab(tab));
+      const active = overviewTabs.find(tab => tab.id === activeTabIdRef.current)?.id ?? null;
+      tabsRef.current = overviewTabs;
+      activeTabIdRef.current = active;
+      setTabs(overviewTabs);
+      setActiveTabId(active);
+    } else {
+      replaceWorkspaceFiles([], null);
+    }
+  }, [replaceWorkspaceFiles]);
 
   const getSnapshot = useCallback(() => ({
     activeTabId: activeTabIdRef.current,
@@ -103,8 +196,7 @@ export function useDocumentTabs() {
   } = useDocumentTabRestore({
     registerFileSource,
     restoreRequestIdRef,
-    setActiveTabId,
-    setTabs,
+    replaceWorkspaceFiles,
   });
   const openWorkspaceFile = useCallback(async (
     node: ExplorerNode,
@@ -208,44 +300,44 @@ export function useDocumentTabs() {
     }
   }, []);
 
-  const closeOtherTabs = useCallback((tabId: EditorTabId) => {
+  const closeOtherTabs = useCallback((tabId: EditorTabId, webOnly = false) => {
     setTabs((prev) => {
       const keep = prev.find((tab) => tab.id === tabId);
       if (!keep) return prev;
       for (const tab of prev) {
-        if (tab.id !== tabId && !isPinnedDocumentTab(tab)) {
+        if (tab.id !== tabId && !isPinnedDocumentTab(tab) && (!webOnly || tab.kind === "web")) {
           fileLoadRequestIdsRef.current.delete(tab.id);
         }
       }
       setActiveTabId(tabId);
-      return prev.filter((tab) => tab.id === tabId || isPinnedDocumentTab(tab));
+      return prev.filter((tab) => tab.id === tabId || isPinnedDocumentTab(tab) || (webOnly && tab.kind !== "web"));
     });
   }, []);
 
-  const closeAllTabs = useCallback((options?: { preservePinned?: boolean }) => {
-    restoreRequestIdRef.current += 1;
-    if (!options?.preservePinned) {
+  const closeAllTabs = useCallback((options?: { preservePinned?: boolean; webOnly?: boolean }) => {
+    if (!options?.webOnly) restoreRequestIdRef.current += 1;
+    if (!options?.preservePinned && !options?.webOnly) {
       fileLoadRequestIdsRef.current.clear();
-      setTabs([]);
+      setTabs([createHomeTab(currentProject.current, group)]);
       setActiveTabId(null);
       return;
     }
 
     setTabs((prev) => {
-      const pinnedTabs = prev.filter(isPinnedDocumentTab);
-      const pinnedIds = new Set(pinnedTabs.map((tab) => tab.id));
+      const remaining = prev.filter(tab => isPinnedDocumentTab(tab) || (options.webOnly && tab.kind !== "web"));
+      const remainingIds = new Set(remaining.map((tab) => tab.id));
       for (const tab of prev) {
-        if (!pinnedIds.has(tab.id)) {
+        if (!remainingIds.has(tab.id)) {
           fileLoadRequestIdsRef.current.delete(tab.id);
         }
       }
-      const nextActive = activeTabIdRef.current && pinnedIds.has(activeTabIdRef.current)
+      const nextActive = activeTabIdRef.current && remainingIds.has(activeTabIdRef.current)
         ? activeTabIdRef.current
-        : pinnedTabs[0]?.id ?? null;
+        : remaining[0]?.id ?? null;
       setActiveTabId(nextActive);
-      return pinnedTabs;
+      return remaining;
     });
-  }, []);
+  }, [group]);
 
   const loadToolDashboardTabContent = useCallback(async (
     runtime: DocumentFileSourceRuntime,
@@ -308,7 +400,12 @@ export function useDocumentTabs() {
     }
   }, []);
 
-  const selectTab = useCallback((tabId: EditorTabId) => {
+  const selectTab = useCallback((tabId: EditorTabId | null) => {
+    if (tabId === null) {
+      activeTabIdRef.current = null;
+      setActiveTabId(null);
+      return;
+    }
     const tab = tabsRef.current.find((item) => item.id === tabId);
     if (!tab) return;
     activeTabIdRef.current = tabId;
@@ -333,6 +430,32 @@ export function useDocumentTabs() {
   }, [renameWorkspacePath]);
 
   const { revealProjectFile, revealReference } = useDocumentReveal({ getSnapshot, openNode, selectTab, tabs, activeTabId, setTabs });
+
+  const openWebTab = useCallback((url: string, projectId: string | null) => {
+    const tab = createWebTab(projectId, group, { kind: "web", id: crypto.randomUUID(), url, title: "", active: true });
+    const id = tab.id;
+    tabsRef.current = [...tabsRef.current, tab];
+    activeTabIdRef.current = id;
+    setTabs(tabsRef.current);
+    setActiveTabId(id);
+    return id;
+  }, [group]);
+
+  const updateWebTab = useCallback((id: string, url: string, title: string, favicon?: string) => {
+    setTabs(previous => previous.map(tab => {
+      if (tab.id !== id || isWebHomeTab(tab)) return tab;
+      const nextTitle = webTabTitle(url, title);
+      if (url) {
+        const nextIcon = favicon ?? (tab.displayPath === url ? tab.favicon : undefined);
+        return { ...tab, displayPath: url, title: nextTitle, favicon: nextIcon || undefined, webHomeReturnPage: undefined };
+      }
+      if (!tab.displayPath) return tab;
+      return {
+        ...tab, displayPath: "", title: nextTitle, favicon: undefined,
+        webHomeReturnPage: { url: tab.displayPath, title: tab.title, favicon: tab.favicon },
+      };
+    }));
+  }, []);
 
   const openVirtualHtmlPreview = useCallback((html: string, options?: { projectId?: string | null }) => {
     const newTab = buildVirtualHtmlPreviewTab(html, {
@@ -892,11 +1015,14 @@ export function useDocumentTabs() {
     openVirtualConversationBranches,
     openVirtualConversationData,
     openVirtualHtmlPreview,
+    openWebTab,
+    updateWebTab,
     openVirtualMemoryDashboard,
     openVirtualReferenceViewer,
     openWorkspaceFile,
     renameProjectPath,
     renameWorkspacePath,
+    resetWorkspaceFiles,
     restoreTabs,
     restoreWorkspaceTabs,
     saveActiveTab,
@@ -927,11 +1053,14 @@ export function useDocumentTabs() {
     openVirtualConversationBranches,
     openVirtualConversationData,
     openVirtualHtmlPreview,
+    openWebTab,
+    updateWebTab,
     openVirtualMemoryDashboard,
     openVirtualReferenceViewer,
     openWorkspaceFile,
     renameProjectPath,
     renameWorkspacePath,
+    resetWorkspaceFiles,
     restoreTabs,
     restoreWorkspaceTabs,
     saveActiveTab,

@@ -62,8 +62,8 @@ class EmbeddedRuntimeContractTests(unittest.TestCase):
 
 
 class ShellConfigPortSelectionTests(unittest.TestCase):
-    def test_development_frontend_requires_explicit_configuration(self) -> None:
-        for configured, expected in [(None, ""), ("", ""), (" http://127.0.0.1:18100 ", "http://127.0.0.1:18100")]:
+    def test_development_frontend_defaults_to_vite_and_honors_overrides(self) -> None:
+        for configured, expected in [(None, "http://127.0.0.1:18100"), ("", ""), (" http://localhost:18101 ", "http://localhost:18101")]:
             environment = {} if configured is None else {"TIANCE_FRONTEND_DEV_URL": configured}
             with self.subTest(configured=configured), patch.dict(os.environ, environment, clear=True), patch.object(shell_config, "is_port_open", return_value=False):
                 settings = shell_config.load_settings()
@@ -537,7 +537,10 @@ class StartupPageTests(unittest.TestCase):
             self.assertIn("const backendResult = await ensureBackendRunning();", page)
             self.assertIn("后端服务启动失败：${backendError}", page)
             self.assertIn('"textMuted"', page)
-            self.assertIn('<div class="wordmark">Tiance</div>', page)
+            mark = (shell_config.SHELL_ROOT / "assets/startup/tiance-startup-wordmark.svg").read_text(encoding="utf-8").strip()
+            self.assertIn(f'<div class="wordmark">{mark}</div>', page)
+            self.assertEqual(mark, (shell_config.PROJECT_ROOT / "2_ReactWeb/public/tiance-startup-wordmark.svg").read_text(encoding="utf-8").strip())
+            self.assertNotIn("data:font/", page)
             self.assertNotIn("startup-background.png", page)
             self.assertNotIn("data:image/", page)
             # WebView2 NavigateToString accepts at most 2 MB of HTML.

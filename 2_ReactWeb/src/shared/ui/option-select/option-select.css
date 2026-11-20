@@ -246,3 +246,28 @@
 .ds-option-select--integrated .ds-option-select__option + .ds-option-select__option {
   border-top: 0;
 }
+
+.ds-option-select--underline,
+.ds-option-select--underline.ds-option-select--open {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ds-option-select--underline .ds-option-select__trigger,
+.ds-option-select--underline.ds-option-select--open .ds-option-select__trigger {
+  flex: 1;
+  border-bottom: 2px solid var(--color-accent);
+  border-radius: 0;
+  background: transparent;
+}
+
+.ds-option-select--underline .ds-option-select__trigger:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 -2px var(--color-accent);
+}
+
+.ds-option-select--underline .ds-option-select__trigger:is(:hover, :focus-visible):enabled .ds-option-select__value {
+  color: var(--color-accent);
+}

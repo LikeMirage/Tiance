@@ -37,6 +37,7 @@ def build_conversation_injection_preview(
             "session_id": request.session_id,
             "provider_id": request.provider_id,
             "model_id": request.model_id,
+            **({"image_deliveries": [asdict(item) for item in request.image_deliveries]} if request.image_deliveries else {}),
             "preview_source": preview_source,
             "inject_message_timestamps": request.inject_message_timestamps,
             "malformed_tool_call_recovery_enabled": (

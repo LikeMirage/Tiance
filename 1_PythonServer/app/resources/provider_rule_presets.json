@@ -40,7 +40,13 @@
         "families": {},
         "models": {
           "deepseek-flash": {
-            "capabilityTags": ["reasoning", "vision", "function_calling"]
+            "capabilityTags": ["reasoning", "vision", "function_calling"],
+            "capabilities": {
+              "vision": {
+                "maxImageLongEdgePx": 8192,
+                "multiImageLimit": {"minImages": 15, "maxImageLongEdgePx": 4096}
+              }
+            }
           }
         }
       }

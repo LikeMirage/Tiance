@@ -21,7 +21,7 @@ class FileReferenceRequest(BaseModel):
     source: Literal["project_file", "external_path"]
     project_id: str | None = None
     session_id: str | None = None
-    owner_project_id: str
+    owner_project_id: str | None
 
 
 @router.post("/file-references/resolve")

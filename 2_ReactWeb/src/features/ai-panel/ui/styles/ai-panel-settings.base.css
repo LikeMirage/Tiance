@@ -48,6 +48,7 @@
   display: grid;
   gap: 12px;
   padding: 0;
+  color: var(--color-text-primary);
 }
 
 .ai-panel__field {

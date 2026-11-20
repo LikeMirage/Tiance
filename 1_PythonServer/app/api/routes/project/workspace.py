@@ -23,13 +23,7 @@ def get_project_workspace_state(project_id: str) -> ProjectWorkspaceStateRespons
     state = service.get_state(project_id)
     if state is None:
         return ProjectWorkspaceStateResponse(project_id=project_id)
-    return ProjectWorkspaceStateResponse(
-        project_id=project_id,
-        expanded_paths=state.get("expanded_paths", []),
-        open_file_paths=state.get("open_file_paths", []),
-        active_file_path=state.get("active_file_path"),
-        active_dashboard=state.get("active_dashboard"),
-    )
+    return ProjectWorkspaceStateResponse(project_id=project_id, **state)
 
 
 @router.put(
@@ -45,6 +39,7 @@ def save_project_workspace_state(
     state = service.save_state(
         project_id,
         expanded_paths=payload.expanded_paths,
+        open_tabs=payload.model_dump(mode="json")["open_tabs"],
         open_file_paths=payload.open_file_paths,
         active_file_path=payload.active_file_path,
         active_dashboard=payload.active_dashboard,
@@ -66,6 +61,7 @@ def patch_project_workspace_state(
         project_id,
         expanded_paths=payload.expanded_paths,
         should_update_expanded_paths="expanded_paths" in payload.model_fields_set,
+        open_tabs=payload.model_dump(mode="json")["open_tabs"],
         open_file_paths=payload.open_file_paths,
         should_update_open_file_paths="open_file_paths" in payload.model_fields_set,
         active_file_path=payload.active_file_path,
@@ -94,6 +90,8 @@ def apply_project_workspace_tabs_action(
         action=payload.action,
         path=payload.path,
         paths=payload.paths,
+        url=payload.url,
+        tab_id=str(payload.tab_id) if payload.tab_id is not None else None,
     )
     missing_file_paths: list[str] = []
     for file_path in state["open_file_paths"]:

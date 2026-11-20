@@ -381,6 +381,7 @@ class ProjectConversationService:
         session_id: str,
         *,
         limit: int | None = None,
+        turn_limit: int | None = None,
         before_message_id: str | None = None,
         after_message_id: str | None = None,
     ) -> ProjectConversationMessagePage:
@@ -388,6 +389,7 @@ class ProjectConversationService:
             project_id,
             session_id,
             limit=limit,
+            turn_limit=turn_limit,
             before_message_id=before_message_id,
             after_message_id=after_message_id,
         )

@@ -1,0 +1,22 @@
+/* Shared by the browser chrome and the adapted top-level web document. */
+@media (forced-colors: none) {
+  :where([data-tiance-web-scrollbars], [data-tiance-web-scrollbars] *) {
+    &::-webkit-scrollbar {
+      width: var(--tiance-web-scrollbar-size);
+      height: var(--tiance-web-scrollbar-size);
+    }
+    &::-webkit-scrollbar-track, &::-webkit-scrollbar-corner {
+      background: var(--tiance-web-scrollbar-track);
+    }
+    &::-webkit-scrollbar-thumb {
+      border: 3px solid transparent;
+      border-radius: 999px;
+      background: var(--tiance-web-scrollbar-thumb) padding-box;
+    }
+    &::-webkit-scrollbar-thumb:hover, &::-webkit-scrollbar-thumb:active {
+      border-width: 2px;
+      background-color: var(--tiance-web-scrollbar-hover);
+    }
+    &::-webkit-scrollbar-button { display: none; }
+  }
+}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import json
 import os
 import time
@@ -105,33 +106,84 @@ def resolve_active_site_packages(packages_root: Path) -> Path:
 
 class EnvironmentLock:
     def __init__(self, packages_root: Path) -> None:
-        self._lock_file = packages_root / ".package-manager.lock"
-        self._acquired = False
+        self._root = packages_root
+        self._handle = None
 
     def __enter__(self) -> "EnvironmentLock":
-        self._lock_file.parent.mkdir(parents=True, exist_ok=True)
-        self._remove_stale_lock()
+        self._root.mkdir(parents=True, exist_ok=True)
+        # Keep a stable inode. Closing the handle (including process death)
+        # releases the OS lock; removing its file would race other openers.
+        handle = (self._root / ".package-manager.guard").open("a+b")
         try:
-            descriptor = os.open(self._lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError as exc:
-            raise EnvironmentError("ENVIRONMENT_BUSY", "另一个依赖管理任务正在运行。") from exc
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(f"pid={os.getpid()}\ncreated={time.time()}\n")
-        self._acquired = True
+            handle.seek(0)
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError as exc:
+                if exc.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                    raise
+                raise self._busy() from exc
+            self._recover_legacy_lock()
+        except BaseException:
+            handle.close()
+            raise
+        self._handle = handle
         return self
 
     def __exit__(self, _exc_type, _exc, _traceback) -> None:
-        if self._acquired:
-            self._lock_file.unlink(missing_ok=True)
-            self._acquired = False
+        if self._handle is not None:
+            self._handle.close()
+            self._handle = None
 
-    def _remove_stale_lock(self) -> None:
+    def _busy(self) -> EnvironmentError:
+        return EnvironmentError("ENVIRONMENT_BUSY", "同一 Python 依赖目录正被另一项依赖操作占用，请在该操作结束后重试。",
+                                {"environment_root": str(self._root)})
+
+    def _recover_legacy_lock(self) -> None:
+        marker = self._root / ".package-manager.lock"
         try:
-            age = time.time() - self._lock_file.stat().st_mtime
+            with marker.open("rb") as handle:
+                age = time.time() - os.fstat(handle.fileno()).st_mtime
+                first_line = handle.readline(64).strip()
         except FileNotFoundError:
             return
-        if age > 1800:
-            self._lock_file.unlink(missing_ok=True)
+        pid = first_line.removeprefix(b"pid=")
+        if first_line.startswith(b"pid=") and pid.isdigit() and 0 < int(pid) <= 0x7fffffff:
+            if _legacy_owner_alive(int(pid)):
+                raise self._busy()
+        elif age < 1800:
+            # An old process may still be writing the marker.
+            raise EnvironmentError("ENVIRONMENT_BUSY", "旧版依赖锁缺少有效的进程信息，暂时无法确认占用状态。",
+                                   {"environment_root": str(self._root)})
+        marker.unlink(missing_ok=True)
+
+
+def _legacy_owner_alive(pid: int) -> bool:
+    if os.name == "nt":
+        import _winapi
+        try:
+            handle = _winapi.OpenProcess(_winapi.SYNCHRONIZE, False, pid)
+        except PermissionError:
+            return True
+        except OSError as exc:
+            if exc.winerror == 87:  # ERROR_INVALID_PARAMETER for a nonexistent PID
+                return False
+            raise
+        try:
+            return _winapi.WaitForSingleObject(handle, 0) == _winapi.WAIT_TIMEOUT
+        finally:
+            _winapi.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def _is_relative_to(path: Path, root: Path) -> bool:

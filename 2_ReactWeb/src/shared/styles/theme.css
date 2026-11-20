@@ -66,6 +66,7 @@
   --editor-active-line: rgba(255, 255, 255, 0.03);
   --editor-selection-match: rgba(222, 160, 89, 0.12);
   --editor-tooltip-background: #2a2a2a;
+  --editor-tab-width: 128px;
   --structure-line-color: rgba(255, 255, 255, 0.06);
   --structure-line-hover-color: rgba(255, 255, 255, 0.12);
   --structure-line-active-color: rgba(222, 160, 89, 0.42);

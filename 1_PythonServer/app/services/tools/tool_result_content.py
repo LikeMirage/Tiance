@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import replace
 from json import loads
 from pathlib import PurePosixPath
+import re
 
+from app.core.errors import BadRequestError, NotFoundError
 from app.domain.llm.chat import (
     ChatImageRef,
     ChatMessage,
@@ -30,7 +32,7 @@ _SUPPORTED_IMAGE_MIME_TYPES = {
 def image_parts_from_tool_results(
     results: Iterable[ChatToolResult],
 ) -> tuple[ChatMessageContentPart, ...]:
-    return _deduplicate_parts(
+    return deduplicate_image_parts(
         part
         for result in results
         if result.ok
@@ -41,7 +43,7 @@ def image_parts_from_tool_results(
 def image_parts_from_tool_messages(
     messages: Iterable[ChatMessage],
 ) -> tuple[ChatMessageContentPart, ...]:
-    return _deduplicate_parts(
+    return deduplicate_image_parts(
         part
         for message in messages
         if message.role == ChatMessageRole.TOOL
@@ -51,7 +53,9 @@ def image_parts_from_tool_messages(
     )
 
 
-def image_parts_from_tool_content(content: str) -> tuple[ChatMessageContentPart, ...]:
+def image_parts_from_tool_content(
+    content: str, *, snapshot: Callable[[ChatImageRef, str | None], ChatImageRef] | None = None,
+) -> tuple[ChatMessageContentPart, ...]:
     try:
         payload = loads(content)
     except (TypeError, ValueError):
@@ -65,9 +69,34 @@ def image_parts_from_tool_content(content: str) -> tuple[ChatMessageContentPart,
     parts: list[ChatMessageContentPart] = []
     for block in blocks:
         part = _image_part_from_resource_link(block)
-        if part is not None:
-            parts.append(part)
-    return _deduplicate_parts(parts)
+        if part is None or part.image_ref is None:
+            continue
+        if snapshot is not None:
+            ref = _snapshot_tool_image(block, part.image_ref, snapshot)
+            part = replace(part, image_ref=ref)
+        parts.append(part)
+    return deduplicate_image_parts(parts)
+
+
+def _snapshot_tool_image(block: dict, returned: ChatImageRef, snapshot: Callable) -> ChatImageRef:
+    metadata = block.get("_meta")
+    source = metadata.get("tiance/imageSource") if isinstance(metadata, dict) else None
+    if isinstance(source, dict):
+        digest = source.get("sha256")
+        scale = source.get("scalePercent")
+        path = canonical_local_resource_uri(source.get("uri"))
+        mime = _normalize_mime_type(source.get("mimeType"))
+        valid_scale = type(scale) is int and 1 <= scale <= 100
+        valid_digest = isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest)
+        if path and mime and valid_scale and valid_digest:
+            ref = ChatImageRef(path=path, name=_optional_string(source.get("name")), mime_type=mime,
+                               detail=returned.detail, scale_percent=scale)
+            try:
+                return snapshot(ref, digest)
+            except (BadRequestError, NotFoundError, FileNotFoundError, PermissionError):
+                # A renamed or edited source must not replace what the tool actually read.
+                pass
+    return snapshot(returned, None)
 
 
 def tool_resource_message(
@@ -97,7 +126,7 @@ def without_tool_resource_messages(
         target = restored[target_index]
         restored[target_index] = replace(
             target,
-            content_parts=_deduplicate_parts(
+            content_parts=deduplicate_image_parts(
                 (
                     *target.content_parts,
                     *message.content_parts,
@@ -190,16 +219,19 @@ def _is_for_assistant(value: object) -> bool:
     return isinstance(audience, list) and "assistant" in audience
 
 
-def _deduplicate_parts(
+def deduplicate_image_parts(
     parts: Iterable[ChatMessageContentPart],
 ) -> tuple[ChatMessageContentPart, ...]:
     unique: list[ChatMessageContentPart] = []
-    seen: set[str] = set()
+    seen: set[tuple[str, int]] = set()
     for part in parts:
-        if part.image_ref is None or part.image_ref.path in seen:
+        if part.image_ref is None:
+            continue
+        key = (part.image_ref.path, part.image_ref.scale_percent)
+        if key in seen:
             continue
         unique.append(part)
-        seen.add(part.image_ref.path)
+        seen.add(key)
     return tuple(unique)
 
 

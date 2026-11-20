@@ -409,7 +409,7 @@ html.ds-window-resizing .toolset-overview__card:hover {
 
 .tool-dashboard-host {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   height: 100%;
   min-height: 0;
 }

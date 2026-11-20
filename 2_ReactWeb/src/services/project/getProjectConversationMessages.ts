@@ -1,4 +1,5 @@
-export const CONVERSATION_MESSAGE_PAGE_SIZE = 80;
+// Count user turns, not the assistant/tool records within each task.
+export const CONVERSATION_TURN_PAGE_SIZE = 80;
 
 import type { ConversationMessageListResponse } from "../../entities/llm-chat/model/conversation";
 import { fetchJson } from "../http/httpClient";
@@ -10,12 +11,16 @@ export function getProjectConversationMessages(
     beforeMessageId?: string | null;
     afterMessageId?: string | null;
     limit?: number | null;
+    turnLimit?: number | null;
     signal?: AbortSignal;
   } = {},
 ) {
   const params = new URLSearchParams();
   if (options.limit !== null && options.limit !== undefined) {
     params.set("limit", String(options.limit));
+  }
+  if (options.turnLimit !== null && options.turnLimit !== undefined) {
+    params.set("turn_limit", String(options.turnLimit));
   }
   if (options.beforeMessageId) {
     params.set("before_message_id", options.beforeMessageId);

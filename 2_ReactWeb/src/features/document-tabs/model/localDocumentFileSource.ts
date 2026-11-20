@@ -3,9 +3,9 @@ import { HttpRequestError } from "../../../services/http/httpClient";
 import { readLocalEditorMetadata, readLocalEditorText, saveLocalEditorText } from "../../../services/editor/localEditorFiles";
 import type { DocumentFileSourceRuntime } from "./documentFileSources";
 
-export function createLocalDocumentSource(root: string, ownerProjectId: string): DocumentFileSourceRuntime {
+export function createLocalDocumentSource(root: string, ownerProjectId: string | null): DocumentFileSourceRuntime {
   const source = { kind: "local" as const, id: root, projectId: ownerProjectId,
-    key: `local:${ownerProjectId}:${root}` };
+    key: `local:${ownerProjectId ?? ""}:${root}` };
   const absolute = (path: string) => documentDisplayPath(source, path);
   return {
     source,

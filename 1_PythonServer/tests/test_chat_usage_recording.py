@@ -1,14 +1,20 @@
 import asyncio
+from base64 import b64decode, b64encode
 from dataclasses import replace
+from io import BytesIO
 from threading import Event
 
 import httpx
 import pytest
+from PIL import Image
 
 from app.domain.llm.chat import (
     ChatCompletionRequest,
     ChatCompletionResult,
+    ChatImageUrl,
     ChatMessage,
+    ChatMessageContentPart,
+    ChatMessageContentPartType,
     ChatMessageRole,
     ChatStreamEvent,
     ChatStreamEventKind,
@@ -71,6 +77,26 @@ def test_complete_records_usage_in_chat_service_layer():
             "usage_feature_key": "main_chat",
         }
     ]
+
+
+@pytest.mark.parametrize("streaming", (False, True))
+def test_final_request_limits_inline_images_in_both_chat_modes(streaming):
+    image = BytesIO()
+    Image.new("RGB", (10000, 25)).save(image, "PNG")
+    part = ChatMessageContentPart(type=ChatMessageContentPartType.IMAGE_URL,
+        image_url=ChatImageUrl("data:image/png;base64," + b64encode(image.getvalue()).decode("ascii")))
+    request = _request(project_id=None, session_id=None)
+    request = replace(request, messages=(replace(request.messages[0], content_parts=(part,)),))
+    completion = ChatCompletionResult(provider_id=request.provider_id, model_id=request.model_id,
+                                      message=ChatMessage(role=ChatMessageRole.ASSISTANT, content="ok"))
+    remote = _SequencedRemoteClient(complete_attempts=(completion,), stream_attempts=((ChatStreamEvent(kind=ChatStreamEventKind.DONE),),))
+    service = _build_service(remote_client=remote, usage_service=_FakeUsageService())
+    asyncio.run(_collect_stream(service, request) if streaming else service.complete(request))
+    sent, = remote.requests
+    delivery, = sent.image_deliveries
+    assert (delivery.sent_width, delivery.sent_height) == (8192, 20)
+    with Image.open(BytesIO(b64decode(sent.messages[0].content_parts[-1].image_url.url.partition(",")[2]))) as decoded:
+        assert decoded.size == (8192, 20)
 
 
 def test_usage_storage_failure_does_not_fail_completed_model_response():

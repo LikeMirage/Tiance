@@ -40,6 +40,8 @@
   white-space: pre-wrap;
 }
 
+.chat-msg__text a { color: var(--color-accent); overflow-wrap: anywhere; }
+
 .chat-msg__system {
   display: grid;
   gap: 4px;

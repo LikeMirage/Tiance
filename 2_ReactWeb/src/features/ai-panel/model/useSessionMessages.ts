@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { registerRendererDiagnosticSource } from "@/shared/diagnostics/rendererDiagnostics";
 
-import { CONVERSATION_MESSAGE_PAGE_SIZE, getProjectConversationMessages } from "../../../services/project/getProjectConversationMessages";
+import { CONVERSATION_TURN_PAGE_SIZE, getProjectConversationMessages } from "../../../services/project/getProjectConversationMessages";
 import { getCachedProjectEntryWarmup } from "../../project-entry/model/projectEntryWarmup";
 import type { ChatMessage } from "./chatMessage";
 import { mapConversationMessages } from "./chatMessage";
@@ -215,7 +215,7 @@ export function useSessionMessages({
         let response: ConversationMessageListResponse;
         try {
           response = cached ?? await getProjectConversationMessages(pid, sessionId, {
-            limit: CONVERSATION_MESSAGE_PAGE_SIZE,
+            turnLimit: CONVERSATION_TURN_PAGE_SIZE,
             beforeMessageId: request.older ? previousPage?.before : null,
             afterMessageId: cursor, signal: controller.signal,
           });
@@ -223,7 +223,7 @@ export function useSessionMessages({
           if (!(cursor || request.older) || !error || typeof error !== "object" ||
               !("status" in error) || ![400, 409].includes(Number(error.status))) throw error;
           response = await getProjectConversationMessages(pid, sessionId, {
-            limit: CONVERSATION_MESSAGE_PAGE_SIZE, signal: controller.signal,
+            turnLimit: CONVERSATION_TURN_PAGE_SIZE, signal: controller.signal,
           });
           incremental = false;
           request = { ...request, older: false };
@@ -231,14 +231,14 @@ export function useSessionMessages({
         // A history replacement can commit between the state check and page read.
         if (previousPage && response.reset_revision !== previousPage.reset && (incremental || request.older)) {
           response = await getProjectConversationMessages(pid, sessionId, {
-            limit: CONVERSATION_MESSAGE_PAGE_SIZE, signal: controller.signal,
+            turnLimit: CONVERSATION_TURN_PAGE_SIZE, signal: controller.signal,
           });
           incremental = false;
           request = { ...request, older: false };
         }
         if (incremental && !response.items.length) {
           response = await getProjectConversationMessages(pid, sessionId, {
-            limit: CONVERSATION_MESSAGE_PAGE_SIZE, signal: controller.signal,
+            turnLimit: CONVERSATION_TURN_PAGE_SIZE, signal: controller.signal,
           });
           incremental = false;
         }
@@ -250,7 +250,7 @@ export function useSessionMessages({
           try {
             response = await completeHistoryTail(response, checkpoint, (before) =>
               getProjectConversationMessages(pid, sessionId, {
-                beforeMessageId: before, limit: CONVERSATION_MESSAGE_PAGE_SIZE, signal: controller.signal,
+                beforeMessageId: before, turnLimit: CONVERSATION_TURN_PAGE_SIZE, signal: controller.signal,
               }), Boolean(request.older));
           } catch (error) {
             if (!(error instanceof HistorySnapshotChangedError)) throw error;

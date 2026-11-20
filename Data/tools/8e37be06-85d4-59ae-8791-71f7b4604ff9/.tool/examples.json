@@ -10,6 +10,14 @@
     "content": "{\"action\":\"list_tabs\"}"
   },
   {
+    "title": "在编辑器打开网页",
+    "content": "{\"action\":\"open_url\",\"url\":\"https://example.com/report?year=2026#summary\"}"
+  },
+  {
+    "title": "按列表返回的网页 ID 切换",
+    "content": "{\"action\":\"focus_web\",\"tab_id\":\"b8c6c613-d796-4a30-bc21-ba86b24c4d70\"}"
+  },
+  {
     "title": "打开并展示项目文件",
     "content": "{\"action\":\"open_file\",\"path\":\"docs/report.md\"}"
   },

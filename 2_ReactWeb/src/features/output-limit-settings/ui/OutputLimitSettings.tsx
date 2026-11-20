@@ -69,7 +69,7 @@ export function OutputLimitSettings({ value, fallbackRecoveryCount, onChange }: 
           <span>{label("outputLimitMessage")}</span>
           <textarea aria-label={label("outputLimitMessage")} value={message} rows={4} onChange={(event) => setMessage(event.target.value)}
             onBlur={() => { if (message !== value.output_limit_message) onChange({ output_limit_message: message }); }} />
-          <button type="button" onClick={() => {
+          <button className="output-limit-settings__reset" type="button" onClick={() => {
             setMessage(DEFAULT_OUTPUT_LIMIT_MESSAGE);
             onChange({ output_limit_message: DEFAULT_OUTPUT_LIMIT_MESSAGE });
           }}>{label("outputLimitResetMessage")}</button>

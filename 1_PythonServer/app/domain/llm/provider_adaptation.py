@@ -9,6 +9,7 @@ from app.domain.llm.runtime_capabilities import (
     LlmRuntimeCapabilities,
     LlmSamplingCapabilities,
     LlmToolCallingCapabilities,
+    MultiImageLimit,
 )
 
 
@@ -43,6 +44,8 @@ class LlmCapabilityRules:
     max_output_tokens_min: int | None = None
     max_output_tokens_max: int | None = None
     tool_calling_supported: bool | None = None
+    image_max_long_edge_px: int | None = None
+    multi_image_limit: MultiImageLimit | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +170,8 @@ def apply_capability_rules(
 
     return replace(
         capabilities,
+        image_max_long_edge_px=rules.image_max_long_edge_px or capabilities.image_max_long_edge_px,
+        multi_image_limit=rules.multi_image_limit or capabilities.multi_image_limit,
         output_formats=(
             rules.output_formats
             if rules.output_formats is not None

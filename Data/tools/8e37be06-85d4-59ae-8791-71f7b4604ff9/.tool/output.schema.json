@@ -18,7 +18,7 @@
     },
     "tabs": {
       "items": {
-        "type": "object"
+        "$ref": "#/$defs/tab"
       },
       "type": "array"
     },
@@ -121,6 +121,18 @@
         "reveal_file"
       ],
       "description": "可采用的动作。open_file 仅展示完整文件，不意味着完成选区定位。"
+    },
+    "opened_tab": {
+      "$ref": "#/$defs/tab"
+    },
+    "focused_tab": {
+      "$ref": "#/$defs/tab"
+    },
+    "active_tab_id": {
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "required": [
@@ -182,6 +194,34 @@
         "to",
         "source"
       ]
+    },
+    "tab": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "is_active": {
+          "type": "boolean"
+        },
+        "url": {
+          "type": "string",
+          "description": "网页的当前网址。Tiance 主页为空字符串。"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "文件路径。网页为 null。"
+        }
+      }
     }
   }
 }

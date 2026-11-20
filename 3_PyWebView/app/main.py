@@ -82,6 +82,7 @@ def main() -> None:
         backend_manager.set_backend_unavailable_callback(
             shell_api.close_after_backend_loss
         )
+        backend_manager.set_backend_health_callback(shell_api.record_backend_health)
 
         if target.shell_api_allowed:
             with timed_stage("bind shell api"):

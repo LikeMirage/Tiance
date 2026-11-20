@@ -450,6 +450,7 @@ def _content_parts_from_payload(value: object) -> tuple[ChatMessageContentPart, 
                                 attachment_id=_optional_str(image_ref.get("attachment_id")),
                                 source_path=_optional_str(image_ref.get("source_path")),
                                 source_kind=_optional_str(image_ref.get("source_kind")),
+                                scale_percent=_optional_int_or_none(image_ref.get("scale_percent")) or 100,
                             ),
                         )
                     )
@@ -476,6 +477,8 @@ def _content_part_to_payload(part: ChatMessageContentPart) -> dict:
             "source_path": part.image_ref.source_path,
             "source_kind": part.image_ref.source_kind,
         }
+        if part.image_ref.scale_percent != 100:
+            payload["image_ref"]["scale_percent"] = part.image_ref.scale_percent
     return payload
 
 def _optional_reasoning_mode(value: object) -> str | None:

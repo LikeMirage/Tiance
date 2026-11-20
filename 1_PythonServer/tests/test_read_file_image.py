@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 import base64
+import json
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import ModuleType
 from urllib.parse import quote
 
+import pytest
+from PIL import Image
+
 from tests.formal_tool_paths import resolve_formal_tool_root
 
-
-_READ_FILE_MAIN = (
-    resolve_formal_tool_root("read_file")
-    / "program/main.py"
-)
 
 _VALID_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -149,8 +148,87 @@ def test_read_file_defaults_to_scaled_image_reference(monkeypatch, tmp_path):
     assert result["content"][0]["uri"].startswith("tiance-local:")
 
 
-def _load_read_file_module() -> ModuleType:
-    spec = spec_from_file_location("read_file_main_under_test", _READ_FILE_MAIN)
+@pytest.mark.parametrize("tool", ["read_file", "read_many_files"])
+def test_scale_and_model_limit_are_applied_together(monkeypatch, tmp_path, tool):
+    image = tmp_path / "diagram.png"
+    Image.new("RGB", (160, 100)).save(image)
+    monkeypatch.setenv("TIANCE_WORKSPACE_ROOT", str(tmp_path))
+    module = _load_read_file_module(tool)
+    for percent, limit, expected in ((60, 40, (40, 25)), (60, 120, (96, 60)), (100, 32, (32, 20))):
+        monkeypatch.setenv("TIANCE_MODEL_CONTEXT", json.dumps({"input_modalities": ["image"], "image_max_long_edge_px": limit}))
+        item = {"file_path": "diagram.png", "image_scale_percent": percent}
+        result = module.run(item if tool == "read_file" else {"files": [item]})
+        data = result["data"] if tool == "read_file" else result["data"]["files"][0]
+        assert (data["source_width"], data["source_height"]) == (160, 100)
+        assert (data["returned_width"], data["returned_height"]) == expected
+        with Image.open(data["returned_file_path"]) as sent:
+            assert sent.size == expected
+
+
+def test_tool_thumbnail_replays_from_snapshot_at_requested_scale_after_model_switch(monkeypatch, tmp_path):
+    from app.domain.llm.chat import ChatCompletionRequest, ChatMessage, ChatMessageRole
+    from app.infra.file_workspace import FileWorkspaceStorage
+    from app.repositories.project.conversation_attachment_repository import ConversationAttachmentRepository
+    from app.repositories.project.conversation_repository import ProjectConversationRepository
+    from app.services.llm.chat.prompt_images import prepare_request_images
+    from app.services.project.conversation_attachments import ConversationAttachmentService
+    from app.services.tools.tool_result_content import image_parts_from_tool_content
+    from tests.test_conversation_database import _Projects
+
+    projects = _Projects(tmp_path)
+    sessions = ProjectConversationRepository(projects)
+    session = sessions.create_session("project-1", title="Replay", provider_id="p", model_id="m", reasoning_mode=None)
+    attachments = ConversationAttachmentService(ConversationAttachmentRepository(projects), projects, FileWorkspaceStorage())
+    def snapshot(ref, digest):
+        return attachments.snapshot_image_ref("project-1", session.session_id, ref, source_kind="tool_artifact", expected_sha256=digest)
+
+    path = tmp_path / "diagram.png"
+    Image.new("RGB", (200, 100)).save(path)
+    monkeypatch.setenv("TIANCE_WORKSPACE_ROOT", str(tmp_path))
+    monkeypatch.setenv("TIANCE_MODEL_CONTEXT", '{"input_modalities":["image"],"image_max_long_edge_px":40}')
+    result = _load_read_file_module().run({"file_path": path.name, "image_scale_percent": 60})
+    assert result["data"]["returned_width"] == 40
+    content = json.dumps(result)
+    parts = image_parts_from_tool_content(content, snapshot=snapshot)
+    stored = sessions.append_message("project-1", session.session_id, role="tool", content="read", content_parts=parts)
+    path.unlink()
+    saved = sessions.get_message("project-1", session.session_id, stored.message_id).content_parts
+    msg = ChatMessage(role=ChatMessageRole.USER, content="image", content_parts=saved)
+    request = ChatCompletionRequest("p", "m", (msg,))
+    def read(ref):
+        return attachments.read_image("project-1", session.session_id, ref)[0]
+    for limit, expected in [(40, (40, 20)), (180, (120, 60))]:
+        delivery, = prepare_request_images(request, limit, read_ref=read).image_deliveries
+        assert (delivery.source_width, delivery.source_height) == (200, 100)
+        assert (delivery.sent_width, delivery.sent_height) == expected
+
+    # A source that changed between reading and snapshotting falls back to the delivered thumbnail.
+    Image.new("RGB", (90, 50)).save(path)
+    fallback, = image_parts_from_tool_content(content, snapshot=snapshot)
+    assert fallback.image_ref.scale_percent == 100
+    from io import BytesIO
+    with Image.open(BytesIO(read(fallback.image_ref))) as image:
+        assert image.size == (40, 20)
+
+
+def test_batch_reader_accounts_for_the_number_of_images(monkeypatch, tmp_path):
+    tool = _load_read_file_module("read_many_files")
+    monkeypatch.setenv("TIANCE_WORKSPACE_ROOT", str(tmp_path))
+    monkeypatch.setenv("TIANCE_MODEL_CONTEXT", json.dumps({
+        "input_modalities": ["image"], "image_max_long_edge_px": 80,
+        "multi_image_limit": {"min_images": 15, "max_long_edge_px": 40},
+    }))
+    filenames = [f"{index}.png" for index in range(15)]
+    for index, filename in enumerate(filenames):
+        Image.new("RGB", (120, 50), (index, 0, 0)).save(tmp_path / filename)
+    (tmp_path / "note.txt").write_text("ok", encoding="utf-8")
+    for count, width in ((14, 80), (15, 40)):
+        result = tool.run({"files": [*filenames[:count], "note.txt"], "image_scale_percent": 100})
+        assert [row["returned_width"] for row in result["data"]["files"][:-1]] == [width] * count
+
+
+def _load_read_file_module(tool: str = "read_file") -> ModuleType:
+    spec = spec_from_file_location(f"{tool}_main_under_test", resolve_formal_tool_root(tool) / "program/main.py")
     if spec is None or spec.loader is None:
         raise RuntimeError("无法加载 read_file 工具脚本。")
     module = module_from_spec(spec)

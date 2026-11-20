@@ -134,3 +134,45 @@
 .chat-msg__user-reference-message {
   margin: 0;
 }
+
+/* Compact previews keep the message readable even in a narrow composer. */
+.chat-msg__user-reference-panel--compact {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+  margin: 0 0 8px;
+  padding-bottom: 6px;
+}
+.chat-msg__user-reference-panel--compact .chat-msg__user-reference-head {
+  align-self: start;
+  min-height: 26px;
+  padding: 0;
+  border: 0;
+  font-size: 0.7rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.chat-msg__user-reference-panel--compact .chat-msg__user-reference {
+  min-height: 26px;
+  padding: 0;
+  border: 0;
+}
+.chat-msg__user-reference-panel--compact .chat-msg__user-reference-index { display: none; }
+.chat-msg__user-reference-panel--compact .chat-msg__user-reference-open { gap: 4px; }
+.chat-msg__user-reference-panel--compact .chat-msg__user-reference-main { flex: 1; }
+.chat-msg__user-reference-panel--compact .chat-msg__user-reference-main strong {
+  max-width: none;
+  font-weight: 500;
+}
+.chat-msg__user-reference-expand {
+  grid-column: 2;
+  justify-self: start;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.chat-msg__user-reference-expand:hover { color: var(--color-accent); }
+.chat-msg__user-reference-expand:focus-visible { outline: 1px solid var(--color-accent); outline-offset: 1px; }

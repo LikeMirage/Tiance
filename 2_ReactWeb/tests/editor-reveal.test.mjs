@@ -182,7 +182,7 @@ test("bridge validates targets and foreground scope, propagates signal and waits
       return new Promise(resolve => { finish = resolve; });
     },
   }) });
-  assert.equal(registration.capability.version, 3);
+  assert.equal(registration.capability.version, 4);
   const request = (target, project = "p") => ({ project_id: project, arguments: JSON.stringify({ action: "reveal_file", path: "a.txt", target }) });
   assert.equal((await registration.execute(request({ type: "pdf_page", page: 0 }))).content.error_code, "INVALID_TARGET");
   assert.equal((await registration.execute(request(lineTarget, "background"))).content.error_code, "PROJECT_NOT_ACTIVE");

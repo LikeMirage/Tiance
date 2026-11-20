@@ -61,6 +61,7 @@ from app.services.llm.token_estimation_settings import (
 from app.domain.llm.provider_catalog import ProviderCatalogEntry
 from app.infra.llm.provider_profiles import resolve_provider_profile
 from app.services.llm.chat.request_validation import validate_chat_request_capabilities
+from app.services.llm.chat.prompt_images import prepare_request_images, request_image_count
 from app.services.llm.chat.retry import retry_after_seconds, wait_for_upstream_retry
 
 
@@ -104,7 +105,7 @@ class ChatCompletionService:
             reasoning_replay_mode=provider_config.reasoning_replay_mode,
         )
 
-        self._validate_request(provider_template, request)
+        request = await self._prepare_request(provider_template, request)
 
         runtime_credentials = self._runtime_resolver.resolve_runtime_credentials(
             provider_template,
@@ -217,7 +218,7 @@ class ChatCompletionService:
             reasoning_replay_mode=provider_config.reasoning_replay_mode,
         )
 
-        self._validate_request(provider_template, request)
+        request = await self._prepare_request(provider_template, request)
 
         runtime_credentials = self._runtime_resolver.resolve_runtime_credentials(
             provider_template, provider_config,
@@ -447,15 +448,19 @@ class ChatCompletionService:
         )
 
     @staticmethod
-    def _validate_request(
+    async def _prepare_request(
         provider_template: ProviderCatalogEntry,
         request: ChatCompletionRequest,
-    ) -> None:
+    ) -> ChatCompletionRequest:
         profile = resolve_provider_profile(provider_template, request.model_id)
-        validate_chat_request_capabilities(
-            request,
-            profile.resolve_capabilities(provider_template, request.model_id),
-        )
+        capabilities = profile.resolve_capabilities(provider_template, request.model_id)
+        validate_chat_request_capabilities(request, capabilities)
+        # Session requests already carry the checked copy used by their logical-round log.
+        if not request.image_deliveries:
+            count = request_image_count(request)
+            if count:
+                return await asyncio.to_thread(prepare_request_images, request, capabilities.image_limit_for_count(count))
+        return request
 
     def _estimation_settings_for(
         self,

@@ -18,8 +18,10 @@ from app.backend_watchdog import (
 
 
 class _RunningProcess:
-    def poll(self) -> None:
-        return None
+    returncode = None
+
+    def poll(self) -> int | None:
+        return self.returncode
 
 
 class ShellLeaseServerTests(unittest.TestCase):
@@ -109,19 +111,29 @@ class BackendHealthStateTests(unittest.TestCase):
         self.assertFalse(state.observe(False))
         self.assertTrue(state.observe(False))
 
-    def test_monitor_reports_unavailable_after_threshold(self) -> None:
-        outcomes = iter([True, False, False, False])
+    def test_live_process_survives_health_stall_then_recovers_and_exit_is_still_detected(self) -> None:
+        outcomes = iter([True] + [False] * 20 + [True])
         notified = threading.Event()
         reasons: list[str] = []
+        health_changes: list[bool] = []
+        process = _RunningProcess()
+
+        def probe():
+            try:
+                return next(outcomes)
+            except StopIteration:
+                process.returncode = 1
+                return True
 
         monitor = BackendHealthMonitor(
-            process=_RunningProcess(),
+            process=process,
             api_url="http://127.0.0.1:18000",
             instance_id="shell-instance",
             on_unavailable=lambda reason: (reasons.append(reason), notified.set()),
             interval_seconds=0.01,
             failure_threshold=3,
-            probe=lambda: next(outcomes),
+            probe=probe,
+            on_health_changed=health_changes.append,
         )
         monitor.start()
         try:
@@ -129,7 +141,34 @@ class BackendHealthStateTests(unittest.TestCase):
         finally:
             monitor.stop()
 
-        self.assertEqual(reasons, ["backend_health_check_failed"])
+        self.assertEqual(health_changes, [False, True])
+        self.assertEqual(reasons, ["backend_process_exited"])
+
+    def test_process_exit_is_detected_while_http_remains_unresponsive(self) -> None:
+        process = _RunningProcess()
+        notified = threading.Event()
+        reasons: list[str] = []
+        calls = 0
+
+        def probe():
+            nonlocal calls
+            calls += 1
+            if calls == 6:
+                process.returncode = 1
+            return calls == 1
+
+        monitor = BackendHealthMonitor(
+            process=process, api_url="http://127.0.0.1:18000", instance_id="instance",
+            on_unavailable=lambda reason: (reasons.append(reason), notified.set()),
+            interval_seconds=0.01, probe=probe,
+        )
+        monitor.start()
+        try:
+            self.assertTrue(notified.wait(timeout=1))
+        finally:
+            monitor.stop()
+        self.assertEqual(reasons, ["backend_process_exited"])
+        self.assertEqual(calls, 6)
 
 
 if __name__ == "__main__":

@@ -1,12 +1,13 @@
 import type { ExplorerNode } from "../../../entities/explorer-node/model/explorerNode";
+import type { WorkspaceTabEntry } from "../../../entities/editor/model/editorDocument";
 import {
   applyProjectWorkspaceTabsAction,
   type ProjectWorkspaceTabsAction,
   type ProjectWorkspaceTabsActionResponse,
 } from "../../../services/project/applyProjectWorkspaceTabsAction";
-import { synchronizeCachedProjectWorkspaceState } from "../../project-entry/model/projectEntryWarmup";
 import { getProjectDocumentSourceKey } from "../../document-tabs/model/documentFileSources";
 import { resolveDocumentPreview } from "../../document-tabs/model/documentPreviewResolver";
+import { webTabTitle } from "../../document-tabs/model/workspaceTabEntries";
 import {
   getPathName,
   makeTabId,
@@ -18,6 +19,8 @@ type ExecuteBackgroundEditorTabsOptions = {
   path: string;
   paths: string[];
   projectId: string;
+  url: string;
+  tabId: string;
 };
 
 export async function executeBackgroundEditorTabsClientTool({
@@ -25,6 +28,8 @@ export async function executeBackgroundEditorTabsClientTool({
   path,
   paths,
   projectId,
+  url,
+  tabId,
 }: ExecuteBackgroundEditorTabsOptions): Promise<ClientToolExecutionResult> {
   if (!isProjectWorkspaceTabsAction(action)) {
     return fail(`不支持的标签页操作：${action}`);
@@ -38,8 +43,9 @@ export async function executeBackgroundEditorTabsClientTool({
       action,
       ...(path ? { path } : {}),
       ...(paths.length > 0 ? { paths } : {}),
+      ...(url ? { url } : {}),
+      ...(tabId ? { tab_id: tabId } : {}),
     });
-    synchronizeCachedProjectWorkspaceState(projectId, response);
     return buildToolResult(projectId, response);
   } catch (error) {
     return fail(
@@ -53,15 +59,10 @@ function buildToolResult(
   projectId: string,
   response: ProjectWorkspaceTabsActionResponse,
 ): ClientToolExecutionResult {
-  const tabs = response.open_file_paths.map((path) => serializeBackgroundTab(
-    projectId,
-    path,
-    response.active_file_path,
-    response.missing_file_paths,
-  ));
-  const activeTabId = response.active_file_path
-    ? makeTabId(getProjectDocumentSourceKey(projectId), response.active_file_path)
-    : null;
+  const entries: WorkspaceTabEntry[] = response.open_tabs ?? response.open_file_paths.map(path => ({ kind: "file", path }));
+  const tabs = entries.map(entry => entry.kind === "web" ? serializeWebTab(entry)
+    : serializeBackgroundTab(projectId, entry.path, response.active_file_path, response.missing_file_paths));
+  const active = tabs.find(tab => tab.is_active) ?? null;
   const common = {
     action: response.action,
     execution_scope: "background_workspace",
@@ -69,8 +70,10 @@ function buildToolResult(
   };
 
   if (response.action === "list_tabs") {
-    return ok({ ...common, tabs, active_tab_id: activeTabId });
+    return ok({ ...common, tabs, active_tab_id: active?.id ?? null });
   }
+  if (response.action === "open_url") return ok({ ...common, opened_tab: active });
+  if (response.action === "focus_web") return ok({ ...common, focused_tab: active });
   if (response.action === "open_file") {
     const openedTab = tabs.find((tab) => tab.path === response.active_file_path) ?? null;
     return ok({
@@ -105,6 +108,13 @@ function buildToolResult(
   return ok({ ...common, ...closeResult });
 }
 
+export function serializeWebTab(tab: Extract<WorkspaceTabEntry, { kind: "web" }>) {
+  return {
+    id: tab.id, kind: tab.kind, url: tab.url, title: webTabTitle(tab.url, tab.title),
+    path: null, is_active: tab.active, is_dirty: false, is_missing: false, save_state: "idle",
+  };
+}
+
 function serializeBackgroundTab(
   projectId: string,
   path: string,
@@ -135,6 +145,8 @@ function isProjectWorkspaceTabsAction(value: string): value is ProjectWorkspaceT
   return [
     "list_tabs",
     "open_file",
+    "open_url",
+    "focus_web",
     "focus_file",
     "close_clean_tabs",
     "close_others_clean",

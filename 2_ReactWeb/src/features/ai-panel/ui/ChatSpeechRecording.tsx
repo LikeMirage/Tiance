@@ -1,4 +1,4 @@
-import { CircleNotch, Microphone, Stop } from "@phosphor-icons/react";
+import { Microphone, Stop, X } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { SpeechInputState } from "../model/useSpeechInput";
 import { SpeechWaveform } from "./SpeechWaveform";
@@ -34,12 +34,31 @@ export function ChatSpeechRecording({ speech }: { speech: SpeechInputState }) {
       </div>
       <span className="ai-panel__speech-label">正在录音 <span className="ai-panel__speech-dot">·</span> <span className="ai-panel__speech-time">{Math.floor(seconds / 60).toString().padStart(2, "0")}:{(seconds % 60).toString().padStart(2, "0")}</span></span>
       <SpeechWaveform stream={view.stream} />
-    </div> : view.phase === "error" ? <span role="alert" className="ai-panel__speech-error">{view.error}</span> : <>
-      <CircleNotch size={30} className="ai-panel__speech-spinner" aria-hidden="true" />
-      <span>{view.phase === "starting" ? "正在打开麦克风" : view.phase === "cancelling" ? "正在取消" : "正在识别"}</span>
-    </>}
-    {!recording && view.phase !== "permission" && <button type="button" className="ai-panel__speech-cancel" onClick={speech.cancel} disabled={view.phase === "cancelling"}>
-      {view.phase === "error" ? "返回输入" : "取消"}
-    </button>}
+    </div> : view.phase === "error" ? <span role="alert" className="ai-panel__speech-error">{view.error}</span> : (
+      <div className={`ai-panel__speech-processing${view.phase === "cancelling" ? " ai-panel__speech-processing--cancelling" : ""}`}>
+        <div className="ai-panel__speech-processing-visual" aria-hidden="true">
+          <span className="ai-panel__speech-processing-glow" />
+          <span className="ai-panel__speech-processing-ring" />
+          <div className="ai-panel__speech-processing-core">
+            {view.phase === "starting" ? <Microphone size={25} weight="light" /> : (
+              <div className="ai-panel__speech-processing-wave"><i /><i /><i /><i /><i /></div>
+            )}
+          </div>
+        </div>
+        <div className="ai-panel__speech-processing-copy">
+          <span className="ai-panel__speech-processing-title">
+            {view.phase === "starting" ? "正在打开麦克风" : view.phase === "cancelling" ? "正在取消" : "正在识别"}
+          </span>
+          <span className="ai-panel__speech-processing-description">
+            {view.phase === "starting" ? "准备好后即可开始说话" : view.phase === "cancelling" ? "本次结果不会写入输入框" : "将语音转为文字，完成后填入输入框"}
+          </span>
+        </div>
+        <button type="button" className="ai-panel__speech-processing-cancel" onClick={speech.cancel} disabled={view.phase === "cancelling"}>
+          <X size={12} aria-hidden="true" />
+          {view.phase === "cancelling" ? "取消中" : view.phase === "starting" ? "取消" : "取消识别"}
+        </button>
+      </div>
+    )}
+    {view.phase === "error" && <button type="button" className="ai-panel__speech-cancel" onClick={speech.cancel}>返回输入</button>}
   </div>;
 }

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from base64 import b64decode
 from binascii import Error as Base64Error
+from datetime import UTC, datetime
+from hashlib import sha256
+from io import BytesIO
 from mimetypes import guess_type
 from pathlib import Path
 
+import httpx
+from PIL import Image
+
 from app.core.errors import BadRequestError, NotFoundError
-from app.domain.llm.chat import ChatImageRef
+from app.domain.llm.chat import ChatImageRef, ChatImageUrl
 from app.infra.file_workspace import FileWorkspaceStorage, get_file_workspace_storage
 from app.repositories.project.conversation_attachment_repository import (
     ConversationAttachmentRepository,
@@ -15,6 +20,7 @@ from app.repositories.project.conversation_attachment_repository import (
     is_attachment_uri,
 )
 from app.services.project.projects import ProjectService, get_project_service
+from app.services.llm.chat.prompt_images import read_image_url
 from app.services.tools.tool_resource_uris import local_absolute_path
 
 _SUPPORTED_IMAGE_MIME_TYPES = {
@@ -44,6 +50,7 @@ class ConversationAttachmentService:
         image_ref: ChatImageRef,
         *,
         source_kind: str | None = None,
+        expected_sha256: str | None = None,
     ) -> ChatImageRef:
         if is_attachment_uri(image_ref.path):
             attachment, _ = self._repository.read(
@@ -60,6 +67,7 @@ class ConversationAttachmentService:
                 attachment_id=attachment.attachment_id,
                 source_path=attachment.source_path,
                 source_kind=attachment.source_kind,
+                scale_percent=image_ref.scale_percent,
             )
 
         project = self._project_service.get_project(project_id)
@@ -73,6 +81,8 @@ class ConversationAttachmentService:
         if not source_file.is_file():
             raise NotFoundError("图片文件不存在。")
         content = source_file.read_bytes()
+        if expected_sha256 and sha256(content).hexdigest() != expected_sha256:
+            raise BadRequestError("工具读取后图片内容已变化。")
         if not content:
             raise BadRequestError("图片内容为空。")
         mime_type = normalize_image_mime_type(
@@ -99,6 +109,7 @@ class ConversationAttachmentService:
             attachment_id=attachment.attachment_id,
             source_path=attachment.source_path,
             source_kind=attachment.source_kind,
+            scale_percent=image_ref.scale_percent,
         )
 
     def _resolve_source_file(
@@ -155,9 +166,31 @@ class ConversationAttachmentService:
             content = b64decode(data_base64, validate=True)
         except (Base64Error, ValueError) as exc:
             raise BadRequestError("图片数据不是有效的 Base64 内容。") from exc
+        return self._save_image_bytes(
+            project_id, session_id, content, normalized_mime_type, filename, source_kind, source_path, "auto",
+        )
+
+    def snapshot_image_url(self, project_id: str, session_id: str, image_url: ChatImageUrl) -> ChatImageRef:
+        try:
+            content = read_image_url(image_url.url)
+            with Image.open(BytesIO(content)) as image:
+                mime = normalize_image_mime_type(Image.MIME.get(image.format, ""))
+        except httpx.HTTPError as exc:
+            raise BadRequestError("无法下载会话图片。") from exc
+        except (ValueError, OSError, SyntaxError, Image.DecompressionBombError) as exc:
+            raise BadRequestError(f"会话图片读取失败：{exc}") from exc
+        kind = "inline_image" if image_url.url[:5].lower() == "data:" else "remote_image"
+        return self._save_image_bytes(
+            project_id, session_id, content, mime, "image." + mime.split("/")[1], kind, None, image_url.detail,
+        )
+
+    def _save_image_bytes(
+        self, project_id: str, session_id: str, content: bytes, mime_type: str, filename: str | None,
+        source_kind: str, source_path: str | None, detail: str | None,
+    ) -> ChatImageRef:
         if not content:
             raise BadRequestError("图片内容为空。")
-        validate_image_signature(content, normalized_mime_type)
+        validate_image_signature(content, mime_type)
         display_name = Path(filename or "image").name or "image"
         attachment = self._repository.save_bytes(
             project_id,
@@ -165,7 +198,7 @@ class ConversationAttachmentService:
             content=content,
             suffix=Path(display_name).suffix,
             display_name=display_name,
-            mime_type=normalized_mime_type,
+            mime_type=mime_type,
             source_kind=source_kind,
             source_path=source_path,
             created_at=datetime.now(UTC).isoformat(),
@@ -173,7 +206,7 @@ class ConversationAttachmentService:
         return ChatImageRef(
             path=attachment.uri,
             mime_type=attachment.mime_type,
-            detail="auto",
+            detail=detail,
             name=attachment.display_name,
             size_bytes=attachment.size_bytes,
             attachment_id=attachment.attachment_id,

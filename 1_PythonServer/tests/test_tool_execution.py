@@ -78,6 +78,7 @@ def test_tool_execution_runs_python_entry_with_json_stdin(tmp_path, monkeypatch)
             provider_id="provider-1",
             model_id="model-1",
             input_modalities=("text", "image"),
+            image_max_long_edge_px=4096,
         ),
     )
 
@@ -99,6 +100,7 @@ def test_tool_execution_runs_python_entry_with_json_stdin(tmp_path, monkeypatch)
         "provider_id": "provider-1",
         "model_id": "model-1",
         "input_modalities": ["image", "text"],
+        "image_max_long_edge_px": 4096,
     }
     command = completed_commands[0][0]
     assert command[:2] == ["python", "-c"]

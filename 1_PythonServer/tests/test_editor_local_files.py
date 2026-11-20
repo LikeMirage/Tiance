@@ -60,6 +60,16 @@ def test_external_reference_preserves_source_file_without_copy(client, workspace
     assert resolve(client, tmp_path / "missing.md").status_code == 404
 
 
+def test_download_open_without_selected_project(client, tmp_path):
+    target = tmp_path / "download.unknown"
+    target.touch()
+    result = resolve(client, target, owner_project_id=None)
+    assert result.status_code == 200, result.text
+    file = result.json()
+    assert file["kind"] == "local"
+    assert Path(file["root"]) / file["path"] == target
+
+
 def test_folder_reference_resolves_registry_identity_and_missing_without_mutation(client, workspace, tmp_path, monkeypatch):
     import app.repositories.project as repositories
     folder = tmp_path / "external-folder"

@@ -6,6 +6,7 @@ from typing import Any
 
 from app.domain.llm.generation_params import LlmOutputFormat, LlmReasoningMode
 from app.domain.llm.model_capability_tags import MODEL_CAPABILITY_TAGS
+from app.domain.llm.runtime_capabilities import MultiImageLimit
 from app.domain.llm.provider_adaptation import (
     DEFAULT_PROMPT_CACHE_RETENTION_SECONDS,
     LlmCapabilityRules,
@@ -223,6 +224,7 @@ def _parse_capabilities(value: object, location: str) -> LlmCapabilityRules:
             "sampling",
             "maxOutputTokens",
             "toolCalling",
+            "vision",
         },
         f"{location}.capabilities",
     )
@@ -230,6 +232,8 @@ def _parse_capabilities(value: object, location: str) -> LlmCapabilityRules:
     sampling = _optional_object(value, "sampling", location)
     max_tokens = _optional_object(value, "maxOutputTokens", location)
     tool_calling = _optional_object(value, "toolCalling", location)
+    vision = _optional_object(value, "vision", location)
+    _reject_unknown(vision, {"maxImageLongEdgePx", "multiImageLimit"}, f"{location}.capabilities.vision")
     _reject_unknown(reasoning, {"supported", "modes"}, f"{location}.capabilities.reasoning")
     _reject_unknown(
         sampling,
@@ -239,6 +243,8 @@ def _parse_capabilities(value: object, location: str) -> LlmCapabilityRules:
     _reject_unknown(max_tokens, {"supported", "min", "max"}, f"{location}.capabilities.maxOutputTokens")
     _reject_unknown(tool_calling, {"supported"}, f"{location}.capabilities.toolCalling")
     return LlmCapabilityRules(
+        image_max_long_edge_px=_optional_positive_int(vision, "maxImageLongEdgePx", f"{location}.capabilities.vision"),
+        multi_image_limit=_parse_multi_image_limit(vision, f"{location}.capabilities.vision"),
         output_formats=_optional_enum_tuple(value, "outputFormats", LlmOutputFormat, location),
         reasoning_supported=_optional_bool(reasoning, "supported", location),
         reasoning_modes=_optional_enum_tuple(reasoning, "modes", LlmReasoningMode, location),
@@ -260,6 +266,19 @@ def _parse_capabilities(value: object, location: str) -> LlmCapabilityRules:
         max_output_tokens_max=_optional_positive_int(max_tokens, "max", location),
         tool_calling_supported=_optional_bool(tool_calling, "supported", location),
     )
+
+
+def _parse_multi_image_limit(vision: dict[str, Any], location: str) -> MultiImageLimit | None:
+    if "multiImageLimit" not in vision:
+        return None
+    rule = _optional_object(vision, "multiImageLimit", location)
+    location = f"{location}.multiImageLimit"
+    _reject_unknown(rule, {"minImages", "maxImageLongEdgePx"}, location)
+    count = _optional_positive_int(rule, "minImages", location)
+    limit = _optional_positive_int(rule, "maxImageLongEdgePx", location)
+    if count is None or limit is None:
+        raise ProviderFileStoreError(f"{location} requires minImages and maxImageLongEdgePx.")
+    return MultiImageLimit(count, limit)
 
 
 def _parse_request(value: object, location: str) -> LlmRequestRules:

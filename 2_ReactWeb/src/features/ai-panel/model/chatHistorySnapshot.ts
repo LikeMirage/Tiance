@@ -3,7 +3,8 @@ import type { ConversationMessageListResponse } from "../../../entities/llm-chat
 export class HistorySnapshotChangedError extends Error {}
 
 /** Join a bounded tail to the last durable checkpoint before publishing it.
- * A long tool loop can span many pages; its live view is not a saved row.
+ * History pages contain whole user turns; a checkpoint may still be on an
+ * older page after multiple turns finish while this view is disconnected.
  * Keep the tail's revision: an older-page read cannot acknowledge newer appends.
  */
 export async function completeHistoryTail(

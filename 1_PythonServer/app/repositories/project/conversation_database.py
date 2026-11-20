@@ -658,6 +658,59 @@ def list_message_payloads_range(
     return [value for row in rows if isinstance((value := _decode(row[0])), dict)]
 
 
+def message_turn_page_range(
+    session_dir: Path,
+    *,
+    turn_limit: int,
+    total_count: int,
+    before_ordinal: int | None = None,
+    after_ordinal: int | None = None,
+) -> tuple[int, int]:
+    """Select user-turn boundaries without loading message bodies.
+
+    Backward pages contain whole turns. Forward sync starts just after its
+    checkpoint, but always finishes at a turn boundary (or the current tail).
+    """
+    session_id = session_id_from_session_dir(session_dir)
+    with read_connection_for_path(database_path_from_session(session_dir)) as connection:
+        if connection is None:
+            return 0, 0
+        if after_ordinal is not None:
+            start = after_ordinal + 1
+            rows = connection.execute(
+                """SELECT ordinal FROM conversation_messages
+                   WHERE session_id = ? AND ordinal >= ?
+                     AND json_extract(payload_json, '$.role') = 'user'
+                   ORDER BY ordinal LIMIT ?""",
+                (session_id, start, turn_limit + 1),
+            ).fetchall()
+            # A continuation of the checkpoint's turn also counts as one turn.
+            boundary = turn_limit if rows and int(rows[0][0]) == start else turn_limit - 1
+            end = int(rows[boundary][0]) if len(rows) > boundary else total_count
+            return start, end
+
+        end = total_count
+        if before_ordinal is not None:
+            row = connection.execute(
+                """SELECT MAX(ordinal) FROM conversation_messages
+                   WHERE session_id = ? AND ordinal <= ?
+                     AND json_extract(payload_json, '$.role') = 'user'""",
+                (session_id, before_ordinal),
+            ).fetchone()
+            # Even an arbitrary cursor inside a turn refers to that whole turn.
+            end = int(row[0]) if row[0] is not None else 0
+        rows = connection.execute(
+            """SELECT ordinal FROM conversation_messages
+               WHERE session_id = ? AND ordinal < ?
+                 AND json_extract(payload_json, '$.role') = 'user'
+               ORDER BY ordinal DESC LIMIT ?""",
+            (session_id, end, turn_limit + 1),
+        ).fetchall()
+        # Keep any legacy prefix before the first user on the oldest page.
+        start = int(rows[turn_limit - 1][0]) if len(rows) > turn_limit else 0
+        return start, end
+
+
 def read_message_turn_payloads(
     session_dir: Path,
     message_id: str,
@@ -1242,6 +1295,32 @@ def read_conversation_run(
             (run_id, session_id),
         ).fetchone()
     return _conversation_run_from_row(row) if row is not None else None
+
+
+def user_message_id_for_message(
+    workspace_dir: Path,
+    *,
+    session_id: str,
+    message_id: str,
+) -> str | None:
+    """Resolve a page's leading partial turn without loading earlier message bodies."""
+    with read_connection_for_path(database_path_from_workspace(workspace_dir)) as connection:
+        if connection is None:
+            return None
+        row = connection.execute(
+            """
+            SELECT message_id FROM conversation_messages
+            WHERE session_id = ?
+              AND ordinal <= (
+                  SELECT ordinal FROM conversation_messages
+                  WHERE session_id = ? AND message_id = ?
+              )
+              AND json_extract(payload_json, '$.role') = 'user'
+            ORDER BY ordinal DESC LIMIT 1
+            """,
+            (session_id, session_id, message_id),
+        ).fetchone()
+    return str(row[0]) if row is not None else None
 
 
 def list_conversation_run_outcomes(
