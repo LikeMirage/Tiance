@@ -231,6 +231,15 @@
       "updated_at": "2026-08-03T00:00:00Z"
     },
     {
+      "project_id": "d915c8c7-8315-4de1-b61c-c29b77a5a6d5",
+      "name": "DeepSeek 官方网络搜索",
+      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
+      "is_default": false,
+      "sort_order": 1,
+      "created_at": "2026-08-12T00:00:00+00:00",
+      "updated_at": "2026-08-12T00:00:00+00:00"
+    },
+    {
       "project_id": "b0548165-4df0-45ff-8dd0-4f614db9812b",
       "name": "GUI 界面查看",
       "category_id": "de7ff9ea-e4d4-4965-8902-04037bfa3ae8",
@@ -247,6 +256,15 @@
       "sort_order": 1,
       "created_at": "2026-09-18T10:07:59.924197+00:00",
       "updated_at": "2026-09-18T10:07:59.924197+00:00"
+    },
+    {
+      "project_id": "092dcd37-8d51-467d-b607-5a6441dd989a",
+      "name": "音视频转写",
+      "category_id": "toolset_eff52b03022144539c1f7253131b3199",
+      "is_default": false,
+      "sort_order": 1,
+      "created_at": "2026-11-05T02:41:52.839443+00:00",
+      "updated_at": "2026-11-05T02:41:52.839443+00:00"
     },
     {
       "project_id": "59dfc998-de87-586a-a617-439dbaa2e3d8",
@@ -292,15 +310,6 @@
       "sort_order": 2,
       "created_at": "2026-08-03T00:00:00Z",
       "updated_at": "2026-08-03T00:00:00Z"
-    },
-    {
-      "project_id": "d915c8c7-8315-4de1-b61c-c29b77a5a6d5",
-      "name": "DeepSeek 官方网络搜索",
-      "category_id": "toolset_7bcba56d109646e091d2ab3af6e99d56",
-      "is_default": false,
-      "sort_order": 2,
-      "created_at": "2026-08-12T00:00:00+00:00",
-      "updated_at": "2026-08-12T00:00:00+00:00"
     },
     {
       "project_id": "8f2c6f8b-0fd4-5c2f-9d5d-6c7fa8c1e4b2",
@@ -420,6 +429,15 @@
       "updated_at": "2026-09-01T00:00:00+00:00"
     },
     {
+      "project_id": "ffcfb307-05b2-5b3d-86fb-deb99b786462",
+      "name": "提交会话标题",
+      "category_id": "toolset_c14f6e2593194fe88f2b218a0d7c6a9e",
+      "is_default": false,
+      "sort_order": 4,
+      "created_at": "2026-11-03T04:00:00+00:00",
+      "updated_at": "2026-11-03T04:00:00+00:00"
+    },
+    {
       "project_id": "e81889b3-deab-5ca4-b534-4a6e728a3298",
       "name": "文件匹配",
       "category_id": "3c9993eb-d134-48b9-b393-c720989a5d72",
@@ -535,24 +553,6 @@
       "sort_order": 12,
       "created_at": "2026-09-18T07:49:37.039741+00:00",
       "updated_at": "2026-09-18T07:49:37.039741+00:00"
-    },
-    {
-      "project_id": "ffcfb307-05b2-5b3d-86fb-deb99b786462",
-      "name": "提交会话标题",
-      "category_id": "toolset_c14f6e2593194fe88f2b218a0d7c6a9e",
-      "is_default": false,
-      "sort_order": 4,
-      "created_at": "2026-11-03T04:00:00+00:00",
-      "updated_at": "2026-11-03T04:00:00+00:00"
-    },
-    {
-      "project_id": "092dcd37-8d51-467d-b607-5a6441dd989a",
-      "name": "音视频转写",
-      "category_id": "toolset_eff52b03022144539c1f7253131b3199",
-      "is_default": false,
-      "sort_order": 1,
-      "created_at": "2026-11-05T02:41:52.839443+00:00",
-      "updated_at": "2026-11-05T02:41:52.839443+00:00"
     },
     {
       "project_id": "9f9ea2c1-4076-5d6e-936e-23a9f1c33088",
