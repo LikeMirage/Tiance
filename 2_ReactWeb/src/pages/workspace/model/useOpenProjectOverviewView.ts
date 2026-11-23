@@ -1,9 +1,9 @@
 import { useCallback } from "react";
 import type { ProjectOverviewView, WorkspaceLayoutPreferenceUpdate } from "../../../entities/workspace/model/workspaceLayoutPreferences";
-import type { ProjectEntryWarmupOptions } from "../../../features/project-entry/model/projectEntryWarmup";
+import type { ProjectNavigationOptions } from "../../../entities/project/model/project";
 
 export function useOpenProjectOverviewView(
-  onActivateProject: ((id: string, options?: ProjectEntryWarmupOptions) => boolean | void | Promise<boolean | void>) | undefined,
+  onActivateProject: ((id: string, options?: ProjectNavigationOptions) => boolean | void | Promise<boolean | void>) | undefined,
   onLayoutPreferenceChange: (update: WorkspaceLayoutPreferenceUpdate) => void,
 ) {
   return useCallback(async (

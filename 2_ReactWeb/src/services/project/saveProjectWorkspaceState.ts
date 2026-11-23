@@ -1,8 +1,9 @@
 import { fetchJson } from "../http/httpClient";
 import { getProjectWorkspaceState, type WorkspaceStateResponse } from "./getProjectWorkspaceState";
-import { synchronizeCachedProjectWorkspaceState } from "../../features/project-entry/model/projectEntryWarmup";
 
 const pendingWrites = new Map<string, Promise<WorkspaceStateResponse>>();
+
+const pendingReads = new Map<string, Promise<WorkspaceStateResponse>>();
 
 export async function finishWorkspaceWrites() {
   if (!pendingWrites.size) return;
@@ -18,10 +19,16 @@ export async function finishWorkspaceWrites() {
   }
 }
 
-export function readWorkspaceAfterWrites(projectId: string, cached?: WorkspaceStateResponse) {
+export function readWorkspaceAfterWrites(projectId: string): Promise<WorkspaceStateResponse> {
   const pending = pendingWrites.get(projectId);
-  return pending?.catch(() => getProjectWorkspaceState(projectId))
-    ?? (cached ? Promise.resolve(cached) : getProjectWorkspaceState(projectId));
+  if (pending) return pending.catch(() => readWorkspaceAfterWrites(projectId));
+  const existing = pendingReads.get(projectId);
+  if (existing) return existing;
+  const read = getProjectWorkspaceState(projectId);
+  pendingReads.set(projectId, read);
+  const clear = () => { if (pendingReads.get(projectId) === read) pendingReads.delete(projectId); };
+  void read.then(clear, clear);
+  return read;
 }
 
 export function patchProjectWorkspaceState(
@@ -38,10 +45,8 @@ export function patchProjectWorkspaceState(
 
 export function queueWorkspaceStateRequest<T extends WorkspaceStateResponse>(projectId: string, write: () => Promise<T>) {
   const previous = pendingWrites.get(projectId);
-  const request = (previous ? previous.then(write, write) : write()).then(state => {
-    synchronizeCachedProjectWorkspaceState(projectId, state);
-    return state;
-  });
+  pendingReads.delete(projectId);
+  const request = previous ? previous.then(write, write) : write();
   pendingWrites.set(projectId, request);
   const clear = () => { if (pendingWrites.get(projectId) === request) pendingWrites.delete(projectId); };
   void request.then(clear, clear);

@@ -93,7 +93,6 @@ type UseChatGenerationOptions = {
   stoppingSessionKeysRef: MutableRefObject<Set<string>>;
   isSessionMessagesPresented: (pid: string, sessionId: string) => boolean;
   isNotFoundRequestError: (error: unknown) => boolean;
-  isThinkingStuckToBottom: (messageId: string) => boolean;
   markSessionStreaming: (sessionKey: string) => SessionStreamingLease;
   markConversationProjectUnavailable: (pid: string) => void;
   models: ChatModelOption[];
@@ -105,7 +104,6 @@ type UseChatGenerationOptions = {
   saveSessionState: SaveSessionState;
   preserveCurrentView: () => void;
   publishCurrentDraftSnapshot: (pid: string, sessionId: string) => void;
-  scrollThinkingContentToBottom: (messageId: string) => void;
   sessions: ConversationSession[];
   setActiveSessionId: Dispatch<SetStateAction<string | null>>;
   setDraft: Dispatch<SetStateAction<string>>;
@@ -137,7 +135,6 @@ export function useChatGeneration({
   stoppingSessionKeysRef,
   isSessionMessagesPresented,
   isNotFoundRequestError,
-  isThinkingStuckToBottom,
   markSessionStreaming,
   markConversationProjectUnavailable,
   models,
@@ -149,7 +146,6 @@ export function useChatGeneration({
   saveSessionState,
   preserveCurrentView,
   publishCurrentDraftSnapshot,
-  scrollThinkingContentToBottom,
   sessions,
   setActiveSessionId,
   setDraft,
@@ -343,7 +339,6 @@ export function useChatGeneration({
     const streamAccumulator = createChatStreamAccumulator({
       assistantId,
       isSessionPresented: () => isSessionMessagesPresented(streamProjectId, sessionId),
-      isThinkingStuckToBottom,
       onUsage: (usage) => {
         shouldRefreshPersistedUsageOnNextToolCall = true;
         dispatchProjectConversationUpdated({
@@ -353,7 +348,6 @@ export function useChatGeneration({
           usage,
         });
       },
-      scrollThinkingContentToBottom,
       sessionId,
       streamProjectId,
       streamingEnabled: streamSessionSettings.streaming_enabled,
@@ -598,7 +592,6 @@ export function useChatGeneration({
     isActiveSessionBusy,
     stoppingSessionKeysRef,
     isSessionMessagesPresented,
-    isThinkingStuckToBottom,
     markSessionStreaming,
     models,
     projectId,
@@ -609,7 +602,6 @@ export function useChatGeneration({
     saveSessionState,
     preserveCurrentView,
     publishCurrentDraftSnapshot,
-    scrollThinkingContentToBottom,
     setDraft,
     setSessionRuntimeStatus,
     streamEventSequenceState,

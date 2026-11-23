@@ -177,6 +177,30 @@
   min-height: 0;
 }
 
+.ds-context-menu.doc-editor__selection-menu {
+  gap: 0;
+  padding: 3px;
+  border-radius: 0;
+}
+
+.doc-editor__selection-menu.ds-context-menu::before {
+  box-shadow: 0 2px 6px rgb(0 0 0 / 16%);
+}
+
+.doc-editor__selection-menu .ds-context-menu__item {
+  min-height: 24px;
+  padding: 2px 7px;
+  gap: 5px;
+  border-radius: 0;
+}
+
+.doc-editor__selection-copy-error {
+  max-width: 18em;
+  padding: 3px 7px;
+  font-size: 0.75rem;
+  color: var(--color-danger);
+}
+
 .doc-editor__text-content {
   display: flex;
   flex: 1;

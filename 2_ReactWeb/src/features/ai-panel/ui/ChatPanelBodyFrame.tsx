@@ -5,6 +5,7 @@ import { ChatPanelErrorNotice } from "./ChatPanelErrorNotice";
 import { ChatProcessFoldProvider } from "../model/chatProcessFoldState";
 import { useChatContentReadiness } from "../model/useChatContentReadiness";
 import { ContentReadinessContext } from "../../../shared/lib/contentReadiness";
+import { useI18n } from "../../../shared/i18n";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import { EdgeScrollbar } from "../../../shared/ui/edge-scrollbar";
 import { useMessageNavigatorActiveTurn } from "../model/useMessageNavigatorActiveTurn";
@@ -56,11 +57,16 @@ export function ChatPanelBodyFrame({
   onContentReady,
   settings,
 }: ChatPanelBodyFrameProps) {
-  const { readiness, isPreparing } = useChatContentReadiness(
-    activeView === "chat" ? activeSessionKey : null,
-    Boolean(chat.isLoadingSession || (viewRestoreRequest?.sessionKey === activeSessionKey && !chat.loadError)),
-    onContentReady,
-  );
+  const { t } = useI18n();
+  const inChat = activeView === "chat";
+  const waitingForData = inChat && (activeSessionKey
+    ? chat.isHistoryReady === false && chat.messages.length === 0 && !chat.loadError
+    : Boolean(chat.isLoadingSession));
+  const { readiness, isPreparing } = useChatContentReadiness(inChat ? activeSessionKey : null, {
+    waitingForData,
+    restoringPosition: viewRestoreRequest?.sessionKey === activeSessionKey && !chat.loadError,
+    onReady: onContentReady,
+  });
   const navigationItems = navigation.items;
   const activeExternalNavigationRequest = externalNavigationRequest?.sessionKey === activeSessionKey
     ? externalNavigationRequest
@@ -137,7 +143,7 @@ export function ChatPanelBodyFrame({
         onUserScroll={onUserScroll}
       />
       {isPreparing ? <div className="ai-panel__session-loading">
-        <LoadingStrip ariaLabel="正在加载会话" label="正在加载会话" mode="fill" visual="bar" />
+        <LoadingStrip ariaLabel={t("aiPanel.messageList.loadingSession")} label={t("aiPanel.messageList.loadingSession")} mode="fill" visual="bar" />
       </div> : null}
       {hasMessageNavigator && !isPreparing ? (
         <UserMessageNavigator

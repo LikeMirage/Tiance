@@ -15,7 +15,7 @@ import { isOverviewEditorTab } from "../../../features/document-tabs/model/works
 import { ToolsetOverview } from "../../../features/toolset-overview/ui/ToolsetOverview";
 import { ToolOverviewViewTabs } from "../../../features/toolset-overview/ui/ToolOverviewViewTabs";
 import { ToolMarketBoard } from "../../../features/tool-market/ui/ToolMarketBoard";
-import { preloadProjectEntry } from "../../../features/project-entry/model/projectEntryWarmup";
+import { prefetchConversationSummaries } from "../../../services/project/getProjectConversationSummaries";
 import {
   toolFoldersToProjects,
   toolsetsToProjectCategories,
@@ -122,7 +122,7 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
   }, [findFolderByProjectId, onOpenFolder, onSelectFolder]);
   const handlePrepareToolProject = useCallback((targetProjectId: string) => {
     if (!findFolderByProjectId(targetProjectId)) return;
-    void preloadProjectEntry(targetProjectId);
+    prefetchConversationSummaries(targetProjectId);
   }, [findFolderByProjectId]);
   const handleConfirmToolSession = useCallback((
     targetProjectId: string,
@@ -301,6 +301,7 @@ export const WorkspaceToolCanvasPanel = memo(function WorkspaceToolCanvasPanel({
 
   const assistantPanel = useMemo(() => (
     <ChatPanel
+      projectFilesVisible={expandedToolFolder?.project_id === projectId}
       projectReferenceCatalog={projectReferenceCatalog}
       activeConversationDataFile={activeConversationDataFile}
       clientToolRegistrations={clientToolRegistrations}

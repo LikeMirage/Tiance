@@ -16,7 +16,7 @@ type UseActiveSessionMessagesLoaderOptions = {
     sessionId: string,
     options: {
       preserveLocalIfShorter?: boolean;
-      forceRefresh?: boolean;
+      observedState?: ConversationMessageState;
       signal?: AbortSignal;
       shouldApply?: () => boolean;
       shouldPreserveLocal?: () => boolean;
@@ -25,7 +25,9 @@ type UseActiveSessionMessagesLoaderOptions = {
   reloadSessions: (projectId: string) => Promise<void>;
 };
 
-type UseActiveSessionLiveReloadOptions = UseActiveSessionMessagesLoaderOptions;
+type UseActiveSessionLiveReloadOptions = UseActiveSessionMessagesLoaderOptions & {
+  hasProjectRevision: (projectId: string, revision: number) => boolean;
+};
 
 export function useStreamingClockTick(isActiveSessionStreaming: boolean) {
   const [clockTick, setClockTick] = useState(() => Date.now());
@@ -59,19 +61,15 @@ export function useActiveSessionMessagesLoader({
         return;
       }
       await reloadSessionMessages(projectId, activeSessionId, {
-        forceRefresh: true,
         preserveLocalIfShorter: true,
         shouldPreserveLocal: () => isSessionStreaming(
           buildSessionKey(projectId, activeSessionId),
         ),
       });
-      if (!disposed) {
-        void reloadSessions(projectId).catch(() => undefined);
-      }
     }
 
     void loadMessages().catch((err) => {
-      if (projectId && isNotFoundRequestError(err)) {
+      if (!disposed && projectId && isNotFoundRequestError(err)) {
         void reloadSessions(projectId);
       }
       // 当前会话加载失败时保留已有缓存，避免正在回复的本地内容被清空。
@@ -91,7 +89,7 @@ export function useActiveSessionMessagesLoader({
 }
 
 export function useActiveSessionLiveReload({
-  activeSessionId, isActive = true, isSessionStreaming,
+  activeSessionId, isActive = true, isSessionStreaming, hasProjectRevision,
   projectId, reloadSessionMessages, reloadSessions,
 }: UseActiveSessionLiveReloadOptions) {
   useEffect(() => {
@@ -103,12 +101,12 @@ export function useActiveSessionLiveReload({
     const refresh = (state: ConversationMessageState, ready = false) => {
       if (disposed) return;
       if (ready && fallback !== null) { clearInterval(fallback); fallback = null; }
-      if (ready || state.project_revision !== previous?.project_revision) {
+      if ((ready || state.project_revision !== previous?.project_revision) && !hasProjectRevision(projectId, state.project_revision)) {
         void reloadSessions(projectId).catch(() => undefined);
       }
       if (ready || state.revision !== previous?.revision || state.reset_revision !== previous?.reset_revision) {
         void reloadSessionMessages(projectId, activeSessionId, {
-          forceRefresh: true,
+          observedState: state,
           shouldPreserveLocal: () => isSessionStreaming(buildSessionKey(projectId, activeSessionId)),
         }).catch(() => undefined);
       }
@@ -135,5 +133,5 @@ export function useActiveSessionLiveReload({
       if (fallback !== null) clearInterval(fallback);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [activeSessionId, isActive, isSessionStreaming, projectId, reloadSessionMessages, reloadSessions]);
+  }, [activeSessionId, hasProjectRevision, isActive, isSessionStreaming, projectId, reloadSessionMessages, reloadSessions]);
 }

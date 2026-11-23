@@ -17,7 +17,7 @@ import {
   functionalModelSettingsSections,
   type FunctionalModelSettingsSectionId,
 } from "../../../features/functional-model-settings/model/functionalModelSections";
-import type { ProjectEntryWarmupOptions } from "../../../features/project-entry/model/projectEntryWarmup";
+import type { ProjectNavigationOptions } from "../../../entities/project/model/project";
 import { FunctionalModelSettingsPanel } from "../../../features/functional-model-settings/ui/FunctionalModelSettingsPanel";
 import { DefaultRoleSettingsPanel } from "../../../features/default-role-settings/ui/DefaultRoleSettingsPanel";
 import { TokenEstimationSettingsPanel } from "../../../features/token-estimation-settings/ui/TokenEstimationSettingsPanel";
@@ -57,7 +57,7 @@ type WorkspaceCanvasPanelProps = {
   onSelectFunctionalModelSection: (sectionId: FunctionalModelSettingsSectionId) => void;
   onExpandProject: (
     projectId: string,
-    options?: ProjectEntryWarmupOptions,
+    options?: ProjectNavigationOptions,
   ) => boolean | void | Promise<boolean | void>;
   onCreateProject: () => Promise<void>;
   onCreateKnowledgeProject: () => Promise<void>;
@@ -72,7 +72,7 @@ type WorkspaceCanvasPanelProps = {
   onSelectProjectCategory: (categoryId: string) => void;
   onSelectProject: (
     projectId: string,
-    options?: ProjectEntryWarmupOptions,
+    options?: ProjectNavigationOptions,
   ) => boolean | void | Promise<boolean | void>;
   onOpenToolFolder: (folderId: string) => void;
   onCollapseToolFolder: () => Promise<boolean>;

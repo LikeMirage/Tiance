@@ -28,7 +28,7 @@ export function buildChatLocalFileNameIndex(
 /** One lazy index per chat project; filename links subscribe without rerendering
  * the message tree or starting a directory scan for each occurrence. */
 export function createChatLocalFileNameAvailability(
-  context: LocalFileReferenceContext,
+  context: LocalFileReferenceContext & { deferUntilInteraction?: boolean },
   loadSnapshot = getProjectContentFiles,
   watchFiles = watchProjectFileEvents,
   loadChanges = refreshProjectContentFiles,
@@ -44,6 +44,7 @@ export function createChatLocalFileNameAvailability(
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopWatching: (() => void) | null = null;
   let available = true;
+  let loading: Promise<void> | undefined;
 
   const publish = (next: LocalFileNameIndex | null) => {
     if (sameIndex(index, next)) return;
@@ -65,7 +66,7 @@ export function createChatLocalFileNameAvailability(
     request = controller;
     const operation = isFull ? loadSnapshot(context.projectId, { signal: controller.signal })
       : loadChanges(context.projectId, paths, { signal: controller.signal });
-    void operation.then((snapshot) => {
+    loading = operation.then((snapshot) => {
       if (controller.signal.aborted || generation !== expectedGeneration) return;
       if (snapshot.project_id !== context.projectId) throw new Error("Unexpected snapshot project");
       const replacements = new Map(snapshot.items.map(item => [item.path, item]));
@@ -107,25 +108,32 @@ export function createChatLocalFileNameAvailability(
   };
   const invalidateAll = () => { full = true; pending.add(""); schedule(); };
 
+  const startWatching = () => {
+    if (stopWatching || !listeners.size || !context.projectId || !context.projectRootPath) return;
+    available = true;
+    full = true;
+    stopWatching = watchFiles(context.projectId, {
+      onChanged: (paths) => { for (const path of paths) pending.add(path.replaceAll("\\", "/")); schedule(); },
+      onOverflow: invalidateAll,
+      onStatusChanged: (nextAvailable) => {
+        if (available === nextAvailable) return;
+        available = nextAvailable;
+        if (available) invalidateAll();
+        else { generation++; request?.abort(); publish(null); }
+      },
+    });
+    refresh();
+  };
+
   return {
+    prepareOnInteraction: context.deferUntilInteraction ? async () => {
+      startWatching();
+      await loading;
+    } : undefined,
     getSnapshot: () => index,
     subscribe: (listener) => {
       listeners.add(listener);
-      if (listeners.size === 1 && context.projectId && context.projectRootPath) {
-        available = true;
-        full = true;
-        stopWatching = watchFiles(context.projectId, {
-          onChanged: (paths) => { for (const path of paths) pending.add(path.replaceAll("\\", "/")); schedule(); },
-          onOverflow: invalidateAll,
-          onStatusChanged: (nextAvailable) => {
-            if (available === nextAvailable) return;
-            available = nextAvailable;
-            if (available) invalidateAll();
-            else { generation++; request?.abort(); publish(null); }
-          },
-        });
-        refresh();
-      }
+      if (!context.deferUntilInteraction) startWatching();
       return () => {
         listeners.delete(listener);
         if (listeners.size) return;

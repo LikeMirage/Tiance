@@ -11,11 +11,11 @@ import {
   type ConversationSelectionRequest,
 } from "../../../features/ai-panel/model/conversationSelectionMachine";
 import { createDefaultConversation } from "../../../features/ai-panel/model/createDefaultConversation";
-import type { ProjectEntryWarmupOptions } from "../../../features/project-entry/model/projectEntryWarmup";
+import type { ProjectNavigationOptions } from "../../../entities/project/model/project";
 
 type ProjectSelectionHandler = (
   projectId: string,
-  options?: ProjectEntryWarmupOptions,
+  options?: ProjectNavigationOptions,
 ) => boolean | void | Promise<boolean | void>;
 
 type UseWorkspaceConversationSelectionOptions = {
@@ -165,7 +165,6 @@ export function useWorkspaceConversationSelection({
     );
     try {
       const didSelect = await onSelectProject(targetProjectId, {
-        refreshConversations: true,
         sessionId,
       });
       if (didSelect === false) {
@@ -191,7 +190,6 @@ export function useWorkspaceConversationSelection({
     );
     try {
       const didExpand = await onExpandProject(targetProjectId, {
-        refreshConversations: true,
         sessionId,
       });
       if (didExpand === false) {
@@ -215,7 +213,6 @@ export function useWorkspaceConversationSelection({
     );
     try {
       const didSelect = await onSelectProject(targetProjectId, {
-        refreshConversations: true,
         sessionId: session.session_id,
       });
       if (didSelect === false) {

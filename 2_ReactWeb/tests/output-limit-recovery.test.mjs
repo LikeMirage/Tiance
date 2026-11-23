@@ -63,8 +63,8 @@ test("等待器拒绝把其他消息伪装成自动续接", async () => {
 test("截断通知保留正文和思考，丢弃半截工具并创建独立的续接流消息", () => {
   let messages = mapConversationMessages([persisted("root", "user", "任务"), persisted("stream", "assistant", "")]);
   const accumulator = createChatStreamAccumulator({ assistantId: "stream", streamingEnabled: false,
-    isSessionPresented: () => false, isThinkingStuckToBottom: () => false, onUsage: () => undefined,
-    scrollThinkingContentToBottom: () => undefined, sessionId: "session", streamProjectId: "project",
+    isSessionPresented: () => false, onUsage: () => undefined,
+    sessionId: "session", streamProjectId: "project",
     updateSessionMessages: (_project, _session, update) => { messages = update(messages); },
   });
   accumulator.handleEvent({ kind: "thinking_delta", content: "只生成了思考" });
@@ -103,8 +103,8 @@ test("新续接用户消息有恢复点，完整重放不会把上一轮工具�
   assert.equal(resume.checkpointMessageId, "automatic");
   messages = resume.messages;
   const accumulator = createChatStreamAccumulator({ assistantId: "new-stream", initialMessage: resume.assistantMessage,
-    streamingEnabled: false, isSessionPresented: () => false, isThinkingStuckToBottom: () => false,
-    onUsage: () => undefined, scrollThinkingContentToBottom: () => undefined,
+    streamingEnabled: false, isSessionPresented: () => false,
+    onUsage: () => undefined,
     sessionId: "session", streamProjectId: "project",
     updateSessionMessages: (_project, _session, update) => { messages = update(messages); },
   });

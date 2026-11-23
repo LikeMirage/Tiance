@@ -37,7 +37,7 @@ export function MarkdownLocalFileLink({
   const fileNameIndex = useSyncExternalStore(fileNames.subscribe, fileNames.getSnapshot, fileNames.getSnapshot);
   const resolved = reference.lookup === "name" ? fileNameIndex?.get(reference.name.toLowerCase()) : reference;
   const absolutePath = resolved?.absolutePath;
-  useEffect(() => { setMenuPosition(null); }, [absolutePath]);
+  useEffect(() => { setMenuPosition(null); }, [reference.rawPath, actions]);
 
   const run = useCallback(async (action: () => Promise<void> | void) => {
     if (isRunning) return;
@@ -65,21 +65,40 @@ export function MarkdownLocalFileLink({
 
   // A name is just text until the current project's complete index proves a
   // unique file exists. Keep click-time lookup to recheck moves or deletions.
-  if (!resolved) return <span>{children}</span>;
+  const prepare = fileNames.prepareOnInteraction;
+  const pendingName = !resolved && fileNameIndex === null && reference.lookup === "name" && prepare;
+  if (!resolved && !pendingName) return <span>{children}</span>;
+  const verifiedAction = async (action: () => Promise<void> | void) => {
+    if (pendingName && reference.lookup === "name") {
+      await pendingName();
+      if (!fileNames.getSnapshot()?.has(reference.name.toLowerCase())) return;
+    }
+    await action();
+  };
 
   return (
     <>
       <a
         aria-disabled={isRunning ? "true" : undefined}
-        className="markdown-preview__local-file-link"
-        href="#"
+        className={resolved ? "markdown-preview__local-file-link" : undefined}
+        onPointerEnter={pendingName ? () => void pendingName() : undefined}
+        onFocus={pendingName ? () => void pendingName() : undefined}
+        tabIndex={pendingName ? 0 : undefined}
+        href={resolved ? "#" : undefined}
         title={absolutePath}
+        onKeyDown={pendingName ? (event) => {
+          if (event.key === "Enter") { event.preventDefault(); void run(() => verifiedAction(openDefaultAction)); }
+        } : undefined}
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          void run(openDefaultAction);
+          void run(() => verifiedAction(openDefaultAction));
         }}
-        onContextMenu={handleContextMenu}
+        onContextMenu={pendingName ? (event) => {
+          event.preventDefault();
+          const point = { x: event.clientX, y: event.clientY };
+          void verifiedAction(() => setMenuPosition(point));
+        } : handleContextMenu}
       >
         {children}
       </a>

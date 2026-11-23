@@ -96,3 +96,45 @@ test("replacing an in-flight child with an error removes its loading claim", asy
   assert.equal(root.root.findByProps({ role: "alert" }).children[0], "failed");
   await act(async () => root.unmount());
 });
+
+test("chat keeps one loading bar across session selection, first history and layout", async t => {
+  const { useChatContentReadiness } = load("src/features/ai-panel/model/useChatContentReadiness.ts", {
+    "../../../shared/lib/contentReadiness": load("src/shared/lib/contentReadiness.tsx"),
+  });
+  const previousWindow = globalThis.window;
+  const frames = new Map();
+  let id = 0;
+  globalThis.window = {
+    requestAnimationFrame(callback) { frames.set(++id, callback); return id; },
+    cancelAnimationFrame(handle) { frames.delete(handle); },
+  };
+  let root;
+  t.after(async () => { try { await act(async () => root?.unmount()); } finally { globalThis.window = previousWindow; } });
+  const paint = async () => {
+    const batch = [...frames.values()];
+    frames.clear();
+    await act(async () => batch.forEach(callback => callback()));
+  };
+  function Chat({ sessionKey, waitingForData, restoringPosition }) {
+    const { isPreparing } = useChatContentReadiness(sessionKey, { waitingForData, restoringPosition });
+    return isPreparing ? React.createElement(LoadingStrip, { visual: "bar" }) : null;
+  }
+  const view = (sessionKey, waitingForData, restoringPosition = false) =>
+    React.createElement(Chat, { sessionKey, waitingForData, restoringPosition });
+  await act(async () => { root = TestRenderer.create(view(null, true)); });
+  const bar = root.root.findByType(LoadingStrip);
+  await act(async () => root.update(view("project/session", true)));
+  await paint();
+  assert.equal(root.root.findByType(LoadingStrip), bar);
+  await act(async () => root.update(view("project/session", false, true)));
+  await paint();
+  assert.equal(root.root.findByType(LoadingStrip), bar);
+  await act(async () => root.update(view("project/session", false)));
+  await paint();
+  await paint();
+  assert.equal(root.root.findAllByType(LoadingStrip).length, 0);
+  await act(async () => root.update(view("project/session", false, true)));
+  assert.equal(root.root.findAllByType(LoadingStrip).length, 0, "later scroll restoration keeps visible messages on screen");
+  await act(async () => root.update(view(null, false)));
+  assert.equal(root.root.findAllByType(LoadingStrip).length, 0, "no project or session selected");
+});

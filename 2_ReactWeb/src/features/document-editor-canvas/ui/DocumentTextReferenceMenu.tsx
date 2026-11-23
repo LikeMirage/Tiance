@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
+import { ChatCircleText, Copy } from "@phosphor-icons/react";
 
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import { getEditorDocumentPath } from "../../../entities/editor/model/editorWorkspaceFileReference";
@@ -9,11 +10,14 @@ import type {
   EditorWordTextReferenceLocation,
 } from "../../../entities/editor/model/editorReference";
 import { ContextMenu, ContextMenuItem } from "../../../shared/ui/context-menu";
+import { useI18n } from "../../../shared/i18n";
 import type { CodeEditorTextSelectionContextMenu } from "../../editor/ui/CodeEditor";
 import { readWordTextReferenceLocation } from "../model/wordTextReferenceLocation";
 import { renderedSelectionMarkdown } from "../model/renderedSelectionMarkdown";
 
 type TextReferenceMenuState = {
+  selectedText: string;
+  copyFailed?: boolean;
   reference: EditorTextReferenceDraft;
   x: number;
   y: number;
@@ -28,6 +32,7 @@ export function useDocumentTextReferenceMenu({
   activeTab,
   onCreateTextReference,
 }: UseDocumentTextReferenceMenuOptions) {
+  const { t } = useI18n();
   const [textReferenceMenu, setTextReferenceMenu] = useState<TextReferenceMenuState>(null);
 
   useEffect(() => {
@@ -48,10 +53,10 @@ export function useDocumentTextReferenceMenu({
     },
     source: EditorTextReferenceSource,
   ) => {
-    if (!activeTab || !onCreateTextReference) return;
+    if (!activeTab || !selection.content) return;
     const content = selection.content.trim();
-    if (!content) return;
     setTextReferenceMenu({
+      selectedText: selection.content,
       reference: buildEditorTextReferenceDraft(activeTab, {
         content,
         contentMarkdown: selection.contentMarkdown,
@@ -65,6 +70,21 @@ export function useDocumentTextReferenceMenu({
       x: selection.x,
       y: selection.y,
     });
+  };
+
+  const copySelection = async (menu: NonNullable<TextReferenceMenuState>) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(menu.selectedText);
+      } else if (window.getSelection()?.toString() !== menu.selectedText || !document.execCommand("copy")) {
+        // Plain HTTP only supports native copying while the original selection is live.
+        throw new Error("Clipboard unavailable");
+      }
+    } catch {
+      setTextReferenceMenu(current => current === menu ? { ...menu, copyFailed: true } : current);
+      return;
+    }
+    setTextReferenceMenu(current => current === menu ? null : current);
   };
 
   const handleSourceTextContextMenu = (
@@ -105,17 +125,29 @@ export function useDocumentTextReferenceMenu({
       {content}
       {textReferenceMenu ? (
         <ContextMenu
+          className="doc-editor__selection-menu"
+          minWidth={104}
+          withIcons
           onClose={() => setTextReferenceMenu(null)}
           position={{ x: textReferenceMenu.x, y: textReferenceMenu.y }}
         >
-          <ContextMenuItem
-            onSelect={() => {
-              onCreateTextReference?.(textReferenceMenu.reference);
-              setTextReferenceMenu(null);
-            }}
-          >
-            引用到对话
+          <ContextMenuItem icon={<Copy size={14} />} onSelect={() => void copySelection(textReferenceMenu)}>
+            {t("fileWorkspace.context.copy")}
           </ContextMenuItem>
+          {onCreateTextReference && textReferenceMenu.reference.content && (
+            <ContextMenuItem
+              icon={<ChatCircleText size={14} />}
+              onSelect={() => {
+                onCreateTextReference(textReferenceMenu.reference);
+                setTextReferenceMenu(null);
+              }}
+            >
+              {t("fileWorkspace.context.referenceToChat")}
+            </ContextMenuItem>
+          )}
+          {textReferenceMenu.copyFailed && (
+            <span className="doc-editor__selection-copy-error" role="alert">{t("projectOverview.copySessionFailed")}</span>
+          )}
         </ContextMenu>
       ) : null}
     </>
@@ -163,7 +195,7 @@ function readSelectedTextInside(surface: HTMLElement) {
   if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
   if (!selection.anchorNode || !selection.focusNode) return null;
   if (!surface.contains(selection.anchorNode) || !surface.contains(selection.focusNode)) return null;
-  const content = selection.toString().trim();
+  const content = selection.toString();
   return content ? { content, range: selection.getRangeAt(0).cloneRange() } : null;
 }
 

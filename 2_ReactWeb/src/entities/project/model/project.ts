@@ -167,3 +167,5 @@ export type ProjectFileOpenExternalRequest = FileWorkspaceOpenExternalRequest;
 export type ProjectFileOpenExternalResponse = FileWorkspaceOpenExternalResponse & {
   project_id: string;
 };
+
+export type ProjectNavigationOptions = { sessionId?: string | null };

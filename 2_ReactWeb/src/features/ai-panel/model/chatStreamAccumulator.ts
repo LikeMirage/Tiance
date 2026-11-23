@@ -32,24 +32,21 @@ type ChatStreamAccumulatorOptions = {
   assistantId: string;
   initialMessage?: ChatMessage | null;
   isSessionPresented: () => boolean;
-  isThinkingStuckToBottom: (messageId: string) => boolean;
   onUsage: (usage: ChatUsage) => void;
-  scrollThinkingContentToBottom: (messageId: string) => void;
   sessionId: string;
   streamProjectId: string;
   streamingEnabled: boolean;
   updateSessionMessages: UpdateSessionMessages;
 };
 
-const STREAM_FLUSH_DELAY_MS = 1;
+const BACKGROUND_FLUSH_MS = 16;
+const FRAME_FALLBACK_MS = 100;
 
 export function createChatStreamAccumulator({
   assistantId,
   initialMessage = null,
   isSessionPresented,
-  isThinkingStuckToBottom,
   onUsage,
-  scrollThinkingContentToBottom,
   sessionId,
   streamProjectId,
   streamingEnabled,
@@ -82,10 +79,17 @@ export function createChatStreamAccumulator({
   );
   let committedHasCollapsedThinking = hasCollapsedThinkingOnBodyStart;
   let flushTimer: number | null = null;
+  let flushFrame: number | null = null;
+
+  const clearFlushTimer = () => {
+    if (flushTimer !== null) window.clearTimeout(flushTimer);
+    if (flushFrame !== null) window.cancelAnimationFrame(flushFrame);
+    flushTimer = null;
+    flushFrame = null;
+  };
 
   const flushStreamUpdate = () => {
-    flushTimer = null;
-    const shouldScrollThinking = thinkingBuffer.length > 0 && contentBuffer.trim().length === 0;
+    clearFlushTimer();
     updateSessionMessages(streamProjectId, sessionId, (prev) => prev.map((message) =>
       message.id === assistantId
         ? {
@@ -110,37 +114,29 @@ export function createChatStreamAccumulator({
           }
         : message,
     ));
-    if (
-      shouldScrollThinking &&
-      isSessionPresented() &&
-      isThinkingStuckToBottom(assistantId)
-    ) {
-      scrollThinkingContentToBottom(assistantId);
-    }
   };
 
   const scheduleStreamFlush = () => {
-    if (!streamingEnabled || flushTimer !== null) return;
-    // 保持 ThinkFlow 实测的 1ms 打字机节奏，让事件循环自然合并连续 chunk。
-    flushTimer = window.setTimeout(flushStreamUpdate, STREAM_FLUSH_DELAY_MS);
+    if (!streamingEnabled || flushTimer !== null || flushFrame !== null) return;
+    if (isSessionPresented() && typeof window.requestAnimationFrame === "function"
+      && typeof document !== "undefined" && document.visibilityState === "visible") {
+      flushFrame = window.requestAnimationFrame(flushStreamUpdate);
+      // A WebView hidden after scheduling can suspend its pending frame.
+      flushTimer = window.setTimeout(flushStreamUpdate, FRAME_FALLBACK_MS);
+    } else {
+      flushTimer = window.setTimeout(flushStreamUpdate, BACKGROUND_FLUSH_MS);
+    }
   };
 
   const flushNow = () => {
-    if (flushTimer !== null) {
-      window.clearTimeout(flushTimer);
-      flushTimer = null;
-    }
-    if (streamHadError) return;
-    flushStreamUpdate();
+    if (streamHadError) clearFlushTimer();
+    else flushStreamUpdate();
   };
 
   const finalizeCancelled = () => {
     modelResponseInFlight = false;
     updateSessionMessages(streamProjectId, sessionId, releasePendingChatNotifications);
-    if (flushTimer !== null) {
-      window.clearTimeout(flushTimer);
-      flushTimer = null;
-    }
+    clearFlushTimer();
     const now = Date.now();
     retryStatus = null;
     processItems = removeToolPreparingProcess(
@@ -297,7 +293,6 @@ export function createChatStreamAccumulator({
     if (event.kind === "output_limit") {
       finishModelResponse();
       if (event.usage) onUsage(event.usage);
-      if (flushTimer !== null) { window.clearTimeout(flushTimer); flushTimer = null; }
       const previousAssistantId = assistantId;
       const nextAssistantId = event.will_recover ? createUuid() : assistantId;
       const saved = event.saved_message ? mapConversationMessages([event.saved_message])[0] : null;
@@ -338,10 +333,7 @@ export function createChatStreamAccumulator({
     if (event.kind === "retry_reset") {
       modelResponseInFlight = false;
       updateSessionMessages(streamProjectId, sessionId, releasePendingChatNotifications);
-      if (flushTimer !== null) {
-        window.clearTimeout(flushTimer);
-        flushTimer = null;
-      }
+      clearFlushTimer();
       contentBuffer = committedContentBuffer;
       thinkingBuffer = committedThinkingBuffer;
       contentPartsBuffer = [...committedContentPartsBuffer];
@@ -538,10 +530,7 @@ export function createChatStreamAccumulator({
     if (event.kind === "error") {
       modelResponseInFlight = false;
       updateSessionMessages(streamProjectId, sessionId, releasePendingChatNotifications);
-      if (flushTimer !== null) {
-        window.clearTimeout(flushTimer);
-        flushTimer = null;
-      }
+      clearFlushTimer();
       const now = Date.now();
       streamHadError = true;
       streamRole = "assistant";
@@ -591,12 +580,7 @@ export function createChatStreamAccumulator({
   };
 
   return {
-    clearFlushTimer: () => {
-      if (flushTimer !== null) {
-        window.clearTimeout(flushTimer);
-        flushTimer = null;
-      }
-    },
+    clearFlushTimer,
     finalizeCancelled,
     finalizeCompleted,
     flushNow,

@@ -14,7 +14,7 @@ import { isProjectConversationOverviewTab } from "../../../features/document-edi
 import { useDesktopShell } from "../../../features/desktop-shell/model/useDesktopShell";
 import type { useDocumentTabs } from "../../../features/document-tabs/model/useDocumentTabs";
 import { isOverviewEditorTab } from "../../../features/document-tabs/model/workspaceTabEntries";
-import type { ProjectEntryWarmupOptions } from "../../../features/project-entry/model/projectEntryWarmup";
+import type { ProjectNavigationOptions } from "../../../entities/project/model/project";
 import type { ProjectMarketScope } from "../../../features/project-market/model/projectMarket";
 import { revealProjectFile } from "../../../services/project/revealProjectFile";
 import { useWorkspaceConversationSelection } from "../model/useWorkspaceConversationSelection";
@@ -56,7 +56,7 @@ type WorkspaceEditorCanvasPanelProps = {
   projectMarketScope?: ProjectMarketScope | null;
   onExpandProject: (
     projectId: string,
-    options?: ProjectEntryWarmupOptions,
+    options?: ProjectNavigationOptions,
   ) => boolean | void | Promise<boolean | void>;
   onCreateProject?: () => Promise<void>;
   onCollapseProject: () => boolean | void | Promise<boolean | void>;
@@ -68,7 +68,7 @@ type WorkspaceEditorCanvasPanelProps = {
   onSelectCategory: (categoryId: string) => void;
   onSelectProject: (
     projectId: string,
-    options?: ProjectEntryWarmupOptions,
+    options?: ProjectNavigationOptions,
   ) => boolean | void | Promise<boolean | void>;
   projects: Project[];
   projectFileReferenceRequest?: ProjectFileReferenceRequest | null;
@@ -498,6 +498,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
   ) : categoryOverviewContent;
   const assistantPanel = useMemo(() => (
     <ChatPanel
+      projectFilesVisible={expandedProjectId === projectId}
       projectReferenceCatalog={projectReferenceCatalog}
       activeConversationDataFile={activeConversationDataFile}
       clientToolRegistrations={clientToolRegistrations}

@@ -29,7 +29,6 @@ type UseDetachedConversationStreamOptions = {
   releaseSessionStreamController: (sessionKey: string, controller: AbortController) => void;
   isActive: boolean;
   isSessionMessagesPresented: (projectId: string, sessionId: string) => boolean;
-  isThinkingStuckToBottom: (messageId: string) => boolean;
   markSessionStreaming: (sessionKey: string) => SessionStreamingLease;
   projectId: string | null;
   reloadSessionMessages: (
@@ -49,7 +48,6 @@ type UseDetachedConversationStreamOptions = {
   ) => Promise<void>;
   reloadSessions: (projectId: string) => Promise<void>;
   runtimeStatus: string | null;
-  scrollThinkingContentToBottom: (messageId: string) => void;
   streamEventSequenceState: ChatStreamEventSequenceState;
   streamingEnabled: boolean;
   streamingSessionKeys: Set<string>;
@@ -70,14 +68,12 @@ export function useDetachedConversationStream({
   releaseSessionStreamController,
   isActive,
   isSessionMessagesPresented,
-  isThinkingStuckToBottom,
   markSessionStreaming,
   projectId,
   reloadSessionMessages,
   reloadSessionUsageSummary,
   reloadSessions,
   runtimeStatus,
-  scrollThinkingContentToBottom,
   streamEventSequenceState,
   streamingEnabled,
   streamingSessionKeys,
@@ -120,7 +116,6 @@ export function useDetachedConversationStream({
       assistantId: id,
       initialMessage,
       isSessionPresented: () => isSessionMessagesPresented(projectId, activeSessionId),
-      isThinkingStuckToBottom,
       onUsage: (usage) => {
         shouldRefreshPersistedUsageOnNextToolCall = true;
         dispatchProjectConversationUpdated({
@@ -131,7 +126,6 @@ export function useDetachedConversationStream({
         });
         emitLlmUsageChanged();
       },
-      scrollThinkingContentToBottom,
       sessionId: activeSessionId,
       streamProjectId: projectId,
       streamingEnabled,
@@ -300,14 +294,12 @@ export function useDetachedConversationStream({
     releaseSessionStreamController,
     isActive,
     isSessionMessagesPresented,
-    isThinkingStuckToBottom,
     markSessionStreaming,
     projectId,
     reloadSessionMessages,
     reloadSessionUsageSummary,
     reloadSessions,
     runtimeStatus,
-    scrollThinkingContentToBottom,
     setSessionRuntimeStatus,
     streamEventSequenceState,
     streamingEnabled,

@@ -9,7 +9,7 @@ import { useOpenProjectOverviewView } from "../model/useOpenProjectOverviewView"
 import { ProjectCategoryOverview } from "../../../features/project-category-overview/ui/ProjectCategoryOverview";
 import { ProjectMarketBoard } from "../../../features/project-market/ui/ProjectMarketBoard";
 import type { ProjectMarketScope } from "../../../features/project-market/model/projectMarket";
-import type { ProjectEntryWarmupOptions } from "../../../features/project-entry/model/projectEntryWarmup";
+import type { ProjectNavigationOptions } from "../../../entities/project/model/project";
 import { ProjectBranchOverviewPanel } from "./ProjectBranchOverviewPanel";
 
 type ProjectCategoryOverviewKeepAliveProps = {
@@ -24,7 +24,7 @@ type ProjectCategoryOverviewKeepAliveProps = {
   onImportProjectFolder?: (rootPath: string) => Promise<void>;
   onActivateProject?: (
     projectId: string,
-    options?: ProjectEntryWarmupOptions,
+    options?: ProjectNavigationOptions,
   ) => boolean | void | Promise<boolean | void>;
   onLayoutPreferenceChange: (update: WorkspaceLayoutPreferenceUpdate) => void;
   onOpenConversationBranches: (projectId: string, sessionId: string | null) => Promise<void>;

@@ -151,6 +151,9 @@ export function ChatMessageList({
     navigationRequest, olderLoadRevision, onLoadOlder, onNavigationHandled]);
 
   useLayoutEffect(() => {
+    // Virtual rows already publish their measured height and update the list
+    // layout. A second observer writing the cache can mask that height change.
+    if (shouldVirtualize) return;
     const liveMessageId = liveMessage?.id;
     const scrollElement = scrollParentRef.current;
     if (!liveMessageId || !scrollElement) return undefined;
@@ -181,7 +184,7 @@ export function ChatMessageList({
       observer.observe(modelSwitchElement);
     }
     return () => observer.disconnect();
-  }, [liveMessage?.id, liveMessage?.displayKey, scrollParentRef]);
+  }, [liveMessage?.id, liveMessage?.displayKey, scrollParentRef, shouldVirtualize]);
 
   useEffect(() => {
     const visibleMessageIds = new Set(displayMessages.map((message) => message.displayKey ?? message.id));
@@ -206,12 +209,8 @@ export function ChatMessageList({
 
   if (displayMessages.length === 0) {
     return (
-      <div
-        className={isLoadingSession ? "ai-panel__empty ai-panel__empty--loading" : "ai-panel__empty"}
-        role={isLoadingSession ? "status" : undefined}
-      >
-        {isLoadingSession ? <span className="ai-panel__loading-spinner" aria-hidden="true" /> : null}
-        <span>{loadErrorLabel ?? (isLoadingSession ? t("aiPanel.messageList.loadingSession") : t("aiPanel.messageList.empty"))}</span>
+      <div className="ai-panel__empty">
+        <span>{loadErrorLabel ?? t("aiPanel.messageList.empty")}</span>
         {loadError ? <button type="button" onClick={onRetryLoad}>{t("common.actions.retry")}</button> : null}
       </div>
     );

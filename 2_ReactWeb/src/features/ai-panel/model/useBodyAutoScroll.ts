@@ -9,12 +9,10 @@ import {
   createChatBottomFollower,
   type ChatBottomFollower,
 } from "./chatBottomFollower";
-import type { ChatMessage } from "./chatMessage";
 
 type UseBodyAutoScrollOptions = {
   activeSessionKey: string | null;
   isChatViewActive: boolean;
-  messages: ChatMessage[];
   navigationTargetSessionKey?: string | null;
 };
 
@@ -26,7 +24,6 @@ const SESSION_SETTLE_MAX_MS = 1200;
 export function useBodyAutoScroll({
   activeSessionKey,
   isChatViewActive,
-  messages,
   navigationTargetSessionKey = null,
 }: UseBodyAutoScrollOptions) {
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -129,6 +126,9 @@ export function useBodyAutoScroll({
       || presentedSessionKeyRef.current !== activeSessionKey) return null;
     const position = captureChatScrollPosition(el, NEAR_BOTTOM_PX);
     if (!position.anchorMessageId) return null;
+    if (bottomFollowerRef.current?.isActive() && autoScrollEnabledRef.current) {
+      position.isFollowingBottom = true;
+    }
     scrollPositionsRef.current.set(activeSessionKey, position);
     return position;
   }, [activeSessionKey, isChatViewActive]);
@@ -387,34 +387,21 @@ export function useBodyAutoScroll({
     const pauseForTouchScroll = pauseForUserScroll;
 
     const resizeObserver = new ResizeObserver(scheduleStickToBottom);
-    const observedMessageElements = new Set<HTMLElement>();
-    const observeRenderedMessages = () => {
-      observedMessageElements.forEach((element) => {
-        if (scrollEl.contains(element)) return;
-        resizeObserver.unobserve(element);
-        observedMessageElements.delete(element);
-      });
-      scrollEl.querySelectorAll<HTMLElement>("[data-chat-message-id]").forEach((element) => {
-        if (observedMessageElements.has(element)) return;
-        observedMessageElements.add(element);
-        resizeObserver.observe(element);
-      });
+    let messagesEl: Element | null = null;
+    const observeMessageList = () => {
+      const next = scrollEl.querySelector(".ai-panel__messages");
+      if (next === messagesEl) return;
+      if (messagesEl) resizeObserver.unobserve(messagesEl);
+      messagesEl = next;
+      if (messagesEl) resizeObserver.observe(messagesEl);
+      scheduleStickToBottom();
     };
     resizeObserver.observe(scrollEl);
-    const messagesEl = scrollEl.querySelector(".ai-panel__messages");
-    if (messagesEl instanceof HTMLElement) {
-      resizeObserver.observe(messagesEl);
-    }
-    const virtualListEl = scrollEl.querySelector(".ai-panel__virtual-list");
-    if (virtualListEl instanceof HTMLElement) {
-      resizeObserver.observe(virtualListEl);
-    }
-    observeRenderedMessages();
-    const mutationObserver = new MutationObserver(() => {
-      observeRenderedMessages();
-      scheduleStickToBottom();
-    });
-    mutationObserver.observe(scrollEl, { childList: true, subtree: true });
+    observeMessageList();
+    // Rebind when the empty state is replaced. Text, rich content and virtual
+    // row measurements all change the height of the same message-list wrapper.
+    const mutationObserver = new MutationObserver(observeMessageList);
+    mutationObserver.observe(scrollEl, { childList: true });
     scrollEl.addEventListener("wheel", pauseForUpwardWheel, { passive: true });
     scrollEl.addEventListener("keydown", pauseForScrollKey);
     scrollEl.addEventListener("pointerdown", pauseForScrollbarPointer);
@@ -438,7 +425,6 @@ export function useBodyAutoScroll({
   }, [
     activeSessionKey,
     isChatViewActive,
-    messages.length,
     scheduleSessionSettleFinish,
     setAutoScrollEnabled,
     pauseForUserScroll,

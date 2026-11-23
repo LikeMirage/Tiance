@@ -10,14 +10,13 @@ import { act, create } from "react-test-renderer";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 globalThis.window = { setTimeout, clearTimeout, setInterval, clearInterval };
-let requests = [], saves = [], lists = [], renderer, value, props, warmup = null;
+let requests = [], saves = [], lists = [], renderer, value, props;
 let serverChangeListener;
 const mocks = {
   react: React,
   "./chatPanelRequestErrors": { isNotFoundRequestError: () => false },
   "../../../entities/llm-chat/model/projectConversationEvents": { dispatchProjectConversationUpdated() {},
     listenProjectConversationUpdated(listener) { serverChangeListener = listener; return () => { serverChangeListener = null; }; } },
-  "../../project-entry/model/projectEntryWarmup": { getCachedProjectEntryWarmup: () => warmup },
   "../../../services/project/saveProjectConversationState": {
     async saveProjectConversationState(pid, input) { saves.push({ pid, input }); },
   },
@@ -63,9 +62,8 @@ function response(id = "a") { return { project_id: "p", revision: 1, active_sess
   branch_nodes: [], message_variants: [] }; }
 function detail(id) { return { project_id: "p", revision: 2, session: session(id), state: state(`draft-${id}`) }; }
 function Harness(options) { value = useConversationSessions(options); return null; }
-async function setup(preferredSessionId = null, loaded = response(), cached = null) {
+async function setup(preferredSessionId = null, loaded = response()) {
   requests = []; saves = []; lists = [];
-  warmup = cached;
   props = { projectId: "p", preferredSessionId, activeProjectIdRef: { current: null }, activeSessionIdRef: { current: null },
     abortProjectStreams() {}, showChatView() {} };
   await act(async () => { renderer = create(React.createElement(Harness, props)); });
@@ -179,10 +177,23 @@ test("explicit overview target selected during initial loading is persisted in t
   assert.equal(value.draft, "draft-b");
 });
 
-test("warmup-selected overview target is persisted even when its cached active ID already matches", async () => {
-  await setup("b", response("b"), { conversations: response("b") });
-  assert.equal(value.activeSessionId, "b");
-  assert.ok(saves.some(({ pid, input }) => pid === "p" && input.active_session_id === "b"));
+test("navigation joins a pending list read; only a server change triggers a trailing refresh", async () => {
+  await setup();
+  const select = () => value.reloadSessionsForSelection("p");
+  const first = select();
+  assert.equal(select(), first);
+  assert.equal(lists.length, 2);
+  await act(async () => { lists[1].resolve(response()); await first; });
+  assert.equal(lists.length, 2);
+  const second = select();
+  await act(async () => {
+    serverChangeListener({ source: "server", kind: "structure", projectId: "p" });
+    serverChangeListener({ source: "server", kind: "structure", projectId: "p" });
+    assert.equal(select(), second);
+    lists[2].resolve(response()); await second;
+  });
+  assert.equal(lists.length, 4);
+  await act(async () => lists[3].resolve(response()));
 });
 
 test("late initial response from a previous project cannot persist its selection into the new project", async () => {

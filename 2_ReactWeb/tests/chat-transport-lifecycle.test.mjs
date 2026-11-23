@@ -85,9 +85,9 @@ async function setup(detached = false) {
     reloadSessionMessages: () => { const task = deferred(); history.push(task); return task.promise; },
     reloadSessions: () => { const task = deferred(); lists.push(task); return task.promise; },
     reloadSessionUsageSummary: () => new Promise(() => {}),
-    isSessionMessagesPresented: () => true, isThinkingStuckToBottom: () => false,
+    isSessionMessagesPresented: () => true,
     setDraft: noop, saveSessionState: noop, restoreUnsentInput: noop, preserveCurrentView: noop, showChatView: noop,
-    publishCurrentDraftSnapshot: noop, scrollThinkingContentToBottom: noop,
+    publishCurrentDraftSnapshot: noop,
     streamEventSequenceState: {}, isNotFoundRequestError: () => false,
   };
   await act(async () => { renderer = create(React.createElement(Harness, { detached })); });

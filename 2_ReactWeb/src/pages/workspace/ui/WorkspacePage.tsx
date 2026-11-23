@@ -40,10 +40,8 @@ import {
   normalizeWorkspaceLayoutPreferences,
   normalizeWorkspaceLayoutPreferenceUpdate,
 } from "../../../entities/workspace/model/workspaceLayoutPreferences";
-import {
-  preloadProjectEntry,
-  type ProjectEntryWarmupOptions,
-} from "../../../features/project-entry/model/projectEntryWarmup";
+import { prefetchConversationSummaries } from "../../../services/project/getProjectConversationSummaries";
+import type { ProjectNavigationOptions } from "../../../entities/project/model/project";
 import { useProviderConfigState } from "../../../features/provider-config/model/useProviderConfigState";
 import { useSidePanelLayout } from "../model/useSidePanelLayout";
 import { collectToolEntryFilePaths } from "../model/toolEntryFiles";
@@ -287,18 +285,17 @@ export function WorkspacePage({
     toolFolders.expandedFolderId,
   );
   const handlePrepareProject = useCallback((projectId: string) => {
-    void preloadProjectEntry(projectId);
+    prefetchConversationSummaries(projectId);
   }, []);
   const handleExpandProject = useCallback(async (
     projectId: string,
-    options: ProjectEntryWarmupOptions = {},
+    options: ProjectNavigationOptions = {},
   ) => {
-    const expand = async () => {
+    const expand = () => {
       projectCatalog.expandProject(projectId, options.sessionId ?? null);
-      await preloadProjectEntry(projectId, options);
     };
     if (projectId === projectCatalog.selectedProjectId) {
-      await expand();
+      expand();
       return true;
     }
     return requestUnsavedTransition(
@@ -320,10 +317,9 @@ export function WorkspacePage({
       projectCatalog.reload();
       return;
     }
-    void requestUnsavedTransition([projectDocumentTabs], "switch", async () => {
+    void requestUnsavedTransition([projectDocumentTabs], "switch", () => {
       providerCatalog.selectProvider(providerId);
       projectCatalog.expandProject(providerProject.project_id);
-      await preloadProjectEntry(providerProject.project_id);
     });
   }, [
     requestUnsavedTransition,
@@ -355,14 +351,13 @@ export function WorkspacePage({
   }, [handleSelectProvider, pendingCreatedProviderId, providerProjects]);
   const handleSelectProject = useCallback(async (
     projectId: string,
-    options: ProjectEntryWarmupOptions = {},
+    options: ProjectNavigationOptions = {},
   ) => {
-    const select = async () => {
+    const select = () => {
       projectCatalog.selectProject(projectId, options.sessionId ?? null);
-      await preloadProjectEntry(projectId, options);
     };
     if (projectId === projectCatalog.selectedProjectId) {
-      await select();
+      select();
       return true;
     }
     return requestUnsavedTransition(
@@ -988,14 +983,13 @@ export function WorkspacePage({
     };
     const section = sections[target.project_kind];
     if (!section) throw new Error("无法识别这个项目所属的项目集。");
-    await requestUnsavedTransition([projectDocumentTabs, toolDocumentTabs], "switch", async () => {
+    await requestUnsavedTransition([projectDocumentTabs, toolDocumentTabs], "switch", () => {
       if (target.project_kind === "tool") {
         toolCatalog.selectToolset(target.category_id);
         toolFolders.expandFolder(target.project_id);
       } else {
         projectCatalog.selectCategory(target.category_id, { persistWorkspaceSelection: target.project_kind === "project" });
         projectCatalog.expandProject(target.project_id);
-        await preloadProjectEntry(target.project_id);
       }
       setActiveSection(section);
     });

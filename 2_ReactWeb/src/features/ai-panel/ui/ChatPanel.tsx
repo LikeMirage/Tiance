@@ -57,6 +57,7 @@ type Props = {
   preferredSessionId?: string | null;
   projectFileReferenceRequest?: ProjectFileReferenceRequest | null;
   projectRootPath?: string;
+  projectFilesVisible?: boolean;
   sessionSelectionError?: string | null;
   sessionSelectionRequest?: ChatPanelSessionSelectionRequest | null;
 };

@@ -17,7 +17,7 @@ const fakeWindow = () => ({
   setInterval(fn) { const id = ++nextTimer; intervals.set(id, fn); return id; },
   clearInterval(id) { intervals.delete(id); },
 });
-let stopped = 0;
+let stopped = 0, stateReads = 0;
 const diagnosticSources = new Set();
 const mocks = {
   react: React,
@@ -37,10 +37,9 @@ const mocks = {
     },
   },
   "../../../services/project/watchConversationChanges": {
-    getConversationMessageState: async () => state,
+    getConversationMessageState: async () => { stateReads++; return state; },
     watchConversationChanges(_p, _s, handlers) { watch = handlers; return () => { stopped++; }; },
   },
-  "../../project-entry/model/projectEntryWarmup": { getCachedProjectEntryWarmup: () => null },
   "./chatMessage": { mapConversationMessages: (items) => items },
   "./chatNotifications": {
     mergeLiveChatNotifications: (old, next) => [...old, ...next.filter((m) => m.role === "system" && !old.some((p) => p.id === m.id))],
@@ -58,13 +57,15 @@ function load(name) {
 mocks["./chatHistorySnapshot"] = load("chatHistorySnapshot");
 const { useSessionMessages, mergeHistoryPage } = load("useSessionMessages");
 const { useActiveSessionMessagesLoader, useActiveSessionLiveReload } = load("useChatPanelLifecycleEffects");
-const reloadSessions = async () => {};
+let listRevision, listReads;
+const hasProjectRevision = (_project, revision) => listRevision === revision;
+const reloadSessions = async () => { listRevision = state.project_revision; listReads++; };
 const isSessionStreaming = () => false;
 const isNotFoundRequestError = () => false;
 function Harness({ active = true, childRunning = true, sync = false }) {
   result = useSessionMessages(refs);
   const options = { activeSessionId: "s", projectId: "p", isActive: active, isSessionStreaming,
-    isNotFoundRequestError, reloadSessions, reloadSessionMessages: result.reloadSessionMessages };
+    isNotFoundRequestError, hasProjectRevision, reloadSessions, reloadSessionMessages: result.reloadSessionMessages };
   useActiveSessionMessagesLoader(options);
   useActiveSessionLiveReload({ ...options, isActive: active && sync });
   return React.createElement("span", null, String(childRunning));
@@ -74,6 +75,7 @@ const msg = (id, role = "assistant") => ({ id, message_id: id, role, status: "do
 const page = (items, revision = 1, extras = {}) => ({ items, revision, reset_revision: 0,
   has_more: false, next_before_message_id: null, run_outcomes: [], run_attempt_failures: [], ...extras });
 async function setup(props = {}) {
+  listRevision = 1; listReads = 0; stateReads = 0;
   requests = []; state = { revision: 0, reset_revision: 0, project_revision: 0 };
   intervals = new Map(); timeouts = new Map(); nextTimer = 0; stopped = 0;
   globalThis.window = fakeWindow();
@@ -146,12 +148,15 @@ test("idle main conversation receives completion after its child has ended; reco
     watch.onChange(state, true);
     renderer.update(React.createElement(Harness, { sync: true, childRunning: false }));
   });
+  assert.equal(listReads, 1);
   assert.equal(stopped, 0);
   assert.equal(requests[1].options.afterMessageId, "m1");
   await respond(1, page([msg("m2", "system")], 2, { next_after_message_id: "m2" }));
   await act(async () => { watch.onChange(state, true); });
   assert.deepEqual(result.sessionMessages["p/s"].map((m) => m.id), ["m1", "m2"]);
   assert.equal(requests.length, 2);
+  assert.equal(stateReads, 0, "live events already carry the saved message revision");
+  assert.equal(listReads, 1, "reconnect with the applied project revision reuses the list");
   assert.equal(intervals.size, 0);
 });
 

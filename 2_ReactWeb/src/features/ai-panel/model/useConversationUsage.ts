@@ -5,7 +5,6 @@ import {
   getProjectConversationUsageSummary,
   type ConversationUsageSummary,
 } from "../../../services/project/getProjectConversationUsageSummary";
-import { getCachedProjectEntryWarmup } from "../../project-entry/model/projectEntryWarmup";
 import { buildSessionKey } from "./sessionKey";
 import {
   buildUsageScopeOptions,
@@ -18,10 +17,6 @@ type UseConversationUsageOptions = {
   activeSessionKey: string | null;
   isActive?: boolean;
   projectId: string | null;
-};
-
-type ReloadSessionUsageSummaryOptions = {
-  forceRefresh?: boolean;
 };
 
 export function useConversationUsage({
@@ -43,15 +38,11 @@ export function useConversationUsage({
   const reloadSessionUsageSummary = useCallback(async (
     pid: string,
     sessionId: string,
-    options: ReloadSessionUsageSummaryOptions = {},
   ) => {
     const sessionKey = buildSessionKey(pid, sessionId);
     const requestId = (usageReloadRequestIdsRef.current.get(sessionKey) ?? 0) + 1;
     usageReloadRequestIdsRef.current.set(sessionKey, requestId);
-    const cachedSummary = options.forceRefresh
-      ? null
-      : getCachedProjectEntryWarmup(pid)?.sessionUsageSummaries[sessionId];
-    const summary = cachedSummary ?? await getProjectConversationUsageSummary(pid, sessionId);
+    const summary = await getProjectConversationUsageSummary(pid, sessionId);
     if (usageReloadRequestIdsRef.current.get(sessionKey) !== requestId) return;
     if (activeProjectIdRef.current !== pid) return;
     setSessionUsageSummaries((prev) => ({

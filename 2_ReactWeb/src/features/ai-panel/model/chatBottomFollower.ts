@@ -9,7 +9,7 @@ type ChatBottomFollowerOptions = {
   getScrollElement: () => HTMLDivElement | null;
 };
 
-const FOLLOW_TIME_CONSTANT_MS = 72;
+const FOLLOW_TIME_CONSTANT_MS = 52;
 const MAX_FRAME_DELTA_MS = 34;
 const SETTLED_DISTANCE_PX = 0.35;
 
@@ -23,6 +23,9 @@ export function createChatBottomFollower({
 }: ChatBottomFollowerOptions): ChatBottomFollower {
   let frameId: number | null = null;
   let previousFrameTime: number | null = null;
+  let position = 0;
+  let velocity = 0;
+  let lastAppliedTop = 0;
 
   const cancel = () => {
     if (frameId !== null) {
@@ -44,13 +47,14 @@ export function createChatBottomFollower({
       0,
       scrollElement.scrollHeight - scrollElement.clientHeight,
     );
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      scrollElement.scrollTop = targetScrollTop;
-      previousFrameTime = null;
-      return;
+    const actualTop = scrollElement.scrollTop;
+    if (previousFrameTime === null || actualTop !== lastAppliedTop) {
+      // Pick up external changes such as a virtual list preserving its anchor.
+      position = actualTop;
+      velocity = 0;
     }
-    const distance = targetScrollTop - scrollElement.scrollTop;
-    if (Math.abs(distance) <= SETTLED_DISTANCE_PX) {
+    const distance = targetScrollTop - position;
+    if (distance <= SETTLED_DISTANCE_PX || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       scrollElement.scrollTop = targetScrollTop;
       previousFrameTime = null;
       return;
@@ -59,8 +63,14 @@ export function createChatBottomFollower({
     const elapsed = previousFrameTime === null
       ? 1000 / 60
       : Math.min(MAX_FRAME_DELTA_MS, Math.max(0, frameTime - previousFrameTime));
-    const progress = 1 - Math.exp(-elapsed / FOLLOW_TIME_CONSTANT_MS);
-    scrollElement.scrollTop += distance * progress;
+    // Critically damped motion keeps the current speed when the next line arrives.
+    // Accumulate subpixels here: scrollTop can round each write to a device pixel.
+    const decay = Math.exp(-elapsed / FOLLOW_TIME_CONSTANT_MS);
+    const slope = distance / FOLLOW_TIME_CONSTANT_MS - velocity;
+    position = targetScrollTop - Math.max(0, (distance + slope * elapsed) * decay);
+    velocity = (velocity + slope * elapsed / FOLLOW_TIME_CONSTANT_MS) * decay;
+    scrollElement.scrollTop = position;
+    lastAppliedTop = scrollElement.scrollTop;
     previousFrameTime = frameTime;
     frameId = window.requestAnimationFrame(step);
   };

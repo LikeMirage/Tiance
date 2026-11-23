@@ -41,6 +41,60 @@ after(async () => {
   await vite.close();
 });
 
+test("高速增量按帧合并，窗口隐藏、任务结束和取消仍会提交最后一段", () => {
+  const frames = new Map(), timers = new Map();
+  let serial = 0, writes = 0;
+  const oldWindow = globalThis.window, oldDocument = globalThis.document;
+  const schedule = (queue, callback) => { queue.set(++serial, callback); return serial; };
+  globalThis.window = {
+    requestAnimationFrame: (fn) => schedule(frames, fn), cancelAnimationFrame: (id) => frames.delete(id),
+    setTimeout: (fn) => schedule(timers, fn), clearTimeout: (id) => timers.delete(id),
+  };
+  globalThis.document = { visibilityState: "visible" };
+  try {
+    let messages = [message({ id: "a", status: "running" })];
+    const start = () => createChatStreamAccumulator({
+      assistantId: "a", sessionId: "s", streamProjectId: "p", isSessionPresented: () => true,
+      streamingEnabled: true, onUsage() {},
+      updateSessionMessages: (_p, _s, fn) => { writes++; messages = fn(messages); },
+    });
+    let accumulator = start();
+    const emit = (kind, content) => accumulator.handleEvent({ kind, content });
+    for (let i = 0; i < 20; i++) emit("thinking_delta", "想");
+    assert.equal(writes, 0);
+    assert.equal(frames.size, 1);
+    frames.values().next().value();
+    assert.equal(writes, 1);
+    assert.equal(messages[0].thinkingContent, "想".repeat(20));
+    assert.equal(timers.size, 0);
+
+    emit("delta", "甲");
+    globalThis.document.visibilityState = "hidden";
+    timers.values().next().value();
+    assert.equal(frames.size, 0);
+    emit("delta", "乙");
+    assert.equal(frames.size, 0);
+    accumulator.finalizeCompleted();
+    assert.equal(messages[0].content, "甲乙");
+    assert.equal(messages[0].status, "done");
+    assert.equal(timers.size, 0);
+
+    globalThis.document.visibilityState = "visible";
+    messages = [message({ id: "a", status: "running" })];
+    accumulator = start();
+    emit("delta", "丙");
+    accumulator.finalizeCancelled();
+    assert.equal(messages[0].content, "丙");
+    assert.equal(messages[0].status, "cancelled");
+    assert.equal(frames.size + timers.size, 0);
+  } finally {
+    if (oldWindow === undefined) delete globalThis.window;
+    else globalThis.window = oldWindow;
+    if (oldDocument === undefined) delete globalThis.document;
+    else globalThis.document = oldDocument;
+  }
+});
+
 test("重连时把已保存的工具轮次整理成一个运行中消息且不重复正文", () => {
   const userMessage = message({
     id: "user-1",
@@ -133,9 +187,7 @@ test("重连时继续追加尚未跨过正文或工具边界的同一段思考",
     assistantId: snapshot.assistantMessage.id,
     initialMessage: snapshot.assistantMessage,
     isSessionPresented: () => false,
-    isThinkingStuckToBottom: () => false,
     onUsage: () => undefined,
-    scrollThinkingContentToBottom: () => undefined,
     sessionId: "session-thinking-resume",
     streamProjectId: "project-thinking-resume",
     streamingEnabled: false,
@@ -266,9 +318,7 @@ test("关闭流式显示时工具边界仍会保存前段正文并在结束时�
   const accumulator = createChatStreamAccumulator({
     assistantId: "assistant-live",
     isSessionPresented: () => false,
-    isThinkingStuckToBottom: () => false,
     onUsage: () => undefined,
-    scrollThinkingContentToBottom: () => undefined,
     sessionId: "session-a",
     streamProjectId: "project-a",
     streamingEnabled: false,
@@ -325,9 +375,7 @@ test("上游重试只撤销未提交片段并保留已经完成的工具轮次",
   const accumulator = createChatStreamAccumulator({
     assistantId: "assistant-retry",
     isSessionPresented: () => false,
-    isThinkingStuckToBottom: () => false,
     onUsage: () => undefined,
-    scrollThinkingContentToBottom: () => undefined,
     sessionId: "session-retry",
     streamProjectId: "project-retry",
     streamingEnabled: false,
@@ -528,9 +576,7 @@ test("重试期间取消或最终失败都会结束活动重试提示", () => {
     const accumulator = createChatStreamAccumulator({
       assistantId: messages[0].id,
       isSessionPresented: () => false,
-      isThinkingStuckToBottom: () => false,
       onUsage: () => undefined,
-      scrollThinkingContentToBottom: () => undefined,
       sessionId: `session-retry-${terminal}`,
       streamProjectId: "project-retry-terminal",
       streamingEnabled: false,
@@ -755,9 +801,7 @@ test("流式错误会移除未提交的工具过程并显示本次失败", () =>
   const accumulator = createChatStreamAccumulator({
     assistantId: "assistant-error-tool",
     isSessionPresented: () => false,
-    isThinkingStuckToBottom: () => false,
     onUsage: () => undefined,
-    scrollThinkingContentToBottom: () => undefined,
     sessionId: "session-error",
     streamProjectId: "project-error",
     streamingEnabled: true,
@@ -792,9 +836,7 @@ test("主动暂停会结束思考和工具计时并保留已取得的统计", ()
   const accumulator = createChatStreamAccumulator({
     assistantId: "assistant-cancelled",
     isSessionPresented: () => false,
-    isThinkingStuckToBottom: () => false,
     onUsage: () => undefined,
-    scrollThinkingContentToBottom: () => undefined,
     sessionId: "session-cancelled",
     streamProjectId: "project-cancelled",
     streamingEnabled: false,

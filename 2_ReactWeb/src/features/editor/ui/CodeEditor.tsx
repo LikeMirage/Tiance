@@ -138,8 +138,7 @@ export function CodeEditor({
       const to = Math.max(...selectedRanges.map((range) => range.to));
       const content = selectedRanges
         .map((range) => view.state.sliceDoc(range.from, range.to))
-        .join("\n")
-        .trim();
+        .join("\n");
       if (!content) return;
 
       event.preventDefault();

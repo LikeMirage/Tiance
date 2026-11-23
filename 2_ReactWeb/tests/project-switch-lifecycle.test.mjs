@@ -103,3 +103,67 @@ test("界面异常显示恢复入口，错误记录有上限且存储失败不�
   assert.equal(reloads, 1);
   assert.equal(dismissed, 1);
 });
+
+test("hover/focus share a summary; opening an overview session reads just its detail", async () => {
+  let reads = 0;
+  const details = [];
+  const items = ["a", "b"].map(session_id => ({ session_id }));
+  const api = load("services/project/getProjectConversationSummaries.ts", {
+    "../http/httpClient": { async fetchJson() {
+      reads++;
+      return { items, session_states: {}, active_session_id: "a" };
+    } },
+    "./getProjectConversationDetail": { async getProjectConversationDetail(_p, id) {
+      details.push(id);
+      return { session: { session_id: id, settings: {} }, state: {} };
+    } },
+  });
+  api.prefetchConversationSummaries("project");
+  api.prefetchConversationSummaries("project");
+  const response = await api.loadSelectedConversationList("project", "b", {}, undefined, true);
+  assert.equal(reads, 1);
+  assert.deepEqual(details, ["b"]);
+  assert.equal(response.active_session_id, "b");
+  await api.loadSelectedConversationList("project", "b", {});
+  assert.equal(reads, 2, "explicit refresh always reads current server state");
+});
+
+test("a deleted prefetched session falls back to a fresh list; a failed prefetch is retryable", async () => {
+  let reads = 0;
+  class HttpRequestError extends Error { status = 404; }
+  const api = load("services/project/getProjectConversationSummaries.ts", {
+    "../http/httpClient": { HttpRequestError, async fetchJson() {
+      reads++;
+      if (reads === 3) throw new Error("offline");
+      const id = reads === 1 ? "deleted" : "current";
+      return { items: [{ session_id: id }], session_states: {}, active_session_id: id };
+    } },
+    "./getProjectConversationDetail": { async getProjectConversationDetail(_p, id) {
+      if (id === "deleted") throw new HttpRequestError();
+      return { session: { session_id: id, settings: {} }, state: {} };
+    } },
+  });
+  for (const expectedReads of [2, 4]) {
+    api.prefetchConversationSummaries("p");
+    assert.equal((await api.loadSelectedConversationList("p", null, {}, undefined, true)).active_session_id, "current");
+    assert.equal(reads, expectedReads);
+  }
+});
+
+test("workspace tab and tree restore share a read; reads after a write use the new state", async () => {
+  const pending = [];
+  const api = load("services/project/saveProjectWorkspaceState.ts", {
+    "../http/httpClient": {},
+    "./getProjectWorkspaceState": { getProjectWorkspaceState: pid => new Promise(resolve => pending.push({ pid, resolve })) },
+  });
+  const tabs = api.readWorkspaceAfterWrites("p");
+  assert.equal(tabs, api.readWorkspaceAfterWrites("p"));
+  const other = api.readWorkspaceAfterWrites("q");
+  assert.equal(pending.length, 2);
+  const write = api.queueWorkspaceStateRequest("p", async () => ({ expanded_paths: ["docs"] }));
+  const fresh = api.readWorkspaceAfterWrites("p");
+  pending[0].resolve({ expanded_paths: [] }); pending[1].resolve({});
+  assert.deepEqual(await fresh, await write);
+  assert.deepEqual(await tabs, { expanded_paths: [] });
+  await other;
+});

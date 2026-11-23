@@ -50,8 +50,8 @@ function accumulator() {
   globalThis.window = globalThis;
   let messages = [message("u", "user"), message("a", "assistant", { status: "running" })];
   const stream = createChatStreamAccumulator({ assistantId: "a", sessionId: "s", streamProjectId: "p",
-    streamingEnabled: true, isSessionPresented: () => false, isThinkingStuckToBottom: () => false,
-    onUsage() {}, scrollThinkingContentToBottom() {}, updateSessionMessages(_p, _s, update) { messages = update(messages); } });
+    streamingEnabled: true, isSessionPresented: () => false,
+    onUsage() {}, updateSessionMessages(_p, _s, update) { messages = update(messages); } });
   return { stream, get messages() { return messages; }, set messages(next) { messages = next; },
     dispose() { stream.clearFlushTimer(); globalThis.window = previousWindow; } };
 }

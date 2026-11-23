@@ -237,12 +237,12 @@ test("显式绝对 Markdown 路径和 file URI 在同步/后台渲染中都保�
     refs.map(ref => ref.absolutePath));
 });
 
-function indexFixture(t) {
+function indexFixture(t, deferUntilInteraction = false) {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const requests = [];
   let handlers;
   let watches = 0, stops = 0;
-  const files = createChatLocalFileNameAvailability(context, (_id, init) => new Promise((resolve, reject) => {
+  const files = createChatLocalFileNameAvailability({ ...context, deferUntilInteraction }, (_id, init) => new Promise((resolve, reject) => {
     requests.push({ resolve, reject, signal: init.signal });
   }), (_id, nextHandlers) => {
     handlers = nextHandlers; watches++;
@@ -254,6 +254,21 @@ function indexFixture(t) {
     get watches() { return watches; }, get stops() { return stops; } };
 }
 const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
+
+test("overview filename candidates wait for interaction and share the first index read", async (t) => {
+  const f = indexFixture(t, true);
+  t.after(f.files.subscribe(() => {}));
+  t.after(f.files.subscribe(() => {}));
+  assert.equal(f.requests.length, 0);
+  assert.equal(f.watches, 0);
+  const hover = f.files.prepareOnInteraction();
+  const click = f.files.prepareOnInteraction();
+  assert.equal(f.requests.length, 1);
+  f.requests[0].resolve(snapshot(["notes/report.md", "a/icon.png", "b/icon.png"]));
+  await Promise.all([hover, click]);
+  assert.equal(f.files.getSnapshot().get("report.md").projectPath, "notes/report.md");
+  assert.equal(f.files.getSnapshot().has("icon.png"), false);
+});
 
 test("整段历史的裸文件名共享一次扫描，未使用裸文件名时不扫描", async (t) => {
   const f = indexFixture(t);

@@ -14,6 +14,7 @@ type Options = {
   onOpenProjectFile?: (path: string, line: number | null) => Promise<void> | void;
   projectId: string | null;
   projectRootPath: string;
+  projectFilesVisible: boolean;
   sessionId: string | null;
 };
 
@@ -22,12 +23,13 @@ export function useChatLocalFileLinks({
   onOpenProjectFile,
   projectId,
   projectRootPath,
+  projectFilesVisible,
   sessionId,
 }: Options) {
   const requestScope = useMemo(() => ({ controller: null as AbortController | null }), [projectId, projectRootPath, sessionId]);
   const fileNames = useMemo(() => createChatLocalFileNameAvailability({
-    projectId, projectRootPath,
-  }), [projectId, projectRootPath]);
+    projectId, projectRootPath, deferUntilInteraction: !projectFilesVisible,
+  }), [projectId, projectRootPath, projectFilesVisible]);
   useEffect(() => {
     const controller = new AbortController();
     requestScope.controller = controller;

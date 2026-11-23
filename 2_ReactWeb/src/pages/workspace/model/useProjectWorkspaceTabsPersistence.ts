@@ -7,7 +7,6 @@ import {
   isProjectRoleConfigurationTab,
   isProjectThemeConfigurationTab,
 } from "../../../features/document-tabs/model/documentTabUtils";
-import { getCachedProjectEntryWarmup } from "../../../features/project-entry/model/projectEntryWarmup";
 import { snapshotWorkspaceTabs } from "../../../features/document-tabs/model/workspaceTabEntries";
 import { patchProjectWorkspaceState, readWorkspaceAfterWrites } from "../../../services/project/saveProjectWorkspaceState";
 
@@ -70,15 +69,14 @@ export function useProjectWorkspaceTabsPersistence({
       return;
     }
 
-    const warmedProject = getCachedProjectEntryWarmup(projectId);
-    readWorkspaceAfterWrites(projectId, warmedProject?.workspaceState)
+    readWorkspaceAfterWrites(projectId)
       .then(async (state) => {
         if (disposed) return undefined;
         const activeWebId = await documentTabs.restoreTabs(
           projectId,
           state.open_file_paths,
           state.active_file_path,
-          { fileContents: warmedProject?.fileContents, entries: state.open_tabs },
+          { entries: state.open_tabs },
         );
         if (disposed) return undefined;
         documentTabs.ensureProjectConversationOverview(projectId, {

@@ -3,14 +3,9 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 
 import { useDesktopShell } from "../../../features/desktop-shell/model/useDesktopShell";
 import type { useDocumentTabs } from "../../../features/document-tabs/model/useDocumentTabs";
-import {
-  getCachedProjectEntryWarmup,
-  type ProjectEntryWarmup,
-} from "../../../features/project-entry/model/projectEntryWarmup";
 import { useProjectBrowser } from "../../../features/project-browser/model/useProjectBrowser";
 import type { UseProjectCatalogResult } from "../../../features/project-catalog/model/useProjectCatalog";
-import { getProjectWorkspaceState } from "../../../services/project/getProjectWorkspaceState";
-import { patchProjectWorkspaceState } from "../../../services/project/saveProjectWorkspaceState";
+import { patchProjectWorkspaceState, readWorkspaceAfterWrites } from "../../../services/project/saveProjectWorkspaceState";
 
 export type WorkspaceProjectPanelView = "list" | "detail";
 export type WorkspaceProjectEntryKind = "file" | "folder";
@@ -36,11 +31,6 @@ type InitialExpandedPathsState = {
   projectId: string | null;
 };
 
-type CapturedProjectWarmup = {
-  projectId: string;
-  warmup: ProjectEntryWarmup | null;
-};
-
 type PendingExpandedPathsSave = {
   paths: string[];
   projectId: string;
@@ -55,40 +45,12 @@ export function useWorkspaceProjectsPanelController({
     projectCatalog.expandedProjectId ? "detail" : "list";
   const [initialExpandedPathsState, setInitialExpandedPathsState] =
     useState<InitialExpandedPathsState>({ isReady: false, paths: [], projectId: null });
-  const capturedWarmupRef = useRef<CapturedProjectWarmup | null>(null);
-  if (!projectCatalog.expandedProjectId) {
-    capturedWarmupRef.current = null;
-  } else if (capturedWarmupRef.current?.projectId !== projectCatalog.expandedProjectId) {
-    capturedWarmupRef.current = {
-      projectId: projectCatalog.expandedProjectId,
-      warmup: getCachedProjectEntryWarmup(projectCatalog.expandedProjectId),
-    };
-  }
-  const warmedProject = capturedWarmupRef.current?.warmup ?? null;
-  const warmedWorkspaceState = warmedProject?.workspaceState ?? null;
-  const initialExpandedPaths =
-    initialExpandedPathsState.isReady &&
-    initialExpandedPathsState.projectId === projectCatalog.expandedProjectId
-      ? initialExpandedPathsState.paths
-      : warmedWorkspaceState?.expanded_paths ?? [];
-  const isWarmedExpandedPathsReady =
-    Boolean(projectCatalog.expandedProjectId && warmedWorkspaceState);
   const isStoredExpandedPathsReady =
     initialExpandedPathsState.isReady &&
     initialExpandedPathsState.projectId === projectCatalog.expandedProjectId;
-  const canPersistExpandedPaths =
-    isStoredExpandedPathsReady ||
-    (
-      isWarmedExpandedPathsReady &&
-      initialExpandedPathsState.projectId === projectCatalog.expandedProjectId
-    );
-  const browser = useProjectBrowser(
-    projectCatalog.expandedProjectId,
-    {
-      initialExpandedPaths,
-      initialTreeData: warmedProject?.rootTree,
-    },
-  );
+  const browser = useProjectBrowser(projectCatalog.expandedProjectId, {
+    initialExpandedPaths: isStoredExpandedPathsReady ? initialExpandedPathsState.paths : [],
+  });
   const desktopShell = useDesktopShell();
   const handledCreatePointerRef = useRef<WorkspaceProjectEntryKind | null>(null);
   const lastCreateAtRef = useRef(0);
@@ -115,21 +77,9 @@ export function useWorkspaceProjectsPanelController({
       };
     }
 
-    if (warmedWorkspaceState) {
-      setWorkspaceStateError(null);
-      setInitialExpandedPathsState({
-        isReady: true,
-        paths: warmedWorkspaceState.expanded_paths ?? [],
-        projectId,
-      });
-      return () => {
-        isStale = true;
-      };
-    }
-
     setWorkspaceStateError(null);
     setInitialExpandedPathsState({ isReady: false, paths: [], projectId });
-    getProjectWorkspaceState(projectId)
+    readWorkspaceAfterWrites(projectId)
       .then((state) => {
         if (!isStale) {
           setWorkspaceStateError(null);
@@ -150,7 +100,7 @@ export function useWorkspaceProjectsPanelController({
     return () => {
       isStale = true;
     };
-  }, [projectCatalog.expandedProjectId, warmedWorkspaceState]);
+  }, [projectCatalog.expandedProjectId]);
 
   useEffect(() => {
     setSearchKeyword("");
@@ -245,7 +195,7 @@ export function useWorkspaceProjectsPanelController({
 
   const saveExpandedPaths = useCallback(() => {
     const projectId = projectCatalog.expandedProjectId;
-    if (!projectId || !canPersistExpandedPaths || browser.searchKeyword.trim()) {
+    if (!projectId || !isStoredExpandedPathsReady || browser.searchKeyword.trim()) {
       return;
     }
 
@@ -260,13 +210,13 @@ export function useWorkspaceProjectsPanelController({
   }, [
     browser.searchKeyword,
     browser.userExpandedNodeIds,
-    canPersistExpandedPaths,
+    isStoredExpandedPathsReady,
     drainExpandedPathsSaveQueue,
     projectCatalog.expandedProjectId,
   ]);
 
   useEffect(() => {
-    if (!canPersistExpandedPaths) {
+    if (!isStoredExpandedPathsReady) {
       return;
     }
 
@@ -281,7 +231,7 @@ export function useWorkspaceProjectsPanelController({
         saveTimerRef.current = null;
       }
     };
-  }, [browser.userExpandedNodeIds, canPersistExpandedPaths, saveExpandedPaths]);
+  }, [browser.userExpandedNodeIds, isStoredExpandedPathsReady, saveExpandedPaths]);
 
   useEffect(() => {
     if (browser.editingNodeId) {

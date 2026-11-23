@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { createElement } from "react";
+import { createElement, useCallback } from "react";
 import { act, create } from "react-test-renderer";
 import { createServer } from "vite";
 
@@ -12,16 +12,22 @@ after(() => vite.close());
 const folds = await vite.ssrLoadModule("/src/features/ai-panel/model/chatProcessFoldState.tsx");
 const { AssistantProcessTimeline } = await vite.ssrLoadModule("/src/features/ai-panel/ui/ChatAssistantProcessTimeline.tsx");
 const { useThinkingAutoScroll } = await vite.ssrLoadModule("/src/features/ai-panel/model/useThinkingAutoScroll.ts");
+const { createChatBottomFollower } = await vite.ssrLoadModule("/src/features/ai-panel/model/chatBottomFollower.ts");
 await vite.ssrLoadModule("/src/features/markdown-preview/ui/MarkdownPreview.tsx");
 
 function environment(reduced = true) {
-  const frames = new Map(); let serial = 0;
+  const frames = new Map(), observers = new Set(); let serial = 0, now = 0;
   globalThis.window = { matchMedia: () => ({ matches: reduced }),
     requestAnimationFrame(fn) { frames.set(++serial, fn); return serial; },
     cancelAnimationFrame(id) { frames.delete(id); } };
   globalThis.getComputedStyle = () => ({ paddingTop: "0", paddingBottom: "0", borderTopWidth: "0", borderBottomWidth: "0" });
-  globalThis.ResizeObserver = class { observe() {} disconnect() {} };
-  return { frames, tick() { const batch = [...frames.values()]; frames.clear(); batch.forEach((fn) => fn()); },
+  globalThis.ResizeObserver = class {
+    constructor(callback) { this.callback = callback; }
+    observe() { observers.add(this.callback); }
+    disconnect() { observers.delete(this.callback); }
+  };
+  return { frames, observers, resize() { observers.forEach((fn) => fn()); },
+    tick(ms = 1000 / 60) { now += ms; const batch = [...frames.values()]; frames.clear(); batch.forEach((fn) => fn(now)); },
     createNodeMock: () => ({ style: {}, dataset: {}, getBoundingClientRect: () => ({ height: 300 }) }) };
 }
 const initial = { id: "assistant", role: "assistant", content: "", thinkingContent: "思考中", status: "running",
@@ -89,28 +95,54 @@ test("手动完全展开复用折叠记忆，流式更新不重绑引用，结�
 test("思考滚动平滑跟随，向上查看立即取消动画，内容更新不夺回滚动，卸载无残留帧", async () => {
   const env = environment(false); let hook, view, pauses = 0;
   const onPause = () => pauses++;
-  function Harness() { hook = useThinkingAutoScroll([initial], onPause); return null; }
   const node = { scrollHeight: 1000, clientHeight: 96, scrollTop: 0, querySelector: () => null };
+  function Harness() {
+    hook = useThinkingAutoScroll(onPause);
+    const { setThinkingContentRef } = hook;
+    const setRef = useCallback((el) => setThinkingContentRef("assistant", el), [setThinkingContentRef]);
+    return createElement("div", { ref: setRef });
+  }
   try {
-    await act(async () => { view = create(createElement(Harness)); });
-    hook.setThinkingContentRef("assistant", node);
+    await act(async () => { view = create(createElement(Harness), { createNodeMock: () => node }); });
     env.tick(); assert.ok(node.scrollTop > 0 && node.scrollTop < 904);
     hook.handleThinkingContentWheel("assistant", { deltaY: -1 });
     assert.equal(pauses, 1); assert.equal(env.frames.size, 0);
     const stopped = node.scrollTop;
     node.scrollHeight += 500;
     await act(async () => view.update(createElement(Harness)));
-    hook.scrollThinkingContentToBottom("assistant"); env.tick();
+    env.resize(); env.tick();
     assert.equal(node.scrollTop, stopped);
     node.scrollTop = node.scrollHeight - node.clientHeight;
     hook.handleThinkingContentScroll("assistant");
     node.scrollHeight += 200;
-    hook.scrollThinkingContentToBottom("assistant");
+    env.resize();
     for (let i = 0; i < 40; i++) env.tick();
     assert.equal(node.scrollTop, node.scrollHeight - node.clientHeight);
     assert.equal(env.frames.size, 0);
-    node.scrollHeight += 200; hook.scrollThinkingContentToBottom("assistant");
+    node.scrollHeight += 200; env.resize();
     await act(async () => view.unmount()); view = null;
     assert.equal(env.frames.size, 0);
+    assert.equal(env.observers.size, 0);
   } finally { if (view) await act(async () => view.unmount()); }
+});
+
+test("逐行增高的正文与思考框在不同刷新率和像素精度下均能跟到底并停止", () => {
+  for (const hz of [60, 120, 144]) {
+    for (const scale of [1, 1.25, 2]) {
+      const env = environment(false);
+      let top = 0;
+      const node = { clientHeight: 96, scrollHeight: 96, get scrollTop() { return top; },
+        set scrollTop(value) { top = Math.round(value * scale) / scale; } };
+      const follower = createChatBottomFollower({ getScrollElement: () => node, canFollow: () => true });
+      for (let i = 0; i < 150; i++) {
+        if (i < 60 && i % 4 === 0) { node.scrollHeight += 24; follower.request(); }
+        const before = top;
+        env.tick(1000 / hz);
+        assert.ok(top >= before && top <= 360);
+      }
+      assert.equal(top, 360);
+      assert.equal(follower.isActive(), false);
+      assert.equal(env.frames.size, 0);
+    }
+  }
 });

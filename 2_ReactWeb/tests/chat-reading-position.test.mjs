@@ -120,7 +120,7 @@ test("A→B→A 恢复时的空列表滚动不覆盖书签、不重新开启跟�
   const { element, row } = scrollDom();
   let hook, view;
   function Harness({ session, chat = true }) {
-    hook = useBodyAutoScroll({ activeSessionKey: session, isChatViewActive: chat, messages: [] });
+    hook = useBodyAutoScroll({ activeSessionKey: session, isChatViewActive: chat });
     return createElement("div", { ref: hook.bodyRef });
   }
   const render = async (session, chat = true) => act(async () => {
@@ -189,7 +189,7 @@ test("阅读位置只在面板内存中保留，重新打开后默认跟随底�
   element.nodes = [row("history", 1000), row("latest", 9200)];
   let hook, view;
   function Harness() {
-    hook = useBodyAutoScroll({ activeSessionKey: "A", isChatViewActive: true, messages: [] });
+    hook = useBodyAutoScroll({ activeSessionKey: "A", isChatViewActive: true });
     return createElement("div", { ref: hook.bodyRef });
   }
   const mount = async () => act(async () => { view = create(createElement(Harness), { createNodeMock: () => element }); });

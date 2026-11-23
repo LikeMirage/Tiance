@@ -16,6 +16,7 @@ export type LocalFileReferenceContext = {
 export type LocalFileNameIndex = ReadonlyMap<string, Extract<LocalFileReference, { lookup: "path" }>>;
 
 export type LocalFileNameAvailability = {
+  prepareOnInteraction?: () => Promise<void>;
   getSnapshot: () => LocalFileNameIndex | null;
   subscribe: (listener: () => void) => () => void;
 };

@@ -12,13 +12,11 @@ import type {
   ConversationRuntimeStatus,
   ConversationSession,
   ConversationSessionState,
-  ConversationSessionListResponse,
 } from "../../../entities/llm-chat/model/conversation";
 import { dispatchProjectConversationUpdated, listenProjectConversationUpdated } from "../../../entities/llm-chat/model/projectConversationEvents";
 import { getProjectConversationDetail } from "../../../services/project/getProjectConversationDetail";
 import { loadSelectedConversationList } from "../../../services/project/getProjectConversationSummaries";
 import { isNotFoundRequestError } from "./chatPanelRequestErrors";
-import { getCachedProjectEntryWarmup } from "../../project-entry/model/projectEntryWarmup";
 import { buildSessionKey } from "./sessionKey";
 import { emptyConversationDraftReferences } from "./conversationDraftReferences";
 import { recoverConversationDraft } from "./conversationDraftRecovery";
@@ -29,7 +27,6 @@ import {
 } from "./sessionStreamingRegistry";
 import {
   useConversationStatePersistence,
-  type ConversationDraftRequestSnapshot,
   type ConversationSessionStatePatch as SessionStatePatch,
 } from "./useConversationStatePersistence";
 import { useConversationSessionLoader } from "./useConversationSessionLoader";
@@ -88,6 +85,8 @@ export function useConversationSessions({
   const [draft, setDraft] = useState("");
   const [selectionLoadError, setSelectionLoadError] = useState<string | null>(null);
   const [isLoadingSelection, setIsLoadingSelection] = useState(false);
+  const preferredSessionIdRef = useRef(preferredSessionId);
+  preferredSessionIdRef.current = preferredSessionId;
   const selectionRequestRef = useRef<AbortController | null>(null);
   const [settledDraft, setSettledDraft] = useState<SettledConversationDraft | null>(null);
   const streamingRegistryRef = useRef(new SessionStreamingRegistry());
@@ -417,45 +416,6 @@ export function useConversationSessions({
     latestAppliedRevisionsRef.current.set(pid, snapshot.revision);
   }, [activeSessionIdRef, preferredSessionId, saveConversationState]);
 
-  const applySessionsResponse = useCallback((
-    response: ConversationSessionListResponse,
-    draftRequestSnapshot?: ConversationDraftRequestSnapshot,
-  ) => {
-    const sessionIds = new Set(response.items.map((session) => session.session_id));
-    const preferredRestoredSessionId =
-      preferredSessionId && sessionIds.has(preferredSessionId) ? preferredSessionId : null;
-    const restoredSessionId = preferredRestoredSessionId ??
-      (response.active_session_id && sessionIds.has(response.active_session_id)
-      ? response.active_session_id
-      : response.items[0]?.session_id ?? null);
-    const responseSessionStates = mergeProtectedDrafts(
-      response.project_id,
-      response.session_states,
-      draftRequestSnapshot,
-    );
-    projectSessionSnapshotsRef.current.set(response.project_id, {
-      activeSessionId: restoredSessionId,
-      draft: restoredSessionId ? responseSessionStates[restoredSessionId]?.draft ?? "" : "",
-      revision: response.revision,
-      sessionStates: responseSessionStates,
-      sessions: response.items,
-      branchNodes: response.branch_nodes ?? [],
-      messageVariants: response.message_variants ?? [],
-    });
-    setLoadedProjectId(response.project_id);
-    setSessions(response.items);
-    setBranchNodes(response.branch_nodes ?? []);
-    setMessageVariants(response.message_variants ?? []);
-    setSessionStates(responseSessionStates);
-    setActiveSessionId(restoredSessionId);
-    activeSessionIdRef.current = restoredSessionId;
-    setDraft(restoredSessionId ? responseSessionStates[restoredSessionId]?.draft ?? "" : "");
-    if (restoredSessionId && restoredSessionId === preferredSessionId) {
-      void saveConversationState(response.project_id, { active_session_id: restoredSessionId }).catch(() => undefined);
-    }
-    latestAppliedRevisionsRef.current.set(response.project_id, response.revision);
-  }, [activeSessionIdRef, mergeProtectedDrafts, preferredSessionId, saveConversationState]);
-
   useLayoutEffect(() => {
     if (!projectId) {
       resetConversationState();
@@ -466,17 +426,9 @@ export function useConversationSessions({
     }
 
     const localSnapshot = projectSessionSnapshotsRef.current.get(projectId);
-    if (localSnapshot && (!preferredSessionId || localSnapshot.sessions.some((item) => item.session_id === preferredSessionId && item.settings))) {
+    const restoreId = preferredSessionId ?? localSnapshot?.activeSessionId;
+    if (localSnapshot && (!restoreId || localSnapshot.sessions.some(item => item.session_id === restoreId && item.settings))) {
       applyProjectSnapshot(projectId, localSnapshot);
-      return;
-    }
-
-    const cachedResponse = getCachedProjectEntryWarmup(projectId)?.conversations;
-    if (cachedResponse && isUsableCachedConversationList(projectId, cachedResponse) && (!preferredSessionId || cachedResponse.items.some((item) => item.session_id === preferredSessionId && item.settings))) {
-      if (unavailableProjectIdRef.current === projectId) {
-        unavailableProjectIdRef.current = null;
-      }
-      applySessionsResponse(cachedResponse);
       return;
     }
 
@@ -492,23 +444,24 @@ export function useConversationSessions({
   }, [
     activeSessionIdRef,
     applyProjectSnapshot,
-    applySessionsResponse,
+    preferredSessionId,
     loadedProjectId,
     projectId,
     resetConversationState,
   ]);
 
   const performReloadSessions = useCallback(async (
-    pid: string,
+    pid: string, usePrefetch: boolean,
   ): Promise<ConversationSessionsReloadResult> => {
     const requestId = (reloadSessionsRequestIdsRef.current.get(pid) ?? 0) + 1;
     reloadSessionsRequestIdsRef.current.set(pid, requestId);
     const draftRequestSnapshot = snapshotDraftRequest(pid);
     try {
       const snapshot = projectSessionSnapshotsRef.current.get(pid);
+      const preferredSessionId = preferredSessionIdRef.current;
       const requestedSession = activeProjectIdRef.current === pid
         ? activeSessionIdRef.current ?? preferredSessionId : snapshot?.activeSessionId ?? null;
-      const response = await getProjectConversationsWithTimeout(pid, requestedSession, snapshot?.sessionStates ?? {});
+      const response = await getProjectConversationsWithTimeout(pid, requestedSession, snapshot?.sessionStates ?? {}, usePrefetch);
       // A user selection may finish while the list/detail request is in flight.
       // Do not replace that selected session with a summary or old draft.
       if (activeProjectIdRef.current === pid && activeSessionIdRef.current &&
@@ -672,24 +625,20 @@ export function useConversationSessions({
     mergeProtectedDrafts,
     releaseDraftRequest,
     snapshotDraftRequest,
-    preferredSessionId,
     saveConversationState,
   ]);
 
-  const reloadSessionsForSelection = useCallback((pid: string) => {
+  const reloadSessionsForSelection = useCallback((pid: string, usePrefetch = true) => {
     const existing = reloadSessionsInFlightRef.current.get(pid);
-    if (existing) {
-      reloadSessionsDirtyRef.current.add(pid);
-      return existing;
-    }
+    if (existing) return existing;
     reloadSessionsDirtyRef.current.delete(pid);
-    const request = performReloadSessions(pid);
+    const request = performReloadSessions(pid, usePrefetch);
     reloadSessionsInFlightRef.current.set(pid, request);
     void request.finally(() => {
       if (reloadSessionsInFlightRef.current.get(pid) === request) {
         reloadSessionsInFlightRef.current.delete(pid);
         if (reloadSessionsDirtyRef.current.delete(pid)) {
-          void reloadSessionsForSelection(pid);
+          void reloadSessionsForSelection(pid, false);
         }
       }
     });
@@ -697,7 +646,9 @@ export function useConversationSessions({
   }, [performReloadSessions]);
 
   const reloadSessions = useCallback(async (pid: string) => {
-    await reloadSessionsForSelection(pid);
+    // Server changes during a read need one trailing refresh. Navigation callers just join.
+    if (reloadSessionsInFlightRef.current.has(pid)) reloadSessionsDirtyRef.current.add(pid);
+    await reloadSessionsForSelection(pid, false);
   }, [reloadSessionsForSelection]);
 
   useEffect(() => listenProjectConversationUpdated(detail => {
@@ -705,6 +656,9 @@ export function useConversationSessions({
       void reloadSessions(detail.projectId).catch(() => undefined);
     }
   }), [activeProjectIdRef, reloadSessions]);
+
+  const hasProjectRevision = useCallback((pid: string, revision: number) =>
+    latestAppliedRevisionsRef.current.get(pid) === revision, []);
 
   const hasProjectSnapshot = useCallback(
     (pid: string) => projectSessionSnapshotsRef.current.has(pid),
@@ -810,6 +764,7 @@ export function useConversationSessions({
     draft: presentedDraft,
     isLoadingSessions: isLoadingSessions || isLoadingSelection,
     isSessionStreaming,
+    hasProjectRevision,
     markConversationProjectUnavailable,
     markSessionStreaming,
     publishCurrentDraftSnapshot,
@@ -853,14 +808,7 @@ function mergeSessionStatePatch(
   };
 }
 
-function isUsableCachedConversationList(
-  projectId: string,
-  response: ConversationSessionListResponse,
-) {
-  return response.project_id === projectId && response.items.length > 0;
-}
-
-async function getProjectConversationsWithTimeout(projectId: string, selectedId: string | null, previousStates: Record<string, ConversationSessionState>) {
+async function getProjectConversationsWithTimeout(projectId: string, selectedId: string | null, previousStates: Record<string, ConversationSessionState>, usePrefetch: boolean) {
   const controller = new AbortController();
   let timedOut = false;
   const timeout = window.setTimeout(() => {
@@ -868,7 +816,7 @@ async function getProjectConversationsWithTimeout(projectId: string, selectedId:
     controller.abort();
   }, SESSION_LIST_LOAD_TIMEOUT_MS);
   try {
-    return await loadSelectedConversationList(projectId, selectedId, previousStates, controller.signal);
+    return await loadSelectedConversationList(projectId, selectedId, previousStates, controller.signal, usePrefetch);
   } catch (error) {
     if (timedOut) {
       throw new Error("会话列表刷新超时，请重试。");

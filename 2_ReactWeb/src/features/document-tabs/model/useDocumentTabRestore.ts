@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, type MutableRefObject } from "react";
 
 import type { DocumentTab, EditorTabId, WorkspaceTabEntry } from "../../../entities/editor/model/editorDocument";
 import type { ExplorerNode } from "../../../entities/explorer-node/model/explorerNode";
-import type { FileWorkspaceContentResponse } from "../../../entities/file-workspace/model/fileWorkspace";
 import { HttpRequestError } from "../../../services/http/httpClient";
 
 import {
@@ -21,7 +20,6 @@ type UseDocumentTabRestoreOptions = {
 };
 
 type RestoreWorkspaceTabsOptions = {
-  fileContents?: Map<string, FileWorkspaceContentResponse>;
   entries?: WorkspaceTabEntry[] | null;
   overviewOnly?: boolean;
 };
@@ -66,7 +64,7 @@ export function useDocumentTabRestore({
         continue;
       }
       try {
-        const res = options.fileContents?.get(filePath) ?? await api.readTextFile(filePath, { signal: controller.signal });
+        const res = await api.readTextFile(filePath, { signal: controller.signal });
         if (restoreRequestIdRef.current !== restoreRequestId) return;
         loadedTabs.push(hydrateWorkspaceFileTab(tab, runtime.source, filePath, res));
       } catch (err) {

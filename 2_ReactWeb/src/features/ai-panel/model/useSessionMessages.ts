@@ -3,20 +3,20 @@ import type { MutableRefObject } from "react";
 import { registerRendererDiagnosticSource } from "@/shared/diagnostics/rendererDiagnostics";
 
 import { CONVERSATION_TURN_PAGE_SIZE, getProjectConversationMessages } from "../../../services/project/getProjectConversationMessages";
-import { getCachedProjectEntryWarmup } from "../../project-entry/model/projectEntryWarmup";
 import type { ChatMessage } from "./chatMessage";
 import { mapConversationMessages } from "./chatMessage";
 import { buildSessionKey } from "./sessionKey";
 import { mergeLiveChatNotifications, reuseChatMessageRevisions } from "./chatNotifications";
 import { completeHistoryTail, HistorySnapshotChangedError } from "./chatHistorySnapshot";
 
-import { getConversationMessageState } from "../../../services/project/watchConversationChanges";
+import { getConversationMessageState, type ConversationMessageState } from "../../../services/project/watchConversationChanges";
 import type { ConversationMessageListResponse } from "../../../entities/llm-chat/model/conversation";
 
 type HistoryPage = { before: string | null; after: string | null; revision: number; reset: number; reconcile: boolean };
 
 type ReloadSessionMessagesOptions = {
   older?: boolean;
+  observedState?: ConversationMessageState;
   forceRefresh?: boolean;
   preserveLocalIfShorter?: boolean;
   signal?: AbortSignal;
@@ -152,29 +152,6 @@ export function useSessionMessages({
     }
   }, [isSessionMessagesPresented]);
 
-  const applyCachedSessionMessages = useCallback((pid: string, sessionId: string) => {
-    const cachedResponse = getCachedProjectEntryWarmup(pid)?.sessionMessages[sessionId];
-    if (!cachedResponse) return false;
-
-    const key = buildSessionKey(pid, sessionId);
-    const nextMessages = mapConversationMessages(
-      cachedResponse.items,
-      cachedResponse.run_outcomes,
-      cachedResponse.run_attempt_failures,
-    );
-    messageAccessedAtRef.current.set(key, Date.now());
-    const currentMessages = sessionMessageSnapshotsRef.current[key] ?? [];
-    if (currentMessages.length === 0) {
-      const page = pageFromResponse(cachedResponse);
-      historyPagesRef.current.set(key, page);
-      setHistoryPages((prev) => ({ ...prev, [key]: page }));
-      sessionMessageSnapshotsRef.current[key] = nextMessages;
-      durableMessagesRef.current[key] = nextMessages;
-    }
-    publishSessionMessages(pid, sessionId);
-    return true;
-  }, [publishSessionMessages]);
-
   const reloadSessionMessages = useCallback((
     pid: string, sessionId: string, options: ReloadSessionMessagesOptions = {},
   ): Promise<boolean> => {
@@ -186,6 +163,8 @@ export function useSessionMessages({
       // reconciles changes committed while the current snapshot was in flight.
       if (options.older) existing.older = true;
       else existing.queued = { ...existing.queued, ...options, older: false,
+        // Mixed pending notifications get one current revision check on the server.
+        observedState: existing.queued ? undefined : options.observedState,
         authoritative: existing.queued?.authoritative || options.authoritative };
       return waitForHistoryRead(existing.promise, options.signal);
     }
@@ -201,10 +180,10 @@ export function useSessionMessages({
       const current = sessionMessageSnapshotsRef.current[key] ?? [];
       const preservingLive = shouldPreserveLiveMessages(request, current);
       if (request.older && !previousPage?.before) return;
-      const cached = !request.forceRefresh && !previousPage && !request.older
-        ? getCachedProjectEntryWarmup(pid)?.sessionMessages[sessionId] : null;
+      // A socket-ready event can arrive during initial hydration. Use its revision
+      // to confirm that same page without requesting the same state again.
       const state = previousPage && !request.older
-        ? await getConversationMessageState(pid, sessionId, controller.signal) : null;
+        ? request.observedState ?? await getConversationMessageState(pid, sessionId, controller.signal) : null;
       const reset = state !== null && state.reset_revision !== previousPage?.reset;
       if (state && state.revision === previousPage?.revision && !reset && !request.authoritative &&
           !(previousPage.reconcile && !preservingLive)) return;
@@ -214,7 +193,7 @@ export function useSessionMessages({
       do {
         let response: ConversationMessageListResponse;
         try {
-          response = cached ?? await getProjectConversationMessages(pid, sessionId, {
+          response = await getProjectConversationMessages(pid, sessionId, {
             turnLimit: CONVERSATION_TURN_PAGE_SIZE,
             beforeMessageId: request.older ? previousPage?.before : null,
             afterMessageId: cursor, signal: controller.signal,
@@ -426,7 +405,6 @@ export function useSessionMessages({
   }, []);
 
   return {
-    applyCachedSessionMessages,
     markSessionMessagesAccessed,
     isSessionMessagesPresented,
     publishSessionMessages,

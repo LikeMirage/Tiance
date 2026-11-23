@@ -469,6 +469,10 @@
   overflow: hidden;
 }
 
+.chat-msg__thinking-content--streaming {
+  overflow-anchor: none;
+}
+
 .chat-msg__thinking-expand {
   display: flex;
   align-items: center;

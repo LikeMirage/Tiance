@@ -107,6 +107,7 @@ type Props = {
   preferredSessionId?: string | null;
   projectFileReferenceRequest?: ProjectFileReferenceRequest | null;
   projectRootPath?: string;
+  projectFilesVisible?: boolean;
   sessionSelectionError?: string | null;
   sessionSelectionRequest?: ChatPanelSessionSelectionRequest | null;
 };
@@ -144,6 +145,7 @@ export function ChatPanelController({
   preferredSessionId = null,
   projectFileReferenceRequest,
   projectRootPath = "",
+  projectFilesVisible = true,
   sessionSelectionError = null,
   sessionSelectionRequest,
 }: Props) {
@@ -211,7 +213,6 @@ export function ChatPanelController({
     releaseSessionStreamController,
   } = useChatStreamControllers();
   const {
-    applyCachedSessionMessages,
     isSessionMessagesPresented,
     markSessionMessagesAccessed,
     publishSessionMessages,
@@ -242,6 +243,7 @@ export function ChatPanelController({
     messageVariants,
     publishCurrentDraftSnapshot,
     reloadSessions,
+    hasProjectRevision,
     reloadSessionsForSelection,
     retryLoadSessions,
     saveConversationState,
@@ -414,14 +416,9 @@ export function ChatPanelController({
       return;
     }
     markSessionMessagesAccessed(projectId, activeSessionId);
-    if (!isActiveSessionStreaming) {
-      applyCachedSessionMessages(projectId, activeSessionId);
-    }
     publishSessionMessages(projectId, activeSessionId);
   }, [
     activeSessionId,
-    applyCachedSessionMessages,
-    isActiveSessionStreaming,
     isStreamPresentationVisible,
     markSessionMessagesAccessed,
     projectId,
@@ -505,13 +502,16 @@ export function ChatPanelController({
   } = useBodyAutoScroll({
     activeSessionKey,
     isChatViewActive: activeView === "chat",
-    messages,
     navigationTargetSessionKey: variantNavigationRequest?.sessionKey ?? null,
   });
+  const historyPage = activeSessionKey ? historyPages[activeSessionKey] : undefined;
+  const historyError = activeSessionKey ? messageLoadErrors[activeSessionKey] : undefined;
   const userMessageNavigation = useConversationNavigation({
-    projectId, sessionId: activeSessionId,
-    revision: activeSessionKey ? historyPages[activeSessionKey]?.revision ?? null : null,
-    resetRevision: activeSessionKey ? historyPages[activeSessionKey]?.reset ?? null : null,
+    projectId,
+    // The first history page supplies the revision. A failed history read still allows navigation.
+    sessionId: historyPage || historyError ? activeSessionId : null,
+    revision: historyPage?.revision ?? null,
+    resetRevision: historyPage?.reset ?? null,
     running: isActiveSessionRunningPresentation, messages,
   });
   const selectUserMessage = useCallback((item: UserMessageNavigationItem) => {
@@ -531,11 +531,9 @@ export function ChatPanelController({
   const {
     handleThinkingContentScroll,
     handleThinkingContentWheel,
-    isThinkingStuckToBottom,
     pauseThinkingAutoScroll,
-    scrollThinkingContentToBottom,
     setThinkingContentRef,
-  } = useThinkingAutoScroll(messages, pauseForUserScroll);
+  } = useThinkingAutoScroll(pauseForUserScroll);
   const {
     branchError,
     forkUserMessage,
@@ -555,6 +553,7 @@ export function ChatPanelController({
     sessions,
   });
   const localFileLinks = useChatLocalFileLinks({
+    projectFilesVisible: isActive && projectFilesVisible,
     onError: setLocalFileActionError,
     onOpenProjectFile,
     projectId,
@@ -626,13 +625,13 @@ export function ChatPanelController({
 
   useActiveSessionLiveReload({
     activeSessionId,
+    hasProjectRevision,
     isActive,
     isSessionStreaming,
     isNotFoundRequestError,
     projectId,
     reloadSessionMessages,
     reloadSessions,
-
   });
 
   useDetachedConversationStream({
@@ -643,14 +642,12 @@ export function ChatPanelController({
     releaseSessionStreamController,
     isActive: isStreamPresentationVisible,
     isSessionMessagesPresented,
-    isThinkingStuckToBottom,
     markSessionStreaming,
     projectId,
     reloadSessionMessages,
     reloadSessionUsageSummary,
     reloadSessions,
     runtimeStatus: activeSessionState?.runtime_status ?? null,
-    scrollThinkingContentToBottom,
     streamEventSequenceState,
     streamingEnabled: activeSessionSettings.streaming_enabled,
     streamingSessionKeys,
@@ -687,7 +684,6 @@ export function ChatPanelController({
     stoppingSessionKeysRef,
     isSessionMessagesPresented,
     isNotFoundRequestError,
-    isThinkingStuckToBottom,
     markSessionStreaming,
     markConversationProjectUnavailable,
     models,
@@ -699,7 +695,6 @@ export function ChatPanelController({
     saveSessionState,
     preserveCurrentView,
     publishCurrentDraftSnapshot,
-    scrollThinkingContentToBottom,
     sessions,
     setActiveSessionId,
     setDraft,
@@ -868,7 +863,7 @@ export function ChatPanelController({
           ),
           messages,
           isHistoryReady: Boolean(activeSessionKey && historyPages[activeSessionKey]),
-          loadError: activeSessionKey ? messageLoadErrors[activeSessionKey] : undefined,
+          loadError: historyError,
           hasOlderMessages: Boolean(activeSessionKey && historyPages[activeSessionKey]?.before),
           onLoadOlder: () => projectId && activeSessionId
             ? loadOlderSessionMessages(projectId, activeSessionId) : Promise.resolve(false),
