@@ -28,6 +28,14 @@ model-rules.json
 
 市场包不得包含 `credentials.json`。已有供应商更新应保护 API 地址、认证、密钥、模型和本地分类；声明规则更新不能暗中重置用户配置。
 
+## 生成地址、模型发现与历史思考
+
+生成请求和模型发现分别保存地址。修改生成地址时，仍处于自动关联状态的模型发现地址会按协议和预置地址关系重新推导；用户已改为独立地址时继续使用其填写值。这可以覆盖生成端点和 `/models` 路径不同的服务。[地址推导](../2_ReactWeb/src/features/provider-config/model/deriveProviderModelDiscoveryUrl.ts) · [配置更新](../2_ReactWeb/src/features/provider-config/model/providerConfigDraftRules.ts)
+
+供应商的 `reasoning_replay_mode` 决定下一次请求携带哪些历史助手思考，默认值为 `tool_call_rounds`。`never` 关闭历史思考回放，`tool_call_rounds` 仅用于带工具调用的助手消息，`always` 允许所有助手消息回放。每轮回复使用哪个思考档位仍由会话的生成设置决定。[回放枚举](../1_PythonServer/app/domain/llm/reasoning_replay.py) · [回放选择](../1_PythonServer/app/infra/llm/chat_adapters/reasoning_replay.py)
+
+四类协议分别处理可回放的思考文字或续传内容。Responses 的 reasoning item、Anthropic 的 thinking/redacted block、Gemini 的 thought/signature 还须匹配原协议、供应商和模型身份。切换来源后重新组装公共历史，已保存的思考仍能供用户查阅。[协议续传合同](01_LLM协议适配结构.md#第一层协议适配器) · [适配回归](../1_PythonServer/tests/test_reasoning_replay_policy.py)
+
 ## 请求验证
 
 生成参数通过统一 `generation` 对象进入领域请求。模型能力、输出格式、思考模式、采样参数、最大输出和工具支持在出站前验证。未知字段和无效枚举应在保存或请求边界明确失败，而不是由底层解析器替换成默认值。
