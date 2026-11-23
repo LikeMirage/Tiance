@@ -65,17 +65,12 @@ import { WorkspaceNavigationProvider } from "../../../shared/model/workspaceNavi
 import { ReferenceProjectNavigationContext } from "../../../entities/editor/model/referenceProjectNavigation";
 import type { ReferenceProject } from "../../../entities/editor/model/editorReference";
 import type { AppThemeControl } from "../../../shared/theme";
-import { revealProjectFile } from "../../../services/project/revealProjectFile";
 import { saveWorkspaceLayoutPreferences } from "../../../services/workspace/workspaceLayoutPreferences";
-import { usePageStatusBar } from "../../../widgets/app-frame/model/appStatusBar";
 import { WorkspaceCanvasPanel } from "./WorkspaceCanvasPanel";
 import { WorkspaceSidePanel } from "./WorkspaceSidePanel";
-import { WorkspaceStatusPath } from "./WorkspaceStatusPath";
+import { useWorkspaceStatusPath } from "./WorkspaceStatusPath";
 import { WorkspaceUnsavedChangesModal } from "./WorkspaceUnsavedChangesModal";
 import { WorkspaceWindowCloseModal } from "./WorkspaceWindowCloseModal";
-
-const PRIMARY_SIDEBAR_COLLAPSED_WIDTH = 52;
-const APP_STATUS_BAR_INLINE_PADDING = 12;
 
 type WorkspacePageProps = {
   initialLayoutPreferences: WorkspaceLayoutPreferences | null;
@@ -1011,49 +1006,14 @@ export function WorkspacePage({
       requestId: projectFileReferenceRequestIdRef.current,
     });
   }, []);
-  const statusBarProject = (
-    activeSection === "overview"
-    || activeSection === "knowledge"
-    || activeSection === "experience"
-    || activeSection === "roles"
-    || activeSection === "themes"
-  ) &&
-    projectCatalog.expandedProjectId &&
-    projectCatalog.selectedProject?.project_id === projectCatalog.expandedProjectId
-    ? projectCatalog.selectedProject
-    : null;
-  const statusBarActiveProjectFilePath = statusBarProject &&
-    projectDocumentTabs.activeTab?.projectId === statusBarProject.project_id
-    ? projectDocumentTabs.activeTab.projectFilePath
-    : null;
-  const statusBarPathLabel = statusBarProject
-    ? buildProjectStatusPathLabel(statusBarProject.root_path, statusBarActiveProjectFilePath)
-    : "";
-  const statusBarPathMaxWidth = Math.max(
-    0,
-    PRIMARY_SIDEBAR_COLLAPSED_WIDTH +
-      sidePanelLayout.sidePanelWidth -
-      APP_STATUS_BAR_INLINE_PADDING,
-  );
-  const handleRevealStatusBarPath = useCallback(() => {
-    if (!statusBarProject) return;
-    void revealProjectFile(statusBarProject.project_id, {
-      path: statusBarActiveProjectFilePath ?? "",
-    }).catch(() => undefined);
-  }, [statusBarActiveProjectFilePath, statusBarProject]);
-
-  usePageStatusBar(
-    () => ({
-      left: statusBarProject ? (
-        <WorkspaceStatusPath
-          label={statusBarPathLabel}
-          maxWidth={statusBarPathMaxWidth}
-          onReveal={handleRevealStatusBarPath}
-        />
-      ) : null,
-    }),
-    [handleRevealStatusBarPath, statusBarPathLabel, statusBarPathMaxWidth, statusBarProject],
-  );
+  useWorkspaceStatusPath({
+    section: activeSection,
+    collections: projectCollections.collections,
+    toolFolders,
+    projectTab: projectDocumentTabs.activeTab,
+    toolTab: toolDocumentTabs.activeTab,
+    sidePanelWidth: sidePanelLayout.sidePanelWidth,
+  });
 
   const workspaceBodyStyle = {
     "--workspace-side-panel-width": `${sidePanelLayout.sidePanelWidth}px`,
@@ -1239,13 +1199,4 @@ function getProviderIdFromProject(rootPath: string) {
 function canModifyToolFolders(toolset: ReturnType<typeof useToolCatalog>["selectedToolset"]) {
   if (!toolset) return false;
   return !toolset.readonly;
-}
-
-function buildProjectStatusPathLabel(rootPath: string, filePath: string | null | undefined) {
-  const normalizedRoot = rootPath.trim();
-  const normalizedFile = filePath?.trim().replace(/^[/\\]+/, "") ?? "";
-  if (!normalizedFile) return normalizedRoot;
-  if (!normalizedRoot) return normalizedFile;
-  const separator = normalizedRoot.includes("\\") ? "\\" : "/";
-  return `${normalizedRoot.replace(/[/\\]+$/, "")}${separator}${normalizedFile.replace(/[/\\]+/g, separator)}`;
 }
