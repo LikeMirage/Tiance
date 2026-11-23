@@ -98,6 +98,10 @@ try {
         throw "标签版本号 $($versionPayload.version) 与发布版本 $Version 不一致。"
     }
     Assert-GatewayBuild -Root $currentTree
+    if (Test-Path -LiteralPath (Join-Path $currentTree "scripts/sync-speech-core.py")) {
+        & (Join-Path $currentTree "runtime/python/py313/python.exe") -B (Join-Path $currentTree "scripts/sync-speech-core.py") --check
+        if ($LASTEXITCODE -ne 0) { throw "Speech runtime verification failed in the release snapshot." }
+    }
 
     # 完整安装包包含公开预置数据；两个在线更新包始终不包含 Data。
     $fullInstall = Join-Path $output "Tiance.zip"

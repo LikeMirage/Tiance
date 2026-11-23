@@ -1,39 +1,22 @@
-import io
 import json
 from pathlib import Path
 import runpy
-import sys
+import shutil
 
-ROOT = Path(__file__).resolve().parents[2]
-# Dev pytest may run with system Python; use the same independently installed
-# backend media dependency as the packaged worker, never the tool's vendor.
-PACKAGES = ROOT / 'runtime/python-packages/backend/py313/site-packages'
-if PACKAGES.exists():
-    sys.path.append(str(PACKAGES))
-
-import av
 import httpx
 import pytest
 from app.services.speech import worker
 from app.services.speech.jianying_asr.common import Budget
+from app.services.speech.jianying_asr.media_runtime import get_av
+
+ROOT = Path(__file__).resolve().parents[2]
+av = get_av()
 
 
 def make_browser_recording(path):
-    data = io.BytesIO()
-    with av.open(data, 'w', format='webm', options={'live': '1'}) as container:
-        stream = container.add_stream('libopus', rate=48000)
-        stream.layout = 'mono'
-        for number in range(50):
-            frame = av.AudioFrame(format='s16', layout='mono', samples=960)
-            frame.sample_rate = 48000
-            frame.pts = number * 960
-            for plane in frame.planes:
-                plane.update(bytes(plane.buffer_size))
-            for packet in stream.encode(frame):
-                container.mux(packet)
-        for packet in stream.encode(None):
-            container.mux(packet)
-    path.write_bytes(data.getvalue())
+    # One second of synthetic 48 kHz Opus in live WebM, without a duration header.
+    # Recording encodes Opus in the browser; the backend only needs the decoder.
+    shutil.copyfile(Path(__file__).parent / 'fixtures/browser-live-opus.webm', path)
 
 
 def test_unknown_duration_webm_is_normalized_locally(tmp_path):
@@ -77,8 +60,7 @@ def test_worker_uses_own_core_explicit_network_and_preserves_original(tmp_path, 
 
 def test_standalone_and_backend_cores_are_identical():
     sync = runpy.run_path(str(ROOT / 'scripts/sync-speech-core.py'))
-    for relative in sync['FILES']:
-        assert (sync['TOOL'] / relative).read_bytes() == (sync['BACKEND'] / relative).read_bytes(), relative
+    sync['sync_core'](sync['TOOL'], sync['BACKEND'], check=True)
 
 
 @pytest.mark.parametrize('connection_timeout', [False, True])

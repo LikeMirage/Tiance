@@ -10,12 +10,13 @@ import httpx
 from app.services.speech.jianying_asr.client import JianyingClient
 from app.services.speech.jianying_asr.common import Budget, error_details, write_json
 from app.services.speech.jianying_asr.engine import run
+from app.services.speech.jianying_asr.media_runtime import get_av
 
 
 def normalize_recording(source: Path, destination: Path, budget: Budget) -> None:
     # MediaRecorder WebM often has no duration in its header. Decode incrementally
     # into a finalized lossless file so duration and split boundaries are reliable.
-    import av
+    av = get_av()
     with av.open(str(source)) as incoming, av.open(str(destination), 'w', format='wav') as outgoing:
         if not incoming.streams.audio:
             raise ValueError('录音中没有音轨。')

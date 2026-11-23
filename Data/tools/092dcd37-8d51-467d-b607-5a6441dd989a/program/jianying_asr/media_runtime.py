@@ -1,4 +1,4 @@
-"""Load the tool's bundled native media module, independently of Tiance."""
+"""Load this host's audio-only build on its supported Python and platform."""
 from __future__ import annotations
 
 import importlib
@@ -14,17 +14,19 @@ from .common import ASRError
 def get_av():
     tag = f"cp{sys.version_info.major}{sys.version_info.minor}-{sysconfig.get_platform().replace('-', '_')}"
     bundled = Path(__file__).resolve().parents[1] / "vendor" / tag
-    use_bundled = sys.implementation.name == "cpython" and (bundled / "av/__init__.py").is_file()
+    use_bundled = sys.implementation.name == "cpython" and tag == "cp313-win_amd64"
     if use_bundled:
+        if not (bundled / "av/__init__.py").is_file():
+            raise ASRError("MEDIA_RUNTIME_UNAVAILABLE", "随附的音频解码库缺失，请检查安装文件。")
         sys.path.insert(0, str(bundled))
     try:
         module = importlib.import_module("av")
     except ImportError as exc:
         if use_bundled:
-            message = "工具自带的媒体模块加载失败，请检查工具文件是否完整。"
+            message = "随附的音频解码库加载失败，请检查安装文件。"
         else:
             message = "当前 Python 环境没有匹配的自带媒体模块；请为此环境安装 av==16.0.1。"
         raise ASRError("MEDIA_RUNTIME_UNAVAILABLE", message) from exc
     if use_bundled and not Path(module.__file__).resolve().is_relative_to(bundled):
-        raise ASRError("MEDIA_RUNTIME_CONFLICT", "当前进程已经加载其他 PyAV，请在独立 Python 进程中运行此工具。")
+        raise ASRError("MEDIA_RUNTIME_CONFLICT", "当前进程已经加载其他 PyAV，请在独立进程中处理音频。")
     return module

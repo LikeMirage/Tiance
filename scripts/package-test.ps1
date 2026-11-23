@@ -50,6 +50,7 @@ try {
             "scripts\package-providers.json"
             "scripts\build-remote-gateway.ps1"
             "scripts\gateway-build-integrity.ps1"
+            "scripts\sync-speech-core.py"
             ".gitattributes"
         )
         $env:GIT_INDEX_FILE = $index
@@ -87,7 +88,7 @@ try {
     Assert-PackageThemeSelection -Treeish $treeish
     $packageTree = New-PackageProviderTree -Treeish $treeish -TemporaryDirectory $work
     # These inputs are needed only while verifying the selected Git snapshot.
-    $verificationPaths = @(& git ls-tree --name-only $packageTree -- global.json NuGet.Config nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props)
+    $verificationPaths = @(& git ls-tree --name-only $packageTree -- global.json NuGet.Config nuget.config Directory.Build.props Directory.Build.targets Directory.Packages.props scripts/sync-speech-core.py)
     if ($LASTEXITCODE -ne 0) { throw "Cannot read gateway build configuration." }
     $verificationPaths += @("scripts/build-remote-gateway.ps1", "scripts/gateway-build-integrity.ps1")
     & git archive --format=tar --output=$archive $packageTree -- `
@@ -101,6 +102,10 @@ try {
         throw "测试包解压失败。"
     }
     Assert-GatewayBuild -Root $stage
+    if (Test-Path -LiteralPath (Join-Path $stage "scripts/sync-speech-core.py")) {
+        & (Join-Path $stage "runtime/python/py313/python.exe") -B (Join-Path $stage "scripts/sync-speech-core.py") --check
+        if ($LASTEXITCODE -ne 0) { throw "Speech runtime verification failed in the test snapshot." }
+    }
     foreach ($relativePath in $verificationPaths) { Remove-Item -LiteralPath (Join-Path $stage $relativePath) }
     Remove-Item -LiteralPath (Join-Path $stage "scripts")
 

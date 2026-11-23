@@ -1,4 +1,5 @@
-av==16.0.1
+# Windows x64 CPython 3.13 ships the audio-only build inside app/services/speech/vendor.
+av==16.0.1 ; implementation_name != "cpython" or sys_platform != "win32" or python_version != "3.13" or platform_machine != "AMD64"
 dulwich>=1.2,<2.0
 fastapi>=0.116,<1.0
 httpx[socks]>=0.28,<1.0

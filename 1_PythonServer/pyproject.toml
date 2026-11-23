@@ -8,7 +8,7 @@ version = "0.3.49"
 description = "Local API server for the Tiance workspace."
 requires-python = ">=3.11"
 dependencies = [
-  "av==16.0.1",
+  "av==16.0.1 ; implementation_name != 'cpython' or sys_platform != 'win32' or python_version != '3.13' or platform_machine != 'AMD64'",
   "anyio>=4,<5",
   "cryptography>=42,<47",
   "dulwich>=1.2,<2.0",
@@ -48,6 +48,7 @@ py-modules = ["tiance_runtime"]
 include = ["app*"]
 
 [tool.setuptools.package-data]
+"app.services.speech" = ["vendor/**/*", "NOTICE", "LICENSE"]
 "app.migrations.global_db" = ["steps/*.sql", "steps/*.json"]
 "app.migrations.functional_settings" = ["*.json"]
 "app.migrations.providers" = ["*.json"]

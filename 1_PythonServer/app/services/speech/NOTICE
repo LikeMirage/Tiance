@@ -9,9 +9,10 @@ PyAV processing, SILK decoding and host-independent budget/client injection.
 The protocol core is mirrored from Tiance's independent audio_transcribe
 tool. Each host ships its own copy and does not load the other at runtime.
 
-The backend installs upstream PyAV 16.0.1 as a Python dependency. It does
-not ship or load the tool's custom audio-only PyAV build. PyAV and bundled
-FFmpeg libraries retain the notices in their installed distributions.
+On Windows x64 CPython 3.13 the backend ships its own copy of the same
+PyAV 16.0.1+audio.1 build as the tool. Licenses, source URLs and FFmpeg
+build options are included in vendor/cp313-win_amd64/av-16.0.1+audio.1.dist-info/licenses/.
+Other Python targets use the upstream PyAV dependency.
 
 The SILK decoder from kn007/silk-v3-decoder retains the MIT wrapper and
 Skype SDK licenses, source revision and binary hash in vendor/silk/.
