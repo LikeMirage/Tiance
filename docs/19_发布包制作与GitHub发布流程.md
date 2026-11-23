@@ -32,7 +32,7 @@
 - 私人工具 `Data/tools/9cb3e689-385b-46a5-9561-7d0382b1ac0e`（MCP 设备中枢）：源码索引、工具目录清单、完整包和在线工具市场均须排除。保留本机目录，不以删除本机文件实现过滤。
 - 根目录 `docs/`、`assets/` 和 `README.md`。
 
-Windows 10/11 通常已经具有系统 WebView2 Runtime。当前发布包使用系统运行时，不额外携带固定 WebView2 环境。
+完整包携带 `Tiance.WebViewCheck.exe` 检测程序。使用系统运行时时，桌面壳在创建窗口前检查版本和初始化结果；缺失或低于当前下限 `146.0.3856.49` 时尝试安装 Evergreen，再次检查。显式指定固定运行时时，需提供兼容目录。版本下限见[检测程序](../3_PyWebView/launcher/webview/WebViewCheck.cs)。
 
 ## 发布原则
 
@@ -117,7 +117,10 @@ dotnet test 3_PyWebView/gateway/windows/TianceRemoteGateway.Tests/TianceRemoteGa
 审查改动后提交并推送：
 
 ```powershell
-git add -A
+git add -p  # 逐处审查并暂存已跟踪文件的变更
+# 新增源码和本次干净构建的产物按实际路径暂存
+git diff --cached --stat
+git diff --cached --check
 git commit -m "chore: release vX.Y.Z"
 git push origin main
 ```
@@ -185,7 +188,7 @@ tar -tf "发布包/Tiance.zip" | Select-String -Pattern "Tiance.exe|2_ReactWeb/d
 - 不包含 `.git`；
 - 解压后的统一根目录仍为 `Tiance/`。
 
-旧版 `3.10` 更新器有额外的核心文件检查，不能直接安装 `3.11` 的新协议差分包。旧版本迁移应使用完整安装包；从 `3.11` 开始，更新器按 `schemaVersion: 2` 的文件清单工作。
+天策 `v0.3.10` 的更新器有额外的核心文件检查，不能直接安装 `v0.3.11` 的新协议差分包。旧版本迁移应使用完整安装包；从 `v0.3.11` 开始，更新器按 `schemaVersion: 2` 的文件清单工作。
 
 完整性检查应以标签经发布路径白名单、供应商白名单及 `.gitattributes` 的 `export-ignore` 过滤后的快照为准，压缩包只多一层统一的 `Tiance/` 根目录。供应商排序由白名单生成；不能直接拿整个标签文件集合与发布包比较。
 

@@ -7,13 +7,12 @@
 在仓库根目录执行：
 
 ```powershell
-cd C:\Users\WW\Desktop\Tiance
 git status --short
 git branch --show-current
 git remote -v
 ```
 
-必须确认当前仓库是 `LikeMirage/Tiance`、分支是 `main`，并且没有把 `Data/`、密钥、会话数据、缓存和个人临时文件加入提交。
+必须确认当前仓库是 `LikeMirage/Tiance`、分支是 `main`，并检查暂存区。`Data/` 中可公开的预置工具、主题和供应商可以随本次改动提交；个人设置、凭证、会话数据、缓存和临时文件不应进入提交。发布数据范围见[安装包白名单](18_发布包与在线更新包制作流程.md#完整安装包)。
 
 先同步远端：
 
@@ -87,7 +86,7 @@ gh auth login
 gh auth status
 ```
 
-CLI 登录后，使用已推送的标签创建 Release：
+CLI 登录后，使用已推送的标签创建 Release。下面的 `发布说明.md` 应与打包时传给 `-ReleaseNotesFile` 的 UTF-8 文件相同。
 
 ```powershell
 gh release create vX.Y.Z `
@@ -97,7 +96,8 @@ gh release create vX.Y.Z `
   发布包/update.json `
   --repo LikeMirage/Tiance `
   --verify-tag `
-  --title "Tiance vX.Y.Z"
+  --title "Tiance vX.Y.Z" `
+  --notes-file 发布说明.md
 ```
 
 也可以在 GitHub 网页的 Releases 页面选择已经推送的标签手工创建。软件内部的 GitHub 登录主要服务于应用内 GitHub 工具，不是维护者发布源码的前置条件。
