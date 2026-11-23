@@ -1,7 +1,7 @@
 from app.api import ShellApi
 from app.backend_process import BackendProcessManager
 from app.backend_runtime_record import cleanup_orphaned_managed_backend
-from app.config import PROJECT_ROOT, load_settings
+from app.config import PROJECT_ROOT, WebViewConfigurationError, load_settings
 from app.gateway_process import GatewayProcessManager
 from app.process_security import ProcessSecurity
 from app.installation_lock import acquire_installation_lock
@@ -15,6 +15,7 @@ from app.startup_timing import (
     timed_stage,
 )
 from app.window import build_entrypoint, build_window_options
+from app.webview_preflight import check_webview_runtime, report_runtime_configuration
 
 
 def main() -> None:
@@ -37,7 +38,13 @@ def main() -> None:
                 ) from exc
 
         with timed_stage("load shell settings"):
-            settings = load_settings()
+            try:
+                settings = load_settings()
+            except WebViewConfigurationError as exc:
+                report_runtime_configuration(str(exc))
+                raise
+        with timed_stage("check WebView2 runtime"):
+            check_webview_runtime(settings, webview)
         set_timing_enabled(True)
         configure_pywebview_timing_logger()
         mark(

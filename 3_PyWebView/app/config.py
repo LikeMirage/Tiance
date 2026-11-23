@@ -23,6 +23,10 @@ DEFAULT_API_PORT_RANGE = (18000, 18020)
 DEFAULT_BACKEND_PORT_RANGE = (18200, 18220)
 
 
+class WebViewConfigurationError(SystemExit):
+    """An explicitly selected browser runtime cannot be used."""
+
+
 @dataclass(frozen=True)
 class ShellSettings:
     title: str
@@ -238,7 +242,7 @@ def _read_webview2_runtime_mode(value: str | None) -> str:
     runtime_mode = (value or "auto").strip().lower()
     if runtime_mode not in WEBVIEW2_RUNTIME_MODES:
         allowed_modes = ", ".join(sorted(WEBVIEW2_RUNTIME_MODES))
-        raise SystemExit(
+        raise WebViewConfigurationError(
             "Invalid TIANCE_WEBVIEW2_RUNTIME_MODE. "
             f"Expected one of: {allowed_modes}. Got: {runtime_mode or '<empty>'}"
         )
@@ -250,7 +254,7 @@ def _resolve_webview2_runtime_path(runtime_mode: str) -> str | None:
 
     if runtime_mode == "system":
         if configured_path:
-            raise SystemExit(
+            raise WebViewConfigurationError(
                 "TIANCE_WEBVIEW2_RUNTIME_MODE=system cannot be combined with "
                 "TIANCE_WEBVIEW2_RUNTIME_PATH. Remove the custom runtime path or use "
                 "TIANCE_WEBVIEW2_RUNTIME_MODE=bundled."
@@ -261,7 +265,7 @@ def _resolve_webview2_runtime_path(runtime_mode: str) -> str | None:
         resolved = _resolve_path(configured_path)
         runtime_dir = _find_webview2_runtime_dir(resolved)
         if runtime_dir is None:
-            raise SystemExit(
+            raise WebViewConfigurationError(
                 "Configured WebView2 runtime path is invalid. "
                 f"Expected a directory containing msedgewebview2.exe: {resolved}"
             )
@@ -272,7 +276,7 @@ def _resolve_webview2_runtime_path(runtime_mode: str) -> str | None:
         return str(runtime_dir.resolve())
 
     if runtime_mode == "bundled":
-        raise SystemExit(
+        raise WebViewConfigurationError(
             "Bundled WebView2 runtime is required but missing. "
             f"Expected: {(DEFAULT_WEBVIEW2_RUNTIME_DIR / DEFAULT_WEBVIEW2_RUNTIME_NAME).resolve()}"
         )

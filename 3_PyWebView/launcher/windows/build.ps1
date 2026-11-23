@@ -27,4 +27,5 @@ if (-not (Test-Path -LiteralPath $builtLauncher)) {
 }
 
 Copy-Item -LiteralPath $builtLauncher -Destination $targetLauncher -Force
+& (Join-Path $PSScriptRoot "../webview/build.ps1")
 Write-Output "Built launcher: $targetLauncher"

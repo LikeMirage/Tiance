@@ -191,7 +191,7 @@ GUI 工具让 AI 查看和操作桌面。它可以把截图划成网格，逐级
 目前提供 Windows 发布包，已经包含 Python、后端依赖和构建好的前端，无需另外安装 Python 或 Node.js。
 
 1. [下载最新 Windows 版](https://github.com/LikeMirage/Tiance/releases/latest/download/Tiance.zip)，解压并保留完整目录结构。
-2. 双击根目录的 `Tiance.exe`，确认 Windows 管理员授权后启动。
+2. 双击根目录的 `Tiance.exe`，确认 Windows 管理员授权后启动。天策会在打开窗口前检测 Microsoft Edge WebView2 Runtime。系统运行时缺失或版本过低时会自动下载安装，失败时可复制微软离线安装包的下载地址，手动安装后重新运行天策。
 3. 在模型集中配置自己的供应商与 API Key。
 4. 创建项目或打开已有工作文件夹，新建会话，选择模型和需要的工具，开始工作。
 
