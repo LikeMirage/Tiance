@@ -20,6 +20,7 @@ import type { DocumentMark } from "../../editor/model/documentMarks";
 import { previewAnchor } from "../model/previewMarkText";
 
 type TextReferenceMenuState = {
+  finishMark?: () => void;
   marks?: DocumentMark[];
   selectedText: string;
   copyFailed?: boolean;
@@ -47,6 +48,7 @@ export function useDocumentTextReferenceMenu({
 
   const openTextReferenceMenu = (
     selection: {
+      finishMark?: () => void;
       marks?: DocumentMark[];
       content: string;
       contentMarkdown?: string;
@@ -65,6 +67,7 @@ export function useDocumentTextReferenceMenu({
     setTextReferenceMenu({
       selectedText: selection.content,
       marks: selection.marks,
+      finishMark: selection.finishMark,
       reference: buildEditorTextReferenceDraft(activeTab, {
         content,
         contentMarkdown: selection.contentMarkdown,
@@ -115,6 +118,13 @@ export function useDocumentTextReferenceMenu({
     openTextReferenceMenu(
       {
         marks: anchor ? [anchor] : undefined,
+        finishMark: () => {
+          const live = window.getSelection();
+          if (!live?.rangeCount) return;
+          const current = live.getRangeAt(0);
+          if (current.compareBoundaryPoints(Range.START_TO_START, selected.range) === 0 &&
+              current.compareBoundaryPoints(Range.END_TO_END, selected.range) === 0) live.removeAllRanges();
+        },
         content: selected.content,
         contentMarkdown: renderedSelectionMarkdown(selected.range),
         pageNumber: source === "pdf" ? readPdfPage(selected.range) : undefined,
@@ -147,7 +157,9 @@ export function useDocumentTextReferenceMenu({
           </ContextMenuItem>
           {markState && !!textReferenceMenu.marks?.length && (
             <ContextMenuItem icon={<Check size={14} />} onSelect={() => {
-              void markState.change({ add: textReferenceMenu.marks });
+              void markState.change({ add: textReferenceMenu.marks }).then(saved => {
+                if (saved) textReferenceMenu.finishMark?.();
+              });
               setTextReferenceMenu(null);
             }}>勾选</ContextMenuItem>
           )}

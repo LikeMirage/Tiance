@@ -5,7 +5,7 @@ import { fetchJson } from "../../../services/http/httpClient";
 import type { DocumentMark } from "./documentMarks";
 
 type Changes = { add?: DocumentMark[]; remove?: string[] };
-type MarkState = { marks: DocumentMark[]; saved: boolean; change: (changes: Changes) => Promise<void> };
+type MarkState = { marks: DocumentMark[]; saved: boolean; change: (changes: Changes) => Promise<boolean> };
 const Context = createContext<MarkState | null>(null);
 export const useDocumentMarks = () => useContext(Context);
 
@@ -40,7 +40,8 @@ function MarkSession({ endpoint, saved, children }: { endpoint: string; saved: b
         return [...items.values()];
       });
       setError("");
-    } catch { setError("保存勾选失败，请重试"); }
+      return true;
+    } catch { setError("保存勾选失败，请重试"); return false; }
   }, [endpoint]);
   const state = useMemo(() => marks && ({ marks, saved, change }), [marks, saved, change]);
   return <Context.Provider value={state}>

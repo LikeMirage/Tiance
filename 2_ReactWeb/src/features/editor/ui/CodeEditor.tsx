@@ -17,6 +17,7 @@ import "./documentMarks.css";
 
 export type CodeEditorTextSelectionContextMenu = {
   marks?: DocumentMark[];
+  finishMark?: () => void;
   content: string;
   endLine: number;
   startLine: number;
@@ -153,8 +154,14 @@ export function CodeEditor({
 
       event.preventDefault();
       event.stopPropagation();
+      const selection = view.state.selection;
       const text = marksRef.current ? view.state.doc.toString() : null;
       selectionHandler({
+        finishMark: () => {
+          if (view.dom.isConnected && view.state.selection.eq(selection)) {
+            view.dispatch({ selection: EditorSelection.cursor(selection.main.head) });
+          }
+        },
         marks: text === null ? undefined : selectedRanges.map(range => anchorSelection(text, range, "source")),
         content,
         endLine: view.state.doc.lineAt(to).number,
