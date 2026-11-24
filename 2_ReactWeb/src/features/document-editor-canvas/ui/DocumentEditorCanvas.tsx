@@ -8,6 +8,7 @@ import { ConfirmModal } from "../../../shared/ui/confirm-modal/ConfirmModal";
 import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "../../../shared/ui/context-menu";
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import { DocumentReadingStateProvider } from "../../../entities/editor/model/documentReadingState";
+import { DocumentMarksProvider } from "../../editor/model/DocumentMarksContext";
 import { DocumentRevealContext } from "../../../entities/editor/model/documentRevealContext";
 import type { EditorWorkspaceFileReference } from "../../../entities/editor/model/editorWorkspaceFileReference";
 import type {
@@ -492,6 +493,7 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
             >
               <DocumentReadingStateProvider activeKey={activeTabId ?? ""} openKeys={tabs.map((tab) => tab.id)}>
               <DocumentRevealContext.Provider value={activeTab?.revealRequest ?? null}>
+              <DocumentMarksProvider tab={activeTab}>
               {activeTab?.kind === "web" ? (
                 webAvailable
                   ? <EditorWebPage key={activeTab.id} tab={activeTab} workspaceRoot={activeTab.projectId ? projectRootPath : ""}
@@ -558,6 +560,7 @@ export const DocumentEditorCanvas = memo(function DocumentEditorCanvas({
                 toolDependencyTarget={toolDependencyTarget}
                 toolEntryCandidates={toolEntryCandidates}
               />}
+              </DocumentMarksProvider>
               </DocumentRevealContext.Provider>
               </DocumentReadingStateProvider>
             </div>

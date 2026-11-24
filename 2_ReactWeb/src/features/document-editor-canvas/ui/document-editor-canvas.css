@@ -252,7 +252,8 @@
 }
 .doc-editor__preview::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
-.doc-editor__preview > .markdown-preview {
+.doc-editor__preview > .markdown-preview,
+.document-mark-preview-body > .markdown-preview {
   box-sizing: border-box;
   padding: 14px 20px 18px;
 }

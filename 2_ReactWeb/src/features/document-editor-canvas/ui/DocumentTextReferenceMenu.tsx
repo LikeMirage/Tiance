@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
-import { ChatCircleText, Copy } from "@phosphor-icons/react";
+import { ChatCircleText, Check, Copy } from "@phosphor-icons/react";
 
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import { getEditorDocumentPath } from "../../../entities/editor/model/editorWorkspaceFileReference";
@@ -15,7 +15,12 @@ import type { CodeEditorTextSelectionContextMenu } from "../../editor/ui/CodeEdi
 import { readWordTextReferenceLocation } from "../model/wordTextReferenceLocation";
 import { renderedSelectionMarkdown } from "../model/renderedSelectionMarkdown";
 
+import { useDocumentMarks } from "../../editor/model/DocumentMarksContext";
+import type { DocumentMark } from "../../editor/model/documentMarks";
+import { previewAnchor } from "../model/previewMarkText";
+
 type TextReferenceMenuState = {
+  marks?: DocumentMark[];
   selectedText: string;
   copyFailed?: boolean;
   reference: EditorTextReferenceDraft;
@@ -33,6 +38,7 @@ export function useDocumentTextReferenceMenu({
   onCreateTextReference,
 }: UseDocumentTextReferenceMenuOptions) {
   const { t } = useI18n();
+  const markState = useDocumentMarks();
   const [textReferenceMenu, setTextReferenceMenu] = useState<TextReferenceMenuState>(null);
 
   useEffect(() => {
@@ -41,6 +47,7 @@ export function useDocumentTextReferenceMenu({
 
   const openTextReferenceMenu = (
     selection: {
+      marks?: DocumentMark[];
       content: string;
       contentMarkdown?: string;
       documentFingerprint?: string;
@@ -57,6 +64,7 @@ export function useDocumentTextReferenceMenu({
     const content = selection.content.trim();
     setTextReferenceMenu({
       selectedText: selection.content,
+      marks: selection.marks,
       reference: buildEditorTextReferenceDraft(activeTab, {
         content,
         contentMarkdown: selection.contentMarkdown,
@@ -102,8 +110,11 @@ export function useDocumentTextReferenceMenu({
     if (!selected) return;
     event.preventDefault();
     event.stopPropagation();
+    const anchor = markState && source === "markdown_preview" && globalThis.CSS?.highlights
+      ? previewAnchor(event.currentTarget, selected.range) : null;
     openTextReferenceMenu(
       {
+        marks: anchor ? [anchor] : undefined,
         content: selected.content,
         contentMarkdown: renderedSelectionMarkdown(selected.range),
         pageNumber: source === "pdf" ? readPdfPage(selected.range) : undefined,
@@ -134,6 +145,12 @@ export function useDocumentTextReferenceMenu({
           <ContextMenuItem icon={<Copy size={14} />} onSelect={() => void copySelection(textReferenceMenu)}>
             {t("fileWorkspace.context.copy")}
           </ContextMenuItem>
+          {markState && !!textReferenceMenu.marks?.length && (
+            <ContextMenuItem icon={<Check size={14} />} onSelect={() => {
+              void markState.change({ add: textReferenceMenu.marks });
+              setTextReferenceMenu(null);
+            }}>勾选</ContextMenuItem>
+          )}
           {onCreateTextReference && textReferenceMenu.reference.content && (
             <ContextMenuItem
               icon={<ChatCircleText size={14} />}

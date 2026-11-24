@@ -4,6 +4,7 @@ import type { Dispatch, MouseEvent, SetStateAction } from "react";
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import type { EditorTextReferenceSource } from "../../../entities/editor/model/editorReference";
 import type { CodeBlockSavePayload } from "../../markdown-preview/model/codeBlockFile";
+import { PreviewMarkLayer } from "./PreviewMarkLayer";
 import { LazyMarkdownPreview } from "../../markdown-preview/ui/LazyMarkdownPreview";
 import type { CodeEditorTextSelectionContextMenu } from "../../editor/ui/CodeEditor";
 import { EditorLazyBoundary } from "./EditorContentBoundary";
@@ -127,12 +128,15 @@ export function MarkdownDocumentContent({
           className="doc-editor__preview doc-editor__preview--markdown-full"
           onContextMenu={(event) => onRenderedTextContextMenu(event, "markdown_preview")}
         >
-          <LazyMarkdownPreview
-            content={activeTab.content}
-            onSaveCodeBlock={onSaveCodeBlock}
-            renderStrategy="progressive"
-            resolveAssetUrl={markdownAssetUrlResolver}
-          />
+          <div className="document-mark-preview-body">
+            <LazyMarkdownPreview
+              content={activeTab.content}
+              onSaveCodeBlock={onSaveCodeBlock}
+              renderStrategy="progressive"
+              resolveAssetUrl={markdownAssetUrlResolver}
+            />
+          </div>
+          <PreviewMarkLayer scroller={previewScrollRef} />
         </div>
       ) : renderMode === "visual" && !visualBudgetExceeded ? (
         <div

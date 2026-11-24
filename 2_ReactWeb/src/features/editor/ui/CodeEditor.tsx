@@ -9,9 +9,14 @@ import { findReferenceTextSelection } from "../model/referenceTextSelection";
 import type { DocumentLanguage } from "../../../entities/editor/model/editorDocument";
 import { createEditorExtensions } from "./editor-config";
 import { needsPlainTextMode } from "../../file-preview/model/previewPolicy";
+import { useDocumentMarks } from "../model/DocumentMarksContext";
+import { anchorSelection, type DocumentMark } from "../model/documentMarks";
+import { sourceMarksField, sourceMarkDecorations } from "./sourceMarks";
 import "./editor.css";
+import "./documentMarks.css";
 
 export type CodeEditorTextSelectionContextMenu = {
+  marks?: DocumentMark[];
   content: string;
   endLine: number;
   startLine: number;
@@ -44,6 +49,10 @@ export function CodeEditor({
   onTextSelectionContextMenu,
   readOnly,
 }: CodeEditorProps) {
+  const markState = useDocumentMarks();
+  const marksRef = useRef(markState);
+  marksRef.current = markState;
+  const removeMark = useMemo(() => (id: string) => { void marksRef.current?.change({ remove: [id] }); }, []);
   const plainTextMode = useMemo(() => needsPlainTextMode(value), [value]);
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -117,6 +126,7 @@ export function CodeEditor({
       extensions: [
         EditorState.allowMultipleSelections.of(true),
         langCompartmentRef.current.of(createEditorExtensions(languageId, { readOnly, plainTextMode, onSave: saveCurrentDocument })),
+        sourceMarksField,
         updateListener,
       ],
     });
@@ -143,7 +153,9 @@ export function CodeEditor({
 
       event.preventDefault();
       event.stopPropagation();
+      const text = marksRef.current ? view.state.doc.toString() : null;
       selectionHandler({
+        marks: text === null ? undefined : selectedRanges.map(range => anchorSelection(text, range, "source")),
         content,
         endLine: view.state.doc.lineAt(to).number,
         startLine: view.state.doc.lineAt(from).number,
@@ -199,6 +211,15 @@ export function CodeEditor({
       lastCommittedValueRef.current = value;
     }
   }, [value]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !markState || !editorReady) return;
+    const missing = sourceMarkDecorations(view, markState.marks, removeMark);
+    if (missing.length && markState.saved && view.state.doc.toString() === value.replace(/\r\n?/g, "\n")) {
+      void markState.change({ remove: missing });
+    }
+  }, [editorReady, markState, removeMark, value]);
 
   // Sync language / readOnly changes
   useEffect(() => {

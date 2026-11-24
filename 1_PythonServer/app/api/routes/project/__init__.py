@@ -12,7 +12,10 @@ from app.api.routes.project.knowledge_market import router as knowledge_market_r
 from app.api.routes.project.experience_market import router as experience_market_router
 from app.api.routes.project.workspace import router as project_workspace_router
 
+from app.api.routes.project.document_marks import router as document_marks_router
+
 router = APIRouter()
+router.include_router(document_marks_router)
 router.include_router(speech_router)
 router.include_router(project_core_router)
 router.include_router(project_market_router)

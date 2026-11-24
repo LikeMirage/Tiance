@@ -1,0 +1,37 @@
+/* CodeMirror's focused base theme targets the selection layer with six classes. */
+.code-editor .cm-editor .cm-scroller > .cm-selectionLayer .cm-selectionBackground,
+.code-editor .cm-editor.cm-focused .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background-color: var(--color-text-selection-bg) !important;
+}
+.document-mark-text, .document-mark-text * {
+  background-color: var(--color-text-selection-bg);
+  color: var(--color-text-selection-text);
+}
+.document-mark-text .document-mark-text { background-color: transparent; }
+::highlight(tiance-document-marks) {
+  background-color: var(--color-text-selection-bg);
+  color: var(--color-text-selection-text);
+}
+.document-mark-controls {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  max-width: 95%;
+  overflow-x: auto;
+  gap: 2px;
+}
+.document-mark-cancel {
+  display: inline-block;
+  vertical-align: top;
+  flex: none;
+  margin-inline-start: 2px;
+  padding: 0 4px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 3px;
+  color: var(--color-accent);
+  background: var(--editor-background);
+  font: 10px/1.4 sans-serif;
+  cursor: pointer;
+  user-select: none;
+}
+.document-mark-error { color: var(--color-danger); font-size: 12px; }

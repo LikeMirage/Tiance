@@ -75,6 +75,10 @@ test("CodeEditor selects its live buffer, centers it and acknowledges without ed
     "../model/referenceTextSelection": { findReferenceTextSelection: (doc, ref) => { try { return reveal.resolveReferenceText(doc, ref); } catch { return null; } } },
     "./editor-config": { createEditorExtensions: () => [] },
     "../../file-preview/model/previewPolicy": { needsPlainTextMode: () => false },
+    "../model/DocumentMarksContext": { useDocumentMarks: () => null },
+    "../model/documentMarks": {},
+    "./sourceMarks": { sourceMarksField: [] },
+    "./documentMarks.css": {},
     "./editor.css": {},
   });
   const render = request => React.createElement(context.DocumentRevealContext.Provider, { value: request },
