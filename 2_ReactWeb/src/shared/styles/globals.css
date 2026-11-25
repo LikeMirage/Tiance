@@ -13,6 +13,7 @@
 }
 
 :root {
+  --catalog-list-edge-gap: 4px;
   font-family:
     "Segoe UI",
     "Microsoft YaHei UI",

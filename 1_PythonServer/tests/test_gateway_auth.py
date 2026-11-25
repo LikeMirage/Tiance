@@ -55,19 +55,18 @@ def test_capability_bridge_keeps_its_own_scoped_authentication(monkeypatch):
     monkeypatch.setattr(provider_capabilities, "get_host_capability_access_service", lambda: access)
     calls = []
 
-    class Service:
-        async def execute(self, **kwargs):
-            calls.append(kwargs)
-            return {"results": []}
+    async def post(grant, endpoint, body):
+        calls.append((grant, endpoint, body))
+        return {"status": 200, "data": {}}
 
-    monkeypatch.setattr(provider_capabilities, "get_deepseek_web_service", Service)
+    monkeypatch.setattr(provider_capabilities, "post_to_endpoint", post)
     app = application()
     app.include_router(provider_capabilities.router, prefix="/api")
     client = TestClient(app)
-    path = "/api/llm/provider-capabilities/deepseek-web"
-    body = {"action": "search", "query": "test"}
+    path = "/api/llm/provider-capabilities/authenticated-post"
+    body = {"endpoint": "demo", "body": {}}
     assert client.post(path, json=body).status_code == 401
-    grant = access.issue_grant(capabilities=("deepseek_web",), tool_name="deepseek_official_web_search", tool_call_id="call", provider_id=None, model_id=None, project_id=None, session_id=None, lifetime_seconds=60)
+    grant = access.issue_grant(capabilities=("provider_auth",), tool_name="deepseek_official_web_search", tool_call_id="call", provider_id=None, model_id=None, project_id=None, session_id=None, lifetime_seconds=60)
     assert grant is not None
     headers = {"authorization": "Bearer " + grant.token}
     assert client.post(path, json=body, headers=headers).status_code == 200

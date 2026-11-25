@@ -100,7 +100,7 @@ def test_catalog_rejects_absent_wrong_expired_or_forged_scope_and_obeys_session_
     path = '/api/tools/capabilities/catalog'
     body = {'operation': 'get_parameters', 'tool_name': 'read_text_file'}
     assert bridge.client.post(path, json=body).status_code == 401
-    other = issue(bridge.access, capabilities=(HostCapability.DEEPSEEK_WEB,))
+    other = issue(bridge.access, capabilities=(HostCapability.PROVIDER_AUTH,))
     assert bridge.client.post(path, json=body, headers=headers(other)).status_code == 401
     grant = issue(bridge.access)
     assert bridge.client.post(path, json={**body, 'session_id': 'foreign'}, headers=headers(grant)).status_code == 422
@@ -140,16 +140,16 @@ def test_observer_expires_without_heartbeat_and_cannot_be_revived(bridge, monkey
 
 @pytest.mark.parametrize('name', ['my_search', 'renamed_copy', 'network_search'])
 def test_execution_uses_declaration_not_tool_name_and_revokes_all_capabilities(tmp_path, name):
-    root = _create_tool_root(tmp_path, tool_name=name, host_capabilities=['deepseek_web', 'tool_catalog'])
+    root = _create_tool_root(tmp_path, tool_name=name, host_capabilities=['provider_auth', 'tool_catalog'])
     access = HostCapabilityAccessService()
     tokens = []
     def runner(command, input_text, cwd, env, timeout_seconds):
         token = env['TIANCE_HOST_CAPABILITY_TOKEN']
         tokens.append(token)
-        grant = access.authorize(token, HostCapability.DEEPSEEK_WEB)
+        grant = access.authorize(token, HostCapability.PROVIDER_AUTH)
         assert grant is not None and grant.tool_name == name and grant.tool_project_id
         assert access.authorize(token, HostCapability.TOOL_CATALOG) == grant
-        assert access.authorize(token, HostCapability.WEB_SEARCH) is None
+        assert access.authorize(token, HostCapability.SESSION_MODEL) is None
         assert grant.run_id == 'run'
         assert 'TIANCE_GATEWAY_INTERNAL_TOKEN' not in env
         return SimpleNamespace(returncode=0, stdout='{"ok":true}', stderr='')
@@ -177,9 +177,9 @@ def test_bad_declaration_is_rejected_not_silently_discarded(invalid):
 def test_saved_manifest_preserves_declared_capabilities_and_sdk_catalog_is_complete():
     manifest = {'name': 'custom', 'registration_name': 'Custom', 'execution': {'parallel': True}, 'runtime': {
         'type': 'python', 'entry': 'program/main.py', 'timeout_seconds': 30,
-        'host_capabilities': ['tool_catalog', 'deepseek_web']}}
+        'host_capabilities': ['tool_catalog', 'provider_auth']}}
     saved = ToolProjectConfigStorage().normalize_standard_file_content('.tool/tool.json', json.dumps(manifest))
-    assert json.loads(saved)['runtime']['host_capabilities'] == ['tool_catalog', 'deepseek_web']
+    assert json.loads(saved)['runtime']['host_capabilities'] == ['tool_catalog', 'provider_auth']
     assert {item['name'] for item in tiance_runtime.list_host_capabilities()} == {item.value for item in HOST_CAPABILITIES}
 
 
@@ -307,13 +307,13 @@ def test_shipped_bridge_documentation_matches_installed_contracts():
         'Data/tools/34b16133-f310-4064-b71f-f0411d13ab1d/assets/documentation/04-capability-bridges.md').read_text(encoding='utf-8')
     for name, definition in HOST_CAPABILITIES.items():
         assert f'| `{name.value}` | `{definition.path}` |' in document
-    from app.schemas.llm.provider_capabilities import ProviderWebSearchRequestBody
+    from app.api.routes.llm.provider_capabilities import ModelSourceRequest, EndpointPostRequest
     from app.schemas.github_platform import GithubPlatformToolRequest
     from app.schemas.github_sync import GithubSyncToolRequest
     from app.schemas.git_repository import GitRepositoryToolRequest
     from app.schemas.memory_management import MemoryManagementToolRequest
     schemas = {
-        'web_search': ProviderWebSearchRequestBody, 'github_repositories': GithubPlatformToolRequest,
+        'session_model': ModelSourceRequest, 'provider_auth': EndpointPostRequest, 'github_repositories': GithubPlatformToolRequest,
         'github_sync': GithubSyncToolRequest, 'git_repository': GitRepositoryToolRequest,
         'memory_management': MemoryManagementToolRequest, 'tool_catalog': routes.CatalogRequest,
         'run_status': routes.RunStatusRequest,

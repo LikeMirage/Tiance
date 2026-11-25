@@ -1,3 +1,4 @@
+import { EdgeScrollArea } from "@/shared/ui/edge-scrollbar";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useDocumentReadingValue } from "../../../entities/editor/model/documentReadingState";
 import { readWordChunk, type FilePreviewInspection } from "../../file-preview/model/filePreview";
@@ -91,17 +92,24 @@ export function WordPreview({ inspection, onLoadingVisibleChange, onMissing, src
     saveAnchor(anchor.current);
     setCenter(chunk);
   };
+  const interruptReading = () => {
+    if (pinnedRequest && !pinnedRequest.signal.aborted) {
+      pinnedRequest.fail(new DocumentRevealError("NAVIGATION_INTERRUPTED", "用户已滚动文档，定位中止。"));
+    }
+    setPinnedChunks([]);
+  };
   return <main className="office-preview__body">
     {!firstReady && <LoadingStrip ariaLabel="正在加载 Word 文档" mode="fill" surface="dark" visual="ring" />}
-    <div ref={scrollRef} className="office-preview__scroll office-preview__word-scroll" onWheel={() => {
-      if (pinnedRequest && !pinnedRequest.signal.aborted) {
-        pinnedRequest.fail(new DocumentRevealError("NAVIGATION_INTERRUPTED", "用户已滚动文档，定位中止。"));
-      }
-      setPinnedChunks([]);
-    }} onScroll={() => {
-      cancelAnimationFrame(frame.current);
-      frame.current = requestAnimationFrame(capture);
-    }}>
+    <EdgeScrollArea
+      viewportRef={scrollRef}
+      className="office-preview__scroll office-preview__word-scroll"
+      onUserScroll={interruptReading}
+      onWheel={interruptReading}
+      onScroll={() => {
+        cancelAnimationFrame(frame.current);
+        frame.current = requestAnimationFrame(capture);
+      }}
+    >
       <div className="office-preview__word" style={{ zoom }} data-document-fingerprint={inspection.word?.fingerprint}>
         {Array.from({ length: count }, (_, index) => <div key={index} data-word-chunk={index}
           style={Math.abs(index - center) <= 1 || pinnedChunks.includes(index) ? undefined : { height: heights[index] }}>
@@ -110,7 +118,7 @@ export function WordPreview({ inspection, onLoadingVisibleChange, onMissing, src
                 estimate={heights[index]} onHeight={onHeight} onReady={onReady} onUnmount={onUnmount} onMissing={onMissing} /> : null}
         </div>)}
       </div>
-    </div>
+    </EdgeScrollArea>
   </main>;
 }
 

@@ -1,13 +1,16 @@
 /* CodeMirror's focused base theme targets the selection layer with six classes. */
 .code-editor .cm-editor .cm-scroller > .cm-selectionLayer .cm-selectionBackground,
-.code-editor .cm-editor.cm-focused .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+.code-editor .cm-editor.cm-focused .cm-scroller > .cm-selectionLayer .cm-selectionBackground,
+.code-editor .cm-documentMarkBackground {
   background-color: var(--color-text-selection-bg) !important;
 }
-.document-mark-text, .document-mark-text * {
-  background-color: var(--color-text-selection-bg);
-  color: var(--color-text-selection-text);
+.code-editor .cm-has-document-marks .cm-selectionBackground {
+  visibility: hidden;
 }
-.document-mark-text .document-mark-text { background-color: transparent; }
+.code-editor .cm-documentMarkLayer { pointer-events: none; }
+.code-editor .document-mark-text, .code-editor .document-mark-text * {
+  color: var(--color-text-selection-text) !important;
+}
 ::highlight(tiance-document-marks) {
   background-color: var(--color-text-selection-bg);
   color: var(--color-text-selection-text);
@@ -20,18 +23,41 @@
   overflow-x: auto;
   gap: 2px;
 }
+.cm-documentMarkControls, .document-mark-source-row {
+  pointer-events: none;
+}
+.document-mark-source-row {
+  display: flex;
+  align-items: flex-start;
+}
+/* The spacer gives way at the right edge without moving any document text. */
+.document-mark-source-row::before {
+  content: "";
+  flex: 0 1 var(--mark-end);
+}
+.document-mark-source-buttons {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  max-width: 100%;
+  overflow-x: auto;
+  pointer-events: auto;
+}
 .document-mark-cancel {
   display: inline-block;
   vertical-align: top;
   flex: none;
-  margin-inline-start: 2px;
   padding: 0 4px;
-  border: 1px solid var(--color-border-soft);
+  border: 1px solid var(--color-border-strong);
   border-radius: 3px;
-  color: var(--color-accent);
-  background: var(--editor-background);
-  font: 10px/1.4 sans-serif;
+  color: var(--color-text-primary);
+  background: var(--color-surface-elevated-solid);
+  font: 500 11px/1.4 sans-serif;
+  white-space: nowrap;
   cursor: pointer;
   user-select: none;
+}
+.document-mark-cancel:hover, .document-mark-cancel:focus-visible {
+  border-color: var(--color-accent);
 }
 .document-mark-error { color: var(--color-danger); font-size: 12px; }

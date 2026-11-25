@@ -1,6 +1,7 @@
 import type { DsLlmReasoningMode } from "../../llm-runtime/model/generationParams";
 import type {
   ChatCompletionMessageContentPart,
+  ChatUsage,
   ConversationMessageReferences,
 } from "./chatCompletion";
 import type { OutputLimitPolicy } from "./outputLimitPolicy";
@@ -120,15 +121,7 @@ export type ConversationMessage = {
     name: string;
     arguments: string;
   }>;
-  usage?: {
-    prompt_tokens?: number | null;
-    completion_tokens?: number | null;
-    total_tokens?: number | null;
-    prompt_cache_hit_tokens?: number | null;
-    prompt_cache_miss_tokens?: number | null;
-    reasoning_tokens?: number | null;
-    estimated_fields?: string[];
-  } | null;
+  usage?: ChatUsage | null;
   context_tokens?: number | null;
   context_tokens_estimated?: boolean;
   provider_id: string | null;

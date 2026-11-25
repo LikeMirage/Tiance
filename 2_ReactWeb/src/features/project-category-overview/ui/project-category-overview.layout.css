@@ -55,37 +55,6 @@
   pointer-events: auto;
 }
 
-.project-category-overview__grid::-webkit-scrollbar,
-.project-category-overview__sessions::-webkit-scrollbar {
-  width: var(--scrollbar-size);
-  height: var(--scrollbar-size);
-}
-
-.project-category-overview__grid::-webkit-scrollbar-track,
-.project-category-overview__sessions::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
-}
-
-.project-category-overview__grid::-webkit-scrollbar-thumb,
-.project-category-overview__sessions::-webkit-scrollbar-thumb {
-  min-height: 24px;
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background: var(--scrollbar-thumb);
-  background-clip: content-box;
-}
-
-.project-category-overview__grid::-webkit-scrollbar-thumb:hover,
-.project-category-overview__sessions::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-  background-clip: content-box;
-}
-
-.project-category-overview__grid::-webkit-scrollbar-corner,
-.project-category-overview__sessions::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
 .project-category-overview__header {
   display: flex;
   flex-wrap: nowrap;
@@ -210,32 +179,47 @@
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
+  padding-right: 34px;
+  opacity: 1;
+  transition: opacity 140ms ease;
   white-space: nowrap;
 }
 
-.project-category-overview__header-side {
-  display: inline-flex;
-  flex: 0 0 auto;
+.project-category-overview__header-search {
+  /* This explicit slide interaction stays animated when OS animations are off. */
+  --project-overview-search-duration: 320ms;
+  position: relative;
+  display: flex;
+  flex: 0 1 auto;
   align-items: center;
-  justify-content: flex-end;
   min-width: 0;
-  gap: 8px;
+  height: 32px;
+  overflow: hidden;
 }
 
-.project-category-overview__actions {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 2px;
-  padding-left: 6px;
-  border-left: 1px solid var(--color-border-subtle);
+.project-category-overview__header-search::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: var(--color-accent);
+  content: "";
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform var(--project-overview-search-duration) ease;
+  pointer-events: none;
 }
 
-.project-category-overview__action {
-  display: inline-grid;
+.project-category-overview__search-toggle,
+.project-category-overview__search-close {
+  position: absolute;
+  top: 3px;
+  display: grid;
   place-items: center;
   width: 26px;
   height: 26px;
+  padding: 0;
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -243,13 +227,75 @@
   cursor: pointer;
 }
 
-.project-category-overview__action:hover:not(:disabled) {
+.project-category-overview__search-toggle {
+  left: calc(100% - 26px);
+  transition: left var(--project-overview-search-duration) ease;
+}
+
+.project-category-overview__search-close {
+  right: 0;
+}
+
+.project-category-overview__search-toggle:hover,
+.project-category-overview__search-close:hover {
   background: var(--color-selection-accent-bg-subtle);
 }
 
-.project-category-overview__action:disabled {
-  cursor: default;
-  opacity: 0.45;
+.project-category-overview__search-toggle:focus-visible,
+.project-category-overview__search-close:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+.project-category-overview__search-field {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 30px 0 34px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+}
+
+.project-category-overview__search-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  caret-color: var(--color-accent);
+  font: inherit;
+  font-size: 0.78rem;
+  user-select: text;
+}
+
+.project-category-overview__search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.project-category-overview__header-search[data-expanded="true"] .project-category-overview__totals {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.project-category-overview__header-search[data-expanded="true"] .project-category-overview__search-toggle {
+  left: 0;
+}
+
+.project-category-overview__header-search[data-expanded="true"]::after {
+  transform: scaleX(1);
+}
+
+.project-category-overview__header-search[data-expanded="true"] .project-category-overview__search-field {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 160ms ease 100ms;
 }
 
 .project-category-overview__total {

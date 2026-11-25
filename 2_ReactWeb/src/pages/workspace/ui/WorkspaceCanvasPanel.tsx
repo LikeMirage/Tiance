@@ -59,13 +59,8 @@ type WorkspaceCanvasPanelProps = {
     projectId: string,
     options?: ProjectNavigationOptions,
   ) => boolean | void | Promise<boolean | void>;
-  onCreateProject: () => Promise<void>;
-  onCreateKnowledgeProject: () => Promise<void>;
-  onCreateExperienceProject: () => Promise<void>;
-  onCreateRoleProject: () => Promise<void>;
   onCollapseProject: () => boolean | void | Promise<boolean | void>;
   onConfirmProjectSession: (projectId: string, sessionId: string | null) => void;
-  onImportProjectFolder: (rootPath: string) => Promise<void>;
   onApplyTheme: (themeId: string) => void;
   onLayoutPreferenceChange: (update: WorkspaceLayoutPreferenceUpdate) => void;
   onPrepareProject?: (projectId: string) => void;
@@ -171,13 +166,8 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
   isRenamingProvider,
   isUpdatingProviderProtocol,
   onExpandProject,
-  onCreateProject,
-  onCreateKnowledgeProject,
-  onCreateExperienceProject,
-  onCreateRoleProject,
   onCollapseProject,
   onConfirmProjectSession,
-  onImportProjectFolder,
   onApplyTheme,
   onLayoutPreferenceChange,
   onPrepareProject,
@@ -363,10 +353,8 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
             isActive={isSectionActive}
             layoutPreferences={layoutPreferences}
             onExpandProject={onExpandProject}
-            onCreateProject={onCreateProject}
             onCollapseProject={onCollapseProject}
             onConfirmProjectSession={onConfirmProjectSession}
-            onImportProjectFolder={onImportProjectFolder}
             onLayoutPreferenceChange={onLayoutPreferenceChange}
             onPrepareProject={onPrepareProject}
             onSelectCategory={onSelectProjectCategory}
@@ -391,7 +379,6 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
             isKnowledgeWorkspace
             layoutPreferences={layoutPreferences}
             onExpandProject={onExpandProject}
-            onCreateProject={onCreateKnowledgeProject}
             onCollapseProject={onCollapseProject}
             onConfirmProjectSession={onConfirmProjectSession}
             onLayoutPreferenceChange={onLayoutPreferenceChange}
@@ -417,7 +404,6 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
             isActive={isSectionActive}
             layoutPreferences={layoutPreferences}
             onExpandProject={onExpandProject}
-            onCreateProject={onCreateExperienceProject}
             onCollapseProject={onCollapseProject}
             onConfirmProjectSession={onConfirmProjectSession}
             onLayoutPreferenceChange={onLayoutPreferenceChange}
@@ -443,7 +429,6 @@ export const WorkspaceCanvasPanel = memo(function WorkspaceCanvasPanel({
             isRoleWorkspace
             layoutPreferences={layoutPreferences}
             onExpandProject={onExpandProject}
-            onCreateProject={onCreateRoleProject}
             onCollapseProject={onCollapseProject}
             onConfirmProjectSession={onConfirmProjectSession}
             onLayoutPreferenceChange={onLayoutPreferenceChange}

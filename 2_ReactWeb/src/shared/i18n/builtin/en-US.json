@@ -17,6 +17,7 @@
       }
     },
     "common": {
+      "scrollbar": "Scrollbar",
       "frontendRecovery": {
         "title": "The interface encountered an error",
         "description": "Reload the interface to restore the view. This will not stop tasks running in the background.",
@@ -1953,6 +1954,7 @@
           "globalMemoryManagement": "Global memory management model",
           "mainChat": "Main conversation",
           "memoryCompression": "Memory compression model",
+          "toolModelRequest": "Tool model request",
           "providerWebSearch": "Provider web search"
         }
       }

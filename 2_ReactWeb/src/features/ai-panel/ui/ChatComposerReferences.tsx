@@ -1,3 +1,4 @@
+import { EdgeScrollArea } from "@/shared/ui/edge-scrollbar";
 import { File, Folder, ImageSquare, Quotes, X } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 
@@ -53,7 +54,7 @@ export function ChatComposerReferences({
           </button>
         ) : null}
       </div>
-      <div className="ai-panel__references-list">
+      <EdgeScrollArea className="ai-panel__references-list" aria-label="已引用内容">
         {references?.map((item, index) => (
           <OrderedReferenceRow
             index={index + 1}
@@ -65,7 +66,7 @@ export function ChatComposerReferences({
             onRemoveText={onRemoveText}
           />
         ))}
-      </div>
+      </EdgeScrollArea>
     </section>
   );
 }

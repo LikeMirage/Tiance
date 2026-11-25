@@ -51,8 +51,7 @@ export function SlidingContent({ expanded, collapsedHeight = 0, children, classN
     };
     const to = expanded ? naturalHeight() : Math.min(collapsedHeight, naturalHeight());
     element.style.height = expanded ? "auto" : `${to}px`;
-    if (changed && Math.abs(from - to) > 0.5 && typeof element.animate === "function"
-      && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    if (changed && Math.abs(from - to) > 0.5 && typeof element.animate === "function") {
       element.dataset.sliding = "true";
       const current = element.animate([{ height: `${from}px` }, { height: `${to}px` }], {
         duration: SLIDE_DURATION_MS, easing: "cubic-bezier(0.2, 0, 0, 1)",

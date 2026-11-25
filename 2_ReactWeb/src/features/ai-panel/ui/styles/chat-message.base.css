@@ -7,13 +7,11 @@
 }
 
 .chat-msg--user {
+  --color-text-muted: var(--color-text-secondary);
   padding: 8px 14px;
-  border-top: 1px solid rgba(var(--color-accent-rgb), 0.36);
-  border-bottom: 1px solid rgba(var(--color-accent-rgb), 0.36);
-  /* Paint on the shared panel edges without reducing the message content width. */
-  box-shadow: inset 1px 0 rgba(var(--color-accent-rgb), 0.36),
-    inset -1px 0 rgba(var(--color-accent-rgb), 0.36);
-  background: var(--color-selection-accent-bg-subtle);
+  background: linear-gradient(var(--color-selection-accent-bg-subtle), var(--color-selection-accent-bg-subtle)),
+    rgb(from var(--color-surface-panel-solid) r g b / 1);
+  color: var(--color-text-primary);
 }
 
 .chat-msg--system {
@@ -40,7 +38,7 @@
   white-space: pre-wrap;
 }
 
-.chat-msg__text a { color: var(--color-accent); overflow-wrap: anywhere; }
+.chat-msg__text a { color: var(--color-accent-text); overflow-wrap: anywhere; }
 
 .chat-msg__system {
   display: grid;
@@ -256,14 +254,8 @@
   gap: 4px;
 }
 
-.chat-msg__user-actions-end .chat-msg__action:not(:disabled) {
-  opacity: 0.72;
-  transition: opacity 160ms ease, color 160ms ease;
-}
-
-.chat-msg:hover .chat-msg__user-actions-end .chat-msg__action:not(:disabled),
-.chat-msg__user-actions-end .chat-msg__action:focus-visible {
-  opacity: 1;
+.chat-msg__user-actions-end .chat-msg__action {
+  transition: color 160ms ease;
 }
 
 .chat-msg__fork-action {

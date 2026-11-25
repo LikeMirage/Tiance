@@ -241,17 +241,7 @@
   overflow-y: auto;
   border-left: var(--structure-content-split-width) solid var(--structure-line-color);
   background: var(--color-surface-panel-alt);
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
-.doc-editor__preview::-webkit-scrollbar { width: var(--scrollbar-size); }
-.doc-editor__preview::-webkit-scrollbar-track { background: var(--scrollbar-track); }
-.doc-editor__preview::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 999px;
-}
-.doc-editor__preview::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
-
 .doc-editor__preview > .markdown-preview,
 .document-mark-preview-body > .markdown-preview {
   box-sizing: border-box;
@@ -265,7 +255,12 @@
   border-left: none;
 }
 
-.doc-editor__preview--markdown-full {
+.doc-editor__preview--markdown-full > .doc-editor__preview {
+  position: relative;
+  border-left: none;
+}
+
+.edge-scroll-frame.doc-editor__preview--markdown-full {
   position: absolute;
   inset: 0;
   z-index: 3;

@@ -1,12 +1,11 @@
+import { EdgeScrollArea } from "@/shared/ui/edge-scrollbar";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { FolderPlus, Plus } from "@phosphor-icons/react";
 
 import type {
   Project,
   ProjectCategory,
   ProjectOverviewItem,
 } from "../../../entities/project/model/project";
-import { useDesktopShell } from "../../desktop-shell/model/useDesktopShell";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
 import { OptionSelect, type OptionSelectItem } from "../../../shared/ui/option-select/OptionSelect";
 import { useI18n } from "../../../shared/i18n";
@@ -16,6 +15,8 @@ import { ProjectOverviewCard } from "./ProjectOverviewCard";
 import { ProjectOverviewSessionContextMenu } from "./ProjectOverviewSessionContextMenu";
 import { ProjectConversationDeleteModal } from "./ProjectConversationDeleteModal";
 
+import { ProjectOverviewHeaderSearch } from "./ProjectOverviewHeaderSearch";
+
 import "./project-category-overview.css";
 
 type ProjectCategoryOverviewProps = {
@@ -23,10 +24,8 @@ type ProjectCategoryOverviewProps = {
   categoryId: string | null;
   isActive?: boolean;
   maximizedProjectId: string | null;
-  onCreateProject?: () => Promise<void>;
   onCreateSession: (projectId: string) => Promise<void>;
   onEnterSession: (projectId: string, sessionId: string) => Promise<boolean>;
-  onImportProjectFolder?: (rootPath: string) => Promise<void>;
   onMaximizedProjectChange: (projectId: string | null) => void;
   onMaximizedProjectFollow: (projectId: string) => void;
   onOpenConversationBranches: (projectId: string, sessionId: string | null) => Promise<void>;
@@ -46,10 +45,8 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
   categoryId,
   isActive = true,
   maximizedProjectId,
-  onCreateProject,
   onCreateSession,
   onEnterSession,
-  onImportProjectFolder,
   onMaximizedProjectChange,
   onMaximizedProjectFollow,
   onOpenConversationBranches,
@@ -63,10 +60,7 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
 }: ProjectCategoryOverviewProps) {
   const { t } = useI18n();
   const [creatingProjectId, setCreatingProjectId] = useState<string | null>(null);
-  const [isCreatingProject, setIsCreatingProject] = useState(false);
-  const [isImportingProject, setIsImportingProject] = useState(false);
   const [openUsageProjectId, setOpenUsageProjectId] = useState<string | null>(null);
-  const desktopShell = useDesktopShell();
   const {
     error,
     liveUsageBySessionKey,
@@ -193,30 +187,6 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
       updateActiveSession(projectId, sessionId);
     }
   }, [onEnterSession, updateActiveSession]);
-
-  const handleCreateProject = useCallback(async () => {
-    if (!onCreateProject || isCreatingProject) return;
-    setIsCreatingProject(true);
-    try {
-      await onCreateProject();
-      await loadOverview("refresh");
-    } finally {
-      setIsCreatingProject(false);
-    }
-  }, [isCreatingProject, loadOverview, onCreateProject]);
-
-  const handleImportProjectFolder = useCallback(async () => {
-    if (!onImportProjectFolder || isImportingProject) return;
-    setIsImportingProject(true);
-    try {
-      const rootPath = await desktopShell.selectProjectFolder();
-      if (!rootPath) return;
-      await onImportProjectFolder(rootPath);
-      await loadOverview("refresh");
-    } finally {
-      setIsImportingProject(false);
-    }
-  }, [desktopShell, isImportingProject, loadOverview, onImportProjectFolder]);
 
   const handleSelectCategory = useCallback((nextCategoryId: string) => {
     if (nextCategoryId === categoryId) return;
@@ -367,66 +337,11 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
             })}
           </p>
         </div>
-        <div className="project-category-overview__header-side">
-          <div className="project-category-overview__totals" aria-label={t("projectOverview.totalsAria")}>
-            <span className="project-category-overview__total project-category-overview__total--running">
-              {t("projectOverview.activeSessions", {
-                count: overview.active_session_count,
-              })}
-            </span>
-            <span className="project-category-overview__total project-category-overview__total--idle">
-              {t("projectOverview.idleSessions", {
-                count: overview.idle_session_count,
-              })}
-            </span>
-            <span className="project-category-overview__total project-category-overview__total--error">
-              {t("projectOverview.errorSessions", {
-                count: overview.error_session_count,
-              })}
-            </span>
-          </div>
-          <div
-            className="project-category-overview__actions"
-            aria-label={t(
-              overviewKind === "role"
-                ? "projectOverview.roleActions"
-                : "projectOverview.projectActions",
-            )}
-          >
-            {onImportProjectFolder ? (
-              <button
-                className="project-category-overview__action"
-                type="button"
-                aria-label={t("workspace.projectsPanel.importFolder")}
-                title={t("workspace.projectsPanel.importExternalFolder")}
-                disabled={isImportingProject}
-                onClick={() => void handleImportProjectFolder()}
-              >
-                <FolderPlus size={13} weight="bold" aria-hidden="true" />
-              </button>
-            ) : null}
-            {onCreateProject ? (
-              <button
-                className="project-category-overview__action"
-                type="button"
-                aria-label={
-                  selectedCategoryKind === "role"
-                    ? t("workspace.projectsPanel.createRole")
-                    : t("workspace.projectsPanel.createProject")
-                }
-                title={
-                  selectedCategoryKind === "role"
-                    ? t("workspace.projectsPanel.createRole")
-                    : t("workspace.projectsPanel.createProject")
-                }
-                disabled={isCreatingProject}
-                onClick={() => void handleCreateProject()}
-              >
-                <Plus size={13} weight="bold" aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
-        </div>
+        <ProjectOverviewHeaderSearch
+          activeCount={overview.active_session_count}
+          idleCount={overview.idle_session_count}
+          errorCount={overview.error_session_count}
+        />
       </header>
 
       {sessionActionError && !renamingSession && !deletingSession ? (
@@ -439,7 +354,8 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
       ) : null}
 
       {projects.length > 0 ? (
-        <div
+        <EdgeScrollArea
+          frameClassName="project-category-overview__grid-frame"
           className={[
             "project-category-overview__grid",
             maximizedProject
@@ -450,7 +366,7 @@ export const ProjectCategoryOverview = memo(function ProjectCategoryOverview({
           {maximizedProject
             ? renderProjectCard(maximizedProject)
             : projects.map(renderProjectCard)}
-        </div>
+        </EdgeScrollArea>
       ) : (
         <div className="project-category-overview__empty-category">
           {t(

@@ -90,7 +90,7 @@ test("快速反向切换从当前可见高度续接，旧动画不能卸载重�
   } finally { if (view) await act(async () => view.unmount()); }
 });
 
-test("长消息和代码收回预览高度，短内容不被撑高；减少动态效果立即结束", async () => {
+test("长消息和代码收回预览高度，短内容不被撑高；系统减少动画开关不影响展开收起", async () => {
   for (const reduced of [false, true]) {
     const environment = host({ reduced, height: 80 });
     let view;
@@ -101,12 +101,13 @@ test("长消息和代码收回预览高度，短内容不被撑高；减少动�
       await act(async () => environment.setHeight(600));
       assert.equal(environment.root.style.height, "112px");
       await act(async () => view.update(render(true)));
-      if (!reduced) await act(async () => environment.animations.at(-1).finish());
+      assert.equal(environment.animations.length, 1);
+      await act(async () => environment.animations.at(-1).finish());
       await act(async () => view.update(render(false)));
-      if (!reduced) await act(async () => environment.animations.at(-1).finish());
+      assert.equal(environment.animations.length, 2);
+      await act(async () => environment.animations.at(-1).finish());
       assert.equal(environment.root.style.height, "112px");
       assert.equal(view.root.findAllByType("p").length, 1);
-      if (reduced) assert.equal(environment.animations.length, 0);
     } finally { if (view) await act(async () => view.unmount()); }
   }
 });

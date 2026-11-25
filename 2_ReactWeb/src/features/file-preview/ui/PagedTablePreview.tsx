@@ -1,3 +1,4 @@
+import { EdgeScrollArea } from "@/shared/ui/edge-scrollbar";
 import { useEffect, useRef, useState } from "react";
 import { useDocumentReadingValue, useDocumentReadingScroll } from "../../../entities/editor/model/documentReadingState";
 
@@ -41,7 +42,7 @@ export function PagedTablePreview({
   const row = Math.min(savedRow, Math.max(0, Math.ceil((sheetInfo?.rows ?? 0) / rowCount) - 1) * rowCount);
   const column = Math.min(savedColumn, Math.max(0, Math.ceil((sheetInfo?.columns ?? 0) / columnCount) - 1) * columnCount);
   const current = page?.row_start === row && page.column_start === column && page.sheet_name === sheetInfo?.name ? page : null;
-  useDocumentReadingScroll("excel-paged", scrollerRef, Boolean(current), inspection.version);
+  const stopReadingRestore = useDocumentReadingScroll("excel-paged", scrollerRef, Boolean(current), inspection.version);
 
   useEffect(() => {
     if (!reveal || reveal.signal.aborted || reveal.target.type !== "reference_image"
@@ -157,7 +158,7 @@ export function PagedTablePreview({
       {error ? <div role="alert" className="spreadsheet-pages__note">{error} <button onClick={() => setAttempt(attempt + 1)}>重试</button></div> : null}
       {!current && !error ? <LoadingStrip ariaLabel="正在读取此页" mode="overlay" surface="dark" visual="ring" /> : null}
       {current && !sheetInfo?.rows ? <div className="spreadsheet-pages__note">文件为空。</div> : null}
-      <div className="spreadsheet-pages__scroll" tabIndex={0} ref={scrollerRef}
+      <EdgeScrollArea className="spreadsheet-pages__scroll" tabIndex={0} viewportRef={scrollerRef} onUserScroll={stopReadingRestore}
         onKeyDown={(event) => {
           if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c" && selectedRange) {
             event.preventDefault(); void exportSelection(false);
@@ -187,7 +188,7 @@ export function PagedTablePreview({
                   if (dragging.current) setRange((previous) => previous ? { ...previous, eri: row + r, eci: column + c } : null);
                 }}>{value}</td>)}</tr>)}</tbody>
         </table> : null}
-      </div>
+      </EdgeScrollArea>
       {menu ? <ContextMenu position={menu} onClose={() => setMenu(null)}>
         <ContextMenuItem disabled={busy} onSelect={() => void exportSelection(false)}>复制选区图片</ContextMenuItem>
         {onCreateSelectionImageReference ? <ContextMenuItem disabled={busy} onSelect={() => void exportSelection(true)}>引用选区到对话</ContextMenuItem> : null}

@@ -110,19 +110,7 @@ function getUsageFeatureLabel(
   t: ReturnType<typeof useI18n>["t"],
 ) {
   const featureKey = resolveProviderUsageFeatureKey(value);
-  if (featureKey === "conversationNaming") {
-    return t("providerCanvas.modelManagement.usageFeatures.conversationNaming");
-  }
-  if (featureKey === "memoryCompression") {
-    return t("providerCanvas.modelManagement.usageFeatures.memoryCompression");
-  }
-  if (featureKey === "projectMemoryManagement") {
-    return t("providerCanvas.modelManagement.usageFeatures.projectMemoryManagement");
-  }
-  if (featureKey === "globalMemoryManagement") {
-    return t("providerCanvas.modelManagement.usageFeatures.globalMemoryManagement");
-  }
-  return t("providerCanvas.modelManagement.usageFeatures.mainChat");
+  return t(`providerCanvas.modelManagement.usageFeatures.${featureKey}`);
 }
 
 function UsageDetailsRow({

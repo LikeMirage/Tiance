@@ -12,6 +12,8 @@ def usage_to_payload(usage: ChatUsage) -> dict[str, object]:
     }
     if usage.estimated_fields:
         payload["estimated_fields"] = list(usage.estimated_fields)
+    if usage.output_duration_seconds is not None:
+        payload["output_duration_seconds"] = usage.output_duration_seconds
     return payload
 
 
@@ -36,6 +38,11 @@ def merge_usage(current: ChatUsage | None, incoming: ChatUsage) -> ChatUsage:
             incoming.prompt_cache_miss_tokens,
         ),
         reasoning_tokens=_sum_usage_field(current.reasoning_tokens, incoming.reasoning_tokens),
+        output_duration_seconds=(
+            current.output_duration_seconds + incoming.output_duration_seconds
+            if current.output_duration_seconds is not None and incoming.output_duration_seconds is not None
+            else None
+        ),
         estimated_fields=tuple(sorted({
             *current.estimated_fields,
             *incoming.estimated_fields,

@@ -88,26 +88,27 @@ def test_missing_or_blank_json_key_uses_scoped_bridge(tool, monkeypatch, local_c
     calls = []
     def bridge(capability, body, **kwargs):
         calls.append((capability, body, kwargs))
-        return {"ok": True, "data": {"results": []}}
+        return {"status": 200, "data": {"results": []}}
     monkeypatch.setattr(tool, "call_host_capability", bridge)
     monkeypatch.setattr(tool, "post_direct", lambda *a: pytest.fail("no direct call without JSON key"))
     result = tool.run({"action": "search", "query": "no results"})
     assert result["ok"]
     assert result["data"]["result_count"] == 0
     assert result["data"]["key_source"] == "provider"
-    assert calls[0][0] == "deepseek_web"
+    assert calls[0][0] == "provider_auth"
+    assert calls[0][1]["endpoint"] == "search"
+    assert calls[0][1]["body"]["query"] == "no results"
     assert "api_key" not in calls[0][1]
     assert not (tool.CONFIG_PATH.parent / "web_searches").exists()
 
 
 def test_no_provider_key_reports_both_configuration_paths(tool, monkeypatch):
-    monkeypatch.setattr(tool, "call_host_capability", lambda *a, **k: {
-        "ok": False, "error": "请在模型集 DeepSeek 填写 Key，或调用 action=configure。",
-        "error_info": {"code": "DEEPSEEK_KEY_MISSING"},
-    })
+    def missing(*args, **kwargs):
+        raise RuntimeError("模型集中没有可用的供应商 API Key。")
+    monkeypatch.setattr(tool, "call_host_capability", missing)
     result = tool.run({"query": "test"})
     assert not result["ok"]
-    assert result["error_info"]["code"] == "DEEPSEEK_KEY_MISSING"
+    assert result["error_info"]["code"] == "DEEPSEEK_BRIDGE_UNAVAILABLE"
     assert "模型集" in result["error"] and "configure" in result["error"]
     assert result["error_info"]["details"]["config_path"] == str(tool.CONFIG_PATH)
 
@@ -272,3 +273,26 @@ def test_direct_transport_endpoint_errors_and_connection_cleanup(tool, monkeypat
         assert "private-key" not in str(error.value)
     assert closed == [True]
     assert seen[0][:3] == ("POST", "/v1/tools/search", {"query": "test"})
+
+
+def test_explicit_key_transport_reads_packaged_endpoint_and_sends_directly(tool, monkeypatch):
+    import deepseek_transport as transport
+
+    configure(tool)
+    requests = []
+    class FakeConnection:
+        def __init__(self, host, *, timeout):
+            assert host == "api.deepseek.com"
+        def request(self, method, path, *, body, headers):
+            requests.append((method, path, json.loads(body), headers["Authorization"]))
+        def getresponse(self):
+            from types import SimpleNamespace
+            return SimpleNamespace(status=200, read=lambda: b'{"results":[]}')
+        def close(self):
+            pass
+    monkeypatch.setattr(transport.http.client, "HTTPSConnection", FakeConnection)
+    monkeypatch.setattr(tool, "call_host_capability", lambda *a, **kw: pytest.fail("explicit key used host"))
+    result = tool.run({"query": "offline", "count": 2})
+    assert result["ok"] and result["data"]["key_source"] == "config"
+    assert requests == [("POST", "/v1/tools/search", {"query":"offline", "count":2, "need_content":False},
+                         "Bearer local-secret")]

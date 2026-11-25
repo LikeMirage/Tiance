@@ -14,7 +14,6 @@ export function SpeechWaveform({ stream }: { stream?: MediaStream }) {
     let frame = 0;
     let stopped = false;
     const bars = Array.from(root.children) as HTMLElement[];
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const reset = () => bars.forEach((bar) => {
       bar.style.removeProperty("transform");
       bar.style.removeProperty("opacity");
@@ -32,7 +31,7 @@ export function SpeechWaveform({ stream }: { stream?: MediaStream }) {
       const draw = (time: number) => {
         if (stopped) return;
         frame = requestAnimationFrame(draw);
-        if (document.hidden || time - lastPaint < (reducedMotion.matches ? 200 : 33)) return;
+        if (document.hidden || time - lastPaint < 33) return;
         lastPaint = time;
         analyser.getByteFrequencyData(samples);
         bars.forEach((bar, index) => {

@@ -92,25 +92,6 @@
   border: 1px solid var(--color-border-soft);
   border-radius: 4px;
   background: var(--color-surface-muted);
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-  scrollbar-width: thin;
-}
-
-.project-category-overview__usage-scope-list::-webkit-scrollbar {
-  width: var(--scrollbar-size);
-}
-
-.project-category-overview__usage-scope-list::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
-}
-
-.project-category-overview__usage-scope-list::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: var(--scrollbar-thumb);
-}
-
-.project-category-overview__usage-scope-list::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
 }
 
 .project-category-overview__usage-scope-option {

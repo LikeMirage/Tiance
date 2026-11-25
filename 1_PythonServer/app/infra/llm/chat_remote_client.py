@@ -1,11 +1,13 @@
 from contextlib import aclosing
 from collections.abc import AsyncGenerator, Awaitable, Callable
+from dataclasses import replace
 from datetime import UTC, datetime
 from functools import lru_cache
 import logging
+from time import monotonic
 
 from app.core.errors import BadRequestError
-from app.domain.llm.chat import ChatCompletionRequest, ChatCompletionResult, ChatStreamEvent
+from app.domain.llm.chat import ChatCompletionRequest, ChatCompletionResult, ChatStreamEvent, ChatStreamEventKind
 from app.domain.llm.chat_http_exchange import ChatHttpExchange
 from app.domain.llm.response_body import ResponseBody
 from app.infra.llm.response_capture import ResponseCapture
@@ -98,11 +100,15 @@ class ChatRemoteClient:
             model_id=request.model_id,
             session_id=request.session_id or request.transport_session_id,
         )
+        first_output_at: float | None = None
+        last_chunk_at: float | None = None
+
         async def stream_body(
             url: str,
             headers: dict[str, str],
             body: dict[str, object],
         ) -> AsyncGenerator[bytes, None]:
+            nonlocal last_chunk_at
             async with aclosing(self._stream_body(
                 url,
                 merge_request_headers(headers, declared_headers),
@@ -111,6 +117,8 @@ class ChatRemoteClient:
                 on_exchange=on_exchange,
             )) as owned_stream:
                 async for chunk in owned_stream:
+                    if chunk:
+                        last_chunk_at = monotonic()
                     yield chunk
 
         async with aclosing(adapter.stream(
@@ -121,6 +129,16 @@ class ChatRemoteClient:
             stream_body=stream_body,
         )) as owned_stream:
             async for event in owned_stream:
+                # Several parsed events may come from a single network read. Use the
+                # arrival timestamp so downstream work and exchange logging add no time.
+                if first_output_at is None and (
+                    (event.kind in (ChatStreamEventKind.DELTA, ChatStreamEventKind.THINKING_DELTA) and event.content)
+                    or event.kind in (ChatStreamEventKind.TOOL_CALL_DELTA, ChatStreamEventKind.TOOL_CALL)
+                ):
+                    first_output_at = last_chunk_at
+                if event.kind in (ChatStreamEventKind.DONE, ChatStreamEventKind.ERROR):
+                    if first_output_at is not None and last_chunk_at is not None and last_chunk_at > first_output_at:
+                        event = replace(event, output_duration_seconds=last_chunk_at - first_output_at)
                 yield event
 
     async def _post_json(

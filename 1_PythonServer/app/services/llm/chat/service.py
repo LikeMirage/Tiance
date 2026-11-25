@@ -337,6 +337,9 @@ class ChatCompletionService:
                     ),
                     settings=self._estimation_settings_for(provider_usage),
                 )
+                terminal_event = error_event or done_event
+                if terminal_event is not None and terminal_event.output_duration_seconds is not None:
+                    usage = replace(usage, output_duration_seconds=terminal_event.output_duration_seconds)
                 await finish_thread(self._record_usage_if_present, request=attempt_request, usage=usage)
 
             if error_event is not None:

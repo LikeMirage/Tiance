@@ -1,3 +1,4 @@
+import { EdgeScrollArea } from "@/shared/ui/edge-scrollbar";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { useDocumentReadingValue, useDocumentReadingScroll } from "../../../entities/editor/model/documentReadingState";
 import {
@@ -391,9 +392,9 @@ export function PdfPreview({
           />
         ) : null}
 
-        <main
+        <EdgeScrollArea role="main" onUserScroll={stopReadingRestore}
           className={panZoom.isPanning ? "pdf-preview__viewer pdf-preview__viewer--panning" : "pdf-preview__viewer"}
-          ref={panZoom.viewportRef}
+          viewportRef={panZoom.viewportRef}
           tabIndex={0}
           onPointerCancel={panZoom.stopPan}
           onPointerDown={panZoom.startPan}
@@ -435,7 +436,7 @@ export function PdfPreview({
               </ContextMenuItem>
             </ContextMenu>
           ) : null}
-        </main>
+        </EdgeScrollArea>
       </div>
     </div>
   );

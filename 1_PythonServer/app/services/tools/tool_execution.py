@@ -11,7 +11,7 @@ from app.core.config import get_settings
 from app.domain.llm.chat import ChatClientCapability, ChatToolCall, ChatToolResult
 from app.domain.llm.runtime_capabilities import DEFAULT_IMAGE_MAX_LONG_EDGE_PX, MultiImageLimit
 from app.domain.tools import ToolMetadataSnapshot, ToolRegistryEntry
-from app.domain.tools.host_capabilities import declared_host_capabilities
+from app.domain.tools.host_capabilities import declared_host_capabilities, declared_provider_endpoints, declared_session_model_endpoints
 from app.services.tools.tool_execution_arguments import (
     parse_tool_arguments,
     validate_tool_arguments,
@@ -381,6 +381,9 @@ class ToolExecutionService:
         )
         capability_grant = self._host_capability_access.issue_grant(
             capabilities=declared_host_capabilities(runtime),
+            provider_endpoints=declared_provider_endpoints(runtime),
+            session_model_endpoints=declared_session_model_endpoints(runtime),
+            model_usage_feature=runtime.get("model_usage_feature", "tool_model_request"),
             tool_project_id=resolved.entry.project_id,
             enabled_tool_names=context.enabled_tool_names,
             run_id=context.run_id,

@@ -25,7 +25,8 @@ export type ProviderUsageFeatureKey =
   | "globalMemoryManagement"
   | "memoryCompression"
   | "projectMemoryManagement"
-  | "providerWebSearch";
+  | "providerWebSearch"
+  | "toolModelRequest";
 
 export function formatModelSetUsage(
   summary: ProviderUsageLike | null | undefined,
@@ -61,6 +62,7 @@ export function resolveProviderUsageFeatureKey(
   if (value === "global_memory_management") return "globalMemoryManagement";
   if (value === "memory_compression") return "memoryCompression";
   if (value === "project_memory_management") return "projectMemoryManagement";
+  if (value === "tool_model_request") return "toolModelRequest";
   if (value === "provider_web_search") return "providerWebSearch";
   return "mainChat";
 }

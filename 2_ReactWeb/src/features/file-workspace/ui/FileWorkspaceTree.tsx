@@ -1,3 +1,4 @@
+import { EdgeScrollArea } from "@/shared/ui/edge-scrollbar";
 import { useState } from "react";
 import type { DragEvent, KeyboardEvent, MouseEvent } from "react";
 
@@ -286,7 +287,7 @@ export function FileWorkspaceTree({
         onClick={handleTreeBackgroundClick}
         onContextMenu={handleTreeBackgroundContextMenu}
       >
-        <div
+        <EdgeScrollArea
           className="fwt-tree"
           role="tree"
           aria-label={resolvedRootAriaLabel}
@@ -294,7 +295,7 @@ export function FileWorkspaceTree({
         >
           {!browser.isLoading ? <div className="fwt-status">{resolvedEmptyMessage}</div> : null}
           <div className="fwt-root-hit-area" aria-hidden="true" />
-        </div>
+        </EdgeScrollArea>
         {rootContextMenu ? (
           <FileWorkspaceRootContextMenu
             browser={browser}
@@ -329,7 +330,7 @@ export function FileWorkspaceTree({
           </button>
         </div>
       ) : null}
-      <div
+      <EdgeScrollArea
         className="fwt-tree"
         role="tree"
         aria-label={resolvedTreeAriaLabel}
@@ -339,28 +340,30 @@ export function FileWorkspaceTree({
         tabIndex={0}
         onKeyDown={handleTreeKeyDown}
       >
-        {browser.treeData.map((node) => (
-          <FileWorkspaceTreeNode
-            key={node.id}
-            browser={browser}
-            clipboard={clipboard}
-            contextMenu={contextMenu}
-            depth={0}
-            node={node}
-            nodeDragData={nodeDragData}
-            onCreateFile={onCreateFile}
-            onCreateFolder={onCreateFolder}
-            onNodeRenamed={onNodeRenamed}
-            onOpenFile={onOpenFile}
-            onCopyNodesToSystemClipboard={onCopyNodesToSystemClipboard}
-            onPasteFromSystemClipboard={onPasteFromSystemClipboard}
-            onReferenceNode={onReferenceNode}
-            onRenameStart={onRenameStart}
-            setClipboard={setClipboard}
-            setContextMenu={setContextMenu}
-            setPendingDeleteNodeIds={setPendingDeleteNodeIds}
-          />
-        ))}
+        <div className="fwt-nodes">
+          {browser.treeData.map((node) => (
+            <FileWorkspaceTreeNode
+              key={node.id}
+              browser={browser}
+              clipboard={clipboard}
+              contextMenu={contextMenu}
+              depth={0}
+              node={node}
+              nodeDragData={nodeDragData}
+              onCreateFile={onCreateFile}
+              onCreateFolder={onCreateFolder}
+              onNodeRenamed={onNodeRenamed}
+              onOpenFile={onOpenFile}
+              onCopyNodesToSystemClipboard={onCopyNodesToSystemClipboard}
+              onPasteFromSystemClipboard={onPasteFromSystemClipboard}
+              onReferenceNode={onReferenceNode}
+              onRenameStart={onRenameStart}
+              setClipboard={setClipboard}
+              setContextMenu={setContextMenu}
+              setPendingDeleteNodeIds={setPendingDeleteNodeIds}
+            />
+          ))}
+        </div>
         <div className="fwt-root-hit-area" aria-hidden="true" />
         {rootContextMenu ? (
           <FileWorkspaceRootContextMenu
@@ -384,7 +387,7 @@ export function FileWorkspaceTree({
             copyNodesToSystemClipboard={onCopyNodesToSystemClipboard}
           />
         ) : null}
-      </div>
+      </EdgeScrollArea>
 
       {pendingDeleteNodeIds ? (
         <ConfirmModal

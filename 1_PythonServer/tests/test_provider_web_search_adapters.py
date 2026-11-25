@@ -1,102 +1,45 @@
-from __future__ import annotations
-
-import asyncio
-from dataclasses import replace
-from urllib.parse import parse_qs, urlsplit
+from copy import deepcopy
+import runpy
 
 import pytest
 
-from app.core.errors import BadRequestError, UpstreamProviderError
-from app.domain.llm.provider_catalog import (
-    AuthScheme,
-    ProviderCatalogEntry,
-    ProviderEndpointTemplate,
-    ProviderProtocolFamily,
-    default_model_discovery_strategy,
-)
-from app.domain.llm.provider_runtime import ProviderRuntimeConfig
-from app.infra.llm.provider_profiles.base import GenericOpenAICompatibleProfile
-from app.infra.llm.provider_capabilities.anthropic import (
-    ANTHROPIC_WEB_SEARCH_MAX_OUTPUT_TOKENS,
-    AnthropicWebSearchAdapter,
-)
-from app.infra.llm.provider_capabilities.gemini import GeminiWebSearchAdapter
-from app.infra.llm.provider_capabilities.openai_responses import (
-    OpenAIResponsesWebSearchAdapter,
-)
-from app.infra.llm.provider_capabilities.remote_client import (
-    ProviderCapabilityRemoteClient,
-)
+from tests.formal_tool_paths import resolve_formal_tool_root
 
 
-def _provider(
-    protocol_family: ProviderProtocolFamily,
-    *,
-    profile_id: str = "generic",
-) -> ProviderCatalogEntry:
-    return ProviderCatalogEntry(
-        provider_id="provider-1",
-        display_name="Provider",
-        profile_id=profile_id,
-        protocol_family=protocol_family,
-        generation_auth_schemes={protocol_family: AuthScheme.BEARER_TOKEN},
-        model_discovery_strategy=default_model_discovery_strategy(protocol_family),
-        model_discovery_auth_scheme=AuthScheme.BEARER_TOKEN,
-        endpoints=ProviderEndpointTemplate(
-            api_base_url="https://provider.example/v1",
-            text_generation_url_template="",
-            model_discovery_url=None,
-        ),
-    )
+@pytest.fixture
+def execute(monkeypatch):
+    program = resolve_formal_tool_root("network_search") / "program"
+    monkeypatch.syspath_prepend(str(program))
+    run = runpy.run_path(str(program / "main.py"))["run"]
+
+    def invoke(protocol, respond, *, address=None, model="model-1", selected_protocol=None, endpoint=None):
+        default_urls = {
+            "openai_responses": "https://gateway.example/v1/responses",
+            "anthropic_messages": "https://api.anthropic.com/v1/messages",
+            "gemini_generate_content": "https://generativelanguage.googleapis.com/v1beta/models/{model}:{action}",
+        }
+        def capability(name, request, *, timeout_seconds):
+            assert name == "session_model"
+            if request == {"operation": "source"}:
+                return {"provider_id": "provider-1", "model_id": model, "protocol_family": protocol,
+                        "generation_url": address or default_urls[protocol]}
+            assert request["protocol_family"] == (selected_protocol or protocol)
+            if endpoint:
+                assert request["endpoint"] == endpoint
+            body = deepcopy(request["body"])
+            if request["protocol_family"] != "gemini_generate_content":
+                assert body["model"] == model
+            payload = respond(body)
+            usage = payload.get("usage", {})
+            normalized = {"total_tokens": usage.get("input_tokens", 0) + usage.get("output_tokens", 0)}
+            return {"status": 200, "data": payload, "usage": normalized}
+
+        monkeypatch.setitem(run.__globals__, "call_host_capability", capability)
+        return run({"query": "latest information"})
+    return invoke
 
 
-def _runtime(
-    api_base_url: str = "https://provider.example/v1",
-) -> ProviderRuntimeConfig:
-    return ProviderRuntimeConfig(
-        provider_id="provider-1",
-        display_name="Provider",
-        api_base_url=api_base_url,
-    )
-
-
-@pytest.mark.parametrize("auth_scheme,header", [
-    (AuthScheme.API_KEY_QUERY, None),
-    (AuthScheme.BEARER_TOKEN, "Authorization"),
-    (AuthScheme.X_API_KEY, "x-api-key"),
-    (AuthScheme.X_GOOG_API_KEY, "x-goog-api-key"),
-])
-def test_responses_search_applies_selected_authentication(monkeypatch, auth_scheme, header):
-    monkeypatch.setattr(
-        "app.infra.llm.provider_capabilities.openai_responses.resolve_provider_profile",
-        lambda _: GenericOpenAICompatibleProfile(),
-    )
-    captured = {}
-    async def post_json(url, headers, body):
-        captured.update(url=url, headers=headers)
-        return {"status": "completed", "output": [
-            {"type": "web_search_call", "action": {"type": "search", "query": "test"}},
-            {"type": "message", "content": [{"type": "output_text", "text": "answer"}]},
-        ]}
-    protocol = ProviderProtocolFamily.OPENAI_RESPONSES
-    provider = replace(_provider(protocol), generation_auth_schemes={protocol: auth_scheme})
-    key = "fake-key+with/&characters"
-    asyncio.run(OpenAIResponsesWebSearchAdapter().search(
-        provider_template=provider,
-        runtime_config=_runtime("https://provider.example/responses?version=test"),
-        api_key=key, model_id="test", query="test", post_json=post_json,
-    ))
-    query = parse_qs(urlsplit(captured["url"]).query)
-    assert query["version"] == ["test"]
-    if header is None:
-        assert query["key"] == [key]
-        assert "Authorization" not in captured["headers"]
-    else:
-        assert "key" not in query
-        assert captured["headers"][header] == (f"Bearer {key}" if header == "Authorization" else key)
-
-
-def test_openai_responses_search_preserves_every_query_source_and_citation():
+def test_openai_responses_search_preserves_every_query_source_and_citation(execute):
     queries = [f"query-{index}" for index in range(150)]
     action_sources = [
         {"type": "url", "url": f"https://source.example/{index}", "title": f"S{index}"}
@@ -108,8 +51,8 @@ def test_openai_responses_search_preserves_every_query_source_and_citation():
     ]
     captured = {}
 
-    async def post_json(url, headers, body):
-        captured.update(url=url, headers=headers, body=body)
+    def respond(body):
+        captured["body"] = body
         return {
             "id": "resp-1",
             "status": "completed",
@@ -138,38 +81,27 @@ def test_openai_responses_search_preserves_every_query_source_and_citation():
             "usage": {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
         }
 
-    result = asyncio.run(
-        OpenAIResponsesWebSearchAdapter().search(
-            provider_template=_provider(
-                ProviderProtocolFamily.OPENAI_RESPONSES,
-                profile_id="openai",
-            ),
-            runtime_config=_runtime("https://provider.example/v1/responses"),
-            api_key="key",
-            model_id="model-1",
-            query="latest information",
-            post_json=post_json,
-        )
-    )
+    reply = execute("openai_responses", respond, address="https://api.openai.com/v1/responses")
+    assert reply["ok"], reply
+    result = reply["data"]
 
-    assert captured["url"] == "https://provider.example/v1/responses"
     assert captured["body"]["tools"] == [{"type": "web_search"}]
     assert captured["body"]["include"] == ["web_search_call.action.sources"]
     assert "latest information" in captured["body"]["input"]
-    assert result.search_queries == tuple(queries)
-    assert len(result.sources) == 300
-    assert [source.url for source in result.sources[:150]] == [
+    assert result["search_queries"] == tuple(queries)
+    assert len(result["sources"]) == 300
+    assert [source["url"] for source in result["sources"][:150]] == [
         source["url"] for source in action_sources
     ]
-    assert result.provider_usage == {
+    assert result["provider_usage"] == {
         "input_tokens": 10,
         "output_tokens": 20,
         "total_tokens": 30,
     }
 
 
-def test_openai_responses_search_fails_when_model_does_not_use_search():
-    async def post_json(_url, _headers, _body):
+def test_openai_responses_search_fails_when_model_does_not_use_search(execute):
+    def respond(body):
         return {
             "status": "completed",
             "output": [
@@ -177,61 +109,55 @@ def test_openai_responses_search_fails_when_model_does_not_use_search():
             ],
         }
 
-    with pytest.raises(UpstreamProviderError) as exc_info:
-        asyncio.run(
-            OpenAIResponsesWebSearchAdapter().search(
-                provider_template=_provider(ProviderProtocolFamily.OPENAI_RESPONSES),
-                runtime_config=_runtime("https://provider.example/v1/responses"),
-                api_key="key",
-                model_id="model-1",
-                query="test",
-                post_json=post_json,
-            )
-        )
-
-    assert exc_info.value.code == "provider_web_search_not_used"
+    result = execute("openai_responses", respond)
+    assert not result["ok"]
+    assert result["error_info"]["code"] == "provider_web_search_not_used"
 
 
-def test_openai_responses_search_keeps_volcengine_api_v3_base_path():
-    captured = {}
-
-    async def post_json(url, _headers, body):
-        captured.update(url=url, body=body)
+@pytest.mark.parametrize(("host", "model", "expected_tool", "endpoint"), [
+    ("api.deepseek.com", "deepseek-flash", "deepseek_web_search", "deepseek"),
+    ("api.deepseek.com:443", "deepseek-v4-flash", "deepseek_web_search", "deepseek"),
+    ("API.DEEPSEEK.COM", "deepseek-v4-flash-vision-exp", "deepseek_web_search", "deepseek"),
+    ("api.deepseek.com", "deepseek-v4-pro", "web_search", "deepseek"),
+    ("api.deepseek.com.gateway.example", "deepseek-flash", "web_search", "responses_from_chat"),
+    ("api.deepseek.com:8443", "deepseek-flash", "web_search", "responses_from_chat"),
+])
+def test_search_declaration_uses_session_address_and_model(execute, host, model, expected_tool, endpoint):
+    def respond(body):
+        assert body["tools"] == [{"type": expected_tool}]
+        assert "tool_choice" not in body
         return {
-            "status": "completed",
             "output": [
-                {
-                    "type": "web_search_call",
-                    "action": {"type": "search", "queries": ["query"]},
-                },
-                {
-                    "type": "message",
-                    "content": [{"type": "output_text", "text": "answer"}],
-                },
+                {"type": "web_search_call", "status": "completed", "kind": "search",
+                 "action": {"type": "search", "queries": ["query"],
+                            "sources": [{"type": "url", "url": "https://example.org", "title": "Official page"}]}},
+                {"type": "message", "content": [{"type": "output_text", "text": "Found it"}]},
             ],
         }
 
-    asyncio.run(
-        OpenAIResponsesWebSearchAdapter().search(
-            provider_template=_provider(ProviderProtocolFamily.OPENAI_COMPATIBLE),
-            runtime_config=_runtime(
-                "https://ark.cn-beijing.volces.com/api/v3/responses"
-            ),
-            api_key="key",
-            model_id="doubao-seed-2-0-pro",
-            query="latest information",
-            post_json=post_json,
-        )
-    )
-
-    assert captured["url"] == "https://ark.cn-beijing.volces.com/api/v3/responses"
-    assert "include" not in captured["body"]
+    reply = execute("openai_compatible", respond, address=f"https://{host}/chat/completions", model=model,
+                    selected_protocol="openai_responses", endpoint=endpoint)
+    assert reply["ok"], reply
+    assert reply["data"]["sources"][0]["title"] == "Official page"
 
 
-def test_openai_responses_search_omits_openai_sources_include_for_volcengine_profile():
+def test_failed_search_item_with_assistant_text_does_not_count_as_search_success(execute):
+    def respond(body):
+        return {"status": "completed", "output": [
+            {"type": "web_search_call", "status": "failed", "error": {"code": "unavailable"}},
+            {"type": "message", "content": [{"type": "output_text", "text": "Search is unavailable"}]},
+        ]}
+
+    reply = execute("openai_responses", respond, address="https://api.deepseek.com/responses", model="deepseek-flash")
+    assert not reply["ok"]
+    assert reply["error_info"]["code"] == "provider_web_search_failed"
+    assert "unavailable" in reply["error"]
+
+
+def test_openai_responses_search_omits_openai_sources_include_for_volcengine_profile(execute):
     captured = {}
 
-    async def post_json(_url, _headers, body):
+    def respond(body):
         captured.update(body)
         return {
             "status": "completed",
@@ -247,83 +173,13 @@ def test_openai_responses_search_omits_openai_sources_include_for_volcengine_pro
             ],
         }
 
-    asyncio.run(
-        OpenAIResponsesWebSearchAdapter().search(
-            provider_template=_provider(
-                ProviderProtocolFamily.OPENAI_RESPONSES,
-                profile_id="volcengine",
-            ),
-            runtime_config=_runtime(
-                "https://ark.cn-beijing.volces.com/api/v3/responses"
-            ),
-            api_key="key",
-            model_id="doubao-seed-2-0-pro",
-            query="latest information",
-            post_json=post_json,
-        )
-    )
-
+    reply = execute("openai_compatible", respond, address="https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+                    selected_protocol="openai_responses", endpoint="volcengine_beijing")
+    assert reply["ok"], reply
     assert "include" not in captured
 
 
-@pytest.mark.parametrize(
-    ("response_payload", "expected_code"),
-    [
-        (ValueError("invalid json"), "upstream_response_invalid_json"),
-        (["unexpected"], "upstream_response_invalid_shape"),
-    ],
-)
-def test_provider_capability_remote_client_rejects_invalid_response_shape(
-    monkeypatch,
-    response_payload,
-    expected_code,
-):
-    class FakeResponse:
-        content = b"response"
-
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            if isinstance(response_payload, Exception):
-                raise response_payload
-            return response_payload
-
-    class FakeHttpClient:
-        async def post(self, *_args, **_kwargs):
-            return FakeResponse()
-
-    monkeypatch.setattr(
-        "app.infra.llm.provider_capabilities.remote_client.get_shared_http_client",
-        lambda: FakeHttpClient(),
-    )
-
-    with pytest.raises(UpstreamProviderError) as exc_info:
-        asyncio.run(
-            ProviderCapabilityRemoteClient()._post_json(
-                "https://provider.example/responses",
-                {},
-                {},
-            )
-        )
-
-    assert exc_info.value.code == expected_code
-
-
-def test_provider_capability_remote_client_rejects_openai_compatible_search():
-    with pytest.raises(BadRequestError, match="尚未适配内置网络搜索"):
-        asyncio.run(
-            ProviderCapabilityRemoteClient().web_search(
-                provider_template=_provider(ProviderProtocolFamily.OPENAI_COMPATIBLE),
-                runtime_config=_runtime("https://provider.example/v1/chat/completions"),
-                api_key="key",
-                model_id="model-1",
-                query="latest information",
-            )
-        )
-
-
-def test_gemini_search_preserves_all_grounding_metadata():
+def test_gemini_search_preserves_all_grounding_metadata(execute):
     queries = [f"query-{index}" for index in range(140)]
     chunks = [
         {"web": {"uri": f"https://source.example/{index}", "title": f"S{index}"}}
@@ -335,8 +191,8 @@ def test_gemini_search_preserves_all_grounding_metadata():
     ]
     captured = {}
 
-    async def post_json(url, headers, body):
-        captured.update(url=url, headers=headers, body=body)
+    def respond(body):
+        captured["body"] = body
         return {
             "candidates": [
                 {
@@ -356,29 +212,18 @@ def test_gemini_search_preserves_all_grounding_metadata():
             },
         }
 
-    result = asyncio.run(
-        GeminiWebSearchAdapter().search(
-            provider_template=_provider(ProviderProtocolFamily.GEMINI_GENERATE_CONTENT),
-            runtime_config=_runtime(
-                "https://generativelanguage.googleapis.com/"
-                "v1beta/models/{model}:{action}"
-            ),
-            api_key="key",
-            model_id="gemini-test",
-            query="latest information",
-            post_json=post_json,
-        )
-    )
+    reply = execute("gemini_generate_content", respond)
+    assert reply["ok"], reply
+    result = reply["data"]
 
-    assert captured["url"].endswith("/models/gemini-test:generateContent")
     assert captured["body"]["tools"] == [{"googleSearch": {}}]
-    assert result.search_queries == tuple(queries)
-    assert len(result.sources) == 140
-    assert len(result.actions) == 140
-    assert result.provider_metadata[0]["groundingChunks"] == chunks
+    assert result["search_queries"] == tuple(queries)
+    assert len(result["sources"]) == 140
+    assert len(result["actions"]) == 140
+    assert result["provider_metadata"][0]["groundingChunks"] == chunks
 
 
-def test_anthropic_search_continues_pause_turn_without_search_count_limit():
+def test_anthropic_search_continues_pause_turn_without_search_count_limit(execute):
     search_results = [
         {
             "type": "web_search_result",
@@ -430,30 +275,42 @@ def test_anthropic_search_continues_pause_turn_without_search_count_limit():
     ]
     bodies = []
 
-    async def post_json(_url, _headers, body):
+    def respond(body):
         bodies.append(body)
         return responses[len(bodies) - 1]
 
-    result = asyncio.run(
-        AnthropicWebSearchAdapter().search(
-            provider_template=_provider(ProviderProtocolFamily.ANTHROPIC_MESSAGES),
-            runtime_config=_runtime("https://provider.example/v1/messages"),
-            api_key="key",
-            model_id="claude-test",
-            query="latest information",
-            post_json=post_json,
-        )
-    )
+    reply = execute("anthropic_messages", respond)
+    assert reply["ok"], reply
+    result = reply["data"]
 
     assert len(bodies) == 2
-    assert bodies[0]["max_tokens"] == ANTHROPIC_WEB_SEARCH_MAX_OUTPUT_TOKENS
+    assert bodies[0]["max_tokens"] == 4096
     assert "max_uses" not in bodies[0]["tools"][0]
     assert bodies[1]["messages"][1] == {"role": "assistant", "content": first_content}
-    assert result.search_queries == ("actual query",)
-    assert len(result.sources) == 126
-    assert result.sources[0].metadata["encrypted_content"] == "encrypted-0"
-    assert result.provider_usage == {
+    assert result["search_queries"] == ("actual query",)
+    assert len(result["sources"]) == 126
+    assert result["sources"][0]["metadata"]["encrypted_content"] == "encrypted-0"
+    assert result["provider_usage"] == {
         "requests": [responses[0]["usage"], responses[1]["usage"]]
     }
-    assert result.usage is not None
-    assert result.usage.total_tokens == 17
+    assert result["usage"] is not None
+    assert result["usage"]["total_tokens"] == 17
+
+
+def test_unsupported_protocol_never_issues_a_request(execute):
+    result = execute("openai_compatible", lambda _: pytest.fail("unrecognized endpoint"),
+                     address="https://other.example/nonstandard")
+    assert not result["ok"] and result["error_info"]["code"] == "provider_search_endpoint_missing"
+
+
+def test_shared_host_matches_longest_complete_source_path(monkeypatch):
+    from urllib.parse import urlsplit
+    monkeypatch.syspath_prepend(str(resolve_formal_tool_root("network_search") / "program"))
+    from native_search.routing import _match_endpoint
+    endpoints = {
+        "host_default": {"url": "https://gateway.example/responses"},
+        "team": {"url": "https://gateway.example/one/responses", "search": {"source_path_prefix": "/team"}},
+        "team_special": {"url": "https://gateway.example/two/responses", "search": {"source_path_prefix": "/team/special"}},
+    }
+    for path, name in (("/team/special/chat/completions", "team_special"), ("/team", "team"), ("/teamwork", "host_default")):
+        assert _match_endpoint(urlsplit("https://gateway.example" + path), endpoints) == name

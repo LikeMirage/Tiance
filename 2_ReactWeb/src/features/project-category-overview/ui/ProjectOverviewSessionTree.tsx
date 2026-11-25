@@ -712,8 +712,7 @@ function StatusDot({ status, sessionId }: { status: string; sessionId: string })
     if (normalized !== "running") return;
     let animation: Animation | undefined;
     const stop = conversationRuntime.subscribeOutput(projectId, sessionId, () => {
-      if (!dotRef.current || animation?.playState === "running"
-        || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      if (!dotRef.current || animation?.playState === "running") return;
       // One finite visual pulse per burst of real output. No silence-based status timer.
       animation = dotRef.current.animate([{ opacity: 1 }, { opacity: 0.3 }, { opacity: 1 }], {
         duration: 700, easing: "ease-in-out",

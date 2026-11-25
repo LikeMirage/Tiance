@@ -1,13 +1,15 @@
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 
 import { useOverlayScrollbar } from "../../model/overlay-scrollbar/useOverlayScrollbar";
 import "./edge-scrollbar.css";
 
 type EdgeScrollbarProps = {
-  scrollRef: RefObject<HTMLDivElement | null>;
+  scrollRef: RefObject<HTMLElement | null>;
   scrollId: string;
   label: string;
-  refreshKey: string;
+  refreshKey?: string;
+  /** Values such as a textarea draft can change scrollHeight without a DOM resize. */
+  contentVersion?: string;
   side?: "left" | "right";
   enabled?: boolean;
   /** Called before a user changes scroll position; never for layout changes. */
@@ -16,21 +18,25 @@ type EdgeScrollbarProps = {
 
 /** Overlay on a positioned parent; the caller keeps its existing scroll viewport. */
 export function EdgeScrollbar({
-  scrollRef, scrollId, label, refreshKey, side = "right", enabled = true, onUserScroll,
+  scrollRef, scrollId, label, refreshKey = "", contentVersion, side = "right", enabled = true, onUserScroll,
 }: EdgeScrollbarProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const scrollbar = useOverlayScrollbar(`${enabled}:${refreshKey}`, scrollRef);
-  const { handleScroll } = scrollbar;
-  const trackRange = Math.max(0, (scrollRef.current?.clientHeight ?? 0) - scrollbar.thumbHeight);
+  const { refresh } = scrollbar;
+  useLayoutEffect(() => {
+    if (contentVersion !== undefined) refresh();
+  }, [contentVersion, refresh]);
+  const trackRange = Math.max(0, scrollbar.viewportHeight - scrollbar.thumbHeight);
   const position = trackRange ? Math.round(scrollbar.thumbTop / trackRange * 100) : 0;
 
   useEffect(() => {
     if (!enabled) return;
     const viewport = scrollRef.current;
     if (!viewport) return;
-    viewport.addEventListener("scroll", handleScroll, { passive: true });
-    return () => viewport.removeEventListener("scroll", handleScroll);
-  }, [enabled, handleScroll, refreshKey, scrollRef]);
+    const updatePosition = () => refresh();
+    viewport.addEventListener("scroll", updatePosition, { passive: true });
+    return () => viewport.removeEventListener("scroll", updatePosition);
+  }, [enabled, refresh, refreshKey, scrollRef]);
 
   useEffect(() => {
     const track = trackRef.current;
@@ -43,17 +49,17 @@ export function EdgeScrollbar({
       onUserScroll?.();
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1;
       viewport.scrollTop += event.deltaY * unit;
-      handleScroll();
     };
     track.addEventListener("wheel", onWheel, { passive: false });
     return () => track.removeEventListener("wheel", onWheel);
-  }, [enabled, handleScroll, onUserScroll, scrollbar.isVisible, scrollRef]);
+  }, [enabled, onUserScroll, scrollbar.isVisible, scrollRef]);
 
   if (!enabled) return null;
 
   return (
     <div
       ref={trackRef}
+      style={scrollbar.isVisible ? { height: scrollbar.viewportHeight } : undefined}
       className={`edge-scrollbar edge-scrollbar--${side}${scrollbar.isVisible ? " edge-scrollbar--scrollable" : ""}`}
       role={scrollbar.isVisible ? "scrollbar" : undefined}
       tabIndex={scrollbar.isVisible ? 0 : undefined}
@@ -71,6 +77,7 @@ export function EdgeScrollbar({
         onUserScroll?.();
         scrollbar.handleTrackPointerDown(event);
       }}
+      onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => {
         const viewport = scrollRef.current;
         if (!viewport) return;
@@ -85,7 +92,6 @@ export function EdgeScrollbar({
         event.stopPropagation();
         onUserScroll?.();
         viewport.scrollTop += offset;
-        handleScroll();
       }}
     >
       {scrollbar.isVisible ? <div

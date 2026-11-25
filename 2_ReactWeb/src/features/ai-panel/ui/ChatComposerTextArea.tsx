@@ -1,5 +1,6 @@
+import { EdgeScrollbar } from "@/shared/ui/edge-scrollbar";
 import { CircleNotch } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { ClipboardEvent, RefObject } from "react";
 
 import { useI18n } from "../../../shared/i18n";
@@ -8,32 +9,37 @@ import type {
   ChatComposerUploadStatus,
 } from "./ChatComposerTypes";
 
-export function ChatComposerTextArea({ input, inputRef, hidden = false }: { hidden?: boolean; input: ChatComposerInputState; inputRef?: RefObject<HTMLTextAreaElement | null> }) {
+export function ChatComposerTextArea({ input, inputRef, hidden = false }: { hidden?: boolean; input: ChatComposerInputState; inputRef: RefObject<HTMLTextAreaElement | null> }) {
   const { t } = useI18n();
+  const scrollId = useId();
   return (
     <>
-      <textarea
-        ref={inputRef}
-        hidden={hidden}
-        className="ai-panel__input"
-        placeholder={t("aiPanel.composer.placeholder")}
-        rows={4}
-        value={input.draft}
-        onChange={(event) => input.onDraftChange(event.target.value)}
-        onPaste={(event) => handleInputPaste(event, input)}
-        onKeyDown={(event) => {
-          if (
-            event.key === "Enter" &&
-            !event.shiftKey &&
-            !event.nativeEvent.isComposing
-          ) {
-            event.preventDefault();
-            if (input.canSend) {
-              input.onSend();
+      <div hidden={hidden} className="ai-panel__input-frame">
+        <textarea
+          ref={inputRef}
+          id={scrollId}
+          className="ai-panel__input edge-scroll-viewport"
+          placeholder={t("aiPanel.composer.placeholder")}
+          rows={4}
+          value={input.draft}
+          onChange={(event) => input.onDraftChange(event.target.value)}
+          onPaste={(event) => handleInputPaste(event, input)}
+          onKeyDown={(event) => {
+            if (
+              event.key === "Enter" &&
+              !event.shiftKey &&
+              !event.nativeEvent.isComposing
+            ) {
+              event.preventDefault();
+              if (input.canSend) {
+                input.onSend();
+              }
             }
-          }
-        }}
-      />
+          }}
+        />
+        <EdgeScrollbar scrollRef={inputRef} scrollId={scrollId} label={t("common.scrollbar")}
+          contentVersion={input.draft} enabled={!hidden} />
+      </div>
       <ComposerUploadStatus status={input.uploadStatus} />
     </>
   );

@@ -141,6 +141,9 @@ class AnthropicMessagesChatAdapter:
                 event_type = str(payload.get("type") or "")
                 if event_type == "content_block_start":
                     _start_anthropic_content_block(payload, content_blocks)
+                    block = payload.get("content_block")
+                    if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name"):
+                        yield ChatStreamEvent(kind=ChatStreamEventKind.TOOL_CALL_DELTA)
                 elif event_type == "content_block_delta":
                     delta = payload.get("delta")
                     if isinstance(delta, dict):

@@ -7,7 +7,7 @@ from tiance_runtime import call_host_capability, run_tool
 
 from deepseek_config import ToolError, config_info, configure_key, load_config
 from deepseek_results import format_results
-from deepseek_transport import post_direct
+from deepseek_transport import check_response, post_direct
 
 
 CONFIG_PATH = Path(__file__).with_name("config.json")
@@ -76,15 +76,13 @@ def run(payload: dict) -> dict:
             response = post_direct(action, body, key)
         else:
             try:
-                reply = call_host_capability("deepseek_web", {"action": action, **body}, timeout_seconds=165)
+                reply = call_host_capability("provider_auth", {
+                    "endpoint": action, "body": body,
+                }, timeout_seconds=165)
             except RuntimeError as exc:
                 raise ToolError("DEEPSEEK_BRIDGE_UNAVAILABLE",
-                                f"无法通过能力桥使用模型集的 DeepSeek Key：{exc}。请在天策中运行此工具，或用 action=configure 配置工具 Key。") from exc
-            if reply.get("ok") is not True:
-                info = reply.get("error_info") or {}
-                raise ToolError(info.get("code", "DEEPSEEK_BRIDGE_FAILED"),
-                                reply.get("error") or "DeepSeek 能力桥请求失败。", info.get("details"))
-            response = reply.get("data")
+                                f"供应商鉴权请求失败：{exc}。可检查模型集 DeepSeek 凭据，或用 action=configure 配置工具 Key。") from exc
+            response = check_response(reply["status"], reply["data"])
         if not isinstance(response, dict):
             raise ToolError("DEEPSEEK_INVALID_RESPONSE", "搜索接口返回值必须是 JSON 对象。")
         data = format_results(action, body, response, config["output"], source)

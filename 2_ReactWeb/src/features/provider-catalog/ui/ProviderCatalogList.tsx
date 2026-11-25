@@ -22,7 +22,7 @@ import {
 import { ProviderDeleteConfirmModal } from "./ProviderDeleteConfirmModal";
 import { ProviderCatalogListItem } from "./ProviderCatalogListItem";
 
-type ProviderCatalogScrollbar = ReturnType<typeof useOverlayScrollbar>;
+type ProviderCatalogScrollbar = ReturnType<typeof useOverlayScrollbar<HTMLDivElement>>;
 
 type ProviderCatalogListProps = {
   dragHoverTarget: {

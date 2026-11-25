@@ -231,6 +231,7 @@ def _normalize_usage_feature_key(value: str | None) -> str:
         "memory_compression",
         "project_memory_management",
         "provider_web_search",
+        "tool_model_request",
     }:
         return normalized
     return "main_chat"
@@ -243,6 +244,7 @@ def _usage_feature_display_name(value: str) -> str:
         "memory_compression": "记忆压缩模型",
         "project_memory_management": "项目记忆管理模型",
         "provider_web_search": "内置网络搜索",
+        "tool_model_request": "工具模型请求",
     }
     return names.get(value, "主会话")
 

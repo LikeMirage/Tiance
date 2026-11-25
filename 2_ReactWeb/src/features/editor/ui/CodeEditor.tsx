@@ -1,6 +1,8 @@
+import { EdgeScrollbar } from "@/shared/ui/edge-scrollbar";
+import { useI18n } from "@/shared/i18n";
 import { Compartment, EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useDocumentReadingScroll } from "../../../entities/editor/model/documentReadingState";
 import { useDocumentRevealRequest } from "../../../entities/editor/model/documentRevealContext";
 import { DocumentRevealError, resolveTextReveals } from "../../../entities/editor/model/documentReveal";
@@ -50,6 +52,8 @@ export function CodeEditor({
   onTextSelectionContextMenu,
   readOnly,
 }: CodeEditorProps) {
+  const { t } = useI18n();
+  const scrollId = useId();
   const markState = useDocumentMarks();
   const marksRef = useRef(markState);
   marksRef.current = markState;
@@ -134,6 +138,8 @@ export function CodeEditor({
 
     const view = new EditorView({ state, parent: container });
     viewRef.current = view;
+    view.scrollDOM.id = scrollId;
+    view.scrollDOM.classList.add("edge-scroll-viewport");
     scrollRef.current = view.scrollDOM;
     setEditorReady(true);
     onScrollerReadyRef.current?.(view.scrollDOM);
@@ -280,5 +286,7 @@ export function CodeEditor({
 
   return <div className="code-editor-shell">
     <div ref={containerRef} className="code-editor" />
+    {editorReady && <EdgeScrollbar scrollRef={scrollRef} scrollId={scrollId}
+      label={t("common.scrollbar")} onUserScroll={stopReadingRestore} />}
   </div>;
 }

@@ -27,11 +27,8 @@ export function useHorizontalScrollAnimation() {
     const targetLeft = Math.min(Math.max(0, requestedLeft), maxScrollLeft);
     const startLeft = element.scrollLeft;
     const distance = targetLeft - startLeft;
-    const prefersReducedMotion = typeof window.matchMedia === "function"
-      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const shouldAnimate = options.animate !== false
-      && Math.abs(distance) >= 0.5
-      && !prefersReducedMotion;
+      && Math.abs(distance) >= 0.5;
 
     if (!shouldAnimate) {
       element.scrollLeft = targetLeft;

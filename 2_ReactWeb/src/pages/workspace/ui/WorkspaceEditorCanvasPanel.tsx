@@ -58,10 +58,8 @@ type WorkspaceEditorCanvasPanelProps = {
     projectId: string,
     options?: ProjectNavigationOptions,
   ) => boolean | void | Promise<boolean | void>;
-  onCreateProject?: () => Promise<void>;
   onCollapseProject: () => boolean | void | Promise<boolean | void>;
   onConfirmProjectSession: (projectId: string, sessionId: string | null) => void;
-  onImportProjectFolder?: (rootPath: string) => Promise<void>;
   onApplyTheme?: (themeId: string) => void;
   onLayoutPreferenceChange: (update: WorkspaceLayoutPreferenceUpdate) => void;
   onPrepareProject?: (projectId: string) => void;
@@ -94,9 +92,7 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
   layoutPreferences,
   projectMarketScope = null,
   onExpandProject,
-  onCreateProject,
   onConfirmProjectSession,
-  onImportProjectFolder,
   onApplyTheme,
   onLayoutPreferenceChange,
   onPrepareProject,
@@ -331,10 +327,8 @@ export const WorkspaceEditorCanvasPanel = memo(function WorkspaceEditorCanvasPan
       layoutPreferences={collectionKind ? commonLayoutPreferences : layoutPreferences}
       marketScope={projectMarketScope}
       onActivateProject={onSelectProject}
-      onCreateProject={onCreateProject}
       onCreateSession={handleCreateOverviewSession}
       onEnterSession={handleEnterOverviewSession}
-      onImportProjectFolder={onImportProjectFolder}
       onLayoutPreferenceChange={
         collectionKind
           ? handleCommonLayoutPreferenceChange

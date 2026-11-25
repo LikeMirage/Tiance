@@ -1,167 +1,121 @@
-from __future__ import annotations
-
 import asyncio
+from types import SimpleNamespace
 
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+import httpx
 import pytest
-from fastapi import HTTPException
 
-from app.domain.llm.chat import ChatUsage
-from app.domain.llm.provider_capabilities import ProviderWebSearchResult
-from app.domain.llm.provider_catalog import (
-    AuthScheme,
-    ProviderCatalogEntry,
-    ProviderEndpointTemplate,
-    ProviderProtocolFamily,
-    default_model_discovery_strategy,
-)
-from app.domain.llm.provider_config import ProviderConfig
-from app.schemas.llm.provider_capabilities import ProviderWebSearchRequestBody
-from app.api.routes.llm.provider_capabilities import run_provider_web_search
-from app.services.llm.provider_capabilities.service import ProviderCapabilityService
-from app.services.tools.host_capability_access import (
-    HostCapability,
-    HostCapabilityGrant,
-)
+from app.api.routes.llm import provider_capabilities as routes
+from app.core.errors import register_exception_handlers
+from app.domain.llm.provider_catalog import AuthScheme
+from app.domain.tools.host_capabilities import declared_session_model_endpoints
+from app.services.llm import tool_provider_requests as service
+from app.services.tools.host_capability_access import HostCapabilityAccessService
 
 
-class FakeCatalogRepository:
-    def __init__(self, entry):
-        self.entry = entry
-
-    def get_entry(self, provider_id):
-        return self.entry if provider_id == self.entry.provider_id else None
-
-
-class FakeConfigRepository:
-    def __init__(self, config):
-        self.config = config
-
-    def get_config(self, provider_id):
-        return self.config if provider_id == self.config.provider_id else None
-
-
-class FakeApiKeyScheduler:
-    def select_next(self, *_args):
-        raise AssertionError("anonymous provider must not invoke API key rotation")
-
-
-class FakeRemoteClient:
-    def __init__(self):
-        self.calls = []
-
-    async def web_search(self, **kwargs):
-        self.calls.append(kwargs)
-        return ProviderWebSearchResult(
-            provider_id=kwargs["provider_template"].provider_id,
-            model_id=kwargs["model_id"],
-            answer="answer",
-            usage=ChatUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
-        )
-
-
-class FakeUsageService:
-    def __init__(self):
-        self.records = []
-
-    def record_message_usage(self, **kwargs):
-        self.records.append(kwargs)
+@pytest.fixture
+def model_host(monkeypatch):
+    access = HostCapabilityAccessService()
+    monkeypatch.setattr(routes, "get_host_capability_access_service", lambda: access)
+    current = SimpleNamespace(protocol_family="openai_responses", auth_scheme=AuthScheme.BEARER_TOKEN,
+                              provider_id="caller-provider", profile_id="generic")
+    from app.domain.llm.provider_catalog import ProviderProtocolFamily
+    current.protocol_family = ProviderProtocolFamily.OPENAI_RESPONSES
+    config = SimpleNamespace(api_base_url="https://provider.example/v3/responses?version=one")
+    def provider(provider_id):
+        assert provider_id == "caller-provider"
+        return current, config
+    monkeypatch.setattr(service, "_provider", provider)
+    key_calls = []
+    def key(*args, **kwargs):
+        key_calls.append(1)
+        return "fake+key/secret"
+    monkeypatch.setattr(service, "_key", key)
+    monkeypatch.setattr(service, "resolve_provider_profile", lambda entry, model: SimpleNamespace(
+        include_responses_web_search_sources=True))
+    monkeypatch.setattr(service, "resolve_request_headers", lambda entry, **kwargs: {"X-Session": kwargs["session_id"]})
+    seen, records = [], []
+    def answer(req):
+        seen.append(req)
+        return httpx.Response(200, json={"usage":{"input_tokens":3, "output_tokens":2, "total_tokens":5}})
+    upstream = httpx.AsyncClient(transport=httpx.MockTransport(answer))
+    monkeypatch.setattr(service, "get_shared_http_client", lambda: upstream)
+    monkeypatch.setattr(service, "get_llm_usage_service", lambda: SimpleNamespace(
+        record_message_usage=lambda **record: records.append(record)))
+    app = FastAPI()
+    register_exception_handlers(app)
+    app.include_router(routes.router)
+    grant = access.issue_grant(tool_name="renamed", tool_call_id="call", provider_id="caller-provider",
+                               model_id="background-model", session_id="background-chat", project_id="p",
+                               capabilities=("session_model",), model_usage_feature="provider_web_search",
+                               lifetime_seconds=30)
+    with TestClient(app) as client:
+        yield client, current, config, seen, records, grant, key_calls, access
+    asyncio.run(upstream.aclose())
 
 
-def _provider() -> ProviderCatalogEntry:
-    return ProviderCatalogEntry(
-        provider_id="provider-1",
-        display_name="Provider",
-        profile_id="generic",
-        protocol_family=ProviderProtocolFamily.OPENAI_COMPATIBLE,
-        generation_auth_schemes={
-            ProviderProtocolFamily.OPENAI_COMPATIBLE: AuthScheme.BEARER_TOKEN
-        },
-        model_discovery_strategy=default_model_discovery_strategy(
-            ProviderProtocolFamily.OPENAI_COMPATIBLE
-        ),
-        model_discovery_auth_scheme=AuthScheme.BEARER_TOKEN,
-        endpoints=ProviderEndpointTemplate(
-            api_base_url="http://127.0.0.1:8317/v1",
-            text_generation_url_template="",
-            model_discovery_url=None,
-        ),
-    )
+@pytest.mark.parametrize("scheme,header", [(AuthScheme.BEARER_TOKEN, "Authorization"),
+    (AuthScheme.X_API_KEY, "x-api-key"), (AuthScheme.X_GOOG_API_KEY, "x-goog-api-key"), (AuthScheme.API_KEY_QUERY, None)])
+def test_session_model_auth_context_and_usage(model_host, scheme, header):
+    client, provider, _, seen, records, grant, key_calls, access = model_host
+    provider.auth_scheme = scheme
+    route = "/llm/provider-capabilities/session-model"
+    auth = {"Authorization": "Bearer " + grant.token}
+    source = client.post(route, headers=auth, json={"operation":"source"}).json()
+    assert source["model_id"] == "background-model" and source["provider_id"] == "caller-provider"
+    assert "secret" not in str(source)
+    request = {"operation":"post", "protocol_family":"openai_responses",
+               "body":{"model":"background-model","input":"Q"*10000}}
+    for _ in range(2):
+        reply = client.post(route, headers=auth, json=request)
+        assert reply.status_code == 200 and reply.json()["usage"]["total_tokens"] == 5
+    assert len(key_calls) == 1
+    assert len(records) == 2 and records[0]["message_id"] != records[1]["message_id"]
+    for req in seen:
+        assert req.url.path == "/v3/responses" and req.url.params["version"] == "one"
+        assert req.headers["X-Session"] == "background-chat"
+        if header:
+            assert "fake+key/secret" in req.headers[header]
+        else:
+            assert req.url.params["key"] == "fake+key/secret"
+    assert records[0]["model_id"] == "background-model" and records[0]["usage_feature_key"] == "provider_web_search"
+    assert client.post(route, headers=auth, json={**request,"body":{"model":"other"}}).status_code == 400
+    assert client.post(route, headers=auth, json={**request,"provider_id":"other"}).status_code == 422
+    access.revoke(grant.token)
+    assert client.post(route, headers=auth, json=request).status_code == 401
+    for path in ("web-search","deepseek-web"):
+        assert client.post("/llm/provider-capabilities/" + path, json={}).status_code == 404
 
 
-def _grant() -> HostCapabilityGrant:
-    return HostCapabilityGrant(
-        grant_id="grant-1",
-        token="token",
-        capabilities=frozenset({HostCapability.WEB_SEARCH}),
-        tool_name="network_search",
-        tool_call_id="call-1",
-        provider_id="provider-1",
-        model_id="model-1",
-        project_id="project-1",
-        session_id="session-1",
-        expires_at=999999999.0,
-    )
+def test_gemini_uses_granted_model_in_generation_url(model_host):
+    from app.domain.llm.provider_catalog import ProviderProtocolFamily
+    client, provider, config, seen, _, grant, _, _ = model_host
+    provider.protocol_family = ProviderProtocolFamily.GEMINI_GENERATE_CONTENT
+    config.api_base_url = "https://provider.example/v1/models/{model}:{action}"
+    response = client.post("/llm/provider-capabilities/session-model", headers={"Authorization": "Bearer "+grant.token},
+                           json={"operation":"post","protocol_family":"gemini_generate_content","body":{"contents":[]}})
+    assert response.status_code == 200
+    assert seen[0].url.path == "/v1/models/background-model:generateContent"
 
 
-def test_provider_capability_service_uses_grant_context_and_records_separate_usage():
-    provider = _provider()
-    config = ProviderConfig(
-        provider_id=provider.provider_id,
-        api_base_url=provider.endpoints.api_base_url,
-        enabled=True,
-        api_keys=(),
-        created_at="now",
-        updated_at="now",
-    )
-    remote = FakeRemoteClient()
-    usage = FakeUsageService()
-    service = ProviderCapabilityService(
-        FakeCatalogRepository(provider),
-        FakeConfigRepository(config),
-        remote,
-        FakeApiKeyScheduler(),
-        usage,
-    )
-
-    result = asyncio.run(
-        service.web_search(grant=_grant(), query="latest information")
-    )
-
-    assert result.answer == "answer"
-    assert len(remote.calls) == 1
-    call = remote.calls[0]
-    assert call["model_id"] == "model-1"
-    assert call["query"] == "latest information"
-    assert call["session_id"] == "session-1"
-    assert call["api_key"] == ""
-    assert len(usage.records) == 1
-    assert usage.records[0]["project_id"] == "project-1"
-    assert usage.records[0]["session_id"] == "session-1"
-    assert usage.records[0]["provider_id"] == "provider-1"
-    assert usage.records[0]["model_id"] == "model-1"
-    assert usage.records[0]["usage_feature_key"] == "provider_web_search"
-    assert usage.records[0]["message_id"] == "provider_web_search:grant-1"
-
-
-def test_provider_web_search_api_body_cannot_override_bound_context():
-    assert set(ProviderWebSearchRequestBody.model_fields) == {"query"}
-
-
-def test_provider_web_search_query_has_no_hidden_length_ceiling():
-    query = "Q" * 50000
-
-    payload = ProviderWebSearchRequestBody(query=query)
-
-    assert payload.query == query
-
-
-def test_provider_web_search_route_rejects_missing_scoped_grant():
-    with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(
-            run_provider_web_search(
-                ProviderWebSearchRequestBody(query="test"),
-                authorization=None,
-            )
-        )
-
-    assert exc_info.value.status_code == 401
+def test_named_model_endpoints_are_scoped_to_session_origin_and_protocol(model_host):
+    client, _, config, seen, _, _, key_calls, access = model_host
+    config.api_base_url = "https://provider.example/team/v3/responses?api-version=one"
+    runtime = {"host_capabilities": ["session_model"], "session_model_endpoints": {
+        "same": {"protocol": "openai_responses", "url": "responses"},
+        "different": {"protocol": "openai_responses", "url": "https://other.example/responses"},
+    }}
+    grant = access.issue_grant(tool_name="test", tool_call_id="diagnostic", project_id=None, session_id=None,
+                               provider_id="caller-provider", model_id="bound", lifetime_seconds=30,
+                               capabilities=("session_model",), session_model_endpoints=declared_session_model_endpoints(runtime))
+    route = "/llm/provider-capabilities/session-model"
+    auth = {"Authorization": "Bearer " + grant.token}
+    source = client.post(route, headers=auth, json={"operation":"source"}).json()
+    assert source["generation_url"] == "https://provider.example/team/v3/responses"
+    request = {"operation":"post", "protocol_family":"openai_responses", "body":{"model":"bound"}}
+    for extra in ({"endpoint":"different"}, {"endpoint":"unknown"}, {"endpoint":"same","protocol_family":"anthropic_messages"}):
+        assert client.post(route, headers=auth, json={**request, **extra}).status_code == 403
+    assert not seen and not key_calls
+    assert client.post(route, headers=auth, json={**request, "endpoint":"same"}).status_code == 200
+    assert str(seen[0].url) == config.api_base_url

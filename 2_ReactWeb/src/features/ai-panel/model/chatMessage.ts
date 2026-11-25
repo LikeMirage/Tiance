@@ -83,6 +83,8 @@ export type ChatMessage = {
   displayKey?: string;
   /** View-only fold scope retained when a partial turn gains its user row. */
   displayTurnId?: string;
+  /** History has arrived before the current turn's runtime state. */
+  awaitingRuntimeStatus?: boolean;
   role: "system" | "user" | "assistant" | "error" | "tool";
   content: string;
   contentParts?: ChatCompletionMessageContentPart[];

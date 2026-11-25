@@ -1,3 +1,4 @@
+import { EdgeScrollArea } from "@/shared/ui/edge-scrollbar";
 import { useEffect, useRef, useState } from "react";
 import { Crepe } from "@milkdown/crepe";
 import "@milkdown/crepe/theme/common/style.css";
@@ -48,7 +49,7 @@ export function MarkdownVisualEditor({
   const [reloadKey, setReloadKey] = useState(0);
   const [isEditorReady, setIsEditorReady] = useState(false);
   const isEditorLoadingVisible = !isEditorReady;
-  useDocumentReadingScroll("markdown-visual", scrollRef, isEditorReady && !isEditorLoadingVisible, reloadKey);
+  const stopReadingRestore = useDocumentReadingScroll("markdown-visual", scrollRef, isEditorReady && !isEditorLoadingVisible, reloadKey);
 
   onChangeRef.current = onChange;
   onDirtyRef.current = onDirty;
@@ -266,7 +267,7 @@ export function MarkdownVisualEditor({
   }, [isEditorReady]);
 
   return (
-    <div ref={scrollRef} className="markdown-visual-editor" aria-busy={isEditorLoadingVisible}>
+    <EdgeScrollArea viewportRef={scrollRef} frameClassName="markdown-visual-editor-frame" onUserScroll={stopReadingRestore} className="markdown-visual-editor" aria-busy={isEditorLoadingVisible}>
       {isEditorLoadingVisible ? (
         <LoadingStrip
           ariaLabel="正在加载 Markdown 编辑器"
@@ -284,7 +285,7 @@ export function MarkdownVisualEditor({
             : "markdown-visual-editor__root markdown-visual-editor__root--loading"
         }
       />
-    </div>
+    </EdgeScrollArea>
   );
 }
 

@@ -1,204 +1,109 @@
-from __future__ import annotations
-
+"""A tool owns the operation. The host can only use the granted provider and destination."""
 import asyncio
 from types import SimpleNamespace
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 import httpx
 import pytest
 
-from app.api.routes.llm import provider_capabilities as routes
 from app.core.errors import AppError
+from app.domain.llm.provider_catalog import AuthScheme
 from app.domain.llm.provider_config import ProviderApiKeyConfig, ProviderConfig
-from app.infra.llm.provider_capabilities import deepseek_web as remote
+from app.domain.tools.host_capabilities import declared_provider_endpoints
+from app.services.llm import tool_provider_requests as service
 from app.services.llm.provider import config_runtime
 from app.services.llm.provider.api_key_scheduler import ProviderApiKeyScheduler
-from app.services.llm.provider_capabilities.deepseek_web import DeepSeekWebService
-from app.services.tools.host_capability_access import HostCapability, HostCapabilityAccessService
+from app.services.tools.host_capability_access import HostCapabilityAccessService
 
 
-def key(name, weight=1):
-    return ProviderApiKeyConfig(
-        key_id=name, provider_id="deepseek", api_key_hint=None, poll_weight=weight,
-        sort_order=0, created_at="now", updated_at="now", api_key_ciphertext=name,
-    )
+URL = "https://api.deepseek.com/v1/tools/search"
 
 
-def service_fixture(monkeypatch, *, keys=None, enabled=True, missing=False):
-    provider = SimpleNamespace(provider_id="deepseek", display_name="DeepSeek")
-    config = ProviderConfig(
-        provider_id="deepseek", api_base_url="https://model-only.invalid/v1/responses",
-        enabled=enabled, api_keys=tuple(keys if keys is not None else [key("key-a"), key("key-b")]),
-        created_at="now", updated_at="now",
-    )
-    monkeypatch.setattr(config_runtime, "resolve_api_key_secret", lambda item: item.api_key_ciphertext or "")
-    calls = []
-    async def request(**kwargs):
-        calls.append(kwargs)
-        return {"results": []}
-    service = DeepSeekWebService(
-        SimpleNamespace(get_entry=lambda ident: provider if ident == "deepseek" and not missing else None),
-        SimpleNamespace(get_config=lambda ident: config if ident == "deepseek" and not missing else None),
-        ProviderApiKeyScheduler(), request,
-    )
-    return service, calls
-
-
-def grant(access, tool="deepseek_official_web_search", provider="unrelated-provider", model="other-model"):
-    return access.issue_grant(
-        capabilities=(HostCapability.WEB_SEARCH if tool == "network_search" else HostCapability.DEEPSEEK_WEB,), tool_name=tool, tool_call_id="call-1", provider_id=provider, model_id=model,
-        project_id="project-1", session_id="session-1", lifetime_seconds=60,
-    )
-
-
-def test_independent_search_grant_does_not_require_a_chat_model():
-    access = HostCapabilityAccessService()
-    token = grant(access, provider=None, model=None)
-    assert token is not None
-    assert access.authorize(token.token, HostCapability.DEEPSEEK_WEB) == token
-    assert access.authorize(token.token, HostCapability.WEB_SEARCH) is None
-    access.revoke(token.token)
-    assert access.authorize(token.token, HostCapability.DEEPSEEK_WEB) is None
-
-
-def test_bridge_uses_only_deepseek_and_reuses_key_rotation(monkeypatch):
-    service, calls = service_fixture(monkeypatch)
-    for _ in range(3):
-        assert asyncio.run(service.execute(action="search", payload={"query": "test"})) == {"results": []}
-    assert [c["api_key"] for c in calls] == ["key-a", "key-b", "key-a"]
-    assert all(set(c) == {"action", "payload", "api_key"} for c in calls)
-    assert all(c["payload"] == {"query": "test"} for c in calls)
-
-
-@pytest.mark.parametrize("options,code", [
-    ({"missing": True}, "DEEPSEEK_KEY_MISSING"),
-    ({"keys": []}, "DEEPSEEK_KEY_MISSING"),
-    ({"keys": [key("disabled", 0)]}, "DEEPSEEK_KEY_MISSING"),
-    ({"keys": [key("")]}, "DEEPSEEK_KEY_MISSING"),
-    ({"enabled": False}, "DEEPSEEK_PROVIDER_DISABLED"),
-])
-def test_missing_disabled_or_unusable_credentials_do_not_request_upstream(monkeypatch, options, code):
-    service, calls = service_fixture(monkeypatch, **options)
-    with pytest.raises(AppError) as error:
-        asyncio.run(service.execute(action="search", payload={"query": "test"}))
-    assert error.value.code == code
-    assert "模型集" in str(error.value) and "configure" in str(error.value)
-    assert calls == []
+def make_key(name, weight=1):
+    return ProviderApiKeyConfig(key_id=name, provider_id="deepseek", api_key_hint=None,
+        poll_weight=weight, sort_order=0, created_at="now", updated_at="now", api_key_ciphertext=name)
 
 
 @pytest.fixture
-def client(monkeypatch):
-    service, calls = service_fixture(monkeypatch)
-    access = HostCapabilityAccessService()
-    monkeypatch.setattr(routes, "get_host_capability_access_service", lambda: access)
-    monkeypatch.setattr(routes, "get_deepseek_web_service", lambda: service)
-    app = FastAPI()
-    app.include_router(routes.router)
-    with TestClient(app) as client:
-        yield client, access, service, calls
+def endpoint(monkeypatch):
+    provider = SimpleNamespace(provider_id="deepseek", display_name="DeepSeek", auth_scheme=AuthScheme.X_API_KEY,
+        endpoints=SimpleNamespace(generation_urls={}, model_discovery_url="https://api.deepseek.com/v1/models"))
+    config = ProviderConfig(provider_id="deepseek", api_base_url="https://chat.example/v1/responses",
+        enabled=True, api_keys=(make_key("first-secret"),make_key("second-secret")), created_at="now", updated_at="now")
+    catalog = {"deepseek": provider}
+    configs = {"deepseek": config}
+    monkeypatch.setattr(service, "get_provider_catalog_repository", lambda: SimpleNamespace(get_entry=catalog.get))
+    monkeypatch.setattr(service, "get_provider_config_repository", lambda: SimpleNamespace(get_config=configs.get))
+    scheduler = ProviderApiKeyScheduler()
+    monkeypatch.setattr(service, "get_provider_api_key_scheduler", lambda: scheduler)
+    monkeypatch.setattr(config_runtime, "resolve_api_key_secret", lambda item: item.api_key_ciphertext or "")
+    declared = declared_provider_endpoints({"host_capabilities":["provider_auth"],"provider_endpoints":{"lookup":
+        {"provider_id":"deepseek","url":URL,"auth_scheme":"bearer_token"}}})
+    grant = HostCapabilityAccessService().issue_grant(tool_name="custom", tool_call_id="one", provider_id=None,
+        model_id=None, project_id=None, session_id=None, capabilities=("provider_auth",),
+        provider_endpoints=declared, lifetime_seconds=60)
+    assert grant
+    return grant, configs, config, catalog
 
 
-def test_route_accepts_scoped_grant_without_exposing_credentials(client):
-    http, access, service, calls = client
-    token = grant(access)
-    response = http.post("/llm/provider-capabilities/deepseek-web",
-                         headers={"Authorization": f"Bearer {token.token}"},
-                         json={"action": "search", "query": "query", "count": 2, "need_content": True})
-    assert response.status_code == 200, response.text
-    assert response.json() == {"ok": True, "data": {"results": []}}
-    assert calls[0]["api_key"] == "key-a"
-    assert calls[0]["payload"] == {"query": "query", "count": 2, "need_content": True, "localization": ""}
-    assert "key-a" not in response.text
-
-
-def test_route_rejects_foreign_missing_and_revoked_grants(client):
-    http, access, _, calls = client
-    foreign = grant(access, tool="network_search")
-    own = grant(access)
-    access.revoke(own.token)
-    for token in ("", foreign.token, own.token):
-        response = http.post("/llm/provider-capabilities/deepseek-web",
-                             headers={"Authorization": f"Bearer {token}"},
-                             json={"action": "fetch", "url": "https://example.com"})
-        assert response.status_code == 401
-    assert calls == []
-
-
-@pytest.mark.parametrize("body", [
-    {"action": "search", "query": "test", "provider_id": "other"},
-    {"action": "search", "query": "test", "api_key": "override"},
-    {"action": "search", "query": "test", "model": "override"},
-    {"action": "search", "query": "test", "count": True},
-    {"action": "search", "query": "test", "need_content": "true"},
-    {"action": "search", "query": "中" * 129},
-    {"action": "search", "query": " "},
-    {"action": "fetch", "url": "https://user:pass@example.com"},
-    {"action": "fetch", "url": "file:///test"},
-    {"action": "fetch", "url": "https://[invalid"},
-    {"action": "fetch", "url": "https://example.com", "query": "ignored"},
-    {"action": "configure", "api_key": "new-key"},
-])
-def test_bridge_contract_rejects_credential_override_and_invalid_parameters(client, body):
-    http, access, _, calls = client
-    token = grant(access)
-    response = http.post("/llm/provider-capabilities/deepseek-web",
-                         headers={"Authorization": f"Bearer {token.token}"}, json=body)
-    assert response.status_code == 422, response.text
-    assert calls == []
-
-
-def test_provider_failure_is_returned_as_structured_tool_error(client):
-    http, access, service, _ = client
-    async def fail(**kwargs):
-        raise AppError("余额不足", code="DEEPSEEK_HTTP_ERROR", details={"http_status": 402})
-    service._request = fail
-    token = grant(access)
-    response = http.post("/llm/provider-capabilities/deepseek-web",
-                         headers={"Authorization": f"Bearer {token.token}"},
-                         json={"action": "search", "query": "test"})
-    assert response.json()["error_info"] == {
-        "code": "DEEPSEEK_HTTP_ERROR", "message": "余额不足", "details": {"http_status": 402},
-    }
-
-
-def test_remote_client_uses_fixed_endpoint_and_does_not_follow_redirect(monkeypatch):
+def test_named_endpoint_uses_only_declared_url_and_provider_and_rotates_keys(endpoint, monkeypatch):
+    grant, _, _, _ = endpoint
     seen = []
-    async def exercise():
-        def handler(request):
-            seen.append(request)
-            return httpx.Response(302, headers={"location": "https://not-deepseek.invalid"}, json={})
-        async with httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=True) as client:
-            monkeypatch.setattr(remote, "get_shared_http_client", lambda: client)
-            with pytest.raises(AppError) as error:
-                await remote.request_deepseek_web(action="search", payload={"query": "test"}, api_key="private-key")
-            assert error.value.details["http_status"] == 302
-    asyncio.run(exercise())
+    def respond(request):
+        seen.append(request)
+        return httpx.Response(200, json={"results":[]})
+    async def check():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as upstream:
+            monkeypatch.setattr(service,"get_shared_http_client",lambda:upstream)
+            for _ in range(3):
+                assert (await service.post_to_endpoint(grant, "lookup", {"new_field":123}))["data"] == {"results":[]}
+            for ungranted in ("other", URL+"/different"):
+                with pytest.raises(AppError):
+                    await service.post_to_endpoint(grant, ungranted, {})
+    asyncio.run(check())
+    assert [req.headers["Authorization"] for req in seen] == ["Bearer first-secret","Bearer second-secret","Bearer first-secret"]
+    assert all(str(req.url) == URL and b"new_field" in req.content for req in seen)
+
+
+@pytest.mark.parametrize("failure", ["missing","disabled","empty","weight","foreign-origin"])
+def test_no_upstream_request_without_trusted_credential(endpoint, failure, monkeypatch):
+    from dataclasses import replace
+    grant, configs, config, catalog = endpoint
+    if failure == "missing":
+        catalog.clear()
+    elif failure == "foreign-origin":
+        catalog["deepseek"].endpoints.model_discovery_url = None
+    else:
+        configs["deepseek"] = replace(config, enabled=failure != "disabled",
+            api_keys=(make_key("disabled",0),) if failure=="weight" else ())
+    monkeypatch.setattr(service,"get_shared_http_client",lambda:pytest.fail("no outbound request allowed"))
+    with pytest.raises(AppError):
+        asyncio.run(service.post_to_endpoint(grant,"lookup",{}))
+
+
+@pytest.mark.parametrize("status", [302,401,402,429,500])
+def test_no_redirect_or_key_reflection(endpoint, monkeypatch, status):
+    grant, _, _, _ = endpoint
+    seen = []
+    def respond(request):
+        seen.append(request)
+        return httpx.Response(status, headers={"Location":"https://foreign.example/"},
+                              json={"error":{"message":request.headers["Authorization"]}})
+    async def check():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond), follow_redirects=True) as upstream:
+            monkeypatch.setattr(service,"get_shared_http_client",lambda:upstream)
+            return await service.post_to_endpoint(grant, "lookup",{})
+    reply = asyncio.run(check())
+    assert reply["status"] == status and "first-secret" not in str(reply)
     assert len(seen) == 1
-    assert str(seen[0].url) == "https://api.deepseek.com/v1/tools/search"
-    assert seen[0].headers["authorization"] == "Bearer private-key"
-    assert seen[0].content == b'{"query":"test"}'
 
 
-@pytest.mark.parametrize("status", [401, 402, 403, 404, 429, 500, 504])
-def test_remote_error_preserves_status_but_redacts_key(monkeypatch, status):
-    async def exercise():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(
-            lambda request: httpx.Response(status, json={"error": {"message": "private-key rejected"}})
-        )) as client:
-            monkeypatch.setattr(remote, "get_shared_http_client", lambda: client)
-            with pytest.raises(AppError) as error:
-                await remote.request_deepseek_web(action="fetch", payload={"url": "https://example.com"}, api_key="private-key")
-            assert error.value.details["http_status"] == status
-            assert "private-key" not in str(error.value)
-    asyncio.run(exercise())
-
-
-@pytest.mark.parametrize("response", [httpx.Response(200, text="bad JSON"), httpx.Response(200, json=[])])
-def test_remote_invalid_response_fails_clearly(monkeypatch, response):
-    async def exercise():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: response)) as client:
-            monkeypatch.setattr(remote, "get_shared_http_client", lambda: client)
-            with pytest.raises(AppError, match="JSON"):
-                await remote.request_deepseek_web(action="search", payload={"query": "test"}, api_key="private-key")
-    asyncio.run(exercise())
+@pytest.mark.parametrize("payload,code", [(b"broken","upstream_response_invalid_json"),(b"[]","upstream_response_invalid_shape")])
+def test_invalid_upstream_response(endpoint,monkeypatch,payload,code):
+    grant, _, _, _ = endpoint
+    async def check():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda _:httpx.Response(200,content=payload))) as client:
+            monkeypatch.setattr(service,"get_shared_http_client",lambda:client)
+            with pytest.raises(AppError) as exc:
+                await service.post_to_endpoint(grant,"lookup",{})
+            assert exc.value.code == code
+    asyncio.run(check())

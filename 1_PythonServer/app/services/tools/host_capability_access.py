@@ -1,15 +1,33 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from secrets import token_urlsafe
 from threading import Lock
 from time import monotonic
 from uuid import uuid4
+from typing import Callable, TypeVar, cast
 
-from app.domain.tools.host_capabilities import HostCapability
+from app.domain.tools.host_capabilities import HostCapability, ProviderEndpointGrant, SessionModelEndpoint
 
 RUN_OBSERVER_LEASE_SECONDS = 90
+
+
+T = TypeVar("T")
+
+
+class GrantBindings:
+    """Keep selections stable through one invocation, including multi-request protocols."""
+
+    def __init__(self):
+        self._lock = Lock()
+        self._values = {}
+
+    def resolve(self, name: str, create: Callable[[], T]) -> T:
+        with self._lock:
+            if name not in self._values:
+                self._values[name] = create()
+            return cast(T, self._values[name])
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,7 +45,11 @@ class HostCapabilityGrant:
     tool_project_id: str | None = None
     enabled_tool_names: tuple[str, ...] | None = None
     run_id: str | None = None
+    bindings: GrantBindings = field(default_factory=GrantBindings, repr=False, compare=False)
     observer: bool = False
+    model_usage_feature: str = "tool_model_request"
+    provider_endpoints: tuple[ProviderEndpointGrant, ...] = ()
+    session_model_endpoints: tuple[SessionModelEndpoint, ...] = ()
 
 
 class HostCapabilityAccessService:
@@ -46,6 +68,9 @@ class HostCapabilityAccessService:
         session_id: str | None,
         lifetime_seconds: int,
         capabilities: tuple[HostCapability, ...] = (),
+        provider_endpoints: tuple[ProviderEndpointGrant, ...] = (),
+        session_model_endpoints: tuple[SessionModelEndpoint, ...] = (),
+        model_usage_feature: str = "tool_model_request",
         tool_project_id: str | None = None,
         enabled_tool_names: tuple[str, ...] | None = None,
         run_id: str | None = None,
@@ -54,7 +79,7 @@ class HostCapabilityAccessService:
         if not allowed_capabilities:
             return None
 
-        if HostCapability.WEB_SEARCH in allowed_capabilities and (not provider_id or not model_id):
+        if HostCapability.SESSION_MODEL in allowed_capabilities and (not provider_id or not model_id):
             return None
 
         now = monotonic()
@@ -62,6 +87,9 @@ class HostCapabilityAccessService:
             grant_id=uuid4().hex,
             token=token_urlsafe(32),
             capabilities=allowed_capabilities,
+            provider_endpoints=provider_endpoints,
+            session_model_endpoints=session_model_endpoints,
+            model_usage_feature=model_usage_feature,
             tool_name=tool_name,
             tool_call_id=tool_call_id,
             provider_id=provider_id,
@@ -102,8 +130,8 @@ class HostCapabilityAccessService:
             if (self._grants.get(grant.token) != grant or grant.observer
                     or HostCapability.RUN_STATUS not in grant.capabilities or not grant.run_id):
                 raise ValueError("当前授权不能申请任务观察租约。")
-            observer = replace(grant, grant_id=uuid4().hex, token=token_urlsafe(32),
-                capabilities=frozenset({HostCapability.RUN_STATUS}), observer=True,
+            observer = replace(grant, grant_id=uuid4().hex, token=token_urlsafe(32), bindings=GrantBindings(),
+                provider_endpoints=(), session_model_endpoints=(), capabilities=frozenset({HostCapability.RUN_STATUS}), observer=True,
                 expires_at=now + RUN_OBSERVER_LEASE_SECONDS)
             self._grants[observer.token] = observer
             return observer

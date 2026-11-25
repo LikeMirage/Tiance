@@ -21,10 +21,22 @@
   "runtime": {
     "entry": "program/main.py",
     "host_capabilities": [
-      "deepseek_web"
+      "provider_auth"
     ],
     "timeout_seconds": 180,
-    "type": "python"
+    "type": "python",
+    "provider_endpoints": {
+      "search": {
+        "provider_id": "deepseek",
+        "url": "https://api.deepseek.com/v1/tools/search",
+        "auth_scheme": "bearer_token"
+      },
+      "fetch": {
+        "provider_id": "deepseek",
+        "url": "https://api.deepseek.com/v1/tools/fetch",
+        "auth_scheme": "bearer_token"
+      }
+    }
   },
   "state": {
     "enabled": true

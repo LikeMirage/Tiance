@@ -162,6 +162,7 @@ def complete_usage_with_estimates(
         prompt_cache_miss_tokens=usage.prompt_cache_miss_tokens,
         reasoning_tokens=usage.reasoning_tokens,
         estimated_fields=tuple(sorted(estimated_fields)),
+        output_duration_seconds=usage.output_duration_seconds,
     )
 
 

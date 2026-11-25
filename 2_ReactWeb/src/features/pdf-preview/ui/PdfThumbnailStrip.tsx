@@ -1,3 +1,4 @@
+import { EdgeScrollArea } from "@/shared/ui/edge-scrollbar";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 import { resolvePdfCanvasOutputScale } from "../model/pdfCanvasScale";
@@ -16,14 +17,14 @@ export function PdfThumbnailStrip({
   onSelectPage,
   pdfDocument,
 }: PdfThumbnailStripProps) {
-  const stripRef = useRef<HTMLElement | null>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
   const pageNumbers = useMemo(
     () => Array.from({ length: numPages }, (_, index) => index + 1),
     [numPages],
   );
 
   return (
-    <aside className="pdf-preview__thumbnails" aria-label="PDF 缩略图" ref={stripRef}>
+    <EdgeScrollArea role="complementary" frameClassName="pdf-preview__thumbnail-frame" className="pdf-preview__thumbnails" aria-label="PDF 缩略图" viewportRef={stripRef}>
       {pageNumbers.map((pageNumber) => (
         <PdfThumbnail
           active={pageNumber === activePage}
@@ -34,7 +35,7 @@ export function PdfThumbnailStrip({
           onSelect={() => onSelectPage(pageNumber)}
         />
       ))}
-    </aside>
+    </EdgeScrollArea>
   );
 }
 

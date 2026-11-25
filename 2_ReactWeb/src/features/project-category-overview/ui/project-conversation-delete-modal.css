@@ -24,43 +24,17 @@
   white-space: nowrap;
 }
 
-.project-conversation-delete-modal__tree {
+.project-conversation-delete-modal__tree-frame {
   max-height: min(300px, 42vh);
   margin-top: 2px;
+}
+
+.project-conversation-delete-modal__tree {
   padding: 8px 10px;
   overflow: auto;
   border: 1px solid var(--color-border-soft);
   border-radius: 2px;
   background: var(--color-surface-input);
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-}
-
-.project-conversation-delete-modal__tree::-webkit-scrollbar {
-  width: var(--scrollbar-size);
-  height: var(--scrollbar-size);
-}
-
-.project-conversation-delete-modal__tree::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
-}
-
-.project-conversation-delete-modal__tree::-webkit-scrollbar-thumb {
-  min-height: 24px;
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background: var(--scrollbar-thumb);
-  background-clip: content-box;
-}
-
-.project-conversation-delete-modal__tree::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-  background-clip: content-box;
-}
-
-.project-conversation-delete-modal__tree::-webkit-scrollbar-corner {
-  background: transparent;
 }
 
 .project-conversation-delete-modal__tree-row > label {

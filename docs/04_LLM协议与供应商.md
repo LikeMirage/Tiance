@@ -54,9 +54,9 @@ Responses reasoning item、Anthropic thinking signature 和 Gemini thought signa
 
 ## 供应商内置网络搜索
 
-普通 Python 工具通过后端 host capability 使用当前会话供应商的原生搜索。后端签发绑定调用、项目、会话、供应商和模型的短期凭据；工具不直接读取 API Key。
+工具包按调用会话的生成地址选择包内端点，独立决定搜索协议。主会话使用 Chat Completions 时，搜索可使用同源的 Responses 接口。后端通过 `session_model` 提供模型来源，绑定同一供应商、模型和凭据。
 
-当前会话的原生搜索适配 OpenAI Responses、Anthropic 和 Gemini。另有独立的 `deepseek_web` 能力，使用 DeepSeek 搜索和网页读取服务，凭据来源与当前对话模型分开。见[供应商能力桥与内置网络搜索](10_后端供应商能力桥与内置网络搜索.md#deepseek-独立搜索与网页读取)。
+当前会话的原生搜索适配 OpenAI Responses、Anthropic 和 Gemini。另有独立的 `deepseek_official_web_search` 工具，使用 DeepSeek 搜索和网页读取服务，凭据来源与当前对话模型分开。见[供应商能力桥与内置网络搜索](10_后端供应商能力桥与内置网络搜索.md#deepseek-独立搜索与网页读取)。
 
 ## 实现索引
 

@@ -1,3 +1,5 @@
+.markdown-visual-editor-frame { height: 100%; }
+
 .markdown-visual-editor {
   position: relative;
   width: 100%;
@@ -6,26 +8,6 @@
   min-height: 0;
   overflow: auto;
   background: var(--editor-background);
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-}
-
-.markdown-visual-editor::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.markdown-visual-editor::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.markdown-visual-editor::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: var(--scrollbar-thumb);
-}
-
-.markdown-visual-editor::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
 }
 
 .markdown-visual-editor__root {

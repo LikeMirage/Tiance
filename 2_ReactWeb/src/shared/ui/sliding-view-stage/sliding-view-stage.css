@@ -79,16 +79,3 @@
   from { opacity: 1; transform: translateX(0); }
   to { opacity: 0; transform: translateX(100%); }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .sliding-view-stage__view--enter-from-right,
-  .sliding-view-stage__view--enter-from-left {
-    animation: none;
-  }
-
-  .sliding-view-stage__view--exit-to-left,
-  .sliding-view-stage__view--exit-to-right {
-    display: none;
-    animation: none;
-  }
-}

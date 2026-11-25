@@ -141,6 +141,12 @@
   margin-top: 10px;
 }
 
+/* Extend only the list into the panel padding; keep file details and the
+   header/search controls at their existing inset. */
+.tool-catalog-panel__content:has(.tool-catalog-panel__list) {
+  margin-right: calc(var(--catalog-list-edge-gap) - 10px);
+}
+
 .tool-catalog-panel__content > .sliding-view-stage__view {
   display: flex;
   flex-direction: column;

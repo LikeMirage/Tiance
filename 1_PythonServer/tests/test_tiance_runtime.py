@@ -143,17 +143,17 @@ def test_host_capability_call_uses_scoped_token_and_preserves_full_response(monk
     monkeypatch.setattr(tiance_runtime, "urlopen", fake_urlopen)
 
     result = call_host_capability(
-        "web_search",
-        {"query": "latest update"},
+        "session_model",
+        {"operation": "source"},
         timeout_seconds=165,
     )
 
     assert result["sources"] == sources
     assert captured["timeout"] == 165
     request = captured["request"]
-    assert request.full_url.endswith("/api/llm/provider-capabilities/web-search")
+    assert request.full_url.endswith("/api/llm/provider-capabilities/session-model")
     assert request.headers["Authorization"] == "Bearer scoped-token"
-    assert json.loads(request.data.decode("utf-8")) == {"query": "latest update"}
+    assert json.loads(request.data.decode("utf-8")) == {"operation": "source"}
 
 
 def test_host_capability_call_requires_backend_authorization(monkeypatch):
@@ -161,4 +161,4 @@ def test_host_capability_call_requires_backend_authorization(monkeypatch):
     monkeypatch.setenv("TIANCE_API_BASE_URL", "http://127.0.0.1:18000/api")
 
     with pytest.raises(RuntimeError, match="未获得后端能力授权"):
-        call_host_capability("web_search", {"query": "test"}, timeout_seconds=10)
+        call_host_capability("session_model", {"operation": "source"}, timeout_seconds=10)

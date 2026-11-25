@@ -200,6 +200,30 @@ def test_complete_skips_usage_when_disabled():
     assert usage_service.records == []
 
 
+def test_stream_duration_starts_at_first_output_and_uses_transport_arrival(monkeypatch):
+    from app.infra.llm import chat_remote_client
+
+    remote = chat_remote_client.ChatRemoteClient()
+    chunks = [
+        b'data: {"choices":[{"delta":{"role":"assistant"}}]}\n\n',
+        b'data: {"choices":[{"delta":{"reasoning_content":"thinking"}}]}\n\n',
+        b'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\n',
+        b'data: [DONE]\n\n',
+    ]
+    clock = iter([1.0, 21.0, 23.0, 24.0])
+    monkeypatch.setattr(chat_remote_client, "monotonic", lambda: next(clock))
+
+    async def stream_body(*args, **kwargs):
+        for chunk in chunks:
+            yield chunk
+
+    monkeypatch.setattr(remote, "_stream_body", stream_body)
+    service = _build_service(remote_client=remote, usage_service=_FakeUsageService())
+    events = asyncio.run(_collect_stream(service, _request(project_id=None, session_id=None)))
+    usage = next(event.usage for event in events if event.kind == ChatStreamEventKind.USAGE)
+    assert usage.output_duration_seconds == 3.0
+
+
 def test_stream_records_usage_in_chat_service_layer():
     usage = ChatUsage(prompt_tokens=7, completion_tokens=11, total_tokens=18)
     usage_service = _FakeUsageService()

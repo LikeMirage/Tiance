@@ -98,16 +98,6 @@ body.workspace-side-panel-resizing .workspace-page__side-panel-stage {
   transition: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .workspace-page__side-panel-stage {
-    transition: none;
-  }
-
-  .workspace-page__body:has(.hover-sidebar--expanded) .workspace-page__side-panel-stage {
-    transform: none;
-  }
-}
-
 .workspace-page__side-panel-view--enter-from-up {
   z-index: 1;
   animation: workspace-side-panel-enter-from-up 320ms cubic-bezier(0.22, 1, 0.36, 1);

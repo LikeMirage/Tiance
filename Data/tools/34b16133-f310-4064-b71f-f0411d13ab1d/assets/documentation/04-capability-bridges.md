@@ -177,8 +177,8 @@ SDK 从环境读取 `TIANCE_API_BASE_URL` 和 `TIANCE_HOST_CAPABILITY_TOKEN`，�
 
 | 能力名称 | POST 路径 | 用途与边界 |
 | --- | --- | --- |
-| `web_search` | `/llm/provider-capabilities/web-search` | 使用本次调用的供应商/模型执行内置搜索；要求模型上下文 |
-| `deepseek_web` | `/llm/provider-capabilities/deepseek-web` | 使用模型集 DeepSeek 凭据调用 Search/Fetch，不把 Key 返回给工具 |
+| `session_model` | `/llm/provider-capabilities/session-model` | 获取调用会话的模型与生成地址。可用 `endpoint` 选择本工具在 `runtime.session_model_endpoints` 声明的同源端点，按该端点的协议提交请求 |
+| `provider_auth` | `/llm/provider-capabilities/authenticated-post` | 为清单声明的供应商 HTTPS 接口附加凭据并提交 JSON |
 | `github_sync` | `/github/sync/tool` | 调用方项目与 GitHub 仓库的绑定、推送、拉取；复用宿主登录 |
 | `git_repository` | `/git/repository/tool` | 调用方项目的本地 Git、远端及分支等操作 |
 | `github_repositories` | `/github/platform/repositories` | GitHub 仓库查询、创建及管理 |
@@ -198,17 +198,20 @@ SDK 从环境读取 `TIANCE_API_BASE_URL` 和 `TIANCE_HOST_CAPABILITY_TOKEN`，�
 
 下列是能力端点的请求体示例，不能原样当成任意工具的输入 Schema。业务工具可以提供更适合用户的参数，再转换为能力请求；仍须保留真实操作对应的参数权限。
 
-**模型搜索：**
+**供应商鉴权与会话模型**
 
 ```python
-call_host_capability("web_search", {"query": "待搜索的问题"}, timeout_seconds=30)
-call_host_capability("deepseek_web", {
-    "action": "search", "query": "待搜索的问题", "count": 5, "need_content": False
-}, timeout_seconds=30)
-call_host_capability("deepseek_web", {"action": "fetch", "url": "https://example.com/"}, timeout_seconds=30)
+source = call_host_capability("session_model", {"operation": "source"}, timeout_seconds=10)
+call_host_capability("session_model", {
+    "operation": "post", "protocol_family": source["protocol_family"], "body": model_request
+}, timeout_seconds=150)
+call_host_capability("provider_auth", {
+    "endpoint": "search",
+    "body": {"query": "待搜索的问题"}
+}, timeout_seconds=150)
 ```
 
-`web_search` 只接收 query，模型身份来自后端授权上下文。DeepSeek Search 的 count 为 1–50；其他选项及返回合同见 `app/schemas/llm/deepseek_web.py` 和对应路由。官方 DeepSeek 工具自己的 config.json Key 优先逻辑属于工具程序：自行配置了 Key 时直接调用官方接口，没配置才复用模型集能力。能力桥本身不替工具修改私有 config.json。
+固定接口须在工具 `runtime.provider_endpoints` 中声明，例如 `{"search":{"provider_id":"deepseek","url":"https://api.deepseek.com/v1/tools/search","auth_scheme":"bearer_token"}}`。请求须匹配本次授权中的完整地址和供应商，且与供应商配置的端点同源。工具读取返回的 HTTP `status` 和 JSON `data`。会话模型请求另返回标准 `usage`。模型身份来自调用上下文，搜索适配、搜索结果与落盘由工具维护。
 
 **Git 与 GitHub：**
 

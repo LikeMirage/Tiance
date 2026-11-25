@@ -53,7 +53,7 @@ test("CodeEditor selects its live buffer, centers it and acknowledges without ed
     static scrollIntoView(position, options) { return scrolling.of({ position, options }); }
     constructor({ state }) {
       this.state = state;
-      this.scrollDOM = this.dom = this.contentDOM = { addEventListener() {}, removeEventListener() {} };
+      this.scrollDOM = this.dom = this.contentDOM = { addEventListener() {}, removeEventListener() {}, classList: { add() {} } };
       view = this;
     }
     dispatch(spec) {
@@ -68,6 +68,8 @@ test("CodeEditor selects its live buffer, centers it and acknowledges without ed
   const reveal = load("entities/editor/model/documentReveal.ts");
   const context = load("entities/editor/model/documentRevealContext.tsx");
   const { CodeEditor } = load("features/editor/ui/CodeEditor.tsx", {
+    "@/shared/ui/edge-scrollbar": { EdgeScrollbar: () => null },
+    "@/shared/i18n": { useI18n: () => ({ t: (key) => key }) },
     "@codemirror/view": { EditorView: TestEditorView },
     "../../../entities/editor/model/documentReadingState": { useDocumentReadingScroll: () => stopRestore },
     "../../../entities/editor/model/documentRevealContext": context,

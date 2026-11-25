@@ -1,3 +1,4 @@
+import { EdgeScrollArea } from "@/shared/ui/edge-scrollbar";
 import {
   useEffect,
   useLayoutEffect,
@@ -248,27 +249,29 @@ export function ProjectOverviewCard({
         </div>
       </header>
 
-      <div className="project-category-overview__sessions" aria-label={t("projectOverview.card.sessionsAria")}>
-        {displaySessions.length > 0 ? (
-          <ProjectOverviewSessionTreeList
-            projectId={projectId}
-            activeSessionId={visibleSessionId}
-            onCancelSessionRename={onCancelSessionRename}
-            onCommitSessionRename={onCommitSessionRename}
-            onOpenSessionContextMenu={(session, position) =>
-              onOpenSessionContextMenu(projectId, session, position)}
-            onSelectSession={(sessionId) => onSelectSession(projectId, sessionId)}
-            renameError={renameError}
-            renamingSessionBusy={renamingSessionBusy}
-            renamingSessionId={renamingSessionId}
-            tree={sessionTree}
-          />
-        ) : (
-          <div className="project-category-overview__empty-session">
-            {t("projectOverview.card.emptySessions")}
-          </div>
-        )}
-      </div>
+      <EdgeScrollArea className="project-category-overview__sessions" aria-label={t("projectOverview.card.sessionsAria")}>
+        <div className="project-category-overview__session-rows">
+          {displaySessions.length > 0 ? (
+            <ProjectOverviewSessionTreeList
+              projectId={projectId}
+              activeSessionId={visibleSessionId}
+              onCancelSessionRename={onCancelSessionRename}
+              onCommitSessionRename={onCommitSessionRename}
+              onOpenSessionContextMenu={(session, position) =>
+                onOpenSessionContextMenu(projectId, session, position)}
+              onSelectSession={(sessionId) => onSelectSession(projectId, sessionId)}
+              renameError={renameError}
+              renamingSessionBusy={renamingSessionBusy}
+              renamingSessionId={renamingSessionId}
+              tree={sessionTree}
+            />
+          ) : (
+            <div className="project-category-overview__empty-session">
+              {t("projectOverview.card.emptySessions")}
+            </div>
+          )}
+        </div>
+      </EdgeScrollArea>
 
       <footer className="project-category-overview__card-footer">
         <span className="project-category-overview__card-created">
@@ -434,7 +437,7 @@ function ProjectUsagePopover({
         </button>
       </div>
       <div className="project-category-overview__usage-layout">
-        <div className="project-category-overview__usage-scope-list" role="listbox">
+        <EdgeScrollArea className="project-category-overview__usage-scope-list" role="listbox">
           <button
             className="project-category-overview__usage-scope-option"
             type="button"
@@ -476,7 +479,7 @@ function ProjectUsagePopover({
               </span>
             </button>
           ))}
-        </div>
+        </EdgeScrollArea>
         <ProjectUsageMetricGrid usage={selectedUsage} />
       </div>
     </div>

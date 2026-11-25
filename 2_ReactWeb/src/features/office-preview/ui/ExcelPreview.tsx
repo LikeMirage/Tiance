@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { EdgeScrollbar } from "@/shared/ui/edge-scrollbar";
+import { createPortal } from "react-dom";
+import { useEffect, useId, useRef, useState, type MouseEvent } from "react";
 import type { JsExcelPreview, Options as JsExcelPreviewOptions } from "@js-preview/excel";
 import "@js-preview/excel/lib/index.css";
 
@@ -79,6 +81,8 @@ export function ExcelPreview({
   zoom,
 }: ExcelPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const verticalScrollRef = useRef<HTMLDivElement>(null);
+  const verticalScrollId = useId();
   const onMissingRef = useRef(onMissing);
   const shellRef = useRef<HTMLDivElement>(null);
   const previewerRef = useRef<JsExcelPreview | null>(null);
@@ -278,6 +282,12 @@ export function ExcelPreview({
           await previewer.preview(cleanupResult.buffer);
         }
         if (isCancelled) return;
+        const verticalRail = container.querySelector<HTMLDivElement>(".x-spreadsheet-scrollbar.vertical");
+        if (verticalRail) {
+          verticalRail.id = verticalScrollId;
+          verticalRail.classList.add("edge-scroll-viewport");
+        }
+        verticalScrollRef.current = verticalRail;
         setState("ready");
       } catch (err) {
         if (isCancelled || controller.signal.aborted) return;
@@ -296,6 +306,7 @@ export function ExcelPreview({
 
     return () => {
       isCancelled = true;
+      verticalScrollRef.current = null;
       controller.abort();
       safeDestroyExcelPreviewer(previewer);
       if (previewerRef.current === previewer) {
@@ -448,6 +459,10 @@ export function ExcelPreview({
       ) : null}
       <div className={excelShellClassName} ref={shellRef} onContextMenu={handleContextMenu}>
         <div className="office-preview__excel-host" ref={containerRef} />
+        {state === "ready" && !isLoadingVisible && verticalScrollRef.current?.parentElement && createPortal(
+          <EdgeScrollbar scrollRef={verticalScrollRef} scrollId={verticalScrollId} label={fileName} />,
+          verticalScrollRef.current.parentElement,
+        )}
       </div>
       {selectionReferenceMenu ? (
         <ContextMenu

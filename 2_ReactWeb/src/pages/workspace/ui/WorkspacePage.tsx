@@ -885,22 +885,7 @@ export function WorkspacePage({
     () => collectToolEntryFilePaths(toolBrowser.treeData),
     [toolBrowser.treeData],
   );
-  const handleCreateOverviewProject = useCallback(async () => {
-    await projectCatalog.createProject();
-  }, [projectCatalog.createProject]);
-  const handleCreateKnowledgeProject = useCallback(async () => {
-    await projectCatalog.createKnowledgeProject();
-  }, [projectCatalog.createKnowledgeProject]);
-  const handleCreateExperienceProject = useCallback(async () => {
-    await projectCatalog.createExperienceProject();
-  }, [projectCatalog.createExperienceProject]);
-  const handleCreateRoleProject = useCallback(async () => {
-    await projectCatalog.createRoleProject();
-  }, [projectCatalog.createRoleProject]);
 
-  const handleImportOverviewProjectFolder = useCallback(async (rootPath: string) => {
-    await projectCatalog.createProjectFromFolder(rootPath);
-  }, [projectCatalog.createProjectFromFolder]);
   const handleSectionSelect = useCallback((
     sectionId: HoverSidebarSectionId,
     direction: HoverSidebarTransitionDirection,
@@ -1103,13 +1088,8 @@ export function WorkspacePage({
           }
           onRenameProvider={providerCatalog.renameProvider}
           onExpandProject={handleExpandProject}
-          onCreateProject={handleCreateOverviewProject}
-          onCreateKnowledgeProject={handleCreateKnowledgeProject}
-          onCreateExperienceProject={handleCreateExperienceProject}
-          onCreateRoleProject={handleCreateRoleProject}
           onCollapseProject={handleCollapseProject}
           onConfirmProjectSession={projectCatalog.confirmSessionSelection}
-          onImportProjectFolder={handleImportOverviewProjectFolder}
           onApplyTheme={themeControl.onSelectTheme}
           onLayoutPreferenceChange={handleLayoutPreferenceChange}
           onPrepareProject={handlePrepareProject}

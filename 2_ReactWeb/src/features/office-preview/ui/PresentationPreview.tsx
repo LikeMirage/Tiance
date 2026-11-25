@@ -1,3 +1,4 @@
+import { EdgeScrollArea } from "@/shared/ui/edge-scrollbar";
 import {
   useCallback,
   useEffect,
@@ -99,7 +100,7 @@ export function PresentationPreview({
   const [state, setState] = useState<LoadState>(() => (src ? "loading" : "idle"));
   const [visibleThumbnailIndexes, setVisibleThumbnailIndexes] = useState<Set<number>>(() => new Set());
   const isLoadingVisible = state === "loading";
-  useDocumentReadingScroll("ppt", scrollRef, state === "ready" && !isLoadingVisible, src);
+  const stopReadingRestore = useDocumentReadingScroll("ppt", scrollRef, state === "ready" && !isLoadingVisible, src);
 
   useEffect(() => {
     onMissingRef.current = onMissing;
@@ -539,11 +540,12 @@ export function PresentationPreview({
         >
           <CaretLeft size={22} weight="bold" />
         </button>
-        <div
+        <EdgeScrollArea
           className={isDragging
             ? "office-preview__scroll office-preview__scroll--presentation office-preview__scroll--dragging"
             : "office-preview__scroll office-preview__scroll--presentation"}
-          ref={scrollRef}
+          viewportRef={scrollRef}
+          onUserScroll={stopReadingRestore}
           onPointerCancel={stopDrag}
           onPointerDown={startDrag}
           onPointerLeave={stopDrag}
@@ -555,7 +557,7 @@ export function PresentationPreview({
           <div className="office-preview__presentation-stage">
             <canvas className="office-preview__presentation-canvas" ref={canvasRef} />
           </div>
-        </div>
+        </EdgeScrollArea>
         <button
           className="office-preview__presentation-nav office-preview__presentation-nav--next"
           disabled={!slideCount || currentSlide >= slideCount - 1}

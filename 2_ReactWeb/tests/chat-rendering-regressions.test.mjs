@@ -29,6 +29,16 @@ const renderAssistant = (assistant, isSessionStreaming = false) => renderToStati
   })),
 );
 
+test("回复速度按多轮输出总量和流式时长加权，缺少历史计时则省略", () => {
+  const first = message("step", "assistant", { usage: { completion_tokens: 80, output_duration_seconds: 2 } });
+  const last = message("answer", "assistant", { content: "完成", usage: { completion_tokens: 20, output_duration_seconds: 8 } });
+  const merged = buildChatDisplayMessages([first, last])[0];
+  assert.match(renderAssistant(merged), /输出速度 10\.0 t\/s/);
+  assert.doesNotMatch(renderAssistant(merged), /Tokens 100/);
+  const legacy = { ...first, usage: { completion_tokens: 80 } };
+  assert.doesNotMatch(renderAssistant(buildChatDisplayMessages([legacy, last])[0]), / t\/s/);
+});
+
 test("工具轮次异常结束或暂停，没有最终正文也保留导出入口，不复制过程说明", () => {
   const tool = { id: "action-tool", callId: "action-call", name: "read_file", arguments: "{}",
     result: "已读取", error: "", ok: true, status: "done", startedAt: 1000, finishedAt: 1500 };

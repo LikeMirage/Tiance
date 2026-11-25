@@ -5,7 +5,7 @@
   width: 100%;
   min-width: 0;
   min-height: 0;
-  padding: 12px 4px 10px 10px;
+  padding: 12px var(--catalog-list-edge-gap) 10px 10px;
   overflow: hidden;
   background: var(--color-surface-sidebar);
 }
@@ -173,8 +173,11 @@
   min-height: 0;
   height: 100%;
   margin-top: 10px;
-  margin-right: -4px;
-  padding-right: 4px;
+  margin-right: calc(-1 * var(--catalog-list-edge-gap));
+}
+
+.workspace-projects-panel__body-shell[data-view="list"] {
+  padding-right: var(--catalog-list-edge-gap);
 }
 
 .workspace-projects-panel__body {

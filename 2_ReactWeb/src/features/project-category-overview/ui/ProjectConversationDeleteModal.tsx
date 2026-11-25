@@ -1,3 +1,4 @@
+import { EdgeScrollArea } from "@/shared/ui/edge-scrollbar";
 import {
   useEffect,
   useMemo,
@@ -96,19 +97,21 @@ export function ProjectConversationDeleteModal({
 
       {!loading && tree.length > 0 ? (
         <>
-          <div className="project-conversation-delete-modal__tree">
-            {tree.map((node) => (
-              <DeleteTreeItem
-                key={node.sessionId}
-                busy={busy}
-                defaultExpanded={node.sessionId === sessionId}
-                locked={node.sessionId === sessionId}
-                node={node}
-                selectedSessionIds={selectedSessionIds}
-                setSelectedSessionIds={setSelectedSessionIds}
-              />
-            ))}
-          </div>
+          <EdgeScrollArea frameClassName="project-conversation-delete-modal__tree-frame" className="project-conversation-delete-modal__tree">
+            <div>
+              {tree.map((node) => (
+                <DeleteTreeItem
+                  key={node.sessionId}
+                  busy={busy}
+                  defaultExpanded={node.sessionId === sessionId}
+                  locked={node.sessionId === sessionId}
+                  node={node}
+                  selectedSessionIds={selectedSessionIds}
+                  setSelectedSessionIds={setSelectedSessionIds}
+                />
+              ))}
+            </div>
+          </EdgeScrollArea>
           <p className="project-conversation-delete-modal__summary">
             {t("projectOverview.deleteSessionSelectionSummary", {
               count: selectedSessionIds.size,

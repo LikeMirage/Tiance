@@ -268,10 +268,3 @@
   .ai-panel__speech-processing-copy { gap: 2px; }
   .ai-panel__speech-processing-description { display: none; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .ai-panel__speech-halo, .ai-panel__speech-ripple, .ai-panel__speech-stop::before,
-  .ai-panel__speech-processing-glow, .ai-panel__speech-processing-ring::after,
-  .ai-panel__speech-processing-wave > i { animation: none; }
-  .ai-panel__speech-ripple { transform: scale(1.3); opacity: .25; }
-  .ai-panel__speech-ripple--delayed { display: none; }
-}

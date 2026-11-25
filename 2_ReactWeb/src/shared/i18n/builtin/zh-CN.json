@@ -17,6 +17,7 @@
       }
     },
     "common": {
+      "scrollbar": "滚动条",
       "frontendRecovery": {
         "title": "界面遇到异常",
         "description": "可以重新加载界面以恢复显示。此操作不会停止后台正在执行的任务。",
@@ -1953,6 +1954,7 @@
           "globalMemoryManagement": "全局记忆管理模型",
           "mainChat": "主会话",
           "memoryCompression": "记忆压缩模型",
+          "toolModelRequest": "工具模型请求",
           "providerWebSearch": "内置网络搜索"
         }
       }

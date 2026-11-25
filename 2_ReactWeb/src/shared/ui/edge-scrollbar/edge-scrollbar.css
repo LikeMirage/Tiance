@@ -1,3 +1,31 @@
+.edge-scroll-frame {
+  position: relative;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  flex: 1 1 0%;
+  min-width: 0;
+  min-height: 0;
+}
+
+:where(.edge-scroll-frame > .edge-scroll-viewport) { overflow: auto; }
+
+/* Keep a native horizontal bar for wide documents; only replace the vertical one. */
+.edge-scroll-viewport {
+  min-width: 0;
+  min-height: 0;
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+}
+
+.edge-scroll-viewport::-webkit-scrollbar { width: 0; height: var(--scrollbar-size, 8px); }
+.edge-scroll-viewport::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+.edge-scroll-viewport::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+.edge-scroll-viewport::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+.edge-scroll-viewport::-webkit-scrollbar-corner { background: transparent; }
+
+.edge-scroll-frame > .edge-scrollbar::before,
+.edge-scroll-viewport + .edge-scrollbar:not(.edge-scrollbar--scrollable)::before { content: none; }
+
 .edge-scrollbar {
   position: absolute;
   top: 0;

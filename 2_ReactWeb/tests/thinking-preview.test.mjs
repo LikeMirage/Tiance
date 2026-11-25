@@ -146,3 +146,26 @@ test("逐行增高的正文与思考框在不同刷新率和像素精度下均�
     }
   }
 });
+
+test("系统关闭动画时聊天仍逐帧跟随，手动暂停能取消后续帧", () => {
+  const env = environment(true);
+  const node = { scrollTop: 0, scrollHeight: 1000, clientHeight: 100 };
+  let following = true;
+  const follower = createChatBottomFollower({
+    getScrollElement: () => node, canFollow: () => following,
+  });
+  follower.request();
+  env.tick();
+  assert.ok(node.scrollTop > 0 && node.scrollTop < 900);
+  assert.equal(follower.isActive(), true);
+  const pausedTop = node.scrollTop;
+  following = false;
+  env.tick();
+  assert.equal(node.scrollTop, pausedTop);
+  assert.equal(env.frames.size, 0);
+  following = true;
+  follower.request();
+  for (let i = 0; i < 60; i++) env.tick();
+  assert.equal(node.scrollTop, 900);
+  assert.equal(env.frames.size, 0);
+});

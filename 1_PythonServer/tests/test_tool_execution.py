@@ -164,8 +164,8 @@ print(json.dumps({
 
 
 @pytest.mark.parametrize("tool_name,capability", [
-    ("network_search", HostCapability.WEB_SEARCH),
-    ("deepseek_official_web_search", HostCapability.DEEPSEEK_WEB),
+    ("network_search", HostCapability.SESSION_MODEL),
+    ("deepseek_official_web_search", HostCapability.PROVIDER_AUTH),
 ])
 def test_network_search_receives_process_scoped_capability_grant(tmp_path, tool_name, capability):
     tool_root = _create_tool_root(tmp_path, tool_name=tool_name, host_capabilities=[capability.value])
@@ -232,7 +232,7 @@ def test_formal_deepseek_tool_runs_through_standard_python_runtime(tmp_path):
 
 
 def test_network_search_capability_grant_follows_model_switch(tmp_path):
-    tool_root = _create_tool_root(tmp_path, tool_name="network_search", host_capabilities=["web_search"])
+    tool_root = _create_tool_root(tmp_path, tool_name="network_search", host_capabilities=["session_model"])
     access = HostCapabilityAccessService()
     observed_contexts: list[tuple[str, str]] = []
     issued_tokens: list[str] = []
@@ -241,7 +241,7 @@ def test_network_search_capability_grant_follows_model_switch(tmp_path):
         token = env.get("TIANCE_HOST_CAPABILITY_TOKEN")
         assert token
         issued_tokens.append(token)
-        grant = access.authorize(token, HostCapability.WEB_SEARCH)
+        grant = access.authorize(token, HostCapability.SESSION_MODEL)
         assert grant is not None
         observed_contexts.append((grant.provider_id, grant.model_id))
         return subprocess.CompletedProcess(
@@ -282,7 +282,7 @@ def test_network_search_capability_grant_follows_model_switch(tmp_path):
         ("volcengine", "doubao-seed-2-0-pro"),
     ]
     assert all(
-        access.authorize(token, HostCapability.WEB_SEARCH) is None
+        access.authorize(token, HostCapability.SESSION_MODEL) is None
         for token in issued_tokens
     )
 

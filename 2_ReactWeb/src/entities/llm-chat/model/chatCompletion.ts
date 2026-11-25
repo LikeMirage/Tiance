@@ -85,6 +85,7 @@ export type ChatUsage = {
   prompt_cache_miss_tokens?: number | null;
   reasoning_tokens?: number | null;
   estimated_fields?: string[];
+  output_duration_seconds?: number | null;
 };
 
 export type ChatToolCallEvent = {

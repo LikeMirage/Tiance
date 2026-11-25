@@ -13,7 +13,7 @@
   min-height: 24px;
   padding: 0 14px;
   border-bottom: 1px solid var(--color-border-separator);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-size: 0.74rem;
   font-weight: 700;
 }
@@ -53,7 +53,7 @@
 }
 
 .chat-msg__user-reference-open:hover .chat-msg__user-reference-main strong {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .chat-msg__user-reference-open:focus-visible {
@@ -71,7 +71,7 @@
 
 .chat-msg__user-reference-index {
   flex: 0 0 auto;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-size: 0.73rem;
   font-weight: 700;
   white-space: nowrap;
@@ -83,7 +83,7 @@
   flex: 0 0 auto;
   width: 18px;
   height: 18px;
-  color: rgba(var(--color-accent-rgb), 0.88);
+  color: var(--color-accent-text);
 }
 
 .chat-msg__user-reference-body {
@@ -116,7 +116,7 @@
 
 .chat-msg__user-reference-main span {
   flex: 0 0 auto;
-  color: rgba(var(--color-accent-rgb), 0.88);
+  color: var(--color-accent-text);
   font-size: 0.72rem;
   white-space: nowrap;
 }
@@ -174,5 +174,5 @@
   font-size: 0.7rem;
   cursor: pointer;
 }
-.chat-msg__user-reference-expand:hover { color: var(--color-accent); }
+.chat-msg__user-reference-expand:hover { color: var(--color-accent-text); }
 .chat-msg__user-reference-expand:focus-visible { outline: 1px solid var(--color-accent); outline-offset: 1px; }

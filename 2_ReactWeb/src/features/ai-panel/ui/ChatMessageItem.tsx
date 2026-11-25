@@ -55,6 +55,7 @@ import type { ChatMessageItemInteractions } from "./chatMessageItemTypes";
 export type { ChatMessageItemInteractions } from "./chatMessageItemTypes";
 
 type ChatMessageItemProps = {
+  footerMessage?: ChatMessage | null;
   autoCollapseAssistantProcess: boolean;
   clockTick: number;
   expandedUserMessageIds: Set<string>;
@@ -74,6 +75,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   interactions,
   isSessionStreaming,
   message,
+  footerMessage = message.role === "assistant" ? message : null,
   modelSwitchModelId,
   foldTurnId,
   foldThinkingOffset,
@@ -100,9 +102,26 @@ export const ChatMessageItem = memo(function ChatMessageItem({
     message,
     clockTick,
   );
-  const hasAssistantBody = message.role === "assistant" && Boolean(resolveAssistantBodyContent(message).trim());
+  const hasAssistantBody = footerMessage && Boolean(resolveAssistantBodyContent(footerMessage).trim());
   const isMemoryCompactionStatus =
     message.role === "system" && message.name === "memory_compaction";
+  const isNotice = isMemoryCompactionStatus || message.role === "error";
+  const footer = (message.role === "assistant" || footerMessage) && (
+    <SlidingContent expanded={Boolean(footerMessage) && !isStreamingMessage}
+      className={isNotice ? "chat-msg chat-msg__footer" : "chat-msg__footer"}>
+      {footerMessage && (
+        <div className={hasAssistantBody ? "chat-msg__footer-content" : undefined}>
+          <AssistantActions interactions={interactions} message={footerMessage} />
+          {hasAssistantBody || footerMessage.usage ? (
+            <div className="chat-msg__usage" aria-hidden={!footerMessage.usage || undefined}
+              style={{ visibility: !footerMessage.usage ? "hidden" : undefined }}>
+              {footerMessage.usage ? formatChatUsage(footerMessage.usage) : "\u00a0"}
+            </div>
+          ) : null}
+        </div>
+      )}
+    </SlidingContent>
+  );
 
   return (
     <ChatProcessFoldScope turnId={foldTurnId} messageKey={message.displayKey ?? message.id} thinkingOffset={foldThinkingOffset}>
@@ -149,24 +168,12 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             message={message}
             referencedUserMessage={referencedUserMessage}
           />
-          <SlidingContent expanded={!isStreamingMessage} className="chat-msg__footer">
-          <div className={hasAssistantBody ? "chat-msg__footer-content" : undefined}>
-          <AssistantActions
-            interactions={interactions}
-            message={message}
-          />
-          {hasAssistantBody || message.usage ? (
-            <div className="chat-msg__usage" aria-hidden={!message.usage || undefined}
-              style={{ visibility: !message.usage ? "hidden" : undefined }}>
-              {message.usage ? formatChatUsage(message.usage) : "\u00a0"}
-            </div>
-          ) : null}
-          </div>
-          </SlidingContent>
           {message.finishReason === "output_limit" ? <div className="chat-msg__usage">输出已截断</div> : null}
           {message.retryStatus ? <RetryNotice message={message} /> : null}
+          {footer}
         </div>
       )}
+      {isNotice && footer}
     </ChatProcessFoldScope>
   );
 }, areChatMessageItemPropsEqual);
@@ -222,6 +229,7 @@ function areChatMessageItemPropsEqual(
 
   return (
     previous.message === next.message &&
+    previous.footerMessage === next.footerMessage &&
     previous.foldTurnId === next.foldTurnId &&
     previous.foldThinkingOffset === next.foldThinkingOffset &&
     previous.interactions === next.interactions &&
@@ -657,7 +665,6 @@ function CopyMessageButton({ label, text }: { label: string; text: string }) {
 
 function formatChatUsage(usage: ChatUsage) {
   const parts = [
-    `Tokens ${formatTokenCount(usage.total_tokens)}`,
     `输入 ${formatTokenCount(usage.prompt_tokens)}`,
     `输出 ${formatTokenCount(usage.completion_tokens)}`,
   ];
@@ -672,6 +679,12 @@ function formatChatUsage(usage: ChatUsage) {
     usage.prompt_cache_miss_tokens !== undefined
   ) {
     parts.push(`未命中 ${formatTokenCount(usage.prompt_cache_miss_tokens)}`);
+  }
+  const seconds = usage.output_duration_seconds;
+  const tokens = usage.completion_tokens;
+  if (seconds != null && seconds > 0 && tokens != null && tokens > 0) {
+    const approximate = usage.estimated_fields?.includes("completion_tokens") ? "≈" : "";
+    parts.push(`输出速度 ${approximate}${(tokens / seconds).toFixed(1)} t/s`);
   }
   return parts.join(" · ");
 }

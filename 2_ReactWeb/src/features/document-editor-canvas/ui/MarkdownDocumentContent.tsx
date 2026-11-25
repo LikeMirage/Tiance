@@ -1,3 +1,4 @@
+import { EdgeScrollArea } from "@/shared/ui/edge-scrollbar";
 import { lazy, useEffect, useRef, useState } from "react";
 import type { Dispatch, MouseEvent, SetStateAction } from "react";
 
@@ -72,7 +73,7 @@ export function MarkdownDocumentContent({
   }>({ message: "", state: "idle" });
   const docxStatusTimerRef = useRef<number | null>(null);
   const previewScrollRef = useRef<HTMLDivElement>(null);
-  useDocumentReadingScroll("markdown-preview", previewScrollRef,
+  const stopReadingRestore = useDocumentReadingScroll("markdown-preview", previewScrollRef,
     renderMode === "preview", activeTab.content);
   const updateCurrentContent = (content: string) => onUpdateContent(activeTab.id, content);
   const markCurrentDirty = () => onMarkDirty(activeTab.id);
@@ -123,9 +124,11 @@ export function MarkdownDocumentContent({
   return (
     <>
       {renderMode === "preview" ? (
-        <div
-          ref={previewScrollRef}
-          className="doc-editor__preview doc-editor__preview--markdown-full"
+        <EdgeScrollArea
+          viewportRef={previewScrollRef}
+          frameClassName="doc-editor__preview--markdown-full"
+          className="doc-editor__preview"
+          onUserScroll={stopReadingRestore}
           onContextMenu={(event) => onRenderedTextContextMenu(event, "markdown_preview")}
         >
           <div className="document-mark-preview-body">
@@ -137,7 +140,7 @@ export function MarkdownDocumentContent({
             />
           </div>
           <PreviewMarkLayer scroller={previewScrollRef} />
-        </div>
+        </EdgeScrollArea>
       ) : renderMode === "visual" && !visualBudgetExceeded ? (
         <div
           className="doc-editor__markdown-visual"

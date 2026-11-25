@@ -13,7 +13,7 @@ import type { ChatMessage } from "../model/chatMessage";
 import type { ConversationRuntimeStatus } from "../../../entities/llm-chat/model/conversation";
 import { useI18n } from "../../../shared/i18n";
 import { ContentReadinessContext } from "../../../shared/lib/contentReadiness";
-import { createChatDisplayProjector } from "../model/chatDisplayMessages";
+import { buildChatTurnFooters, createChatDisplayProjector } from "../model/chatDisplayMessages";
 import { captureHistoryScrollAnchor } from "../model/chatHistoryScrollAnchor";
 import { buildModelSwitches } from "../model/chatModelTransitions";
 import { buildChatProcessFoldIdentities } from "../model/chatProcessFoldState";
@@ -81,6 +81,8 @@ export function ChatMessageList({
     () => projectDisplayMessages(messages, { runtimeStatus: effectiveRuntimeStatus }),
     [messages, effectiveRuntimeStatus, projectDisplayMessages],
   );
+  const turnFooters = useMemo(() => buildChatTurnFooters(displayMessages, effectiveRuntimeStatus),
+    [displayMessages, effectiveRuntimeStatus]);
   const historicalMessages = useStableHistoricalMessages(displayMessages);
   const modelSwitches = useStableModelSwitches(displayMessages);
   const foldIdentities = useMemo(() => buildChatProcessFoldIdentities(displayMessages), [displayMessages]);
@@ -233,6 +235,7 @@ export function ChatMessageList({
           clockTick={item.message.id === activeAssistantId ? clockTick : 0}
           expandedUserMessageIds={expandedUserMessageIds}
           interactions={interactions}
+          footerMessage={turnFooters.get(item.message.id) ?? null}
           isLastMessage={isLastMessage}
           isVirtualized={shouldVirtualize}
           isSessionStreaming={item.message.id === activeAssistantId}
@@ -248,6 +251,7 @@ export function ChatMessageList({
 }
 
 type VirtualMessageRowProps = {
+  footerMessage: ChatMessage | null;
   isVirtualized: boolean;
   isLastMessage: boolean;
   isSessionStreaming: boolean;
@@ -263,6 +267,7 @@ type VirtualMessageRowProps = {
 };
 
 function VirtualMessageRow({
+  footerMessage,
   isVirtualized,
   isLastMessage,
   isSessionStreaming,
@@ -323,6 +328,7 @@ function VirtualMessageRow({
         isLastMessage={isLastMessage}
         isSessionStreaming={isSessionStreaming}
         message={item.message}
+        footerMessage={footerMessage}
         foldTurnId={foldTurnId}
         foldThinkingOffset={foldThinkingOffset}
         modelSwitchModelId={modelSwitchModelId}

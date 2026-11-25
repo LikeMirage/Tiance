@@ -207,6 +207,7 @@ class ChatUsage:
     prompt_cache_miss_tokens: int | None = None
     reasoning_tokens: int | None = None
     estimated_fields: tuple[str, ...] = ()
+    output_duration_seconds: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -261,3 +262,4 @@ class ChatStreamEvent:
     recovery_action: OutputLimitAction | None = None
     will_recover: bool = False
     has_tool_calls: bool = False
+    output_duration_seconds: float | None = None

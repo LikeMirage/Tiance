@@ -22,7 +22,7 @@ def test_grant_is_bound_to_current_tool_and_model_context():
     access = HostCapabilityAccessService()
     grant = access.issue_grant(
         tool_name="network_search",
-        capabilities=(HostCapability.WEB_SEARCH,),
+        capabilities=(HostCapability.SESSION_MODEL,),
         tool_call_id="call-1",
         provider_id="provider-1",
         model_id="model-1",
@@ -32,7 +32,7 @@ def test_grant_is_bound_to_current_tool_and_model_context():
     )
 
     assert grant is not None
-    authorized = access.authorize(grant.token, HostCapability.WEB_SEARCH)
+    authorized = access.authorize(grant.token, HostCapability.SESSION_MODEL)
     assert authorized == grant
     assert authorized.provider_id == "provider-1"
     assert authorized.model_id == "model-1"
@@ -40,7 +40,7 @@ def test_grant_is_bound_to_current_tool_and_model_context():
     assert authorized.session_id == "session-1"
 
     access.revoke(grant.token)
-    assert access.authorize(grant.token, HostCapability.WEB_SEARCH) is None
+    assert access.authorize(grant.token, HostCapability.SESSION_MODEL) is None
 
 
 def test_grant_is_not_issued_without_complete_model_context():
@@ -48,7 +48,7 @@ def test_grant_is_not_issued_without_complete_model_context():
 
     assert access.issue_grant(
         tool_name="network_search",
-        capabilities=(HostCapability.WEB_SEARCH,),
+        capabilities=(HostCapability.SESSION_MODEL,),
         tool_call_id="call-1",
         provider_id="provider-1",
         model_id=None,

@@ -97,10 +97,6 @@ body[data-titlebar-visible="true"] .titlebar { display: flex; }
   animation: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .wordmark { animation: none; }
-}
-
 .startup-feedback {
   position: absolute;
   bottom: max(24px, 5vh);

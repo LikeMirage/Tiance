@@ -342,7 +342,7 @@ function WorkspaceProjectsBody({
   const scrollId = useId();
   const scrollRef = useRef<HTMLDivElement>(null);
   return (
-    <div className="workspace-projects-panel__body-shell">
+    <div className="workspace-projects-panel__body-shell" data-view={controller.activeView}>
       <div
         id={scrollId}
         ref={scrollRef}

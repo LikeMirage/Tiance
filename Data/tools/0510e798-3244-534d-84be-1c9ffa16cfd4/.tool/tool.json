@@ -23,8 +23,31 @@
     "timeout_seconds": 180,
     "type": "python",
     "host_capabilities": [
-      "web_search"
-    ]
+      "session_model"
+    ],
+    "session_model_endpoints": {
+      "deepseek": {
+        "protocol": "openai_responses",
+        "url": "https://api.deepseek.com/v1/responses",
+        "search": { "model_tools": {
+          "deepseek-flash": "deepseek_web_search",
+          "deepseek-v4-flash": "deepseek_web_search",
+          "deepseek-v4-flash-vision-exp": "deepseek_web_search"
+        } }
+      },
+      "openai": {
+        "protocol": "openai_responses", "url": "https://api.openai.com/v1/responses",
+        "search": { "include_sources": true }
+      },
+      "volcengine_beijing": { "protocol": "openai_responses", "url": "https://ark.cn-beijing.volces.com/api/v3/responses" },
+      "anthropic": { "protocol": "anthropic_messages", "url": "https://api.anthropic.com/v1/messages" },
+      "gemini": { "protocol": "gemini_generate_content", "url": "https://generativelanguage.googleapis.com/v1beta/models/{model}:{action}" },
+      "responses_from_chat": { "protocol": "openai_responses", "url": "../responses" },
+      "generic_responses": { "protocol": "openai_responses", "url": "responses" },
+      "generic_messages": { "protocol": "anthropic_messages", "url": "messages" },
+      "generic_gemini": { "protocol": "gemini_generate_content", "url": "./{model}:{action}" }
+    },
+    "model_usage_feature": "provider_web_search"
   },
   "state": {
     "enabled": true

@@ -92,12 +92,37 @@ export function buildChatDisplayMessages(
   const groupedMessages = groupToolMessagesWithAssistant(visibleMessages);
   const displayMessages = coalesceAssistantTurnProcesses(groupedMessages);
   const finalized = finalizeTerminalConversationTurns(displayMessages, options.runtimeStatus);
-  if (options.runtimeStatus !== "running") return finalized;
+  if (options.runtimeStatus !== "running" && options.runtimeStatus !== null) return finalized;
   const lastUser = finalized.reduce((last, message, index) => message.role === "user" ? index : last, -1);
   const activeIndex = finalized.reduce((last, message, index) => message.role === "assistant" && message.finishReason !== "output_limit" ? index : last, -1);
-  if (activeIndex <= lastUser || finalized[activeIndex].status === "running"
-    || finalized[activeIndex].status === "cancelled" || finalized[activeIndex].status === "error") return finalized;
+  if (activeIndex <= lastUser) return finalized;
+  if (options.runtimeStatus === null) {
+    return finalized.map((message, index) => index === activeIndex ? { ...message, awaitingRuntimeStatus: true } : message);
+  }
+  if (finalized[activeIndex].status === "running" || finalized[activeIndex].status === "cancelled"
+    || finalized[activeIndex].status === "error") return finalized;
   return finalized.map((message, index) => index === activeIndex ? { ...message, status: "running" } : message);
+}
+
+/** Index by the last visible row of each user turn, including standalone retry notices.
+ * The footer still refers to the assistant reply for usage, copy and export. */
+export function buildChatTurnFooters(messages: ChatMessage[], runtimeStatus: ConversationRuntimeStatus | null) {
+  const footers = new Map<string, ChatMessage>();
+  let replies: ChatMessage[] = [];
+  for (let index = 0; index < messages.length; index++) {
+    const row = messages[index];
+    if (row.role === "assistant") replies.push(row);
+    const next = messages[index + 1];
+    if (next && next.role !== "user") continue;
+
+    const reply = replies.at(-1);
+    const waiting = !next && (runtimeStatus === "running" || runtimeStatus === null);
+    if (reply && !waiting) {
+      footers.set(row.id, replies.length === 1 ? reply : { ...reply, usage: mergeAssistantTurnUsage(replies) });
+    }
+    replies = [];
+  }
+  return footers;
 }
 
 export function resolveAssistantBodyContent(message: ChatMessage) {
@@ -295,6 +320,10 @@ function mergeAssistantTurnUsage(messages: ChatMessage[]): ChatUsage | null {
   if (usages.length === 1) return usages[0];
 
   const merged: ChatUsage = {};
+  const durations = usages.map((usage) => usage.output_duration_seconds);
+  if (durations.every((seconds): seconds is number => typeof seconds === "number" && seconds > 0)) {
+    merged.output_duration_seconds = durations.reduce((sum, seconds) => sum + seconds, 0);
+  }
   for (const field of CHAT_USAGE_FIELDS) {
     const values = usages
       .map((usage) => usage[field])

@@ -278,7 +278,7 @@ function ProcessedProcessBlock({
               <CaretRight size={14} weight="bold" />
             )}
           </span>
-          <span>{isStreamingMessage ? "处理中" : "已处理"}</span>
+          <span>{message.awaitingRuntimeStatus ? "处理过程" : isStreamingMessage ? "处理中" : "已处理"}</span>
         </span>
         {totalElapsedSeconds !== null ? (
           <span className="chat-msg__processed-timer">

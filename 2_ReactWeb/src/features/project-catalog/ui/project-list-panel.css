@@ -32,7 +32,6 @@
 
 .project-list-panel__item--selected {
   background: var(--color-selection-accent-bg-subtle);
-  box-shadow: inset 0 0 0 1px var(--color-selection-accent-border);
 }
 
 .project-list-panel__item--active,

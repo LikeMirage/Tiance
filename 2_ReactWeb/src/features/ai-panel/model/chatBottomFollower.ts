@@ -54,7 +54,7 @@ export function createChatBottomFollower({
       velocity = 0;
     }
     const distance = targetScrollTop - position;
-    if (distance <= SETTLED_DISTANCE_PX || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (distance <= SETTLED_DISTANCE_PX) {
       scrollElement.scrollTop = targetScrollTop;
       previousFrameTime = null;
       return;

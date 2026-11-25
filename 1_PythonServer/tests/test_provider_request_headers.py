@@ -14,7 +14,8 @@ from app.domain.llm.provider_catalog import (
 )
 from app.domain.llm.provider_runtime import ProviderRuntimeConfig
 from app.infra.llm import chat_remote_client, provider_remote_client, request_headers
-from app.infra.llm.provider_capabilities import remote_client as capability_remote_client
+from app.services.llm import tool_provider_requests
+from app.services.tools.host_capability_access import HostCapabilityAccessService
 from app.infra.llm.provider_profiles import registry
 from app.repositories.llm.provider_adaptation_rules_repository import ProviderAdaptationRulesRepository
 from app.repositories.llm.provider_file_store import ProviderFileStore, ProviderFileStoreError
@@ -304,16 +305,20 @@ def test_builtin_search_inherits_caller_session(rules_store, monkeypatch):
     def respond(request):
         sent.append(request)
         payload = _complete_payload(ProviderProtocolFamily.OPENAI_RESPONSES)
-        payload["output"].insert(0, {"type": "web_search_call", "action": {"type": "search", "query": "test", "sources": []}})
+        payload.pop("usage", None)
         return httpx.Response(200, json=payload)
 
     async def execute():
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
-            monkeypatch.setattr(capability_remote_client, "get_shared_http_client", lambda: client)
-            remote = capability_remote_client.ProviderCapabilityRemoteClient()
-            await remote.web_search(provider_template=_provider(ProviderProtocolFamily.OPENAI_RESPONSES),
-                                    runtime_config=_runtime(), api_key="key", model_id="model-a",
-                                    query="test", session_id="caller-session")
+            provider = _provider(ProviderProtocolFamily.OPENAI_RESPONSES)
+            monkeypatch.setattr(tool_provider_requests, "get_shared_http_client", lambda: client)
+            monkeypatch.setattr(tool_provider_requests, "_provider", lambda _: (provider, _runtime()))
+            monkeypatch.setattr(tool_provider_requests, "_key", lambda *a, **kw: "key")
+            grant = HostCapabilityAccessService().issue_grant(
+                capabilities=("session_model",), tool_name="demo", tool_call_id="call", session_id="caller-session",
+                project_id=None, model_id="model-a", provider_id=provider.provider_id, lifetime_seconds=30)
+            await tool_provider_requests.post_to_model(grant, provider.protocol_family, {"model": "model-a"})
+
 
     asyncio.run(execute())
     assert sent[0].headers["X-Test-Session"] == "caller-session"

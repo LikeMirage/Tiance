@@ -183,8 +183,7 @@
   pointer-events: none;
 }
 
-/* Draw the rail below messages so their border can replace the same pixel.
-   The scrollbar thumb remains above messages and keeps its drag hit area. */
+/* Paint the panel divider behind the messages and the draggable thumb above them. */
 .ai-panel__body-frame:has(.ai-panel__messages) {
   box-shadow: inset -1px 0 var(--color-border-soft);
 }

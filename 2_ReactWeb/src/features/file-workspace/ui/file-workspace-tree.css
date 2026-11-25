@@ -47,31 +47,10 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-color: var(--scrollbar-thumb) transparent;
-  scrollbar-width: thin;
   user-select: none;
 }
 
-.fwt-tree::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
-}
-
-.fwt-tree::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.fwt-tree::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background: var(--scrollbar-thumb);
-  background-clip: padding-box;
-}
-
-.fwt-tree::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-  background-clip: padding-box;
-}
+.fwt-nodes { flex: none; }
 
 .fwt-root-hit-area {
   flex: 1 1 auto;

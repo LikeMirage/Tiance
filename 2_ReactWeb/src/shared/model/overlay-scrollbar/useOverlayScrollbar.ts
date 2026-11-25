@@ -6,6 +6,7 @@ const MIN_THUMB_HEIGHT = 24;
 type OverlayScrollbarState = {
   isActive: boolean;
   isVisible: boolean;
+  viewportHeight: number;
   thumbHeight: number;
   thumbTop: number;
 };
@@ -13,13 +14,14 @@ type OverlayScrollbarState = {
 const HIDDEN_SCROLLBAR_STATE: OverlayScrollbarState = {
   isActive: false,
   isVisible: false,
+  viewportHeight: 0,
   thumbHeight: 0,
   thumbTop: 0,
 };
 
-export function useOverlayScrollbar(refreshKey: string, viewportRef?: RefObject<HTMLDivElement | null>) {
+export function useOverlayScrollbar<T extends HTMLElement = HTMLDivElement>(refreshKey: string, viewportRef?: RefObject<T | null>) {
   const hideTimerRef = useRef<number | null>(null);
-  const localScrollRef = useRef<HTMLDivElement | null>(null);
+  const localScrollRef = useRef<T | null>(null);
   const scrollRef = viewportRef ?? localScrollRef;
   const dragStateRef = useRef<{
     pointerId: number;
@@ -74,12 +76,14 @@ export function useOverlayScrollbar(refreshKey: string, viewportRef?: RefObject<
       const nextState = {
         isActive: options?.activate ? true : current.isActive,
         isVisible: true,
+        viewportHeight: clientHeight,
         thumbHeight,
         thumbTop,
       };
 
       return current.isActive === nextState.isActive &&
         current.isVisible === nextState.isVisible &&
+        current.viewportHeight === nextState.viewportHeight &&
         current.thumbHeight === nextState.thumbHeight &&
         current.thumbTop === nextState.thumbTop
         ? current
@@ -118,6 +122,7 @@ export function useOverlayScrollbar(refreshKey: string, viewportRef?: RefObject<
   }, [refresh, refreshKey, scrollRef]);
 
   useEffect(() => {
+    if (typeof ResizeObserver !== "undefined") return clearHideTimer;
     const handleWindowResize = () => refresh();
 
     window.addEventListener("resize", handleWindowResize);
@@ -213,6 +218,7 @@ export function useOverlayScrollbar(refreshKey: string, viewportRef?: RefObject<
   }, [scheduleHide]);
 
   return {
+    refresh,
     handleScroll,
     handleThumbPointerCancel: handleThumbPointerEnd,
     handleThumbPointerDown,
@@ -222,6 +228,7 @@ export function useOverlayScrollbar(refreshKey: string, viewportRef?: RefObject<
     isActive: state.isActive,
     isVisible: state.isVisible,
     scrollRef,
+    viewportHeight: state.viewportHeight,
     thumbHeight: state.thumbHeight,
     thumbTop: state.thumbTop,
   };

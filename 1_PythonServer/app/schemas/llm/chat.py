@@ -297,6 +297,7 @@ class ChatUsageResponse(BaseModel):
     prompt_cache_miss_tokens: int | None = None
     reasoning_tokens: int | None = None
     estimated_fields: list[str] = Field(default_factory=list)
+    output_duration_seconds: float | None = None
 
     @classmethod
     def from_domain(cls, usage: ChatUsage) -> "ChatUsageResponse":
@@ -308,6 +309,7 @@ class ChatUsageResponse(BaseModel):
             prompt_cache_miss_tokens=usage.prompt_cache_miss_tokens,
             reasoning_tokens=usage.reasoning_tokens,
             estimated_fields=list(usage.estimated_fields),
+            output_duration_seconds=usage.output_duration_seconds,
         )
 
 

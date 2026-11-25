@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 const vite = await createServer({ appType: "custom", logLevel: "silent",
   root: fileURLToPath(new URL("../", import.meta.url)), server: { middlewareMode: true } });
 const load = (name) => vite.ssrLoadModule(`/src/features/ai-panel/${name}`);
-const { buildChatDisplayMessages, createChatDisplayProjector } = await load("model/chatDisplayMessages.ts");
+const { buildChatDisplayMessages, buildChatTurnFooters, createChatDisplayProjector } = await load("model/chatDisplayMessages.ts");
 const { createChatStreamAccumulator } = await load("model/chatStreamAccumulator.ts");
 const { mergeLiveChatNotifications, reuseChatMessageRevisions } = await load("model/chatNotifications.ts");
 const { prepareConversationStreamResume } = await load("model/conversationStreamResume.ts");
@@ -45,6 +45,63 @@ function render(message, streaming, expanded = false) {
       autoCollapseAssistantProcess: !expanded, clockTick: 4000, isLastMessage: false, isSessionStreaming: streaming,
       modelSwitchModelId: null, foldTurnId: "u", foldThinkingOffset: 0 })));
 }
+test("断线重试时隐藏回复页脚，结束后只在最后一条通知下面导出原回复和显示用量", () => {
+  const user = message("user", "user");
+  const step = message("before-tool", "assistant", { usage: { completion_tokens: 30 } });
+  const reply = message("saved-assistant", "assistant", {
+    toolCalls: [{ ...tool, status: "done" }], usage: { completion_tokens: 40 },
+  });
+  const rows = [user, step, reply, failure("retry-1"), failure("retry-2")];
+  const project = createChatDisplayProjector();
+  const renderTurn = (status, rowsToRender = rows) => {
+    const display = project(rowsToRender, { runtimeStatus: status });
+    const footers = buildChatTurnFooters(display, status);
+    const html = display.filter(m => m.role !== "user").map(m => renderToStaticMarkup(
+      createElement(ChatProcessFoldProvider, { sessionKey: "s" }, createElement(ChatMessageItem, {
+        message: m, footerMessage: footers.get(m.id) ?? null, clockTick: 0, interactions: {},
+        expandedUserMessageIds: new Set(), autoCollapseAssistantProcess: true,
+        isSessionStreaming: false, isLastMessage: m === display.at(-1),
+        foldTurnId: "user", foldThinkingOffset: 0, modelSwitchModelId: null,
+      }))
+    )).join("");
+    return { html, footers };
+  };
+
+  const live = renderTurn("running");
+  assert.match(live.html, /data-chat-message-id="retry-2"/);
+  assert.doesNotMatch(live.html, /aria-label="导出回复"|chat-msg__usage/);
+  const closed = renderTurn("error");
+  assert.deepEqual([...closed.footers.keys()], ["retry-2"]);
+  assert.equal(closed.footers.get("retry-2").id, reply.id);
+  assert.equal(closed.footers.get("retry-2").usage.completion_tokens, 70);
+  assert.equal((closed.html.match(/aria-label="导出回复"/g) ?? []).length, 1);
+  assert.equal((closed.html.match(/class="chat-msg__usage"/g) ?? []).length, 1);
+  assert.ok(closed.html.indexOf('data-chat-message-id="retry-2"') < closed.html.indexOf('aria-label="导出回复"'));
+
+  assert.equal(renderTurn(null).footers.size, 0);
+  // History can arrive between two upstream requests: a completed tool step
+  // and its token counts are already saved, but the run status is still loading.
+  for (const tail of [[], [failure("retry-5"), notice("background-notice")]]) {
+    const partial = [user, step, reply, ...tail];
+    const unknown = renderTurn(null, partial);
+    assert.match(unknown.html, /处理过程/);
+    assert.doesNotMatch(unknown.html, /已处理|aria-label="导出回复"|class="chat-msg__usage"/);
+    assert.equal(renderTurn("running", partial).footers.size, 0);
+    const settled = renderTurn("idle", partial);
+    assert.deepEqual([...settled.footers.keys()], [partial.at(-1).id]);
+    assert.match(settled.html, /已处理/);
+  }
+  const resumed = message("final-answer", "assistant", { usage: { completion_tokens: 12 } });
+  const recovered = renderTurn("idle", [...rows, resumed]);
+  assert.deepEqual([...recovered.footers.keys()], [resumed.id]);
+  assert.equal(recovered.footers.get(resumed.id).usage.completion_tokens, 82);
+  assert.equal((recovered.html.match(/aria-label="导出回复"/g) ?? []).length, 1);
+
+  const next = renderTurn("running", [...rows, message("next-user", "user"), message("live", "assistant")]);
+  assert.deepEqual([...next.footers.keys()], ["retry-2"]);
+  assert.equal(renderTurn("idle", [user, failure()]).footers.size, 0);
+});
+
 function accumulator() {
   const previousWindow = globalThis.window;
   globalThis.window = globalThis;

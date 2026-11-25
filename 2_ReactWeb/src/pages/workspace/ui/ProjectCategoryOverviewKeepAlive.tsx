@@ -18,10 +18,8 @@ type ProjectCategoryOverviewKeepAliveProps = {
   isActive: boolean;
   layoutPreferences: WorkspaceLayoutPreferences;
   marketScope?: ProjectMarketScope | null;
-  onCreateProject?: () => Promise<void>;
   onCreateSession: (projectId: string) => Promise<void>;
   onEnterSession: (projectId: string, sessionId: string) => Promise<boolean>;
-  onImportProjectFolder?: (rootPath: string) => Promise<void>;
   onActivateProject?: (
     projectId: string,
     options?: ProjectNavigationOptions,
@@ -52,10 +50,8 @@ export function ProjectCategoryOverviewKeepAlive({
   isActive,
   layoutPreferences,
   marketScope = "project",
-  onCreateProject,
   onCreateSession,
   onEnterSession,
-  onImportProjectFolder,
   onActivateProject,
   onLayoutPreferenceChange,
   onOpenConversationBranches,
@@ -155,10 +151,8 @@ export function ProjectCategoryOverviewKeepAlive({
             ? selectedMaximizedProjectId
             : null
         }
-        onCreateProject={onCreateProject}
         onCreateSession={onCreateSession}
         onEnterSession={onEnterSession}
-        onImportProjectFolder={onImportProjectFolder}
         onMaximizedProjectChange={usesExternalOverviewViews
           ? (projectId) => {
               if (!selectedCategoryId) return;
@@ -273,10 +267,8 @@ export function ProjectCategoryOverviewKeepAlive({
                   ? categoryMaximizedProjectId
                   : null
               }
-              onCreateProject={onCreateProject}
               onCreateSession={onCreateSession}
               onEnterSession={onEnterSession}
-              onImportProjectFolder={onImportProjectFolder}
               onMaximizedProjectChange={(projectId) => {
                 if (usesExternalOverviewViews) {
                   if (projectId) {
