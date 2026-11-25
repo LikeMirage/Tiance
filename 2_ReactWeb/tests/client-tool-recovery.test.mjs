@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { after, test } from "node:test";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
 
@@ -8,7 +8,8 @@ const vite = await createServer({ appType: "custom", logLevel: "silent",
 const { ClientToolRequestSingleFlight } = await vite.ssrLoadModule("/src/features/client-tools/model/clientToolRequestSingleFlight.ts");
 const { clientToolExecutionStore } = await vite.ssrLoadModule("/src/features/client-tools/model/clientToolExecutionSession.ts");
 const { claimClientToolRequest } = await vite.ssrLoadModule("/src/services/llm/claimClientToolRequest.ts");
-after(() => vite.close());
+// The tests below own the global timer queue. Release the module loader's watchers first.
+await vite.close();
 const turn = () => new Promise(setImmediate);
 const request = (id = "request", timeout = 600) => ({ request_id: id, call_id: id, name: "test", arguments: "{}", timeout_seconds: timeout });
 const lease = (overrides = {}) => ({ acquired: true, claim_id: "claim", lease_duration_seconds: 30, resumed: false, ...overrides });

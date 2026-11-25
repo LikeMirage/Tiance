@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import ts from "typescript";
+import { loadPreviewScrollArea } from "./helpers/previewScrollArea.mjs";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const require = createRequire(import.meta.url);
@@ -28,6 +29,7 @@ test("Word mounts only nearby chunks, cancels scrolling-away requests, and resto
   const reading = load("src/entities/editor/model/documentReadingState.tsx");
   const scroller = { scrollTop: 0 };
   const { WordPreview } = load("src/features/office-preview/ui/WordPreview.tsx", {
+    "@/shared/ui/edge-scrollbar": loadPreviewScrollArea(load),
     "../../../entities/editor/model/documentReadingState": reading,
     "../../file-preview/model/filePreview": { readWordChunk: (src, version, chunk, signal) => {
       reads.push({ src, version, chunk, signal });

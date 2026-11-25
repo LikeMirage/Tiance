@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import TestRenderer, { act } from "react-test-renderer";
 import ts from "typescript";
 import { createServer } from "vite";
+import { loadPreviewScrollArea } from "./helpers/previewScrollArea.mjs";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const vite = await createServer({ appType: "custom", logLevel: "silent",
@@ -98,6 +99,7 @@ test("PDF retains page on parent rerender and new version, clamps to a shorter d
   let loads = 0, pages = 8;
   const panZoom = { viewportRef: { current: null }, contentRef: { current: null } };
   const { PdfPreview } = load("src/features/pdf-preview/ui/PdfPreview.tsx", {
+    "@/shared/ui/edge-scrollbar": loadPreviewScrollArea(load),
     "../model/usePdfReveal": pdfReveal,
     "../../../entities/editor/model/documentReadingState": reading,
     "@phosphor-icons/react": new Proxy({}, { get: () => empty }),

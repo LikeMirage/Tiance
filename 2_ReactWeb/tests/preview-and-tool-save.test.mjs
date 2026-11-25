@@ -8,6 +8,7 @@ import { test } from "node:test";
 import React from "react";
 import { act, create } from "react-test-renderer";
 import ts from "typescript";
+import { loadPreviewScrollArea } from "./helpers/previewScrollArea.mjs";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const require = createRequire(import.meta.url);
@@ -77,6 +78,7 @@ test("PPT renders the restored page once at fitted zoom; ready notification adds
     repairPresentationCanvasBlankBottomEdge(){},restorePresentationZoomAnchor(){},
   };
   const {PresentationPreview} = load("src/features/office-preview/ui/PresentationPreview.tsx", {
+    "@/shared/ui/edge-scrollbar": loadPreviewScrollArea(load),
     "../../../entities/editor/model/documentRevealContext": { useDocumentRevealRequest: () => null },
     "pptxviewjs":{PPTXViewer:Viewer},
     "@phosphor-icons/react": {CaretLeft:()=>null,CaretRight:()=>null},
