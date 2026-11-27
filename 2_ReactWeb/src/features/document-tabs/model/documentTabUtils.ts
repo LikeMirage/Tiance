@@ -1,4 +1,4 @@
-import type { DocumentTab, EditorTabId } from "../../../entities/editor/model/editorDocument";
+import type { DocumentTab, EditorTabId, WorkspaceState } from "../../../entities/editor/model/editorDocument";
 
 import { getProjectDocumentSourceKey } from "./documentFileSources";
 import { isWebHomeTab } from "./workspaceTabEntries";
@@ -41,10 +41,11 @@ export function getTabFilePath(tab: DocumentTab | null | undefined): string | nu
 
 export function isPinnedDocumentTab(tab: DocumentTab | null | undefined): boolean {
   return isWebHomeTab(tab) || tab?.fileSource?.kind === "tool-dashboard"
-    || isProjectConversationOverviewTab(tab)
-    || isProjectKnowledgeContentTab(tab)
-    || isProjectRoleConfigurationTab(tab)
-    || isProjectThemeConfigurationTab(tab);
+    || getProjectDashboardName(tab) !== null;
+}
+
+export function isProjectMemoryDashboardTab(tab: DocumentTab | null | undefined): boolean {
+  return tab?.id.startsWith("memory-dashboard:project:") ?? false;
 }
 
 export function isProjectConversationOverviewTab(
@@ -69,6 +70,15 @@ export function isProjectThemeConfigurationTab(
   tab: DocumentTab | null | undefined,
 ): boolean {
   return tab?.id.startsWith(PROJECT_THEME_CONFIGURATION_TAB_PREFIX) ?? false;
+}
+
+export function getProjectDashboardName(tab: DocumentTab | null | undefined): WorkspaceState["active_dashboard"] {
+  if (isProjectConversationOverviewTab(tab)) return "conversation_overview";
+  if (isProjectMemoryDashboardTab(tab)) return "project_memory";
+  if (isProjectKnowledgeContentTab(tab)) return "knowledge_content";
+  if (isProjectRoleConfigurationTab(tab)) return "role_configuration";
+  if (isProjectThemeConfigurationTab(tab)) return "theme_configuration";
+  return null;
 }
 
 export function isToolDashboardTabForSource(tab: DocumentTab, sourceKey: string): boolean {

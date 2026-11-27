@@ -373,6 +373,8 @@ class ToolExecutionService:
 
         timeout_seconds = runtime_timeout_seconds(runtime.get("timeout_seconds"))
         workspace_root = resolve_workspace_root(context.workspace_root)
+        if context.workspace_root and workspace_root is None:
+            return failure_result(tool_call, "会话工作区不可用，无法确定文件编辑边界。")
         cwd = workspace_root if workspace_root is not None else tool_root
         python_paths = build_tool_python_paths(
             entry_path=entry_path,

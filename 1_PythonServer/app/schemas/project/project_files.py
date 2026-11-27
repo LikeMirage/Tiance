@@ -205,6 +205,7 @@ class ProjectUserFileUploadResponse(BaseModel):
 
 WorkspaceDashboardName = Literal[
     "conversation_overview",
+    "project_memory",
     "knowledge_content",
     "role_configuration",
     "theme_configuration",

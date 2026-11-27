@@ -234,6 +234,25 @@ class UsageSqliteStore:
                         result[project][session] = rows
         return result
 
+    def recorded_message_costs(
+        self, project_id: str, session_id: str, message_ids: list[str],
+    ) -> dict[str, tuple[float, str | None]]:
+        # Legacy message identities are globally unique. Look up only the visible page,
+        # then verify ownership, so SQLite cannot choose to scan the entire session.
+        result = {}
+        with self.transaction() as db:
+            for start in range(0, len(message_ids), 500):
+                batch = message_ids[start:start + 500]
+                placeholders = ",".join("?" for _ in batch)
+                rows = db.execute(
+                    f"SELECT message_id, project_id, session_id, cost_amount, cost_currency FROM usage_records "
+                    f"WHERE identity_key IN ({placeholders}) AND cost_amount IS NOT NULL", batch,
+                )
+                for row in rows:
+                    if row["project_id"] == project_id and row["session_id"] == session_id:
+                        result[row["message_id"]] = row["cost_amount"], row["cost_currency"]
+        return result
+
     def monthly_statistics(self, month: StatisticsMonth) -> dict:
         with self.transaction() as db:
             total = db.execute("SELECT COALESCE(SUM(total_tokens),0) FROM usage_totals WHERE scope='model'").fetchone()[0]

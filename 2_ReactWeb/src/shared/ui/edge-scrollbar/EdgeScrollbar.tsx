@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 
 import { useOverlayScrollbar } from "../../model/overlay-scrollbar/useOverlayScrollbar";
 import "./edge-scrollbar.css";
@@ -12,8 +12,8 @@ type EdgeScrollbarProps = {
   contentVersion?: string;
   side?: "left" | "right";
   enabled?: boolean;
-  /** Called before a user changes scroll position; never for layout changes. */
-  onUserScroll?: () => void;
+  /** Reports user interaction, including whether it actually moved the viewport. */
+  onUserScroll?: (moved: boolean) => void;
 };
 
 /** Overlay on a positioned parent; the caller keeps its existing scroll viewport. */
@@ -22,6 +22,13 @@ export function EdgeScrollbar({
 }: EdgeScrollbarProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const scrollbar = useOverlayScrollbar(`${enabled}:${refreshKey}`, scrollRef);
+  const applyUserScroll = useCallback((apply: () => void) => {
+    const viewport = scrollRef.current;
+    if (!viewport) return;
+    const before = viewport.scrollTop;
+    apply();
+    onUserScroll?.(viewport.scrollTop !== before);
+  }, [onUserScroll, scrollRef]);
   const { refresh } = scrollbar;
   useLayoutEffect(() => {
     if (contentVersion !== undefined) refresh();
@@ -46,13 +53,12 @@ export function EdgeScrollbar({
       if (!viewport || event.ctrlKey || event.deltaY === 0) return;
       event.preventDefault();
       event.stopPropagation();
-      onUserScroll?.();
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1;
-      viewport.scrollTop += event.deltaY * unit;
+      applyUserScroll(() => { viewport.scrollTop += event.deltaY * unit; });
     };
     track.addEventListener("wheel", onWheel, { passive: false });
     return () => track.removeEventListener("wheel", onWheel);
-  }, [enabled, onUserScroll, scrollbar.isVisible, scrollRef]);
+  }, [enabled, applyUserScroll, scrollbar.isVisible, scrollRef]);
 
   if (!enabled) return null;
 
@@ -74,8 +80,7 @@ export function EdgeScrollbar({
         if (event.button !== 0 || event.target !== event.currentTarget) return;
         event.preventDefault();
         event.stopPropagation();
-        onUserScroll?.();
-        scrollbar.handleTrackPointerDown(event);
+        applyUserScroll(() => scrollbar.handleTrackPointerDown(event));
       }}
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => {
@@ -90,8 +95,7 @@ export function EdgeScrollbar({
         if (offset === undefined) return;
         event.preventDefault();
         event.stopPropagation();
-        onUserScroll?.();
-        viewport.scrollTop += offset;
+        applyUserScroll(() => { viewport.scrollTop += offset; });
       }}
     >
       {scrollbar.isVisible ? <div
@@ -99,12 +103,12 @@ export function EdgeScrollbar({
         style={{ height: scrollbar.thumbHeight, transform: `translateY(${scrollbar.thumbTop}px)` }}
         onPointerDown={(event) => {
           if (event.button !== 0) return;
-          onUserScroll?.();
-          scrollbar.handleThumbPointerDown(event);
+          applyUserScroll(() => scrollbar.handleThumbPointerDown(event));
         }}
         onPointerMove={(event) => {
-          if (event.currentTarget.hasPointerCapture(event.pointerId)) onUserScroll?.();
-          scrollbar.handleThumbPointerMove(event);
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            applyUserScroll(() => scrollbar.handleThumbPointerMove(event));
+          }
         }}
         onPointerUp={scrollbar.handleThumbPointerUp}
         onPointerCancel={scrollbar.handleThumbPointerCancel}

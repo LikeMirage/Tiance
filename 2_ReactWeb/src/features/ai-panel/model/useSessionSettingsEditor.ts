@@ -31,6 +31,7 @@ export function useSessionSettingsEditor({
   const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
   const [systemPromptDraft, setSystemPromptDraft] = useState("");
   const settingsRequestSeqRef = useRef(0);
+  const pendingSettingsSave = useRef(Promise.resolve());
   const titleRequestSeqRef = useRef(0);
 
   useEffect(() => {
@@ -50,18 +51,17 @@ export function useSessionSettingsEditor({
       session.session_id === activeSessionId
         ? {
             ...session,
-            settings: {
-              ...resolveSessionSettings(session),
-              ...patch,
-            },
+            settings: resolveSessionSettings(session, patch),
             role_status: "custom",
             updated_at: new Date().toISOString(),
           }
         : session,
     ));
-    void updateProjectConversation(requestedProjectId, requestedSessionId, {
-      settings: patch,
-    }).then((updatedSession) => {
+    const save = pendingSettingsSave.current.then(() =>
+      updateProjectConversation(requestedProjectId, requestedSessionId, { settings: patch }),
+    );
+    pendingSettingsSave.current = save.then(() => {}, () => {});
+    void save.then((updatedSession) => {
       if (
         settingsRequestSeqRef.current !== requestSeq ||
         activeProjectIdRef.current !== requestedProjectId ||
@@ -73,10 +73,7 @@ export function useSessionSettingsEditor({
         session.session_id === updatedSession.session_id
           ? {
               ...session,
-              settings: {
-                ...resolveSessionSettings(session),
-                ...patch,
-              },
+              settings: resolveSessionSettings(session, patch),
               role_project_id: updatedSession.role_project_id,
               role_status: updatedSession.role_status,
               updated_at: updatedSession.updated_at,

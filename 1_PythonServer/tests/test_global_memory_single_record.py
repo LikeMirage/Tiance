@@ -1,9 +1,11 @@
 import json
+from dataclasses import replace
 from unittest.mock import Mock
 
 import pytest
 
 from app.api.routes import global_memory as route
+from app.domain.llm.token_estimation_settings import DEFAULT_TOKEN_ESTIMATION_SETTINGS
 from app.repositories.project.conversation_memory_repository import ProjectConversationMemoryRepository
 from app.schemas.global_memory import GlobalMemoryOperationRequest, GlobalMemoryRecordResponse
 from app.services.project import memory_management as module
@@ -114,3 +116,34 @@ def test_single_project_record_keeps_scope_and_event_numbers():
     assert record["events"][0]["event_index"] == 2
     repository.list_project_memory_events.assert_called_once_with("project-a")
     repository.iter_global_memory_events.assert_not_called()
+
+
+@pytest.mark.parametrize("scope", ["global", "project"])
+def test_memory_tokens_follow_current_text_and_ratios_across_search_and_pages(scope):
+    events = [
+        _event("one", content="ignored old text", source_compression_id="ai_created"),
+        _event("two", content="中文中文", source_compression_id="manual_added"),
+        _event("gone", content="abcdefgh"),
+        _event("gone", "delete"),
+        _event("one", "update", content="abcdefgh", source_compression_id="manual_edited"),
+    ]
+    repository = Mock()
+    repository.list_global_memory_events.return_value = events
+    repository.list_project_memory_events.return_value = events
+    settings = DEFAULT_TOKEN_ESTIMATION_SETTINGS
+    service = module.ProjectMemoryManagementService(repository, read_token_settings=lambda: settings)
+    options = dict(scope=scope, project_id="test", page_size=1)
+
+    first = service.list_memory_records(**options, page=1)
+    second = service.list_memory_records(**options, page=2)
+    assert [page["items"][0]["estimated_tokens"] for page in (first, second)] == [2, 2]
+    assert first["total_estimated_tokens"] == second["total_estimated_tokens"] == 4
+    missing = service.list_memory_records(**options, query="no such text")
+    assert missing["items"] == []
+    assert missing["total_estimated_tokens"] == 4
+
+    settings = replace(settings, ascii_chars_per_token=2, other_chars_per_token=1)
+    result = service.list_memory_records(**options, query="abcdefgh")
+    assert [(item["id"], item["estimated_tokens"]) for item in result["items"]] == [("one", 4)]
+    assert result["total_estimated_tokens"] == 8
+    assert service.list_memory_records(**options, status="deleted")["total_estimated_tokens"] == 4

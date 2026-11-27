@@ -1,16 +1,19 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any
 from uuid import uuid4
 
 from app.core.errors import BadRequestError
+from app.domain.llm.token_estimation_settings import DEFAULT_TOKEN_ESTIMATION_SETTINGS, TokenEstimationSettings
 from app.repositories.project.conversation_memory_repository import (
     ProjectConversationMemoryRepository,
     get_project_conversation_memory_repository,
 )
+from app.services.llm.token_estimation_settings import get_token_estimation_settings_service
+from app.services.llm.usage.estimation import estimate_token_count
 
 _GLOBAL_SCOPE = "global"
 _PROJECT_SCOPE = "project"
@@ -21,8 +24,14 @@ _RECORD_STATUSES = {"active", "deleted", "all"}
 
 
 class ProjectMemoryManagementService:
-    def __init__(self, repository: ProjectConversationMemoryRepository) -> None:
+    def __init__(
+        self,
+        repository: ProjectConversationMemoryRepository,
+        *,
+        read_token_settings: Callable[[], TokenEstimationSettings] = lambda: DEFAULT_TOKEN_ESTIMATION_SETTINGS,
+    ) -> None:
         self._repository = repository
+        self._read_token_settings = read_token_settings
 
     def list_memories(
         self,
@@ -54,14 +63,20 @@ class ProjectMemoryManagementService:
             if safe_status == "all"
             else [record for record in records if record["status"] == safe_status]
         )
-        filtered = _filter_memories(visible, query)
-        return _paginated_report(
-            filtered,
+        settings = self._read_token_settings()
+        total_tokens = 0
+        for record in visible:
+            record["estimated_tokens"] = estimate_token_count(record["content"], settings)
+            total_tokens += record["estimated_tokens"]
+        report = _paginated_report(
+            _filter_memories(visible, query),
             scope=safe_scope,
             page=page,
             page_size=page_size,
             status=safe_status,
         )
+        report["total_estimated_tokens"] = total_tokens
+        return report
 
     def get_memory_record(
         self,
@@ -79,7 +94,11 @@ class ProjectMemoryManagementService:
         records, _ = _memory_projection(
             events, scope=safe_scope, target_memory_id=memory_id,
         )
-        return records[0] if records else None
+        if not records:
+            return None
+        record = records[0]
+        record["estimated_tokens"] = estimate_token_count(record["content"], self._read_token_settings())
+        return record
 
     def list_memory_events(
         self,
@@ -525,4 +544,7 @@ def _find_memory(memories: list[dict[str, Any]], memory_id: str) -> dict[str, An
 
 @lru_cache
 def get_project_memory_management_service() -> ProjectMemoryManagementService:
-    return ProjectMemoryManagementService(get_project_conversation_memory_repository())
+    return ProjectMemoryManagementService(
+        get_project_conversation_memory_repository(),
+        read_token_settings=get_token_estimation_settings_service().get_settings,
+    )

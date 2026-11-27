@@ -15,7 +15,7 @@ export type ChatScrollRestoreRequest = {
 
 export function captureChatScrollPosition(
   scrollElement: HTMLDivElement,
-  nearBottomPx: number,
+  isFollowingBottom: boolean,
 ): ChatScrollPosition {
   const viewport = scrollElement.getBoundingClientRect();
   const anchor = Array.from(
@@ -26,15 +26,12 @@ export function captureChatScrollPosition(
     // Neither is a reading anchor until it actually intersects the viewport.
     return rect.bottom > viewport.top && rect.top < viewport.bottom;
   });
-  const distanceToBottom =
-    scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight;
-
   return {
     anchorMessageId: anchor?.dataset.chatMessageId ?? null,
     anchorViewportOffset: anchor
       ? anchor.getBoundingClientRect().top - viewport.top
       : 0,
-    isFollowingBottom: distanceToBottom < nearBottomPx,
+    isFollowingBottom,
     scrollTop: scrollElement.scrollTop,
   };
 }

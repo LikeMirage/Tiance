@@ -33,10 +33,12 @@ export const DEFAULT_SESSION_SETTINGS: ConversationSessionSettings = {
 
 export function resolveSessionSettings(
   session: ConversationSession | null,
+  patch: Partial<ConversationSessionSettings> = {},
 ): ConversationSessionSettings {
   return {
     ...DEFAULT_SESSION_SETTINGS,
     ...(session?.settings ?? {}),
+    ...patch,
   };
 }
 

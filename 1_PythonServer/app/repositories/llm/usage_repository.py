@@ -122,6 +122,11 @@ class LlmUsageRepository:
             ),
         )
 
+    def recorded_message_costs(
+        self, project_id: str, session_id: str, message_ids: list[str],
+    ) -> dict[str, tuple[float, str | None]]:
+        return self._store.recorded_message_costs(project_id, session_id, message_ids)
+
     def get_session_totals(
         self,
         *,

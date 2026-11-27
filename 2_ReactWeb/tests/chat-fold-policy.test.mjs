@@ -43,12 +43,12 @@ test("等待响应只显示外层状态，不预设 Thinking；真实思考到�
 test("流式正文下不留操作统计空白，结束时通过统一高度动画展开底栏", () => {
   const props = { autoCollapseAssistantProcess: true, clockTick: 1000, expandedUserMessageIds: new Set(), interactions,
     isLastMessage: true, isSessionStreaming: true, modelSwitchModelId: null, foldTurnId: "user", foldThinkingOffset: 0,
-    message: { ...message, content: "正式回复" } };
+    message: { ...message, content: "正式回复", usage: { total_tokens: 42 } } };
   const render = (value) => renderToStaticMarkup(createElement(folds.ChatProcessFoldProvider, { sessionKey: "test" }, createElement(ChatMessageItem, value)));
   const live = render(props);
   const done = render({ ...props, isSessionStreaming: false, message: { ...props.message, status: "done" } });
   assert.match(live, /sliding-content chat-msg__footer[^>]*height:0px/);
-  for (const className of ["chat-msg__actions", "chat-msg__usage"]) {
+  for (const className of ["chat-msg__actions", "chat-msg__reply-usage"]) {
     assert.ok(!live.includes(className)); assert.ok(done.includes(className));
   }
 });

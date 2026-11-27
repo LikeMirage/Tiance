@@ -13,6 +13,7 @@ from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.domain.project import Project, ProjectCategory, ProjectKind
 from app.infra.projects import ProjectStorage, get_project_storage
 from app.infra.projects.workspace_lifecycle import workspace_access
+from app.infra.system_recycle_bin import RecycleItemInUseError
 from app.repositories.project import ProjectRepository, get_project_repository
 from app.services.project.project_ids import normalize_project_id
 
@@ -363,6 +364,8 @@ class ProjectService:
         if is_managed_project or delete_files:
             try:
                 recycled = self._storage.recycle_project_root(project.root_path, external=not is_managed_project)
+            except RecycleItemInUseError as exc:
+                raise ConflictError(f"项目“{project.name}”未删除。{exc}", details={"reason": "project_in_use"}) from exc
             except (OSError, ValueError) as exc:
                 raise BadRequestError(f"文件夹未能移入系统回收站，项目登记已保留：{exc}") from exc
         try:

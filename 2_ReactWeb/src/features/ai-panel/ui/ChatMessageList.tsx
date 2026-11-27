@@ -263,7 +263,7 @@ type VirtualMessageRowProps = {
   interactions: ChatMessageItemInteractions;
   item: VirtualMessageItem;
   modelSwitchModelId: string | null;
-  onMeasure: (messageId: string, index: number, height: number) => void;
+  onMeasure: (messageId: string, index: number, height: number, pendingContent: boolean) => void;
 };
 
 function VirtualMessageRow({
@@ -288,13 +288,11 @@ function VirtualMessageRow({
     if (!node || !isVirtualized) return undefined;
 
     const measure = () => {
-      // A reattached deferred preview is briefly empty. Do not let that empty
-      // height evict neighboring rows and cancel/restart their Markdown jobs.
-      if (node.querySelector('[aria-busy="true"]')) return;
       onMeasure(
         item.key,
         item.index,
         node.getBoundingClientRect().height,
+        node.querySelector('[aria-busy="true"]') !== null,
       );
     };
     const observer = new ResizeObserver(measure);

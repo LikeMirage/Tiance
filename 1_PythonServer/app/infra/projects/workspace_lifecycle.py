@@ -54,7 +54,7 @@ def workspace_removal(workspace: Path):
     with _lock:
         state = _states.setdefault(key, _WorkspaceState())
         if state.users or state.removing:
-            raise ConflictError("项目数据正在读写，请稍后重试移除。")
+            raise ConflictError("项目数据正在读写，请稍后重试移除。", details={"reason": "project_in_use"})
         state.removing = True
     try:
         # The owner sets removed immediately after recycling, even if subsequent

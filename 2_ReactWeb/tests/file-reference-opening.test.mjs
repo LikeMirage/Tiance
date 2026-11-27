@@ -328,7 +328,7 @@ test("进入工作区后再打开引用，工具文件复用已有标签；切�
 test("工具工作区等待完整标签恢复，切换或取消会释放等待", async () => {
   let state, root, restore, restored = false;
   const browser = { restoreExpandedPaths() {}, userExpandedNodeIds: new Set() };
-  const tabs = { tabs: [], activeTab: null, resetWorkspaceFiles() {}, ensureProjectConversationOverview() {},
+  const tabs = { tabs: [], activeTab: null, resetWorkspaceFiles() {}, ensureProjectConversationOverview() {}, ensureProjectMemoryDashboard() {},
     restoreWorkspaceTabs: () => new Promise(resolve => { restore = () => { restored = true; resolve(); }; }),
     async openToolDashboard() { assert.equal(restored, true); } };
   globalThis.fileReferenceFetch = async () => ({ project_id: "p", open_file_paths: [], expanded_paths: [], active_file_path: null });
@@ -366,6 +366,52 @@ test("工具工作区等待完整标签恢复，切换或取消会释放等待",
     await stale;
     assert.equal(oldRestoreReady, false);
   } finally { await act(async () => root.unmount()); }
+});
+
+test("记忆管理紧随会话总览、不可关闭，并独立恢复每个项目上次选择", async () => {
+  const saved = new Map();
+  let root, tabs;
+  globalThis.fileReferenceFetch = async (path, init) => {
+    assert.ok(path.endsWith("/workspace-state"), "恢复标签时不应读取记忆或会话");
+    const state = saved.get(path) ?? { open_file_paths: [], expanded_paths: [], active_file_path: null, active_dashboard: null };
+    if (init?.method === "PATCH") Object.assign(state, JSON.parse(init.body));
+    saved.set(path, state);
+    return structuredClone(state);
+  };
+  function Project({ id }) {
+    tabs = useDocumentTabs(id);
+    useProjectWorkspaceTabsPersistence({ documentTabs: tabs, projectId: id,
+      isKnowledgeProject: id === "library", isRoleProject: false, isThemeProject: false });
+    return null;
+  }
+  async function change(id) {
+    await act(async () => {
+      const element = React.createElement(Project, { id });
+      if (root) root.update(element); else root = create(element);
+      await flush();
+    });
+  }
+  try {
+    for (const projectId of ["empty", "library"]) {
+      await change(projectId);
+      const overview = tabs.tabs.findIndex(tab => tab.title === "会话总览");
+      const memory = tabs.tabs[overview + 1];
+      assert.equal(memory.title, "记忆管理");
+      assert.equal(memory.projectId, projectId);
+      assert.notEqual(tabs.activeTabId, memory.id);
+      await act(async () => tabs.selectTab(memory.id));
+      await act(async () => tabs.closeTab(memory.id));
+      assert.equal(tabs.activeTabId, memory.id);
+      assert.equal(saved.get(`/api/projects/${projectId}/workspace-state`).active_dashboard, "project_memory");
+    }
+    for (const projectId of ["empty", "library"]) {
+      await change(projectId);
+      assert.equal(tabs.activeTabId, `memory-dashboard:project:${projectId}`);
+      assert.equal(tabs.tabs.filter(tab => tab.id === tabs.activeTabId).length, 1);
+    }
+  } finally {
+    if (root) await act(async () => root.unmount());
+  }
 });
 
 test("外部文本读写真实路径，重复点击不清除草稿，磁盘变化保留冲突处理", async () => {

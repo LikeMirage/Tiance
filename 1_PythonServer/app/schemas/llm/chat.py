@@ -298,6 +298,8 @@ class ChatUsageResponse(BaseModel):
     reasoning_tokens: int | None = None
     estimated_fields: list[str] = Field(default_factory=list)
     output_duration_seconds: float | None = None
+    cost_amount: float | None = None
+    cost_currency: str | None = None
 
     @classmethod
     def from_domain(cls, usage: ChatUsage) -> "ChatUsageResponse":
@@ -310,6 +312,8 @@ class ChatUsageResponse(BaseModel):
             reasoning_tokens=usage.reasoning_tokens,
             estimated_fields=list(usage.estimated_fields),
             output_duration_seconds=usage.output_duration_seconds,
+            cost_amount=usage.cost_amount,
+            cost_currency=usage.cost_currency,
         )
 
 

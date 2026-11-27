@@ -1,12 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { useDocumentTabs } from "../../../features/document-tabs/model/useDocumentTabs";
-import {
-  isProjectConversationOverviewTab,
-  isProjectKnowledgeContentTab,
-  isProjectRoleConfigurationTab,
-  isProjectThemeConfigurationTab,
-} from "../../../features/document-tabs/model/documentTabUtils";
+import { getProjectDashboardName } from "../../../features/document-tabs/model/documentTabUtils";
 import { snapshotWorkspaceTabs } from "../../../features/document-tabs/model/workspaceTabEntries";
 import { patchProjectWorkspaceState, readWorkspaceAfterWrites } from "../../../services/project/saveProjectWorkspaceState";
 
@@ -32,27 +27,11 @@ export function useProjectWorkspaceTabsPersistence({
     const openFilePaths = documentTabs.tabs
       .filter((tab) => tab.projectId === projectId && tab.projectFilePath)
       .map((tab) => tab.projectFilePath!);
-    const activeFilePath = documentTabs.activeTab?.projectId === projectId
-      ? documentTabs.activeTab.projectFilePath
-      : null;
-    const activeDashboard =
-      documentTabs.activeTab?.projectId === projectId
-      && isProjectConversationOverviewTab(documentTabs.activeTab)
-        ? "conversation_overview" as const
-        : documentTabs.activeTab?.projectId === projectId
-          && isProjectKnowledgeContentTab(documentTabs.activeTab)
-          ? "knowledge_content" as const
-        : documentTabs.activeTab?.projectId === projectId
-          && isProjectRoleConfigurationTab(documentTabs.activeTab)
-          ? "role_configuration" as const
-        : documentTabs.activeTab?.projectId === projectId
-          && isProjectThemeConfigurationTab(documentTabs.activeTab)
-          ? "theme_configuration" as const
-        : null;
+    const activeTab = documentTabs.activeTab?.projectId === projectId ? documentTabs.activeTab : null;
 
     return {
-      active_dashboard: activeDashboard,
-      active_file_path: activeFilePath,
+      active_dashboard: getProjectDashboardName(activeTab),
+      active_file_path: activeTab?.projectFilePath ?? null,
       open_file_paths: openFilePaths,
       open_tabs: snapshotWorkspaceTabs(documentTabs.tabs, documentTabs.activeTab?.id ?? null, projectId),
     };
@@ -79,30 +58,32 @@ export function useProjectWorkspaceTabsPersistence({
           { entries: state.open_tabs },
         );
         if (disposed) return undefined;
+        const defaultDashboard = !state.active_dashboard && state.active_file_path === null;
         documentTabs.ensureProjectConversationOverview(projectId, {
           activate: !activeWebId && (
             state.active_dashboard === "conversation_overview"
-            || (!isKnowledgeProject && !isRoleProject && !isThemeProject && state.active_file_path === null)),
+            || (!isKnowledgeProject && !isRoleProject && !isThemeProject && defaultDashboard)),
         });
+        documentTabs.ensureProjectMemoryDashboard(projectId, !activeWebId && state.active_dashboard === "project_memory");
         if (isKnowledgeProject) {
           documentTabs.ensureProjectKnowledgeContent(projectId, {
             activate: !activeWebId && (
               state.active_dashboard === "knowledge_content"
-              || state.active_file_path === null),
+              || defaultDashboard),
           });
         }
         if (isRoleProject) {
           documentTabs.ensureProjectRoleConfiguration(projectId, {
             activate: !activeWebId && (
               state.active_dashboard === "role_configuration"
-              || state.active_file_path === null),
+              || defaultDashboard),
           });
         }
         if (isThemeProject) {
           documentTabs.ensureProjectThemeConfiguration(projectId, {
             activate: !activeWebId && (
               state.active_dashboard === "theme_configuration"
-              || state.active_file_path === null),
+              || defaultDashboard),
           });
         }
         return undefined;
@@ -125,6 +106,7 @@ export function useProjectWorkspaceTabsPersistence({
   }, [
     documentTabs.resetWorkspaceFiles,
     documentTabs.ensureProjectConversationOverview,
+    documentTabs.ensureProjectMemoryDashboard,
     documentTabs.ensureProjectKnowledgeContent,
     documentTabs.ensureProjectRoleConfiguration,
     documentTabs.ensureProjectThemeConfiguration,

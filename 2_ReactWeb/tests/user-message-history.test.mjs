@@ -51,9 +51,12 @@ test("面板列出完整目录，选中旧提问只取该条正文，定位和�
   }
   await act(async () => { view = create(React.createElement(Harness), { createNodeMock: nodes }); });
   try {
-    assert.equal(view.root.findAllByProps({ className: "user-message-history__select" }).length, 150);
-    assert.equal(calls.length, 0, "已有正文不再请求");
-    await act(async () => view.root.findAllByProps({ className: "user-message-history__select" })[0].props.onClick());
+    const buttons = view.root.findAllByProps({ className: "user-message-history__select" });
+    assert.deepEqual(buttons.map(button => button.props.title), items.map(item => item.userPreview).reverse());
+    assert.ok(buttons.every(button => !button.props["aria-pressed"]));
+    assert.equal(located.length, 0);
+    assert.equal(calls.length, 0, "打开时无需读取正文");
+    await act(async () => buttons.at(-1).props.onClick());
     assert.equal(calls.length, 1);
     assert.deepEqual(calls[0].slice(0, 3), ["p", "s", "u0"]);
     assert.match(JSON.stringify(view.toJSON()), /正文 u0/);
@@ -61,10 +64,16 @@ test("面板列出完整目录，选中旧提问只取该条正文，定位和�
     assert.equal(located.length, 0, "浏览详情不滚动聊天");
     await act(async () => view.root.findByProps({ "aria-label": "定位第 1 条用户消息" }).props.onClick());
     assert.deepEqual(located, [items[0]]);
-    assert.equal(view.root.findAllByProps({ role: "dialog" }).length, 0);
-    await act(async () => view.root.findByProps({ "aria-label": "用户消息列表", type: "button" }).props.onClick());
+    assert.equal(view.root.findAllByProps({ role: "dialog" }).length, 1);
+    await act(async () => view.root.findByProps({ "aria-label": "定位第 150 条用户消息" }).props.onClick());
+    assert.deepEqual(located, [items[0], items[149]]);
+    assert.equal(buttons[0].props["aria-pressed"], true);
+    assert.equal(calls.length, 1, "定位已有正文的消息无需重新请求");
     await act(async () => view.root.findByProps({ "aria-label": "查看引用：项目（Tiance 项目）" }).props.onClick());
     assert.deepEqual(opened, [{ kind: "file", reference: reference.reference }]);
+    assert.equal(view.root.findAllByProps({ role: "dialog" }).length, 0);
+    await act(async () => view.root.findByProps({ "aria-label": "用户消息列表", type: "button" }).props.onClick());
+    assert.equal(view.root.findAllByProps({ "aria-pressed": true }).length, 0);
   } finally { await act(async () => view.unmount()); }
 });
 
@@ -115,9 +124,9 @@ test("流式回复变化不会重取所选用户消息", async t => {
 test("全文搜索查询未加载的旧消息，右侧高亮正文和引用，定位保留原编号", async () => {
   const items = [1, 2, 3].map(n => ({ userMessageId: `u${n}`, turnNumber: n, userPreview: `普通预览 ${n}`, assistantPreview: "" }));
   const calls = [], located = [];
-  globalThis.searchTestMessages = async (...args) => { calls.push(args); return { items: [{
-    user_message_id: "u1", turn_number: 1, user_preview: "普通预览 1", assistant_preview: "", assistant_message_id: null,
-  }] }; };
+  globalThis.searchTestMessages = async (...args) => { calls.push(args); return { items: [1, 2].map(n => ({
+    user_message_id: `u${n}`, turn_number: n, user_preview: `普通预览 ${n}`, assistant_preview: "", assistant_message_id: null,
+  })) }; };
   globalThis.readTestMessage = async (_p, _s, id) => stored(id, "s", "项目在全文后面：项目，以及项目");
   const history = { projectId: "p", sessionId: "s", resetRevision: 0, messages: [local("u3")],
     navigation: { items, error: null, isLoading: false, retry() {} }, onLocate: item => located.push(item) };
@@ -132,11 +141,13 @@ test("全文搜索查询未加载的旧消息，右侧高亮正文和引用，�
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 210)); });
     assert.deepEqual(calls[0].slice(0, 2), ["p", "s"]);
     assert.equal(calls[0][3], "项目");
-    assert.equal(view.root.findAllByProps({ className: "user-message-history__select" }).length, 1);
+    assert.deepEqual(view.root.findAllByProps({ className: "user-message-history__select" }).map(button => button.props.title),
+      ["普通预览 2", "普通预览 1"]);
     const detail = view.root.findByProps({ "aria-label": "用户消息详情" });
     assert.equal(detail.findAllByType("mark").length, 5, "正文三处和引用名称两处全部高亮");
     await act(async () => view.root.findByProps({ "aria-label": "定位第 1 条用户消息" }).props.onClick());
     assert.equal(located[0].userMessageId, "u1");
+    assert.equal(input.props.value, "项目");
     await act(async () => input.props.onChange({ target: { value: "" } }));
     assert.equal(view.root.findAllByProps({ className: "user-message-history__select" }).length, 3);
   } finally { await act(async () => view.unmount()); }

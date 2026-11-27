@@ -5,6 +5,7 @@ import type {
   ProjectMemoryScope,
 } from "../../entities/project-memory/model/projectMemory";
 import { fetchJson } from "../http/httpClient";
+import { notifyMemoryChanged } from "../memory/memoryChanges";
 
 export function getProjectMemory(
   projectId: string,
@@ -34,15 +35,17 @@ export function getProjectMemory(
   );
 }
 
-export function applyProjectMemoryOperation(
+export async function applyProjectMemoryOperation(
   projectId: string,
   input: ProjectMemoryOperationInput,
 ) {
-  return fetchJson<ProjectMemoryOperationResponse>(
+  const result = await fetchJson<ProjectMemoryOperationResponse>(
     `/api/projects/${encodeURIComponent(projectId)}/memory/operations`,
     {
       body: JSON.stringify(input),
       method: "POST",
     },
   );
+  notifyMemoryChanged(projectId, input);
+  return result;
 }

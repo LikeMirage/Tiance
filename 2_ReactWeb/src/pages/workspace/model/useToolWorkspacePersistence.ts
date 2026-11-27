@@ -9,7 +9,7 @@ import {
   type ToolDashboardView,
 } from "../../../features/document-tabs/model/documentToolDashboardTabs";
 import type { useDocumentTabs } from "../../../features/document-tabs/model/useDocumentTabs";
-import { isProjectConversationOverviewTab } from "../../../features/document-tabs/model/documentTabUtils";
+import { getProjectDashboardName } from "../../../features/document-tabs/model/documentTabUtils";
 import type { WorkspaceStateResponse } from "../../../services/project/getProjectWorkspaceState";
 import { patchProjectWorkspaceState, readWorkspaceAfterWrites } from "../../../services/project/saveProjectWorkspaceState";
 import { snapshotWorkspaceTabs } from "../../../features/document-tabs/model/workspaceTabEntries";
@@ -120,10 +120,9 @@ export function useToolWorkspacePersistence({
         );
         if (restoreRequestId !== restoreRequestIdRef.current) return;
         const isConversationOverviewActive = state.active_dashboard === "conversation_overview";
-        const activeView: ToolDashboardView | null = activeWebId || state.active_file_path
+        const isMemoryActive = state.active_dashboard === "project_memory";
+        const activeView: ToolDashboardView | null = activeWebId || state.active_file_path || isMemoryActive || isConversationOverviewActive
           ? null
-          : isConversationOverviewActive
-            ? null
           : isToolDashboardView(state.active_dashboard)
             ? state.active_dashboard
             : "basics";
@@ -136,6 +135,7 @@ export function useToolWorkspacePersistence({
           documentTabs.ensureProjectConversationOverview(activeProjectId, {
             activate: !activeWebId && isConversationOverviewActive,
           });
+          documentTabs.ensureProjectMemoryDashboard(activeProjectId, !activeWebId && isMemoryActive);
         }
         if (restoreRequestId !== restoreRequestIdRef.current) return;
         hydratedWorkspaceKeyRef.current = hydrationKey;
@@ -167,6 +167,7 @@ export function useToolWorkspacePersistence({
     browser.restoreExpandedPaths,
     documentTabs.resetWorkspaceFiles,
     documentTabs.ensureProjectConversationOverview,
+    documentTabs.ensureProjectMemoryDashboard,
     documentTabs.openToolDashboard,
     documentTabs.restoreWorkspaceTabs,
     finishWorkspaceWaiters,
@@ -191,12 +192,9 @@ export function useToolWorkspacePersistence({
     const activeFilePath = activeTabBelongsToWorkspace
       ? documentTabs.activeTab?.filePath ?? null
       : null;
-    const activeDashboard: WorkspaceStateResponse["active_dashboard"] = isProjectConversationOverviewTab(documentTabs.activeTab)
-      && documentTabs.activeTab?.projectId === activeProjectId
-      ? "conversation_overview"
-      : activeTabBelongsToWorkspace && documentTabs.activeTab?.fileSource?.kind === "tool-dashboard"
-        ? getToolDashboardViewFromTab(documentTabs.activeTab)
-        : null;
+    const activeDashboard = activeTabBelongsToWorkspace && documentTabs.activeTab?.fileSource?.kind === "tool-dashboard"
+      ? getToolDashboardViewFromTab(documentTabs.activeTab)
+      : getProjectDashboardName(documentTabs.activeTab?.projectId === activeProjectId ? documentTabs.activeTab : null);
 
     const hiddenSelection = !folderExpanded && !documentTabs.activeTab ? lastWorkspaceState.current : null;
     const payload = {

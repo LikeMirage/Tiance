@@ -208,6 +208,8 @@ class ChatUsage:
     reasoning_tokens: int | None = None
     estimated_fields: tuple[str, ...] = ()
     output_duration_seconds: float | None = None
+    cost_amount: float | None = None
+    cost_currency: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

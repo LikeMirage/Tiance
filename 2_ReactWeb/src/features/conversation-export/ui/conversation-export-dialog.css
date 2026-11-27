@@ -426,6 +426,52 @@
   opacity: 0.48;
 }
 
+.conversation-export-panel .conversation-export-dialog__content {
+  flex: 1;
+  grid-template-columns: min(28%, 112px) minmax(0, 1fr);
+}
+
+.conversation-export-panel .edge-scroll-viewport {
+  overscroll-behavior: contain;
+}
+
+.conversation-export-panel .conversation-export-dialog__formats {
+  min-height: 100%;
+  padding: 4px 0;
+  background: transparent;
+}
+
+.conversation-export-panel .conversation-export-dialog__format {
+  grid-template-columns: auto minmax(0, 1fr);
+  height: 32px;
+  padding-inline: 8px;
+  gap: 5px;
+  border-radius: 0;
+}
+
+.conversation-export-panel .conversation-export-dialog__format small { display: none; }
+.conversation-export-panel .conversation-export-dialog__format svg { width: 15px; }
+.conversation-export-panel .conversation-export-dialog__details { display: block; }
+.conversation-export-panel .conversation-export-dialog__settings { overflow: visible; padding: 4px 10px; }
+.conversation-export-panel .conversation-export-dialog__details-header,
+.conversation-export-panel .conversation-export-dialog__setting {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 8px;
+  min-height: 32px;
+  padding: 4px 0;
+}
+.conversation-export-panel .conversation-export-dialog__details-header { padding-inline: 10px; }
+.conversation-export-panel .conversation-export-dialog__filename,
+.conversation-export-panel .conversation-export-dialog__directory-control { height: 26px; }
+.conversation-export-panel .conversation-export-dialog__directory-control button { height: 24px; }
+.conversation-export-panel .conversation-export-dialog__footer { padding: 0; gap: 5px; border: 0; }
+.conversation-export-panel .conversation-export-dialog__footer button { height: 24px; padding-inline: 7px; font-size: 11px; }
+.conversation-export-panel .conversation-export-dialog__submit-error { flex: none; max-width: 100%; padding-inline: 10px; }
+
+@container composer-panel (max-width: 420px) {
+  .conversation-export-panel .conversation-export-dialog__content-options { grid-template-columns: minmax(0, 1fr); }
+}
+
 @media (max-width: 620px) {
   .conversation-export-dialog__backdrop {
     padding: 12px;

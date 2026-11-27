@@ -1,11 +1,12 @@
 import { useI18n } from "@/shared/i18n";
+import { HttpRequestError } from "../../../services/http/httpClient";
 
 import { ConfirmModal } from "../../../shared/ui/confirm-modal/ConfirmModal";
 import type { PendingProjectDelete, ProjectDeleteMode } from "./projectListPanelTypes";
 import type { ProjectKind } from "../../../entities/project/model/project";
 
 type ProjectDeleteConfirmModalProps = {
-  error?: string | null;
+  error?: Error | null;
   itemKind?: ProjectKind;
   isDeleting: boolean;
   onCancel: () => void;
@@ -26,6 +27,9 @@ export function ProjectDeleteConfirmModal({
   const { t } = useI18n();
   const productName = t("common.productName");
   const isBatch = pendingDelete.projectIds.length > 1;
+  const details = error instanceof HttpRequestError ? error.details : null;
+  const canRetry = details !== null && typeof details === "object"
+    && "reason" in details && details.reason === "project_in_use";
 
   return (
     <ConfirmModal
@@ -37,20 +41,20 @@ export function ProjectDeleteConfirmModal({
           ? t(isBatch ? "roleDelete.batchTitle" : "roleDelete.title")
           : getProjectDeleteDialogTitle(pendingDelete.mode, isBatch, t)
       }
-      message={error ?? (
+      message={error?.message ?? (
         itemKind === "role"
           ? t(isBatch ? "roleDelete.batchMessage" : "roleDelete.message", {
               count: pendingDelete.projectIds.length,
             })
           : getProjectDeleteDialogMessage(pendingDelete, t, productName)
       )}
-      confirmDisabled={isDeleting || Boolean(error)}
+      confirmDisabled={isDeleting || (Boolean(error) && !canRetry)}
       confirmLabel={
         isDeleting
           ? pendingDelete.mode === "remove"
             ? t("projectDelete.confirm.removing")
             : t("projectDelete.confirm.deleting")
-          : getProjectDeleteConfirmLabel(pendingDelete.mode, t)
+          : canRetry ? t("common.actions.retry") : getProjectDeleteConfirmLabel(pendingDelete.mode, t)
       }
       onCancel={onCancel}
       onConfirm={() => onConfirm(pendingDelete)}

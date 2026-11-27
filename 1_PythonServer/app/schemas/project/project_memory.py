@@ -18,6 +18,7 @@ class ProjectMemoryEventResponse(BaseModel):
 
 class ProjectMemoryItemResponse(BaseModel):
     id: str
+    estimated_tokens: int
     scope: str
     content: str
     keywords: list[str] = Field(default_factory=list)
@@ -31,6 +32,7 @@ class ProjectMemoryItemResponse(BaseModel):
 
 class ProjectMemoryListResponse(BaseModel):
     project_id: str
+    total_estimated_tokens: int
     scope: str
     count: int
     total_count: int

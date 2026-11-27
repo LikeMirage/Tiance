@@ -3,16 +3,34 @@ export type UsageCostSummary = {
   cost_currency?: string | null;
 };
 
+const TOKEN_UNITS = ["", "k", "M", "B", "T"] as const;
+
 export function formatTokenCount(value: number | null | undefined) {
   const tokenCount = value ?? 0;
   const absValue = Math.abs(tokenCount);
-  if (absValue > 999_000) {
-    return `${formatScaledNumber(tokenCount / 1_000_000)}M`;
+  let scale = 1;
+  let unit = 0;
+  while (unit < TOKEN_UNITS.length - 1 && absValue > 999 * scale) {
+    scale *= 1_000;
+    unit++;
   }
-  if (absValue > 999) {
-    return `${formatScaledNumber(tokenCount / 1_000)}k`;
-  }
-  return String(tokenCount);
+  return unit === 0 ? String(tokenCount) : formatScaledNumber(tokenCount / scale) + TOKEN_UNITS[unit];
+}
+
+type CacheUsage = {
+  prompt_cache_hit_tokens?: number | null;
+  prompt_cache_miss_tokens?: number | null;
+  estimated_fields?: readonly string[];
+};
+
+export function formatCacheHitRate(usage: CacheUsage | undefined, locale: string) {
+  const hit = usage?.prompt_cache_hit_tokens;
+  const miss = usage?.prompt_cache_miss_tokens;
+  if (hit == null || miss == null || hit < 0 || miss < 0 || hit + miss === 0) return "—";
+  const estimated = usage?.estimated_fields?.some(field =>
+    field === "prompt_cache_hit_tokens" || field === "prompt_cache_miss_tokens");
+  const rate = (hit / (hit + miss)).toLocaleString(locale, { style: "percent", maximumFractionDigits: 2 });
+  return estimated ? `≈${rate}` : rate;
 }
 
 export function formatCostAmount(summary: UsageCostSummary | undefined) {

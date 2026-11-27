@@ -23,6 +23,7 @@ import {
   getTabFilePath,
   getTabSourceKey,
   isPinnedDocumentTab,
+  isProjectConversationOverviewTab,
   isToolDashboardTabForSource,
   isWorkspacePathAffected,
   makeStandaloneTabId,
@@ -524,13 +525,23 @@ export function useDocumentTabs(projectId: string | null, group = "projects") {
     options: { activate?: boolean } = {},
   ) => {
     const overviewTab = buildVirtualProjectConversationOverviewTab(projectId);
-    setTabs((prev) => [
+    setTabs((prev) => prev.some(tab => tab.id === overviewTab.id) ? prev : [
       overviewTab,
-      ...prev.filter((tab) => tab.id !== overviewTab.id),
+      ...prev,
     ]);
     if (options.activate) {
       setActiveTabId(overviewTab.id);
     }
+  }, []);
+
+  const ensureProjectMemoryDashboard = useCallback((projectId: string, activate: boolean) => {
+    const memoryTab = buildVirtualMemoryDashboardTab({ projectId, scope: "project" });
+    setTabs((prev) => {
+      if (prev.some(tab => tab.id === memoryTab.id)) return prev;
+      const index = prev.findIndex(tab => tab.projectId === projectId && isProjectConversationOverviewTab(tab)) + 1;
+      return [...prev.slice(0, index), memoryTab, ...prev.slice(index)];
+    });
+    if (activate) setActiveTabId(memoryTab.id);
   }, []);
 
   const ensureProjectKnowledgeContent = useCallback((
@@ -1004,6 +1015,7 @@ export function useDocumentTabs(projectId: string | null, group = "projects") {
     closeTab,
     discardTabChanges,
     ensureProjectConversationOverview,
+    ensureProjectMemoryDashboard,
     ensureProjectKnowledgeContent,
     ensureProjectRoleConfiguration,
     ensureProjectThemeConfiguration,
@@ -1042,6 +1054,7 @@ export function useDocumentTabs(projectId: string | null, group = "projects") {
     closeTab,
     discardTabChanges,
     ensureProjectConversationOverview,
+    ensureProjectMemoryDashboard,
     ensureProjectKnowledgeContent,
     ensureProjectRoleConfiguration,
     ensureProjectThemeConfiguration,

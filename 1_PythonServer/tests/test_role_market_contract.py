@@ -99,8 +99,10 @@ def test_role_package_validates_exact_files_and_configuration(tmp_path) -> None:
     }
 
 
-def test_legacy_role_package_removes_cancellation_options_on_import(tmp_path) -> None:
+def test_legacy_role_package_removes_retired_options_on_import(tmp_path) -> None:
     files = _valid_files()
+    expected_tools = dict(files["tools.json"])
+    files["tools.json"]["sandbox"] = {"enabled": True}
     files["response.json"].update({
         "return_cancelled_messages": False,
         "return_user_before_cancelled": False,
@@ -120,6 +122,7 @@ def test_legacy_role_package_removes_cancellation_options_on_import(tmp_path) ->
     assert response["streaming_enabled"] is False
     assert response["upstream_retry_count"] == 3
     assert response["upstream_retry_interval_seconds"] == 12
+    assert json.loads((extracted / "tools.json").read_text(encoding="utf-8")) == expected_tools
 
 
 @pytest.mark.parametrize(

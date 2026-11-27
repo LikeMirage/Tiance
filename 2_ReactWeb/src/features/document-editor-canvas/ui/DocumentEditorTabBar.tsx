@@ -1,6 +1,7 @@
 import type { ReactNode, RefObject } from "react";
 import { useState } from "react";
-import { ChatsCircle, GlobeSimple, Plus, SquaresFour, UserCircleGear, X } from "@phosphor-icons/react";
+import { ChatsCircle, GlobeSimple, Notebook, Plus, SquaresFour, UserCircleGear, X } from "@phosphor-icons/react";
+import { isProjectMemoryDashboardTab } from "../../document-tabs/model/documentTabUtils";
 
 import type { DocumentTab } from "../../../entities/editor/model/editorDocument";
 import {
@@ -101,6 +102,7 @@ export function DocumentEditorTabBar({
                 weight="fill"
               />
             ) : null}
+            {isProjectMemoryDashboardTab(tab) && <Notebook className="doc-editor__tab-icon" size={14} aria-hidden="true" />}
             {tab.kind === "web" && (!tab.displayPath
               ? <span aria-hidden="true" className="doc-editor__home-icon" />
               : <WebTabIcon icon={tab.favicon} />)}

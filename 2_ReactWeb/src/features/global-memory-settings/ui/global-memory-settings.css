@@ -28,6 +28,7 @@
 .global-memory-settings__head { justify-content: space-between; gap: 24px; }
 .global-memory-settings__head h2 { margin: 0; color: var(--color-text-heading); font-size: 1.35rem; }
 .global-memory-settings__toolbar { justify-content: flex-end; gap: 16px; }
+.global-memory-settings__toolbar > span { margin-inline-end: auto; color: var(--color-text-secondary); font-size: .75rem; }
 .global-memory-settings__view-stage > .sliding-view-stage__view--static { display: flex; flex-direction: column; gap: 18px; }
 .global-memory-settings__input,
 .global-memory-settings__textarea { box-sizing: border-box; width: 100%; border: 1px solid var(--color-border-soft); border-radius: 4px; outline: none; background: var(--color-surface-input); color: var(--color-text-primary); }

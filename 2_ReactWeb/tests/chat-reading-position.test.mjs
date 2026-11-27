@@ -16,6 +16,7 @@ const { captureChatScrollPosition } = await vite.ssrLoadModule("/src/features/ai
 
 function environment() {
   let sequence = 0;
+  let frameTime = 0;
   const frames = new Map();
   globalThis.window = {
     requestAnimationFrame: (callback) => { frames.set(++sequence, callback); return sequence; },
@@ -23,9 +24,19 @@ function environment() {
     setTimeout: () => ++sequence, clearTimeout() {},
     matchMedia: () => ({ matches: true }), addEventListener() {}, removeEventListener() {},
   };
-  globalThis.ResizeObserver = globalThis.MutationObserver = class { observe() {} unobserve() {} disconnect() {} };
+  const resizeObservers = new Set();
+  globalThis.ResizeObserver = class {
+    constructor(callback) { this.callback = callback; }
+    observe() { resizeObservers.add(this.callback); }
+    unobserve() {}
+    disconnect() { resizeObservers.delete(this.callback); }
+  };
+  globalThis.MutationObserver = class { observe() {} disconnect() {} };
   globalThis.HTMLElement = class {};
-  return { frame() { const pending = [...frames.values()]; frames.clear(); pending.forEach((callback) => callback(16)); } };
+  return {
+    resize() { resizeObservers.forEach((callback) => callback()); },
+    frame() { frameTime += 16; const pending = [...frames.values()]; frames.clear(); pending.forEach((callback) => callback(frameTime)); },
+  };
 }
 
 function scrollDom() {
@@ -92,9 +103,9 @@ test("切换会话或用户接管后，取消的恢复帧不能再滚动页面",
 test("视口暂时为空时，不把屏幕外常驻的活动回复误记为阅读位置", () => {
   const { element, row } = scrollDom();
   element.nodes = [row("live", 9000)];
-  assert.equal(captureChatScrollPosition(element, 8).anchorMessageId, null);
+  assert.equal(captureChatScrollPosition(element, false).anchorMessageId, null);
   element.nodes.unshift(row("reading", 100));
-  assert.equal(captureChatScrollPosition(element, 8).anchorMessageId, "reading");
+  assert.equal(captureChatScrollPosition(element, false).anchorMessageId, "reading");
 });
 
 test("正文仍在分片挂载时不提前确认恢复", () => {
@@ -205,5 +216,105 @@ test("阅读位置只在面板内存中保留，重新打开后默认跟随底�
     assert.equal(hook.viewRestoreRequest, null);
     assert.equal(hook.isFollowingBottom, true);
     assert.equal(element.scrollTop, 9500);
+  } finally { if (view) await act(async () => view.unmount()); }
+});
+
+test("未锁定时，滚动条已到底和工具卡片增高期间的书签都不打断跟随", async () => {
+  const clock = environment();
+  const { element, row } = scrollDom();
+  element.nodes = [row("latest", 9200, 3000)];
+  let hook, view;
+  function Harness() {
+    hook = useBodyAutoScroll({ activeSessionKey: "A", isChatViewActive: true });
+    return createElement("div", { ref: hook.bodyRef });
+  }
+  const grow = () => {
+    element.scrollHeight += 400;
+    hook.preserveCurrentView();
+    clock.resize();
+    for (let i = 0; i < 60; i++) clock.frame();
+  };
+  try {
+    await act(async () => { view = create(createElement(Harness), { createNodeMock: () => element }); });
+    await act(async () => hook.syncAfterContentReady());
+    await act(async () => { hook.handleScrollbarScroll(false); grow(); });
+    assert.equal(hook.isBottomFollowLocked, false);
+    assert.equal(hook.isFollowingBottom, true);
+    assert.equal(element.scrollTop, element.scrollHeight - element.clientHeight);
+    const readingPosition = element.scrollTop - 200;
+    await act(async () => { element.scrollTop = readingPosition; hook.handleScrollbarScroll(true); grow(); });
+    assert.equal(hook.isFollowingBottom, false);
+    assert.equal(element.scrollTop, readingPosition);
+    await act(async () => { element.scrollTop = element.scrollHeight; hook.handleScrollbarScroll(true); grow(); });
+    assert.equal(hook.isFollowingBottom, true);
+    assert.equal(element.scrollTop, element.scrollHeight - element.clientHeight);
+  } finally { if (view) await act(async () => view.unmount()); }
+});
+
+test("虚拟消息中的延迟正文保留占位高度，同时工具卡片增高立即计入列表", async () => {
+  environment();
+  const { element } = scrollDom();
+  const scrollParentRef = { current: element };
+  const messages = [{ id: "live", role: "assistant", content: "" }];
+  let hook, view;
+  function Harness() {
+    hook = useVirtualMessageList({ enabled: true, messages, estimateSize: 140, scrollParentRef });
+    return createElement("div", { ref: hook.listRef });
+  }
+  try {
+    await act(async () => { view = create(createElement(Harness), { createNodeMock: () => element }); });
+    for (const [height, pending, expected] of [[60, true, 140], [500, true, 500], [80, true, 500], [80, false, 80]]) {
+      await act(async () => hook.measureMessage("live", 0, height, pending));
+      assert.equal(hook.totalSize, expected);
+    }
+  } finally { if (view) await act(async () => view.unmount()); }
+});
+
+test("锁定底部后滚动和流式追加仍跟随，锁定按会话保留，解锁和历史定位允许阅读", async () => {
+  const clock = environment();
+  const { element, row } = scrollDom();
+  element.nodes = [row("latest", 9200)];
+  let hook, view;
+  function Harness({ session, target }) {
+    hook = useBodyAutoScroll({ activeSessionKey: session, isChatViewActive: true, navigationTargetSessionKey: target });
+    return createElement("div", { ref: hook.bodyRef });
+  }
+  const render = (session, target = null) => act(async () => {
+    const tree = createElement(Harness, { session, target });
+    if (view) view.update(tree);
+    else view = create(tree, { createNodeMock: () => element });
+  });
+  try {
+    await render("A");
+    await act(async () => { hook.syncAfterContentReady(); hook.activateBottomButton(false); });
+    assert.equal(hook.isBottomFollowLocked, false);
+    await act(async () => hook.activateBottomButton(true));
+    assert.equal(hook.isBottomFollowLocked, true);
+    await act(async () => {
+      element.listeners.get("wheel")({ deltaY: -100 });
+      element.scrollTop -= 200;
+      hook.handleBodyScroll();
+      element.scrollHeight += 600;
+      hook.preserveCurrentView();
+      for (let i = 0; i < 60; i++) clock.frame();
+    });
+    assert.equal(hook.isFollowingBottom, true);
+    assert.equal(element.scrollTop, element.scrollHeight - element.clientHeight);
+    await render("B");
+    assert.equal(hook.isBottomFollowLocked, false);
+    await render("A");
+    assert.equal(hook.isBottomFollowLocked, true);
+    await act(async () => hook.activateBottomButton(false));
+    assert.equal(hook.isBottomFollowLocked, false);
+    await act(async () => {
+      element.listeners.get("wheel")({ deltaY: -100 });
+      element.scrollTop -= 200;
+      hook.handleBodyScroll();
+    });
+    assert.equal(hook.isFollowingBottom, false);
+    await act(async () => hook.activateBottomButton(true));
+    await render("A", "A");
+    assert.equal(hook.isBottomFollowLocked, false);
+    assert.equal(hook.isFollowingBottom, false);
   } finally { if (view) await act(async () => view.unmount()); }
 });

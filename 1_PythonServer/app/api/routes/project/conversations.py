@@ -556,7 +556,8 @@ def list_project_conversation_messages(
         before_message_id=before_message_id,
         after_message_id=after_message_id,
     )
-    items = [ProjectConversationMessageResponse.from_domain(message) for message in page.items]
+    messages = get_llm_usage_service().with_message_costs(project_id, session_id, page.items)
+    items = [ProjectConversationMessageResponse.from_domain(message) for message in messages]
     return ProjectConversationMessageListResponse(
         project_id=project_id,
         session_id=session_id,
@@ -610,7 +611,7 @@ def get_project_conversation_message_turn(
     )
     items = [
         ProjectConversationMessageResponse.from_domain(message)
-        for message in turn.items
+        for message in get_llm_usage_service().with_message_costs(project_id, session_id, turn.items)
     ]
     return ProjectConversationMessageTurnResponse(
         project_id=project_id,
@@ -643,6 +644,7 @@ def conversation_message_sync_state(project_id: str, session_id: str):
 )
 def get_project_conversation_message(project_id: str, session_id: str, message_id: str):
     message = get_project_conversation_service().get_message(project_id, session_id, message_id)
+    message, = get_llm_usage_service().with_message_costs(project_id, session_id, (message,))
     return ProjectConversationMessageResponse.from_domain(message)
 
 

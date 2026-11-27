@@ -1,4 +1,4 @@
-import { type ReactNode, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import "./tooltip.css";
@@ -9,6 +9,7 @@ export type TooltipProps = {
   children: ReactNode;
   content: ReactNode;
   disabled?: boolean;
+  focusable?: boolean;
   maxWidth?: number;
   placement?: TooltipPlacement;
 };
@@ -27,11 +28,13 @@ export function Tooltip({
   children,
   content,
   disabled = false,
+  focusable = false,
   maxWidth = DEFAULT_MAX_WIDTH,
   placement = "top",
 }: TooltipProps) {
   const tooltipId = useId();
   const triggerRef = useRef<HTMLSpanElement | null>(null);
+  const tooltipRef = useRef<HTMLSpanElement | null>(null);
   const [position, setPosition] = useState<TooltipPosition | null>(null);
 
   const normalizedContent = useMemo(() => {
@@ -50,17 +53,32 @@ export function Tooltip({
     if (!rect) {
       return;
     }
-    setPosition(positionTooltip(rect, placement, maxWidth));
+    // Hover and focus can open the same tooltip. Keep its measured position until it closes.
+    setPosition(current => current ?? positionTooltip(rect, placement, maxWidth));
   };
 
   const hide = () => {
     setPosition(null);
   };
 
+  const visible = position !== null;
+  useLayoutEffect(() => {
+    const anchor = triggerRef.current;
+    const tooltip = tooltipRef.current;
+    if (!visible || !anchor || !tooltip) return;
+    const rect = anchor.getBoundingClientRect();
+    const bounds = tooltip.getBoundingClientRect();
+    const measured = positionTooltip(rect, placement, bounds.width, bounds.height);
+    setPosition(current => current?.placement === measured.placement && current.left === measured.left
+      && current.top === measured.top ? current : measured);
+  }, [visible, placement, maxWidth]);
+
   return (
     <span
       ref={triggerRef}
       className="ds-tooltip__trigger"
+      tabIndex={focusable ? 0 : undefined}
+      onKeyDown={focusable ? (event) => { if (event.key === "Escape") hide(); } : undefined}
       aria-describedby={position ? tooltipId : undefined}
       onBlur={hide}
       onFocus={show}
@@ -71,13 +89,14 @@ export function Tooltip({
       {position
         ? createPortal(
             <span
+              ref={tooltipRef}
               id={tooltipId}
               className="ds-tooltip"
               data-placement={position.placement}
               role="tooltip"
               style={{
                 left: position.left,
-                maxWidth,
+                maxWidth: `min(${maxWidth}px, calc(100vw - ${VIEWPORT_MARGIN * 2}px))`,
                 top: position.top,
               }}
             >
@@ -93,20 +112,25 @@ export function Tooltip({
 function positionTooltip(
   rect: DOMRect,
   preferredPlacement: TooltipPlacement,
-  maxWidth: number,
+  width: number,
+  height = 52,
 ): TooltipPosition {
-  const halfWidth = maxWidth / 2;
+  const halfWidth = width / 2;
   const left = clamp(
     rect.left + rect.width / 2,
     VIEWPORT_MARGIN + halfWidth,
     window.innerWidth - VIEWPORT_MARGIN - halfWidth,
   );
-  const hasTopSpace = rect.top >= 72;
-  const actualPlacement = preferredPlacement === "top" && hasTopSpace ? "top" : "bottom";
+  const required = height + GAP + VIEWPORT_MARGIN;
+  const above = rect.top, below = window.innerHeight - rect.bottom;
+  const onTop = preferredPlacement === "top" ? above >= required || above > below : below < required && above > below;
+  const actualPlacement = onTop ? "top" : "bottom";
   return {
     left,
     placement: actualPlacement,
-    top: actualPlacement === "top" ? rect.top - GAP : rect.bottom + GAP,
+    top: onTop
+      ? Math.max(height + VIEWPORT_MARGIN, rect.top - GAP)
+      : Math.max(VIEWPORT_MARGIN, Math.min(rect.bottom + GAP, window.innerHeight - height - VIEWPORT_MARGIN)),
   };
 }
 

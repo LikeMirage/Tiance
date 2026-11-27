@@ -163,6 +163,8 @@ def complete_usage_with_estimates(
         reasoning_tokens=usage.reasoning_tokens,
         estimated_fields=tuple(sorted(estimated_fields)),
         output_duration_seconds=usage.output_duration_seconds,
+        cost_amount=usage.cost_amount,
+        cost_currency=usage.cost_currency,
     )
 
 

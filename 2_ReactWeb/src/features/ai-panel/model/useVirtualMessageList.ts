@@ -209,6 +209,7 @@ export function useVirtualMessageList({
     messageId: string,
     index: number,
     height: number,
+    pendingContent = false,
   ) => {
     if (!enabled || height <= 0) return;
     const previousHeight = heightsRef.current.get(messageId);
@@ -218,6 +219,9 @@ export function useVirtualMessageList({
     const scrollEl = scrollParentRef.current;
     const previousEffectiveHeight = previousHeight ?? estimateSize;
     const delta = nextHeight - previousEffectiveHeight;
+    // Reattached Markdown can start with an empty placeholder. Keep its
+    // previous height, but publish growth from tool cards in the same row.
+    if (pendingContent && delta < 0) return;
     const rowBottom = offsetsRef.current[index + 1] ?? 0;
     const viewportStart =
       (scrollEl?.scrollTop ?? viewportRef.current.scrollTop) - contentTopRef.current;

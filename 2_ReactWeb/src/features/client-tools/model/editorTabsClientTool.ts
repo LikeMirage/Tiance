@@ -7,6 +7,7 @@ import { DocumentRevealError, parseDocumentRevealTarget, type DocumentRevealResu
 import {
   isPinnedDocumentTab,
   isProjectConversationOverviewTab,
+  isProjectMemoryDashboardTab,
   normalizeWorkspacePath,
 } from "../../document-tabs/model/documentTabUtils";
 import type {
@@ -277,7 +278,7 @@ function getProjectTabs(
   projectId: string,
 ) {
   return snapshot.tabs.filter(
-    (tab) => tab.projectId === projectId && !isProjectConversationOverviewTab(tab),
+    (tab) => tab.projectId === projectId && !isProjectConversationOverviewTab(tab) && !isProjectMemoryDashboardTab(tab),
   );
 }
 

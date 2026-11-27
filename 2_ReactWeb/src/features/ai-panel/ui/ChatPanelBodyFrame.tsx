@@ -30,7 +30,7 @@ type ChatPanelBodyFrameProps = {
   chat: Parameters<typeof ChatMessageList>[0];
   isMessageNavigationTrackingEnabled: boolean;
   onBodyScroll: UIEventHandler<HTMLDivElement>;
-  onUserScroll: () => void;
+  onUserScroll: (moved: boolean) => void;
   onActiveUserMessageChange?: (messageId: string | null) => void;
   onExternalNavigationHandled?: (requestId: number) => void;
   onViewRestoreHandled?: (requestId: number) => void;

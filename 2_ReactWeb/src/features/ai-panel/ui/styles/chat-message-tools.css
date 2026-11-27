@@ -15,6 +15,7 @@
 
 .chat-msg__tools {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   margin: 0;
 }
@@ -104,6 +105,7 @@
 
 .chat-msg__tool-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   max-width: 100%;
   min-width: 0;
   padding: 0;

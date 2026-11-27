@@ -11,6 +11,8 @@ import type {
 } from "../../../entities/editor/model/editorReference";
 import type { CodeBlockSavePayload } from "../../markdown-preview/model/codeBlockFile";
 import { LoadingStrip } from "../../../shared/ui/loading-strip";
+import { isProjectMemoryDashboardTab } from "../../document-tabs/model/documentTabUtils";
+import { MemoryManagementDashboard } from "../../project-memory/ui/MemoryManagementDashboard";
 import { DocumentAssetPreviewContent, isDocumentAssetPreviewKind } from "./DocumentAssetPreviewContent";
 import { buildEditorContentResetKey, EditorLazyBoundary } from "./EditorContentBoundary";
 import {
@@ -189,6 +191,14 @@ export function DocumentEditorActiveContent({
 
   if (isProjectConversationOverview) {
     return projectConversationOverviewContent;
+  }
+
+  if (isProjectMemoryDashboardTab(activeTab)) {
+    return (
+      <EditorLazyBoundary resetKey={boundaryKey}>
+        <MemoryManagementDashboard key={activeTab.id} projectId={activeTab.projectId} inEditor />
+      </EditorLazyBoundary>
+    );
   }
 
   if (isProjectKnowledgeContent) {

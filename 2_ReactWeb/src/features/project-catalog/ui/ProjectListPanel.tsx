@@ -122,7 +122,7 @@ export const ProjectListPanel = memo(function ProjectListPanel({
   const [isDeletingProject, setIsDeletingProject] = useState(false);
   const [isBatchActionBusy, setIsBatchActionBusy] = useState(false);
   const [projectActionError, setProjectActionError] = useState<string | null>(null);
-  const [projectDeleteError, setProjectDeleteError] = useState<string | null>(null);
+  const [projectDeleteError, setProjectDeleteError] = useState<Error | null>(null);
   const categoryProjectIdsKey = useMemo(
     () => categoryProjects.map((project) => project.project_id).join("\n"),
     [categoryProjects],
@@ -207,8 +207,8 @@ export const ProjectListPanel = memo(function ProjectListPanel({
         });
         setProjectDeleteError(
           result.error instanceof Error
-            ? result.error.message
-            : t("projectList.batchActionFailed"),
+            ? result.error
+            : new Error(t("projectList.batchActionFailed")),
         );
         return;
       }

@@ -5,6 +5,7 @@ import type {
 } from "../../../services/project/getProjectConversationUsageSummary";
 
 export {
+  formatCacheHitRate,
   formatCostAmount,
   formatTokenCount,
 } from "../../../shared/model/usageFormatting";

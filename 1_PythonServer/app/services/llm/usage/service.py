@@ -1,6 +1,12 @@
+from dataclasses import replace
 from functools import lru_cache
+import logging
+import sqlite3
 
 from app.domain.llm.chat import ChatUsage
+from app.domain.llm.provider_custom_model import ProviderCustomModel
+from app.domain.project.project_conversation import ProjectConversationMessage
+from app.repositories.llm.provider_file_store import ProviderFileStoreError
 from app.domain.llm.usage import (
     LlmProviderModelUsageSummary,
     LlmProviderUsageSummary,
@@ -19,6 +25,8 @@ from app.repositories.llm.provider_custom_model_repository import (
 from app.repositories.llm.usage_repository import LlmUsageRepository, get_llm_usage_repository
 from app.repositories.project.project_repository import ProjectRepository, get_project_repository
 from app.core.errors import NotFoundError
+
+logger = logging.getLogger(__name__)
 
 
 class LlmUsageService:
@@ -46,11 +54,8 @@ class LlmUsageService:
         usage_feature_key: str = "main_chat",
         request_id: str | None = None,
     ) -> LlmUsageRecord:
-        cost_amount, cost_currency = self._calculate_usage_cost(
-            provider_id=provider_id,
-            model_id=model_id,
-            usage=usage,
-        )
+        model = self._provider_custom_model_repository.get_model(provider_id=provider_id, model_id=model_id)
+        cost_amount, cost_currency = _calculate_usage_cost(model, usage)
         return self._repository.record_usage(
             project_id=project_id,
             session_id=session_id,
@@ -156,34 +161,65 @@ class LlmUsageService:
         if self._project_repository.get_project(project_id) is None:
             raise NotFoundError(f"项目 '{project_id}' 不存在。")
 
-    def _calculate_usage_cost(
-        self,
-        *,
-        provider_id: str,
-        model_id: str,
-        usage: ChatUsage,
-    ) -> tuple[float | None, str | None]:
-        model = self._provider_custom_model_repository.get_model(
-            provider_id=provider_id,
-            model_id=model_id,
-        )
-        if model is None:
-            return None, None
+    def with_message_costs(
+        self, project_id: str, session_id: str, messages: tuple[ProjectConversationMessage, ...],
+    ) -> tuple[ProjectConversationMessage, ...]:
+        legacy = [m for m in messages if m.role == "assistant" and m.usage and "cost_amount" not in m.usage]
+        if not legacy:
+            return messages
+        try:
+            recorded = self._repository.recorded_message_costs(project_id, session_id, [m.message_id for m in legacy])
+        except (OSError, sqlite3.Error, ValueError):
+            logger.warning("Usage ledger unavailable while reading conversation history", exc_info=True)
+            recorded = {}
+        models: dict[tuple[str, str], ProviderCustomModel | None] = {}
+        enriched = {}
+        for message in legacy:
+            usage = message.usage
+            cost = recorded.get(message.message_id)
+            if cost is not None:
+                details = {"cost_amount": cost[0], "cost_currency": cost[1]}
+            elif message.provider_id and message.model_id:
+                key = (message.provider_id, message.model_id)
+                if key not in models:
+                    try:
+                        models[key] = self._provider_custom_model_repository.get_model(
+                            provider_id=key[0], model_id=key[1],
+                        )
+                    except (OSError, ValueError, ProviderFileStoreError):
+                        models[key] = None
+                counters = {field: usage.get(field) for field in (
+                    "prompt_tokens", "completion_tokens", "prompt_cache_hit_tokens", "prompt_cache_miss_tokens",
+                )}
+                model = models[key]
+                if model is None or all(price is None for price in (
+                    model.input_price_per_million, model.cache_hit_price_per_million, model.output_price_per_million,
+                )):
+                    continue
+                if counters["completion_tokens"] is None or (counters["prompt_tokens"] is None and
+                        (counters["prompt_cache_hit_tokens"] is None or counters["prompt_cache_miss_tokens"] is None)):
+                    continue
+                if any(value is not None and (type(value) is not int or value < 0) for value in counters.values()):
+                    continue
+                amount, currency = _calculate_usage_cost(model, ChatUsage(**counters))
+                details = {"cost_amount": amount, "cost_currency": currency, "cost_at_current_rates": True}
+            else:
+                continue
+            enriched[message.message_id] = replace(message, usage={**usage, **details})
+        return tuple(enriched.get(m.message_id, m) for m in messages)
 
-        prompt_tokens = usage.prompt_tokens or 0
-        cache_hit_tokens = usage.prompt_cache_hit_tokens or 0
-        if cache_hit_tokens > 0 or (usage.prompt_cache_miss_tokens or 0) > 0:
-            cache_miss_tokens = usage.prompt_cache_miss_tokens or 0
-        else:
-            cache_miss_tokens = prompt_tokens
 
-        completion_tokens = usage.completion_tokens or 0
-        cost_amount = (
-            cache_miss_tokens * (model.input_price_per_million or 0)
-            + cache_hit_tokens * (model.cache_hit_price_per_million or 0)
-            + completion_tokens * (model.output_price_per_million or 0)
-        ) / 1_000_000
-        return cost_amount, model.price_currency
+def _calculate_usage_cost(model: ProviderCustomModel | None, usage: ChatUsage) -> tuple[float | None, str | None]:
+    if model is None:
+        return None, None
+    cache_hit = usage.prompt_cache_hit_tokens or 0
+    cache_miss = usage.prompt_cache_miss_tokens or 0
+    if not (cache_hit or cache_miss):
+        cache_miss = usage.prompt_tokens or 0
+    amount = (cache_miss * (model.input_price_per_million or 0)
+              + cache_hit * (model.cache_hit_price_per_million or 0)
+              + (usage.completion_tokens or 0) * (model.output_price_per_million or 0)) / 1_000_000
+    return amount, model.price_currency
 
 
 @lru_cache

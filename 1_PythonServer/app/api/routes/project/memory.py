@@ -3,7 +3,6 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 
 from app.schemas.project import (
-    ProjectMemoryItemResponse,
     ProjectMemoryListResponse,
     ProjectMemoryOperationRequest,
     ProjectMemoryOperationResponse,
@@ -33,18 +32,7 @@ def list_project_memory(
         page=page,
         page_size=page_size,
     )
-    return ProjectMemoryListResponse(
-        project_id=project_id,
-        scope=report["scope"],
-        count=report["count"],
-        total_count=report["total_count"],
-        page=report["page"],
-        page_size=report["page_size"],
-        total_pages=report["total_pages"],
-        has_previous=report["has_previous"],
-        has_next=report["has_next"],
-        items=[ProjectMemoryItemResponse(**item) for item in report["items"]],
-    )
+    return ProjectMemoryListResponse(project_id=project_id, **report)
 
 
 @router.post(

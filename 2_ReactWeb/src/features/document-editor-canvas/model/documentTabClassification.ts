@@ -39,8 +39,7 @@ export function isConversationBranchesTab(tab: DocumentTab | null) {
 
 export function isProjectMemoryTab(tab: DocumentTab | null) {
   if (!tab) return false;
-  return tab.id.startsWith("memory-dashboard:project:")
-    || getNormalizedTabPath(tab).endsWith(".tiance/memory/project_memory.jsonl");
+  return getNormalizedTabPath(tab).endsWith(".tiance/memory/project_memory.jsonl");
 }
 
 export function isGlobalMemoryTab(tab: DocumentTab | null) {

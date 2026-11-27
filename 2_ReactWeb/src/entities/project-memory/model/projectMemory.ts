@@ -10,6 +10,7 @@ export type ProjectMemoryEvent = {
 
 export type ProjectMemoryItem = {
   id: string;
+  estimated_tokens: number;
   scope: string;
   content: string;
   keywords: string[];
@@ -23,6 +24,7 @@ export type ProjectMemoryItem = {
 
 export type ProjectMemoryListResponse = {
   project_id: string;
+  total_estimated_tokens: number;
   scope: string;
   count: number;
   total_count: number;

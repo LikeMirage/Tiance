@@ -1,5 +1,5 @@
 import { Crosshair, ListBullets, MagnifyingGlass } from "@phosphor-icons/react";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { EmbeddedPanel } from "../../../shared/ui/embedded-panel/EmbeddedPanel";
 import type { EditorReferenceViewerPayload } from "../../../entities/editor/model/editorReference";
 import type { ChatMessage } from "../model/chatMessage";
@@ -29,11 +29,10 @@ export function UserMessageHistoryMenu({ history, isOpen, onOpenChange, onOpenRe
   onOpenReference?: (payload: EditorReferenceViewerPayload) => void;
 }) {
   const panelId = useId();
-  const triggerRef = useRef<HTMLButtonElement>(null);
   const open = isOpen && Boolean(history);
   const close = () => onOpenChange(false);
   return <>
-    <button ref={triggerRef} type="button"
+    <button type="button"
       className={`ai-panel__composer-add ai-panel__composer-history${open ? " ai-panel__composer-add--open" : ""}`}
       aria-label="用户消息列表" title="用户消息列表" aria-haspopup="dialog"
       aria-expanded={open} aria-controls={open ? panelId : undefined} disabled={!history}
@@ -43,51 +42,44 @@ export function UserMessageHistoryMenu({ history, isOpen, onOpenChange, onOpenRe
     {open && history ?
         <UserMessageHistoryContents key={JSON.stringify([history.projectId, history.sessionId])}
           panelContainer={panelContainer} panelId={panelId}
-          history={history} onClose={close} onLocate={(item) => { close(); history.onLocate(item); }}
+          history={history} onClose={close}
           onOpenReference={onOpenReference ? (payload) => { close(); onOpenReference(payload); } : undefined} />
       : null}
   </>;
 }
 
-function UserMessageHistoryContents({ history, onClose, onLocate, onOpenReference, panelContainer, panelId }: {
+function UserMessageHistoryContents({ history, onClose, onOpenReference, panelContainer, panelId }: {
   panelContainer: HTMLElement | null;
   panelId: string;
   history: UserMessageHistoryState;
   onClose: () => void;
-  onLocate: (item: UserMessageNavigationItem) => void;
   onOpenReference?: (payload: EditorReferenceViewerPayload) => void;
 }) {
   const [query, setQuery] = useState("");
   const search = useUserMessageSearch({ ...history, items: history.navigation.items, query });
   const { items, error, isLoading, retry } = query.trim() ? search : history.navigation;
+  const newestFirst = useMemo(() => items.slice().reverse(), [items]);
   const [selection, setSelection] = useState<string | null>(null);
-  const selected = items.find((item) => item.userMessageId === selection)
-    ?? (query.trim() ? items[0] : items.at(-1)) ?? null;
-  const selectedRef = useRef<HTMLButtonElement>(null);
-  // Keep the initial selection stable when another user turn arrives.
-  useEffect(() => { if (selected) setSelection(selected.userMessageId); }, [selected?.userMessageId]);
-  useLayoutEffect(() => {
-    selectedRef.current?.scrollIntoView({ block: "nearest" });
-  }, [selected?.userMessageId]);
-  return <EmbeddedPanel container={panelContainer} id={panelId} title="用户消息"
-    ariaLabel="用户消息列表" className="user-message-history" onClose={onClose}
-    headerContent={<>
-      <span className="user-message-history__count">{query.trim() ? `${items.length}/${history.navigation.items.length}` : items.length}</span>
+  const selected = newestFirst.find((item) => item.userMessageId === selection)
+    ?? (query.trim() ? newestFirst[0] : null) ?? null;
+  return <EmbeddedPanel container={panelContainer} id={panelId}
+    title={<>用户消息<span className="user-message-history__count">{query.trim() ? `${items.length}/${history.navigation.items.length}` : items.length}</span></>}
+    ariaLabel="用户消息列表" className="user-message-history embedded-panel--split-header" onClose={onClose}
+    headerContent={
       <label className="user-message-history__search">
         <MagnifyingGlass size={14} aria-hidden="true" />
         <input type="search" aria-label="搜索用户消息" placeholder="搜索关键词" value={query}
           onChange={event => setQuery(event.target.value)} />
       </label>
-    </>}>
+    }>
     {error ? <div className="user-message-history__error" role="alert">
       <span>{error}</span><button type="button" onClick={retry}>重试</button>
     </div> : null}
     <div className="user-message-history__body">
       <nav className="user-message-history__list" aria-label="历史用户消息">
-        {items.map((item) => <div className="user-message-history__row" key={item.userMessageId}
+        {newestFirst.map((item) => <div className="user-message-history__row" key={item.userMessageId}
           data-selected={item.userMessageId === selected?.userMessageId || undefined}>
           <button type="button" className="user-message-history__select"
-            ref={item.userMessageId === selected?.userMessageId ? selectedRef : undefined}
             aria-pressed={item.userMessageId === selected?.userMessageId}
             onClick={() => setSelection(item.userMessageId)} title={item.userPreview}>
             <span className="user-message-history__number">{item.turnNumber}</span>
@@ -95,7 +87,10 @@ function UserMessageHistoryContents({ history, onClose, onLocate, onOpenReferenc
           </button>
           <button type="button" className="ai-panel__composer-add user-message-history__locate"
             aria-label={`定位第 ${item.turnNumber} 条用户消息`} title="定位到消息"
-            onClick={() => onLocate(item)}><Crosshair size={15} aria-hidden="true" /></button>
+            onClick={() => {
+              setSelection(item.userMessageId);
+              history.onLocate(item);
+            }}><Crosshair size={15} aria-hidden="true" /></button>
         </div>)}
         {!items.length && !error ? <p className="user-message-history__empty" role="status">
           {isLoading ? (query.trim() ? "正在搜索…" : "正在加载消息列表…") : query.trim() ? "没有匹配的消息" : "暂无用户消息"}

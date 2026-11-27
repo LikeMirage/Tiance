@@ -42,11 +42,15 @@ class _Interface(C.Structure):
     _fields_ = [("vtable", C.POINTER(PTR))]
 
 
+class RecycleItemInUseError(OSError):
+    """Windows could not recycle the source because of a sharing or file lock."""
+
+
 class _RecycleProgress:
     """Refuse Shell's permanent-delete fallback and observe actual completion."""
 
     def __init__(self) -> None:
-        self.error: str | None = None
+        self.error: OSError | None = None
         self.recycled = False
         self.references = 1
         # IFileOperationProgressSink's ABI, in declared vtable order.
@@ -101,22 +105,22 @@ class _RecycleProgress:
 
     def _pre_delete(self, _this, flags, _item):
         if not flags & TSF_DELETE_RECYCLE_IF_POSSIBLE:
-            self.error = "系统无法将此目录放入回收站，已停止删除。"
+            self.error = OSError("系统无法将此目录放入回收站，已停止删除。")
             return E_ABORT
         return 0
 
     def _post_delete(self, _this, _flags, _item, result, recycled_item):
         if result < 0 and self.error is None:
-            self.error = _error_text(result)
+            self.error = _recycle_error(result)
         elif result >= 0 and not recycled_item and self.error is None:
-            self.error = "系统未确认文件已进入回收站。"
+            self.error = OSError("系统未确认文件已进入回收站。")
         elif result >= 0 and recycled_item:
             self.recycled = True
         return 0
 
     def _finish(self, _this, result):
         if result < 0 and self.error is None:
-            self.error = _error_text(result)
+            self.error = _recycle_error(result)
         return 0
 
 
@@ -125,13 +129,22 @@ def _method(pointer: PTR, index: int, *argtypes):
     return CALLBACK(HRESULT, PTR, *argtypes)(vtable[index])
 
 
-def _error_text(result: int) -> str:
-    return f"系统回收失败（0x{result & 0xffffffff:08X}）。"
+def _recycle_error(result: int) -> OSError:
+    code = result & 0xffffffff
+    # COPYENGINE_E_SHARING_VIOLATION_SRC and HRESULT_FROM_WIN32(SHARING/LOCK_VIOLATION).
+    if code in (0x80270027, 0x80070020, 0x80070021):
+        return RecycleItemInUseError(
+            "文件夹或其中的文件正在被占用。请关闭打开相关文件的应用或终端，"
+            f"或停止使用该目录的任务，再重试。（0x{code:08X}）"
+        )
+    if code == 0x80070005:
+        return OSError(f"Windows 拒绝访问，请检查该目录的删除权限。（0x{code:08X}）")
+    return OSError(f"系统回收失败（0x{code:08X}）。")
 
 
 def _check(result: int) -> None:
     if result < 0:
-        raise OSError(_error_text(result))
+        raise _recycle_error(result)
 
 
 def recycle_path(path: Path) -> None:
@@ -165,7 +178,7 @@ def recycle_path(path: Path) -> None:
         aborted = C.c_int32()
         _check(_method(operation, 22, C.POINTER(C.c_int32))(operation, C.byref(aborted)))
         if progress.error:
-            raise OSError(progress.error)
+            raise progress.error
         _check(result)
         if aborted.value or not progress.recycled:
             raise OSError("系统回收操作未完成，已停止删除。")

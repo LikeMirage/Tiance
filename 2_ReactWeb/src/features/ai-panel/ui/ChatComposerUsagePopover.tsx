@@ -5,6 +5,7 @@ import { WarningCircle } from "@phosphor-icons/react";
 import { useI18n } from "../../../shared/i18n";
 import { Tooltip } from "../../../shared/ui/tooltip";
 import {
+  formatCacheHitRate,
   formatCostAmount,
   formatTokenCount,
   type UsageDisplaySummary,
@@ -103,7 +104,7 @@ function UsageMetricGrid({
 }: {
   selectedUsage: UsageDisplaySummary | undefined;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   return (
     <dl className="ai-panel__usage-grid">
       <div>
@@ -125,6 +126,10 @@ function UsageMetricGrid({
       <div>
         <dt>{t("aiPanel.usage.cacheHit")}</dt>
         <dd>{formatTokenCount(selectedUsage?.prompt_cache_hit_tokens)}</dd>
+      </div>
+      <div>
+        <dt>{t("aiPanel.usage.cacheHitRate")}</dt>
+        <dd>{formatCacheHitRate(selectedUsage, language)}</dd>
       </div>
       <div>
         <dt>{t("aiPanel.usage.cacheMiss")}</dt>

@@ -204,7 +204,7 @@ export function buildVirtualMemoryDashboardTab({
   scope,
 }: BuildVirtualMemoryDashboardTabOptions): DocumentTab {
   const fileName = scope === "global" ? "global_memory.jsonl" : "project_memory.jsonl";
-  const title = scope === "global" ? "全局记忆" : "项目记忆";
+  const title = scope === "global" ? "全局记忆" : "记忆管理";
   const content = JSON.stringify({
     data_source: fileName,
     scope,
@@ -215,8 +215,8 @@ export function buildVirtualMemoryDashboardTab({
   const now = Date.now();
   return {
     id: `memory-dashboard:${scope}:${projectId ?? "none"}`,
-    title: fileName,
-    displayPath: `${title} / ${fileName}`,
+    title: scope === "project" ? title : fileName,
+    displayPath: scope === "project" ? `项目 / ${title}` : `${title} / ${fileName}`,
     kind: "text",
     languageId: "json",
     content,

@@ -2,11 +2,13 @@
 from tests.project_test_support import make_project_repository
 import ctypes
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
-from app.core.errors import BadRequestError
+from app.core.errors import BadRequestError, ConflictError
 from app.domain.project import ProjectKind
 from app.infra import system_recycle_bin as native
 from app.infra.database import ensure_database_schema
@@ -151,7 +153,7 @@ def test_empty_creation_cleanup_does_not_delete_contents(tmp_path):
 def test_shell_progress_rejects_permanent_delete_and_reports_failures():
     sink = native._RecycleProgress()
     assert sink._pre_delete(None, 0, None) == native.E_ABORT
-    assert not sink.recycled and '停止删除' in sink.error
+    assert not sink.recycled and '停止删除' in str(sink.error)
     sink = native._RecycleProgress()
     assert sink._pre_delete(None, native.TSF_DELETE_RECYCLE_IF_POSSIBLE, None) == 0
     sink._post_delete(None, 0, None, -2147024891, None)
@@ -162,6 +164,36 @@ def test_shell_progress_rejects_permanent_delete_and_reports_failures():
     sink = native._RecycleProgress()
     sink._post_delete(None, 0, None, 2555912, 123)
     assert sink.recycled and sink.error is None
+
+
+@pytest.mark.parametrize('code', [0x80270027, 0x80070020, 0x80070021])
+def test_recycle_lock_reason_survives_a_generic_finish_error(code):
+    sink = native._RecycleProgress()
+    sink._post_delete(None, 0, None, ctypes.c_int32(code).value, None)
+    sink._finish(None, native.E_ABORT)
+    assert isinstance(sink.error, native.RecycleItemInUseError)
+    assert '正在被占用' in str(sink.error) and f'0x{code:08X}' in str(sink.error)
+    assert not isinstance(native._recycle_error(0x80070005), native.RecycleItemInUseError)
+
+
+@pytest.mark.skipif(os.name != 'nt' or os.getenv('TIANCE_TEST_SYSTEM_RECYCLE_BIN') != '1', reason='Native Shell opt-in')
+def test_native_project_delete_can_retry_after_a_process_releases_the_directory(services, tmp_path):
+    service, repository, _ = services
+    project = make_external(tmp_path, service, name='Tiance-进程占用验证')
+    root = Path(project.root_path).resolve()
+    assert root.parent == tmp_path.resolve()
+    # A terminal (or any other child process) can hold the project as its current directory.
+    with subprocess.Popen([sys.executable, '-I', '-c', "input()"], cwd=root, stdin=subprocess.PIPE,
+                          creationflags=subprocess.CREATE_NO_WINDOW) as holder:
+        try:
+            with pytest.raises(ConflictError, match='正在被占用') as error:
+                service.delete_project(project.project_id, delete_files=True)
+            assert error.value.details == {'reason': 'project_in_use'}
+            assert repository.get_project(project.project_id) is not None and (root / 'proof.txt').is_file()
+        finally:
+            holder.communicate(input=b'\n', timeout=10)
+    service.delete_project(project.project_id, delete_files=True)
+    assert repository.get_project(project.project_id) is None and not root.exists()
 
 
 @pytest.mark.skipif(os.name != 'nt' or os.getenv('TIANCE_TEST_SYSTEM_RECYCLE_BIN') != '1',

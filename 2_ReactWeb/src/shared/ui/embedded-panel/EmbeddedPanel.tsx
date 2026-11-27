@@ -6,7 +6,7 @@ import "./embedded-panel.css";
 
 /** Render in a host's content slot, without viewport positioning or a floating card. */
 export function EmbeddedPanel({ container, id, title, ariaLabel, headerContent, children,
-  className = "", onClose, panelRef, onKeyDown }: {
+  className = "", onClose, closeDisabled = false, panelRef, onKeyDown }: {
   container: HTMLElement | null;
   id: string;
   title: ReactNode;
@@ -15,6 +15,7 @@ export function EmbeddedPanel({ container, id, title, ariaLabel, headerContent, 
   children: ReactNode;
   className?: string;
   onClose: () => void;
+  closeDisabled?: boolean;
   panelRef?: RefObject<HTMLDivElement | null>;
   onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
 }) {
@@ -32,14 +33,14 @@ export function EmbeddedPanel({ container, id, title, ariaLabel, headerContent, 
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        onClose();
+        if (!closeDisabled) onClose();
       } else onKeyDown?.(event);
     }}>
     <header className="embedded-panel__head">
       <strong className="embedded-panel__title">{title}</strong>
       <div className="embedded-panel__header-content">{headerContent}</div>
       <button type="button" className="embedded-panel__close" aria-label={`关闭${ariaLabel}`}
-        title="返回输入" onClick={onClose}><X size={15} aria-hidden="true" /></button>
+        title="返回输入" disabled={closeDisabled} onClick={onClose}><X size={15} aria-hidden="true" /></button>
     </header>
     <div className="embedded-panel__body">{children}</div>
   </div>, container);

@@ -20,6 +20,7 @@ export type GlobalMemoryEvent = {
 
 export type GlobalMemoryRecord = {
   id: string;
+  estimated_tokens: number;
   scope: "global";
   status: GlobalMemoryRecordStatus;
   content: string;
@@ -35,6 +36,7 @@ export type GlobalMemoryRecord = {
 
 export type GlobalMemoryRecordListResponse = {
   scope: "global";
+  total_estimated_tokens: number;
   status: GlobalMemoryRecordView;
   count: number;
   total_count: number;

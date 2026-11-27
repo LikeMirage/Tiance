@@ -346,7 +346,6 @@ function getActiveConversationDataFile(tab: {
   title: string;
 } | null): ConversationDataFileName | null {
   if (!tab) return null;
-  if (tab.id.startsWith("memory-dashboard:project:")) return "project_memory.jsonl";
   if (tab.id.startsWith("memory-dashboard:global:")) return "global_memory.jsonl";
   const path = (tab.projectFilePath ?? tab.filePath ?? tab.displayPath ?? tab.title)
     .toLowerCase()

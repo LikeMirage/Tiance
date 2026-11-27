@@ -4,18 +4,18 @@
   "properties": {
     "file_path": {
       "permission_type": "filesystem_write",
-      "description": "目标文件路径。相对路径按工作区根目录解析。",
+      "description": "当前工作区内的目标文件路径。相对路径按工作区根目录解析。",
       "title": "文件路径",
       "type": "string"
     },
     "content": {
-      "permission_type": "filesystem_write",
+      "permission_type": "none",
       "description": "要写入的文本内容。",
       "title": "内容",
       "type": "string"
     },
     "operation": {
-      "permission_type": "filesystem_write",
+      "permission_type": "none",
       "default": "create",
       "description": "写入模式。",
       "enum": [
@@ -61,7 +61,7 @@
       "type": "boolean"
     },
     "expected_sha256": {
-      "permission_type": "filesystem_write",
+      "permission_type": "none",
       "description": "已有文件的预期 sha256。提供时会在写入前校验。",
       "title": "预期哈希",
       "type": "string"

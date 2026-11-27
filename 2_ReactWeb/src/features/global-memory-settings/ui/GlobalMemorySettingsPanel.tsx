@@ -18,8 +18,10 @@ import {
   getGlobalMemoryEvents,
   getGlobalMemoryRecords,
 } from "../../../services/memory/globalMemory";
+import { subscribeMemoryChanges } from "../../../services/memory/memoryChanges";
 import { useI18n, type TranslationKey } from "../../../shared/i18n";
 import { PaginationControls } from "../../../shared/ui/pagination-controls/PaginationControls";
+import { MemoryTokenCount } from "../../../shared/ui/memory-token-count/MemoryTokenCount";
 import { SettingsViewStage } from "../../../shared/ui/settings-view-tabs/SettingsViewStage";
 import { SettingsViewTabs } from "../../../shared/ui/settings-view-tabs/SettingsViewTabs";
 
@@ -39,6 +41,7 @@ export function GlobalMemorySettingsPanel({ onReady }: { onReady?: () => void })
   const [query, setQuery] = useState("");
   const [records, setRecords] = useState<GlobalMemoryRecord[]>([]);
   const [events, setEvents] = useState<GlobalMemoryEvent[]>([]);
+  const [totalTokens, setTotalTokens] = useState<number>();
   const [state, setState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [addDraft, setAddDraft] = useState<DraftState>(EMPTY_DRAFT);
@@ -54,6 +57,7 @@ export function GlobalMemorySettingsPanel({ onReady }: { onReady?: () => void })
     totalPages: 1,
   });
   const requestIdRef = useRef(0);
+  const currentPage = useRef(1);
   const readyReportedRef = useRef(false);
 
   const reportReady = useCallback(() => {
@@ -83,6 +87,8 @@ export function GlobalMemorySettingsPanel({ onReady }: { onReady?: () => void })
             status: view,
           });
       if (requestIdRef.current !== requestId) return;
+      currentPage.current = response.page;
+      setTotalTokens("total_estimated_tokens" in response ? response.total_estimated_tokens : undefined);
       if (view === "events") {
         setEvents(response.items as GlobalMemoryEvent[]);
         setRecords([]);
@@ -113,7 +119,13 @@ export function GlobalMemorySettingsPanel({ onReady }: { onReady?: () => void })
   useEffect(() => {
     const controller = new AbortController();
     void load(undefined, controller.signal);
+    const unsubscribe = subscribeMemoryChanges((_, change) => {
+      if (change.scope === "global") {
+        void load(change.operation === "add" ? undefined : currentPage.current, controller.signal);
+      }
+    });
     return () => {
+      unsubscribe();
       controller.abort();
       requestIdRef.current += 1;
     };
@@ -124,6 +136,7 @@ export function GlobalMemorySettingsPanel({ onReady }: { onReady?: () => void })
     requestIdRef.current += 1;
     setRecords([]);
     setEvents([]);
+    setTotalTokens(undefined);
     setPagination({
       page: 1,
       pageSize: PAGE_SIZE,
@@ -147,7 +160,6 @@ export function GlobalMemorySettingsPanel({ onReady }: { onReady?: () => void })
         reason: addDraft.reason,
       });
       setAddDraft(EMPTY_DRAFT);
-      await load();
     } catch (operationError) {
       setError(
         operationError instanceof Error
@@ -157,7 +169,7 @@ export function GlobalMemorySettingsPanel({ onReady }: { onReady?: () => void })
     } finally {
       setPendingAction(null);
     }
-  }, [addDraft, load, t]);
+  }, [addDraft, t]);
 
   const startEditing = useCallback((record: GlobalMemoryRecord) => {
     setDeletingId(null);
@@ -183,7 +195,6 @@ export function GlobalMemorySettingsPanel({ onReady }: { onReady?: () => void })
         reason: editDraft.reason,
       });
       setEditingId(null);
-      await load(pagination.page);
     } catch (operationError) {
       setError(
         operationError instanceof Error
@@ -193,7 +204,7 @@ export function GlobalMemorySettingsPanel({ onReady }: { onReady?: () => void })
     } finally {
       setPendingAction(null);
     }
-  }, [editDraft, load, pagination.page, t]);
+  }, [editDraft, t]);
 
   const deleteMemory = useCallback(async (record: GlobalMemoryRecord) => {
     if (!deleteReason.trim()) return;
@@ -207,7 +218,6 @@ export function GlobalMemorySettingsPanel({ onReady }: { onReady?: () => void })
       });
       setDeletingId(null);
       setDeleteReason("");
-      await load(pagination.page);
     } catch (operationError) {
       setError(
         operationError instanceof Error
@@ -217,7 +227,7 @@ export function GlobalMemorySettingsPanel({ onReady }: { onReady?: () => void })
     } finally {
       setPendingAction(null);
     }
-  }, [deleteReason, load, pagination.page, t]);
+  }, [deleteReason, t]);
 
   const hasItems = view === "events" ? events.length > 0 : records.length > 0;
   const emptyMessageKey = view === "active"
@@ -257,6 +267,7 @@ export function GlobalMemorySettingsPanel({ onReady }: { onReady?: () => void })
       />
 
       <div className="global-memory-settings__toolbar">
+        <MemoryTokenCount count={totalTokens} total />
         <input
           className="global-memory-settings__input global-memory-settings__search"
           type="search"
@@ -415,6 +426,7 @@ function GlobalMemoryRecordCard({
           <strong>{record.id}</strong>
           <span title={record.source}>{source}</span>
           <span>{t("aiPanel.memoryDashboard.eventCount", { count: record.event_count })}</span>
+          <MemoryTokenCount count={record.estimated_tokens} />
         </div>
         {isActive ? (
           <div className="global-memory-settings__record-actions">

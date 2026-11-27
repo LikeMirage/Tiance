@@ -37,6 +37,38 @@ from app.services.llm.usage.service import LlmUsageService
 from app.services.llm.provider.api_key_scheduler import ProviderRuntimeApiKey
 from app.services.llm.provider import config_runtime as config_runtime_module
 from app.repositories.llm.usage_repository import LlmUsageRepository
+from app.domain.project.project_conversation import ProjectConversationMessage
+from app.services.project.conversation_stream_usage import merge_usage, usage_to_payload
+
+
+def test_reply_cost_uses_recorded_price_and_identifies_legacy_estimates(tmp_path):
+    repository = LlmUsageRepository(tmp_path)
+    usage_service = LlmUsageService(repository, _FakeProjectRepositoryForUsageService(),
+                                    _FakeProviderCatalogRepositoryForUsageService(), _FakeCustomModelRepositoryForUsageService())
+    tokens = ChatUsage(prompt_tokens=30, completion_tokens=10, total_tokens=40)
+    remote = _FakeRemoteClient(stream_events=(
+        ChatStreamEvent(kind=ChatStreamEventKind.USAGE, usage=tokens),
+        ChatStreamEvent(kind=ChatStreamEventKind.DONE),
+    ))
+    events = asyncio.run(_collect_stream(_build_service(remote_client=remote, usage_service=usage_service),
+                                         _request(project_id="p", session_id="s")))
+    usage, = [event.usage for event in events if event.kind == ChatStreamEventKind.USAGE]
+    total = usage_service.get_session_summary(project_id="p", session_id="s").total
+    assert (usage.cost_amount, usage.cost_currency) == (total.cost_amount, total.cost_currency) == (0.00005, "CNY")
+    assert usage_to_payload(merge_usage(usage, usage))["cost_amount"] == 0.0001
+    assert merge_usage(usage, replace(usage, cost_currency="USD")).cost_amount is None
+
+    saved = ProjectConversationMessage(message_id="saved", session_id="s", role="assistant", content="ok",
+        thinking_content="", usage=usage_to_payload(usage), provider_id="deepseek", model_id="deepseek-v4",
+        status="done", created_at="", updated_at="")
+    old = replace(saved, message_id="old", usage=usage_to_payload(tokens))
+    repository.record_usage(project_id="p", session_id="s", message_id="old", provider_id="deepseek",
+                            model_id="deepseek-v4", usage=tokens, cost_amount=0.07, cost_currency="USD")
+    saved_again, billed, estimated = usage_service.with_message_costs("p", "s", (saved, old, replace(old, message_id="unlinked")))
+    assert saved_again is saved
+    assert (billed.usage["cost_amount"], billed.usage["cost_currency"]) == (0.07, "USD")
+    assert estimated.usage["cost_amount"] == total.cost_amount and estimated.usage["cost_at_current_rates"]
+    assert "cost_amount" not in old.usage
 
 
 @pytest.fixture(autouse=True)

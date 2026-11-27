@@ -1,8 +1,11 @@
 import { CaretDown, Microphone } from "@phosphor-icons/react";
-import { useLayoutEffect, useState, useRef } from "react";
+import { useId, useLayoutEffect, useState, useRef } from "react";
 import type { SpeechInputState } from "../model/useSpeechInput";
 import { ChatSpeechRecording } from "./ChatSpeechRecording";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
+import type { ConversationExportRequest } from "../../conversation-export/model/conversationExport";
+import { ConversationExportDialog } from "../../conversation-export/ui/ConversationExportDialog";
+import { ChatConversationActions } from "./ChatConversationActions";
 
 import { useDesktopFileDropTarget } from "../../desktop-shell/model/useDesktopFileDropTarget";
 import { ChatComposerAddMenu } from "./ChatComposerAddMenu";
@@ -39,12 +42,18 @@ export type {
 type ChatComposerProps = {
   speech?: SpeechInputState;
   userMessageHistory?: UserMessageHistoryState;
-  conversationActions?: ReactNode;
+  conversationActions?: {
+    exportRequest: ConversationExportRequest | null;
+    onSelectDirectory?: () => Promise<string | null>;
+    onOpenOverview?: () => void;
+    onOpenBranches?: () => void;
+  };
   generation: ChatComposerGenerationState;
   input: ChatComposerInputState;
   layout: ChatComposerLayoutState;
   modelPicker: ChatComposerModelPickerState;
-  onScrollToBottom: () => void;
+  isBottomFollowLocked: boolean;
+  onScrollToBottom: (lockRequested: boolean) => void;
   reasoning: ChatComposerReasoningState;
   usage: ChatComposerUsageState;
 };
@@ -57,13 +66,17 @@ export function ChatComposer({
   input,
   layout,
   modelPicker,
+  isBottomFollowLocked,
   onScrollToBottom,
   reasoning,
   usage,
 }: ChatComposerProps) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [isReferenceDragOver, setIsReferenceDragOver] = useState(false);
-  const [activePanel, setActivePanel] = useState<"references" | "history" | "models" | "reasoning" | "usage" | null>(null);
+  const [activePanel, setActivePanel] = useState<"references" | "export" | "history" | "models" | "reasoning" | "usage" | null>(null);
+  const exportPanelId = useId();
+  const exportRequest = conversationActions?.exportRequest;
+  const canOpenExport = !!exportRequest;
   const [panelContainer, setPanelContainer] = useState<HTMLDivElement | null>(null);
   const previousPanel = useRef(activePanel);
   const scopeKey = JSON.stringify([input.projectId, modelPicker.activeSession?.session_id, input.externalFileDropScopeKey]);
@@ -72,13 +85,13 @@ export function ChatComposer({
   useLayoutEffect(() => {
     const scopeChanged = previousScope.current !== scopeKey;
     previousScope.current = scopeKey;
-    if (scopeChanged || speech?.view || (activePanel === "reasoning" && !reasoning.isVisible)) {
+    if (scopeChanged || speech?.view || (activePanel === "reasoning" && !reasoning.isVisible) || (activePanel === "export" && !canOpenExport)) {
       setActivePanel(null);
     } else if (previousPanel.current && !activePanel) {
       inputRef.current?.focus({ preventScroll: true });
     }
     previousPanel.current = scopeChanged || speech?.view ? null : activePanel;
-  }, [activePanel, scopeKey, speech?.view, reasoning.isVisible]);
+  }, [activePanel, scopeKey, speech?.view, reasoning.isVisible, canOpenExport]);
   const changePanel = (panel: NonNullable<typeof activePanel>, open: boolean) => {
     if (open && speech?.view) return;
     setActivePanel(open ? panel : null);
@@ -143,7 +156,18 @@ export function ChatComposer({
           onOpenChange={open => changePanel("references", open)}
           onSelectFiles={input.onSelectExternalFiles}
         />
-        {conversationActions}
+        {conversationActions && <ChatConversationActions
+          exportPanelId={exportPanelId}
+          exportOpen={activePanel === "export"}
+          onExport={exportRequest && !speech?.view ? () => changePanel("export", activePanel !== "export") : undefined}
+          onOpenOverview={conversationActions.onOpenOverview}
+          onOpenBranches={conversationActions.onOpenBranches}
+        />}
+        {activePanel === "export" && exportRequest && <ConversationExportDialog
+          key={`export:${scopeKey}`} embedded={{ container: panelContainer, id: exportPanelId }}
+          request={exportRequest} onSelectDirectory={conversationActions?.onSelectDirectory}
+          onClose={() => changePanel("export", false)}
+        />}
         <UserMessageHistoryMenu history={userMessageHistory} isOpen={activePanel === "history"}
           panelContainer={panelContainer} onOpenReference={input.onOpenReference}
           onOpenChange={open => changePanel("history", open)} />
@@ -151,8 +175,15 @@ export function ChatComposer({
           className="ai-panel__composer-scroll-bottom"
           type="button"
           aria-label="回到底部"
-          title="回到底部"
-          onClick={onScrollToBottom}
+          aria-pressed={isBottomFollowLocked}
+          aria-controls="ai-panel-message-scroll-region"
+          title={isBottomFollowLocked ? "已锁定底部跟随，单击解锁" : "回到底部，双击锁定跟随（Shift + Enter）"}
+          onClick={(event) => onScrollToBottom(event.detail === 2)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || !event.shiftKey) return;
+            event.preventDefault();
+            if (!event.repeat) onScrollToBottom(true);
+          }}
         >
           <CaretDown size={18} weight="bold" aria-hidden="true" />
         </button>

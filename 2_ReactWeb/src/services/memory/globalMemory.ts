@@ -6,6 +6,7 @@ import type {
   GlobalMemoryRecordView,
 } from "../../entities/global-memory/model/globalMemory";
 import { fetchJson } from "../http/httpClient";
+import { notifyMemoryChanged } from "./memoryChanges";
 
 
 export function getGlobalMemoryRecords({
@@ -57,9 +58,11 @@ export function getGlobalMemoryEvents({
 }
 
 
-export function applyGlobalMemoryOperation(input: GlobalMemoryOperationInput) {
-  return fetchJson<GlobalMemoryOperationResponse>("/api/memory/global/operations", {
+export async function applyGlobalMemoryOperation(input: GlobalMemoryOperationInput) {
+  const result = await fetchJson<GlobalMemoryOperationResponse>("/api/memory/global/operations", {
     body: JSON.stringify(input),
     method: "POST",
   });
+  notifyMemoryChanged(null, { scope: "global", operation: input.operation });
+  return result;
 }

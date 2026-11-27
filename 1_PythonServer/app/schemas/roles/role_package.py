@@ -77,6 +77,13 @@ class RoleToolsConfiguration(RoleConfigurationContract):
     max_tool_calls: int = Field(ge=1)
     tool_approval_mode: Literal["follow_tool_policy", "auto_allow_ask"]
 
+    @model_validator(mode="before")
+    @classmethod
+    def discard_retired_file_policy(cls, value: object) -> object:
+        if isinstance(value, dict) and "sandbox" in value:
+            return {key: item for key, item in value.items() if key != "sandbox"}
+        return value
+
 
 ROLE_CONFIGURATION_MODELS: dict[str, type[RoleConfigurationContract]] = {
     "profile.json": RoleProfileConfiguration,

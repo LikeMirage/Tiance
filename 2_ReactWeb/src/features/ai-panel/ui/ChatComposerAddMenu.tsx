@@ -17,6 +17,7 @@ import type { ProjectKind } from "../../../entities/project/model/project";
 import { useI18n } from "../../../shared/i18n";
 import { OptionSelect } from "../../../shared/ui/option-select/OptionSelect";
 import { buildComposerProjectReference, referenceComposerProject } from "../model/composerProjectReference";
+import { ChatComposerCategoryLayout } from "./ChatComposerCategoryLayout";
 import type { ChatProjectReferenceCatalog } from "./ChatComposerTypes";
 
 type AddCategory = "file" | "conversation" | "project";
@@ -92,7 +93,8 @@ export function ChatComposerAddMenu({
   const panelId = `${generatedId}-panel`;
   const panel = isOpen ? (
         <EmbeddedPanel container={panelContainer} id={panelId}
-          className="chat-composer-add-menu" ariaLabel="添加到对话"
+          className={activeCategory === "project" ? "chat-composer-add-menu embedded-panel--split-header" : "chat-composer-add-menu"}
+          ariaLabel="添加到对话"
           title={activeCategory === "project" ? "添加项目" : "添加到对话"}
           onClose={() => onOpenChange(false)} headerContent={
             activeCategory === "project" ? (
@@ -123,30 +125,8 @@ export function ChatComposerAddMenu({
               </>
             ) : null
           }>
-          <div className="chat-composer-add-menu__body">
-            <div className="chat-composer-add-menu__categories" role="tablist" aria-label="内容类型">
-              {CATEGORIES.map((category) => {
-                const Icon = category.icon;
-                const isActive = activeCategory === category.id;
-                return (
-                  <button
-                    key={category.id}
-                    className={[
-                      "chat-composer-add-menu__category",
-                      isActive ? "chat-composer-add-menu__category--active" : "",
-                    ].filter(Boolean).join(" ")}
-                    type="button"
-                    role="tab"
-                    aria-selected={isActive}
-                    onClick={() => setActiveCategory(category.id)}
-                  >
-                    <Icon size={15} weight="regular" aria-hidden="true" />
-                    <span>{category.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="chat-composer-add-menu__options" role="tabpanel">
+          <ChatComposerCategoryLayout label="内容类型" categories={CATEGORIES}
+            activeCategory={activeCategory} onSelect={setActiveCategory}>
               {activeCategory === "file" ? (
                 <button
                   className="chat-composer-add-menu__option"
@@ -201,8 +181,7 @@ export function ChatComposerAddMenu({
                   <span className="chat-composer-add-menu__badge">暂未开放</span>
                 </button>
               ) : null}
-            </div>
-          </div>
+          </ChatComposerCategoryLayout>
         </EmbeddedPanel>
       )
     : null;

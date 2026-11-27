@@ -63,7 +63,6 @@ import {
 } from "../model/chatPanelRequestErrors";
 import { ChatComposer } from "./ChatComposer";
 import { useSpeechInput } from "../model/useSpeechInput";
-import { ChatConversationActions } from "./ChatConversationActions";
 import type { ChatProjectReferenceCatalog } from "./ChatComposerTypes";
 import { ChatHeader, type ChatPanelView } from "./ChatHeader";
 import { ChatPanelBodyFrame } from "./ChatPanelBodyFrame";
@@ -293,17 +292,6 @@ export function ChatPanelController({
       session.session_id === updatedSession.session_id ? updatedSession : session
     ));
   }, [setSessions]);
-  const openConversationExport = useCallback(() => {
-    if (!activeSession || !projectId) return;
-    setExportRequest({
-      initialDirectory: projectRootPath,
-      messageId: null,
-      projectId,
-      scope: "conversation",
-      sessionId: activeSession.session_id,
-      sessionTitle: activeSession.title,
-    });
-  }, [activeSession, projectId, projectRootPath]);
   const openAssistantMessageExport = useCallback((message: ChatMessage) => {
     if (!activeSession || !projectId) return;
     setExportRequest({
@@ -488,14 +476,16 @@ export function ChatPanelController({
     roleProjectId: activeSession?.role_project_id ?? null,
   });
   const {
+    activateBottomButton,
     bodyRef,
     handleBodyScroll,
+    handleScrollbarScroll,
+    isBottomFollowLocked,
     isFollowingBottom,
     pauseForUserScroll,
     isSessionSettling,
     pauseAutoScrollForNavigation,
     preserveCurrentView,
-    scrollToBottom,
     viewRestoreRequest,
     onViewRestoreHandled,
     syncAfterContentReady,
@@ -850,7 +840,7 @@ export function ChatPanelController({
         onViewRestoreHandled={onViewRestoreHandled}
         onContentReady={syncAfterContentReady}
         onBodyScroll={handleBodyScroll}
-        onUserScroll={pauseForUserScroll}
+        onUserScroll={handleScrollbarScroll}
         chat={{
           autoCollapseAssistantProcess: activeSessionSettings.auto_collapse_assistant_process,
           clockTick,
@@ -906,14 +896,17 @@ export function ChatPanelController({
             resetRevision: activeSessionKey ? historyPages[activeSessionKey]?.reset ?? null : null,
             navigation: userMessageNavigation, onLocate: selectUserMessage,
           } : undefined}
-          conversationActions={
-            <ChatConversationActions
-              onExport={activeSession ? openConversationExport : undefined}
-              onOpenOverview={projectId ? onOpenConversationOverview : undefined}
-              onOpenBranches={projectId ? onOpenConversationBranches : undefined}
-            />
-          }
-          onScrollToBottom={() => scrollToBottom("smooth")}
+          conversationActions={{
+            exportRequest: activeSession && projectId ? {
+              initialDirectory: projectRootPath, messageId: null, projectId,
+              scope: "conversation", sessionId: activeSession.session_id, sessionTitle: activeSession.title,
+            } : null,
+            onSelectDirectory: onSelectExportDirectory,
+            onOpenOverview: projectId ? onOpenConversationOverview : undefined,
+            onOpenBranches: projectId ? onOpenConversationBranches : undefined,
+          }}
+          isBottomFollowLocked={isBottomFollowLocked}
+          onScrollToBottom={activateBottomButton}
           generation={{
             isStreaming: isActiveSessionBusy,
             onStop: stopActiveGeneration,

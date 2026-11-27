@@ -1,5 +1,5 @@
 {
-  "description": "创建、覆盖或追加文本文件；只修改已有文件的一部分时使用 replace_text 或 safe_patch。",
+  "description": "在当前工作区内创建、覆盖或追加文本文件；只修改已有文件的一部分时使用 replace_text 或 safe_patch。",
   "registration_name": "文件写入",
   "execution": {
     "parallel": true

@@ -144,9 +144,10 @@ export function ToolProcessBlock({
           ) : null}
         </span>
       </button>
-      <SlidingContent expanded={isExpanded}>
+      <SlidingContent expanded={isExpanded || toolSummary.waitingPermissionCount > 0}>
         <div className="chat-msg__tools-list">
-          {entries.map((entry) => (
+          {entries.filter(entry => isExpanded || !toolSummary.waitingPermissionCount ||
+            (entry.type === "tool" && entry.tool.status === "waiting_permission")).map((entry) => (
             entry.type === "tool_preparing" ? (
               <ToolPreparingRow
                 key={entry.id}

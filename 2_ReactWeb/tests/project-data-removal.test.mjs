@@ -23,6 +23,7 @@ const vite = await createServer({
     },
   }],
 });
+const { HttpRequestError } = await vite.ssrLoadModule("/src/services/http/httpClient.ts");
 const { ProjectDeleteConfirmModal } = await vite.ssrLoadModule(
   "/src/features/project-catalog/ui/ProjectDeleteConfirmModal.tsx",
 );
@@ -63,6 +64,16 @@ test("移除默认不清理，勾选后提交选择；重新打开仍默认关�
     assert.equal(cancelled, 1);
     await act(async () => { view.unmount(); view = create(React.createElement(Harness, { mode: "delete-local" })); });
     assert.equal(view.root.findAllByType("input").length, 0);
+    const lock = new HttpRequestError("文件夹正在被占用", 409, "conflict", { reason: "project_in_use" });
+    await act(async () => { view.update(React.createElement(Harness, { mode: "delete-local", error: lock })); });
+    assert.equal(view.root.findByType("p").children.join(""), lock.message);
+    const retry = view.root.findAllByType("button").at(-1);
+    assert.equal(retry.props.disabled, false);
+    assert.equal(retry.children.join(""), "common.actions.retry");
+    await act(async () => { retry.props.onClick(); });
+    assert.equal(submitted.mode, "delete-local");
+    await act(async () => { view.update(React.createElement(Harness, { error: new Error("登记移除失败") })); });
+    assert.equal(view.root.findAllByType("button").at(-1).props.disabled, true);
   } finally {
     if (view) await act(async () => { view.unmount(); });
     globalThis.window = previous.window;
@@ -76,7 +87,9 @@ test("请求只在勾选时携带清理参数，批量失败不继续删除剩�
   const requests = [];
   globalThis.fetch = async (url, options) => {
     requests.push([String(url), options.method]);
-    if (String(url).includes("/fail?")) return Response.json({ message: "文件占用" }, { status: 409 });
+    if (String(url).includes("/fail?")) return Response.json({
+      error: { code: "conflict", message: "文件占用", details: { reason: "project_in_use" } },
+    }, { status: 409 });
     return new Response(null, { status: 204 });
   };
   try {
@@ -86,7 +99,9 @@ test("请求只在勾选时携带清理参数，批量失败不继续删除剩�
       id => deleteProject(id, { clearTianceData: true }));
     assert.deepEqual(result.completedProjectIds, ["one"]);
     assert.deepEqual(result.remainingProjectIds, ["fail", "three"]);
-    assert.ok(result.error);
+    assert.ok(result.error instanceof HttpRequestError);
+    assert.equal(result.error.message, "文件占用");
+    assert.equal(result.error.details.reason, "project_in_use");
     assert.equal(requests.length, 3);
     assert.match(requests[1][0], /\/one\?clear_tiance_data=true$/);
     assert.ok(requests.every(([, method]) => method === "DELETE"));

@@ -74,6 +74,17 @@ def test_workspace_state_accepts_knowledge_content_dashboard():
     assert request.active_dashboard == "knowledge_content"
 
 
+def test_empty_project_can_restore_memory_dashboard(tmp_path):
+    repository = FakeProjectRepository(str(tmp_path))
+    request = ProjectWorkspaceStatePatchRequest(active_dashboard="project_memory")
+    ProjectWorkspaceService(repository).patch_state(
+        PROJECT_ID, active_dashboard=request.active_dashboard, should_update_active_dashboard=True,
+    )
+    restored = ProjectWorkspaceService(repository).get_state(PROJECT_ID)
+    assert restored["active_dashboard"] == "project_memory"
+    assert restored["open_file_paths"] == []
+
+
 def test_workspace_state_accepts_tool_dashboard():
     request = ProjectWorkspaceStatePatchRequest(active_dashboard="dependencies")
 

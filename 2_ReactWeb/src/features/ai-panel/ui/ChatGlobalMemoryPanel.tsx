@@ -1,6 +1,6 @@
 import type { ConversationSessionSettings } from "../../../entities/llm-chat/model/conversation";
 import { useI18n } from "../../../shared/i18n";
-import { ChatMemoryManagementDashboard } from "./ChatMemoryManagementDashboard";
+import { MemoryManagementDashboard } from "../../project-memory/ui/MemoryManagementDashboard";
 import { SettingsToggle } from "./ChatSettingControls";
 
 export function ChatGlobalMemoryPanel({
@@ -52,7 +52,7 @@ export function ChatGlobalMemoryPanel({
         />
       </div>
 
-      <ChatMemoryManagementDashboard projectId={projectId} />
+      <MemoryManagementDashboard projectId={projectId} />
     </div>
   );
 }

@@ -189,7 +189,7 @@ class ChatCompletionService:
             thinking_content=result.thinking_content,
             settings=self._estimation_settings_for(result.usage),
         )
-        await finish_thread(self._record_usage_if_present, request=attempt_request, usage=usage)
+        usage = await finish_thread(self._record_usage_if_present, request=attempt_request, usage=usage)
         return ChatCompletionResult(
             provider_id=result.provider_id,
             model_id=result.model_id,
@@ -340,7 +340,7 @@ class ChatCompletionService:
                 terminal_event = error_event or done_event
                 if terminal_event is not None and terminal_event.output_duration_seconds is not None:
                     usage = replace(usage, output_duration_seconds=terminal_event.output_duration_seconds)
-                await finish_thread(self._record_usage_if_present, request=attempt_request, usage=usage)
+                usage = await finish_thread(self._record_usage_if_present, request=attempt_request, usage=usage)
 
             if error_event is not None:
                 limited = is_output_limit(attempt_request, error_event, provider_usage)
@@ -401,11 +401,11 @@ class ChatCompletionService:
         *,
         request: ChatCompletionRequest,
         usage: ChatUsage | None,
-    ) -> None:
+    ) -> ChatUsage | None:
         if usage is None or not (request.record_usage or request.record_attempt_usage):
-            return
+            return usage
         try:
-            self._usage_service.record_message_usage(
+            record = self._usage_service.record_message_usage(
                 project_id=request.project_id,
                 session_id=request.session_id,
                 message_id=request.usage_message_id,
@@ -417,8 +417,11 @@ class ChatCompletionService:
             )
             if request.record_attempt_usage and request.output_limit_budget is not None:
                 request.output_limit_budget.last_round_usage_recorded = True
+            if record is not None:
+                return replace(usage, cost_amount=record.cost_amount, cost_currency=record.cost_currency)
         except Exception:
             logger.exception("Failed to record usage for a completed model request.")
+        return usage
 
     async def _record_http_exchange(
         self,

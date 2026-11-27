@@ -80,6 +80,7 @@ def apply_global_memory_operation(
         content=payload.content,
         keywords=payload.keywords,
         reason=payload.reason,
+        include_snapshot=False,
     )
     memory = service.get_memory_record(scope="global", memory_id=result["memory_id"])
     if memory is None:

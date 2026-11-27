@@ -8,9 +8,11 @@ import {
   X,
   type Icon,
 } from "@phosphor-icons/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 
+import { EmbeddedPanel } from "../../../shared/ui/embedded-panel/EmbeddedPanel";
+import { EdgeScrollArea } from "../../../shared/ui/edge-scrollbar";
 import { useI18n } from "../../../shared/i18n";
 import {
   CONVERSATION_EXPORT_FORMATS,
@@ -23,7 +25,8 @@ import "./conversation-export-dialog.css";
 
 type ConversationExportDialogProps = {
   onClose: () => void;
-  onSelectDirectory: () => Promise<string | null>;
+  onSelectDirectory?: () => Promise<string | null>;
+  embedded?: { container: HTMLElement | null; id: string };
   request: ConversationExportRequest;
 };
 
@@ -43,10 +46,13 @@ const MESSAGE_RANGE_OPTIONS: Exclude<ConversationExportRange, "conversation">[] 
 
 export function ConversationExportDialog({
   onClose,
-  onSelectDirectory,
+  onSelectDirectory = async () => null,
+  embedded,
   request,
 }: ConversationExportDialogProps) {
   const { t } = useI18n();
+  const dialogId = useId();
+  const isEmbedded = !!embedded;
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const state = useConversationExportDialogState({
     directoryErrorMessage: t("aiPanel.exportDialog.directoryError"),
@@ -80,14 +86,220 @@ export function ConversationExportDialog({
   } = state;
 
   useEffect(() => {
+    if (isEmbedded) return;
     closeButtonRef.current?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !isExporting) onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isExporting, onClose]);
+  }, [isEmbedded, isExporting, onClose]);
 
+  const title = t("aiPanel.exportDialog.title");
+  const errorMessage = exportError ? (
+    <span className="conversation-export-dialog__submit-error" role="alert">{exportError}</span>
+  ) : null;
+  const exportButtons = (
+    <>
+      <button
+        type="button"
+        disabled={!canExport || isExporting}
+        onClick={() => { void exportConversation(false); }}
+      >
+        {isExporting
+          ? t("aiPanel.exportDialog.exporting")
+          : t("aiPanel.exportDialog.export")}
+      </button>
+      <button
+        className="conversation-export-dialog__primary"
+        type="button"
+        disabled={!canExport || isExporting}
+        onClick={() => { void exportConversation(true); }}
+      >
+        {isExporting
+          ? t("aiPanel.exportDialog.exporting")
+          : t("aiPanel.exportDialog.exportAndOpen")}
+      </button>
+    </>
+  );
+  const formats = (
+    <nav className="conversation-export-dialog__formats" aria-label={t("aiPanel.exportDialog.formatList")}>
+      {CONVERSATION_EXPORT_FORMATS.map((item) => {
+        const FormatIcon = FORMAT_ICONS[item.format];
+        const isActive = item.format === format;
+        return (
+          <button
+            className={isActive
+              ? "conversation-export-dialog__format conversation-export-dialog__format--active"
+              : "conversation-export-dialog__format"}
+            type="button"
+            aria-pressed={isActive}
+            disabled={isExporting}
+            onClick={() => setFormat(item.format)}
+            key={item.format}
+          >
+            <FormatIcon size={19} weight="regular" aria-hidden="true" />
+            <span>{formatLabel(item.format)}</span>
+            <small>{item.extension}</small>
+          </button>
+        );
+      })}
+    </nav>
+  );
+  const details = (
+    <section className="conversation-export-dialog__details">
+      <header className="conversation-export-dialog__details-header">
+        <span>{t("aiPanel.exportDialog.fileName")}</span>
+        <span className="conversation-export-dialog__filename">
+          <input
+            type="text"
+            value={baseName}
+            aria-label={t("aiPanel.exportDialog.fileName")}
+            maxLength={120}
+            disabled={isExporting}
+            onChange={(event) => setBaseName(event.target.value)}
+          />
+          <small>{selectedFormat.extension}</small>
+        </span>
+      </header>
+
+      <div className="conversation-export-dialog__settings">
+        <label className="conversation-export-dialog__setting conversation-export-dialog__setting--directory">
+          <span>{t("aiPanel.exportDialog.directory")}</span>
+          <span className="conversation-export-dialog__directory-control">
+            <input
+              type="text"
+              value={directory}
+              disabled={isExporting}
+              onChange={(event) => setDirectory(event.target.value)}
+            />
+            <button
+              className="conversation-export-dialog__icon-button"
+              type="button"
+              aria-label={t("aiPanel.exportDialog.chooseDirectory")}
+              title={t("aiPanel.exportDialog.chooseDirectory")}
+              disabled={isSelectingDirectory || isExporting}
+              onClick={() => {
+                void selectDirectory();
+              }}
+            >
+              <FolderOpen size={16} weight="regular" aria-hidden="true" />
+            </button>
+          </span>
+          {directoryError ? (
+            <small className="conversation-export-dialog__field-error" role="status">
+              {directoryError}
+            </small>
+          ) : null}
+        </label>
+
+        <div
+          className="conversation-export-dialog__settings-tabs"
+          role="tablist"
+          aria-label={t("aiPanel.exportDialog.settingsTabs.aria")}
+        >
+          {(["length", "content"] as const).map((tab) => {
+            const isActive = settingsTab === tab;
+            return (
+              <button
+                className={isActive
+                  ? "conversation-export-dialog__settings-tab conversation-export-dialog__settings-tab--active"
+                  : "conversation-export-dialog__settings-tab"}
+                id={`${dialogId}-tab-${tab}`}
+                type="button"
+                role="tab"
+                aria-controls={`${dialogId}-panel-${tab}`}
+                aria-selected={isActive}
+                disabled={isExporting}
+                onClick={() => setSettingsTab(tab)}
+                key={tab}
+              >
+                {t(`aiPanel.exportDialog.settingsTabs.${tab}`)}
+              </button>
+            );
+          })}
+        </div>
+
+        {settingsTab === "length" ? (
+          <div
+            className="conversation-export-dialog__settings-panel"
+            id={`${dialogId}-panel-length`}
+            role="tabpanel"
+            aria-labelledby={`${dialogId}-tab-length`}
+          >
+            {request.scope === "conversation" ? (
+              <RangeOption
+                checked
+                label={t("aiPanel.exportDialog.range.conversation")}
+              />
+            ) : (
+              <div className="conversation-export-dialog__range-options">
+                {MESSAGE_RANGE_OPTIONS.map((option) => (
+                  <RangeOption
+                    checked={range === option}
+                    label={t(`aiPanel.exportDialog.range.${rangeLabelKey(option)}`)}
+                    name="conversation-export-range"
+                    disabled={isExporting}
+                    onChange={() => setRange(option)}
+                    key={option}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            className="conversation-export-dialog__settings-panel"
+            id={`${dialogId}-panel-content`}
+            role="tabpanel"
+            aria-labelledby={`${dialogId}-tab-content`}
+          >
+            <div className="conversation-export-dialog__content-options">
+              {contentOptions.map((option) => (
+                <label
+                  className="conversation-export-dialog__content-option"
+                  title={t(`aiPanel.exportDialog.content.${option}.description`)}
+                  key={option}
+                >
+                  <strong>{t(`aiPanel.exportDialog.content.${option}.label`)}</strong>
+                  <input
+                    type="checkbox"
+                    checked={contentSelection[option]}
+                    disabled={isExporting}
+                    onChange={() => toggleContentOption(option)}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {!isEmbedded && <footer className="conversation-export-dialog__footer">
+        {errorMessage}
+        <button type="button" disabled={isExporting} onClick={onClose}>
+          {t("aiPanel.exportDialog.cancel")}
+        </button>
+        {exportButtons}
+      </footer>}
+    </section>
+  );
+  const content = (
+    <div className="conversation-export-dialog__content">
+      {isEmbedded ? <EdgeScrollArea aria-label={t("aiPanel.exportDialog.formatList")}>{formats}</EdgeScrollArea> : formats}
+      {isEmbedded ? <EdgeScrollArea aria-label={title}>{details}</EdgeScrollArea> : details}
+    </div>
+  );
+
+  if (embedded) {
+    return <EmbeddedPanel container={embedded.container} id={embedded.id} className="conversation-export-panel"
+      title={title} ariaLabel={title} onClose={onClose} closeDisabled={isExporting}
+      headerContent={<div className="conversation-export-dialog__footer">{exportButtons}</div>}>
+      {errorMessage}
+      {content}
+    </EmbeddedPanel>;
+  }
   return createPortal(
     <div
       className="conversation-export-dialog__backdrop"
@@ -100,11 +312,11 @@ export function ConversationExportDialog({
         className="conversation-export-dialog"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="conversation-export-dialog-title"
+        aria-labelledby={`${dialogId}-title`}
       >
         <header className="conversation-export-dialog__header">
           <div>
-            <h3 id="conversation-export-dialog-title">{t("aiPanel.exportDialog.title")}</h3>
+            <h3 id={`${dialogId}-title`}>{title}</h3>
           </div>
           <button
             ref={closeButtonRef}
@@ -119,189 +331,7 @@ export function ConversationExportDialog({
           </button>
         </header>
 
-        <div className="conversation-export-dialog__content">
-          <nav className="conversation-export-dialog__formats" aria-label={t("aiPanel.exportDialog.formatList")}>
-            {CONVERSATION_EXPORT_FORMATS.map((item) => {
-              const FormatIcon = FORMAT_ICONS[item.format];
-              const isActive = item.format === format;
-              return (
-                <button
-                  className={isActive
-                    ? "conversation-export-dialog__format conversation-export-dialog__format--active"
-                    : "conversation-export-dialog__format"}
-                  type="button"
-                  aria-pressed={isActive}
-                  disabled={isExporting}
-                  onClick={() => setFormat(item.format)}
-                  key={item.format}
-                >
-                  <FormatIcon size={19} weight="regular" aria-hidden="true" />
-                  <span>{formatLabel(item.format)}</span>
-                  <small>{item.extension}</small>
-                </button>
-              );
-            })}
-          </nav>
-
-          <section className="conversation-export-dialog__details">
-            <header className="conversation-export-dialog__details-header">
-              <span>{t("aiPanel.exportDialog.fileName")}</span>
-              <span className="conversation-export-dialog__filename">
-                <input
-                  type="text"
-                  value={baseName}
-                  maxLength={120}
-                  disabled={isExporting}
-                  onChange={(event) => setBaseName(event.target.value)}
-                />
-                <small>{selectedFormat.extension}</small>
-              </span>
-            </header>
-
-            <div className="conversation-export-dialog__settings">
-              <label className="conversation-export-dialog__setting conversation-export-dialog__setting--directory">
-                <span>{t("aiPanel.exportDialog.directory")}</span>
-                <span className="conversation-export-dialog__directory-control">
-                  <input
-                    type="text"
-                    value={directory}
-                    disabled={isExporting}
-                    onChange={(event) => setDirectory(event.target.value)}
-                  />
-                  <button
-                    className="conversation-export-dialog__icon-button"
-                    type="button"
-                    aria-label={t("aiPanel.exportDialog.chooseDirectory")}
-                    title={t("aiPanel.exportDialog.chooseDirectory")}
-                    disabled={isSelectingDirectory || isExporting}
-                    onClick={() => {
-                      void selectDirectory();
-                    }}
-                  >
-                    <FolderOpen size={16} weight="regular" aria-hidden="true" />
-                  </button>
-                </span>
-                {directoryError ? (
-                  <small className="conversation-export-dialog__field-error" role="status">
-                    {directoryError}
-                  </small>
-                ) : null}
-              </label>
-
-              <div
-                className="conversation-export-dialog__settings-tabs"
-                role="tablist"
-                aria-label={t("aiPanel.exportDialog.settingsTabs.aria")}
-              >
-                {(["length", "content"] as const).map((tab) => {
-                  const isActive = settingsTab === tab;
-                  return (
-                    <button
-                      className={isActive
-                        ? "conversation-export-dialog__settings-tab conversation-export-dialog__settings-tab--active"
-                        : "conversation-export-dialog__settings-tab"}
-                      id={`conversation-export-dialog-tab-${tab}`}
-                      type="button"
-                      role="tab"
-                      aria-controls={`conversation-export-dialog-panel-${tab}`}
-                      aria-selected={isActive}
-                      disabled={isExporting}
-                      onClick={() => setSettingsTab(tab)}
-                      key={tab}
-                    >
-                      {t(`aiPanel.exportDialog.settingsTabs.${tab}`)}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {settingsTab === "length" ? (
-                <div
-                  className="conversation-export-dialog__settings-panel"
-                  id="conversation-export-dialog-panel-length"
-                  role="tabpanel"
-                  aria-labelledby="conversation-export-dialog-tab-length"
-                >
-                  {request.scope === "conversation" ? (
-                    <RangeOption
-                      checked
-                      label={t("aiPanel.exportDialog.range.conversation")}
-                    />
-                  ) : (
-                    <div className="conversation-export-dialog__range-options">
-                      {MESSAGE_RANGE_OPTIONS.map((option) => (
-                        <RangeOption
-                          checked={range === option}
-                          label={t(`aiPanel.exportDialog.range.${rangeLabelKey(option)}`)}
-                          name="conversation-export-range"
-                          disabled={isExporting}
-                          onChange={() => setRange(option)}
-                          key={option}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div
-                  className="conversation-export-dialog__settings-panel"
-                  id="conversation-export-dialog-panel-content"
-                  role="tabpanel"
-                  aria-labelledby="conversation-export-dialog-tab-content"
-                >
-                  <div className="conversation-export-dialog__content-options">
-                    {contentOptions.map((option) => (
-                      <label
-                        className="conversation-export-dialog__content-option"
-                        title={t(`aiPanel.exportDialog.content.${option}.description`)}
-                        key={option}
-                      >
-                        <strong>{t(`aiPanel.exportDialog.content.${option}.label`)}</strong>
-                        <input
-                          type="checkbox"
-                          checked={contentSelection[option]}
-                          disabled={isExporting}
-                          onChange={() => toggleContentOption(option)}
-                        />
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-            </div>
-
-            <footer className="conversation-export-dialog__footer">
-              {exportError ? (
-                <span className="conversation-export-dialog__submit-error" role="alert">
-                  {exportError}
-                </span>
-              ) : null}
-              <button type="button" disabled={isExporting} onClick={onClose}>
-                {t("aiPanel.exportDialog.cancel")}
-              </button>
-              <button
-                type="button"
-                disabled={!canExport || isExporting}
-                onClick={() => { void exportConversation(false); }}
-              >
-                {isExporting
-                  ? t("aiPanel.exportDialog.exporting")
-                  : t("aiPanel.exportDialog.export")}
-              </button>
-              <button
-                className="conversation-export-dialog__primary"
-                type="button"
-                disabled={!canExport || isExporting}
-                onClick={() => { void exportConversation(true); }}
-              >
-                {isExporting
-                  ? t("aiPanel.exportDialog.exporting")
-                  : t("aiPanel.exportDialog.exportAndOpen")}
-              </button>
-            </footer>
-          </section>
-        </div>
+        {content}
       </section>
     </div>,
     document.body,

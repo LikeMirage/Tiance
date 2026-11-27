@@ -320,24 +320,25 @@ function mergeAssistantTurnUsage(messages: ChatMessage[]): ChatUsage | null {
   if (usages.length === 1) return usages[0];
 
   const merged: ChatUsage = {};
+  const currency = usages[0].cost_currency;
+  if (usages.every((usage) => usage.cost_amount != null && usage.cost_currency === currency)) {
+    merged.cost_amount = usages.reduce((sum, usage) => sum + (usage.cost_amount ?? 0), 0);
+    merged.cost_currency = currency;
+    merged.cost_at_current_rates = usages.some((usage) => usage.cost_at_current_rates);
+  }
   const durations = usages.map((usage) => usage.output_duration_seconds);
   if (durations.every((seconds): seconds is number => typeof seconds === "number" && seconds > 0)) {
     merged.output_duration_seconds = durations.reduce((sum, seconds) => sum + seconds, 0);
   }
   for (const field of CHAT_USAGE_FIELDS) {
     const values = usages
-      .map((usage) => usage[field])
+      .map((usage) => field === "total_tokens" && usage.total_tokens == null
+        && usage.prompt_tokens != null && usage.completion_tokens != null
+        ? usage.prompt_tokens + usage.completion_tokens : usage[field])
       .filter((value): value is number => typeof value === "number");
-    if (values.length > 0) {
+    if (values.length === usages.length) {
       merged[field] = values.reduce((total, value) => total + value, 0);
     }
-  }
-
-  if (
-    merged.total_tokens === undefined &&
-    (merged.prompt_tokens !== undefined || merged.completion_tokens !== undefined)
-  ) {
-    merged.total_tokens = (merged.prompt_tokens ?? 0) + (merged.completion_tokens ?? 0);
   }
 
   const estimatedFields = [...new Set(usages.flatMap((usage) => usage.estimated_fields ?? []))]

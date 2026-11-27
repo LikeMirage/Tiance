@@ -23,6 +23,7 @@ class GlobalMemoryEventResponse(BaseModel):
 
 class GlobalMemoryRecordResponse(BaseModel):
     id: str
+    estimated_tokens: int
     scope: Literal["global"]
     status: Literal["active", "deleted"]
     content: str
@@ -38,6 +39,7 @@ class GlobalMemoryRecordResponse(BaseModel):
 
 class GlobalMemoryRecordListResponse(BaseModel):
     scope: Literal["global"]
+    total_estimated_tokens: int
     status: Literal["active", "deleted", "all"]
     count: int
     total_count: int

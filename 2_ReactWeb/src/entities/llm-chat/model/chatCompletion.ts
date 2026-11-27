@@ -86,6 +86,9 @@ export type ChatUsage = {
   reasoning_tokens?: number | null;
   estimated_fields?: string[];
   output_duration_seconds?: number | null;
+  cost_amount?: number | null;
+  cost_currency?: string | null;
+  cost_at_current_rates?: boolean;
 };
 
 export type ChatToolCallEvent = {

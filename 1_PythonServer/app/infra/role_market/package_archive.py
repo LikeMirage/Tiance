@@ -108,7 +108,7 @@ class RolePackageArchive:
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
                 configuration = model.model_validate(payload)
-                if file_name == "response.json":
+                if file_name in {"response.json", "tools.json"}:
                     normalized = configuration.model_dump(mode="json")
                     if payload.keys() != normalized.keys():
                         path.write_text(

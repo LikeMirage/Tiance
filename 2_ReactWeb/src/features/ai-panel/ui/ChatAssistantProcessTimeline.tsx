@@ -261,6 +261,8 @@ function ProcessedProcessBlock({
     isStreamingMessage, allowAutomaticCollapse && !hasManualOpenChild,
   ).has("expanded");
   const isExpanded = !showHeader || (states.processed ?? (hasManualOpenChild || automaticExpanded));
+  const pendingGroups = useMemo(() => items.filter(item => item.type === "tool_group" &&
+    item.entries.some(entry => entry.type === "tool" && entry.tool.status === "waiting_permission")), [items]);
 
   return (
     <section className={showHeader ? "chat-msg__processed" : undefined}>
@@ -286,9 +288,9 @@ function ProcessedProcessBlock({
           </span>
         ) : null}
       </button> : null}
-      <SlidingContent expanded={isExpanded}>
+      <SlidingContent expanded={isExpanded || pendingGroups.length > 0}>
         <div className={showHeader && items.length ? "chat-msg__processed-list" : undefined}>
-          {items.map((item) =>
+          {(isExpanded || pendingGroups.length === 0 ? items : pendingGroups).map((item) =>
             renderAssistantProcessItem({
               clockTick,
               interactions,

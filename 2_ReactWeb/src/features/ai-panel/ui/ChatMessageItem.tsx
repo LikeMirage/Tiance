@@ -19,7 +19,7 @@ import {
   useState,
 } from "react";
 
-import type { ChatUsage } from "../../../entities/llm-chat/model/chatCompletion";
+import { ReplyUsage } from "./ReplyUsage";
 import { Tooltip } from "../../../shared/ui/tooltip";
 import { SlidingContent } from "../../../shared/ui/sliding-content/SlidingContent";
 import { ReferencedUserMessageView } from "./ReferencedUserMessageView";
@@ -42,7 +42,6 @@ import {
   type ReferencedUserMessage,
   type UserMessageReferenceDisplay,
 } from "../model/userMessageReferences";
-import { formatTokenCount } from "../model/usageSummary";
 import { formatChatMessageTimestamp } from "../model/chatMessageTimestamp";
 import { AssistantProcessTimeline } from "./ChatAssistantProcessTimeline";
 import {
@@ -102,24 +101,13 @@ export const ChatMessageItem = memo(function ChatMessageItem({
     message,
     clockTick,
   );
-  const hasAssistantBody = footerMessage && Boolean(resolveAssistantBodyContent(footerMessage).trim());
   const isMemoryCompactionStatus =
     message.role === "system" && message.name === "memory_compaction";
   const isNotice = isMemoryCompactionStatus || message.role === "error";
   const footer = (message.role === "assistant" || footerMessage) && (
     <SlidingContent expanded={Boolean(footerMessage) && !isStreamingMessage}
       className={isNotice ? "chat-msg chat-msg__footer" : "chat-msg__footer"}>
-      {footerMessage && (
-        <div className={hasAssistantBody ? "chat-msg__footer-content" : undefined}>
-          <AssistantActions interactions={interactions} message={footerMessage} />
-          {hasAssistantBody || footerMessage.usage ? (
-            <div className="chat-msg__usage" aria-hidden={!footerMessage.usage || undefined}
-              style={{ visibility: !footerMessage.usage ? "hidden" : undefined }}>
-              {footerMessage.usage ? formatChatUsage(footerMessage.usage) : "\u00a0"}
-            </div>
-          ) : null}
-        </div>
-      )}
+      {footerMessage && <AssistantActions interactions={interactions} message={footerMessage} />}
     </SlidingContent>
   );
 
@@ -555,6 +543,7 @@ function AssistantActions({
       >
         <DownloadSimple size={14} weight="regular" aria-hidden="true" />
       </button>
+      {message.usage && <ReplyUsage usage={message.usage} />}
     </div>
   ) : null;
 }
@@ -661,30 +650,4 @@ function CopyMessageButton({ label, text }: { label: string; text: string }) {
       )}
     </button>
   );
-}
-
-function formatChatUsage(usage: ChatUsage) {
-  const parts = [
-    `输入 ${formatTokenCount(usage.prompt_tokens)}`,
-    `输出 ${formatTokenCount(usage.completion_tokens)}`,
-  ];
-  if (
-    usage.prompt_cache_hit_tokens !== null &&
-    usage.prompt_cache_hit_tokens !== undefined
-  ) {
-    parts.push(`命中 ${formatTokenCount(usage.prompt_cache_hit_tokens)}`);
-  }
-  if (
-    usage.prompt_cache_miss_tokens !== null &&
-    usage.prompt_cache_miss_tokens !== undefined
-  ) {
-    parts.push(`未命中 ${formatTokenCount(usage.prompt_cache_miss_tokens)}`);
-  }
-  const seconds = usage.output_duration_seconds;
-  const tokens = usage.completion_tokens;
-  if (seconds != null && seconds > 0 && tokens != null && tokens > 0) {
-    const approximate = usage.estimated_fields?.includes("completion_tokens") ? "≈" : "";
-    parts.push(`输出速度 ${approximate}${(tokens / seconds).toFixed(1)} t/s`);
-  }
-  return parts.join(" · ");
 }

@@ -29,14 +29,26 @@ const renderAssistant = (assistant, isSessionStreaming = false) => renderToStati
   })),
 );
 
-test("回复速度按多轮输出总量和流式时长加权，缺少历史计时则省略", () => {
-  const first = message("step", "assistant", { usage: { completion_tokens: 80, output_duration_seconds: 2 } });
-  const last = message("answer", "assistant", { content: "完成", usage: { completion_tokens: 20, output_duration_seconds: 8 } });
+test("按钮行只展示总量，详情按本回复的各轮用量和时长汇总", () => {
+  const first = message("step", "assistant", { usage: { total_tokens: 120, prompt_tokens: 40, completion_tokens: 80,
+    output_duration_seconds: 2, cost_amount: 0.02, cost_currency: "CNY" } });
+  const last = message("answer", "assistant", { content: "完成", usage: { prompt_tokens: 30, completion_tokens: 20,
+    output_duration_seconds: 8, cost_amount: 0.03, cost_currency: "CNY", cost_at_current_rates: true } });
   const merged = buildChatDisplayMessages([first, last])[0];
-  assert.match(renderAssistant(merged), /输出速度 10\.0 t\/s/);
-  assert.doesNotMatch(renderAssistant(merged), /Tokens 100/);
+  const footer = renderAssistant(merged);
+  assert.match(footer, /导出回复[\s\S]*Tokens 170/);
+  assert.doesNotMatch(footer, /t\/s|¥/);
+  assert.equal(merged.usage.completion_tokens / merged.usage.output_duration_seconds, 10);
+  assert.equal(merged.usage.cost_amount, 0.05);
+  assert.equal(merged.usage.cost_at_current_rates, true);
   const legacy = { ...first, usage: { completion_tokens: 80 } };
-  assert.doesNotMatch(renderAssistant(buildChatDisplayMessages([legacy, last])[0]), / t\/s/);
+  const partial = buildChatDisplayMessages([legacy, last])[0].usage;
+  assert.equal(partial.cost_amount, undefined);
+  assert.equal(partial.output_duration_seconds, undefined);
+  const usd = { ...first, usage: { ...first.usage, cost_currency: "USD" } };
+  assert.equal(buildChatDisplayMessages([usd, last])[0].usage.cost_amount, undefined);
+  const free = message("free", "assistant", { usage: { cost_amount: 0, cost_currency: "CNY" } });
+  assert.equal(buildChatDisplayMessages([free, { ...free, id: "free2" }])[0].usage.cost_amount, 0);
 });
 
 test("工具轮次异常结束或暂停，没有最终正文也保留导出入口，不复制过程说明", () => {

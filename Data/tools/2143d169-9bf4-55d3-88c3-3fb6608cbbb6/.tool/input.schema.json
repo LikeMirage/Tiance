@@ -3,7 +3,7 @@
   "description": "使用内置 ripgrep 搜索工作区文件内容。默认遵守 ignore 文件，跳过隐藏文件、二进制文件、.git、node_modules、缓存和构建目录。",
   "properties": {
     "query": {
-      "permission_type": "filesystem_read",
+      "permission_type": "none",
       "description": "要搜索的文本或正则表达式。",
       "title": "查询",
       "type": "string"
@@ -39,12 +39,13 @@
     },
     "base_path": {
       "permission_type": "filesystem_read",
+      "default": ".",
       "description": "搜索起点目录，默认工作区根目录。",
       "title": "起点目录",
       "type": "string"
     },
     "include_globs": {
-      "permission_type": "filesystem_read",
+      "permission_type": "none",
       "description": "包含的路径模式数组，如 [\"**/*.py\"]。",
       "items": {
         "type": "string"
@@ -53,7 +54,7 @@
       "type": "array"
     },
     "exclude_globs": {
-      "permission_type": "filesystem_read",
+      "permission_type": "none",
       "description": "排除的路径模式数组。",
       "items": {
         "type": "string"
@@ -62,7 +63,7 @@
       "type": "array"
     },
     "exclude_dirs": {
-      "permission_type": "filesystem_read",
+      "permission_type": "none",
       "description": "额外排除目录名数组。",
       "items": {
         "type": "string"

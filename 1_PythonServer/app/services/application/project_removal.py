@@ -6,6 +6,7 @@ from app.core.shutdown_tasks import finish_thread, shutdown_tasks
 from app.domain.project import ProjectKind
 from app.infra.projects import get_project_storage
 from app.infra.projects.workspace_lifecycle import workspace_removal
+from app.infra.system_recycle_bin import RecycleItemInUseError
 from app.services.project.projects import get_project_service
 from app.services.project.conversation_run_manager import get_conversation_run_manager
 from app.services.project.conversation_background_tasks import get_conversation_background_task_registry
@@ -33,13 +34,16 @@ class ProjectRemovalApplicationService:
         # New requests cannot create data after the idle check.
         with workspace_removal(workspace) as state:
             if any(owner.has_project_activity(project.project_id) for owner in self._activity_owners):
-                raise ConflictError("该项目仍有会话或后台任务正在运行、收尾或等待保存，请完成后再清除天策数据。")
+                raise ConflictError("该项目仍有会话或后台任务正在运行、收尾或等待保存，请完成后再清除天策数据。",
+                                    details={"reason": "project_in_use"})
             shutdown_tasks.commit_started()
             await finish_thread(self._remove, project, state)
 
     def _remove(self, project, state) -> None:
         try:
             self._storage.recycle_project_data(project.root_path)
+        except RecycleItemInUseError as exc:
+            raise ConflictError(f"项目“{project.name}”的天策数据未清除。{exc}", details={"reason": "project_in_use"}) from exc
         except (OSError, ValueError) as exc:
             raise BadRequestError(f"天策数据未能移入系统回收站，项目登记已保留：{exc}") from exc
         state.removed = True

@@ -383,7 +383,7 @@
 }
 
 .llm-model-picker__embedded .llm-model-picker__body { flex: 1; }
-.llm-model-picker__embedded .llm-model-picker__search { height: 26px; font-size: .75rem; }
+.llm-model-picker__embedded .llm-model-picker__search { height: 22px; font-size: .75rem; }
 .llm-model-picker__embedded .llm-model-picker__body {
   grid-template-columns: minmax(0, 28%) minmax(0, 1fr);
 }
